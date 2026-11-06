@@ -1,0 +1,15 @@
+const r=screen("Setup wizard (same in every variant)",0,6000,{fill:"$canvas",layout:"vertical"});Update(r,{alignItems:"center",justifyContent:"center",gap:16});
+const c=fr(r,"Wizard card",{width:900,height:580,fill:"$bg",cornerRadius:14,stroke:"$border",strokeWidth:1,clip:true,effect:{type:"shadow",offset:{x:0,y:8},blur:24,color:"#0000001A"}});
+const s=fr(c,"Steps",{layout:"vertical",width:280,height:"fill_container",fill:"$sidebar",padding:28,gap:22,stroke:"$border",strokeWidth:{right:1}});
+const lg=fr(s,"Brand",{gap:10,alignItems:"center"});const L=fr(lg,"Logo",{width:28,height:28,cornerRadius:7,fill:"$primary",alignItems:"center",justifyContent:"center"});tx(L,"W",{fontWeight:"700",fill:"$primary-fg"});tx(lg,"Set up WebCraft",{fontWeight:"600",fontSize:15});
+const st=fr(s,"Step list",{layout:"vertical",gap:16,width:"fill_container"});
+[["Setup token","Verified from the server log","done"],["Superadmin account","Who runs this Install","now"],["Two-factor authentication","Passkey or authenticator app","next"],["Install email (SMTP)","Sends sign-in and system email","next"]].forEach(([t,d,k],i)=>{const row=fr(st,"Step "+t,{gap:12,width:"fill_container"});const n=fr(row,"Num",{width:24,height:24,cornerRadius:999,alignItems:"center",justifyContent:"center",...(k=="done"?{fill:"$success"}:k=="now"?{fill:"$primary"}:{stroke:"$border",strokeWidth:1})});if(k=="done")ic(n,"check",{width:14,height:14,fill:"#FFFFFF"});else tx(n,String(i+1),{fontSize:12,fontWeight:"600",fill:k=="now"?"$primary-fg":"$muted-fg"});const cc=fr(row,"Text",{layout:"vertical",gap:2,width:"fill_container"});tx(cc,t,{fontWeight:k=="now"?"600":"500",fill:k=="next"?"$muted-fg":"$fg"});tx(cc,d,{fontSize:12,fill:"$muted-fg"});});
+vsp(s);const lk=fr(s,"Lock note",{gap:8,width:"fill_container"});ic(lk,"lock",{width:14,height:14});tx(lk,"This wizard locks for good once setup is finished.",{fontSize:12,fill:"$muted-fg",textGrowth:"fixed-width",width:"fill_container"});
+const f=fr(c,"Form",{layout:"vertical",width:"fill_container",height:"fill_container",padding:36,gap:18});
+tx(f,"STEP 2 OF 4",{fontSize:11,fontWeight:"600",fill:"$muted-fg",letterSpacing:0.6});
+const hd=fr(f,"Heading",{layout:"vertical",gap:6,width:"fill_container"});tx(hd,"Create the Superadmin account",{fontSize:22,fontWeight:"600"});tx(hd,"This person administers the whole Install: every Workspace, all Staff and the Install settings.",{fill:"$muted-fg",textGrowth:"fixed-width",width:"fill_container",lineHeight:1.45});
+const two=fr(f,"Name row",{width:"fill_container",gap:12});field(two,"Full name","Davide Del Gatto");field(two,"Admin language","English",{trail:"chevron-down"});
+field(f,"Email","davide@northwind.studio");field(f,"Password","••••••••••••••",{trail:"eye",hint:"At least 12 characters. You'll add a passkey or authenticator app next."});
+vsp(f);const ft=fr(f,"Footer",{width:"fill_container",gap:8});btn(ft,"Back",{icon:"arrow-left",kind:"ghost"});sp(ft);btn(ft,"Continue",{kind:"primary"});
+tx(r,"Reached at https://admin.northwind.studio/setup?token=… on first start",{fontSize:12,fill:"$muted-fg"});
+Export([r],"png","/tmp/penproto/out2/setup");

@@ -4,17 +4,14 @@ Answers [How is the admin organised? (Pen design of navigation)](https://github.
 
 Open `admin-navigation.prototype.pen` in Pen, or look at `png/`.
 
-## Three ways to move between Install, Workspaces and Sites
+## Four navigation variants
 
-All three show the same screen (a Site's Blog posts list) so only the navigation differs.
+Each variant has the same eight screens in `png/<variant>/`: 1 Blog posts, 2 switching between Workspaces and Sites, 3 Workspace Sites, 4 Superadmin with the master-key backup banner, 5 Domains & Staging, 6 Publish all, 7 dark, 8 Superadmin dark. The setup wizard (`png/setup-wizard.png`) has no navigation, so there is one version.
 
-- **A: sidebar with a context switcher** (`01`, dark `04`, switcher open `05`). One sidebar whose items change with the level you're at. A switcher at the top jumps between the Install, Workspaces and Sites. Site items are split into Content and Structure (Staff only).
-- **B: Workspace rail + Site tree** (`02`). A narrow rail of Workspace icons on the far left, then a tree of the Workspace's Sites, each expanding into its own sections.
-- **C: top bar + tabs, no sidebar** (`03`). Workspace and Site are switchers in the top bar's breadcrumb; a Site's areas are tabs; Post Types are a list inside the Content tab.
-
-## Screens from the deploy decisions (drawn in variant A's frame)
-
-`06` Workspace Sites · `07`/`08` Superadmin area with the master-key backup banner (light/dark) · `09` Site Domains & Staging (Primary domain, Redirect domains, Waiting for DNS with per-platform DNS steps, Staging address and password) · `10` Publish all review list · `11` first-run setup wizard.
+- **A: sidebar with a context switcher.** One sidebar whose items change with the level; a switcher at its top jumps between the Install, Workspaces and Sites.
+- **B: Workspace rail + Site tree.** A rail of Workspace icons, then the Workspace's Sites as a tree; switching is a quick switcher (⌘K).
+- **C: top bar + tabs, no sidebar.** Workspace and Site are dropdowns in the top bar; each level's areas are tabs.
+- **D: mix of A and C.** A's sidebar and switcher for a Site's main areas (Content, Media, Forms, Translations, Build, Settings); C's tabs for what's inside each area.
 
 ## Rebuilding
 

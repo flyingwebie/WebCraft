@@ -1,0 +1,1 @@
+Get((n,c)=>{c.skipChildren();const m=n.name.match(/^([ABCD]) · .* · (\d) (.*)$/);if(m){Export([n.id],"png","/tmp/penproto/out3/"+m[1]+"/"+m[2]);}else if(n.name.startsWith("Setup")){Export([n.id],"png","/tmp/penproto/out3/setup/0");}});
