@@ -1,0 +1,23 @@
+const r=screen("Site settings · Domains & Staging",0,3000,{h:1240});sidebarA(r,SITE_A("Site settings"));
+const m=mainCol(r);topbarA(m,["Acme Ltd","Acme Bakery","Settings","Domains"]);
+const body=fr(m,"Settings body",{width:"fill_container",height:"fill_container"});
+const sub=fr(body,"Settings nav",{layout:"vertical",width:220,height:"fill_container",padding:[24,12],gap:2,stroke:"$border",strokeWidth:{right:1}});
+for(const [i,l] of [["settings","General"],["globe","Domains & Staging"],["languages","Languages"],["mail","Email (SMTP)"],["sparkles","AI translation"],["webhook","Webhooks"],["pencil-line","Edit mode & layout"],["triangle-alert","Danger zone"]])nav(sub,i,l,{active:l=="Domains & Staging"});
+const col=fr(body,"Content",{layout:"vertical",width:"fill_container",padding:[28,40],gap:20});
+const h=fr(col,"Heading",{layout:"vertical",gap:4,width:"fill_container"});tx(h,"Domains & Staging",{fontSize:22,fontWeight:"600"});tx(h,"Where this Site is served. Certificates are issued automatically once a domain's DNS points at this Install.",{fill:"$muted-fg"});
+const p=card(col,"Primary domain","Visitors and search engines see this address.");const pr=fr(p.b,"Primary row",{width:"fill_container",gap:10,alignItems:"center",padding:12,cornerRadius:8,fill:"$sidebar"});ic(pr,"globe");tx(pr,"acmebakery.ie",{fontWeight:"600"});badge(pr,"Active","success");tx(pr,"Certificate issued · renews 14 Jan",{fontSize:12,fill:"$muted-fg"});sp(pr);btn(pr,"Change");
+const rd=card(col,"Redirect domains","These send visitors to the Primary domain with a permanent redirect.");
+const r1=fr(rd.b,"Redirect www",{width:"fill_container",gap:10,alignItems:"center",padding:[8,12],cornerRadius:8,stroke:"$border",strokeWidth:1});tx(r1,"www.acmebakery.ie",{fontWeight:"500"});badge(r1,"Active","success");sp(r1);ic(r1,"ellipsis");
+const r2=fr(rd.b,"Redirect waiting",{layout:"vertical",width:"fill_container",cornerRadius:8,stroke:"$border",strokeWidth:1,clip:true});
+const r2h=fr(r2,"Head",{width:"fill_container",gap:10,alignItems:"center",padding:[8,12]});tx(r2h,"acmebakery.com",{fontWeight:"500"});badge(r2h,"Waiting for DNS","warn");tx(r2h,"Last checked 2 minutes ago · checked every 5 minutes",{fontSize:12,fill:"$muted-fg"});sp(r2h);btn(r2h,"Check now",{icon:"refresh-cw"});
+const ins=fr(r2,"DNS instructions",{layout:"vertical",width:"fill_container",padding:14,gap:12,fill:"$sidebar",stroke:"$border",strokeWidth:{top:1}});
+const pt=fr(ins,"Platform tabs",{padding:3,gap:2,cornerRadius:8,fill:"$muted"});["VPS (Caddy)","Coolify","Railway"].forEach((t,i)=>{const b=fr(pt,"Tab "+t,{padding:[4,10],cornerRadius:6,...(i==0?{fill:"$bg"}:{})});tx(b,t,{fontSize:12,fontWeight:"500",fill:i==0?"$fg":"$muted-fg"});});
+tx(ins,"At your domain registrar, add this record. Your certificate is issued automatically once it resolves.",{fill:"$muted-fg"});
+const rec=fr(ins,"Record",{layout:"vertical",width:"fill_container",cornerRadius:6,stroke:"$border",strokeWidth:1,fill:"$bg",clip:true});
+for(const [i,[a,b,c,d]] of [["Type","Name","Value","TTL"],["A","@","203.0.113.10","Auto"]].entries()){const rr=fr(rec,"Rec row",{width:"fill_container",padding:[8,12],gap:12,alignItems:"center",...(i?{stroke:"$border",strokeWidth:{top:1}}:{fill:"$muted"})});[[a,80],[b,80],[c,"fill_container"],[d,60]].forEach(([v,w])=>{const cl=fr(rr,"Cell",{width:w,gap:6,alignItems:"center"});tx(cl,v,{fontSize:12,fontWeight:i?"500":"500",fill:i?"$fg":"$muted-fg",...(i&&v.includes(".")?{fontFamily:"Geist Mono"}:{})});if(i&&v.includes("."))ic(cl,"copy",{width:12,height:12});});}
+const add=fr(rd.b,"Add redirect",{width:"fill_container",gap:8});input(add,"Add a redirect domain, e.g. acme-bakery.ie");btn(add,"Add domain");
+const sg=card(col,"Staging address","Shows Drafts and unpublished changes before you Publish all. Search engines never index it.");
+const sr=fr(sg.b,"Staging row",{width:"fill_container",gap:10,alignItems:"center",padding:12,cornerRadius:8,fill:"$sidebar"});ic(sr,"flask-conical");tx(sr,"acme-bakery.staging.northwind.studio",{fontWeight:"600",fontFamily:"Geist Mono",fontSize:12});sp(sr);btn(sr,null,{icon:"copy",kind:"ghost"});btn(sr,"Open",{icon:"external-link"});
+const pw=fr(sg.b,"Password row",{width:"fill_container",gap:12,alignItems:"center"});const pc=fr(pw,"Text",{layout:"vertical",gap:2,width:"fill_container"});tx(pc,"Require a password",{fontWeight:"500"});tx(pc,"Useful when the client reviews changes before launch.",{fontSize:12,fill:"$muted-fg"});toggle(pw,true);
+const pwi=fr(sg.b,"Password input",{width:"fill_container",gap:8});input(pwi,"••••••••••••",{value:1,trail:"eye"});btn(pwi,"Regenerate",{icon:"refresh-cw"});
+Export([r],"png","/tmp/penproto/out");

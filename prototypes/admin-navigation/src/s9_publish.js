@@ -1,0 +1,18 @@
+const r=screen("Publish all · review list",1540,3000);sidebarA(r,SITE_A("Blog posts"));const m=mainCol(r);topbarA(m,["Acme Ltd","Acme Bakery","Blog posts"]);entries(m);
+const ov=fr(r,"Overlay",{layoutPosition:"absolute",x:0,y:0,width:1440,height:900,fill:"$overlay",layout:"vertical",alignItems:"center",justifyContent:"center"});
+const d=fr(ov,"Publish all dialog",{layout:"vertical",width:680,fill:"$bg",cornerRadius:12,stroke:"$border",strokeWidth:1,clip:true,effect:{type:"shadow",offset:{x:0,y:20},blur:48,color:"#00000040"}});
+const h=fr(d,"Header",{width:"fill_container",padding:[20,24,12,24],gap:12});const hc=fr(h,"Titles",{layout:"vertical",gap:4,width:"fill_container"});tx(hc,"Publish all changes",{fontSize:17,fontWeight:"600"});tx(hc,"6 items differ between Staging and acmebakery.ie. Choose what goes live.",{fill:"$muted-fg"});ic(h,"x");
+const list=fr(d,"List",{layout:"vertical",width:"fill_container",padding:[0,24,8,24],gap:2});
+const grp=(n)=>{const g=fr(list,"Group "+n,{width:"fill_container",padding:[12,0,4,0],gap:8,alignItems:"center"});tx(g,n,{fontSize:11,fontWeight:"500",fill:"$muted-fg"});};
+const item=(on,icon,title,meta,b,k)=>{const it=fr(list,"Item "+title,{width:"fill_container",padding:[8,10],gap:12,alignItems:"center",cornerRadius:8,stroke:"$border",strokeWidth:1,...(on?{}:{opacity:0.8})});check(it,on);ic(it,icon);const c=fr(it,"Text",{layout:"vertical",gap:1,width:"fill_container"});tx(c,title,{fontWeight:"500"});tx(c,meta,{fontSize:12,fill:"$muted-fg"});badge(it,b,k);tx(it,"View",{fontSize:12,fontWeight:"500",fill:"$muted-fg",underline:true});};
+const top=fr(list,"Select all",{width:"fill_container",padding:[4,10],gap:12,alignItems:"center"});check(top,true);tx(top,"5 of 6 selected",{fontWeight:"500"});
+grp("CONTENT");
+item(true,"file-text","Home","Page · Giulia Romano · 2 hours ago","Changed","warn");
+item(true,"newspaper","Spring menu 2027","Blog post · English only · Mark O'Brien","Changed","warn");
+item(true,"newspaper","Gluten-free range: what's new","Blog post · Giulia Romano","New","info");
+item(false,"languages","Spring menu 2027 · Italian, German","Translation · waiting for review","In review","neutral");
+grp("STRUCTURE");
+item(true,"palette","Design system","2 colours and 1 Class changed · Davide Del Gatto","Changed","warn");
+item(true,"clipboard-list","Contact form","Form · new field “Allergies” · Davide Del Gatto","Changed","warn");
+const f=fr(d,"Footer",{width:"fill_container",padding:[14,24],gap:8,alignItems:"center",fill:"$sidebar",stroke:"$border",strokeWidth:{top:1}});ic(f,"info",{width:14,height:14});tx(f,"Publishing clears this Site's page cache.",{fontSize:12,fill:"$muted-fg"});sp(f);btn(f,"Cancel");btn(f,"Publish 5 items",{kind:"primary",icon:"upload"});
+Export([r],"png","/tmp/penproto/out");
