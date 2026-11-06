@@ -12,6 +12,13 @@ Screens in `png/<variant>/`: 1 Edit mode on (just arrived from the signed link),
 - **B: side panel.** A docked panel on the left lists the page's Fields as a form. Clicking on the page jumps to its Field; typing happens in the panel and the page updates live.
 - **C: floating dock.** No bars; a small dock floats at the bottom. Editing happens in place as in A; details and publishing open as floating sheets.
 
+## Chosen: A, plus two extra screens
+
+Variant A was picked, with autosave to the Draft and phone support. Two screens were added to A only:
+
+- `png/A/8-code-mode-staff.png`: **Code mode**, a third mode next to Edit and Preview for Staff and the Superadmin. Selecting an element opens three panels: HTML (the element's Template or Component), CSS (its Class, or the Site CSS) and JS (a page or Site script). Changes go to the Draft; a warning shows when a Component is used on several pages.
+- `png/A/9-phone.png`: A on a phone: a compact bar, the text toolbar above the keyboard, and a bottom sheet for Preview, language, Page details and Publish.
+
 ## Rebuilding
 
-`src/` holds the scripts that drew the file through the Pen CLI in headless mode: `node src/run.mjs <file.pen> src/v0.js src/vA.js src/vB.js src/vC.js`. Paths in them point at `/tmp/penproto-ie`.
+`src/` holds the scripts that drew the file through the Pen CLI in headless mode: `node src/run.mjs <file.pen> src/v0.js src/vA.js src/vB.js src/vC.js src/vA2.js`. Paths in them point at `/tmp/penproto-ie`.
