@@ -1,0 +1,3 @@
+const T={bg:["#FFFFFF","#09090B"],sidebar:["#FAFAFA","#0F0F12"],fg:["#09090B","#FAFAFA"],"muted-fg":["#71717A","#A1A1AA"],muted:["#F4F4F5","#1C1C20"],accent:["#EDEDEF","#26262B"],border:["#E4E4E7","#27272A"],primary:["#18181B","#FAFAFA"],"primary-fg":["#FAFAFA","#18181B"],success:["#15803D","#4ADE80"],"success-bg":["#DCFCE7","#0B2A17"],warn:["#B45309","#FBBF24"],"warn-bg":["#FEF3C7","#2E1F06"],info:["#1D4ED8","#93C5FD"],"info-bg":["#DBEAFE","#0E1E3D"],overlay:["#09090B73","#000000B3"],brand:["#4F46E5","#6366F1"],canvas:["#F4F4F5","#000000"]};
+const vars={};for(const k in T)vars[k]=V(T[k][0],T[k][1]);SetVariables(vars,true);
+Get((n,c)=>{c.skipChildren();Delete(n.id);});
