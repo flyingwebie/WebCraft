@@ -6,14 +6,14 @@ Open `import-screens.prototype.pen` in Pen, or look at `png/`. The example is Ac
 
 | # | Screen | Verdict |
 |---|---|---|
-| 01 | Import list: past Import runs and the three ways to start | pending |
-| 02 | Source step: live site login, test result, notes on secrets | pending |
-| 03 | Map A: one table of content types, the selected type's keys below | pending |
-| 04 | Map B: type list, key cards, a live sample Entry | pending |
-| 05 | Preview: real Entries with Fields, converted Body Blocks, Import leftovers and Redirect rule | pending |
-| 06 | Import run in progress: phases, live log, safe to leave | pending |
-| 07 | Import report: counts, tabs, Undo and re-run | pending |
-| 08 | CSV import as an Owner, from the Post Type's Entry list | pending |
+| 01 | Import list: past Import runs and the three ways to start | Approved |
+| 02 | Source step: live site login, test result, notes on secrets | Approved |
+| 03 | Map A: one table of content types, the selected type's keys below | Not chosen |
+| 04 | Map B: type list, key cards, a live sample Entry | **Chosen** |
+| 05 | Preview: real Entries with Fields, converted Body Blocks, Import leftovers and Redirect rule | Approved |
+| 06 | Import run in progress: phases, live log, safe to leave | Approved |
+| 07 | Import report: counts, tabs, Undo and re-run | Approved |
+| 08 | CSV import as an Owner, from the Post Type's Entry list | Approved |
 
 ## Rebuilding
 
