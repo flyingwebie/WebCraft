@@ -1,0 +1,39 @@
+const X=6160,Y=2000;
+const WSB=act=>({av:"AC",avFill:"#D97706",title:"Acme Ltd",subtitle:"Workspace · 3 Sites",sections:WS_SECTIONS,footer:[["settings","Workspace settings"]],active:act});
+const SUBNAV=[["settings","General"],["globe","Domains & Staging"],["languages","Languages"],["mail","Email (SMTP)"],["sparkles","AI translation"],["webhook","Webhooks"],["pencil-line","Edit mode & layout"],["triangle-alert","Danger zone"]];
+function settingsLayout(r,active){sidebarA(r,SITE_A("Site settings"));const m=mainCol(r);topbarA(m,["Acme Ltd","Acme Bakery","Settings",active]);const body=fr(m,"Settings body",{width:"fill_container",height:"fill_container"});const sub=fr(body,"Settings nav",{layout:"vertical",width:220,height:"fill_container",padding:[24,12],gap:2,stroke:"$border",strokeWidth:{right:1}});for(const [i,l] of SUBNAV)nav(sub,i,l,{active:l==active});return fr(body,"Content",{layout:"vertical",width:"fill_container",padding:[28,40],gap:20});}
+function wsLayout(r,active,crumb){sidebarA(r,WSB(active));const m=mainCol(r);topbarA(m,["Acme Ltd",crumb||active],{site:false});return m;}
+function heading(col,title,desc,right){const h=fr(col,"Heading",{width:"fill_container",gap:16,alignItems:"end"});const l=fr(h,"Titles",{layout:"vertical",gap:4,width:"fill_container"});tx(l,title,{fontSize:22,fontWeight:"600"});tx(l,desc,{fill:"$muted-fg",textGrowth:"fixed-width",width:"fill_container",lineHeight:1.45});if(right)right(h);return h;}
+function muted(p,t,o={}){return tx(p,t,{fontSize:12,fill:"$muted-fg",...o});}
+function wrapTx(p,t,o={}){return tx(p,t,{textGrowth:"fixed-width",width:"fill_container",lineHeight:1.45,...o});}
+function row(p,name,o={}){return fr(p,name,{width:"fill_container",gap:12,alignItems:"center",...o});}
+function select(p,val,o={}){return input(p,val,{value:1,trail:"chevron-down",...o});}
+function radioOpt(p,title,desc,on,o={}){const c=fr(p,"Option "+title,{width:o.width||"fill_container",gap:12,padding:14,cornerRadius:10,stroke:on?"$primary":"$border",strokeWidth:on?2:1,fill:on?"$sidebar":"$bg"});const dot=fr(c,"Radio",{width:16,height:16,cornerRadius:999,stroke:on?"$primary":"$border",strokeWidth:on?5:1,fill:"$bg"});const t=fr(c,"Text",{layout:"vertical",gap:3,width:"fill_container"});const tr=fr(t,"Title row",{gap:8,alignItems:"center"});tx(tr,title,{fontWeight:"600"});if(o.badge)badge(tr,o.badge[0],o.badge[1]);if(desc)wrapTx(t,desc,{fontSize:12,fill:"$muted-fg"});return c;}
+function banner(p,kind,icon,title,desc,act){const m={warn:["$warn-bg","$warn"],info:["$info-bg","$info"],success:["$success-bg","$success"],danger:["$danger-bg","$danger"]}[kind];const b=fr(p,"Banner "+title,{width:"fill_container",gap:12,padding:[12,16],cornerRadius:10,fill:m[0],alignItems:"center"});ic(b,icon,{fill:m[1],width:18,height:18});const t=fr(b,"Text",{layout:"vertical",gap:2,width:"fill_container"});tx(t,title,{fontWeight:"600",fill:m[1]});if(desc)wrapTx(t,desc,{fontSize:12,fill:m[1]});if(act)btn(b,act);return b;}
+function table(p,cols,rows,o={}){const t=fr(p,"Table",{layout:"vertical",width:"fill_container",cornerRadius:12,stroke:"$border",strokeWidth:1,clip:true,fill:"$bg"});const h=fr(t,"Head",{width:"fill_container",padding:[0,16],height:40,gap:12,alignItems:"center",fill:"$muted"});for(const [l,w] of cols){const c=fr(h,"Col "+l,{width:w});muted(c,l,{fontWeight:"500"});}for(const r of rows){const rr=fr(t,"Row",{width:"fill_container",padding:[0,16],height:o.rh||52,gap:12,alignItems:"center",stroke:"$border",strokeWidth:{top:1}});r.forEach((cell,i)=>{const c=fr(rr,"Cell",{width:cols[i][1],gap:8,alignItems:"center"});if(typeof cell=="function")cell(c);else tx(c,cell);});}return t;}
+function bar(p,frac,w,kind){const b=fr(p,"Bar",{width:w,height:8,cornerRadius:999,fill:"$muted"});fr(b,"Fill",{width:Math.round(w*frac),height:8,cornerRadius:999,fill:kind=="warn"?"$warn":"$primary"});return b;}
+function stat(p,label,val,sub){const s=fr(p,"Stat "+label,{layout:"vertical",gap:4,width:"fill_container",padding:16,cornerRadius:10,stroke:"$border",strokeWidth:1});muted(s,label);tx(s,val,{fontSize:20,fontWeight:"600"});if(sub)muted(s,sub);return s;}
+const r=screen("Screens · 12 Site settings · AI translation",X,Y,{h:1260});
+const col=settingsLayout(r,"AI translation");
+heading(col,"AI translation","How this Site's languages are translated by AI. Values a person wrote are never overwritten.",h=>btn(h,"Translate now",{icon:"sparkles"}));
+const k=card(col,"AI key","This Site uses the Workspace's AI key. The Workspace's own key is used first; a shared Install key only when there is none.");
+const kr=row(k.b,"Key in use",{padding:12,cornerRadius:8,fill:"$sidebar",gap:10});ic(kr,"key-round",{width:16,height:16,fill:"$fg"});const kc=fr(kr,"Key text",{layout:"vertical",gap:2,width:"fill_container"});const kt=row(kc,"T",{gap:8});tx(kt,"Acme Ltd's own key",{fontWeight:"600"});badge(kt,"In use","success");muted(kc,"Anthropic · sk-ant-…4f2a · set by Sarah Murphy (Owner)");btn(kr,"Manage AI keys",{icon:"external-link"});
+const fb=row(k.b,"Fallback",{gap:10,padding:[0,12]});ic(fb,"corner-down-right",{width:14,height:14});muted(fb,"Fallback: Northwind shared key (OpenRouter) · used only if Acme Ltd's key is removed",{fontSize:13});
+const mr=row(k.b,"Model row",{gap:12,alignItems:"start"});
+const md=fr(mr,"Field Model",{layout:"vertical",gap:6,width:"fill_container"});tx(md,"Translation model for this Site",{fontWeight:"500"});select(md,"Use the key's default · fast, low cost");muted(md,"Pick a stronger model for Sites with legal or technical text.");
+const pt=card(col,"Protected terms","Words that are always left exactly as written: brand names, product names, places.");
+const ptr=row(pt.b,"Terms",{gap:6});for(const t of ["Acme Bakery","Acme Ltd","Sourdough Club","Rathmines"])badge(ptr,t,"outline");badge(ptr,"+14 more","neutral");
+const ptl=row(pt.b,"Links",{gap:8});btn(ptl,"Site terms (4)",{icon:"shield-check"});btn(ptl,"Workspace terms (14)",{icon:"external-link",kind:"ghost"});fr(ptl,"Spacer",{width:"fill_container",height:1});muted(ptl,"Editors and Owners can change these too.");
+const lm=card(col,"Translation mode per language","English is the Default language. Each other language has its own mode.");
+const mode=(on)=>c=>{const s=fr(c,"Segmented",{padding:3,gap:2,cornerRadius:8,fill:"$muted"});["Automatic","Review","Manual"].forEach(t=>{const b=fr(s,"Seg "+t,{padding:[4,10],cornerRadius:6,...(t==on?{fill:"$bg"}:{})});tx(b,t,{fontSize:12,fontWeight:"500",fill:t==on?"$fg":"$muted-fg"});});};
+const lang=(code,name)=>c=>{badge(c,code,"outline");tx(c,name,{fontWeight:"500"});};
+table(lm.b,[["Language","fill_container"],["Mode",260],["Status",220]],[
+ [lang("IT","Italian"),mode("Review"),c=>{badge(c,"2 to review","warn");muted(c,"1 outdated");}],
+ [lang("DE","German"),mode("Automatic"),c=>{badge(c,"Up to date","success");}],
+ [lang("FR","French"),mode("Manual"),c=>muted(c,"No AI · 6 Entries missing")]]);
+const md2=fr(lm.b,"Mode help",{layout:"vertical",gap:4,width:"fill_container",padding:12,cornerRadius:8,fill:"$sidebar"});
+for(const [a,b] of [["Automatic","Changed Fields are translated and published together with the English publish."],["Review","The AI translates into the Draft; a person checks and publishes it."],["Manual","No AI. People write every translation."]]){const x=row(md2,"Help "+a,{gap:8,alignItems:"start"});tx(x,a,{fontSize:12,fontWeight:"600",width:80});wrapTx(x,b,{fontSize:12,fill:"$muted-fg"});}
+const us=card(col,"Usage this month","Recorded for every call. Caps are set on the key in AI keys.");
+const sr=row(us.b,"Stats",{gap:12});stat(sr,"Tokens","412k","in 38 calls");stat(sr,"Estimated cost","$0.21","this Site, November");stat(sr,"Cache hits","64%","unchanged text skipped");
+const cap=row(us.b,"Cap",{gap:10});muted(cap,"Acme Ltd key cap",{fontSize:13});bar(cap,0.82,320,"warn");muted(cap,"$8.20 of $10.00 across all Sites · 82%",{fontSize:13});
+Export([r],"png","/tmp/penproto/final/12-settings-ai");
