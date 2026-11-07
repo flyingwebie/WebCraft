@@ -1,0 +1,15 @@
+dedupe("S1 · Staff · which Components Members may use");
+const r=screen("S1 · Staff · which Components Members may use",1540*3,1100,{h:900});sidebarA(r,SITE_A("Components"));const m=mainCol(r);topbarA(m,["Acme Ltd","Acme Bakery","Components"]);
+header(m,"Components","Reusable parts built by Northwind Studio. Members can only place the ones switched on below.","New component");
+const body=fr(m,"Body",{layout:"vertical",width:"fill_container",padding:[0,32,24,32],gap:16});
+const pl=fr(body,"Page layout card",{width:"fill_container",padding:[14,16],gap:14,alignItems:"center",cornerRadius:10,stroke:"$border",strokeWidth:1});
+const pi=fr(pl,"I",{width:36,height:36,cornerRadius:8,fill:BR+"14",alignItems:"center",justifyContent:"center"});ic(pi,"layers",{fill:BR});
+const pt=fr(pl,"T",{layout:"vertical",gap:2,width:"fill_container"});tx(pt,"Members can arrange Page layouts",{fontWeight:"600",fontSize:14});tx(pt,"Owners, Editors and Authors can add, move, duplicate and remove the Components switched on below, on every Page of this Site. Authors' changes wait for Review.",{fill:"$muted-fg",textGrowth:"fixed-width",width:"fill_container",lineHeight:1.45});toggle(pl,true);
+const tb=fr(body,"Table",{layout:"vertical",width:"fill_container",cornerRadius:10,stroke:"$border",strokeWidth:1,clip:true});
+const th=fr(tb,"Head",{width:"fill_container",padding:[10,16],gap:16,fill:"$muted",alignItems:"center"});tx(th,"Component",{fontSize:12,fontWeight:"500",fill:"$muted-fg",width:"fill_container",textGrowth:"fixed-width"});for(const [l,w] of [["Props",200],["Used on",120],["Members can add",130]])tx(th,l,{fontSize:12,fontWeight:"500",fill:"$muted-fg",width:w,textGrowth:"fixed-width"});
+const PROPS={"Hero split":"6 Props","Image and text":"5 Props","Customer quote":"5 Props","Product grid":"Own items · 2 Props","Questions":"Own items","Gallery":"Up to 12 images","How it works":"Own items","Call to action":"3 Props","Visit us":"Uses Site options","Logos":"Own items"};
+const OFF=["Visit us","Logos"];const USED={"Hero split":"6 Pages","Customer quote":"3 Pages","Product grid":"2 Pages","Call to action":"9 Pages","Visit us":"1 Page"};
+for(const [k,n,d] of LIB){const rw=fr(tb,"Row "+n,{width:"fill_container",padding:[8,16],gap:16,alignItems:"center",stroke:"$border",strokeWidth:{top:1}});const c=fr(rw,"C",{width:"fill_container",gap:12,alignItems:"center"});thumb(c,k,64,38,{r:4});const t=fr(c,"T",{layout:"vertical",gap:1});tx(t,n,{fontWeight:"600"});tx(t,d,{fontSize:12,fill:"$muted-fg"});
+ tx(rw,PROPS[n],{width:200,textGrowth:"fixed-width",fill:"$muted-fg"});tx(rw,USED[n]||"—",{width:120,textGrowth:"fixed-width",fill:"$muted-fg"});const sw=fr(rw,"Sw",{width:130});toggle(sw,!OFF.includes(n));}
+note=lockNote(body,"Switching a Component off stops new placements only; copies already on Pages stay. To keep one placement fixed (for example the Hero on Home), lock it in the Page's layout in the visual builder: Members then can't move or remove it, only edit its text.",{icon:"info"});
+Export([r],"png",OUT+"S1");

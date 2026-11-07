@@ -1,0 +1,12 @@
+const {r,vp}=chrome(0,1,"B1 · Layout drawer · drag to reorder",{count:2,layoutBtn:"on"});
+const DW=380;layoutPage(vp,SW-DW,{quote:"hint",hero:"hint",bakes:"hint"},{x:DW,order:["hero","bakes","quote","blog","cta"],slotBefore:["bakes","dropline","Customer quote moves here"]});
+const {b}=drawer(vp,DW,"Page layout","Home · 5 Components · drag or use the menu");
+layRow(b,"header","Header","From the Page template",{locked:true});
+layRow(b,...ROWS_B[0]);dropLine(b,"Drop here");
+const lift=layRow(b,...ROWS_B[2],{lift:true});
+layRow(b,...ROWS_B[1]);layRow(b,...ROWS_B[3],{peer:true});layRow(b,...ROWS_B[4]);
+layRow(b,"footer","Footer","From the Page template",{locked:true});
+const add=fr(b,"Add",{width:"fill_container",padding:[6,0]});btn(add,"Add component",{icon:"plus",kind:"primary"});
+vsp(b);lockNote(b,"Keyboard: focus a row, press Space to pick it up, ↑ ↓ to move, Space to drop. Esc puts it back.",{icon:"keyboard"});
+lockNote(b,"Header and footer belong to the Page template. Only Northwind Studio can change them.");
+Export([r],"png",OUT+"B1");

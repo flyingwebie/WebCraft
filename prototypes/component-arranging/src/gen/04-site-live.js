@@ -1,0 +1,14 @@
+const W=1440;const r=Insert(document,{type:"frame",name:"Filters · 04 On the Site · Live mode (sidebar)",x:1700,y:0,width:W,height:1000,fill:"$canvas",layout:"vertical",padding:24,gap:16,clip:true});
+const br=browser(r,"acmebakery.ie/shop?category=bread,pastries&vegan=1&price=2-10&sort=price-asc",{h:740});
+const pin=fr(br,"Page",{layout:"vertical",width:"fill_container",height:"fill_container",clip:true});siteNav(pin,{});
+const pc=fr(pin,"Shop body",{width:"fill_container",padding:[32,40],gap:40});
+const left=fr(pc,"Left",{layout:"vertical",width:260,gap:20});stx(left,"Shop",{fontSize:34,fontWeight:"800"});sidebarFilter(left,{w:260});
+const res=fr(pc,"Results",{layout:"vertical",width:"fill_container",gap:20,padding:[64,0,0,0]});resultsHead(res,"14 products");
+const g=grid(res,3,PRODUCTS.slice(0,6),{ih:128,gap:20});
+const lr=fr(res,"Live region",{padding:[4,8],cornerRadius:6,fill:"#EEF2FF",gap:6,alignItems:"center"});ic(lr,"volume-2",{width:12,height:12,fill:"#3730A3"});tx(lr,"Screen readers hear: \"14 products\"",{fontSize:12,fill:"#3730A3"});
+const cs=fr(r,"Callouts",{width:"fill_container",gap:12});
+callout(cs,1,"No reload","Each click fetches the same URL and swaps in the server-rendered Loop, counts and pagination. Search and price wait for a short pause.");
+callout(cs,2,"Shareable address","The address bar updates, so Back and shared links work. Keys are the same in every language; values are slugs.");
+callout(cs,3,"Counts stay honest","Bread and Pastries keep their counts while ticked. Gluten-free has none left and is disabled.");
+callout(cs,4,"Not indexed","Filtered states are noindex, follow with a canonical to /shop. Without JavaScript the form submits and the page reloads.");
+Export([r],"png","/tmp/penproto/filter/png/04-site-live");
