@@ -18,7 +18,9 @@ Variant A was picked, with autosave to the Draft and phone support. Two screens 
 
 - `png/A/8-code-mode-staff.png`: **Code mode**, a third mode next to Edit and Preview for Staff and the Superadmin. Selecting an element opens three panels: HTML (the element's Template or Component), CSS (its Class, or the Site CSS) and JS (a page or Site script). Changes go to the Draft; a warning shows when a Component is used on several pages.
 - `png/A/9-phone.png`: A on a phone: a compact bar, the text toolbar above the keyboard, and a bottom sheet for Preview, language, Page details and Publish.
+- `png/A/10-code-mode-html-suggestions.png`: suggestions in the HTML panel for the Entry's Fields, Site options (Globals), Loops and Components.
+- `png/A/11-code-mode-css-suggestions.png`: icon buttons for common layout properties above the CSS (display, direction, justify, align, wrap), suggestions for the Site's design-token variables, and Class suggestions in the HTML panel.
 
 ## Rebuilding
 
-`src/` holds the scripts that drew the file through the Pen CLI in headless mode: `node src/run.mjs <file.pen> src/v0.js src/vA.js src/vB.js src/vC.js src/vA2.js`. Paths in them point at `/tmp/penproto-ie`.
+`src/` holds the scripts that drew the file through the Pen CLI in headless mode: `node src/run.mjs <file.pen> src/v0.js src/vA.js src/vB.js src/vC.js src/vA2.js src/vA3.js`. Paths in them point at `/tmp/penproto-ie`.
