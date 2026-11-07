@@ -1,0 +1,13 @@
+const {r,m}=shellI("Import · 01 Imports list",0,"Import",["Import"]);
+header(m,"Import","Bring content in from a WordPress site or a CSV file. Everything arrives as Drafts, ready to check on Staging.","New import");
+const body=fr(m,"Body",{layout:"vertical",width:"fill_container",padding:[0,32,24,32],gap:16});
+const W=["fill_container",150,170,260,120];
+tbl(body,W,["Import","Source","Last run","Result","",],[
+ [c=>{typeIc(c,"globe");const t=fr(c,"t",{layout:"vertical",gap:1});tx(t,"Old bakery site",{fontWeight:"500"});small(t,"oldsite.acmebakery.ie");},c=>badge(c,"WordPress · live site","outline"),c=>{const t=fr(c,"t",{layout:"vertical",gap:1});tx(t,"Today, 10:42");small(t,"Run 2 of 2 · by Davide");},c=>{badge(c,"Done","success");small(c,"3 updated · 4 new · 2 skipped");},c=>{btn(c,"Report",{kind:"ghost"});btn(c,null,{icon:"ellipsis",kind:"ghost"});}],
+ [c=>{typeIc(c,"file-code");const t=fr(c,"t",{layout:"vertical",gap:1});tx(t,"Recipes archive",{fontWeight:"500"});small(t,"recipes-export.xml · 38 MB");},c=>badge(c,"WordPress · export file","outline"),c=>{const t=fr(c,"t",{layout:"vertical",gap:1});tx(t,"Running…");small(t,"Started 4 min ago");},c=>{bar(c,0.62,{w:120,px:120});small(c,"62%");},c=>btn(c,"Open",{kind:"ghost"})],
+ [c=>{typeIc(c,"sheet");const t=fr(c,"t",{layout:"vertical",gap:1});tx(t,"Spring products",{fontWeight:"500"});small(t,"products-spring.csv → Products");},c=>badge(c,"CSV","outline"),c=>{const t=fr(c,"t",{layout:"vertical",gap:1});tx(t,"3 Nov");small(t,"by Giulia Romano (Owner)");},c=>{badge(c,"Undone","neutral");small(c,"48 Drafts removed");},c=>btn(c,"Report",{kind:"ghost"})],
+],{rh:58});
+const row=fr(body,"Start cards",{width:"fill_container",gap:16});
+for(const [i,t,d,tag] of [["file-code","WordPress export file","Upload the .xml export (up to 1 GB). Media is fetched from the URLs inside it.","Staff only"],["globe","WordPress live site","Connect over the REST API with a username and an application password.","Staff only"],["sheet","CSV file","Load rows into one Post Type, one column per Field. Owners and Editors can use it too.",""]]){const c=fr(row,"Start "+t,{layout:"vertical",gap:8,width:"fill_container",padding:18,cornerRadius:12,stroke:"$border",strokeWidth:1,fill:"$bg"});const h=fr(c,"h",{gap:10,alignItems:"center",width:"fill_container"});typeIc(h,i);tx(h,t,{fontWeight:"600",fontSize:14});sp(h);if(tag)badge(h,tag,"outline");tx(c,d,{fontSize:12,fill:"$muted-fg",textGrowth:"fixed-width",width:"fill_container",lineHeight:1.45});}
+note(body,"Import reports are kept for 90 days. Live-site login details are removed with the Import, or 30 days after its last run.",{icon:"info"});
+Export([r],"png","/tmp/penproto/import/png/01-imports");

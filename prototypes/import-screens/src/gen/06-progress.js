@@ -1,0 +1,16 @@
+const {r,m}=shellI("Import · 06 Import run in progress",5,"Import",["Import","Old bakery site"]);
+wizHead(m,"Old bakery site","Run 1 · started 10:31 by Davide","Run",{btns:[["Stop run",{icon:"square"}]]});
+const body=fr(m,"Body",{width:"fill_container",height:"fill_container",padding:[24,32],gap:24,fill:"$sidebar"});
+const L=fr(body,"Main",{layout:"vertical",width:"fill_container",gap:16});
+const top=fr(L,"Overall",{layout:"vertical",width:"fill_container",padding:20,gap:10,cornerRadius:12,fill:"$bg",stroke:"$border",strokeWidth:1});
+const th=fr(top,"h",{width:"fill_container",alignItems:"center",gap:8});ic(th,"loader",{fill:"$primary"});tx(th,"Importing…",{fontSize:16,fontWeight:"600"});sp(th);tx(th,"58%",{fontSize:16,fontWeight:"600"});
+bar(top,0.58,{h:8,px:900});small(top,"About 6 minutes left. You can leave this page: the run continues in the background and you'll get a notification when it's done.",{textGrowth:"fixed-width",width:"fill_container"});
+const ph=fr(L,"Phases",{layout:"vertical",width:"fill_container",cornerRadius:12,fill:"$bg",stroke:"$border",strokeWidth:1,clip:true});
+for(const [i,t,d,f,st] of [["search","Reading the source","8 content types, 1,176 items",1,"done"],["database","Creating Post Type","Recipes",1,"done"],["file-plus","Entries","152 of 261 · Products done, Blog posts 88 of 142",0.58,"run"],["image","Media","301 of 812 fetched · 4 refused",0.37,"run"],["corner-down-right","Redirect rules","Waiting for Entries",0,"wait"],["file-check","Import report","",0,"wait"]]){const rr=fr(ph,"P "+t,{width:"fill_container",padding:[14,18],gap:14,alignItems:"center",stroke:"$border",strokeWidth:{top:1},...(st=="wait"?{opacity:0.5}:{})});const d0=fr(rr,"ic",{width:28,height:28,cornerRadius:999,alignItems:"center",justifyContent:"center",fill:st=="done"?"$success-bg":st=="run"?"$warn-bg":"$muted"});ic(d0,st=="done"?"check":i,{width:14,height:14,fill:st=="done"?"$success":st=="run"?"$warn":"$muted-fg"});const tt=fr(rr,"t",{layout:"vertical",gap:2,width:260});tx(tt,t,{fontWeight:"500"});small(tt,d);const bw=fr(rr,"bw",{width:"fill_container"});if(st!="wait")bar(bw,f,{px:520,fill:st=="done"?"$success":"$primary"});}
+const R=fr(body,"Activity",{layout:"vertical",width:400,gap:10});
+tx(R,"LATEST",{fontSize:11,fontWeight:"500",fill:"$muted-fg",letterSpacing:0.3});
+const lg=fr(R,"Log",{layout:"vertical",width:"fill_container",padding:14,gap:8,cornerRadius:12,fill:"$bg",stroke:"$border",strokeWidth:1});
+for(const [i,t,c] of [["file-plus","Blog post “Spring menu 2024” created","$fg"],["image","spring-menu-hero.jpg fetched (412 KB)","$fg"],["triangle-alert","1 Import leftover in “Easter hours”","$warn"],["ban","http://192.168.1.20/old-logo.png refused: private address","$danger"],["file-plus","Blog post “Easter hours” created","$fg"],["image","hot-cross-buns.jpg fetched (288 KB)","$fg"]]){const rr=fr(lg,"L",{width:"fill_container",gap:8,alignItems:"start"});ic(rr,i,{width:13,height:13,fill:c});tx(rr,t,{fontSize:12,fill:c,textGrowth:"fixed-width",width:"fill_container"});}
+note(R,"Everything lands as Drafts. Media goes live at once, like all Media.",{icon:"info"});
+note(R,"Stopping keeps what was imported so far. You can undo the whole run from its report.",{icon:"undo-2"});
+Export([r],"png","/tmp/penproto/import/png/06-progress");

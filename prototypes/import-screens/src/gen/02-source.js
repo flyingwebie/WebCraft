@@ -1,0 +1,22 @@
+const {r,m}=shellI("Import · 02 Source: live site",1,"Import",["Import","New import"]);
+wizHead(m,"New import","Choose where the content comes from","Source",{btns:[["Cancel",{kind:"ghost"}],["Continue to mapping",{kind:"primary",icon:"arrow-right"}]]});
+const body=fr(m,"Body",{width:"fill_container",height:"fill_container",padding:[24,32],gap:28,fill:"$sidebar"});
+const left=fr(body,"Sources",{layout:"vertical",width:300,gap:10});
+tx(left,"SOURCE",{fontSize:11,fontWeight:"500",fill:"$muted-fg",letterSpacing:0.3});
+for(const [i,t,d,s] of [["file-code","WordPress export file","Upload the .xml file",0],["globe","WordPress live site","Connect with a login",1],["sheet","CSV file","One Post Type",0]]){const c=fr(left,"Src "+t,{gap:10,width:"fill_container",padding:14,cornerRadius:10,alignItems:"center",fill:"$bg",...(s?{stroke:"$primary",strokeWidth:2}:{stroke:"$border",strokeWidth:1})});typeIc(c,i);const tt=fr(c,"t",{layout:"vertical",gap:1,width:"fill_container"});tx(tt,t,{fontWeight:"500"});small(tt,d);const rd=fr(c,"Radio",{width:16,height:16,cornerRadius:999,alignItems:"center",justifyContent:"center",...(s?{stroke:"$primary",strokeWidth:5}:{stroke:"$border",strokeWidth:1})});}
+const main=fr(body,"Form col",{layout:"vertical",width:"fill_container",gap:16});
+const {b}=card(main,"Connect to the live site","WebCraft reads posts, pages, custom post types, taxonomies and Media through the site's REST API.");
+field(b,"Import name","Old bakery site",{hint:"Shown in the list and the report"});
+field(b,"Site address","https://oldsite.acmebakery.ie");
+const two=fr(b,"two",{width:"fill_container",gap:12});field(two,"Username","davide");
+const pw=fr(two,"pw",{layout:"vertical",gap:6,width:"fill_container"});tx(pw,"Application password",{fontWeight:"500"});input(pw,"••••  ••••  ••••  ••••",{value:1,icon:"key-round"});small(pw,"From the WordPress profile screen");
+const tg=fr(b,"Drafts",{width:"fill_container",gap:10,alignItems:"center",padding:[6,0]});toggle(tg,false);const tt=fr(tg,"t",{layout:"vertical",gap:1,width:"fill_container"});tx(tt,"Include drafts and private posts",{fontWeight:"500"});small(tt,"Off: only published content comes in");
+const ok=fr(b,"Connected",{width:"fill_container",padding:12,gap:10,cornerRadius:8,fill:"$success-bg",alignItems:"start"});ic(ok,"circle-check",{width:16,height:16,fill:"$success"});const okt=fr(ok,"t",{layout:"vertical",gap:3,width:"fill_container"});tx(okt,"Connected as davide (Administrator)",{fontWeight:"600",fill:"$success"});tx(okt,"Found 142 posts · 18 pages · 64 products · 37 recipes · 12 categories · 86 tags · 812 Media files",{fontSize:12,fill:"$success",textGrowth:"fixed-width",width:"fill_container",lineHeight:1.4});
+const ft=fr(b,"Btns",{width:"fill_container",gap:8});btn(ft,"Test again",{icon:"refresh-cw"});
+const side=fr(body,"Side notes",{layout:"vertical",width:320,gap:10});
+tx(side,"GOOD TO KNOW",{fontSize:11,fontWeight:"500",fill:"$muted-fg",letterSpacing:0.3});
+note(side,"The login is stored encrypted and can never be shown again. Using it is recorded in the Audit log.",{icon:"lock"});
+note(side,"It is removed with this Import, or 30 days after its last run.",{icon:"calendar-x"});
+warnNote(side,"Over REST, WebCraft only sees custom fields that plugins expose. If fields are missing on the next step, try the export file instead.");
+note(side,"Nothing is changed on the WordPress site. Everything arrives here as Drafts.",{icon:"shield-check"});
+Export([r],"png","/tmp/penproto/import/png/02-source");
