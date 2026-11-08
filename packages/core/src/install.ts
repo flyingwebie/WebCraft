@@ -2,14 +2,14 @@ import { assertSchemaCurrent, createBoss, type Database, type JobQueueOptions, o
 import type { PgBoss } from "pg-boss";
 
 import { systemClock } from "./clock.ts";
-import { type Environment, loadInstallConfig } from "./config.ts";
+import { type Environment, type InstallConfig, loadInstallConfig } from "./config.ts";
 import { createInstallServices } from "./create-services.ts";
 import { createSmtpMailer } from "./email/smtp-mailer.ts";
 import { fetchHttp } from "./http.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
-import type { InstallServices } from "./services.ts";
+import type { InstallPorts, InstallServices } from "./services.ts";
 
 /** The two long-running processes of an Install (ADR 0006). */
 export type InstallProcess = "web" | "worker";
@@ -55,15 +55,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 
 	// Built before the job queue starts, so a wrong Master key is refused first.
 	const services = await createInstallServices(
-		{
-			config,
-			database,
-			jobs: createJobQueue(boss),
-			mailer: createSmtpMailer(),
-			http: fetchHttp,
-			clock: systemClock,
-			log,
-		},
+		{ ...realPorts(config, database, log), jobs: createJobQueue(boss) },
 		masterKey,
 	);
 	opened.boss = boss;
@@ -85,13 +77,8 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 		await assertSchemaCurrent(database);
 		return await createInstallServices(
 			{
-				config,
-				database,
+				...realPorts(config, database, log),
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
-				mailer: createSmtpMailer(),
-				http: fetchHttp,
-				clock: systemClock,
-				log,
 			},
 			masterKey,
 		);
@@ -99,4 +86,9 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 		await database.close();
 		throw error;
 	}
+}
+
+/** The real adapters every process uses; only the job queue differs between them. */
+function realPorts(config: InstallConfig, database: Database, log: Logger): Omit<InstallPorts, "jobs"> {
+	return { config, database, mailer: createSmtpMailer(), http: fetchHttp, clock: systemClock, log };
 }
