@@ -112,13 +112,17 @@ function oneLine(value: string): string {
 	return value.replace(/[\r\n]+/g, " ").trim();
 }
 
+/** Escapes a value for HTML text or a quoted attribute. */
 function html(value: string): string {
-	return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }
 
-function attr(value: string): string {
-	return html(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
+const attr = html;
 
 const DARK_TEXT = "#18181b";
 

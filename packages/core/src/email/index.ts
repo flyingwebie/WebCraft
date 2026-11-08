@@ -10,6 +10,7 @@ import { createInstallBranding, type InstallBranding } from "./branding.ts";
 import { createEmailLog, type EmailLog } from "./email-log.ts";
 import { createInstallSmtp, type InstallSmtp } from "./install-smtp.ts";
 import type { Mailer } from "./mailer.ts";
+import { createEmailPreferences, type EmailPreferences } from "./preferences.ts";
 import { createSystemEmailSender, type SystemEmailSender } from "./system-emails.ts";
 
 /**
@@ -31,6 +32,8 @@ export type Email = {
 	branding: InstallBranding;
 	/** The Email log: every email the Install sent, never its body, kept 90 days. */
 	emailLog: EmailLog;
+	/** Each person's switches for work and alert emails; security emails always go. */
+	preferences: EmailPreferences;
 };
 
 export type EmailOptions = {
@@ -53,6 +56,7 @@ export function createEmail(options: EmailOptions): Email {
 		installSmtp: createInstallSmtp(options),
 		branding,
 		emailLog: createEmailLog(options),
+		preferences: createEmailPreferences(options),
 	};
 }
 
@@ -106,6 +110,7 @@ export {
 	type SmtpSecurity,
 } from "./mailer.ts";
 export { emailSend, RETRY_FOR_MS, type SmtpChoice } from "./outbox.ts";
+export { EmailAlwaysSentError, type EmailPreferences, type EmailSwitch } from "./preferences.ts";
 export { createSmtpMailer } from "./smtp-mailer.ts";
 export {
 	EMAIL_PREFERENCES_PATH,

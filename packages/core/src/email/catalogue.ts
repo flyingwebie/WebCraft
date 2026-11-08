@@ -121,7 +121,7 @@ export type SystemEmailType = keyof typeof SYSTEM_EMAIL_TYPES;
 /** The data a System email type's wording needs. */
 export type SystemEmailData<Type extends SystemEmailType> = z.infer<(typeof SYSTEM_EMAIL_TYPES)[Type]["data"]>;
 
-export const SYSTEM_EMAIL_TYPE_IDS = Object.keys(SYSTEM_EMAIL_TYPES) as SystemEmailType[];
+export const SYSTEM_EMAIL_TYPE_IDS = Object.keys(SYSTEM_EMAIL_TYPES) as [SystemEmailType, ...SystemEmailType[]];
 
 export function isSystemEmailType(type: string): type is SystemEmailType {
 	return Object.hasOwn(SYSTEM_EMAIL_TYPES, type);

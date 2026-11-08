@@ -97,7 +97,7 @@ describe("the Email log", () => {
 			msg: "No SMTP is set, so this email was written to the log instead of being sent",
 			email: { to: superadmin.email, subject: "Reset your password" },
 		});
-		expect(String((written?.email as { text: string }).text)).toContain(
+		expect((written?.email as { text?: string } | undefined)?.text).toContain(
 			"https://admin.test/reset-password?token=secret-link-token",
 		);
 

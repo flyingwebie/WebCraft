@@ -1,7 +1,12 @@
 import {
 	categoryOf,
+	DEFAULT_ACCENT_COLOUR,
+	FOOTER_MAX_LENGTH,
 	type InstallServices,
+	isAccentColour,
+	isLogoUrl,
 	isSystemEmailType,
+	SENDER_NAME_MAX_LENGTH,
 	SMTP_SECURITY,
 } from "@webcraft/core";
 import { z } from "zod";
@@ -92,3 +97,40 @@ export const emailLog = {
 			};
 		}),
 };
+
+/** Install branding, for the Superadmin: what every System email carries. */
+export const emailBranding = {
+	/** The values the Superadmin set (null: the default) and the defaults they replace. */
+	get: emailAdmin.handler(async ({ context }) => brandingView(context.services)),
+
+	/** Changes the given values; null puts one back to its default. */
+	update: emailAdmin
+		.input(
+			z.object({
+				senderName: z.string().trim().max(SENDER_NAME_MAX_LENGTH).nullish(),
+				logoUrl: z
+					.string()
+					.trim()
+					.refine((value) => value === "" || isLogoUrl(value), "an HTTPS address")
+					.nullish(),
+				accentColour: z
+					.string()
+					.trim()
+					.refine((value) => value === "" || isAccentColour(value), "a colour such as #c2410c")
+					.nullish(),
+				footer: z.string().trim().max(FOOTER_MAX_LENGTH).nullish(),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			await context.services.email.branding.update(input);
+			return brandingView(context.services);
+		}),
+};
+
+async function brandingView(services: InstallServices) {
+	const [values, settings] = await Promise.all([services.email.branding.read(), services.settings.read()]);
+	return {
+		...values,
+		defaults: { senderName: settings.name ?? "WebCraft", accentColour: DEFAULT_ACCENT_COLOUR },
+	};
+}
