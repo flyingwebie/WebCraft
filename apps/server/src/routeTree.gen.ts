@@ -19,13 +19,18 @@ import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
 import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
+import { Route as AdminSettingsModulesRouteImport } from './routes/_admin/settings.modules'
 import { Route as AdminSettingsSecurityRouteImport } from './routes/_admin/settings.security'
 import { Route as AdminSitesSiteIdRouteImport } from './routes/_admin/sites.$siteId'
 import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/workspaces.index'
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
 import { Route as AdminSitesSiteIdIndexRouteImport } from './routes/_admin/sites.$siteId.index'
+import { Route as AdminSitesSiteIdModulesRouteImport } from './routes/_admin/sites.$siteId.modules'
 import { Route as AdminWorkspacesWorkspaceIdIndexRouteImport } from './routes/_admin/workspaces.$workspaceId.index'
 import { Route as AdminWorkspacesWorkspaceIdMembersRouteImport } from './routes/_admin/workspaces.$workspaceId.members'
+import { Route as AdminWorkspacesWorkspaceIdModulesRouteImport } from './routes/_admin/workspaces.$workspaceId.modules'
+import { Route as AdminSitesSiteIdMModuleIdSplatRouteImport } from './routes/_admin/sites.$siteId.m.$moduleId.$'
+import { Route as AdminWorkspacesWorkspaceIdMModuleIdSplatRouteImport } from './routes/_admin/workspaces.$workspaceId.m.$moduleId.$'
 
 const AdminRoute = AdminRouteImport.update({
   id: '/_admin',
@@ -76,6 +81,11 @@ const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   path: '/settings/general',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsModulesRoute = AdminSettingsModulesRouteImport.update({
+  id: '/settings/modules',
+  path: '/settings/modules',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsSecurityRoute = AdminSettingsSecurityRouteImport.update({
   id: '/settings/security',
   path: '/settings/security',
@@ -102,6 +112,11 @@ const AdminSitesSiteIdIndexRoute = AdminSitesSiteIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSitesSiteIdRoute,
 } as any)
+const AdminSitesSiteIdModulesRoute = AdminSitesSiteIdModulesRouteImport.update({
+  id: '/modules',
+  path: '/modules',
+  getParentRoute: () => AdminSitesSiteIdRoute,
+} as any)
 const AdminWorkspacesWorkspaceIdIndexRoute =
   AdminWorkspacesWorkspaceIdIndexRouteImport.update({
     id: '/',
@@ -112,6 +127,24 @@ const AdminWorkspacesWorkspaceIdMembersRoute =
   AdminWorkspacesWorkspaceIdMembersRouteImport.update({
     id: '/members',
     path: '/members',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
+const AdminWorkspacesWorkspaceIdModulesRoute =
+  AdminWorkspacesWorkspaceIdModulesRouteImport.update({
+    id: '/modules',
+    path: '/modules',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
+const AdminSitesSiteIdMModuleIdSplatRoute =
+  AdminSitesSiteIdMModuleIdSplatRouteImport.update({
+    id: '/m/$moduleId/$',
+    path: '/m/$moduleId/$',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
+const AdminWorkspacesWorkspaceIdMModuleIdSplatRoute =
+  AdminWorkspacesWorkspaceIdMModuleIdSplatRouteImport.update({
+    id: '/m/$moduleId/$',
+    path: '/m/$moduleId/$',
     getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
   } as any)
 
@@ -125,13 +158,18 @@ export interface FileRoutesByFullPath {
   '/staff': typeof AdminStaffRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/settings/modules': typeof AdminSettingsModulesRoute
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
+  '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
+  '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
+  '/workspaces/$workspaceId/m/$moduleId/$': typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
 }
 export interface FileRoutesByTo {
   '/invite': typeof InviteRoute
@@ -143,11 +181,16 @@ export interface FileRoutesByTo {
   '/': typeof AdminIndexRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/settings/modules': typeof AdminSettingsModulesRoute
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
+  '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdIndexRoute
+  '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
+  '/workspaces/$workspaceId/m/$moduleId/$': typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,13 +204,18 @@ export interface FileRoutesById {
   '/_admin/': typeof AdminIndexRoute
   '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/_admin/settings/modules': typeof AdminSettingsModulesRoute
   '/_admin/settings/security': typeof AdminSettingsSecurityRoute
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/_admin/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/_admin/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
+  '/_admin/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/_admin/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/_admin/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
+  '/_admin/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
+  '/_admin/workspaces/$workspaceId/m/$moduleId/$': typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,13 +229,18 @@ export interface FileRouteTypes {
     | '/staff'
     | '/settings/email'
     | '/settings/general'
+    | '/settings/modules'
     | '/settings/security'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/workspaces/'
+    | '/sites/$siteId/modules'
     | '/workspaces/$workspaceId/members'
+    | '/workspaces/$workspaceId/modules'
     | '/sites/$siteId/'
     | '/workspaces/$workspaceId/'
+    | '/sites/$siteId/m/$moduleId/$'
+    | '/workspaces/$workspaceId/m/$moduleId/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/invite'
@@ -199,11 +252,16 @@ export interface FileRouteTypes {
     | '/'
     | '/settings/email'
     | '/settings/general'
+    | '/settings/modules'
     | '/settings/security'
     | '/workspaces'
+    | '/sites/$siteId/modules'
     | '/workspaces/$workspaceId/members'
+    | '/workspaces/$workspaceId/modules'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
+    | '/sites/$siteId/m/$moduleId/$'
+    | '/workspaces/$workspaceId/m/$moduleId/$'
   id:
     | '__root__'
     | '/_admin'
@@ -216,13 +274,18 @@ export interface FileRouteTypes {
     | '/_admin/'
     | '/_admin/settings/email'
     | '/_admin/settings/general'
+    | '/_admin/settings/modules'
     | '/_admin/settings/security'
     | '/_admin/sites/$siteId'
     | '/_admin/workspaces/$workspaceId'
     | '/_admin/workspaces/'
+    | '/_admin/sites/$siteId/modules'
     | '/_admin/workspaces/$workspaceId/members'
+    | '/_admin/workspaces/$workspaceId/modules'
     | '/_admin/sites/$siteId/'
     | '/_admin/workspaces/$workspaceId/'
+    | '/_admin/sites/$siteId/m/$moduleId/$'
+    | '/_admin/workspaces/$workspaceId/m/$moduleId/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -304,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsGeneralRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/settings/modules': {
+      id: '/_admin/settings/modules'
+      path: '/settings/modules'
+      fullPath: '/settings/modules'
+      preLoaderRoute: typeof AdminSettingsModulesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/settings/security': {
       id: '/_admin/settings/security'
       path: '/settings/security'
@@ -339,6 +409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdIndexRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/modules': {
+      id: '/_admin/sites/$siteId/modules'
+      path: '/modules'
+      fullPath: '/sites/$siteId/modules'
+      preLoaderRoute: typeof AdminSitesSiteIdModulesRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/workspaces/$workspaceId/': {
       id: '/_admin/workspaces/$workspaceId/'
       path: '/'
@@ -353,15 +430,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWorkspacesWorkspaceIdMembersRouteImport
       parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
+    '/_admin/workspaces/$workspaceId/modules': {
+      id: '/_admin/workspaces/$workspaceId/modules'
+      path: '/modules'
+      fullPath: '/workspaces/$workspaceId/modules'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdModulesRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
+    '/_admin/sites/$siteId/m/$moduleId/$': {
+      id: '/_admin/sites/$siteId/m/$moduleId/$'
+      path: '/m/$moduleId/$'
+      fullPath: '/sites/$siteId/m/$moduleId/$'
+      preLoaderRoute: typeof AdminSitesSiteIdMModuleIdSplatRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/workspaces/$workspaceId/m/$moduleId/$': {
+      id: '/_admin/workspaces/$workspaceId/m/$moduleId/$'
+      path: '/m/$moduleId/$'
+      fullPath: '/workspaces/$workspaceId/m/$moduleId/$'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
   }
 }
 
 interface AdminSitesSiteIdRouteChildren {
+  AdminSitesSiteIdModulesRoute: typeof AdminSitesSiteIdModulesRoute
   AdminSitesSiteIdIndexRoute: typeof AdminSitesSiteIdIndexRoute
+  AdminSitesSiteIdMModuleIdSplatRoute: typeof AdminSitesSiteIdMModuleIdSplatRoute
 }
 
 const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
+  AdminSitesSiteIdModulesRoute: AdminSitesSiteIdModulesRoute,
   AdminSitesSiteIdIndexRoute: AdminSitesSiteIdIndexRoute,
+  AdminSitesSiteIdMModuleIdSplatRoute: AdminSitesSiteIdMModuleIdSplatRoute,
 }
 
 const AdminSitesSiteIdRouteWithChildren =
@@ -369,14 +471,20 @@ const AdminSitesSiteIdRouteWithChildren =
 
 interface AdminWorkspacesWorkspaceIdRouteChildren {
   AdminWorkspacesWorkspaceIdMembersRoute: typeof AdminWorkspacesWorkspaceIdMembersRoute
+  AdminWorkspacesWorkspaceIdModulesRoute: typeof AdminWorkspacesWorkspaceIdModulesRoute
   AdminWorkspacesWorkspaceIdIndexRoute: typeof AdminWorkspacesWorkspaceIdIndexRoute
+  AdminWorkspacesWorkspaceIdMModuleIdSplatRoute: typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
 }
 
 const AdminWorkspacesWorkspaceIdRouteChildren: AdminWorkspacesWorkspaceIdRouteChildren =
   {
     AdminWorkspacesWorkspaceIdMembersRoute:
       AdminWorkspacesWorkspaceIdMembersRoute,
+    AdminWorkspacesWorkspaceIdModulesRoute:
+      AdminWorkspacesWorkspaceIdModulesRoute,
     AdminWorkspacesWorkspaceIdIndexRoute: AdminWorkspacesWorkspaceIdIndexRoute,
+    AdminWorkspacesWorkspaceIdMModuleIdSplatRoute:
+      AdminWorkspacesWorkspaceIdMModuleIdSplatRoute,
   }
 
 const AdminWorkspacesWorkspaceIdRouteWithChildren =
@@ -391,6 +499,7 @@ interface AdminRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsModulesRoute: typeof AdminSettingsModulesRoute
   AdminSettingsSecurityRoute: typeof AdminSettingsSecurityRoute
   AdminSitesSiteIdRoute: typeof AdminSitesSiteIdRouteWithChildren
   AdminWorkspacesWorkspaceIdRoute: typeof AdminWorkspacesWorkspaceIdRouteWithChildren
@@ -404,6 +513,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   AdminSettingsEmailRoute: AdminSettingsEmailRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsModulesRoute: AdminSettingsModulesRoute,
   AdminSettingsSecurityRoute: AdminSettingsSecurityRoute,
   AdminSitesSiteIdRoute: AdminSitesSiteIdRouteWithChildren,
   AdminWorkspacesWorkspaceIdRoute: AdminWorkspacesWorkspaceIdRouteWithChildren,

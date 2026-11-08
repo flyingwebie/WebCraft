@@ -15,8 +15,9 @@ export type Screen = {
 
 /**
  * What every screen check shares, made once by `admin-screens.browser.ts`: a Workspace with two
- * Sites, a Staff member assigned to it, Members, a pending Staff invite, and a pending Member invite
- * to a person who already has an account.
+ * Sites, a Staff member assigned to it, Members, a pending Staff invite, a pending Member invite
+ * to a person who already has an account, and the sample Modules: one approved (on every Site by
+ * default), one waiting for approval.
  */
 export type ScreenFixture = { workspaceId: string; siteId: string; inviteToken: string; joinToken: string };
 
@@ -45,4 +46,8 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 		as: "signed-out",
 	},
 	{ name: "Accept an invite (link no longer works)", path: "/invite?token=used-up", as: "signed-out" },
+	{ name: "Install settings › Modules", path: "/settings/modules", as: "superadmin" },
+	{ name: "Workspace › Modules (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/modules`, as: "staff" },
+	{ name: "Site › Modules (Staff)", path: ({ siteId }) => `/sites/${siteId}/modules`, as: "staff" },
+	{ name: "Site › a Module's page", path: ({ siteId }) => `/sites/${siteId}/m/sample/notes`, as: "owner" },
 ];

@@ -48,11 +48,19 @@ for (const theme of THEMES) {
 			await page.locator("#smtp-host").waitFor();
 			await expectAccessibleScreen(page, `Install email step (${theme})`);
 
-			await page.getByRole("button", { name: "Save and finish" }).click();
+			await page.getByRole("button", { name: "Save and continue" }).click();
 			await page.locator("#smtp-host-error").waitFor();
 			await expectAccessibleScreen(page, `Install email step, refused (${theme})`);
 
 			await page.getByRole("button", { name: "Skip for now" }).click();
+			await page.getByRole("heading", { level: 1, name: "Approve the Modules" }).waitFor();
+			await page.getByRole("checkbox", { name: /Sample notes/ }).waitFor();
+			await expectAccessibleScreen(page, `Modules step (${theme})`);
+
+			await page.getByText("What Sample notes asks for").click();
+			await expectAccessibleScreen(page, `Modules step, a Module's details open (${theme})`);
+
+			await page.getByRole("button", { name: "Approve and finish" }).click();
 			await page.waitForURL((url) => url.pathname === "/");
 		});
 

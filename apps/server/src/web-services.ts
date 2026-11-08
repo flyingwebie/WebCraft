@@ -9,8 +9,19 @@ import {
 	openInstall,
 } from "@webcraft/core";
 import { assertSchemaCurrent, openDatabase } from "@webcraft/db";
+import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 type Cache = { webcraftWebServices?: Promise<InstallServices> };
+
+/**
+ * The Modules the web process loads: this build's first-party Modules, unless the program that
+ * starts the web process in its own process hands it others first, in `globalThis.webcraftModules`
+ * (the browser tests' entry does, to show the sample Modules' screens). Nothing sets it in
+ * production; only code already running in the process could.
+ */
+export function webModules(): readonly ModuleDefinition[] {
+	return (globalThis as { webcraftModules?: readonly ModuleDefinition[] }).webcraftModules ?? FIRST_PARTY_MODULES;
+}
 
 /**
  * Builds the web process's services from the environment, refusing to start when a setting is
@@ -36,7 +47,7 @@ export async function checkWebSettings(env: Record<string, string | undefined>):
 	const masterKey = loadMasterKey(env);
 	const database = openDatabase(config.databaseUrl, { maxConnections: 1, applicationName: "webcraft-web" });
 	try {
-		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
+		await assertSchemaCurrent(database, { modules: moduleSchemas(webModules()) });
 		await assertMasterKeyMatches(database, masterKey);
 	} finally {
 		await database.close();
@@ -45,7 +56,7 @@ export async function checkWebSettings(env: Record<string, string | undefined>):
 
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
 	const log = createLogger({ fields: { process: "web" } });
-	const { services } = await openInstall({ env, processName: "web", log });
+	const { services } = await openInstall({ env, processName: "web", log, modules: webModules() });
 	// On an Install with no Superadmin, prints the setup token that unlocks the setup wizard.
 	await services.setup.announce();
 	return services;

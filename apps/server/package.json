@@ -23,6 +23,7 @@
 		"@webcraft/api": "workspace:*",
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",
+		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/ui": "workspace:*",
 		"drizzle-orm": "catalog:",
 		"lucide-react": "^1.41.0",
