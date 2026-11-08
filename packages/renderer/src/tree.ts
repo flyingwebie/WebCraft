@@ -215,6 +215,17 @@ export function isElementId(id: string): boolean {
 	return ELEMENT_ID.test(id);
 }
 
+/**
+ * Why a binding's path names no value here: `item.` values are read inside a Loop, `props.` inside a
+ * Component and `site.` are the Site's Globals; anything else is a Field or built-in it doesn't have.
+ */
+export function unknownValueMessage(path: string): string {
+	if (path.startsWith("item.")) return `${path}: item. values are read inside a Loop, and there is none here.`;
+	if (path.startsWith("props.")) return `${path}: props. values are read inside a Component, and this isn't one.`;
+	if (path.startsWith("site.")) return `There is no Global named ${path.slice(5)} on this Site.`;
+	return `There is no value named ${path} here.`;
+}
+
 /** Whether `path` is written as a value's path: names joined by dots, such as `title` or `site.phone`. */
 export function isValuePath(path: string): boolean {
 	return VALUE_PATH.test(path);
@@ -490,7 +501,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			problem(at, "A value's path is names joined by dots, such as title or summary.");
 			return undefined;
 		}
-		if (options.isKnownValue && !options.isKnownValue(path)) problem(at, `There is no value named ${path} here.`);
+		if (options.isKnownValue && !options.isKnownValue(path)) problem(at, unknownValueMessage(path));
 		return path;
 	};
 
@@ -579,7 +590,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			problem(at, "Nodes must be a list.");
 			return [];
 		}
-		if (depth > TREE_LIMITS.depth) {
+		if (depth > TREE_LIMITS.depth && nodes.length > 0) {
 			problem(at, `Elements nest at most ${TREE_LIMITS.depth} deep.`);
 			return [];
 		}

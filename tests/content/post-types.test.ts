@@ -136,6 +136,9 @@ describe("refused Post Types", () => {
 			{ key: "title", at: "fields[0].key" },
 			{ key: "publishedAt", at: "fields[0].key" },
 			{ key: "site", at: "fields[0].key" },
+			// Words Conditions' tests use: {{@if not summary}} must read the same way.
+			{ key: "not", at: "fields[0].key" },
+			{ key: "true", at: "fields[0].key" },
 		];
 		for (const { key, at } of cases) {
 			await expect(

@@ -35,6 +35,7 @@ import {
 	type TreeNode,
 	textPlacementProblem,
 	textProblem,
+	unknownValueMessage,
 	type ValueNode,
 	VOID_ELEMENTS,
 } from "../tree.ts";
@@ -220,6 +221,13 @@ class MarkupParser {
 		const nodes: TreeNode[] = [];
 		let text = "";
 		let textOffset = this.pos;
+		const add = (node: TreeNode | undefined, offset: number) => {
+			if (!node) return;
+			if (depth > TREE_LIMITS.depth) this.stop(offset, `Elements nest at most ${TREE_LIMITS.depth} deep.`);
+			this.count++;
+			if (this.count > TREE_LIMITS.nodes) this.stop(offset, `A Template holds at most ${TREE_LIMITS.nodes} nodes.`);
+			nodes.push(node);
+		};
 		const flush = () => {
 			if (text) {
 				const refused = textProblem(text);
@@ -228,16 +236,10 @@ class MarkupParser {
 					const misplaced = textPlacementProblem(ancestors.at(-1));
 					if (misplaced) this.problem(textOffset, misplaced);
 				}
-				nodes.push({ type: "text", text });
+				add({ type: "text", text }, textOffset);
 			}
 			text = "";
 			textOffset = this.pos;
-		};
-		const add = (node: TreeNode | undefined) => {
-			if (!node) return;
-			this.count++;
-			if (this.count > TREE_LIMITS.nodes) this.stop(this.pos, `A Template holds at most ${TREE_LIMITS.nodes} nodes.`);
-			nodes.push(node);
 		};
 
 		for (;;) {
@@ -260,7 +262,7 @@ class MarkupParser {
 					const opened = this.readCommandWord(curly);
 					const command = commandNamed(opened.keyword);
 					if (command && opened.keyword === command.name) {
-						add(this.readCommand(command, opened, ancestors, depth));
+						add(this.readCommand(command, opened, ancestors, depth), opened.offset);
 					} else if (container.kind === "command" && container.branches.includes(opened.keyword)) {
 						return { nodes, end: { kind: "branch", ...opened } };
 					} else {
@@ -271,7 +273,7 @@ class MarkupParser {
 				} else {
 					const misplaced = textPlacementProblem(ancestors.at(-1));
 					if (misplaced) this.problem(curly.offset, misplaced.replace(/^Text/, "A value"));
-					add(this.readValue(curly));
+					add(this.readValue(curly), curly.offset);
 				}
 				textOffset = this.pos;
 				continue;
@@ -280,7 +282,8 @@ class MarkupParser {
 				const next = this.text[this.pos + 1] ?? "";
 				if (this.text.startsWith("<!--", this.pos)) {
 					flush();
-					add(this.readComment());
+					const commentOffset = this.pos;
+					add(this.readComment(), commentOffset);
 					textOffset = this.pos;
 					continue;
 				}
@@ -290,7 +293,8 @@ class MarkupParser {
 				}
 				if (/[A-Za-z]/.test(next)) {
 					flush();
-					add(this.readElement(ancestors, depth));
+					const elementOffset = this.pos;
+					add(this.readElement(ancestors, depth), elementOffset);
 					textOffset = this.pos;
 					continue;
 				}
@@ -405,7 +409,7 @@ class MarkupParser {
 			return undefined;
 		}
 		if (this.options.isKnownValue && !this.options.isKnownValue(path)) {
-			this.problem(pathOffset, `There is no value named ${path} here.`);
+			this.problem(pathOffset, unknownValueMessage(path));
 			return undefined;
 		}
 		if (formats.length === 0) return { type: "value", path };
@@ -434,7 +438,7 @@ class MarkupParser {
 		);
 		if (unknown !== undefined) {
 			const at = new RegExp(`(?<![A-Za-z0-9_.])${unknown.replaceAll(".", "\\.")}(?![A-Za-z0-9_])`).exec(text);
-			this.problem(offset + (at?.index ?? 0), `There is no value named ${unknown} here.`);
+			this.problem(offset + (at?.index ?? 0), unknownValueMessage(unknown));
 			return undefined;
 		}
 		return read.expression;
@@ -527,7 +531,9 @@ class MarkupParser {
 	private readElement(ancestors: readonly string[], depth: number): ElementNode | undefined {
 		const offset = this.pos;
 		this.pos++;
-		const nameMatch = /^[^\s/>]*/.exec(this.text.slice(this.pos))?.[0] ?? "";
+		const namePattern = /[^\s/>]*/y;
+		namePattern.lastIndex = this.pos;
+		const nameMatch = namePattern.exec(this.text)?.[0] ?? "";
 		this.pos += nameMatch.length;
 		if (nameMatch.includes("{")) this.stop(offset, "Values can't be used in tag names.");
 		const isComponent = /^[A-Z]/.test(nameMatch) && /[a-z]/.test(nameMatch);

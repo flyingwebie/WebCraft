@@ -119,6 +119,25 @@ describe("saving Template markup", () => {
 		expect(again.template.id).toBe(first.template.id);
 	});
 
+	test("an element copied with its data-wc-id keeps the id on the first, and the copy gets a new one", async () => {
+		const first = await staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: "<p>One</p>" });
+		const [original = ""] = elementIds(first.template.draft.nodes);
+
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: `${first.markup}\n${first.markup.replace("One", "Two")}`,
+		});
+
+		const [kept, copy = ""] = elementIds(saved.template.draft.nodes);
+		expect(kept).toBe(original);
+		expect(copy).toMatch(/^[A-Za-z0-9]{12}$/);
+		expect(copy).not.toBe(original);
+		expect(saved.notices).toEqual([
+			{ line: 2, column: 1, message: "The element on line 1 has the same data-wc-id, so this one got a new id." },
+		]);
+	});
+
 	test("reads a Template's Draft and published version as markup", async () => {
 		const saved = await staff.api.templates.saveEntryTemplateMarkup({
 			siteId,

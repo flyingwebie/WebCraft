@@ -14,7 +14,7 @@
  * A path on its own passes when its value isn't empty. Loops extend the tests (compare, contains,
  * language, date window, Loop position) by adding operators and kinds here.
  */
-import { textProblem } from "./tree.ts";
+import { textProblem, unknownValueMessage } from "./tree.ts";
 import { isPresent, sameValue, type TemplateValue } from "./values.ts";
 
 export type Expression =
@@ -201,6 +201,9 @@ export function readExpression(text: string): { expression: Expression } | { pro
 		if (rest.kind !== "end") {
 			fail(rest, `Expected and, or, == or != before ${rest.kind === "string" ? `"${rest.text}"` : rest.text}.`);
 		}
+		if (depthOf(expression) > EXPRESSION_MAX_DEPTH) {
+			return { problem: { offset: 0, message: `A test nests at most ${EXPRESSION_MAX_DEPTH} deep.` } };
+		}
 		return { expression };
 	} catch (error) {
 		if (error instanceof ExpressionSyntaxError) return { problem: { offset: error.offset, message: error.message } };
@@ -280,7 +283,7 @@ export function checkExpression(input: unknown, at: string, options: CheckExpres
 					return undefined;
 				}
 				if (options.isKnownValue && !options.isKnownValue(path)) {
-					options.problem(`${here}.path`, `There is no value named ${path} here.`);
+					options.problem(`${here}.path`, unknownValueMessage(path));
 					return undefined;
 				}
 				return { type: "value", path };
@@ -345,6 +348,21 @@ export function expressionPaths(expression: Expression): string[] {
 		case "or":
 		case "compare":
 			return [...expressionPaths(expression.left), ...expressionPaths(expression.right)];
+	}
+}
+
+/** How deep an expression nests, counted as `checkExpression` counts it. */
+function depthOf(expression: Expression): number {
+	switch (expression.type) {
+		case "value":
+		case "literal":
+			return 1;
+		case "not":
+			return 1 + depthOf(expression.operand);
+		case "and":
+		case "or":
+		case "compare":
+			return 1 + Math.max(depthOf(expression.left), depthOf(expression.right));
 	}
 }
 

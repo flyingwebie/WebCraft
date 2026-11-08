@@ -1,9 +1,27 @@
 // Element trees for tests, written briefly: `tree(element("article", [element("h1", [value("title")])]))`.
+// Comments, Conditions and value formatters are written out as the stored shapes they are.
 // The shapes are the stored, canonical form (ADR 0002) that the Management API takes and answers.
 // Element ids are left out, as a new element arrives from an editor; WebCraft fills them in.
 
+/** A value's formatter, as stored. */
+export type TestFormat =
+	| { type: "date"; style?: string }
+	| { type: "number"; digits?: number }
+	| { type: "truncate"; length: number };
+
+/** A value read where the page renders, optionally through a formatter. */
+export type TestValue = { type: "value"; path: string; format?: TestFormat };
+
 /** A piece of an attribute's value: fixed text, or a value read where the page renders. */
-export type TestAttributePart = { type: "text"; text: string } | { type: "value"; path: string };
+export type TestAttributePart = { type: "text"; text: string } | TestValue;
+
+/** A Condition's test, as stored. */
+export type TestExpression =
+	| { type: "value"; path: string }
+	| { type: "literal"; value: string | number | boolean }
+	| { type: "not"; operand: TestExpression }
+	| { type: "and" | "or"; left: TestExpression; right: TestExpression }
+	| { type: "compare"; operator: "==" | "!="; left: TestExpression; right: TestExpression };
 
 export type TestNode =
 	| {
@@ -15,7 +33,13 @@ export type TestNode =
 			children: TestNode[];
 	  }
 	| { type: "text"; text: string }
-	| { type: "value"; path: string };
+	| TestValue
+	| { type: "comment"; text: string }
+	| {
+			type: "condition";
+			branches: { test: TestExpression; children: TestNode[] }[];
+			otherwise: TestNode[] | null;
+	  };
 
 export type TestTree = { version: 1; nodes: TestNode[] };
 

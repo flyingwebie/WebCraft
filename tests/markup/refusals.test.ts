@@ -101,7 +101,9 @@ describe("unknown names", () => {
 
 	test("values, formatters and Classes", async () => {
 		await refuses("<h1>{{ title }}</h1>\n<p>{{ price }}</p>", 2, 7, "There is no value named price here");
-		await refuses('<a href="/{{ site.url }}">x</a>', 1, 14, "There is no value named site.url here");
+		await refuses('<a href="/{{ site.url }}">x</a>', 1, 14, "There is no Global named url on this Site");
+		await refuses("<p>{{ item.title }}</p>", 1, 7, "item. values are read inside a Loop, and there is none here");
+		await refuses("<p>{{ props.title }}</p>", 1, 7, "props. values are read inside a Component, and this isn't one");
 		await refuses("<p>{{ title | upper }}</p>", 1, 15, "There is no formatter upper");
 		await refuses("<p>{{ title | truncate }}</p>", 1, 15, "truncate takes a length");
 		await refuses('<p class="card">x</p>', 1, 11, "There is no Class named card on this Site");
@@ -192,6 +194,30 @@ test("every problem is reported, in order, up to 20", async () => {
 	const many = await problemsOf(Array.from({ length: 30 }, (_, index) => `<p>{{ missing${index} }}</p>`).join("\n"));
 	expect(many).toHaveLength(20);
 	expect(many[19]).toMatchObject({ line: 20, column: 7 });
+});
+
+describe("limits", () => {
+	test("elements nest at most 64 deep", async () => {
+		const deep = (levels: number) => `${"<div>".repeat(levels)}x${"</div>".repeat(levels)}`;
+
+		await expect(
+			staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: deep(63) }),
+		).resolves.toBeDefined();
+		await refuses(deep(64), 1, 321, "Elements nest at most 64 deep");
+		await refuses(`${"{{@if title}}".repeat(64)}x${"{{/if}}".repeat(64)}`, 1, 833, "Elements nest at most 64 deep");
+	});
+
+	test("a test nests at most 32 deep", async () => {
+		const chain = Array.from({ length: 33 }, () => "title").join(" and ");
+
+		await refuses(`{{@if ${chain}}}x{{/if}}`, 1, 6, "A test nests at most 32 deep");
+	});
+
+	test("a Template holds at most 10,000 nodes", async () => {
+		const problems = await problemsOf("<br>".repeat(10_001));
+
+		expect(problems).toEqual([{ line: 1, column: 40_001, message: expect.stringContaining("at most 10000 nodes") }]);
+	});
 });
 
 test("a refused save changes nothing", async () => {
