@@ -167,7 +167,9 @@ async function waitUntilReady(origin: string, web: Subprocess, logs: Record<stri
 		}
 		await Bun.sleep(100);
 	}
-	throw new Error(`The web process didn't start:\n${logs.map((entry) => JSON.stringify(entry)).join("\n")}`);
+	throw new Error(
+		`The web process didn't start (if the code changed since the last \`bun run build\`, build again: these tests serve the built bundle):\n${logs.map((entry) => JSON.stringify(entry)).join("\n")}`,
+	);
 }
 
 async function freePort(): Promise<number> {
