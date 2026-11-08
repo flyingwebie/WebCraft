@@ -10,6 +10,8 @@ import {
 	workJobs,
 } from "@webcraft/core";
 
+import { createImageProcessor } from "./images.ts";
+
 /** How long a stopping worker waits for running jobs to finish. */
 const STOP_TIMEOUT_MS = 30_000;
 
@@ -34,7 +36,14 @@ async function main(): Promise<void> {
 	process.once("SIGTERM", stop);
 	process.once("SIGINT", stop);
 
-	const { services, boss } = await openInstall({ env: process.env, processName: "worker", log, opened: running });
+	const { services, boss } = await openInstall({
+		env: process.env,
+		processName: "worker",
+		log,
+		opened: running,
+		// Only the worker processes images (ADR 0027).
+		images: createImageProcessor(),
+	});
 	// Schedules first: a stop signal that comes once jobs run then never lands in the middle of them.
 	await scheduleJobs(boss, coreSchedules);
 	await workJobs(boss, coreJobs, services);

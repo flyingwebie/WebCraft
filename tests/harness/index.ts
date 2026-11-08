@@ -1,4 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	type AdminLanguageCode,
 	type Clock,
@@ -24,6 +27,7 @@ import {
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
+import { createImageProcessor } from "@webcraft/worker/images";
 import type { PgBoss } from "pg-boss";
 
 import { createTestBrowser, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
@@ -36,6 +40,7 @@ export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
+export { createFakeS3, type FakeS3, type FakeS3Options } from "./fake-s3.ts";
 export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
 
 /** The invite link in an invite email: `https://admin.test/invite?token=…`. Throws when there is none. */
@@ -119,8 +124,13 @@ export type TestInstall = {
 	/** The Install's database, for tests that start a real process (such as the worker) against it. */
 	databaseUrl: string;
 	/**
+	 * The folder the Install keeps files in while its storage is local disk (`WEBCRAFT_STORAGE_DIR`):
+	 * a new, empty folder for each test Install, removed by `close()`.
+	 */
+	storageDir: string;
+	/**
 	 * The environment a real process (the worker, the CLI) needs to run as this Install:
-	 * `DATABASE_URL`, `WEBCRAFT_ADMIN_HOST` and `WEBCRAFT_SECRET_KEY`.
+	 * `DATABASE_URL`, `WEBCRAFT_ADMIN_HOST`, `WEBCRAFT_SECRET_KEY` and `WEBCRAFT_STORAGE_DIR`.
 	 */
 	readonly env: Record<string, string>;
 	/** A URL on the admin host, such as `adminUrl("/healthz")`. */
@@ -186,9 +196,10 @@ export type TestInstall = {
 	jobs: JobQueue;
 	/**
 	 * Runs every job that is due by the test clock, including the jobs those jobs enqueue, and the
-	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain.
+	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain. Give
+	 * `only` to run just the jobs with those names (`media.process`), leaving the rest queued.
 	 */
-	drainJobs(): Promise<DrainReport>;
+	drainJobs(options?: { only?: readonly string[] }): Promise<DrainReport>;
 	/**
 	 * Every secret of the Install, encrypted under its Master key: set, use and describe them, for
 	 * the Install, a Workspace or a Site (`{ owner: { kind: "site", workspaceId, siteId }, name }`).
@@ -240,6 +251,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const databaseUrl = testDatabase?.url ?? (await unreachableDatabaseUrl());
 
 	const { clock, jobQueueClock } = createTestClock(options.now ?? DEFAULT_TEST_TIME);
+	const storageDir = mkdtempSync(join(tmpdir(), "webcraft-storage-"));
 	const logs: LogEntry[] = [];
 	const log = createLogger({ clock, write: (entry) => logs.push(entry) });
 	const database = openDatabase(databaseUrl, { maxConnections: 4, applicationName: "webcraft-tests" });
@@ -271,15 +283,18 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		WEBCRAFT_ADMIN_HOST: adminHost,
 		...(sitesDomain ? { WEBCRAFT_SITES_DOMAIN: sitesDomain } : {}),
 		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
+		WEBCRAFT_STORAGE_DIR: storageDir,
 	};
 	const ports: InstallPorts = {
-		config: { databaseUrl, adminHost, adminOrigin, sitesDomain },
+		config: { databaseUrl, adminHost, adminOrigin, sitesDomain, storageDir },
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
 		http: http.fetch,
 		clock,
 		log,
+		// The real image processing the worker does (it isn't an edge, so it isn't faked).
+		images: createImageProcessor(),
 	};
 	/**
 	 * Starts the services as the web process does: the Master key check (web and worker never start
@@ -366,6 +381,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		adminHost,
 		sitesDomain,
 		databaseUrl,
+		storageDir,
 		env,
 		adminUrl: (path) => new URL(path, adminOrigin).toString(),
 		request: (input, init) =>
@@ -425,10 +441,10 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return printed?.setupToken as string | undefined;
 		},
 		jobs: services.jobs,
-		drainJobs: async () => {
+		drainJobs: async (drainOptions = {}) => {
 			if (!boss) throw new Error(`An Install with an ${mode} database has no job queue to drain.`);
 			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt);
-			return drainJobs(boss, services);
+			return drainJobs(boss, services, drainOptions.only);
 		},
 		get secrets() {
 			return secrets;
@@ -449,6 +465,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			await boss?.stop({ graceful: false, close: true });
 			await database.close();
 			await testDatabase?.drop();
+			rmSync(storageDir, { recursive: true, force: true });
 		},
 	};
 }
@@ -469,11 +486,12 @@ async function sendDueSchedules(boss: PgBoss, jobs: JobQueue, clock: Clock, chec
 /** Every round fetches each queue until a round finds nothing due; this stops a job loop. */
 const MAX_DRAIN_ROUNDS = 100;
 
-async function drainJobs(boss: PgBoss, services: InstallServices): Promise<DrainReport> {
+async function drainJobs(boss: PgBoss, services: InstallServices, only?: readonly string[]): Promise<DrainReport> {
 	const report: DrainReport = { completed: [], failed: [] };
+	const jobs = only ? coreJobs.filter((job) => only.includes(job.name)) : coreJobs;
 	for (let round = 0; round < MAX_DRAIN_ROUNDS; round++) {
 		let ran = 0;
-		for (const job of coreJobs) {
+		for (const job of jobs) {
 			for (const item of await boss.fetch(job.name, { batchSize: 100 })) {
 				ran++;
 				try {

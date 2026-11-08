@@ -5,13 +5,16 @@ export type RecordedRequest = {
 	method: string;
 	url: string;
 	headers: Headers;
+	/** The body as text. */
 	body: string;
+	/** The body as it was sent, byte for byte (for binary bodies, such as files sent to storage). */
+	bytes: Uint8Array;
 };
 
-/** How the fake answers: a status (200 unless given), a text body and headers. */
+/** How the fake answers: a status (200 unless given), a body (text or bytes) and headers. */
 export type FakeAnswer = {
 	status?: number;
-	body?: string;
+	body?: string | Uint8Array | null;
 	headers?: Record<string, string>;
 };
 
@@ -54,11 +57,13 @@ export function createFakeHttp(): FakeHttp {
 			requests.length = 0;
 		},
 		async fetch(request) {
+			const bytes = new Uint8Array(await request.arrayBuffer());
 			const recorded: RecordedRequest = {
 				method: request.method,
 				url: request.url,
 				headers: new Headers(request.headers),
-				body: await request.text(),
+				body: new TextDecoder().decode(bytes),
+				bytes,
 			};
 			requests.push(recorded);
 			const rule = rules.find(
@@ -72,7 +77,8 @@ export function createFakeHttp(): FakeHttp {
 				);
 			}
 			const answer = typeof rule.answer === "function" ? await rule.answer(recorded) : rule.answer;
-			return new Response(answer.body ?? null, { status: answer.status ?? 200, headers: answer.headers });
+			const body = answer.body instanceof Uint8Array ? new Uint8Array(answer.body) : (answer.body ?? null);
+			return new Response(body, { status: answer.status ?? 200, headers: answer.headers });
 		},
 	};
 }

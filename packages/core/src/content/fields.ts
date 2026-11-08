@@ -1,7 +1,11 @@
 import type { ContentProblem } from "./errors.ts";
 
-/** The Field types there are. More join them (rich text, number, Relationship, …). */
-export const FIELD_TYPES = ["text"] as const;
+/**
+ * The Field types there are. More join them (rich text, number, Relationship, …). A `media` Field
+ * holds the id of a Media item of the Site; Templates read it as `media:<id>`, so an `<img>` bound to
+ * it renders as a Media image.
+ */
+export const FIELD_TYPES = ["text", "media"] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
 

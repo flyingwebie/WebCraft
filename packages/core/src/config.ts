@@ -1,3 +1,5 @@
+import { isAbsolute, resolve } from "node:path";
+
 import { normaliseHostname } from "./hostnames.ts";
 
 /** Settings every WebCraft process reads from its environment. */
@@ -19,6 +21,12 @@ export type InstallConfig = {
 	 * `<site slug>.<sites domain>`. Null when it isn't set: Sites then have no Staging address.
 	 */
 	sitesDomain: string | null;
+	/**
+	 * The folder Media and other files are kept in while the Install's storage is local disk
+	 * (`WEBCRAFT_STORAGE_DIR`, `storage` in the folder the process starts in unless set). Web and
+	 * worker must both see the same folder: on a server, a mounted volume.
+	 */
+	storageDir: string;
 };
 
 export type Environment = Record<string, string | undefined>;
@@ -36,6 +44,7 @@ export function loadInstallConfig(env: Environment): InstallConfig {
 		adminHost,
 		adminOrigin: adminOriginFor(adminHost, env.PORT),
 		sitesDomain: loadSitesDomain(env),
+		storageDir: loadStorageDir(env),
 	};
 }
 
@@ -86,6 +95,21 @@ function loadAdminHost(env: Environment): string {
 		);
 	}
 	return host;
+}
+
+/**
+ * Reads `WEBCRAFT_STORAGE_DIR`: an absolute folder, or `storage` in the folder the process starts in
+ * when it isn't set (`bun run dev` sets it, so web and worker share one).
+ */
+function loadStorageDir(env: Environment): string {
+	const value = env.WEBCRAFT_STORAGE_DIR?.trim();
+	if (!value) return resolve(process.cwd(), "storage");
+	if (!isAbsolute(value)) {
+		throw new ConfigError(
+			`WEBCRAFT_STORAGE_DIR must be an absolute path, such as /var/lib/webcraft/storage (got "${value}").`,
+		);
+	}
+	return resolve(value);
 }
 
 /** Reads `WEBCRAFT_SITES_DOMAIN`, which is optional: without it Sites have no Staging address. */

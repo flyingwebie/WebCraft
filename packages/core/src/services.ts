@@ -22,6 +22,7 @@ import type { InstallSettings } from "./install-settings.ts";
 import type { JobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
+import type { ImageProcessor, InstallStorage, MediaLibrary } from "./media/index.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
@@ -55,6 +56,11 @@ export type InstallPorts = {
 	http: OutgoingHttp;
 	clock: Clock;
 	log: Logger;
+	/**
+	 * Image processing: only the worker (and the test harness, which drains its jobs) has the real
+	 * one; the web process and server commands get `imagesOnlyInWorker` (ADR 0027).
+	 */
+	images: ImageProcessor;
 };
 
 /**
@@ -147,4 +153,8 @@ export type InstallServices = InstallPorts & {
 	};
 	/** The Install SMTP, Install branding, the System email sender, the Email log and email preferences. */
 	email: Email;
+	/** Where the Install stores files (Install settings › Storage), and the storage holding each one. */
+	storage: InstallStorage;
+	/** Each Site's Media library: uploads, texts and folders. */
+	media: MediaLibrary;
 };

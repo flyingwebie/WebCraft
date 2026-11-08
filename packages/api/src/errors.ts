@@ -17,6 +17,12 @@ import {
 	IdentityCheckRequiredError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
+	MediaFolderNotFoundError,
+	MediaFolderTakenError,
+	MediaInvalidError,
+	MediaNotFoundError,
+	MediaTooLargeError,
+	MediaTypeRefusedError,
 	MemberNotFoundError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
@@ -33,6 +39,7 @@ import {
 	SlugTakenError,
 	StaffMembershipError,
 	StaffNotFoundError,
+	StorageUnreachableError,
 	TemplateNotFoundError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
@@ -115,6 +122,47 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof MediaNotFoundError) {
+		return new ORPCError("MEDIA_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof MediaFolderNotFoundError) {
+		return new ORPCError("MEDIA_FOLDER_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof MediaFolderTakenError) {
+		return new ORPCError("MEDIA_FOLDER_TAKEN", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof MediaTypeRefusedError) {
+		return new ORPCError("MEDIA_TYPE_REFUSED", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof MediaTooLargeError) {
+		return new ORPCError("MEDIA_TOO_LARGE", {
+			status: 413,
+			message: error.message,
+			data: { maxBytes: error.maxBytes },
+			cause: error,
+		});
+	}
+	if (error instanceof MediaInvalidError) {
+		return new ORPCError("MEDIA_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof StorageUnreachableError) {
+		return new ORPCError("STORAGE_UNREACHABLE", {
+			status: 400,
+			message: error.message,
+			data: { problem: error.problem },
 			cause: error,
 		});
 	}

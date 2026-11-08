@@ -38,7 +38,10 @@ export const PERMISSIONS = {
 	/** Edit Content and save Drafts. */
 	"entry.edit": ["site"],
 	"entry.publish": ["site"],
+	/** Upload to the Site's Media library, and change your own uploads. */
 	"media.upload": ["site"],
+	/** Change every file in the Site's Media library, and its folders. */
+	"media.manage": ["site"],
 } as const satisfies Record<string, readonly Level[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -82,6 +85,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"entry.edit",
 			"entry.publish",
 			"media.upload",
+			"media.manage",
 		],
 	},
 	owner: {
@@ -95,11 +99,12 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"entry.edit",
 			"entry.publish",
 			"media.upload",
+			"media.manage",
 		],
 	},
 	editor: {
 		reach: "membership",
-		permissions: ["workspace.view", "site.view", "entry.edit", "entry.publish", "media.upload"],
+		permissions: ["workspace.view", "site.view", "entry.edit", "entry.publish", "media.upload", "media.manage"],
 	},
 	author: {
 		reach: "membership",

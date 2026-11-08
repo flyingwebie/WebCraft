@@ -1,6 +1,7 @@
-import { entries, people, publishedSlugs, sites } from "@webcraft/db/schema";
+import { entries, media, people, publishedSlugs, sites } from "@webcraft/db/schema";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
+import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, EntryInvalidError, EntryNotFoundError, EntrySlugTakenError } from "./errors.ts";
 import { type FieldDefinition, TEXT_VALUE_MAX_LENGTH } from "./fields.ts";
@@ -187,6 +188,8 @@ async function changeDraft(
 		}
 		if (value !== null && value.length > TEXT_VALUE_MAX_LENGTH) {
 			problems.push({ at: `fields.${key}`, message: `A text value has at most ${TEXT_VALUE_MAX_LENGTH} characters.` });
+		} else if (field.type === "media" && value && !(await isSiteMedia(scope, value))) {
+			problems.push({ at: `fields.${key}`, message: `There is no file ${value} in this Site's Media library.` });
 		}
 		version = writeValue(version, place(key), value, by);
 	}
@@ -196,6 +199,11 @@ async function changeDraft(
 	const [saved] = await scope.update(entries, { draft: version, updatedAt: scope.now() }, eq(entries.id, row.id));
 	if (!saved) throw new EntryNotFoundError();
 	return saved;
+}
+
+/** Whether `id` names a Media item of the scope's Site. */
+async function isSiteMedia(scope: SiteScope, id: string): Promise<boolean> {
+	return isUuid(id) && (await scope.count(media, eq(media.id, id))) > 0;
 }
 
 /** Reads an Entry for a change, holding it until the transaction ends so changes don't overlap. */

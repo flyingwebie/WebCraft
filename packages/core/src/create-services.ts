@@ -18,6 +18,8 @@ import {
 import { createEmail } from "./email/index.ts";
 import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
+import { createInstallStorage } from "./media/install-storage.ts";
+import { createMediaLibrary } from "./media/library.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
@@ -75,6 +77,14 @@ export async function createInstallServices(
 	});
 	const data = createDataLayer({ database, clock, secrets: store });
 	const memberships = createMemberships({ database, clock });
+	const storage = createInstallStorage({
+		database,
+		secrets: installSecrets,
+		http: ports.http,
+		clock,
+		log,
+		directory: config.storageDir,
+	});
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -100,12 +110,14 @@ export async function createInstallServices(
 		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft },
 		templates: { entryTemplate: getEntryTemplate, saveEntryTemplate },
 		publishing: { publish },
-		sitePages: createSitePages({ database, config, data }),
+		sitePages: createSitePages({ database, config, data, storage }),
 		memberships,
 		members: createMembers({ database, email }),
 		staff: createStaff({ email }),
 		invites: createInvites({ database, auth, settings, clock, memberships }),
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
 		email,
+		storage,
+		media: createMediaLibrary({ storage, jobs: ports.jobs }),
 	};
 }

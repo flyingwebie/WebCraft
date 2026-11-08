@@ -5,6 +5,41 @@ import { onInstall, sensitive } from "../context.ts";
 import { adminLanguage } from "../inputs.ts";
 import { emailBranding, emailLog, smtp } from "./email.ts";
 
+/** A storage key part: letters, digits, dots, dashes and underscores. */
+const KEY_PART = "[A-Za-z0-9_][A-Za-z0-9._-]*";
+
+/** Where Media is stored: local disk, or an S3-compatible bucket with all its settings. */
+const storageChange = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("disk") }),
+	z.object({
+		kind: z.literal("s3"),
+		endpoint: z.url({ protocol: /^https?$/ }).max(500),
+		region: z
+			.string()
+			.trim()
+			.min(1)
+			.max(64)
+			.regex(/^[a-z0-9-]+$/),
+		bucket: z
+			.string()
+			.trim()
+			.min(3)
+			.max(63)
+			.regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/),
+		/** Put in front of every key, so one bucket can hold several Installs; empty for none. */
+		prefix: z
+			.string()
+			.trim()
+			.max(200)
+			.regex(new RegExp(`^(${KEY_PART}(/${KEY_PART})*)?$`))
+			.default(""),
+		pathStyle: z.boolean().default(true),
+		accessKeyId: z.string().trim().min(1).max(200),
+		/** A new secret access key; absent keeps the one stored. */
+		secretAccessKey: z.string().min(1).max(500).optional(),
+	}),
+]);
+
 /** The Install itself, for the Superadmin. */
 export const install = {
 	settings: {
@@ -44,6 +79,18 @@ export const install = {
 			.handler(({ context, input }) =>
 				context.services.settings.setLeakedPasswordCheck(context.install, input.leakedPasswordCheck),
 			),
+	},
+	/** Install settings › Storage: where Media is stored, local disk or an S3-compatible bucket. */
+	storage: {
+		get: onInstall("install.manage").handler(({ context }) => context.services.storage.settings()),
+		/**
+		 * Changes where new files go. A bucket is checked first (a small file is written, read and
+		 * removed); files stored before stay where they are and keep their URLs.
+		 */
+		update: onInstall("install.manage")
+			.use(sensitive("storage.change"))
+			.input(storageChange)
+			.handler(({ context, input }) => context.services.storage.change(context.install, input)),
 	},
 	/** The Install SMTP. */
 	smtp,

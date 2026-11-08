@@ -5,6 +5,14 @@
  * Template markup (parse, validate, print) joins it later.
  */
 export { escapeAttribute, escapeText, type RenderOptions, renderTree, safeUrl, type ValueReader } from "./html.ts";
+export {
+	type ImagePriority,
+	type MediaReader,
+	mediaReference,
+	mediaReferencesIn,
+	type PageMedia,
+	renderMediaImage,
+} from "./media.ts";
 export { directionOf, type PageToRender, renderPage } from "./page.ts";
 export {
 	type Attribute,

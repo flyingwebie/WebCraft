@@ -1,0 +1,1493 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "4c9cfa5a-ff01-4753-9446-765b4dfae022",
+  "prevIds": [
+    "25e75cde-1922-4586-af86-f151386936dd"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "install_storage"
+      ],
+      "writes": [
+        "s|tbl|public.install_storage",
+        "n|tbl|public.install_storage",
+        "e|tbl|public.install_storage",
+        "n|rel|public.install_storage",
+        "n|type|public.install_storage",
+        "n|rel|public.install_storage_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "media"
+      ],
+      "writes": [
+        "s|tbl|public.media",
+        "n|tbl|public.media",
+        "e|tbl|public.media",
+        "n|rel|public.media",
+        "n|type|public.media",
+        "n|rel|public.media_pkey",
+        "n|rel|public.media_site_id_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "media_files"
+      ],
+      "writes": [
+        "s|tbl|public.media_files",
+        "n|tbl|public.media_files",
+        "e|tbl|public.media_files",
+        "n|rel|public.media_files",
+        "n|type|public.media_files",
+        "n|rel|public.media_files_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "media_folders"
+      ],
+      "writes": [
+        "s|tbl|public.media_folders",
+        "n|tbl|public.media_folders",
+        "e|tbl|public.media_folders",
+        "n|rel|public.media_folders",
+        "n|type|public.media_folders",
+        "n|rel|public.media_folders_pkey",
+        "n|rel|public.media_folders_site_id_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "media",
+        "media_site_id_created_at_index"
+      ],
+      "writes": [
+        "s|idx|public.media_site_id_created_at_index",
+        "n|idx|public.media_site_id_created_at_index",
+        "e|idx|public.media_site_id_created_at_index",
+        "n|rel|public.media_site_id_created_at_index"
+      ],
+      "reads": [
+        "n|tbl|public.media",
+        "n|sch|public",
+        "n|col|public.media.site_id",
+        "n|col|public.media.created_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "media_files",
+        "media_files_site_id_name_index"
+      ],
+      "writes": [
+        "s|idx|public.media_files_site_id_name_index",
+        "n|idx|public.media_files_site_id_name_index",
+        "e|idx|public.media_files_site_id_name_index",
+        "n|rel|public.media_files_site_id_name_index"
+      ],
+      "reads": [
+        "n|tbl|public.media_files",
+        "n|sch|public",
+        "n|col|public.media_files.site_id",
+        "n|col|public.media_files.name"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "media_files",
+        "media_files_media_id_index"
+      ],
+      "writes": [
+        "s|idx|public.media_files_media_id_index",
+        "n|idx|public.media_files_media_id_index",
+        "e|idx|public.media_files_media_id_index",
+        "n|rel|public.media_files_media_id_index"
+      ],
+      "reads": [
+        "n|tbl|public.media_files",
+        "n|sch|public",
+        "n|col|public.media_files.media_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "media_folders",
+        "media_folders_site_id_name_unique"
+      ],
+      "writes": [
+        "s|idx|public.media_folders_site_id_name_unique",
+        "n|idx|public.media_folders_site_id_name_unique",
+        "e|idx|public.media_folders_site_id_name_unique",
+        "n|rel|public.media_folders_site_id_name_unique"
+      ],
+      "reads": [
+        "n|tbl|public.media_folders",
+        "n|sch|public",
+        "n|col|public.media_folders.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "install_storage"
+      ],
+      "writes": [
+        "s|fk|public.install_storage.install_storage_updated_by_people_id_fkey",
+        "n|fk|public.install_storage.install_storage_updated_by_people_id_fkey",
+        "e|fk|public.install_storage.install_storage_updated_by_people_id_fkey",
+        "n|con|public.install_storage.install_storage_updated_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.install_storage",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.install_storage.updated_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "media"
+      ],
+      "writes": [
+        "s|fk|public.media.media_uploaded_by_people_id_fkey",
+        "n|fk|public.media.media_uploaded_by_people_id_fkey",
+        "e|fk|public.media.media_uploaded_by_people_id_fkey",
+        "n|con|public.media.media_uploaded_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.media",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.media.uploaded_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "media"
+      ],
+      "writes": [
+        "s|fk|public.media.media_site_fkey",
+        "n|fk|public.media.media_site_fkey",
+        "e|fk|public.media.media_site_fkey",
+        "n|con|public.media.media_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.media",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.media.workspace_id",
+        "n|col|public.media.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "media"
+      ],
+      "writes": [
+        "s|fk|public.media.media_folder_fkey",
+        "n|fk|public.media.media_folder_fkey",
+        "e|fk|public.media.media_folder_fkey",
+        "n|con|public.media.media_folder_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.media",
+        "n|sch|public",
+        "n|tbl|public.media_folders",
+        "n|sch|public",
+        "n|col|public.media.site_id",
+        "n|col|public.media.folder_id",
+        "n|col|public.media_folders.site_id",
+        "n|col|public.media_folders.id",
+        "e|uniqueness|public.media_folders.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "media_files"
+      ],
+      "writes": [
+        "s|fk|public.media_files.media_files_site_fkey",
+        "n|fk|public.media_files.media_files_site_fkey",
+        "e|fk|public.media_files.media_files_site_fkey",
+        "n|con|public.media_files.media_files_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.media_files",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.media_files.workspace_id",
+        "n|col|public.media_files.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "media_files"
+      ],
+      "writes": [
+        "s|fk|public.media_files.media_files_media_fkey",
+        "n|fk|public.media_files.media_files_media_fkey",
+        "e|fk|public.media_files.media_files_media_fkey",
+        "n|con|public.media_files.media_files_media_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.media_files",
+        "n|sch|public",
+        "n|tbl|public.media",
+        "n|sch|public",
+        "n|col|public.media_files.site_id",
+        "n|col|public.media_files.media_id",
+        "n|col|public.media.site_id",
+        "n|col|public.media.id",
+        "e|uniqueness|public.media.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "media_folders"
+      ],
+      "writes": [
+        "s|fk|public.media_folders.media_folders_site_fkey",
+        "n|fk|public.media_folders.media_folders_site_fkey",
+        "e|fk|public.media_folders.media_folders_site_fkey",
+        "n|con|public.media_folders.media_folders_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.media_folders",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.media_folders.workspace_id",
+        "n|col|public.media_folders.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "install_storage",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "media",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "media_files",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "media_folders",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "id",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "1",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "kind",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'disk'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "s3_endpoint",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "s3_region",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "s3_bucket",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "s3_prefix",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "''",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "s3_path_style",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "true",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "s3_access_key_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "updated_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "folder_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "kind",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "file_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "content_type",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "size_bytes",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "width",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "height",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "status",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "texts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{\"values\":{}}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "uploaded_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "role",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "format",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "content_type",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "width",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "height",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "size_bytes",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "storage",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_site_id_created_at_index",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "created_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_files_site_id_name_index",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "name",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_files_media_id_index",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "media_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "media_folders_site_id_name_unique",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "lower(\"name\")",
+            "isExpression": true,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "install_storage_updated_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "updated_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_uploaded_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "uploaded_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_folder_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "folder_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "media_folders",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_files_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_files_media_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "media_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "media",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "media_folders_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "install_storage_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_files_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "media_folders_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_site_id_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "media_folders_site_id_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "install_storage_single_row",
+        "value": "\"id\" = 1",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_storage",
+        "name": "install_storage_kind_known",
+        "value": "\"kind\" in ('disk', 's3')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_kind_known",
+        "value": "\"kind\" in ('image', 'document', 'video', 'audio')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media",
+        "name": "media_status_known",
+        "value": "\"status\" in ('processing', 'ready', 'failed')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_files_role_known",
+        "value": "\"role\" in ('upload', 'original', 'variant')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_files",
+        "name": "media_files_storage_known",
+        "value": "\"storage\" in ('disk', 's3')",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

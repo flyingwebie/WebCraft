@@ -1,0 +1,73 @@
+/** One reason a Media change was refused, and where: `language`, `alt`. */
+export type MediaProblem = { at: string; message: string };
+
+/** There is no such Media item on the Site. */
+export class MediaNotFoundError extends Error {
+	override name = "MediaNotFoundError";
+	constructor() {
+		super("There is no such file in this Site's Media library.");
+	}
+}
+
+/** There is no such folder in the Site's Media library. */
+export class MediaFolderNotFoundError extends Error {
+	override name = "MediaFolderNotFoundError";
+	constructor() {
+		super("There is no such folder in this Site's Media library.");
+	}
+}
+
+/** Another folder of the Site's Media library has the name. */
+export class MediaFolderTakenError extends Error {
+	override name = "MediaFolderTakenError";
+	constructor() {
+		super("Another folder of this Media library has this name.");
+	}
+}
+
+/**
+ * A file WebCraft doesn't take: `svg` (SVG files are refused until they are cleaned on upload) or
+ * `unknown` (not an image, document, video or audio file WebCraft knows, whatever its name says).
+ */
+export class MediaTypeRefusedError extends Error {
+	override name = "MediaTypeRefusedError";
+	readonly reason: "svg" | "unknown";
+	constructor(reason: "svg" | "unknown") {
+		super(
+			reason === "svg"
+				? "SVG files can't be uploaded yet."
+				: "This file isn't an image, document, video or audio file the Media library takes.",
+		);
+		this.reason = reason;
+	}
+}
+
+/** A file over the size limit. */
+export class MediaTooLargeError extends Error {
+	override name = "MediaTooLargeError";
+	readonly maxBytes: number;
+	constructor(maxBytes: number) {
+		super(`Files can be at most ${Math.round(maxBytes / (1024 * 1024))} MB.`);
+		this.maxBytes = maxBytes;
+	}
+}
+
+/** A change to a Media item can't be saved: `problems` says what and where. */
+export class MediaInvalidError extends Error {
+	override name = "MediaInvalidError";
+	readonly problems: readonly MediaProblem[];
+	constructor(problems: readonly MediaProblem[]) {
+		super(`The change can't be saved: ${problems.map((problem) => `${problem.at}: ${problem.message}`).join("; ")}`);
+		this.problems = problems;
+	}
+}
+
+/** The storage settings couldn't be used: WebCraft couldn't write, read and remove a file there. */
+export class StorageUnreachableError extends Error {
+	override name = "StorageUnreachableError";
+	readonly problem: string;
+	constructor(problem: string) {
+		super(`The storage can't be used: ${problem}`);
+		this.problem = problem;
+	}
+}

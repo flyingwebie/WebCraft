@@ -42,6 +42,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"masterKey.confirmStored": (api) => api.install.masterKey.confirmStored(),
 	"password.change": (api) => api.me.changePassword({ newPassword: TEST_PASSWORD }),
 	"leakedPasswordCheck.change": (api) => api.install.security.update({ leakedPasswordCheck: true }),
+	"storage.change": (api) => api.install.storage.update({ kind: "disk" }),
 };
 
 let install: TestInstall;
