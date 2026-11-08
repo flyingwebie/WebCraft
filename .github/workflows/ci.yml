@@ -56,7 +56,7 @@ jobs:
         with:
           node-version: lts/*
       - run: bun install --frozen-lockfile
-      - run: bun test
+      - run: bun run test
 
   browser:
     name: Accessibility (browser)

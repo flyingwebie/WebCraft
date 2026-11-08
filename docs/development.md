@@ -60,7 +60,7 @@ Run every command from the repo root: Bun loads `.env` from the directory it run
 | Command | What it does |
 | --- | --- |
 | `bun run dev` | Postgres if needed, migrate, then web and worker. |
-| `bun test` | Every seam-1 test. `bun test tests/web/health.test.ts` runs one file; `bun test -t "readyz"` filters by name. |
+| `bun run test` | Every seam-1 test, each allowed 30 s. `bun run test tests/web/health.test.ts` runs one file; `bun run test -t "readyz"` filters by name. Use `bun run test` rather than a bare `bun test`: Bun ignores a timeout in `bunfig.toml`, so a bare `bun test` gives every test only 5 s and fails on a busy machine. |
 | `bun run test:browser` | The browser accessibility checks (seam 2), against the production build: run `bun run build` first, and once `bunx playwright install chromium` in `tests/`. |
 | `bun run lint` | Biome lint and format check (`bun run format` fixes what it can). |
 | `bun run typecheck` | `tsc` in every workspace (through Turborepo) and in `scripts/`. |
@@ -496,7 +496,7 @@ The admin is a TanStack Start app in `apps/server/src/routes` (file routes) and 
 
 ## Testing
 
-Tests live in `tests/`, grouped by area, and run with `bun test` from the repo root. They test at the spec's seams and check what a person, visitor or client would observe: HTTP responses, emails that went out, outgoing calls, job outcomes and later responses. They never import internal functions or read tables directly; refactoring without changing behaviour must not break a test.
+Tests live in `tests/`, grouped by area, and run with `bun run test` from the repo root. They test at the spec's seams and check what a person, visitor or client would observe: HTTP responses, emails that went out, outgoing calls, job outcomes and later responses. They never import internal functions or read tables directly; refactoring without changing behaviour must not break a test.
 
 **Seam 1** is the web process's handler, booted in-process against a real Postgres. `createTestInstall()` from `tests/harness/index.ts` gives each test file its own Install:
 
@@ -595,7 +595,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 - **Logs**: JSON lines through `Logger` (`services.log`), with fields rather than values pasted into the message.
 - **Licences**: every workspace's `package.json` says `"license": "AGPL-3.0-or-later"`; new dependencies must pass `bun run check:licences`.
 - **Commits**: Gitmoji + Conventional Commits with the ticket number, such as `✨ feat(auth): add setup wizard (#50)`.
-- **Before you finish**: `bun run lint`, `bun run typecheck` and `bun test` all pass.
+- **Before you finish**: `bun run lint`, `bun run typecheck` and `bun run test` all pass.
 
 ## Reference-material denylist
 
