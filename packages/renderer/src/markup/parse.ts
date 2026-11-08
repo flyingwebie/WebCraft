@@ -32,6 +32,7 @@ import {
 	parseElementTree,
 	randomElementId,
 	TREE_LIMITS,
+	type TreeCheck,
 	type TreeNode,
 	textPlacementProblem,
 	textProblem,
@@ -50,6 +51,10 @@ export type ParseMarkupOptions = {
 	isKnownValue?: (path: string) => boolean;
 	/** Refuses an element this kind of Template mustn't hold, answering why. */
 	refuseElement?: (tag: string) => string | undefined;
+	/** Refuses a Template command this kind of Template mustn't hold, by its name, answering why. */
+	refuseCommand?: (name: string) => string | undefined;
+	/** Checks rules about the Template as a whole once it is read, reporting each problem where its node is. */
+	checkTree?: TreeCheck;
 	/** The id of the Site's Class with this name; every Class name is refused when absent. */
 	classNamed?: (name: string) => string | undefined;
 	/**
@@ -142,6 +147,8 @@ class MarkupParser {
 	private readonly notices: MarkupNotice[] = [];
 	private readonly ids = new Map<string, number>();
 	private readonly classIds = new Set<string>();
+	/** Where each node was read, for problems `checkTree` reports on a node. */
+	private readonly offsets = new WeakMap<object, number>();
 	private count = 0;
 	private readonly newId: () => string;
 	private readonly options: ParseMarkupOptions;
@@ -159,6 +166,11 @@ class MarkupParser {
 			const content = this.readContent({ kind: "root" }, [], 1);
 			nodes = content.nodes;
 			this.unexpectedEnd(content.end, { kind: "root" });
+			if (this.problems.length === 0) {
+				this.options.checkTree?.(nodes, (node, message) =>
+					this.problem((node && this.offsets.get(node)) ?? 0, message),
+				);
+			}
 		} catch (error) {
 			if (!(error instanceof Stop)) throw error;
 		}
@@ -171,6 +183,7 @@ class MarkupParser {
 				{
 					isKnownValue: this.options.isKnownValue,
 					refuseElement: this.options.refuseElement,
+					refuseCommand: this.options.refuseCommand,
 					classIds: this.classIds,
 					newId: this.newId,
 				},
@@ -226,6 +239,7 @@ class MarkupParser {
 			if (depth > TREE_LIMITS.depth) this.stop(offset, `Elements nest at most ${TREE_LIMITS.depth} deep.`);
 			this.count++;
 			if (this.count > TREE_LIMITS.nodes) this.stop(offset, `A Template holds at most ${TREE_LIMITS.nodes} nodes.`);
+			this.offsets.set(node, offset);
 			nodes.push(node);
 		};
 		const flush = () => {
@@ -262,6 +276,8 @@ class MarkupParser {
 					const opened = this.readCommandWord(curly);
 					const command = commandNamed(opened.keyword);
 					if (command && opened.keyword === command.name) {
+						const refused = this.options.refuseCommand?.(command.name);
+						if (refused) this.problem(opened.offset, refused);
 						add(this.readCommand(command, opened, ancestors, depth), opened.offset);
 					} else if (container.kind === "command" && container.branches.includes(opened.keyword)) {
 						return { nodes, end: { kind: "branch", ...opened } };

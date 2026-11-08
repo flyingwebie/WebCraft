@@ -106,7 +106,7 @@ async function render(nodes: TestNode[], fields: Record<string, unknown>): Promi
 	const { entry } = await editor.api.entries.create({ siteId, postTypeId: productsId, title: "Loaf", slug, fields });
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
 	const html = await (await install.request(`https://bakery.sites.test/products/${slug}`)).text();
-	return html.slice(html.indexOf("<main>") + 6, html.indexOf("</main>"));
+	return /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "";
 }
 
 async function category(title: string, options: { publish?: boolean; blurb?: string } = {}) {
@@ -265,7 +265,7 @@ describe("written as Template markup", () => {
 		const { entry } = await editor.api.entries.create({ siteId, postTypeId: productsId, title: "Loaf", slug, fields });
 		await editor.api.entries.publish({ siteId, entryId: entry.id });
 		const html = await (await install.request(`https://bakery.sites.test/products/${slug}`)).text();
-		return html.slice(html.indexOf("<main>") + 6, html.indexOf("</main>"));
+		return /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "";
 	}
 
 	test("paths, formatters (on each of a list's values) and Conditions read Field values", async () => {

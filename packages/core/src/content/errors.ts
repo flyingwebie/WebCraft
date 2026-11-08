@@ -1,5 +1,5 @@
 /**
- * One reason something was refused, and where: `urlPattern`, `fields[2].key`, or a value's path such
+ * One reason something was refused, and where: `urlPattern`, `parentId`, `fields[2].key`, or a value's path such
  * as `fields.team[1].name`. A value that breaks one of its Field's rules says which (`required`,
  * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
  * `postTypes`), so the admin can word it in the person's language.
@@ -19,6 +19,14 @@ export class EntryNotFoundError extends Error {
 	override name = "EntryNotFoundError";
 	constructor() {
 		super("There is no such Entry on this Site.");
+	}
+}
+
+/** There is no such Page on the Site: no Entry of its Page Post Type with that id. */
+export class PageNotFoundError extends Error {
+	override name = "PageNotFoundError";
+	constructor() {
+		super("There is no such Page on this Site.");
 	}
 }
 
@@ -64,12 +72,16 @@ export class EntryInvalidError extends Error {
 	}
 }
 
-/** Another Entry of the Post Type already has the slug. */
+/** Another Entry of the Post Type (for a Page, another Page under the same parent) already has the slug. */
 export class EntrySlugTakenError extends Error {
 	override name = "EntrySlugTakenError";
 	readonly slug: string;
-	constructor(slug: string) {
-		super(`Another Entry of this Post Type already has the slug ${slug}.`);
+	constructor(slug: string, among: "postType" | "siblingPages" = "postType") {
+		super(
+			among === "siblingPages"
+				? `Another Page under the same parent already has the slug ${slug}.`
+				: `Another Entry of this Post Type already has the slug ${slug}.`,
+		);
 		this.slug = slug;
 	}
 }
@@ -117,6 +129,57 @@ export class EntryIncompleteError extends Error {
 	constructor(missing: readonly string[]) {
 		super(`The Entry can't be published until these have a value: ${missing.join(", ")}.`);
 		this.missing = missing;
+	}
+}
+
+/** What holds a path on a Site: a Post Type's URL pattern, or a published Page. */
+export type PathHolder =
+	| { kind: "postType"; id: string; name: string; urlPattern: string }
+	| { kind: "page"; id: string; title: string };
+
+/**
+ * A path already belongs elsewhere: a Post Type's URL pattern owns every path it matches, and Pages
+ * live outside them, so a path never belongs to both.
+ */
+export class PathTakenError extends Error {
+	override name = "PathTakenError";
+	readonly path: string;
+	readonly by: PathHolder;
+	constructor(path: string, by: PathHolder) {
+		super(
+			by.kind === "postType"
+				? `The path ${path} belongs to ${by.name} (${by.urlPattern}): choose another slug or parent Page.`
+				: `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`,
+		);
+		this.path = path;
+		this.by = by;
+	}
+}
+
+/** Pages are arranged with a Page layout, so the Page Post Type has no Entry template. */
+export class PagesHaveNoEntryTemplateError extends Error {
+	override name = "PagesHaveNoEntryTemplateError";
+	constructor() {
+		super("Pages are arranged with a Page layout, not an Entry template.");
+	}
+}
+
+/** A Page with Pages under it can't be deleted: they would point at nothing. */
+export class PageHasChildrenError extends Error {
+	override name = "PageHasChildrenError";
+	/** How many Pages name it as their parent, in their Drafts or published. */
+	readonly children: number;
+	constructor(children: number) {
+		super("Pages are nested under this Page: move or delete them first.");
+		this.children = children;
+	}
+}
+
+/** A Page can't be published while its parent Page isn't: its address starts with its parent's. */
+export class PageParentUnpublishedError extends Error {
+	override name = "PageParentUnpublishedError";
+	constructor() {
+		super("Publish the parent Page first: a Page's address starts with its parent's.");
 	}
 }
 

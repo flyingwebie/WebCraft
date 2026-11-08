@@ -22,6 +22,11 @@ import {
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	MemberNotFoundError,
+	PageHasChildrenError,
+	PageNotFoundError,
+	PageParentUnpublishedError,
+	PagesHaveNoEntryTemplateError,
+	PathTakenError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
@@ -71,6 +76,17 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof EntryNotFoundError) {
 		return new ORPCError("ENTRY_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
+	if (error instanceof PageHasChildrenError) {
+		return new ORPCError("PAGE_HAS_CHILDREN", {
+			status: 409,
+			message: error.message,
+			data: { children: error.children },
+			cause: error,
+		});
+	}
+	if (error instanceof PageNotFoundError) {
+		return new ORPCError("PAGE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
 	if (error instanceof TemplateNotFoundError) {
 		return new ORPCError("TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
@@ -113,6 +129,20 @@ export function toApiError(error: unknown): unknown {
 			data: { missing: error.missing },
 			cause: error,
 		});
+	}
+	if (error instanceof PathTakenError) {
+		return new ORPCError("PATH_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { path: error.path, by: error.by },
+			cause: error,
+		});
+	}
+	if (error instanceof PagesHaveNoEntryTemplateError) {
+		return new ORPCError("PAGES_HAVE_NO_ENTRY_TEMPLATE", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof PageParentUnpublishedError) {
+		return new ORPCError("PAGE_PARENT_UNPUBLISHED", { status: 409, message: error.message, cause: error });
 	}
 	if (error instanceof EntryLinkedError) {
 		return new ORPCError("ENTRY_LINKED", {

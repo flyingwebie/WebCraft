@@ -56,7 +56,7 @@ async function rendered(
 	const response = await install.request(`https://bakery.sites.test/${key}/${published.published?.slug}`);
 	expect(response.status).toBe(200);
 	const html = await response.text();
-	return { main: /<main>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "", html };
+	return { main: /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "", html };
 }
 
 describe("values and their formatters", () => {

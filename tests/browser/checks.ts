@@ -1,5 +1,6 @@
-// The checks every admin screen must pass in a browser: axe-core for WCAG 2.2 A and AA (plus axe's
-// best practices), and keyboard use (skip link, visible focus, tab order, no traps).
+// The checks every admin screen and every kind of Site page must pass in a browser: axe-core for
+// WCAG 2.2 A and AA (plus axe's best practices), and keyboard use (skip link, visible focus, tab
+// order, no traps).
 import { expect } from "bun:test";
 import { AxeBuilder } from "@axe-core/playwright";
 import type { Locator, Page } from "playwright";
@@ -72,15 +73,24 @@ export async function expectKeyboardUsable(page: Page, where: string): Promise<v
 	await expectSkipLinkWorks(page, where);
 }
 
-/** The first Tab reaches "Skip to main content", and following it moves focus to the page's main part. */
+/**
+ * The first Tab reaches "Skip to main content", and following it moves focus to the page's main part:
+ * the <main> the link points at.
+ */
 async function expectSkipLinkWorks(page: Page, where: string): Promise<void> {
 	await moveFocusToPageStart(page);
 	await page.keyboard.press("Tab");
-	await page.keyboard.press("Enter");
-	const inMain = await page.evaluate(() => {
-		const main = document.getElementById("main");
-		return Boolean(main && (document.activeElement === main || main.contains(document.activeElement)));
+	const target = await page.evaluate(() => {
+		const link = document.activeElement;
+		return link instanceof HTMLAnchorElement ? decodeURIComponent(link.hash.slice(1)) : "";
 	});
+	await page.keyboard.press("Enter");
+	const inMain = await page.evaluate((id) => {
+		const main = document.getElementById(id);
+		return Boolean(
+			main?.tagName === "MAIN" && (document.activeElement === main || main.contains(document.activeElement)),
+		);
+	}, target);
 	expect({ where, skipLinkMovesFocusToMain: inMain }).toEqual({ where, skipLinkMovesFocusToMain: true });
 }
 

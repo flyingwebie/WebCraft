@@ -51,6 +51,38 @@ export const templates = {
 			return context.services.templates.saveEntryTemplateMarkup(site, input.postTypeId, input.markup);
 		}),
 
+	/** The Site template, or null while the Site has none and its pages show the built-in one. */
+	getSiteTemplate: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { template: await context.services.templates.siteTemplate(site) };
+	}),
+
+	/**
+	 * Saves the Draft of the Site template as an element tree, creating it the first time. It holds
+	 * the header, the footer and one `{{@outlet}}` inside the page's <main>.
+	 */
+	saveSiteTemplate: signedIn.input(z.object({ siteId: id, tree: z.unknown() })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { template: await context.services.templates.saveSiteTemplate(site, input.tree) };
+	}),
+
+	/** The Site template as Template markup, Draft and published; both null while the Site has none. */
+	getSiteTemplateMarkup: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return context.services.templates.siteTemplateMarkup(site);
+	}),
+
+	/**
+	 * Saves the Draft of the Site template from Template markup, creating it the first time, and
+	 * answers it as `saveEntryTemplateMarkup` does.
+	 */
+	saveSiteTemplateMarkup: signedIn
+		.input(z.object({ siteId: id, markup: z.string().max(TEMPLATE_MARKUP_MAX_LENGTH) }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.templates.saveSiteTemplateMarkup(site, input.markup);
+		}),
+
 	/** Publishes a Template's Draft: every page it renders changes at once, and the Site's page cache is cleared. */
 	publish: signedIn.input(z.object({ siteId: id, templateId: id })).handler(async ({ context, input }) => {
 		const item = { kind: "template", id: input.templateId } as const;

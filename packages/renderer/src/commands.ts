@@ -5,15 +5,15 @@
  * new command is a new entry here and a new node kind in `TreeNode`, never a change to the markup
  * parser or printer.
  *
- * Commands the spec names but later work brings (Loops and `{{@empty}}`, the content outlet,
- * pagination, Forms, Filters and Popups) are reserved: markup naming them is refused for now.
+ * Commands the spec names but later work brings (Loops and `{{@empty}}`, pagination, Forms, Filters
+ * and Popups) are reserved: markup naming them is refused for now.
  */
 import { type Expression, passes, writeExpression } from "./expressions.ts";
-import type { ConditionBranch, ConditionNode, TreeNode } from "./tree.ts";
+import type { ConditionBranch, ConditionNode, OutletNode, TreeNode } from "./tree.ts";
 import type { TemplateValue } from "./values.ts";
 
 /** The node kinds Template commands store. */
-export type CommandNode = ConditionNode;
+export type CommandNode = ConditionNode | OutletNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -46,6 +46,8 @@ export type RenderTools = {
 	read(path: string): TemplateValue;
 	/** Renders nodes in the command's place. */
 	nodes(nodes: readonly TreeNode[]): string;
+	/** The page's content, rendered: what the Site template's `{{@outlet}}` shows. */
+	outlet(): string;
 };
 
 /** A section as it prints: `{{@<keyword> <argument>}}` then its children. */
@@ -141,14 +143,51 @@ const ifCommand: TemplateCommand<ConditionNode> = {
 	},
 };
 
+/**
+ * `{{@outlet}}`: where the Site template shows each page's content (an Entry through its Entry
+ * template, a Page's layout, the 404 page). It holds nothing and takes nothing; the Site template has
+ * exactly one, inside its <main> (`page-structure.ts`).
+ */
+const outletCommand: TemplateCommand<OutletNode> = {
+	name: "outlet",
+	nodeType: "outlet",
+	block: false,
+	branches: [],
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		if (section?.argument.trim()) {
+			const leading = section.argument.length - section.argument.trimStart().length;
+			tools.problem(section.argumentOffset + leading, "{{@outlet}} takes nothing: write it alone.");
+			return undefined;
+		}
+		return { type: "outlet" };
+	},
+
+	toMarkup() {
+		return [{ keyword: "outlet", argument: "", children: [] }];
+	},
+
+	check() {
+		return { type: "outlet" };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(_node, tools) {
+		return tools.outlet();
+	},
+};
+
 /** Every Template command there is. */
-export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [ifCommand];
+export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [ifCommand, outletCommand];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
 export const RESERVED_COMMANDS: ReadonlySet<string> = new Set([
 	"loop",
 	"empty",
-	"outlet",
 	"pagination",
 	"form",
 	"filter",

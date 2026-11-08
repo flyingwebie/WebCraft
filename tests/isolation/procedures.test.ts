@@ -6,7 +6,7 @@ import { apiRouter } from "@webcraft/api";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
-import { element, tree, value } from "../harness/trees.ts";
+import { element, outlet, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
 
@@ -167,6 +167,37 @@ describe("Templates", () => {
 	);
 	isolation.refuses("templates.publish", async (api, target) =>
 		api.templates.publish({ siteId: target.siteId, templateId: (await contentIn(target)).templateId }),
+	);
+	isolation.refuses("templates.getSiteTemplate", (api, { siteId }) => api.templates.getSiteTemplate({ siteId }));
+	isolation.refuses("templates.saveSiteTemplate", (api, { siteId }) =>
+		api.templates.saveSiteTemplate({ siteId, tree: tree(element("main", [outlet()])) }),
+	);
+	isolation.refuses("templates.getSiteTemplateMarkup", (api, { siteId }) =>
+		api.templates.getSiteTemplateMarkup({ siteId }),
+	);
+	isolation.refuses("templates.saveSiteTemplateMarkup", (api, { siteId }) =>
+		api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" }),
+	);
+});
+
+describe("Pages", () => {
+	/** A Page in a target's Site, made by the Superadmin. */
+	const pageIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const { postTypes } = await api.postTypes.list({ siteId: target.siteId });
+		const pages = postTypes.find((postType) => postType.builtIn === "page");
+		const { entry } = await api.entries.create({ siteId: target.siteId, postTypeId: pages?.id ?? "", title: "Page" });
+		return entry.id;
+	};
+
+	isolation.refuses("pages.settings", (api, { siteId }) => api.pages.settings({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("pages.setHomePage", async (api, target) =>
+		api.pages.setHomePage({ siteId: target.siteId, pageId: await pageIn(target) }),
+	);
+	isolation.refuses("pages.setNotFoundPage", async (api, target) =>
+		api.pages.setNotFoundPage({ siteId: target.siteId, pageId: await pageIn(target) }),
 	);
 });
 

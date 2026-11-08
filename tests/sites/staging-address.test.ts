@@ -39,6 +39,15 @@ function expectUnbrandedNotFound(response: Response, body: string): void {
 	for (const [name, header] of response.headers) expect(`${name}: ${header}`.toLowerCase()).not.toContain("webcraft");
 }
 
+/** The Site's own 404 page (the built-in one here), which names nothing of what serves it. */
+function expectSiteNotFoundPage(response: Response, body: string): void {
+	expect(response.status).toBe(404);
+	expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+	expect(body).toContain("<h1>Page not found</h1>");
+	expect(body.toLowerCase()).not.toContain("webcraft");
+	for (const [name, header] of response.headers) expect(`${name}: ${header}`.toLowerCase()).not.toContain("webcraft");
+}
+
 describe("each Site's Staging address", () => {
 	test("is <site slug>.<sites domain>, and shows that Site's pages only", async () => {
 		const bakery = await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" });
@@ -73,10 +82,10 @@ describe("each Site's Staging address", () => {
 		expect(missing.headers.get("x-robots-tag")).toBe("noindex");
 	});
 
-	test("answers a path with no page with the plain, unbranded 404", async () => {
+	test("answers a path with no page with the Site's own unbranded 404 page", async () => {
 		for (const path of ["/", "/pages/no-such-page", "/pages", "/pages/about/more", "//pages/about"]) {
 			const response = await install.request(`https://bakery.sites.test${path}`);
-			expectUnbrandedNotFound(response, await response.text());
+			expectSiteNotFoundPage(response, await response.text());
 		}
 	});
 
@@ -106,7 +115,7 @@ describe("Site hostnames never reach the admin", () => {
 	test("the admin's own paths on a Staging address are the Site's, not the admin's", async () => {
 		for (const path of ["/healthz", "/readyz", "/sign-in", "/api/rpc/session/current"]) {
 			const response = await install.request(`https://bakery.sites.test${path}`);
-			expectUnbrandedNotFound(response, await response.text());
+			expectSiteNotFoundPage(response, await response.text());
 		}
 		const call = await install.request("https://bakery.sites.test/api/rpc/session/current", {
 			method: "POST",
