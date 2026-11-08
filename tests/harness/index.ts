@@ -14,6 +14,9 @@ import {
 	parseMasterKey,
 	runJob,
 	type Secrets,
+	type SendResult,
+	type SystemEmail,
+	type SystemEmailType,
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
@@ -28,7 +31,7 @@ import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 export { API_PATH, type TestBrowser } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
-export type { FakeMailer } from "./fake-mailer.ts";
+export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
 
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
@@ -120,6 +123,11 @@ export type TestInstall = {
 	drainJobs(): Promise<DrainReport>;
 	/** The Install's secrets, encrypted under its Master key: set, use and describe them. */
 	readonly secrets: Secrets;
+	/**
+	 * Sends a System email the way WebCraft's features do (`services.email.send`): rendered for each
+	 * recipient, recorded in the Email log and queued; drain the jobs to send it.
+	 */
+	sendSystemEmail<Type extends SystemEmailType>(email: SystemEmail<Type>): Promise<SendResult[]>;
 	/** Every email the Install sent. */
 	mail: FakeMailer;
 	/** The Install's outgoing HTTP: prepare answers, read what was requested. */
@@ -235,6 +243,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		get secrets() {
 			return services.secrets;
 		},
+		sendSystemEmail: (email) => services.email.send(email),
 		mail,
 		http,
 		clock,

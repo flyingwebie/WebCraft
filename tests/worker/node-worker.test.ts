@@ -1,6 +1,5 @@
 // The worker runs on Node, not Bun (ADR 0006). This test starts the real worker process with
-// `node` against a test Install's database and checks it works a job the test sends. With no
-// SMTP set, the worker writes the email to its log instead of sending it.
+// `node` against a test Install's database and checks it works a job the test sends.
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { samplePing } from "@webcraft/core";
 
@@ -23,7 +22,7 @@ afterAll(async () => {
 
 test("the worker process runs on Node and works the sample job", async () => {
 	const url = `http://127.0.0.1:${pingTarget.port}/ping`;
-	await install.jobs.send(samplePing, { url, notify: "ops@agency.example" });
+	await install.jobs.send(samplePing, { url });
 
 	const worker = Bun.spawn(["node", WORKER], {
 		env: { ...process.env, ...install.env },
@@ -31,14 +30,9 @@ test("the worker process runs on Node and works the sample job", async () => {
 		stderr: "pipe",
 	});
 	try {
-		const entry = await firstLogEntry(worker.stdout, (line) => line.email !== undefined, 20_000);
+		const entry = await firstLogEntry(worker.stdout, (line) => line.msg === "Pinged a URL", 20_000);
 
-		expect(entry.level).toBe("warn");
-		expect(entry.email).toEqual({
-			to: "ops@agency.example",
-			subject: `${url} answered 200`,
-			text: expect.stringContaining(": HTTP 200."),
-		});
+		expect(entry).toMatchObject({ level: "info", job: "sample.ping", url, status: 200 });
 	} finally {
 		worker.kill("SIGTERM");
 	}

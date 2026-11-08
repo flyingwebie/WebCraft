@@ -3,11 +3,11 @@ import type { Database } from "@webcraft/db";
 
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
+import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
 import type { JobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
-import type { Mailer } from "./mailer.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { People } from "./people.ts";
 import type { Secrets } from "./secrets/store.ts";
@@ -45,4 +45,6 @@ export type InstallServices = InstallPorts & {
 	settings: InstallSettings;
 	/** Whether the Superadmin has stored the Master key outside the server. */
 	masterKey: MasterKeyBackup;
+	/** The Install SMTP, Install branding, the System email sender, the Email log and email preferences. */
+	email: Email;
 };

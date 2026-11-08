@@ -55,3 +55,9 @@ export const superadminOnly = signedIn.use(async ({ context, next }) => {
 	}
 	return next();
 });
+
+/**
+ * Sensitive actions, such as changing an SMTP server or another secret. The recent identity check
+ * (#55) goes here, and refuses API tokens and OAuth grants; until then it lets every caller through.
+ */
+export const sensitive = base.middleware(({ next }) => next());

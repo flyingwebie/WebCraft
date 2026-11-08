@@ -4,10 +4,10 @@ import type { PgBoss } from "pg-boss";
 import { systemClock } from "./clock.ts";
 import { type Environment, loadInstallConfig } from "./config.ts";
 import { createInstallServices } from "./create-services.ts";
+import { createSmtpMailer } from "./email/smtp-mailer.ts";
 import { fetchHttp } from "./http.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
-import { createLogMailer } from "./mailer.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
 import type { InstallServices } from "./services.ts";
 
@@ -59,8 +59,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 			config,
 			database,
 			jobs: createJobQueue(boss),
-			// Until Install SMTP exists, emails are written to the log with a warning.
-			mailer: createLogMailer(log),
+			mailer: createSmtpMailer(),
 			http: fetchHttp,
 			clock: systemClock,
 			log,
@@ -89,7 +88,7 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 				config,
 				database,
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
-				mailer: createLogMailer(log),
+				mailer: createSmtpMailer(),
 				http: fetchHttp,
 				clock: systemClock,
 				log,
