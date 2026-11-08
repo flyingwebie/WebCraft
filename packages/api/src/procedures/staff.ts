@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { onInstall } from "../context.ts";
+import { onInstall, sensitive } from "../context.ts";
 import { email, id, reach } from "../inputs.ts";
 
 /** Staff: the agency's people, reaching the Workspaces they are assigned to. Only the Superadmin manages them. */
@@ -13,6 +13,8 @@ export const staff = {
 	 * that works once for 7 days. Inviting the same address again replaces the earlier invite.
 	 */
 	invite: onInstall("staff.manage")
+		// Sensitive: it grants a role.
+		.use(sensitive)
 		.input(z.object({ email, workspaces: reach }))
 		.handler(async ({ context, input }) => ({
 			invite: await context.services.staff.invite(context.install, input),
@@ -28,6 +30,8 @@ export const staff = {
 
 	/** Changes which Workspaces a Staff member reaches. */
 	setWorkspaces: onInstall("staff.manage")
+		// Sensitive: it changes what a person can reach.
+		.use(sensitive)
 		.input(z.object({ personId: id, workspaces: reach }))
 		.handler(async ({ context, input }) => {
 			await context.services.staff.setWorkspaces(context.install, input.personId, input.workspaces);
