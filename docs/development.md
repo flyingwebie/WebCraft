@@ -11,12 +11,12 @@ A Bun-workspaces monorepo, scaffolded once with Better-T-Stack (TanStack Start, 
 | `apps/server` | The web process. One request handler routes every request by hostname: the admin host to the admin side (the TanStack Start admin, `/healthz`, `/readyz`, the Management API at `/api/rpc`, later `/api/v1`, `/mcp`, OAuth and the Caddy ask endpoint), every other hostname to the Site pipeline. | Bun 1.4 |
 | `apps/worker` | The worker: runs pg-boss jobs. | Node LTS |
 | `apps/cli` | The `webcraft` command (`webcraft admin migrate`, `rotate-key` and `create-superadmin` for now). | Bun |
-| `packages/core` | Domain modules (the permission check, the tenant data layer, Workspaces, Sites, Staff, the Audit log, secrets, setup, people, Install settings, the Master key banner, email) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
+| `packages/core` | Domain modules (the permission check, the tenant data layer, Workspaces, Sites, Staff, the Audit log, the content store and publishing, the Site side of rendering, secrets, setup, people, Install settings, the Master key banner, email) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
 | `packages/db` | Postgres: Drizzle schema and migrations, connections, the migrate step, the schema check, the pg-boss job queue. | both |
 | `packages/auth` | WebCraft's auth interface (`Auth`): signing in and out, sessions, creating people, password rules. Better Auth sits behind it; no other package imports Better Auth. | both |
 | `packages/api` | The Management API: oRPC procedures, served to the admin at `/api/rpc`. | both |
 | `packages/mcp` | The MCP server, generated from the API (placeholder). | both |
-| `packages/renderer` | Template markup and the Site renderer (placeholder). | both |
+| `packages/renderer` | Element trees (the stored form of Templates) and the renderer that turns them into HTML; Template markup joins it. It reads nothing itself. | both |
 | `packages/ui` | shadcn components for the admin (preset `b1Fk3bmIS`) and its theme. | browser |
 | `packages/config` | The shared `tsconfig.base.json`. | |
 | `tests` | The seam-1 test harness and its tests, and the seam-2 browser harness (`tests/browser`). | Bun |
@@ -51,7 +51,7 @@ Make the Master key for `WEBCRAFT_SECRET_KEY` with `openssl rand -base64 32` (se
 4. Runs the migrate step.
 5. Starts the web process (`vite dev` on Bun, port `PORT`) and the worker (Node, restarting when its files change). Ctrl-C stops both.
 
-Open `http://admin.localhost:3000/` for the admin. On a fresh database the web log prints a setup token and a link to the setup wizard (`setupUrl`); open it to create the Superadmin (see "Signing in and the setup wizard"). Every other hostname is a Site; names under `.localhost` reach your machine without DNS changes, so `http://shop.localhost:3000/` is a Site hostname (an unknown one, for now). Vite refuses hostnames outside `.localhost` in development.
+Open `http://admin.localhost:3000/` for the admin. On a fresh database the web log prints a setup token and a link to the setup wizard (`setupUrl`); open it to create the Superadmin (see "Signing in and the setup wizard"). Every other hostname is a Site; names under `.localhost` reach your machine without DNS changes. With `WEBCRAFT_SITES_DOMAIN=sites.localhost`, a Site with the slug `shop` answers on its Staging address `http://shop.sites.localhost:3000/` (`sites.get` gives it as `stagingUrl`). Vite refuses hostnames outside `.localhost` in development.
 
 Run every command from the repo root: Bun loads `.env` from the directory it runs in.
 
@@ -79,6 +79,7 @@ Run every command from the repo root: Bun loads `.env` from the directory it run
 | --- | --- | --- |
 | `DATABASE_URL` | all | The Install's Postgres database. Tests derive their database names from it. |
 | `WEBCRAFT_ADMIN_HOST` | web, worker | The admin's hostname, without scheme or port (`admin.example.com`). Reserved: it never resolves to a Site. |
+| `WEBCRAFT_SITES_DOMAIN` | web, worker | Optional. The domain Staging addresses sit under: each Site answers on `<site slug>.<sites domain>` (`sites.example.com` gives `bakery.sites.example.com`; point a wildcard DNS record at the Install). Without it Sites have no Staging address. When the admin host sits right under it (`cms.example.com` under `example.com`), its first label can't be a Site slug. |
 | `PORT` | web | The web process's port (default 3000). |
 | `WEBCRAFT_SECRET_KEY` | web, worker, `rotate-key` | The Master key, at least 32 characters (`openssl rand -base64 32`). It encrypts every stored secret. Keep a copy outside the server. |
 | `WEBCRAFT_OLD_SECRET_KEY` | `rotate-key` | The Master key being replaced, only while `webcraft admin rotate-key` runs. |
@@ -102,7 +103,7 @@ Several worktrees and CI jobs share one Postgres server, so names must never col
 
 - **Admin host** (`apps/server/src/admin/side.ts`): the web process answers its own paths first (`/healthz`, `/readyz`, the Management API at `/api/rpc`; add `/api/v1`, `/mcp` and the rest there), then hands the request to the admin app. In production the admin's built files are served from `apps/server/dist/client` here too, so Sites never expose them.
 - **`/api/rpc`** is the Management API as the admin's own pages call it: every procedure in `packages/api/src/router.ts`, over oRPC's RPC protocol, signed in with the session cookie. A request another site's page makes (by its `Origin` or `Sec-Fetch-Site` header) is refused with 403, so no other site can act with a signed-in person's cookie. Procedures get `{ services, headers, resHeaders, via }`; start them from `procedure`, `signedIn` or `onInstall(permission)` in `packages/api/src/context.ts` (see "Writing a procedure"), and throw WebCraft's own errors: `packages/api/src/errors.ts` turns them into API error codes, which the admin translates.
-- **Every other hostname** (`apps/server/src/site/pipeline.ts`): the Site pipeline. Until Sites exist it answers every hostname with the unbranded 404 (`Not Found`, plain text). Anything a Site visitor sees must stay unbranded: use `plainText`, `notFound` and `json` from `apps/server/src/responses.ts`.
+- **Every other hostname** (`apps/server/src/site/pipeline.ts`): the Site pipeline (see "The Site pipeline and the page cache"). A hostname that is no Site's gets the unbranded 404 (`Not Found`, plain text), and nothing on a Site hostname ever reaches the admin. Anything a Site visitor sees must stay unbranded: use `plainText`, `notFound` and `json` from `apps/server/src/responses.ts`.
 - `/healthz` answers 200 while the process is up. `/readyz` answers 200 when the database is reachable and has had every migration this version expects, 503 otherwise. Both answer only on the admin host; container health checks must send `Host: <admin host>`.
 - `apps/server/src/server.ts` is the TanStack Start server entry: it builds the services and wraps the admin renderer in the hostname router. `vite dev` runs it in development; `vite build` bundles it into `dist/server/server.js`, which `apps/server/src/serve.ts` serves with `Bun.serve` in production. Tests call `createWebHandler` directly, without the admin app.
 
@@ -133,7 +134,8 @@ await site.audit("entry.publish", { entryId: entry.id }); // who, when, how, Wor
 
 - `services.data.install(access, permission)`, `.workspace(access, workspaceId, permission)` and `.site(access, siteId, permission)` open the three levels. A Workspace or Site the actor can't see answers `WorkspaceNotFoundError` / `SiteNotFoundError` (404), one they see without the Permission `PermissionDeniedError` (403), so nobody learns what exists outside their reach.
 - A Workspace scope works on **Workspace tables** (a `workspace_id` column); a Site scope on **Site tables** (both `workspace_id` and `site_id`, with a composite foreign key to `sites (workspace_id, id)` so a row can never point at another Workspace's Site). Module tables follow the same rule.
-- Scope queries: `select(table, where?, { orderBy, limit })`, `first`, `count`, `insert`, `update(table, set, where?)`, `delete`. For a join or anything else, include `scope.where(table, extra?)` in your own query: every query on a tenant table must carry it. `scope.transaction(work)` runs queries and Audit log entries together.
+- Scope queries: `select(table, where?, { orderBy, limit })`, `first`, `count`, `insert`, `update(table, set, where?)`, `delete`. For a join, a lock (`.for("update")`) or anything else, run your own query on `scope.db` (the scope's transaction inside `scope.transaction`) and include `scope.where(table, extra?)`: every query on a tenant table must carry it. `scope.transaction(work)` runs queries and Audit log entries together.
+- **Visitors** have no person behind them: `services.data.visitors(site)` opens a Site read-only (`select`, `first`, `count`, `where`, `db`), with no Audit log and no secrets. Only the Site pipeline opens one, after finding the Site by hostname, and code reading through it reads only what any visitor may see (published content).
 - `scope.secrets` holds the Workspace's or Site's secrets (`set(name, value)`, `useWith`, `describe`, `remove`); `services.secrets` holds only the Install's own.
 - The Install scope's `db` is for Install-level tables (Workspaces, Staff, invites); a domain function takes the scope it needs as its first argument, such as `createSite(workspace, input)`.
 
@@ -159,7 +161,7 @@ create: signedIn
 
 The Audit log is one append-only table (`audit_log`; triggers refuse updates and truncation). `recordAudit` (`packages/core/src/audit.ts`) is the only function that writes it; code calls it through `scope.audit(action, details)`, which fills in who, when, how (`via`), the Workspace and the Site. An Install scope's `audit` takes the Workspace (and Site) the action concerns as a third argument, a Workspace scope's the Site.
 
-- **Actions** are `<noun>.<verb>`: `install.claim`, `superadmin.create`, `masterKey.confirmStored`, `workspace.create`, `site.create`, `staff.invite`, `staff.revokeInvite`, `staff.join`, `staff.changeWorkspaces`.
+- **Actions** are `<noun>.<verb>`: `install.claim`, `superadmin.create`, `masterKey.confirmStored`, `workspace.create`, `site.create`, `staff.invite`, `staff.revokeInvite`, `staff.join`, `staff.changeWorkspaces`, `postType.create`, `postType.update`, `entry.publish`, `template.publish`. Saving a Draft isn't logged; publishing is.
 - **How** (`AuditVia`): `admin` for `/api/rpc`, `command` with the command's name for `webcraft admin …`. Later kinds: Edit mode, an API token's name, an AI client's name, a Module, Impersonation.
 - **Details** are plain JSON about what changed (a name, an email address); never a secret's value.
 - `audit.list` gives the Superadmin the newest entries; the screens and the Staff and Owner views come with the Audit log screens.
@@ -167,6 +169,64 @@ The Audit log is one append-only table (`audit_log`; triggers refuse updates and
 ### Staff and invites
 
 The Superadmin invites Staff by email (`staff.invite`), to all Workspaces (including later ones) or chosen ones. The invite is the `staff-invite` System email (see "Email"), in the Install's default Admin language, with a link to `/invite?token=…` that works once, for 7 days; only the token's hash is stored. Inviting the same address again replaces the invite. Accepting creates the account with the role and its Workspaces, records `staff.join`, and signs the person in.
+
+## Content and publishing
+
+The content store is `packages/core/src/content/`, behind `services.postTypes`, `services.entries`, `services.templates` and `services.publishing`. Its tables (`post_types`, `entries`, `published_slugs`, `templates`) are Site tables.
+
+- **Post Types** are Structure without a Draft: `create`, `update`, `list`, `get`. Each has a `key` (`blog`, made from the name when not given; it never changes), a `name`, a URL pattern and its Fields, in order. Changing one applies at once and clears the Site's page cache.
+- **URL patterns** (`content/url-patterns.ts`) are fixed path parts (lower-case letters, digits, dashes) and exactly one `{slug}`: `/blog/{slug}`, `/{slug}`. Fixed parts can't start with `_`, so no pattern reaches the paths the Install keeps (`/_webcraft/…`, `/_media/…`). When several patterns match a path, the most specific is tried first (a fixed part beats `{slug}` at the first place they differ). Nested Pages and the Site template's routing come with #61.
+- **Fields** (`content/fields.ts`) are `{ key, label, type, translatable, required }`; `text` is the only type so far (#59 adds the rest). A key never changes, so a Field's values and bindings follow it. Keys can't be a built-in Field or a name Template markup reads from (`site`, `props`, `item`, …).
+- **Built-in Fields** every Entry has: `title`, `slug` (both translatable, stored like Fields), `status`, `author`, `createdAt`, `updatedAt` (Draft saved), `publishedAt` (first publish) and `lastPublishedAt`. A Post Type lists them as `builtInFields`.
+- **Entries** keep two versions side by side in `entries.draft` and `entries.published` (null until the first publish). Inside each, values are stored per key and per language (ADR 0003): `{ values: { title: { en: { value, by } }, summary: { … } } }`, where `by` is who wrote it (a person; AI translation joins later). A shared Field keeps one value under the Default language; a Translatable field falls back to the Default language one Field at a time. Sites have one language (`sites.default_language`, `en`) until #80. `status` is worked out: `draft` (never published), `published`, `changed` (the Draft differs).
+- **The Draft is written in one place**: `changeDraft` in `content/entries.ts`, which `entries.create` and `entries.saveDraft` both go through, with the Entry row locked. Co-editing (#71, ADR 0025) replaces it with changes to the Draft's shared document; nothing else writes `entries.draft`.
+- **Slugs**: made from the title when not given (accents dropped, `crème brûlée` gives `creme-brulee`), unique within the Post Type (`-2`, `-3`, …), and never changed by a new title. A slug another Entry of the Post Type has, in its Draft or published, is refused. `published_slugs` holds each Entry's published slug per language, so the Site finds an Entry by URL with one indexed lookup.
+- **Entry templates** (`content/templates.ts`) are one per Post Type, `templates` rows of kind `entry` holding element trees in `draft` and `published`. `saveEntryTemplate` checks the tree with `parseEntryTemplate`: it may read the built-in Fields and the Post Type's Fields, and holds no `<main>` (the page's `<main>` is around it). The Site template and Archive templates become more kinds.
+
+### Publishing
+
+`services.publishing.publish(scope, item)` (`content/publishing.ts`) is the one way anything is published. `item` is `{ kind: "entry" | "template", id }`; Globals, Components, Forms and the Design system become more kinds. Open the Site with `publishPermission(item)` (`entry.publish` for Entries, `structure.edit` for Structure such as Templates); `publish` checks it again, so the worker's Scheduled publishes (#69) hold it too. In one transaction it:
+
+1. locks the item and checks it can be published: an Entry needs a title, a slug and every required Field (`EntryIncompleteError`), and its slug must be free among published Entries of its Post Type (`EntrySlugTakenError`); a Template must still fit its Post Type (`ElementTreeInvalidError`);
+2. copies the Draft over the published version and sets `publishedAt` (first time) and `lastPublishedAt`;
+3. clears the Site's page cache (`clearPageCache`: raises `sites.page_cache_generation`);
+4. writes the Audit log (`entry.publish`, `template.publish`).
+
+Revisions (#67), Publish all (#68), Scheduled publish (#69), Review (#70), Webhooks and the CDN purge hook in here.
+
+## The Site pipeline and the page cache
+
+`apps/server/src/site/pipeline.ts` answers every hostname other than the admin host (ADR 0004):
+
+1. **Hostname → Site** (`services.sitePages.resolveHost`): a Staging address, `<site slug>.<WEBCRAFT_SITES_DOMAIN>`, compared in lower case without a trailing dot. Anything else gets the unbranded 404. Primary, Redirect and language domains (#82, #80) join here. The admin host never resolves to a Site, and no Site slug can make a Staging address equal to it (`reservedSlugs`).
+2. **Only `GET` and `HEAD`** for now (405 otherwise); Form posts come with their reserved paths.
+3. **Page cache lookup** by normalised URL (`canonicalPath`): decoded path segments, no trailing slash, no query parameters (none changes a page yet; Filters will keep theirs, sorted).
+4. **Render on a miss** (`services.sitePages.render`): the published Entry whose Post Type's URL pattern and published slug match, through its published Entry template. An Entry whose Entry template isn't published has no page yet. The page is kept in the cache.
+5. **Answer** with `Content-Type: text/html`, `Cache-Control: public, max-age=0, must-revalidate` (browsers and proxies revalidate every time, since a publish must show at once), a strong `ETag` (SHA-256 of the HTML; `If-None-Match` gets 304), `X-Cache: HIT` or `MISS`, and on a Staging address `X-Robots-Tag: noindex`. A path with no page is the plain 404.
+
+**The page cache** (`apps/server/src/site/page-cache.ts`) is in the web process's memory, 64 MiB by default, least recently used pages going first. Every page is kept under the Site's page cache generation, read with the hostname; `publish` raises the generation in Postgres in the publish's own transaction, so the whole Site's cache is cleared at once, in every web process, whichever process published (the worker too). A request that read an older generation never stores its page. The Content API (#108) and a CDN purge can key on the same generation and ETags.
+
+Staging addresses show published pages for now; #68 makes them show Drafts, at which point Staging answers stop being cached.
+
+### Element trees and the renderer
+
+Templates are stored as element trees (`packages/renderer/src/tree.ts`, ADR 0002), the one canonical format the builder, Template markup (#58) and the renderer share:
+
+```ts
+{ version: 1, nodes: [
+  { type: "element", id: "Xb3…", tag: "article", attributes: [], classes: [], children: [
+    { type: "element", id: "Q9z…", tag: "h1", attributes: [], classes: [], children: [{ type: "value", path: "title" }] },
+    { type: "element", id: "k2P…", tag: "a", classes: [],
+      attributes: [{ name: "href", value: [{ type: "text", text: "/blog/" }, { type: "value", path: "slug" }] }],
+      children: [{ type: "text", text: "Read more" }] },
+  ] },
+] }
+```
+
+- Elements have a stable `id` (filled in when missing, kept when given), a lower-case `tag` from `TEMPLATE_ELEMENTS`, ordered `attributes` (a list: Postgres `jsonb` doesn't keep key order, and a round trip must lose nothing), `classes` (Class ids, ADR 0009; refused until Classes exist, #64) and `children`. Text nodes are fixed text; value nodes and attribute value parts are **bindings**: a `path` (`title`, a Field key; later `site.x`, `props.x`, `item.x`), which Edit mode (#72) reads to tag editable regions.
+- `parseElementTree(input, options)` checks a tree and answers its canonical form, or throws `ElementTreeInvalidError` with every problem and where (`nodes[0].children[2].attributes[1]`): scripts, elements outside `TEMPLATE_ELEMENTS`, `on…`, `style`, `class`, `srcdoc` and `data-wc-…` attributes, unknown value names (`isKnownValue`), unknown Classes, duplicate ids, children of void elements, more than 64 levels or 10,000 nodes. The API answers it as `TEMPLATE_INVALID` with `data.problems`.
+- New node types (Component placements, Loops, Conditions, the content outlet) join the `TreeNode` union and `parseElementTree`; a change old trees can't be read as raises `ELEMENT_TREE_VERSION`.
+- `renderPage` writes a whole document: `<html lang dir>`, the title (`<title> · <Site name>`), and the Entry template inside `<main>` (the built-in Site template until #61). Text and values are escaped for text or double-quoted attributes; `href`, `src` and other URL attributes (and each `srcset` candidate) keep only `http`, `https`, `mailto`, `tel`, relative paths and `#anchors`, anything else becoming `#`. Dates render as `2026-03-02` until Template markup's formatters. No script, inline style or event handler is ever written.
 
 ## Migrations
 
@@ -301,7 +361,7 @@ Tests live in `tests/`, grouped by area, and run with `bun test` from the repo r
 | --- | --- |
 | `install.secrets` | Every secret of the Install (`set`, `useWith`, `describe`, `remove`), for any owner, encrypted under its Master key: for tests of the secret store. WebCraft's own code reaches a Workspace's or Site's secrets through the data layer. |
 | `install.env` | The environment a real process needs to run as this Install: `DATABASE_URL`, `WEBCRAFT_ADMIN_HOST` and `WEBCRAFT_SECRET_KEY`. |
-| `install.request(url, init)` | Sends a standard `Request` through the handler, in process. Always use a full URL: the hostname decides where it goes. `install.adminUrl("/healthz")` builds admin-host URLs (`https://admin.test/...`). |
+| `install.request(url, init)` | Sends a standard `Request` through the handler, in process. Always use a full URL: the hostname decides where it goes. `install.adminUrl("/healthz")` builds admin-host URLs (`https://admin.test/...`); a Site's Staging address is `https://<slug>.sites.test` (`sites.get` answers it as `stagingUrl`). |
 | `install.browser()` | A person's browser on the admin: it keeps cookies and sends the admin's origin. `browser.api` is the typed Management API client (`await browser.api.session.current()`); errors reject with their API `code`. `install.browser({ origin })` sends requests from another site's pages. |
 | `install.createSuperadmin(account?)` | Creates the Superadmin as `webcraft admin create-superadmin` does and answers the account (email, password `TEST_PASSWORD`). |
 | `install.superadmin()` | A browser signed in as the Superadmin (made first when there is none). |
@@ -321,7 +381,9 @@ Tests live in `tests/`, grouped by area, and run with `bun test` from the repo r
 | `install.restart({ masterKey? })` | Starts the Install again, as web and worker do (with another Master key when given), running their start-up checks and printing a new setup token while there's no Superadmin. |
 | `install.close()` | Stops the Install and drops its database. |
 
-`createTestInstall({ database: "empty" })` gives an Install whose database nobody migrated, and `{ database: "unreachable" }` one whose database doesn't answer. Every test Install starts with the Master key `TEST_MASTER_KEY` unless you pass `{ masterKey }`; tests never use the key in `.env`.
+`createTestInstall({ database: "empty" })` gives an Install whose database nobody migrated, and `{ database: "unreachable" }` one whose database doesn't answer. Every test Install starts with the Master key `TEST_MASTER_KEY` unless you pass `{ masterKey }`; tests never use the key in `.env`. Its sites domain is `sites.test` (`TEST_SITES_DOMAIN`) unless you pass `{ sitesDomain }` (`null` for none), and its admin host `admin.test` unless you pass `{ adminHost }`.
+
+`tests/harness/trees.ts` writes element trees briefly: `tree(element("article", [element("h1", [value("title")])]))`, `text("…")`, and attributes as `element("a", [text("More")], { href: [{ type: "text", text: "/blog/" }, value("slug")] })`. `tests/sites/first-site.test.ts` shows a whole Site: Post Type, Entry template, Entry, publish, the rendered page and the page cache.
 
 A seam-1 test:
 
