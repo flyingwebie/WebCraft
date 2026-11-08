@@ -14,6 +14,7 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import type { InstallConfig } from "../config.ts";
 import { entryValues } from "../content/entries.ts";
 import { linksIn } from "../content/field-values.ts";
+import type { BuiltInField } from "../content/fields.ts";
 import { publishedGlobals } from "../content/globals.ts";
 import {
 	findPublishedPage,
@@ -244,7 +245,8 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 	const authorName = entry.authorId ? await nameOf(scope, entry.authorId) : null;
 	// Visitors see the published version: nothing here tells them about the Draft, so its status
 	// is "published" and it was last updated when it was last published.
-	const builtIns: Record<string, TemplateValue> = {
+	// Every built-in Field, so adding one to BUILT_IN_FIELDS can't leave it empty on pages.
+	const builtIns: Record<BuiltInField, TemplateValue> = {
 		title: published.title,
 		slug: published.slug,
 		status: "published",

@@ -1,20 +1,10 @@
 // Post Types: the kinds of Entry a Site holds, each with a URL pattern and Fields. They are
 // Structure: Staff (and the Superadmin) change them; Members read them to write Entries.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { BUILT_IN_FIELDS } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { element, tree, value } from "../harness/trees.ts";
-
-const BUILT_IN_FIELDS = [
-	"title",
-	"slug",
-	"status",
-	"author",
-	"createdAt",
-	"updatedAt",
-	"publishedAt",
-	"lastPublishedAt",
-] as const;
 
 let install: TestInstall;
 let admin: TestBrowser;
