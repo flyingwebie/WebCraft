@@ -1,12 +1,16 @@
 import { ORPCError } from "@orpc/server";
 import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
 import {
+	AccessNotHeldError,
+	AlreadyMemberError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
 	EntryInvalidError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	InviteForAnotherAccountError,
 	InviteInvalidError,
+	MemberNotFoundError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
@@ -17,6 +21,7 @@ import {
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
+	StaffMembershipError,
 	StaffNotFoundError,
 	TemplateNotFoundError,
 	WorkspaceNotFoundError,
@@ -108,6 +113,26 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof InviteInvalidError) {
 		return new ORPCError("INVITE_INVALID", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof InviteForAnotherAccountError) {
+		return new ORPCError("INVITE_OTHER_ACCOUNT", { status: 403, message: error.message, cause: error });
+	}
+	if (error instanceof MemberNotFoundError) {
+		return new ORPCError("MEMBER_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof AlreadyMemberError) {
+		return new ORPCError("ALREADY_MEMBER", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof StaffMembershipError) {
+		return new ORPCError("STAFF_MEMBERSHIP", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof AccessNotHeldError) {
+		return new ORPCError("ACCESS_NOT_HELD", {
+			status: 403,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
 	}
 	if (error instanceof PermissionDeniedError) {
 		return new ORPCError("FORBIDDEN", {

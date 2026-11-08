@@ -25,9 +25,11 @@ import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
+import { createInvites } from "./tenancy/invites.ts";
+import { createMembers } from "./tenancy/members.ts";
 import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
-import { createStaffServices } from "./tenancy/staff.ts";
+import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
 
 export type CreateServicesOptions = {
@@ -62,6 +64,7 @@ export async function createInstallServices(
 	const installSecrets = installSecretsOnly(store);
 	const email = createEmail({ ...ports, secrets: installSecrets, settings });
 	const data = createDataLayer({ database, clock, secrets: store });
+	const memberships = createMemberships({ database, clock });
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -86,8 +89,10 @@ export async function createInstallServices(
 		templates: { entryTemplate: getEntryTemplate, saveEntryTemplate },
 		publishing: { publish },
 		sitePages: createSitePages({ database, config, data }),
-		memberships: createMemberships({ database, clock }),
-		...createStaffServices({ database, auth, email, settings, clock }),
+		memberships,
+		members: createMembers({ database, email }),
+		staff: createStaff({ email }),
+		invites: createInvites({ database, auth, settings, clock, memberships }),
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
 		email,
 	};

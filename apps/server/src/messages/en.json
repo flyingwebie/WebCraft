@@ -23,7 +23,13 @@
 		"INVITE_INVALID": "This invite link doesn't work any more. Ask for a new invite.",
 		"SLUG_TAKEN": "Another Site already has this slug.",
 		"SLUG_INVALID": "Use 1 to 63 lower-case letters, digits and dashes, starting and ending with a letter or a digit.",
-		"SLUG_RESERVED": "This slug is kept for the Install itself. Choose another one."
+		"SLUG_RESERVED": "This slug is kept for the Install itself. Choose another one.",
+		"MEMBER_NOT_FOUND": "There is no such Member in this Workspace.",
+		"ALREADY_MEMBER": "This person is already a Member of this Workspace. Change their role or Sites instead.",
+		"STAFF_MEMBERSHIP": "This address belongs to the agency's Staff, who never hold a Membership.",
+		"ACCESS_NOT_HELD_GRANT": "You can't give more access than you hold, in role or in Sites.",
+		"ACCESS_NOT_HELD_MANAGE": "This Member has access you don't hold, so you can't change or remove them.",
+		"INVITE_OTHER_ACCOUNT": "This invite was sent to another email address. Sign in with that address to accept it."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -142,7 +148,8 @@
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
 			"sites": "Sites",
-			"siteGroup": "Site"
+			"siteGroup": "Site",
+			"members": "Members"
 		}
 	},
 	"masterKeyBanner": {
@@ -485,6 +492,96 @@
 			"saved": "Saved."
 		}
 	},
+	"members": {
+		"pageTitle": "Members",
+		"heading": "Members",
+		"intro": "People from {workspace} who can sign in to this Workspace. Each Membership has one role and reaches all Sites or chosen ones.",
+		"invite": "Invite Member",
+		"search": "Search Members",
+		"roleFilter": "Show role",
+		"allRoles": "All roles",
+		"columns": {
+			"member": "Member",
+			"role": "Role",
+			"sites": "Site access",
+			"actions": "Actions"
+		},
+		"allSites": "All Sites",
+		"noSites": "No Sites",
+		"someSites": "{names}",
+		"someAndOtherSites": "{names} and {count, plural, one {# other Site} other {# other Sites}}",
+		"onlyOtherSites": "{count, plural, one {# Site} other {# Sites}} you don't reach",
+		"you": "you",
+		"empty": "No Members yet. Invite the client's people who edit this Workspace's Sites.",
+		"noMatch": "No Members match.",
+		"actionsOf": "Actions for {name}",
+		"changeAccess": "Change role and Sites",
+		"remove": "Remove from Workspace",
+		"pending": {
+			"heading": "Pending invites",
+			"email": "Email",
+			"role": "Role",
+			"sites": "Site access",
+			"invitedBy": "by {name} · expires {date}",
+			"expires": "expires {date}",
+			"actions": "Actions",
+			"resend": "Resend",
+			"resendOf": "Resend the invite to {email}",
+			"resent": "Invite to {email} sent again.",
+			"revoke": "Revoke",
+			"revokeOf": "Revoke the invite to {email}",
+			"revoked": "Invite to {email} revoked.",
+			"empty": "No pending invites."
+		},
+		"staff": {
+			"heading": "Agency Staff aren't Members",
+			"body": "Staff from {agency} are managed by the Superadmin and reach this Workspace through their assignment, not a Membership.",
+			"count": "{count, plural, =0 {{workspace} has no Staff assigned.} one {# Staff member assigned to {workspace}:} other {# Staff assigned to {workspace}:}}"
+		},
+		"rolesCard": {
+			"heading": "What each role can do",
+			"owner": "Manages Members, edits and publishes.",
+			"editor": "Edits and publishes Content.",
+			"author": "Edits and saves Drafts. An Editor or Owner publishes."
+		},
+		"sheet": {
+			"inviteTitle": "Invite a Member",
+			"inviteDescription": "They get an email in their Admin language with a link valid for 7 days.",
+			"email": "Email",
+			"role": "Role",
+			"roleHelp": {
+				"owner": "Manages Members, edits and publishes Content on the Sites they reach.",
+				"editor": "Edits and publishes Content on the Sites they reach.",
+				"author": "Edits Content and saves Drafts; can't publish."
+			},
+			"access": "Site access",
+			"all": "All Sites",
+			"allHelp": "Including Sites created later.",
+			"chosen": "Chosen Sites",
+			"chosenHelp": "Only the Sites ticked below.",
+			"chooseLegend": "Sites",
+			"notReached": "You can't offer this Site with this role.",
+			"noSites": "There are no Sites you can offer yet.",
+			"chooseSite": "Choose at least one Site.",
+			"limitNote": "You can't grant more access than you hold. An Owner can only offer the Sites they reach.",
+			"send": "Send invite",
+			"cancel": "Cancel",
+			"close": "Close",
+			"sent": "Invite sent to {email}.",
+			"changeTitle": "Change role and Sites",
+			"changeDescription": "What {name} can do in this Workspace. The change takes effect at once.",
+			"save": "Save",
+			"saved": "Saved."
+		},
+		"removeDialog": {
+			"title": "Remove {name}?",
+			"body": "{name} loses access to {workspace} and its Sites at once. Their account stays, with any other Workspaces they belong to.",
+			"confirm": "Remove",
+			"cancel": "Cancel",
+			"close": "Close",
+			"removed": "{name} was removed from {workspace}."
+		}
+	},
 	"sites": {
 		"pageTitle": "Sites",
 		"heading": "Sites",
@@ -532,6 +629,18 @@
 			"heading": "This invite link doesn't work",
 			"body": "It was already used, was withdrawn, or is more than 7 days old. Ask the person who invited you for a new invite.",
 			"signIn": "Go to sign in"
+		},
+		"memberHeading": "Join {workspace} as {role}",
+		"memberIntro": "{inviter} invited {email} to {workspace} on {install}. Choose your name and a password to create your account.",
+		"memberIntroNoInviter": "You were invited to {workspace} on {install} as {email}. Choose your name and a password to create your account.",
+		"join": {
+			"intro": "{inviter} invited {email} to {workspace} on {install}. You already have an account: sign in to join.",
+			"introNoInviter": "You were invited to {workspace} on {install} as {email}. You already have an account: sign in to join.",
+			"signedInAs": "You're signed in as {email}.",
+			"otherAccount": "You're signed in as {current}. Signing in below switches to {email}.",
+			"password": "Password",
+			"signIn": "Sign in and join",
+			"submit": "Join {workspace}"
 		}
 	}
 }

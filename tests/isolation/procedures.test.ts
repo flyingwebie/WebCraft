@@ -46,6 +46,22 @@ function contentIn(target: IsolationTarget) {
 	return content;
 }
 
+/** An email address no other call has used. */
+let addresses = 0;
+const newAddress = () => `isolation-${++addresses}@client.example`;
+
+/** A pending Member invite in the Workspace, made by the Superadmin, who reaches every Workspace. */
+async function inviteIn(workspaceId: string): Promise<string> {
+	const admin = await install.superadmin();
+	const { invite } = await admin.api.members.invite({ workspaceId, email: newAddress(), role: "author", sites: "all" });
+	return invite.id;
+}
+
+/** A Member of the Workspace, made the way people become one. */
+async function memberOf(workspaceId: string): Promise<string> {
+	return (await install.createMember({ workspaceId, role: "author" })).personId;
+}
+
 describe("Workspaces", () => {
 	isolation.refuses("workspaces.get", (api, { workspaceId }) => api.workspaces.get({ workspaceId }), {
 		as: ["staff", "owner", "author"],
@@ -122,6 +138,38 @@ describe("Templates", () => {
 	);
 	isolation.refuses("templates.publish", async (api, target) =>
 		api.templates.publish({ siteId: target.siteId, templateId: (await contentIn(target)).templateId }),
+	);
+});
+
+describe("Members", () => {
+	isolation.refuses("members.list", (api, { workspaceId }) => api.members.list({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses(
+		"members.invite",
+		(api, { workspaceId }) => api.members.invite({ workspaceId, email: newAddress(), role: "author", sites: "all" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.resendInvite",
+		async (api, { workspaceId }) => api.members.resendInvite({ workspaceId, inviteId: await inviteIn(workspaceId) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.revokeInvite",
+		async (api, { workspaceId }) => api.members.revokeInvite({ workspaceId, inviteId: await inviteIn(workspaceId) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.changeAccess",
+		async (api, { workspaceId }) =>
+			api.members.changeAccess({ workspaceId, personId: await memberOf(workspaceId), role: "editor", sites: "all" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.remove",
+		async (api, { workspaceId }) => api.members.remove({ workspaceId, personId: await memberOf(workspaceId) }),
+		{ as: ["staff", "owner"] },
 	);
 });
 

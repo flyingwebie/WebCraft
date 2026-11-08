@@ -8,6 +8,7 @@ import { ADMIN_SCREENS, type ScreenFixture } from "./screens.ts";
 let install: BrowserInstall;
 let superadmin: TestAccount;
 let staff: TestAccount;
+let owner: TestAccount;
 let fixture: ScreenFixture;
 
 beforeAll(async () => {
@@ -17,14 +18,40 @@ beforeAll(async () => {
 	const workspace = await local.createWorkspace("Acme Ltd");
 	await local.createWorkspace("Nimbus Bikes");
 	const site = await local.createSite(workspace.id, { name: "Acme Bakery", slug: "bakery" });
-	await local.createSite(workspace.id, { name: "Acme Careers", slug: "careers" });
+	const careers = await local.createSite(workspace.id, { name: "Acme Careers", slug: "careers" });
 	staff = (await local.createStaff({ workspaces: [workspace.id], name: "Ciara Byrne" })).account;
 	await local.createStaff({ workspaces: "all", name: "Tom Walsh" });
+	owner = (
+		await local.createMember({ workspaceId: workspace.id, role: "owner", sites: [site.id], name: "Sarah Murphy" })
+	).account;
+	await local.createMember({ workspaceId: workspace.id, role: "editor", name: "Giulia Romano" });
+	const author = await local.createMember({
+		workspaceId: workspace.id,
+		role: "author",
+		sites: [careers.id],
+		name: "Aoife Kelly",
+	});
 	const admin = await local.superadmin();
 	await admin.api.staff.invite({ email: "niamh@agency.example", workspaces: [workspace.id] });
 	const invite = await local.lastEmailTo("niamh@agency.example");
 	const inviteToken = new URL(inviteLinkIn(invite)).searchParams.get("token") ?? "";
-	fixture = { workspaceId: workspace.id, siteId: site.id, inviteToken };
+	await admin.api.members.invite({
+		workspaceId: workspace.id,
+		email: "orders@acme.example",
+		role: "author",
+		sites: "all",
+	});
+	// A Member of one Workspace invited into another signs in and joins.
+	const nimbus = (await admin.api.workspaces.list()).workspaces.find((listed) => listed.name === "Nimbus Bikes");
+	await admin.api.members.invite({
+		workspaceId: nimbus?.id ?? "",
+		email: author.account.email,
+		role: "editor",
+		sites: "all",
+	});
+	const joinToken =
+		new URL(inviteLinkIn(await local.lastEmailTo(author.account.email))).searchParams.get("token") ?? "";
+	fixture = { workspaceId: workspace.id, siteId: site.id, inviteToken, joinToken };
 });
 
 afterAll(async () => {
@@ -38,6 +65,7 @@ for (const theme of THEMES) {
 				const page = await install.newPage(theme);
 				if (screen.as === "superadmin") await install.signIn(page, superadmin);
 				if (screen.as === "staff") await install.signIn(page, staff);
+				if (screen.as === "owner") await install.signIn(page, owner);
 				const path = typeof screen.path === "string" ? screen.path : screen.path(fixture);
 				await page.goto(install.adminUrl(path));
 				await page.waitForLoadState("networkidle");

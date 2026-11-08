@@ -1,6 +1,6 @@
 import type { Database, Transaction } from "@webcraft/db";
 import { installRoles, membershipSites, memberships } from "@webcraft/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
 import type { Reach } from "../permissions/can.ts";
@@ -11,6 +11,14 @@ export class StaffMembershipError extends Error {
 	override name = "StaffMembershipError";
 	constructor() {
 		super("Staff never hold a Membership: they reach Workspaces by assignment. Invite someone else as a Member.");
+	}
+}
+
+/** One person holds at most one Membership per Workspace. */
+export class AlreadyMemberError extends Error {
+	override name = "AlreadyMemberError";
+	constructor() {
+		super("This person is already a Member of the Workspace. Change their role or Sites instead.");
 	}
 }
 
@@ -26,8 +34,9 @@ export type NewMembership = {
 export type MembershipsService = {
 	/**
 	 * Gives a person a Membership in a Workspace, inside the caller's transaction when given one.
-	 * Refuses Staff and the Superadmin (`StaffMembershipError`) and roles that aren't Workspace roles.
-	 * Accepting a Member invite calls this; there are no Member invites yet.
+	 * Refuses Staff and the Superadmin (`StaffMembershipError`), a person who already holds a
+	 * Membership in the Workspace (`AlreadyMemberError`), and roles that aren't Workspace roles.
+	 * Accepting a Member invite calls this.
 	 */
 	add(membership: NewMembership, tx?: Transaction): Promise<void>;
 };
@@ -42,6 +51,11 @@ export function createMemberships({ database, clock }: { database: Database; clo
 					.from(installRoles)
 					.where(eq(installRoles.personId, personId));
 				if (installRole) throw new StaffMembershipError();
+				const [existing] = await tx
+					.select({ id: memberships.id })
+					.from(memberships)
+					.where(and(eq(memberships.personId, personId), eq(memberships.workspaceId, workspaceId)));
+				if (existing) throw new AlreadyMemberError();
 				const [created] = await tx
 					.insert(memberships)
 					.values({ personId, workspaceId, role, allSites: sites === "all", createdAt: clock.now() })

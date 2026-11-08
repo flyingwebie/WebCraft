@@ -35,8 +35,10 @@ import type {
 	Workspace,
 	WorkspaceScope,
 } from "./tenancy/data-layer.ts";
+import type { InvitesService } from "./tenancy/invites.ts";
+import type { MembersService } from "./tenancy/members.ts";
 import type { MembershipsService } from "./tenancy/memberships.ts";
-import type { InvitesService, StaffService } from "./tenancy/staff.ts";
+import type { StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
 
 /**
@@ -127,9 +129,11 @@ export type InstallServices = InstallPorts & {
 	sitePages: SitePages;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
+	/** Members of a Workspace: inviting them, their role and Sites, removing them, pending invites. */
+	members: MembersService;
 	/** Staff: inviting them, their Workspaces, pending invites. */
 	staff: StaffService;
-	/** Invite links: what they offer, and accepting them. */
+	/** Invite links (Staff and Member invites): what they offer, and accepting them. */
 	invites: InvitesService;
 	audit: {
 		/** The newest entries of the whole Install's Audit log; open the Install with `audit.view` first. */
