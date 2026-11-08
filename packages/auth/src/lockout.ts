@@ -37,7 +37,8 @@ export class AccountLockedError extends Error {
  * Lockout: 10 wrong passwords in a row (signing in, or confirming who you are) lock the account for
  * 15 minutes. The count is the person's, wherever the attempts come from; a right password starts
  * it again, and so does the lock. Trying while locked checks nothing and doesn't make the lock
- * longer. Addresses nobody signs in with are never locked, so the answer never tells which exist.
+ * longer. Signing in answers a locked account exactly like a wrong password (`Auth.signIn`), so the
+ * answer never tells which addresses exist; the person learns of the lock from its email.
  */
 export type Lockout = {
 	/** Throws `AccountLockedError` while the person's account is locked. */

@@ -13,7 +13,7 @@
 		"PASSWORD_LEAKED": "Questa password compare negli elenchi di password trapelate. Scegline un'altra.",
 		"EMAIL_INVALID": "Inserisci un indirizzo email come nome@esempio.it.",
 		"EMAIL_IN_USE": "Un'altra persona accede già con questo indirizzo email.",
-		"INVALID_CREDENTIALS": "L'email o la password non sono corrette.",
+		"INVALID_CREDENTIALS": "L'email o la password non sono corrette. Dopo 10 password sbagliate di seguito un account viene bloccato per 15 minuti e il titolare riceve un'email.",
 		"UNAUTHORIZED": "La sessione è terminata. Accedi di nuovo.",
 		"FORBIDDEN": "Non puoi farlo.",
 		"EMAIL_ALWAYS_SENT": "Le email di sicurezza non si possono disattivare.",
