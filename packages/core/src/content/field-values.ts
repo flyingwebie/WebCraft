@@ -65,6 +65,23 @@ function pick(node: unknown, field: FieldDefinition, languages: Languages): unkn
 	return (own ?? byLanguage[languages.defaultLanguage])?.value;
 }
 
+/**
+ * Calls the handler for the Field's kind. The one place that tells Groups, Repeaters and leaf Fields
+ * apart: every walk over values gives a handler for each, so a new kind can't be missed.
+ */
+function byKind<Result>(
+	field: FieldDefinition,
+	handlers: {
+		group(field: GroupField): Result;
+		repeater(field: RepeaterField): Result;
+		leaf(field: LeafField): Result;
+	},
+): Result {
+	if (field.type === "group") return handlers.group(field);
+	if (field.type === "repeater") return handlers.repeater(field);
+	return handlers.leaf(field);
+}
+
 function leafSpec(field: LeafField): ValueSpec<LeafField> {
 	return specOf(field).value as unknown as ValueSpec<LeafField>;
 }
@@ -90,11 +107,12 @@ export function readFields(
 }
 
 function readField(node: unknown, field: FieldDefinition, languages: Languages): Json {
-	if (field.type === "group") return readFields(groupOf(node).values, field.fields, languages);
-	if (field.type === "repeater") {
-		return rowsOf(node).map((row) => ({ id: row.id, ...readFields(row.values, field.fields, languages) }));
-	}
-	return readLeaf(node, field, languages);
+	return byKind<Json>(field, {
+		group: (group) => readFields(groupOf(node).values, group.fields, languages),
+		repeater: (repeater) =>
+			rowsOf(node).map((row) => ({ id: row.id, ...readFields(row.values, repeater.fields, languages) })),
+		leaf: (leaf) => readLeaf(node, leaf, languages),
+	});
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -138,18 +156,26 @@ export function writeFields(
 }
 
 function writeField(node: unknown, field: FieldDefinition, input: unknown, context: WriteContext, at: string): unknown {
-	if (field.type === "group") {
-		if (input === null) return clearGroup(groupOf(node), field, context);
-		if (typeof input !== "object" || Array.isArray(input)) {
-			context.problems.push({ at, message: "A Group's value is its Fields' values, by key." });
-			return node;
-		}
-		const group = groupOf(node);
-		return {
-			values: writeFields(group.values, field.fields, input as Record<string, unknown>, context, `${at}.`, field.label),
-		};
+	return byKind<unknown>(field, {
+		group: (group) => writeGroup(node, group, input, context, at),
+		repeater: (repeater) => writeRows(node, repeater, input, context, at),
+		leaf: (leaf) => writeLeafInput(node, leaf, input, context, at),
+	});
+}
+
+function writeGroup(node: unknown, field: GroupField, input: unknown, context: WriteContext, at: string): unknown {
+	if (input === null) return clearGroup(groupOf(node), field, context);
+	if (typeof input !== "object" || Array.isArray(input)) {
+		context.problems.push({ at, message: "A Group's value is its Fields' values, by key." });
+		return node;
 	}
-	if (field.type === "repeater") return writeRows(node, field, input, context, at);
+	const group = groupOf(node);
+	return {
+		values: writeFields(group.values, field.fields, input as Record<string, unknown>, context, `${at}.`, field.label),
+	};
+}
+
+function writeLeafInput(node: unknown, field: LeafField, input: unknown, context: WriteContext, at: string): unknown {
 	const spec = leafSpec(field);
 	let refused = false;
 	const value =
@@ -184,9 +210,11 @@ function writeLeaf(
 function clearGroup(group: StoredGroup, field: GroupField, context: WriteContext): StoredGroup {
 	const values = { ...group.values };
 	for (const inner of field.fields) {
-		if (inner.type === "group") values[inner.key] = clearGroup(groupOf(values[inner.key]), inner, context);
-		else if (inner.type === "repeater") values[inner.key] = { rows: [] };
-		else values[inner.key] = writeLeaf(values[inner.key], inner, null, context);
+		values[inner.key] = byKind<unknown>(inner, {
+			group: (group) => clearGroup(groupOf(values[inner.key]), group, context),
+			repeater: () => ({ rows: [] }),
+			leaf: (leaf) => writeLeaf(values[inner.key], leaf, null, context),
+		});
 	}
 	return { values };
 }
@@ -243,10 +271,13 @@ export function defaultValues(
 ): StoredValues {
 	const values: StoredValues = {};
 	for (const field of fields) {
-		if (field.type === "group") values[field.key] = { values: defaultValues(field.fields, context) };
-		else if (field.type !== "repeater" && field.default !== null) {
-			values[field.key] = writeLeaf(undefined, field, field.default as Json, context);
-		}
+		const value = byKind<unknown>(field, {
+			group: (group) => ({ values: defaultValues(group.fields, context) }),
+			// A Repeater starts with no rows; its rows start with their Fields' defaults.
+			repeater: () => undefined,
+			leaf: (leaf) => (leaf.default === null ? undefined : writeLeaf(undefined, leaf, leaf.default as Json, context)),
+		});
+		if (value !== undefined) values[field.key] = value;
 	}
 	return values;
 }
@@ -284,52 +315,63 @@ export function checkFields(
 			findings.problems.push({ at: path, rule: "required", message: `${field.label} needs a value.` });
 			findings.missing.push(path.replace(/^fields\./, ""));
 		};
-		if (field.type === "group") {
-			const group = groupOf(node);
-			if (isEmpty(group.values, field.fields, languages)) {
-				if (field.required) missing();
-				continue;
-			}
-			checkFields(group.values, field.fields, languages, findings, `${path}.`);
-			continue;
-		}
-		if (field.type === "repeater") {
-			const rows = rowsOf(node);
-			if (rows.length === 0) {
-				if (field.required) missing();
-				continue;
-			}
-			if (field.min !== null && rows.length < field.min) {
-				findings.problems.push({ at: path, rule: "min", message: `At least ${field.min} rows.` });
-			}
-			if (field.max !== null && rows.length > field.max) {
-				findings.problems.push({ at: path, rule: "max", message: `At most ${field.max} rows.` });
-			}
-			rows.forEach((row, index) => {
-				checkFields(row.values, field.fields, languages, findings, `${path}[${index}].`);
-			});
-			continue;
-		}
-		const spec = leafSpec(field);
-		const value = readLeaf(node, field, languages);
-		if (spec.isEmpty ? spec.isEmpty(value) : value === null) {
-			if (field.required) missing();
-			continue;
-		}
-		for (const broken of spec.rules(value, field)) findings.problems.push({ at: path, ...broken });
-		if (field.type === "relationship") {
-			const ids = (Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === "string");
-			findings.references.push({
-				kind: "entries",
-				ids,
-				postTypes: field.postTypes,
-				at: path,
-				problems: findings.problems,
-			});
-		}
-		if (field.type === "media" && typeof value === "string") {
-			findings.references.push({ kind: "media", ids: [value], at: path, problems: findings.problems });
-		}
+		byKind<void>(field, {
+			group: (group) => {
+				const stored = groupOf(node);
+				if (isEmpty(stored.values, group.fields, languages)) {
+					if (group.required) missing();
+					return;
+				}
+				checkFields(stored.values, group.fields, languages, findings, `${path}.`);
+			},
+			repeater: (repeater) => {
+				const rows = rowsOf(node);
+				if (rows.length === 0) {
+					if (repeater.required) missing();
+					return;
+				}
+				if (repeater.min !== null && rows.length < repeater.min) {
+					findings.problems.push({ at: path, rule: "min", message: `At least ${repeater.min} rows.` });
+				}
+				if (repeater.max !== null && rows.length > repeater.max) {
+					findings.problems.push({ at: path, rule: "max", message: `At most ${repeater.max} rows.` });
+				}
+				rows.forEach((row, index) => {
+					checkFields(row.values, repeater.fields, languages, findings, `${path}[${index}].`);
+				});
+			},
+			leaf: (leaf) => checkLeaf(node, leaf, languages, findings, path, missing),
+		});
+	}
+}
+
+function checkLeaf(
+	node: unknown,
+	field: LeafField,
+	languages: Languages,
+	findings: Findings,
+	path: string,
+	missing: () => void,
+): void {
+	const spec = leafSpec(field);
+	const value = readLeaf(node, field, languages);
+	if (spec.isEmpty ? spec.isEmpty(value) : value === null) {
+		if (field.required) missing();
+		return;
+	}
+	for (const broken of spec.rules(value, field)) findings.problems.push({ at: path, ...broken });
+	if (field.type === "relationship") {
+		const ids = (Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === "string");
+		findings.references.push({
+			kind: "entries",
+			ids,
+			postTypes: field.postTypes,
+			at: path,
+			problems: findings.problems,
+		});
+	}
+	if (field.type === "media" && typeof value === "string") {
+		findings.references.push({ kind: "media", ids: [value], at: path, problems: findings.problems });
 	}
 }
 
@@ -337,15 +379,16 @@ export function checkFields(
 function isEmpty(values: StoredValues, fields: readonly FieldDefinition[], languages: Languages): boolean {
 	return fields.every((field) => {
 		const node = values[field.key];
-		if (field.type === "group") return isEmpty(groupOf(node).values, field.fields, languages);
-		if (field.type === "repeater") return rowsOf(node).length === 0;
-		const spec = leafSpec(field);
-		const value = readLeaf(node, field, languages);
-		return field.type === "boolean"
-			? pick(node, field, languages) === undefined
-			: spec.isEmpty
-				? spec.isEmpty(value)
-				: value === null;
+		return byKind(field, {
+			group: (group) => isEmpty(groupOf(node).values, group.fields, languages),
+			repeater: () => rowsOf(node).length === 0,
+			leaf: (leaf) => {
+				if (leaf.type === "boolean") return pick(node, leaf, languages) === undefined;
+				const spec = leafSpec(leaf);
+				const value = readLeaf(node, leaf, languages);
+				return spec.isEmpty ? spec.isEmpty(value) : value === null;
+			},
+		});
 	});
 }
 
@@ -361,15 +404,21 @@ export function linksIn(values: StoredValues, fields: readonly FieldDefinition[]
 	for (const field of fields) {
 		const node = values[field.key];
 		const path = `${at}${field.key}`;
-		if (field.type === "group") links.push(...linksIn(groupOf(node).values, field.fields, `${path}.`));
-		else if (field.type === "repeater") {
-			for (const row of rowsOf(node)) links.push(...linksIn(row.values, field.fields, `${path}.`));
-		} else if (field.type === "relationship") {
-			for (const entry of Object.values(record(node) as StoredLeaf)) {
-				const ids = Array.isArray(entry?.value) ? entry.value : [entry?.value];
-				for (const id of ids) if (typeof id === "string") links.push({ field: path, targetId: id });
-			}
-		}
+		byKind<void>(field, {
+			group: (group) => {
+				links.push(...linksIn(groupOf(node).values, group.fields, `${path}.`));
+			},
+			repeater: (repeater) => {
+				for (const row of rowsOf(node)) links.push(...linksIn(row.values, repeater.fields, `${path}.`));
+			},
+			leaf: (leaf) => {
+				if (leaf.type !== "relationship") return;
+				for (const entry of Object.values(record(node) as StoredLeaf)) {
+					const ids = Array.isArray(entry?.value) ? entry.value : [entry?.value];
+					for (const id of ids) if (typeof id === "string") links.push({ field: path, targetId: id });
+				}
+			},
+		});
 	}
 	const seen = new Set<string>();
 	return links.filter((link) => {
@@ -390,27 +439,30 @@ export function withoutLinksTo(
 	for (const field of fields) {
 		const node = changed[field.key];
 		if (node === undefined) continue;
-		if (field.type === "group") {
-			changed[field.key] = { values: withoutLinksTo(groupOf(node).values, field.fields, entryId) };
-		} else if (field.type === "repeater") {
-			changed[field.key] = {
-				rows: rowsOf(node).map((row) => ({ id: row.id, values: withoutLinksTo(row.values, field.fields, entryId) })),
-			};
-		} else if (field.type === "relationship") {
-			const byLanguage: StoredLeaf = {};
-			for (const [language, entry] of Object.entries(record(node) as StoredLeaf)) {
-				if (Array.isArray(entry?.value)) {
-					const kept = entry.value.filter((id) => id !== entryId);
-					if (kept.length > 0)
-						byLanguage[language] = kept.length === entry.value.length ? entry : { ...entry, value: kept };
-				} else if (entry?.value !== entryId) {
-					byLanguage[language] = entry;
-				}
-			}
-			changed[field.key] = byLanguage;
-		}
+		changed[field.key] = byKind<unknown>(field, {
+			group: (group) => ({ values: withoutLinksTo(groupOf(node).values, group.fields, entryId) }),
+			repeater: (repeater) => ({
+				rows: rowsOf(node).map((row) => ({ id: row.id, values: withoutLinksTo(row.values, repeater.fields, entryId) })),
+			}),
+			leaf: (leaf) => (leaf.type === "relationship" ? withoutLink(node, entryId) : node),
+		});
 	}
 	return changed;
+}
+
+/** A Relationship's stored values without `entryId`, in every language; a language left with none goes. */
+function withoutLink(node: unknown, entryId: string): StoredLeaf {
+	const byLanguage: StoredLeaf = {};
+	for (const [language, entry] of Object.entries(record(node) as StoredLeaf)) {
+		if (Array.isArray(entry?.value)) {
+			const kept = entry.value.filter((id) => id !== entryId);
+			if (kept.length > 0)
+				byLanguage[language] = kept.length === entry.value.length ? entry : { ...entry, value: kept };
+		} else if (entry?.value !== entryId) {
+			byLanguage[language] = entry;
+		}
+	}
+	return byLanguage;
 }
 
 /** A new Repeater row's id: 12 random letters and digits. */
