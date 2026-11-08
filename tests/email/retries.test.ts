@@ -103,6 +103,20 @@ describe("a send that fails", () => {
 		expect(install.mail.sent.map((email) => email.subject)).toEqual(["A new API token was created"]);
 	});
 
+	test("every attempt carries the same Message-ID, so a mail client can drop a copy sent twice", async () => {
+		install.mail.fail("421 Try again later");
+		await sendOne();
+		await install.drainJobs();
+		install.mail.accept();
+		await install.clock.advance(MINUTE);
+		await install.drainJobs();
+
+		const ids = install.mail.attempts.map((email) => email.messageId);
+		expect(ids).toHaveLength(2);
+		expect(ids[0]).toMatch(/^<[0-9a-f-]{36}@agency\.example>$/);
+		expect(ids[1]).toBe(ids[0]);
+	});
+
 	test("to an address the server refuses for good is Failed at once, and isn't held against the server", async () => {
 		install.mail.rejectRecipient(superadmin.email, "550 5.1.1 No such user here");
 		const emailId = await sendOne();

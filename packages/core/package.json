@@ -7,7 +7,8 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./admin-languages": "./src/admin-languages.ts"
+		"./admin-languages": "./src/admin-languages.ts",
+		"./email-branding": "./src/email/branding-rules.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"
