@@ -232,7 +232,7 @@ test("the sample job emails the status of a URL", async () => {
 - **Runtimes** (ADR 0006): `packages/*` and `apps/worker` use standard Web and Node APIs only; Biome rejects the `Bun` global and `bun:*` imports there, and their tsconfigs don't load Bun's types. `apps/server`, `apps/cli`, `tests` and `scripts` may use Bun.
 - **Edges go through ports**: time through `Clock`, email through `Mailer`, calls to other servers through `services.http`. Tests replace them with fakes; nothing else is faked.
 - **Secrets** go through `services.secrets` only: never in another table, a log line, a job payload or a response (see "Secrets and the Master key").
-- **Tenant data** goes through the tenant data layer and the `can()` check once they exist (ADR 0007); no query without a Workspace.
+- **Workspace data** goes through the Workspace-scoped data layer and the `can()` check once they exist (ADR 0007); no query without a Workspace.
 - **Errors**: Site visitors and unknown hostnames see plain, unbranded answers. Unexpected errors are logged and answered with a plain 500.
 - **Logs**: JSON lines through `Logger` (`services.log`), with fields rather than values pasted into the message.
 - **Licences**: every workspace's `package.json` says `"license": "AGPL-3.0-or-later"`; new dependencies must pass `bun run check:licences`.

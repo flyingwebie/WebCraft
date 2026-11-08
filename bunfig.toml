@@ -6,3 +6,5 @@
 preload = ["./tests/harness/preload.ts"]
 # Creating and migrating a test database can take a few seconds on a busy server.
 timeout = 30000
+# Gitignored local folders (private reference material, design files) are never part of the suite.
+pathIgnorePatterns = ["REA-Apps/**", "design/**", "node_modules/**"]
