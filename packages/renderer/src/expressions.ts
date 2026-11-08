@@ -14,6 +14,7 @@
  * A path on its own passes when its value isn't empty. Loops extend the tests (compare, contains,
  * language, date window, Loop position) by adding operators and kinds here.
  */
+import { textProblem } from "./tree.ts";
 import { isPresent, sameValue, type TemplateValue } from "./values.ts";
 
 export type Expression =
@@ -286,7 +287,17 @@ export function checkExpression(input: unknown, at: string, options: CheckExpres
 			}
 			case "literal": {
 				const value = raw.value;
-				if (typeof value === "string" || typeof value === "boolean") return { type: "literal", value };
+				if (typeof value === "string") {
+					// Line breaks as an HTML parser reads them: a test is written inside the markup's text.
+					const text = value.replace(/\r\n?/g, "\n");
+					const refused = textProblem(text);
+					if (refused) {
+						options.problem(`${here}.value`, refused);
+						return undefined;
+					}
+					return { type: "literal", value: text };
+				}
+				if (typeof value === "boolean") return { type: "literal", value };
 				if (typeof value === "number" && NUMBER.test(String(value))) {
 					return { type: "literal", value: canonicalNumber(value) };
 				}

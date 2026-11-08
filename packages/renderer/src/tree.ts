@@ -220,11 +220,23 @@ export function isValuePath(path: string): boolean {
 	return VALUE_PATH.test(path);
 }
 
+/** A UTF-16 surrogate without its pair: not a character, and not storable as JSON in Postgres. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
 /** Why text can't be stored, or undefined. */
 export function textProblem(text: string): string | undefined {
 	if (text.length > TREE_LIMITS.textLength) return `Text is limited to ${TREE_LIMITS.textLength} characters.`;
 	if (text.includes("\0")) return "Text can't hold the NUL character.";
+	if (LONE_SURROGATE.test(text)) return "Text holds a broken character.";
 	return undefined;
+}
+
+/**
+ * Comment text in canonical form: line breaks as `\n`, as an HTML parser reads them (a comment has
+ * no character references, so a carriage return couldn't survive a round trip).
+ */
+export function canonicalCommentText(text: string): string {
+	return text.replace(/\r\n?/g, "\n");
 }
 
 /** Why a comment's text can't be stored (it must read back as the same comment), or undefined. */
@@ -234,6 +246,7 @@ export function commentProblem(text: string): string | undefined {
 		return "A comment can't hold --> or --!>, nor start with > or ->.";
 	}
 	if (text.endsWith("<!-") || text.includes("\0")) return "A comment can't end with <!- or hold the NUL character.";
+	if (LONE_SURROGATE.test(text)) return "A comment holds a broken character.";
 	return undefined;
 }
 
@@ -604,9 +617,10 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 					problem(`${at}.text`, "A comment's text must be a string.");
 					return undefined;
 				}
-				const refused = commentProblem(raw.text);
+				const text = canonicalCommentText(raw.text);
+				const refused = commentProblem(text);
 				if (refused) problem(`${at}.text`, refused);
-				return { type: "comment", text: raw.text };
+				return { type: "comment", text };
 			}
 			case "element":
 				return parseElement(raw, at, ancestors, depth);
