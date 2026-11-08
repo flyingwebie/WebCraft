@@ -3,16 +3,17 @@ import { credentials, people, sessions, verifications } from "@webcraft/db/schem
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gt, ne } from "drizzle-orm";
 
 import {
+	assertNewPasswordAllowed,
 	hashPassword,
 	MAX_PASSWORD_LENGTH,
 	MIN_PASSWORD_LENGTH,
 	type PasswordCheck,
 	verifyPassword,
 } from "./passwords.ts";
-import { createPerson, type NewPerson } from "./people.ts";
+import { createPerson, type NewPerson, PASSWORD_PROVIDER } from "./people.ts";
 
 /** Sessions end after this long without being used. */
 export const SESSION_IDLE_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -50,6 +51,26 @@ export type Session = {
 	personId: string;
 	startedAt: Date;
 	lastActiveAt: Date;
+	/**
+	 * When the person last proved who they are in this session: signing in, or confirming their
+	 * password since (later: a passkey or 2FA code). Sensitive actions need it to be recent.
+	 */
+	identityCheckedAt: Date | null;
+};
+
+/** What auth needs to know about a request: its headers (the session cookie) and where it came from. */
+export type AuthRequest = {
+	headers: Headers;
+	/** The address of the client, as the web process saw it; null when it can't tell. */
+	clientAddress: string | null;
+};
+
+/** A session in the person's list of sessions: where it was last used from, and from which browser. */
+export type SessionDetails = Session & {
+	/** The client address it was last renewed from (or signed in from), if known. */
+	clientAddress: string | null;
+	/** The `User-Agent` of the browser that signed in, if it sent one. */
+	userAgent: string | null;
 };
 
 /** The email and password don't match a person. The message never says which one was wrong. */
@@ -71,16 +92,37 @@ export type Auth = {
 	 */
 	signIn(
 		input: { email: string; password: string },
-		headers: Headers,
+		request: AuthRequest,
 	): Promise<{ personId: string; setCookie: string[] }>;
 	/**
 	 * The session a request carries, or null. A session unused for 7 days, or started more than 30
 	 * days ago, has ended: it is deleted and `setCookie` clears the cookie. A session in use is
-	 * renewed, so it lasts another 7 days from now.
+	 * renewed, so it lasts another 7 days from now, and records the address it was used from.
 	 */
-	session(headers: Headers): Promise<{ session: Session | null; setCookie: string[] }>;
+	session(request: AuthRequest): Promise<{ session: Session | null; setCookie: string[] }>;
 	/** Ends the session a request carries, if any, and answers the `Set-Cookie` values that clear it. */
 	signOut(headers: Headers): Promise<{ setCookie: string[] }>;
+	/**
+	 * Checks the person's password again inside a session they are signed in with, and records the
+	 * check on that session alone. Throws `InvalidCredentialsError` when the password is wrong.
+	 */
+	confirmIdentity(session: Session, proof: { password: string }): Promise<{ identityCheckedAt: Date }>;
+	/** The person's sessions that haven't ended, most recently used first. */
+	listSessions(personId: string): Promise<SessionDetails[]>;
+	/** Ends one of the person's sessions; false when they have no such session. */
+	revokeSession(personId: string, sessionId: string): Promise<boolean>;
+	/** Ends every session of the person except `keep`, and answers how many it ended. */
+	revokeOtherSessions(keep: Session): Promise<number>;
+	/**
+	 * Changes the person's password and ends every other session of theirs, together. Refuses a
+	 * password the rules don't allow with `PasswordRefusedError`, changing nothing. `also` runs in
+	 * the same transaction, to record the change with it.
+	 */
+	changePassword(
+		session: Session,
+		newPassword: string,
+		also?: (tx: Transaction, result: { signedOutSessions: number }) => Promise<void>,
+	): Promise<{ signedOutSessions: number }>;
 	/** Creates a person who signs in with an email and password, inside the caller's transaction. */
 	createPerson(tx: Transaction, person: NewPerson): Promise<{ personId: string }>;
 };
@@ -90,13 +132,15 @@ export function createAuth(options: AuthOptions): Auth {
 	const library = createLibrary(options);
 
 	return {
-		async signIn({ email, password }, headers) {
+		async signIn({ email, password }, { headers, clientAddress }) {
 			try {
 				const { headers: answer, response } = await library.api.signInEmail({
 					body: { email: email.trim(), password },
 					headers,
 					returnHeaders: true,
 				});
+				// The library would read the address from headers any client can send; WebCraft's own is used.
+				await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, response.token));
 				return { personId: response.user.id, setCookie: answer.getSetCookie() };
 			} catch (error) {
 				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) {
@@ -106,7 +150,7 @@ export function createAuth(options: AuthOptions): Auth {
 			}
 		},
 
-		async session(headers) {
+		async session({ headers, clientAddress }) {
 			const { headers: answer, response } = await library.api.getSession({
 				headers,
 				query: { disableRefresh: true },
@@ -119,6 +163,7 @@ export function createAuth(options: AuthOptions): Auth {
 				personId: response.session.userId,
 				startedAt: new Date(response.session.startedAt),
 				lastActiveAt: new Date(response.session.lastActiveAt),
+				identityCheckedAt: toDate(response.session.identityCheckedAt),
 			};
 			const now = clock.now();
 			const idle = now.getTime() - session.lastActiveAt.getTime();
@@ -130,7 +175,8 @@ export function createAuth(options: AuthOptions): Auth {
 				return { session: null, setCookie: ended.setCookie };
 			}
 			if (idle >= SESSION_RENEW_AFTER_MS) {
-				await database.db.update(sessions).set({ lastActiveAt: now }).where(eq(sessions.id, session.id));
+				const renewed = clientAddress ? { lastActiveAt: now, ipAddress: clientAddress } : { lastActiveAt: now };
+				await database.db.update(sessions).set(renewed).where(eq(sessions.id, session.id));
 				session.lastActiveAt = now;
 			}
 			return { session, setCookie: answer.getSetCookie() };
@@ -141,10 +187,106 @@ export function createAuth(options: AuthOptions): Auth {
 			return { setCookie: answer.getSetCookie() };
 		},
 
+		async confirmIdentity(session, { password }) {
+			if (!(await passwordMatches(database, session.personId, password))) throw new InvalidCredentialsError();
+			const identityCheckedAt = clock.now();
+			await database.db
+				.update(sessions)
+				.set({ identityCheckedAt })
+				.where(and(eq(sessions.id, session.id), eq(sessions.personId, session.personId)));
+			return { identityCheckedAt };
+		},
+
+		async listSessions(personId) {
+			const now = clock.now().getTime();
+			const rows = await database.db
+				.select()
+				.from(sessions)
+				.where(
+					and(
+						eq(sessions.personId, personId),
+						gt(sessions.lastActiveAt, new Date(now - SESSION_IDLE_LIMIT_MS)),
+						gt(sessions.startedAt, new Date(now - SESSION_MAX_AGE_MS)),
+					),
+				)
+				.orderBy(desc(sessions.lastActiveAt), desc(sessions.startedAt));
+			return rows.map((row) => ({
+				id: row.id,
+				personId: row.personId,
+				startedAt: row.startedAt,
+				lastActiveAt: row.lastActiveAt,
+				identityCheckedAt: row.identityCheckedAt,
+				clientAddress: row.ipAddress || null,
+				userAgent: row.userAgent || null,
+			}));
+		},
+
+		async revokeSession(personId, sessionId) {
+			const ended = await database.db
+				.delete(sessions)
+				.where(and(eq(sessions.id, sessionId), eq(sessions.personId, personId)))
+				.returning({ id: sessions.id });
+			return ended.length > 0;
+		},
+
+		async revokeOtherSessions(keep) {
+			const ended = await database.db
+				.delete(sessions)
+				.where(and(eq(sessions.personId, keep.personId), ne(sessions.id, keep.id)))
+				.returning({ id: sessions.id });
+			return ended.length;
+		},
+
+		async changePassword(session, newPassword, also) {
+			await assertNewPasswordAllowed(newPassword, options.passwordChecks);
+			const hash = await hashPassword(newPassword);
+			const now = clock.now();
+			return database.db.transaction(async (tx) => {
+				const changed = await tx
+					.update(credentials)
+					.set({ password: hash, updatedAt: now })
+					.where(and(eq(credentials.personId, session.personId), eq(credentials.providerId, PASSWORD_PROVIDER)))
+					.returning({ id: credentials.id });
+				if (changed.length === 0) {
+					await tx.insert(credentials).values({
+						personId: session.personId,
+						accountId: session.personId,
+						providerId: PASSWORD_PROVIDER,
+						password: hash,
+						createdAt: now,
+						updatedAt: now,
+					});
+				}
+				const ended = await tx
+					.delete(sessions)
+					.where(and(eq(sessions.personId, session.personId), ne(sessions.id, session.id)))
+					.returning({ id: sessions.id });
+				const result = { signedOutSessions: ended.length };
+				await also?.(tx, result);
+				return result;
+			});
+		},
+
 		createPerson(tx, person) {
 			return createPerson(tx, person, { now: clock.now(), passwordChecks: options.passwordChecks });
 		},
 	};
+}
+
+/** Whether `password` is the person's password. People without one never match. */
+async function passwordMatches(database: Database, personId: string, password: string): Promise<boolean> {
+	const [credential] = await database.db
+		.select({ hash: credentials.password })
+		.from(credentials)
+		.where(and(eq(credentials.personId, personId), eq(credentials.providerId, PASSWORD_PROVIDER)));
+	if (!credential?.hash) return false;
+	return verifyPassword(credential.hash, password);
+}
+
+function toDate(value: unknown): Date | null {
+	if (value === null || value === undefined) return null;
+	const date = new Date(value as string | number | Date);
+	return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function createLibrary({ database, clock, adminOrigin, secret, log }: AuthOptions) {
@@ -172,6 +314,8 @@ function createLibrary({ database, clock, adminOrigin, secret, log }: AuthOption
 			additionalFields: {
 				startedAt: { type: "date", required: true, input: false, defaultValue: now },
 				lastActiveAt: { type: "date", required: true, input: false, defaultValue: now },
+				// Every session starts with a sign-in, which checks who the person is.
+				identityCheckedAt: { type: "date", required: false, input: false, defaultValue: now },
 			},
 		},
 		account: { modelName: "credentials", fields: { userId: "personId" } },
@@ -192,6 +336,8 @@ function createLibrary({ database, clock, adminOrigin, secret, log }: AuthOption
 			useSecureCookies: secure,
 			database: { generateId: "uuid" },
 			defaultCookieAttributes: { sameSite: "lax", httpOnly: true, secure },
+			// Sessions record the client address WebCraft itself saw (see `signIn`), never a header.
+			ipAddress: { disableIpTracking: true },
 		},
 		// Rate limits and lockout are WebCraft's own, on its own endpoints.
 		rateLimit: { enabled: false },

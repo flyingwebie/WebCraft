@@ -1,0 +1,71 @@
+// Every Sensitive action, one row each: refused without an identity check in the last 10 minutes,
+// allowed once the person confirms their password. The list lives in `SENSITIVE_ACTIONS`
+// (`@webcraft/core`); the last test fails while an action there has no row here.
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { ApiClient } from "@webcraft/api";
+import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
+
+import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
+
+const MINUTE = 60 * 1000;
+
+type Fixture = { staffId: string; workspaceId: string; next: () => number };
+
+/** How the Superadmin takes each Sensitive action. */
+const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: Fixture) => Promise<unknown>> = {
+	"installSmtp.change": (api) =>
+		api.install.smtp.update({
+			host: "smtp.agency.example",
+			port: 587,
+			security: "starttls",
+			username: "webcraft",
+			fromAddress: "webcraft@agency.example",
+			replyTo: null,
+			password: "an SMTP password",
+		}),
+	"staff.invite": (api, { next }) => api.staff.invite({ email: `invited-${next()}@agency.example`, workspaces: "all" }),
+	"staff.changeWorkspaces": (api, { staffId, workspaceId }) =>
+		api.staff.setWorkspaces({ personId: staffId, workspaces: [workspaceId] }),
+	"masterKey.confirmStored": (api) => api.install.masterKey.confirmStored(),
+	"password.change": (api) => api.me.changePassword({ newPassword: TEST_PASSWORD }),
+	"leakedPasswordCheck.change": (api) => api.install.security.update({ leakedPasswordCheck: true }),
+};
+
+let install: TestInstall;
+let superadmin: TestAccount;
+let fixture: Fixture;
+
+beforeAll(async () => {
+	install = await createTestInstall();
+	superadmin = await install.createSuperadmin();
+	const workspace = await install.createWorkspace();
+	const staff = await install.createStaff({ workspaces: "all" });
+	let made = 0;
+	fixture = { staffId: staff.personId, workspaceId: workspace.id, next: () => ++made };
+});
+
+afterAll(async () => {
+	await install.close();
+});
+
+describe("each Sensitive action", () => {
+	for (const action of ALL_SENSITIVE_ACTIONS) {
+		test(`${action}: refused without a recent identity check, allowed after one`, async () => {
+			const call = SENSITIVE_ACTION_CALLS[action];
+			const browser = await install.signIn(superadmin);
+			await install.clock.advance(11 * MINUTE);
+
+			await expect(call(browser.api, fixture)).rejects.toMatchObject({
+				code: "IDENTITY_CHECK_REQUIRED",
+				data: { action },
+			});
+
+			await browser.api.session.confirmIdentity({ password: superadmin.password });
+			await expect(call(browser.api, fixture)).resolves.toBeDefined();
+		});
+	}
+
+	test("every Sensitive action has a row here", () => {
+		expect(Object.keys(SENSITIVE_ACTION_CALLS).sort()).toEqual([...ALL_SENSITIVE_ACTIONS].sort());
+	});
+});

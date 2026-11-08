@@ -26,13 +26,13 @@ import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
 import type { PgBoss } from "pg-boss";
 
-import { createTestBrowser, type TestBrowser } from "./browser.ts";
+import { createTestBrowser, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 
-export { API_PATH, type TestBrowser } from "./browser.ts";
+export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
@@ -44,6 +44,9 @@ export function inviteLinkIn(email: { text: string } | undefined): string {
 	if (!link) throw new Error(`The email holds no invite link:\n${email?.text ?? "(no email)"}`);
 	return link;
 }
+
+/** Requests to the leaked-password range service (see `leakedPasswordCheck` in `@webcraft/auth`). */
+export const LEAKED_PASSWORD_RANGE = /^https:\/\/api\.pwnedpasswords\.com\/range\/[0-9A-F]{5}$/;
 
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
@@ -114,9 +117,11 @@ export type TestInstall = {
 	request(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 	/**
 	 * A new browser on the admin: it keeps cookies like a browser and calls the Management API the
-	 * way the admin does. Give `origin` to send requests from another site's pages.
+	 * way the admin does. Each browser comes from its own client address unless `address` says
+	 * otherwise (null: one the web process can't tell); `userAgent` is the browser it says it is.
+	 * Give `origin` to send requests from another site's pages.
 	 */
-	browser(options?: { origin?: string }): TestBrowser;
+	browser(options?: TestBrowserOptions): TestBrowser;
 	/**
 	 * The setup token the web process printed in its log when it last started, or undefined when it
 	 * printed none (the Install has a Superadmin).
@@ -128,7 +133,7 @@ export type TestInstall = {
 	 */
 	createSuperadmin(account?: Partial<TestAccount>): Promise<TestAccount>;
 	/** A new browser, signed in with the account's email and password. */
-	signIn(account: Pick<TestAccount, "email" | "password">): Promise<TestBrowser>;
+	signIn(account: Pick<TestAccount, "email" | "password">, browser?: TestBrowserOptions): Promise<TestBrowser>;
 	/**
 	 * A browser signed in as the Superadmin: the one `createSuperadmin` made, or a new default
 	 * Superadmin when there is none yet. The same browser every time.
@@ -237,6 +242,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 
 	const mail = createFakeMailer();
 	const http = createFakeHttp();
+	// The leaked-password range service lists no password as leaked unless a test says otherwise.
+	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const env = {
 		DATABASE_URL: databaseUrl,
 		WEBCRAFT_ADMIN_HOST: TEST_ADMIN_HOST,
@@ -289,8 +296,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		superadminAccount = account;
 		return account;
 	};
-	const signIn = async ({ email, password }: Pick<TestAccount, "email" | "password">) => {
-		const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
+	const signIn = async (
+		{ email, password }: Pick<TestAccount, "email" | "password">,
+		browserOptions: TestBrowserOptions = {},
+	) => {
+		const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN, ...browserOptions });
 		await browser.api.session.signIn({ email, password });
 		return browser;
 	};

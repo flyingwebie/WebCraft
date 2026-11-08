@@ -26,7 +26,10 @@ export const people = pgTable(
 
 /**
  * Signed-in sessions in the admin. `started_at` and `last_active_at` come from WebCraft's clock and
- * decide how long a session lasts; the other columns belong to the sign-in library.
+ * decide how long a session lasts; `identity_checked_at` is when the person last proved who they
+ * are in this session (signing in counts), which Sensitive actions need within the last 10 minutes.
+ * `ip_address` is the client address WebCraft saw when the session was last renewed, and
+ * `user_agent` the browser that signed in; the other columns belong to the sign-in library.
  */
 export const sessions = pgTable(
 	"sessions",
@@ -41,6 +44,7 @@ export const sessions = pgTable(
 		userAgent: text("user_agent"),
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
 		lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull(),
+		identityCheckedAt: timestamp("identity_checked_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

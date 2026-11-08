@@ -2,8 +2,11 @@ import { ORPCError } from "@orpc/server";
 import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
 import {
 	EmailAlwaysSentError,
+	IdentityCheckRequiredError,
 	InviteInvalidError,
 	PermissionDeniedError,
+	SensitiveActionRefusedError,
+	SessionNotFoundError,
 	SetupClosedError,
 	SetupStageError,
 	SetupTokenInvalidError,
@@ -40,6 +43,9 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
+	if (error instanceof SessionNotFoundError) {
+		return new ORPCError("SESSION_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
 	if (error instanceof InviteInvalidError) {
 		return new ORPCError("INVITE_INVALID", { status: 404, message: error.message, cause: error });
 	}
@@ -48,6 +54,22 @@ export function toApiError(error: unknown): unknown {
 			status: 403,
 			message: error.message,
 			data: { permission: error.permission },
+			cause: error,
+		});
+	}
+	if (error instanceof IdentityCheckRequiredError) {
+		return new ORPCError("IDENTITY_CHECK_REQUIRED", {
+			status: 403,
+			message: error.message,
+			data: { action: error.action },
+			cause: error,
+		});
+	}
+	if (error instanceof SensitiveActionRefusedError) {
+		return new ORPCError("SENSITIVE_ACTION_REFUSED", {
+			status: 403,
+			message: error.message,
+			data: { action: error.action },
 			cause: error,
 		});
 	}

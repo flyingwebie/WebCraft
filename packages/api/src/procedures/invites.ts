@@ -17,7 +17,7 @@ export const invites = {
 			const { services } = context;
 			const { token: inviteToken, ...account } = input;
 			const { personId, email } = await services.invites.accept(inviteToken, account, context.via);
-			const { setCookie } = await services.auth.signIn({ email, password: account.password }, context.headers);
+			const { setCookie } = await services.auth.signIn({ email, password: account.password }, context);
 			setCookies(context, setCookie);
 			return { personId };
 		}),

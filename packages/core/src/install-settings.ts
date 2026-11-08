@@ -3,6 +3,7 @@ import { installSettings } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
 import { type AdminLanguageCode, DEFAULT_ADMIN_LANGUAGE, isAdminLanguage } from "./admin-languages.ts";
+import type { InstallScope } from "./tenancy/data-layer.ts";
 
 /** The Install-wide settings people see in Install settings › General. */
 export type InstallSettingsValues = {
@@ -11,10 +12,23 @@ export type InstallSettingsValues = {
 	defaultAdminLanguage: AdminLanguageCode;
 };
 
+/** Install settings › Security. */
+export type InstallSecuritySettings = {
+	/** Whether new passwords are checked against leaked-password lists. */
+	leakedPasswordCheck: boolean;
+};
+
 export type InstallSettings = {
 	read(): Promise<InstallSettingsValues>;
 	/** Changes the given settings and answers all of them. */
 	update(changes: Partial<InstallSettingsValues>): Promise<InstallSettingsValues>;
+	/** Install settings › Security. */
+	security(): Promise<InstallSecuritySettings>;
+	/**
+	 * Switches the leaked-password check on or off, and records it in the Audit log. A Sensitive
+	 * action (`leakedPasswordCheck.change`): open the Install with `install.manage` and check first.
+	 */
+	setLeakedPasswordCheck(scope: InstallScope, on: boolean): Promise<InstallSecuritySettings>;
 };
 
 /** The longest Install name, in characters. */
@@ -44,6 +58,10 @@ export async function writeSettingsRow(
 }
 
 export function createInstallSettings(database: Database): InstallSettings {
+	const security = async (): Promise<InstallSecuritySettings> => {
+		const row = await readSettingsRow(database.db);
+		return { leakedPasswordCheck: row?.leakedPasswordCheck ?? true };
+	};
 	const read = async (): Promise<InstallSettingsValues> => {
 		const row = await readSettingsRow(database.db);
 		const language = row?.defaultAdminLanguage ?? DEFAULT_ADMIN_LANGUAGE;
@@ -60,6 +78,14 @@ export function createInstallSettings(database: Database): InstallSettings {
 			if (changes.defaultAdminLanguage !== undefined) values.defaultAdminLanguage = changes.defaultAdminLanguage;
 			if (Object.keys(values).length > 0) await writeSettingsRow(database.db, values);
 			return read();
+		},
+		security,
+		async setLeakedPasswordCheck(scope, on) {
+			await scope.transaction(async (tx) => {
+				await writeSettingsRow(tx.db, { leakedPasswordCheck: on });
+				await tx.audit("leakedPasswordCheck.change", { on });
+			});
+			return security();
 		},
 	};
 }

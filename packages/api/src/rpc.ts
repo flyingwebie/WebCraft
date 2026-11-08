@@ -8,11 +8,19 @@ import { apiRouter } from "./router.ts";
 /** Where the admin calls the Management API, on the admin host. */
 export const ADMIN_API_PREFIX = "/api/rpc";
 
+/** What the web process knows about a request besides the request itself. */
+export type RequestFacts = {
+	/** The address of the client it came from (`clientAddress` in the web process), or null. */
+	clientAddress: string | null;
+};
+
 /**
  * The Management API as the admin's own pages call it (oRPC's RPC protocol), signed in with the
  * session cookie. Answers null for paths outside `/api/rpc`.
  */
-export function createAdminApi(services: InstallServices): (request: Request) => Promise<Response | null> {
+export function createAdminApi(
+	services: InstallServices,
+): (request: Request, facts: RequestFacts) => Promise<Response | null> {
 	const handler = new RPCHandler(apiRouter, {
 		plugins: [new ResponseHeadersPlugin()],
 		clientInterceptors: [
@@ -24,10 +32,10 @@ export function createAdminApi(services: InstallServices): (request: Request) =>
 			}),
 		],
 	});
-	return async (request) => {
+	return async (request, { clientAddress }) => {
 		const { matched, response } = await handler.handle(request, {
 			prefix: ADMIN_API_PREFIX,
-			context: { services, headers: request.headers, via: { kind: "admin" } },
+			context: { services, headers: request.headers, clientAddress, via: { kind: "admin" } },
 		});
 		if (!matched) return null;
 		response.headers.set("cache-control", "no-store");

@@ -1,4 +1,11 @@
 export {
+	type Account,
+	describeUserAgent,
+	networkOf,
+	SessionNotFoundError,
+	type SessionView,
+} from "./account.ts";
+export {
 	ADMIN_LANGUAGE_CODES,
 	ADMIN_LANGUAGES,
 	type AdminLanguageCode,
@@ -36,6 +43,7 @@ export {
 } from "./install.ts";
 export {
 	INSTALL_NAME_MAX_LENGTH,
+	type InstallSecuritySettings,
 	type InstallSettings,
 	type InstallSettingsValues,
 } from "./install-settings.ts";
@@ -79,6 +87,15 @@ export {
 	WORKSPACE_ROLES,
 	type WorkspaceRole,
 } from "./permissions/roles.ts";
+export {
+	ALL_SENSITIVE_ACTIONS,
+	assertSensitiveActionAllowed,
+	IdentityCheckRequiredError,
+	RECENT_IDENTITY_CHECK_MS,
+	SENSITIVE_ACTIONS,
+	type SensitiveAction,
+	SensitiveActionRefusedError,
+} from "./permissions/sensitive.ts";
 export * from "./secrets/index.ts";
 export type { InstallPorts, InstallServices } from "./services.ts";
 export {

@@ -1,6 +1,7 @@
 import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 
+import type { Account } from "./account.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
@@ -46,6 +47,8 @@ export type InstallServices = InstallPorts & {
 	secrets: InstallSecrets;
 	/** Signing in and out, and sessions. */
 	auth: Auth;
+	/** A person's own account: their sessions and their password, recorded in the Audit log. */
+	account: Account;
 	/** People with an account, and their admin preferences. */
 	people: People;
 	/** The setup wizard and its token. */

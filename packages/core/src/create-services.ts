@@ -1,5 +1,6 @@
-import { createAuth } from "@webcraft/auth";
+import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 
+import { createAccount } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import { createEmail } from "./email/index.ts";
 import { createInstallSettings } from "./install-settings.ts";
@@ -37,20 +38,28 @@ export async function createInstallServices(
 	const secretsOptions = { database, masterKey, clock };
 	// Every secret; the data layer hands out a Workspace's or a Site's, `services.secrets` the Install's.
 	const store = options.checkMasterKey === false ? createSecrets(secretsOptions) : await openSecrets(secretsOptions);
+	const settings = createInstallSettings(database);
 	const auth = createAuth({
 		database,
 		clock,
 		adminOrigin: config.adminOrigin,
 		secret: await sessionSigningSecret(masterKey),
 		log,
+		passwordChecks: [
+			leakedPasswordCheck({
+				http: ports.http,
+				log,
+				enabled: async () => (await settings.security()).leakedPasswordCheck,
+			}),
+		],
 	});
-	const settings = createInstallSettings(database);
 	const installSecrets = installSecretsOnly(store);
 	const email = createEmail({ ...ports, secrets: installSecrets, settings });
 	return {
 		...ports,
 		secrets: installSecrets,
 		auth,
+		account: createAccount({ database, auth, clock }),
 		people: createPeople({ database, clock }),
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,
