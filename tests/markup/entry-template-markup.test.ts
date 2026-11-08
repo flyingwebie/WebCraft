@@ -243,6 +243,10 @@ describe("inline styles", () => {
 			["color: red; {", "isn't a CSS declaration"],
 			["background: url(javascript:alert(1))", "isn't an address a style may use"],
 			["width: expression(alert(1))", "isn't allowed"],
+			["behavior: url(#default#VML)", "isn't allowed"],
+			["-moz-binding: url(widget.xml#run)", "isn't allowed"],
+			["BEHAVIOR : url(x.htc)", "isn't allowed"],
+			["-ms-behavior: url(x.htc)", "isn't allowed"],
 			["color red", "isn't a CSS declaration"],
 		] as const) {
 			await expect(
