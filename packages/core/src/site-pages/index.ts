@@ -1,13 +1,25 @@
 import type { Database } from "@webcraft/db";
-import { entries, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
-import { directionOf, type ElementTree, mediaReferencesIn, renderPage, type TreeNode } from "@webcraft/renderer";
+import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
+import { directionOf, type ElementTree, mediaReferencesIn, renderPage, type TemplateValue } from "@webcraft/renderer";
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
 import { entryValues } from "../content/entries.ts";
+import { linksIn } from "../content/field-values.ts";
+import { publishedGlobals } from "../content/globals.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
-import { bySpecificity, parseUrlPattern, pathSegments, slugIn, type UrlPattern } from "../content/url-patterns.ts";
+import { publishedEntries } from "../content/relationships.ts";
+import { entryParts, globalsParts, type RelatedEntry, resolvePath } from "../content/render-values.ts";
+import {
+	bySpecificity,
+	parseUrlPattern,
+	pathFor,
+	pathSegments,
+	slugIn,
+	type UrlPattern,
+} from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
+import { listClasses } from "../design-system/classes.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
@@ -86,7 +98,12 @@ export function createSitePages(options: {
 	};
 }
 
-type FoundEntry = { postType: PostType; entry: typeof entries.$inferSelect; template: ElementTree };
+type FoundEntry = {
+	postType: PostType;
+	postTypes: readonly PostType[];
+	entry: typeof entries.$inferSelect;
+	template: ElementTree;
+};
 
 /**
  * The published Entry at a path: each Post Type's URL pattern is tried, most specific first, and the
@@ -98,7 +115,8 @@ async function findPublishedEntry(
 	segments: readonly string[],
 	language: string,
 ): Promise<FoundEntry | undefined> {
-	const candidates = (await listPostTypes(scope))
+	const postTypes = await listPostTypes(scope);
+	const candidates = postTypes
 		.map((postType) => ({ postType, pattern: parseUrlPattern(postType.urlPattern) }))
 		.filter((candidate): candidate is { postType: PostType; pattern: UrlPattern } => !("problem" in candidate.pattern))
 		.sort((a, b) => bySpecificity(a.pattern, b.pattern));
@@ -121,7 +139,7 @@ async function findPublishedEntry(
 			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id), isNotNull(templates.published)),
 		);
 		if (!template) return undefined;
-		return { postType, entry, template: template.published as ElementTree };
+		return { postType, postTypes, entry, template: template.published as ElementTree };
 	}
 	return undefined;
 }
@@ -129,62 +147,90 @@ async function findPublishedEntry(
 async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: FoundEntry): Promise<string> {
 	const { postType, entry, template } = found;
 	const language = host.defaultLanguage;
-	const published = entryValues(storedVersion(entry.published), postType.fields, {
-		language,
-		defaultLanguage: host.defaultLanguage,
-	});
+	const languages = { language, defaultLanguage: host.defaultLanguage };
+	const version = storedVersion(entry.published);
+	const published = entryValues(version, postType.fields, languages);
 	const authorName = entry.authorId ? await nameOf(scope, entry.authorId) : null;
 	// Visitors see the published version: nothing here tells them about the Draft, so its status
 	// is "published" and it was last updated when it was last published.
-	const builtIns: Record<string, string | null> = {
+	const builtIns: Record<string, TemplateValue> = {
 		title: published.title,
 		slug: published.slug,
 		status: "published",
 		author: authorName,
-		createdAt: day(entry.createdAt),
-		updatedAt: day(entry.lastPublishedAt),
-		publishedAt: day(entry.publishedAt),
-		lastPublishedAt: day(entry.lastPublishedAt),
+		createdAt: entry.createdAt,
+		updatedAt: entry.lastPublishedAt,
+		publishedAt: entry.publishedAt,
+		lastPublishedAt: entry.lastPublishedAt,
 	};
-	// A media Field holds the id of a Media item; Templates read it as `media:<id>`, like a fixed image.
-	const mediaFields = new Set(postType.fields.filter((field) => field.type === "media").map((field) => field.key));
-	const fieldValue = (path: string) => {
-		const value = published.fields[path];
-		return value && mediaFields.has(path) ? `media:${value}` : value;
-	};
-	const referenced = [
-		...mediaReferencesIn(attributeTexts(template.nodes)),
-		...[...mediaFields].map((key) => published.fields[key] ?? ""),
-	];
-	const shown = await pageMedia(scope, referenced, { language, defaultLanguage: host.defaultLanguage });
+	const site = publishedGlobals(await scope.first(globals), languages);
+	const related = await relatedEntries(
+		scope,
+		found,
+		linksIn(version.values, postType.fields).map((link) => link.targetId),
+		languages,
+	);
+	const root = entryParts(builtIns, postType.fields, published.fields, {
+		related,
+		site: globalsParts(site.fields, site.values),
+	});
+	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
+	// The Media the page may show: `media:<id>` written in the Template, and every media value the page
+	// reads (its own, its Globals' and its related Entries'). Ids that aren't the Site's Media find nothing.
+	const shown = await pageMedia(
+		scope,
+		[
+			...mediaReferencesIn(JSON.stringify(template)),
+			...idsIn(JSON.stringify([published.fields, site.values, [...related.values()].map((entry) => entry.values)])),
+		],
+		languages,
+	);
 	return renderPage({
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		title: published.title,
 		template,
-		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : fieldValue(path)),
+		values: (path) => resolvePath(root, path),
+		className: (classId) => classNames.get(classId),
 		media: (id) => shown.get(id),
 	});
 }
 
-/** The fixed text of every attribute in a tree, joined: where `media:<id>` references are written. */
-function attributeTexts(nodes: readonly TreeNode[]): string {
-	let texts = "";
-	for (const node of nodes) {
-		if (node.type !== "element") continue;
-		for (const attribute of node.attributes) {
-			for (const part of attribute.value) if (part.type === "text") texts += ` ${part.text}`;
-		}
-		texts += attributeTexts(node.children);
+/** Every id (UUID) written in a piece of text. */
+function idsIn(text: string): string[] {
+	return [...text.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)].map((match) => match[0]);
+}
+
+/** The published Entries the page's Relationships point at, read in the page's language. */
+async function relatedEntries(
+	scope: VisitorScope,
+	found: FoundEntry,
+	ids: readonly string[],
+	languages: { language: string; defaultLanguage: string },
+): Promise<Map<string, RelatedEntry>> {
+	const byId = new Map(found.postTypes.map((postType) => [postType.id, postType]));
+	const related = new Map<string, RelatedEntry>();
+	for (const row of await publishedEntries(scope, [...new Set(ids)])) {
+		const postType = byId.get(row.postTypeId);
+		if (!postType) continue;
+		const values = entryValues(storedVersion(row.published), postType.fields, languages);
+		related.set(row.id, {
+			fields: postType.fields,
+			values: values.fields,
+			builtIns: {
+				title: values.title,
+				slug: values.slug,
+				url: values.slug ? pathFor(postType.urlPattern, values.slug) : null,
+				createdAt: row.createdAt,
+				updatedAt: row.lastPublishedAt,
+				publishedAt: row.publishedAt,
+				lastPublishedAt: row.lastPublishedAt,
+			},
+		});
 	}
-	return texts;
+	return related;
 }
 
 async function nameOf(scope: VisitorScope, personId: string): Promise<string | null> {
 	const [row] = await scope.db.select({ name: people.name }).from(people).where(eq(people.id, personId));
 	return row?.name ?? null;
-}
-
-/** A date as visitors read it until Template markup's date formatter: `2026-03-02`. */
-function day(date: Date | null): string | null {
-	return date ? date.toISOString().slice(0, 10) : null;
 }

@@ -2,12 +2,12 @@ import { media, mediaFiles } from "@webcraft/db/schema";
 import type { PageMedia } from "@webcraft/renderer";
 import { and, eq, inArray } from "drizzle-orm";
 
-import { readValue, storedVersion } from "../content/values.ts";
 import { isUuid } from "../ids.ts";
 import type { VisitorScope } from "../tenancy/data-layer.ts";
 import { VARIANT_FORMATS } from "./images.ts";
 import { originalUrl, variantsOf } from "./library.ts";
 import type { MediaKind } from "./sniff.ts";
+import { readText, storedTexts } from "./texts.ts";
 
 /**
  * The Media items a page shows, by id, as the renderer needs them: the original's address and size,
@@ -44,7 +44,7 @@ export async function pageMedia(
 			url,
 			width: row.width,
 			height: row.height,
-			alt: readValue(storedVersion(row.texts), { key: "alt", translatable: true, ...languages }),
+			alt: readText(storedTexts(row.texts), "alt", languages),
 			sources: VARIANT_FORMATS.map((format) => ({
 				type: `image/${format}`,
 				candidates: variants

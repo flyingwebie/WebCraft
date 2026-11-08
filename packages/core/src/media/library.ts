@@ -3,7 +3,6 @@ import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from "d
 
 import { siteLanguages } from "../content/entries.ts";
 import { clearPageCache } from "../content/page-cache.ts";
-import { type EntryVersion, readValue, storedVersion, writeValue } from "../content/values.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
 import type { JobQueue } from "../jobs/define.ts";
@@ -24,16 +23,10 @@ import { mediaProcess } from "./jobs.ts";
 import { contentHash, MEDIA_PATH, SERVED_NAME, servedName } from "./names.ts";
 import { gifSize, type MediaKind, sniff } from "./sniff.ts";
 import { type ByteRange, siteFolder } from "./storage.ts";
+import { MEDIA_TEXTS, type MediaText, readText, storedTexts, writeText } from "./texts.ts";
 
 /** The largest file the Media library takes. Quotas per Site come later. */
 export const MEDIA_MAX_BYTES = 50 * 1024 * 1024;
-
-/** The texts each Media item has, per language, and their longest. */
-export const MEDIA_TEXT_MAX_LENGTH = { title: 200, alt: 1000, caption: 2000 } as const;
-
-export type MediaText = keyof typeof MEDIA_TEXT_MAX_LENGTH;
-
-const MEDIA_TEXTS = Object.keys(MEDIA_TEXT_MAX_LENGTH) as MediaText[];
 
 export const MEDIA_FOLDER_NAME_MAX_LENGTH = 100;
 
@@ -270,15 +263,15 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 				if (!mayChange(tx, row)) throw new PermissionDeniedError("media.manage");
 
 				const changed: string[] = [];
-				let texts = storedVersion(row.texts);
+				let texts = storedTexts(row.texts);
 				for (const key of MEDIA_TEXTS) {
 					const value = change[key];
 					if (value === undefined) continue;
-					const place = { key, translatable: true, language, defaultLanguage };
-					const before = readValue(texts, place);
+					// Written in the language itself: reading falls back to the Default language, writing never does.
+					const before = texts.values[key]?.[language]?.value ?? "";
 					const next = value?.trim() ?? "";
-					if ((before ?? "") === next) continue;
-					texts = writeValue(texts, place, next, { kind: "person", personId });
+					if (before === next) continue;
+					texts = writeText(texts, key, language, next, { kind: "person", personId });
 					changed.push(key);
 				}
 				let folderId = row.folderId;
@@ -421,8 +414,8 @@ async function views(
 	const personId = scope.access.actor.personId;
 	return rows.map((row) => {
 		const own = files.filter((file) => file.mediaId === row.id);
-		const texts = storedVersion(row.texts);
-		const text = (key: MediaText) => readValue(texts, { key, translatable: true, language, defaultLanguage });
+		const texts = storedTexts(row.texts);
+		const text = (key: MediaText) => readText(texts, key, { language, defaultLanguage });
 		const uploader = row.uploadedBy ? uploaders.get(row.uploadedBy) : undefined;
 		return {
 			id: row.id,
@@ -487,9 +480,4 @@ export async function storedFile(
 		etag: `"${name.slice(0, 16)}"`,
 		open: (range) => backend.stream(row.key, range),
 	};
-}
-
-/** The texts of a Media item, as stored. */
-export function mediaTexts(row: Pick<MediaRow, "texts">): EntryVersion {
-	return storedVersion(row.texts);
 }

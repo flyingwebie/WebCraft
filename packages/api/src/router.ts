@@ -2,6 +2,7 @@ import type { RouterClient } from "@orpc/server";
 
 import { audit } from "./procedures/audit.ts";
 import { entries } from "./procedures/entries.ts";
+import { globals } from "./procedures/globals.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
 import { me } from "./procedures/me.ts";
@@ -30,6 +31,7 @@ export const apiRouter = {
 	sites,
 	postTypes,
 	entries,
+	globals,
 	templates,
 	media,
 	members,

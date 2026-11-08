@@ -239,3 +239,42 @@ describe("media Field values", () => {
 		expect(await mainOf("/notes/note")).toBe("<p>Hi</p>");
 	});
 });
+
+describe("Template markup", () => {
+	test("media:<id> and a media Field render as Media images, and the markup prints back as written", async () => {
+		const { postType } = await staff.api.postTypes.create({
+			siteId,
+			name: "Recipes",
+			urlPattern: "/recipes/{slug}",
+			fields: [{ key: "photo", label: "Photo", type: "media" }],
+		});
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: postType.id,
+			markup: `<figure><img src="{{ photo }}"><img src="media:${badge.id}" alt="Award"></figure>`,
+		});
+		expect(saved.markup).toContain(`<img src="media:${badge.id}" alt="Award"`);
+		expect(saved.markup).toContain('<img src="{{ photo }}"');
+		await staff.api.templates.publish({ siteId, templateId: saved.template.id });
+		const { entry } = await editor.api.entries.create({
+			siteId,
+			postTypeId: postType.id,
+			title: "Soda bread",
+			fields: { photo: hero.id },
+		});
+		await editor.api.entries.publish({ siteId, entryId: entry.id });
+		const { media: photo } = await editor.api.media.get({ siteId, mediaId: hero.id });
+
+		expect(await mainOf("/recipes/soda-bread")).toBe(
+			[
+				"<figure>",
+				picture(
+					hero,
+					`<img src="${hero.url}" alt="${photo.alt}" width="1000" height="600" loading="eager" fetchpriority="high">`,
+				),
+				picture(badge, `<img src="${badge.url}" alt="Award" width="700" height="350" loading="lazy">`),
+				"</figure>",
+			].join(""),
+		);
+	});
+});

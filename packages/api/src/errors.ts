@@ -9,11 +9,15 @@ import {
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
+	ConfirmationInvalidError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
 	EntryInvalidError,
+	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	GlobalsIncompleteError,
+	GlobalsInvalidError,
 	IdentityCheckRequiredError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
@@ -43,7 +47,7 @@ import {
 	TemplateNotFoundError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
-import { ElementTreeInvalidError } from "@webcraft/renderer";
+import { ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -117,8 +121,48 @@ export function toApiError(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (error instanceof EntryLinkedError) {
+		return new ORPCError("ENTRY_LINKED", {
+			status: 409,
+			message: error.message,
+			data: { blockedBy: error.blockedBy },
+			cause: error,
+		});
+	}
+	if (error instanceof GlobalsInvalidError) {
+		return new ORPCError("GLOBALS_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof GlobalsIncompleteError) {
+		return new ORPCError("GLOBALS_INCOMPLETE", {
+			status: 400,
+			message: error.message,
+			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof ConfirmationInvalidError) {
+		return new ORPCError("CONFIRMATION_INVALID", {
+			status: 409,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
+	}
 	if (error instanceof ElementTreeInvalidError) {
 		return new ORPCError("TEMPLATE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof TemplateMarkupInvalidError) {
+		return new ORPCError("TEMPLATE_MARKUP_INVALID", {
 			status: 400,
 			message: error.message,
 			data: { problems: error.problems },

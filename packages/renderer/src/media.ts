@@ -6,7 +6,7 @@
  * every other one lazily. In any other URL attribute (`href`, a video's `src`), `media:<id>` becomes
  * the file's own address.
  */
-import { escapeAttribute } from "./html.ts";
+import { escapeAttribute } from "./escape.ts";
 
 /** A Media item as a page shows it: what core read for the page, in the page's language. */
 export type PageMedia = {

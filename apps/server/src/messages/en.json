@@ -13,7 +13,7 @@
 		"PASSWORD_LEAKED": "This password appears in lists of leaked passwords. Choose another one.",
 		"EMAIL_INVALID": "Enter an email address such as name@example.com.",
 		"EMAIL_IN_USE": "Another person already signs in with this email address.",
-		"INVALID_CREDENTIALS": "The email or password is wrong.",
+		"INVALID_CREDENTIALS": "The email or password is wrong. After 10 wrong passwords in a row an account is locked for 15 minutes, and its owner gets an email.",
 		"UNAUTHORIZED": "Your session has ended. Sign in again.",
 		"FORBIDDEN": "You can't do this.",
 		"EMAIL_ALWAYS_SENT": "Security emails can't be turned off.",

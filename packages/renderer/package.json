@@ -15,5 +15,9 @@
 		"@types/node": "catalog:",
 		"@webcraft/config": "workspace:*",
 		"typescript": "catalog:"
+	},
+	"dependencies": {
+		"entities": "^9.0.0",
+		"parse5": "^8.1.1"
 	}
 }

@@ -58,7 +58,7 @@ jobs:
       # libheif's encoder, so the Media tests can make a HEIC photo the way phones take them.
       - run: sudo apt-get update && sudo apt-get install --yes libheif-examples libheif-plugin-x265
       - run: bun install --frozen-lockfile
-      - run: bun test
+      - run: bun run test
 
   browser:
     name: Accessibility (browser)

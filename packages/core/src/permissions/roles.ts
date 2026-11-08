@@ -38,6 +38,8 @@ export const PERMISSIONS = {
 	/** Edit Content and save Drafts. */
 	"entry.edit": ["site"],
 	"entry.publish": ["site"],
+	/** Delete an Entry, removing the links other Entries make to it. */
+	"entry.delete": ["site"],
 	/** Upload to the Site's Media library, and change your own uploads. */
 	"media.upload": ["site"],
 	/** Change every file in the Site's Media library, and its folders. */
@@ -84,6 +86,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"structure.edit",
 			"entry.edit",
 			"entry.publish",
+			"entry.delete",
 			"media.upload",
 			"media.manage",
 		],
@@ -98,13 +101,22 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"site.view",
 			"entry.edit",
 			"entry.publish",
+			"entry.delete",
 			"media.upload",
 			"media.manage",
 		],
 	},
 	editor: {
 		reach: "membership",
-		permissions: ["workspace.view", "site.view", "entry.edit", "entry.publish", "media.upload", "media.manage"],
+		permissions: [
+			"workspace.view",
+			"site.view",
+			"entry.edit",
+			"entry.publish",
+			"entry.delete",
+			"media.upload",
+			"media.manage",
+		],
 	},
 	author: {
 		reach: "membership",

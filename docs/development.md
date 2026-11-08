@@ -16,7 +16,7 @@ A Bun-workspaces monorepo, scaffolded once with Better-T-Stack (TanStack Start, 
 | `packages/auth` | WebCraft's auth interface (`Auth`): signing in and out, sessions, the recent identity check, lockout, creating people, password rules and the leaked-password check. Better Auth sits behind it; no other package imports Better Auth. | both |
 | `packages/api` | The Management API: oRPC procedures, served to the admin at `/api/rpc`. | both |
 | `packages/mcp` | The MCP server, generated from the API (placeholder). | both |
-| `packages/renderer` | Element trees (the stored form of Templates) and the renderer that turns them into HTML; Template markup joins it. It reads nothing itself. | both |
+| `packages/renderer` | Element trees (the stored form of Templates), Template markup (their lossless text view: parse, check, print), Conditions' expressions, formatters, the rich text cleaner and the renderer that turns trees into HTML. It reads nothing itself. | both |
 | `packages/ui` | shadcn components for the admin (preset `b1Fk3bmIS`) and its theme. | browser |
 | `packages/config` | The shared `tsconfig.base.json`. | |
 | `tests` | The seam-1 test harness and its tests, and the seam-2 browser harness (`tests/browser`). | Bun |
@@ -60,7 +60,7 @@ Run every command from the repo root: Bun loads `.env` from the directory it run
 | Command | What it does |
 | --- | --- |
 | `bun run dev` | Postgres if needed, migrate, then web and worker. |
-| `bun test` | Every seam-1 test. `bun test tests/web/health.test.ts` runs one file; `bun test -t "readyz"` filters by name. |
+| `bun run test` | Every seam-1 test, each allowed 30 s. `bun run test tests/web/health.test.ts` runs one file; `bun run test -t "readyz"` filters by name. Use `bun run test` rather than a bare `bun test`: Bun ignores a timeout in `bunfig.toml`, so a bare `bun test` gives every test only 5 s and fails on a busy machine. |
 | `bun run test:browser` | The browser accessibility checks (seam 2), against the production build: run `bun run build` first, and once `bunx playwright install chromium` in `tests/`. |
 | `bun run lint` | Biome lint and format check (`bun run format` fixes what it can). |
 | `bun run typecheck` | `tsc` in every workspace (through Turborepo) and in `scripts/`. |
@@ -190,7 +190,7 @@ A Sensitive action (`GLOSSARY.md`) needs a password, passkey or 2FA check within
 
 The Audit log is one append-only table (`audit_log`; triggers refuse updates and truncation). `recordAudit` (`packages/core/src/audit.ts`) is the only function that writes it; code calls it through `scope.audit(action, details)`, which fills in who, when, how (`via`), the Workspace and the Site. An Install scope's `audit` takes the Workspace (and Site) the action concerns as a third argument, a Workspace scope's the Site.
 
-- **Actions** are `<noun>.<verb>`: `install.claim`, `superadmin.create`, `masterKey.confirmStored`, `workspace.create`, `site.create`, `staff.invite`, `staff.revokeInvite`, `staff.join`, `staff.changeWorkspaces`, `member.invite`, `member.resendInvite`, `member.revokeInvite`, `member.join`, `member.changeRole`, `member.changeSites`, `member.remove`, `postType.create`, `postType.update`, `entry.publish`, `template.publish`, `installSmtp.change`, `leakedPasswordCheck.change`, `storage.change`, `media.upload`, `media.update`, `mediaFolder.create`, `mediaFolder.rename`, `mediaFolder.delete`, `password.change`, `session.revoke`, `session.revokeOthers` and `account.lock`. Saving a Draft isn't logged; publishing is. Install-level actions about a person's own account (their password, their sessions) are recorded with the core function `recordAudit` and no Workspace; `account.lock` has no person who acted (WebCraft locked it) and names the locked person in its details.
+- **Actions** are `<noun>.<verb>`: `install.claim`, `superadmin.create`, `masterKey.confirmStored`, `workspace.create`, `site.create`, `staff.invite`, `staff.revokeInvite`, `staff.join`, `staff.changeWorkspaces`, `member.invite`, `member.resendInvite`, `member.revokeInvite`, `member.join`, `member.changeRole`, `member.changeSites`, `member.remove`, `postType.create`, `postType.update`, `entry.publish`, `entry.delete`, `template.publish`, `globals.update`, `globals.publish`, `installSmtp.change`, `leakedPasswordCheck.change`, `storage.change`, `media.upload`, `media.update`, `mediaFolder.create`, `mediaFolder.rename`, `mediaFolder.delete`, `password.change`, `session.revoke`, `session.revokeOthers` and `account.lock`. Saving a Draft isn't logged; publishing and deleting are. Install-level actions about a person's own account (their password, their sessions) are recorded with the core function `recordAudit` and no Workspace; `account.lock` has no person who acted (WebCraft locked it) and names the locked person in its details.
 - **How** (`AuditVia`): `admin` for `/api/rpc`, `command` with the command's name for `webcraft admin …`. Later kinds: Edit mode, an API token's name, an AI client's name, a Module, Impersonation.
 - **Details** are plain JSON about what changed (a name, an email address); never a secret's value.
 - `audit.list` gives the Superadmin the newest entries; the screens and the Staff and Owner views come with the Audit log screens.
@@ -211,25 +211,81 @@ Members are the client's people in one Workspace (`packages/core/src/tenancy/mem
 
 ## Content and publishing
 
-The content store is `packages/core/src/content/`, behind `services.postTypes`, `services.entries`, `services.templates` and `services.publishing`. Its tables (`post_types`, `entries`, `published_slugs`, `templates`) are Site tables.
+The content store is `packages/core/src/content/`, behind `services.postTypes`, `services.entries`, `services.globals`, `services.templates` and `services.publishing`. Its tables (`post_types`, `entries`, `published_slugs`, `entry_links`, `globals`, `templates`) are Site tables.
 
 - **Post Types** are Structure without a Draft: `create`, `update`, `list`, `get`. Each has a `key` (`blog`, made from the name when not given; it never changes), a `name`, a URL pattern and its Fields, in order. Changing one applies at once and clears the Site's page cache.
 - **URL patterns** (`content/url-patterns.ts`) are fixed path parts (lower-case letters, digits, dashes) and exactly one `{slug}`: `/blog/{slug}`, `/{slug}`. Fixed parts can't start with `_`, so no pattern reaches the paths the Install keeps (`/_webcraft/…`, `/_media/…`). When several patterns match a path, the most specific is tried first (a fixed part beats `{slug}` at the first place they differ). Nested Pages and the Site template's routing come with #61.
-- **Fields** (`content/fields.ts`) are `{ key, label, type, translatable, required }`; the types so far are `text` and `media` (#59 adds the rest). A `media` Field holds the id of a Media item of the same Site (anything else is refused when the Draft is saved), and Templates read it as `media:<id>` (see "Media on pages"). A key never changes, so a Field's values and bindings follow it. Keys can't be a built-in Field or a name Template markup reads from (`site`, `props`, `item`, …).
 - **Built-in Fields** every Entry has: `title`, `slug` (both translatable, stored like Fields), `status`, `author`, `createdAt`, `updatedAt` (Draft saved), `publishedAt` (first publish) and `lastPublishedAt`. A Post Type lists them as `builtInFields`.
-- **Entries** keep two versions side by side in `entries.draft` and `entries.published` (null until the first publish). Inside each, values are stored per key and per language (ADR 0003): `{ values: { title: { en: { value, by } }, summary: { … } } }`, where `by` is who wrote it (a person; AI translation joins later). A shared Field keeps one value under the Default language; a Translatable field falls back to the Default language one Field at a time. Sites have one language (`sites.default_language`, `en`) until #80. `status` is worked out: `draft` (never published), `published`, `changed` (the Draft differs).
-- **The Draft is written in one place**: `changeDraft` in `content/entries.ts`, which `entries.create` and `entries.saveDraft` both go through, with the Entry row locked. Co-editing (#71, ADR 0025) replaces it with changes to the Draft's shared document; nothing else writes `entries.draft`.
-- **Slugs**: made from the title when not given (accents dropped, `crème brûlée` gives `creme-brulee`), unique within the Post Type (`-2`, `-3`, …), and never changed by a new title. A slug another Entry of the Post Type has, in its Draft or published, is refused. `published_slugs` holds each Entry's published slug per language, so the Site finds an Entry by URL with one indexed lookup.
-- **Entry templates** (`content/templates.ts`) are one per Post Type, `templates` rows of kind `entry` holding element trees in `draft` and `published`. `saveEntryTemplate` checks the tree with `parseEntryTemplate`: it may read the built-in Fields and the Post Type's Fields, and holds no `<main>` (the page's `<main>` is around it). The Site template and Archive templates become more kinds.
+- **Entries** keep two versions side by side in `entries.draft` and `entries.published` (null until the first publish). `status` is worked out: `draft` (never published), `published`, `changed` (the Draft differs). Each Entry the API answers also carries `problems` (what keeps its Draft from being published, see "Values and validation") and `linkedFrom` (see "Relationships").
+- **The Draft is written in one place**: `changeDraft` in `content/entries.ts`, which `entries.create`, `entries.saveDraft` and deleting a linked Entry go through, with the Entry row locked. Co-editing (#71, ADR 0025) replaces it with changes to the Draft's shared document; nothing else writes `entries.draft`. The Globals' Draft is written only by `saveGlobalsDraft` in `content/globals.ts`.
+- **Slugs**: made from the title when not given (accents dropped, `crème brûlée` gives `creme-brulee`), unique within the Post Type (`-2`, `-3`, …), and never changed by a new title, before or after publishing. A slug another Entry of the Post Type has, in its Draft or published, is refused. `published_slugs` holds each Entry's published slug per language, so the Site finds an Entry by URL with one indexed lookup.
+- **Entry templates** (`content/templates.ts`) are one per Post Type, `templates` rows of kind `entry` holding element trees in `draft` and `published`. `saveEntryTemplate` checks the tree with `checkEntryTemplate`: it may read the built-in Fields, the Post Type's Fields and their parts, and the Globals (see "What a binding reads"), and holds no `<main>` (the page's `<main>` is around it). The Site template and Archive templates become more kinds.
+
+### Field types
+
+Every Field type lives in one registry, `FIELD_TYPE_SPECS` in `content/field-types.ts`: each type reads its own settings, checks and reads its values, and lists the rules a value breaks. Add a type there (#78 adds the Body field); `content/fields.ts` checks definitions and `content/field-values.ts` walks values, both through the registry.
+
+Every Field is `{ key, label, type, help, required, translatable, default }` plus its type's settings (the API answers every setting, null when unset):
+
+| Type | Value (as the API gives it) | Settings |
+| --- | --- | --- |
+| `text` | text, trimmed (at most 2,000 characters) | `minLength`, `maxLength`, `pattern` |
+| `richText` | HTML, cleaned on save (see "Rich text") | `maxLength` (characters of text) |
+| `number` | a number | `min`, `max`, `integer` |
+| `boolean` | `true` or `false` (unset reads `false`; can't be required) | |
+| `date` | `2026-03-02`, `09:30` or `2026-03-02T09:30:00Z` (an offset is turned into UTC) | `mode` (`date`, `time`, `dateTime`), `min`, `max` |
+| `select` | an option's value, or a list of them | `options` (`{ value, label }`), `multiple`, `min`, `max` (with `multiple`) |
+| `media` | nothing until the Media library (#73) | |
+| `link` | `{ url, text }`; the URL is an http, https, mailto or tel address, a path or an `#anchor` | |
+| `email` | an address, in lower case | `pattern` |
+| `relationship` | an Entry id, or a list of them | `postTypes` (keys), `multiple`, `twoWay` (default `true`), `min`, `max` (with `multiple`) |
+| `group` | its Fields' values, by key | `fields` |
+| `repeater` | a list of rows, each `{ id, …its Fields' values }` | `fields`, `min`, `max` (rows) |
+
+- **Keys** start with a lower-case letter, then letters, digits and underscores, and never change, so values and bindings follow them. A Post Type's Field can't take a built-in Field's name, one Template markup reads from (`site`, `props`, `item`, `url`, …) or a word Conditions use (`and`, `or`, `not`, `true`, `false`); inside a Group or Repeater only `id` and those words are kept. A Field keeps its type, inside Groups and Repeaters too.
+- **Groups and Repeaters** nest 3 deep at most, with at most 200 Fields in all. They hold no language and can't be translatable themselves: their Fields are, one by one.
+- **Translatable**: text, rich text and link Fields are by default; number, true/false, date, select, media and email only when chosen; Relationships, Groups and Repeaters never (ADR 0003).
+- **Defaults** fill a new Entry's Fields (and a new Repeater row's), and a Global added with one starts the Globals' Draft with it. Fields added to a Post Type later don't change existing Entries. Media, Relationship, Group and Repeater Fields have none (a Group's Fields have their own). A default must keep its Field's rules.
+- **`pattern`** is a regular expression the whole value must match, as an HTML `pattern` attribute reads it (so the admin can use it as is). Patterns that could take very long on some values are refused: a repeated group holding a choice (`(a|aa)*`), or holding a repetition unless it starts with a fixed character (`(a+)+` is refused, `(-[a-z]+)*` is fine).
+
+### Values and validation
+
+Values are stored per key and per language, inside each version (ADR 0003): a leaf Field's values as `{ <language>: { value, by } }`, where `by` is who wrote it (a person; AI translation joins later); a Group's as `{ values: { … } }`; a Repeater's as `{ rows: [{ id, values: { … } }] }`, so rows are the same in every language and each Field in them falls back to the Default language one at a time. A shared Field keeps one value under the Default language. Sites have one language (`sites.default_language`, `en`) until #80, so only the Default language can be written yet.
+
+- **Saving** (`create`, `saveDraft`, `globals.saveDraft`) gives Fields by key; only those given change. A Group's value is its Fields by key (again only those given change; `null` clears them all); a Repeater's is its whole list of rows: a row with an `id` it had keeps that row and its values in other languages, changing what is given; a row without one (or with a new one) is new and starts with the defaults; rows left out are removed. `null` or `""` clears a value.
+- **The wrong kind of value is refused** with `ENTRY_INVALID` (`GLOBALS_INVALID`) and `data.problems`, each at its path: `fields.price`, `fields.address.city`, `fields.team[1].name`, `fields.team[1].id`. A Relationship pointing at an Entry that isn't one of its Post Types' on this Site is refused the same way.
+- **Broken rules and empty required values are kept** in the Draft, so autosave and Co-editing never lose what someone typed, and are listed in the Entry's (or the Globals') `problems`, each with its `rule` (`required`, `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`, `postTypes`) for the admin to word. `min` rules only apply to values that aren't empty; empty is `required`'s job. A required Group needs a value in one of its Fields; the required Fields of an optional Group count once it has a value; a required Repeater needs a row.
+- **Publishing checks every value again** (Fields' rules may have changed since): `ENTRY_INVALID` with the same `problems` when a rule is broken, else `ENTRY_INCOMPLETE` with `data.missing` (`["title", "price", "address.city", "team[0].name"]`) when required values are empty. The Globals answer `GLOBALS_INVALID` and `GLOBALS_INCOMPLETE`.
+
+### Relationships
+
+A Relationship value is a list of Entry ids inside a version. `entry_links` also keeps every link per Entry, version (`draft`, `published`) and Field path (`categories`, `credits.person` inside a Repeater), written by `changeDraft` and `publish` (`content/relationships.ts`), so what points at an Entry is one indexed lookup. Categories and tags are ordinary Post Types joined by Relationships.
+
+- **Two-way** (the default): the Entries pointed at show the link back, as `linkedFrom` (`{ entryId, postTypeId, field, title }`, from the linking Entries' Drafts). **One-way**: nothing shows on them. Loops over Relationships (#62) and the Content API (#108) read the same links.
+- **Rendering** shows only published Entries pointed at (see "What a binding reads").
+- **Deleting an Entry** (`entries.delete`, Permission `entry.delete`: Staff, Owners and Editors) takes two calls. The first deletes nothing and answers `{ deleted: false, links, confirmation: { id, expiresAt } }`, `links` being how many other Entries link to it; the second, with `confirmation`, deletes it, removes the links to it from those Entries' Drafts and published versions (their status doesn't change), clears the page cache and logs `entry.delete`. While another Entry must point at it through a required Relationship, both calls answer `ENTRY_LINKED` with `data.blockedBy`.
+- **Globals** can't hold Relationships.
+
+### Two-step confirmation
+
+`askConfirmation` and `useConfirmation` (`packages/core/src/confirmations.ts`, table `confirmations`) are how destructive procedures confirm (spec › Management API): the first call works out a preview and asks; the second works it out again inside the transaction that goes ahead and uses the id. A confirmation is for one person, one action and one target, lasts 5 minutes (`CONFIRMATION_LIFETIME_MS`), works once, and only while the preview is unchanged. Otherwise the API answers `CONFIRMATION_INVALID` with `data.problem`: `unknown`, `expired` or `changed`. Publish all, emptying Trash and deleting Structure are to use the same two functions.
+
+### Globals
+
+The Globals (`content/globals.ts`, one `globals` row per Site, made the first time it is needed) are one set of Fields per Site, read by every Template as `site.x`.
+
+- `globals.get` (`site.view`): the Fields, the Draft and published values, `status`, `problems` and dates.
+- `globals.setFields` (`structure.edit`): the full list of Fields, in order. Like a Post Type's, it applies at once, keeps each Field's type, clears the page cache and logs `globals.update`. Keys can't be `name`, `url`, `language` or `languages`, kept for the Site's own values under `site.`.
+- `globals.saveDraft` (`entry.edit`, so Authors too) and `globals.publish` (`entry.publish`), which goes through `publish` with `{ kind: "globals" }`.
 
 ### Publishing
 
-`services.publishing.publish(scope, item)` (`content/publishing.ts`) is the one way anything is published. `item` is `{ kind: "entry" | "template", id }`; Globals, Components, Forms and the Design system become more kinds. Open the Site with `publishPermission(item)` (`entry.publish` for Entries, `structure.edit` for Structure such as Templates); `publish` checks it again, so the worker's Scheduled publishes (#69) hold it too. In one transaction it:
+`services.publishing.publish(scope, item)` (`content/publishing.ts`) is the one way anything is published. `item` is `{ kind: "entry" | "template", id }` or `{ kind: "globals" }`; Components, Forms and the Design system become more kinds. Open the Site with `publishPermission(item)` (`entry.publish` for Content: Entries and the Globals; `structure.edit` for Structure such as Templates); `publish` checks it again, so the worker's Scheduled publishes (#69) hold it too. In one transaction it:
 
-1. locks the item and checks it can be published: an Entry needs a title, a slug and every required Field (`EntryIncompleteError`), and its slug must be free among published Entries of its Post Type (`EntrySlugTakenError`); a Template must still fit its Post Type (`ElementTreeInvalidError`);
-2. copies the Draft over the published version and sets `publishedAt` (first time) and `lastPublishedAt`;
+1. locks the item and checks it can be published: an Entry's (or the Globals') values must keep their rules (`EntryInvalidError`, `GlobalsInvalidError`) and every required value must be there, the title and slug included (`EntryIncompleteError`, `GlobalsIncompleteError`); an Entry's slug must be free among published Entries of its Post Type (`EntrySlugTakenError`); a Template must still fit its Post Type, the Globals and what its Relationships point at (`ElementTreeInvalidError`);
+2. copies the Draft over the published version and sets `publishedAt` (first time) and `lastPublishedAt` (an Entry's published links too);
 3. clears the Site's page cache (`clearPageCache`: raises `sites.page_cache_generation`);
-4. writes the Audit log (`entry.publish`, `template.publish`).
+4. writes the Audit log (`entry.publish`, `template.publish`, `globals.publish`).
 
 Revisions (#67), Publish all (#68), Scheduled publish (#69), Review (#70), Webhooks and the CDN purge hook in here.
 
@@ -250,12 +306,15 @@ Staging addresses show published pages for now; #68 makes them show Drafts, at w
 
 ### Element trees and the renderer
 
-Templates are stored as element trees (`packages/renderer/src/tree.ts`, ADR 0002), the one canonical format the builder, Template markup (#58) and the renderer share:
+Templates are stored as element trees (`packages/renderer/src/tree.ts`, ADR 0002), the one canonical format the builder, Template markup and the renderer share:
 
 ```ts
 { version: 1, nodes: [
-  { type: "element", id: "Xb3…", tag: "article", attributes: [], classes: [], children: [
+  { type: "element", id: "Xb3…", tag: "article", attributes: [], classes: ["<Class id>"], children: [
     { type: "element", id: "Q9z…", tag: "h1", attributes: [], classes: [], children: [{ type: "value", path: "title" }] },
+    { type: "value", path: "publishedAt", format: { type: "date", style: "long" } },
+    { type: "comment", text: " kept for Staff, never sent to visitors " },
+    { type: "condition", branches: [{ test: { type: "value", path: "summary" }, children: [/* … */] }], otherwise: null },
     { type: "element", id: "k2P…", tag: "a", classes: [],
       attributes: [{ name: "href", value: [{ type: "text", text: "/blog/" }, { type: "value", path: "slug" }] }],
       children: [{ type: "text", text: "Read more" }] },
@@ -263,10 +322,10 @@ Templates are stored as element trees (`packages/renderer/src/tree.ts`, ADR 0002
 ] }
 ```
 
-- Elements have a stable `id` (filled in when missing, kept when given), a lower-case `tag` from `TEMPLATE_ELEMENTS`, ordered `attributes` (a list: Postgres `jsonb` doesn't keep key order, and a round trip must lose nothing), `classes` (Class ids, ADR 0009; refused until Classes exist, #64) and `children`. Text nodes are fixed text; value nodes and attribute value parts are **bindings**: a `path` (`title`, a Field key; later `site.x`, `props.x`, `item.x`), which Edit mode (#72) reads to tag editable regions.
-- `parseElementTree(input, options)` checks a tree and answers its canonical form, or throws `ElementTreeInvalidError` with every problem and where (`nodes[0].children[2].attributes[1]`): scripts, elements outside `TEMPLATE_ELEMENTS`, `on…`, `style`, `class`, `srcdoc` and `data-wc-…` attributes, unknown value names (`isKnownValue`), unknown Classes, duplicate ids, children of void elements, more than 64 levels or 10,000 nodes. The API answers it as `TEMPLATE_INVALID` with `data.problems`.
-- New node types (Component placements, Loops, Conditions, the content outlet) join the `TreeNode` union and `parseElementTree`; a change old trees can't be read as raises `ELEMENT_TREE_VERSION`.
-- `renderPage` writes a whole document: `<html lang dir>`, the title (`<title> · <Site name>`), and the Entry template inside `<main>` (the built-in Site template until #61). Media images: see "Media on pages". Text and values are escaped for text or double-quoted attributes; `href`, `src` and other URL attributes (and each `srcset` candidate) keep only `http`, `https`, `mailto`, `tel`, relative paths and `#anchors`, anything else becoming `#`. Dates render as `2026-03-02` until Template markup's formatters. No script, inline style or event handler is ever written.
+- Elements have a stable `id` (filled in when missing, kept when given), a lower-case `tag` from `TEMPLATE_ELEMENTS`, ordered `attributes` (a list: Postgres `jsonb` doesn't keep key order, and a round trip must lose nothing), `classes` (the ids of the Site's Classes, ADR 0009) and `children`. Text nodes are fixed text; value nodes and attribute value parts are **bindings**: a `path` (`title`, `address.city`, `category.url`, `site.phone`; later `props.x`, `item.x`) and an optional `format`, which Edit mode (#72) reads to tag editable regions. Comments are kept and never rendered. Template commands' nodes (a Condition so far) come from the command registry (see "Template markup").
+- `parseElementTree(input, options)` checks a tree and answers its canonical form (text next to text joined, empty text dropped, line breaks in comments as `\n`), or throws `ElementTreeInvalidError` with every problem and where (`nodes[0].children[2].attributes[1]`): scripts, elements outside `TEMPLATE_ELEMENTS`, `on…`, `style`, `class`, `srcdoc` and `data-wc-…` attributes, unknown value names (`isKnownValue`), Class ids the Site doesn't have (`classIds`), nesting a browser would change (a block inside `<p>`, a link inside a link, table parts out of place, `<li>` inside `<li>`), duplicate ids, children of void elements, NUL and broken characters, more than 64 levels or 10,000 nodes. The API answers it as `TEMPLATE_INVALID` with `data.problems`. The element and attribute rules are functions (`elementProblem`, `attributeProblem`, `nestingProblem`) the markup parser calls too, so both refuse the same things with the same words.
+- New node types join the `TreeNode` union; a change old trees can't be read as raises `ELEMENT_TREE_VERSION`.
+- `renderPage` writes a whole document: `<html lang dir>`, the title (`<title> · <Site name>`), and the Entry template inside `<main>` (the built-in Site template until #61). Values are typed (`TemplateValue`: text, numbers, true/false, dates, rich text, or a list of them); the Site pipeline hands dates over as dates and rich text marked with `richText(html)` (see "What a binding reads"). A list renders as its values joined with commas, each through the value's formatter. Text and values are escaped for text or double-quoted attributes; `href`, `src` and other URL attributes (each `srcset` candidate, each `ping` URL) keep only `http`, `https`, `mailto`, `tel`, relative paths and `#anchors`, anything else becoming `#`. A date without a formatter renders as `2026-03-02`. Rich text renders as its cleaned HTML in text and as its plain text in attributes and formatters. Comments are left out. No script, inline style or event handler is ever written.
 
 ## Media
 
@@ -313,7 +372,50 @@ An `<img>` whose `src` reads `media:<id>`, written as fixed text in a Template o
 - `alt` is the Template's own when it gives one (`alt=""` makes it Decorative), else the Media library's in the page's language, else empty. `width` and `height` are the original's, or the Template's (one of them scales the other). `sizes` is the Template's, or made from the width shown. The Template's other attributes and Classes stay on the `<img>`.
 - The first Media image in `<main>` loads with `loading="eager" fetchpriority="high"`; every other one `loading="lazy"` (a Template's own `loading` or `fetchpriority` wins).
 - Before variants exist, the `<img>` comes alone; before the original is cleaned, or for an id that isn't one of the Site's ready images, nothing renders. In any other URL attribute (`href`, a video's `src`), `media:<id>` becomes the file's address.
-- Template markup (#58) writes it `<img src="media:<id>">`; until #58 merges, element trees carry it as the attribute's text.
+- Template markup writes it as it is stored, `<img src="media:<id>">`: the parser checks the id's form only (a file can be deleted later, so it isn't looked up), and `{{ photo }}` in an `src` reads a media Field the same way.
+## Template markup
+
+Template markup (`packages/renderer/src/markup/`, ADR 0017) is the one written form of element trees, for Code mode, the builder's code view, files, MCP, the CLI and imports. It is never stored: `parseTemplateMarkup(markup, options)` reads it into a canonical tree and `printTemplateMarkup(tree, options)` writes a tree as markup. Printing then parsing gives the same tree, for every setting (`tests/markup/round-trip.test.ts` checks it by hand and over generated trees).
+
+```html
+<article class="card" aria-label="Post" data-wc-id="Xb3kP9a2Lm4Q">
+  <h1 data-wc-id="Q9zT2b7Rk1Wd">{{ title | truncate: 80 }}</h1>
+  <!-- Comments stay in the markup and the tree; visitors never get them. -->
+  {{@if summary and status != "draft"}}<p data-wc-id="r5Hs8Kq0Zx3N">{{ summary }}</p>
+  {{@else if author}}<p data-wc-id="m2Lp7Vd4Ty9C">By {{ author }}</p>
+  {{@else}}<p data-wc-id="w8Bn1Fj6Gu5E">Write \{{ summary }} to show the summary.</p>{{/if}}
+  <time datetime="{{ publishedAt | date: datetime }}" data-wc-id="c3Xr9Ma1Pq7S">{{ publishedAt | date: long }}</time>
+</article>
+```
+
+- **Element ids** are written as `data-wc-id`, always last. An element written without one gets a new id; when two elements carry the same id (a copied element), the first keeps it and the copy gets a new one, with a notice. Other `data-wc-` attributes are WebCraft's.
+- **Classes** are written by name in `class` (printed first) and stored by id; a name the Site doesn't have is refused. An inline `style` is read strictly (declarations only, safe `url()`s) and becomes a **generated Class** (`style-` and a hash of the canonical declarations, so the same style finds the same Class), with a notice; pages never carry inline styles. Generated Classes are rows of the `classes` Site table (`packages/core/src/design-system/classes.ts`); the Design system (#64) owns Classes from there: their editor, renaming, Draft and published styles and the stylesheet that makes them show.
+- **Values**: `{{ path }}` or `{{ path | formatter }}`, in text and inside attribute values. Formatters are a fixed set (`packages/renderer/src/formatters.ts`): `date` (`short`, `medium` (the default), `long`, `full`, `time`, `iso`, `datetime`; in the page's language, in UTC until Sites have a time zone), `number` (optionally `number: 2` decimals) and `truncate: <length>` (cut at a word, then `…`). Which paths are known depends on the kind of Template (`isKnownValue`): an Entry template reads the built-in Fields, its Post Type's Fields and their parts, and the Globals (`site.x`; see "What a binding reads"); Loop items (`item.x`) and Props (`props.x`) become known where they exist.
+- **Escaping**: text prints `&`, `<` and `>` as references; `\{{` is a literal `{{` (the printer writes `{{` in text that way), and a `{` or `\` at the end of text prints as `&#123;` / `&#92;` so it can't run into a following `{{`. Whitespace is kept exactly: the printer adds none, so a file pulled, edited and saved shows only your changes.
+- **Strict HTML**: every element needs its end tag (`<br>` and other void elements have none, `<br/>` is fine), nothing a browser would repair is accepted, and doctypes, `<script>`, `<style>`, `<meta>`, `on…` attributes and values in tag names, attribute names, `style`, `class`, `srcdoc` and `on…` are refused. A `media:` address must be `media:<id>` (see "Media on pages"). PascalCase Component tags (#63) and the reserved commands are refused until their tickets.
+- **Problems and notices**: `TemplateMarkupInvalidError` lists up to 20 problems, each `{ line, column, message }`; the API answers it as `TEMPLATE_MARKUP_INVALID` with `data.problems`. A save that works answers `notices` in the same shape.
+- **API**: `templates.getEntryTemplateMarkup({ siteId, postTypeId })` answers `{ template, markup: { draft, published } }` (both null without a template); `templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup })` saves the Draft (creating the template) and answers `{ template, markup, notices }`, the markup as stored now. Both need `structure.edit`. In core, `services.templates.entryTemplateMarkup` and `saveEntryTemplateMarkup` (`content/templates.ts`).
+
+### Template commands and Conditions
+
+`{{@name …}} … {{/name}}` blocks are **Template commands**, each one entry in `TEMPLATE_COMMANDS` (`packages/renderer/src/commands.ts`): its name, its node type, whether it is a block, the branch keywords allowed inside it (`else if`, `else`; a Loop's `empty`), and how it reads from markup, prints, is checked as a stored node, lists its children and renders. The parser and printer handle every command through the registry, so **adding a command** is: a node type in the `TreeNode` union, an entry in `TEMPLATE_COMMANDS`, and removing its name from `RESERVED_COMMANDS` (`loop`, `empty`, `outlet`, `pagination`, `form`, `filter`, `popup`, refused until their tickets).
+
+`{{@if}}` / `{{@else if}}` / `{{@else}}` is a Condition. Its tests are stored as data (`Expression` in `packages/renderer/src/expressions.ts`) and run by WebCraft's own interpreter, never `eval`: a value on its own passes when it isn't empty (blank text, false and empty rich text are empty; 0 is a value), `==` and `!=` compare (a number as a number, true/false as yes or no, otherwise as text; empty equals `""`), with `not`, `and`, `or` and brackets, and literals `"text"`, numbers, `true` and `false`. #62 adds compare, contains, language, date window and Loop position as more operators and kinds there. A test nests at most 32 deep.
+
+### Rich text
+
+`cleanRichText(html)` (`packages/renderer/src/rich-text.ts`) parses with parse5 (the HTML standard's algorithm, in a `<div>`'s context, as a browser would) and writes back only the allowlist: `p`, `br`, `strong`, `b`, `em`, `i`, `u`, `s`, `sub`, `sup`, `code`, `mark`, `small`, `ul`, `ol`, `li`, `blockquote`, and `a` with `href` (safe schemes only) and `title`. Scripts, styles, embeds, SVG, MathML, forms and comments go with their content; other elements keep their text. Nothing is matched with regular expressions, and the output is the cleaner's own, so cleaning clean rich text changes nothing. The rich text Field type (`content/field-types.ts`) cleans values on save (rich text with no text left is empty; at most 20,000 characters of cleaned HTML), and the renderer cleans them again on render.
+
+### What a binding reads
+
+`content/render-values.ts` works out what a binding's path names on a page (`entryParts`, `resolvePath`), and which paths a template may hold (`knownValues`, checked on save and on publish):
+
+- a built-in Field or a Field of the Post Type: `summary`, `price`;
+- a part of a Field: a Group's Field (`address.city`), a Repeater's Field across its rows (`team.name`: each row's name, a list), a link's `url` or `text`, a select's `value` or `label`;
+- what a Relationship points at, one level deep: the published Entries' `title`, `slug`, `url` (from their Post Type's URL pattern), dates (as dates, for the `date` formatter) and Fields (`category.title`, `category.url`, `authors.bio`); unpublished Entries are left out;
+- `site.x`: the published Globals (`site.phone`, `site.address.city`).
+
+On its own a select shows its label, a link its text (or its address), a Relationship its Entries' titles, rich text its cleaned HTML, true/false `true` or `false` (Conditions test them as they are); Groups and Repeater rows show nothing, and a media Field reads as `media:<id>` (see "Media on pages"). A list (a multi-select, a Repeater's Field, a multi-Relationship) shows its values joined with commas until Loops (#62) show them one by one.
 
 ## Migrations
 
@@ -445,7 +547,7 @@ The admin is a TanStack Start app in `apps/server/src/routes` (file routes) and 
 
 ## Testing
 
-Tests live in `tests/`, grouped by area, and run with `bun test` from the repo root. They test at the spec's seams and check what a person, visitor or client would observe: HTTP responses, emails that went out, outgoing calls, job outcomes and later responses. They never import internal functions or read tables directly; refactoring without changing behaviour must not break a test.
+Tests live in `tests/`, grouped by area, and run with `bun run test` from the repo root. They test at the spec's seams and check what a person, visitor or client would observe: HTTP responses, emails that went out, outgoing calls, job outcomes and later responses. They never import internal functions or read tables directly; refactoring without changing behaviour must not break a test.
 
 **Seam 1** is the web process's handler, booted in-process against a real Postgres. `createTestInstall()` from `tests/harness/index.ts` gives each test file its own Install:
 
@@ -479,7 +581,7 @@ Tests live in `tests/`, grouped by area, and run with `bun test` from the repo r
 
 `tests/harness/images.ts` makes small images inside the tests (never files copied from anywhere): `photo({ width, height, format, orientation, camera })` (red left half, blue right half, so turning it shows; `camera: true` adds a camera make and GPS data), `heicPhoto` (through `sips` on macOS or `heif-enc` where libheif's tools are installed, as CI does; `canMakeHeic` says whether this machine can), `pdf()`, `upload(bytes, name, type)` for a browser-like `File`, and `imageInfo` / `pixel` to look at what the Install serves.
 
-`tests/harness/trees.ts` writes element trees briefly: `tree(element("article", [element("h1", [value("title")])]))`, `text("…")`, and attributes as `element("a", [text("More")], { href: [{ type: "text", text: "/blog/" }, value("slug")] })`. `tests/sites/first-site.test.ts` shows a whole Site: Post Type, Entry template, Entry, publish, the rendered page and the page cache.
+`tests/harness/trees.ts` writes element trees briefly: `tree(element("article", [element("h1", [value("title")])]))`, `text("…")`, and attributes as `element("a", [text("More")], { href: [{ type: "text", text: "/blog/" }, value("slug")] })`; comments and Conditions are written as their stored shapes. `tests/sites/first-site.test.ts` shows a whole Site: Post Type, Entry template, Entry, publish, the rendered page and the page cache. Most Template tests write Template markup instead (`templates.saveEntryTemplateMarkup`), as `tests/sites/template-markup.test.ts` does. Property-based tests use fast-check (`tests/markup/round-trip.test.ts`): generate inputs, drive them through the API, and check what comes back.
 
 A seam-1 test:
 
@@ -548,7 +650,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 - **Logs**: JSON lines through `Logger` (`services.log`), with fields rather than values pasted into the message.
 - **Licences**: every workspace's `package.json` says `"license": "AGPL-3.0-or-later"`; new dependencies must pass `bun run check:licences`.
 - **Commits**: Gitmoji + Conventional Commits with the ticket number, such as `✨ feat(auth): add setup wizard (#50)`.
-- **Before you finish**: `bun run lint`, `bun run typecheck` and `bun test` all pass.
+- **Before you finish**: `bun run lint`, `bun run typecheck` and `bun run test` all pass.
 
 ## Reference-material denylist
 

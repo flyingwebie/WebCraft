@@ -32,7 +32,7 @@ export function renderPage(page: PageToRender): string {
 		`<title>${escapeText(title)}</title>`,
 		"</head>",
 		"<body>",
-		`<main>${renderTree(page.template, { ...page, priorityImage: { given: false } })}</main>`,
+		`<main>${renderTree(page.template, { ...page, language: site.language, priorityImage: { given: false } })}</main>`,
 		"</body>",
 		"</html>",
 		"",

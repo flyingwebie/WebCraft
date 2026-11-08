@@ -1,19 +1,9 @@
-import { FIELD_LABEL_MAX_LENGTH, FIELD_TYPES, MAX_FIELDS, POST_TYPE_NAME_MAX_LENGTH } from "@webcraft/core";
+import { POST_TYPE_NAME_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
+import { fieldInputs as fields } from "../fields.ts";
 import { id } from "../inputs.ts";
-
-/** A Field as Staff define it; the server checks keys, labels and types. */
-const field = z.object({
-	key: z.string().max(100),
-	label: z.string().max(FIELD_LABEL_MAX_LENGTH * 2),
-	type: z.enum(FIELD_TYPES),
-	translatable: z.boolean().optional(),
-	required: z.boolean().optional(),
-});
-
-const fields = z.array(field).max(MAX_FIELDS);
 
 /** Post Types: the kinds of Entry a Site holds, with a URL pattern and Fields. Structure: Staff change them. */
 export const postTypes = {

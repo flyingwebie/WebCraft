@@ -4,12 +4,14 @@ import { asc, eq } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, PostTypeInvalidError, PostTypeNotFoundError, PostTypeTakenError } from "./errors.ts";
+import { UUID } from "./field-types.ts";
 import {
 	BUILT_IN_FIELDS,
 	type BuiltInField,
 	type FieldDefinition,
 	type FieldInput,
 	parseFields,
+	RESERVED_FIELD_KEYS,
 	storedFields,
 } from "./fields.ts";
 import { clearPageCache } from "./page-cache.ts";
@@ -61,7 +63,8 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 		});
 	}
 	const urlPattern = checkUrlPattern(input.urlPattern, problems);
-	const fields = parseFields(input.fields ?? [], problems);
+	// A Relationship may point at the Post Type's own Entries.
+	const fields = parseFields(input.fields ?? [], problems, await defineContext(scope, key));
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 
 	return saving(() =>
@@ -84,7 +87,10 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 	const name = change.name === undefined ? existing.name : checkName(change.name, problems);
 	const urlPattern =
 		change.urlPattern === undefined ? existing.urlPattern : checkUrlPattern(change.urlPattern, problems);
-	const fields = change.fields === undefined ? existing.fields : parseFields(change.fields, problems, existing.fields);
+	const fields =
+		change.fields === undefined
+			? existing.fields
+			: parseFields(change.fields, problems, await defineContext(scope, existing.key), existing.fields);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 
 	return saving(() =>
@@ -104,6 +110,13 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 			return toPostType(row);
 		}),
 	);
+}
+
+/** What defining a Post Type's Fields needs to know: the Post Types Relationships may point at. */
+async function defineContext(scope: Pick<SiteScope, "select">, ownKey: string) {
+	const keys = new Set((await listPostTypes(scope)).map((postType) => postType.key));
+	keys.add(ownKey);
+	return { postTypeKeys: keys, owner: "postType" as const, reservedKeys: RESERVED_FIELD_KEYS };
 }
 
 /** The Post Types of the scope's Site, by name. */
@@ -166,4 +179,4 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 }
 
 /** Any UUID: ids that can't be one are simply not found, rather than a database error. */
-export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export { UUID };

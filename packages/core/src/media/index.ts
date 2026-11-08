@@ -35,14 +35,12 @@ export { mediaProcess, mediaVariants } from "./jobs.ts";
 export {
 	MEDIA_FOLDER_NAME_MAX_LENGTH,
 	MEDIA_MAX_BYTES,
-	MEDIA_TEXT_MAX_LENGTH,
 	type MediaChange,
 	type MediaFolder,
 	type MediaItem,
 	type MediaLibrary,
 	type MediaQuery,
 	type MediaStatus,
-	type MediaText,
 	type MediaVariant,
 	type NewUpload,
 	type StoredMediaFile,
@@ -51,3 +49,4 @@ export { MEDIA_PATH } from "./names.ts";
 export type { S3Settings } from "./s3-storage.ts";
 export { MEDIA_KINDS, type MediaKind } from "./sniff.ts";
 export type { ByteRange, StorageBackend, StorageKind } from "./storage.ts";
+export { MEDIA_TEXT_MAX_LENGTH, type MediaText } from "./texts.ts";

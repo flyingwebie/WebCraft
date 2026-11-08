@@ -53,7 +53,20 @@ describe("creating a Post Type", () => {
 			key: "blog",
 			name: "Blog posts",
 			urlPattern: "/blog/{slug}",
-			fields: [{ key: "summary", label: "Summary", type: "text", translatable: true, required: false }],
+			fields: [
+				{
+					key: "summary",
+					label: "Summary",
+					type: "text",
+					help: "",
+					translatable: true,
+					required: false,
+					default: null,
+					minLength: null,
+					maxLength: null,
+					pattern: null,
+				},
+			],
 			builtInFields: BUILT_IN_FIELDS,
 			createdAt: install.clock.now(),
 			updatedAt: install.clock.now(),
@@ -81,8 +94,8 @@ describe("creating a Post Type", () => {
 		});
 
 		expect(postType.fields).toEqual([
-			{ key: "sku", label: "SKU", type: "text", translatable: false, required: true },
-			{ key: "tagline", label: "Tagline", type: "text", translatable: true, required: false },
+			expect.objectContaining({ key: "sku", label: "SKU", type: "text", translatable: false, required: true }),
+			expect.objectContaining({ key: "tagline", label: "Tagline", type: "text", translatable: true, required: false }),
 		]);
 	});
 
@@ -136,6 +149,9 @@ describe("refused Post Types", () => {
 			{ key: "title", at: "fields[0].key" },
 			{ key: "publishedAt", at: "fields[0].key" },
 			{ key: "site", at: "fields[0].key" },
+			// Words Conditions' tests use: {{@if not summary}} must read the same way.
+			{ key: "not", at: "fields[0].key" },
+			{ key: "true", at: "fields[0].key" },
 		];
 		for (const { key, at } of cases) {
 			await expect(
@@ -260,7 +276,7 @@ describe("changing a Post Type", () => {
 				siteId,
 				postTypeId: postType.id,
 				// @ts-expect-error: a type no Field has, as a client could send it
-				fields: [{ key: "level", label: "Level", type: "number" }],
+				fields: [{ key: "level", label: "Level", type: "colour" }],
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});

@@ -66,6 +66,8 @@ describe("creating an Entry", () => {
 				fields: { summary: "Feed it daily.", sku: null },
 			},
 			published: null,
+			problems: [],
+			linkedFrom: [],
 		});
 		expect((await editor.api.entries.get({ siteId, entryId: entry.id })).entry).toEqual(entry);
 	});

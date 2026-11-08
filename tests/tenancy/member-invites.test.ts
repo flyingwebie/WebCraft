@@ -103,6 +103,7 @@ describe("accepting a Member invite", () => {
 			"site.view",
 			"entry.edit",
 			"entry.publish",
+			"entry.delete",
 			"media.upload",
 			"media.manage",
 		]);
