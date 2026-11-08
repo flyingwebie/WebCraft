@@ -1,28 +1,45 @@
 import type { LinkProps } from "@tanstack/react-router";
-import { LayoutDashboardIcon, type LucideIcon, SettingsIcon } from "lucide-react";
+import type { Permission } from "@webcraft/core";
+import { Building2Icon, GlobeIcon, LayoutDashboardIcon, type LucideIcon, SettingsIcon, UsersIcon } from "lucide-react";
 
 import type { MessageKey } from "../i18n.tsx";
 
 /**
  * The admin has three levels: the Install, a Workspace and a Site. The sidebar shows the items of
- * the level the person is at; the context switcher at its top moves between levels. Only the
- * Install level exists until Workspaces and Sites do; each adds its own entry below.
+ * the level the person is at; the context switcher at its top moves between levels.
  */
 export type AdminLevel = "install" | "workspace" | "site";
 
-/** Where in the admin a page is. Workspace and Site places carry which Workspace and Site. */
-export type AdminPlace = { level: "install" };
+export type PlaceWorkspace = { id: string; name: string };
 
-/** Who is looking: decides which items they see. */
-export type Viewer = { installRole: string | null };
+export type PlaceSite = { id: string; name: string; slug: string };
+
+/**
+ * Where in the admin a page is, with the Permissions the person holds there (the sidebar and the
+ * pages offer only what they allow). Workspace and Site places carry which Workspace and Site, and
+ * the Workspace's Sites the person reaches, for the context switcher.
+ */
+export type AdminPlace =
+	| { level: "install"; permissions: readonly string[] }
+	| { level: "workspace"; workspace: PlaceWorkspace; sites: PlaceSite[]; permissions: readonly string[] }
+	| {
+			level: "site";
+			workspace: PlaceWorkspace;
+			site: PlaceSite;
+			sites: PlaceSite[];
+			permissions: readonly string[];
+	  };
 
 export type NavItem = {
 	id: string;
 	label: MessageKey;
 	icon: LucideIcon;
+	/** The page, with `$workspaceId` and `$siteId` filled in from the place. */
 	to: LinkProps["to"];
-	/** Who sees the item; everyone signed in when absent. */
-	visibleTo?: (viewer: Viewer) => boolean;
+	/** Shown only to people holding this Permission at the place; everyone sees it when absent. */
+	requires?: Permission;
+	/** Active only on this very page, not on the pages below it (a level's home). */
+	exact?: boolean;
 };
 
 export type NavGroup = { id: string; label: MessageKey; items: NavItem[] };
@@ -30,16 +47,18 @@ export type NavGroup = { id: string; label: MessageKey; items: NavItem[] };
 /** One level's sidebar: groups of items, and items pinned to its bottom. */
 export type LevelNavigation = { groups: NavGroup[]; footer: NavItem[] };
 
-const superadminOnly = (viewer: Viewer) => viewer.installRole === "superadmin";
-
-/** Each level's sidebar. Add a level's items here when its screens exist. */
-const NAVIGATION: Record<AdminPlace["level"], LevelNavigation> = {
+/** Each level's sidebar. Add a screen's item to its level here. */
+const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 	install: {
 		groups: [
 			{
 				id: "install",
 				label: "shell.nav.installGroup",
-				items: [{ id: "overview", label: "shell.nav.overview", icon: LayoutDashboardIcon, to: "/" }],
+				items: [
+					{ id: "overview", label: "shell.nav.overview", icon: LayoutDashboardIcon, to: "/", exact: true },
+					{ id: "workspaces", label: "shell.nav.workspaces", icon: Building2Icon, to: "/workspaces" },
+					{ id: "staff", label: "shell.nav.staff", icon: UsersIcon, to: "/staff", requires: "staff.manage" },
+				],
 			},
 			{
 				id: "install-settings",
@@ -50,7 +69,37 @@ const NAVIGATION: Record<AdminPlace["level"], LevelNavigation> = {
 						label: "shell.nav.general",
 						icon: SettingsIcon,
 						to: "/settings/general",
-						visibleTo: superadminOnly,
+						requires: "install.manage",
+					},
+				],
+			},
+		],
+		footer: [],
+	},
+	workspace: {
+		groups: [
+			{
+				id: "workspace",
+				label: "shell.nav.workspaceGroup",
+				items: [
+					{ id: "sites", label: "shell.nav.sites", icon: GlobeIcon, to: "/workspaces/$workspaceId", exact: true },
+				],
+			},
+		],
+		footer: [],
+	},
+	site: {
+		groups: [
+			{
+				id: "site",
+				label: "shell.nav.siteGroup",
+				items: [
+					{
+						id: "site-overview",
+						label: "shell.nav.overview",
+						icon: LayoutDashboardIcon,
+						to: "/sites/$siteId",
+						exact: true,
 					},
 				],
 			},
@@ -59,9 +108,9 @@ const NAVIGATION: Record<AdminPlace["level"], LevelNavigation> = {
 	},
 };
 
-/** The sidebar of a place, with only the items the viewer may see and no empty groups. */
-export function navigationFor(place: AdminPlace, viewer: Viewer): LevelNavigation {
-	const visible = (item: NavItem) => item.visibleTo?.(viewer) ?? true;
+/** The sidebar of a place, with only the items the person may see and no empty groups. */
+export function navigationFor(place: AdminPlace): LevelNavigation {
+	const visible = (item: NavItem) => !item.requires || place.permissions.includes(item.requires);
 	const level = NAVIGATION[place.level];
 	return {
 		groups: level.groups
@@ -71,12 +120,34 @@ export function navigationFor(place: AdminPlace, viewer: Viewer): LevelNavigatio
 	};
 }
 
-/** The label of a level's root, the first breadcrumb on every page of that level. */
-export const LEVEL_LABELS: Record<AdminPlace["level"], MessageKey> = {
-	install: "shell.levels.install",
-};
+/** The route parameters of a place, for links to its pages. */
+export function placeParams(place: AdminPlace): { workspaceId?: string; siteId?: string } {
+	switch (place.level) {
+		case "install":
+			return {};
+		case "workspace":
+			return { workspaceId: place.workspace.id };
+		case "site":
+			return { workspaceId: place.workspace.id, siteId: place.site.id };
+	}
+}
 
-/** Where a level's root page is. */
-export const LEVEL_HOMES: Record<AdminPlace["level"], LinkProps["to"]> = {
-	install: "/",
-};
+/** The breadcrumbs of a level: the Install, a Workspace, or a Workspace then its Site. */
+export function levelCrumbs(
+	place: AdminPlace,
+	installLabel: string,
+): { label: string; to: LinkProps["to"]; params: Record<string, string> }[] {
+	switch (place.level) {
+		case "install":
+			return [{ label: installLabel, to: "/", params: {} }];
+		case "workspace":
+			return [
+				{ label: place.workspace.name, to: "/workspaces/$workspaceId", params: { workspaceId: place.workspace.id } },
+			];
+		case "site":
+			return [
+				{ label: place.workspace.name, to: "/workspaces/$workspaceId", params: { workspaceId: place.workspace.id } },
+				{ label: place.site.name, to: "/sites/$siteId", params: { siteId: place.site.id } },
+			];
+	}
+}

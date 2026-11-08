@@ -13,13 +13,13 @@ import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react";
 
 import { getApi } from "../api.ts";
 import { useT } from "../i18n.tsx";
-import { initials, type SignedInPerson } from "./context.ts";
+import { initials, roleLabel, type SignedInPerson } from "./context.ts";
 
 /** The signed-in person's name and role, opening their account menu. */
 export function UserMenu({ person }: { person: SignedInPerson }) {
 	const t = useT();
 	const router = useRouter();
-	const role = person.installRole === "superadmin" ? t("roles.superadmin") : t("roles.none");
+	const role = t(roleLabel(person.installRole));
 
 	const signOut = async () => {
 		const api = await getApi();

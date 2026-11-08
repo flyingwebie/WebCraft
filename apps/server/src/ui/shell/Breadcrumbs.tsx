@@ -10,7 +10,7 @@ import {
 import { Fragment } from "react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
-import { type AdminPlace, LEVEL_HOMES, LEVEL_LABELS } from "./levels.ts";
+import { type AdminPlace, levelCrumbs } from "./levels.ts";
 
 declare module "@tanstack/react-router" {
 	interface StaticDataRouteOption {
@@ -19,29 +19,35 @@ declare module "@tanstack/react-router" {
 	}
 }
 
-/** The top bar's breadcrumbs: the level (Install, Workspace, Site), then the page. */
+/** The top bar's breadcrumbs: the level (the Install, a Workspace, a Workspace and its Site), then the page. */
 export function Breadcrumbs({ place }: { place: AdminPlace }) {
 	const t = useT();
 	const pages = useMatches().filter((match) => match.staticData.crumb);
+	const crumbs = [
+		...levelCrumbs(place, t("shell.levels.install")).map((crumb) => ({
+			key: `level-${crumb.label}-${String(crumb.to)}`,
+			label: crumb.label,
+			link: <Link to={crumb.to} params={crumb.params as never} />,
+		})),
+		...pages.map((match) => ({
+			key: match.id,
+			label: t(match.staticData.crumb as MessageKey),
+			link: <Link to={match.pathname} />,
+		})),
+	];
 	return (
 		<Breadcrumb aria-label={t("shell.breadcrumbLabel")}>
 			<BreadcrumbList>
-				<BreadcrumbItem>
-					<BreadcrumbLink render={<Link to={LEVEL_HOMES[place.level]} />}>
-						{t(LEVEL_LABELS[place.level])}
-					</BreadcrumbLink>
-				</BreadcrumbItem>
-				{pages.map((match, index) => {
-					const label = t(match.staticData.crumb as MessageKey);
-					const last = index === pages.length - 1;
+				{crumbs.map((crumb, index) => {
+					const last = index === crumbs.length - 1;
 					return (
-						<Fragment key={match.id}>
-							<BreadcrumbSeparator />
+						<Fragment key={crumb.key}>
+							{index > 0 ? <BreadcrumbSeparator /> : null}
 							<BreadcrumbItem>
 								{last ? (
-									<BreadcrumbPage>{label}</BreadcrumbPage>
+									<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
 								) : (
-									<BreadcrumbLink render={<Link to={match.pathname} />}>{label}</BreadcrumbLink>
+									<BreadcrumbLink render={crumb.link}>{crumb.label}</BreadcrumbLink>
 								)}
 							</BreadcrumbItem>
 						</Fragment>

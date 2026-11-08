@@ -12,7 +12,7 @@ export const Route = createFileRoute("/setup")({
 		const { shell } = context;
 		// Once setup is finished the wizard is gone for good.
 		if (shell.setup.stage === "done") throw notFound();
-		if (shell.setup.stage === "continue" && shell.person?.installRole !== "superadmin") {
+		if (shell.setup.stage === "continue" && !shell.permissions.includes("install.manage")) {
 			throw redirect({ to: "/sign-in", search: { redirect: "/setup" } });
 		}
 	},

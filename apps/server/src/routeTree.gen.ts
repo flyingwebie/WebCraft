@@ -10,14 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AdminRouteImport } from './routes/_admin'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
+import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
+import { Route as AdminSitesSiteIdRouteImport } from './routes/_admin/sites.$siteId'
+import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/workspaces.index'
+import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
+import { Route as AdminSitesSiteIdIndexRouteImport } from './routes/_admin/sites.$siteId.index'
+import { Route as AdminWorkspacesWorkspaceIdIndexRouteImport } from './routes/_admin/workspaces.$workspaceId.index'
 
 const AdminRoute = AdminRouteImport.update({
   id: '/_admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupRoute = SetupRouteImport.update({
@@ -40,52 +52,133 @@ const AdminAccountRoute = AdminAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminStaffRoute = AdminStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   id: '/settings/general',
   path: '/settings/general',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSitesSiteIdRoute = AdminSitesSiteIdRouteImport.update({
+  id: '/sites/$siteId',
+  path: '/sites/$siteId',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminWorkspacesIndexRoute = AdminWorkspacesIndexRouteImport.update({
+  id: '/workspaces/',
+  path: '/workspaces/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminWorkspacesWorkspaceIdRoute =
+  AdminWorkspacesWorkspaceIdRouteImport.update({
+    id: '/workspaces/$workspaceId',
+    path: '/workspaces/$workspaceId',
+    getParentRoute: () => AdminRoute,
+  } as any)
+const AdminSitesSiteIdIndexRoute = AdminSitesSiteIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminSitesSiteIdRoute,
+} as any)
+const AdminWorkspacesWorkspaceIdIndexRoute =
+  AdminWorkspacesWorkspaceIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AdminIndexRoute
+  '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/account': typeof AdminAccountRoute
+  '/staff': typeof AdminStaffRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
+  '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
+  '/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
+  '/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
 }
 export interface FileRoutesByTo {
+  '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/account': typeof AdminAccountRoute
+  '/staff': typeof AdminStaffRoute
   '/': typeof AdminIndexRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/workspaces': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
+  '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_admin': typeof AdminRouteWithChildren
+  '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/_admin/account': typeof AdminAccountRoute
+  '/_admin/staff': typeof AdminStaffRoute
   '/_admin/': typeof AdminIndexRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
+  '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
+  '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/_admin/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
+  '/_admin/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/setup' | '/sign-in' | '/account' | '/settings/general'
+  fullPaths:
+    | '/'
+    | '/invite'
+    | '/setup'
+    | '/sign-in'
+    | '/account'
+    | '/staff'
+    | '/settings/general'
+    | '/sites/$siteId'
+    | '/workspaces/$workspaceId'
+    | '/workspaces/'
+    | '/sites/$siteId/'
+    | '/workspaces/$workspaceId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/setup' | '/sign-in' | '/account' | '/' | '/settings/general'
+  to:
+    | '/invite'
+    | '/setup'
+    | '/sign-in'
+    | '/account'
+    | '/staff'
+    | '/'
+    | '/settings/general'
+    | '/workspaces'
+    | '/sites/$siteId'
+    | '/workspaces/$workspaceId'
   id:
     | '__root__'
     | '/_admin'
+    | '/invite'
     | '/setup'
     | '/sign-in'
     | '/_admin/account'
+    | '/_admin/staff'
     | '/_admin/'
     | '/_admin/settings/general'
+    | '/_admin/sites/$siteId'
+    | '/_admin/workspaces/$workspaceId'
+    | '/_admin/workspaces/'
+    | '/_admin/sites/$siteId/'
+    | '/_admin/workspaces/$workspaceId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
+  InviteRoute: typeof InviteRoute
   SetupRoute: typeof SetupRoute
   SignInRoute: typeof SignInRoute
 }
@@ -97,6 +190,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup': {
@@ -127,6 +227,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAccountRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/staff': {
+      id: '/_admin/staff'
+      path: '/staff'
+      fullPath: '/staff'
+      preLoaderRoute: typeof AdminStaffRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/settings/general': {
       id: '/_admin/settings/general'
       path: '/settings/general'
@@ -134,25 +241,94 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsGeneralRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/sites/$siteId': {
+      id: '/_admin/sites/$siteId'
+      path: '/sites/$siteId'
+      fullPath: '/sites/$siteId'
+      preLoaderRoute: typeof AdminSitesSiteIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/workspaces/': {
+      id: '/_admin/workspaces/'
+      path: '/workspaces'
+      fullPath: '/workspaces/'
+      preLoaderRoute: typeof AdminWorkspacesIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/workspaces/$workspaceId': {
+      id: '/_admin/workspaces/$workspaceId'
+      path: '/workspaces/$workspaceId'
+      fullPath: '/workspaces/$workspaceId'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/sites/$siteId/': {
+      id: '/_admin/sites/$siteId/'
+      path: '/'
+      fullPath: '/sites/$siteId/'
+      preLoaderRoute: typeof AdminSitesSiteIdIndexRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/workspaces/$workspaceId/': {
+      id: '/_admin/workspaces/$workspaceId/'
+      path: '/'
+      fullPath: '/workspaces/$workspaceId/'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdIndexRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
   }
 }
 
+interface AdminSitesSiteIdRouteChildren {
+  AdminSitesSiteIdIndexRoute: typeof AdminSitesSiteIdIndexRoute
+}
+
+const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
+  AdminSitesSiteIdIndexRoute: AdminSitesSiteIdIndexRoute,
+}
+
+const AdminSitesSiteIdRouteWithChildren =
+  AdminSitesSiteIdRoute._addFileChildren(AdminSitesSiteIdRouteChildren)
+
+interface AdminWorkspacesWorkspaceIdRouteChildren {
+  AdminWorkspacesWorkspaceIdIndexRoute: typeof AdminWorkspacesWorkspaceIdIndexRoute
+}
+
+const AdminWorkspacesWorkspaceIdRouteChildren: AdminWorkspacesWorkspaceIdRouteChildren =
+  {
+    AdminWorkspacesWorkspaceIdIndexRoute: AdminWorkspacesWorkspaceIdIndexRoute,
+  }
+
+const AdminWorkspacesWorkspaceIdRouteWithChildren =
+  AdminWorkspacesWorkspaceIdRoute._addFileChildren(
+    AdminWorkspacesWorkspaceIdRouteChildren,
+  )
+
 interface AdminRouteChildren {
   AdminAccountRoute: typeof AdminAccountRoute
+  AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSitesSiteIdRoute: typeof AdminSitesSiteIdRouteWithChildren
+  AdminWorkspacesWorkspaceIdRoute: typeof AdminWorkspacesWorkspaceIdRouteWithChildren
+  AdminWorkspacesIndexRoute: typeof AdminWorkspacesIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAccountRoute: AdminAccountRoute,
+  AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSitesSiteIdRoute: AdminSitesSiteIdRouteWithChildren,
+  AdminWorkspacesWorkspaceIdRoute: AdminWorkspacesWorkspaceIdRouteWithChildren,
+  AdminWorkspacesIndexRoute: AdminWorkspacesIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
+  InviteRoute: InviteRoute,
   SetupRoute: SetupRoute,
   SignInRoute: SignInRoute,
 }

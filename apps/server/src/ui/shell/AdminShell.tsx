@@ -20,7 +20,7 @@ import { useT } from "../i18n.tsx";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { ContextSwitcher } from "./ContextSwitcher.tsx";
 import type { ShellContext, SignedInPerson } from "./context.ts";
-import { type AdminPlace, navigationFor } from "./levels.ts";
+import { type AdminPlace, navigationFor, placeParams } from "./levels.ts";
 import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
 import { ThemeSwitch } from "./ThemeSwitch.tsx";
 import { UserMenu } from "./UserMenu.tsx";
@@ -61,7 +61,8 @@ export function AdminShell({
 function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: SignedInPerson; place: AdminPlace }) {
 	const t = useT();
 	const matchRoute = useMatchRoute();
-	const navigation = navigationFor(place, person);
+	const navigation = navigationFor(place);
+	const params = placeParams(place);
 
 	return (
 		<Sidebar mobileTitle={t("shell.navLabel")}>
@@ -80,10 +81,10 @@ function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: S
 							<SidebarGroupContent>
 								<SidebarMenu aria-labelledby={`nav-${group.id}`}>
 									{group.items.map((item) => {
-										const active = Boolean(matchRoute({ to: item.to, fuzzy: item.to !== "/" }));
+										const active = Boolean(matchRoute({ to: item.to, params: params as never, fuzzy: !item.exact }));
 										return (
 											<SidebarMenuItem key={item.id}>
-												<SidebarMenuButton render={<Link to={item.to} />} isActive={active}>
+												<SidebarMenuButton render={<Link to={item.to} params={params as never} />} isActive={active}>
 													<item.icon aria-hidden="true" />
 													<span>{t(item.label)}</span>
 												</SidebarMenuButton>

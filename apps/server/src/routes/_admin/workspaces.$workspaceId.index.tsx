@@ -1,0 +1,212 @@
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { Button } from "@webcraft/ui/components/button.tsx";
+import { Card, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@webcraft/ui/components/dialog.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Input } from "@webcraft/ui/components/input.tsx";
+import { AppWindowIcon, GlobeIcon, PlusIcon } from "lucide-react";
+import { type FormEvent, useState } from "react";
+import { toast } from "sonner";
+
+import { getApi } from "../../ui/api.ts";
+import { errorCode, errorMessage } from "../../ui/errors.ts";
+import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
+import { PageHeader } from "../../ui/PageHeader.tsx";
+import type { AdminPlace } from "../../ui/shell/levels.ts";
+
+export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
+	staticData: { crumb: "sites.pageTitle" },
+	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "sites.pageTitle") }] }),
+	component: SitesPage,
+});
+
+type WorkspacePlace = Extract<AdminPlace, { level: "workspace" }>;
+
+/** Workspace › Sites: the Workspace's websites the person reaches; Staff create them here. */
+function SitesPage() {
+	const t = useT();
+	const place = Route.useRouteContext().place as WorkspacePlace;
+	const canCreate = place.permissions.includes("site.create");
+
+	return (
+		<>
+			<PageHeader heading={t("sites.heading")} action={canCreate ? <NewSiteDialog place={place} /> : undefined}>
+				{t("sites.intro")}
+			</PageHeader>
+			{place.sites.length === 0 ? (
+				<Empty className="border">
+					<EmptyHeader>
+						<EmptyMedia variant="icon">
+							<GlobeIcon aria-hidden="true" />
+						</EmptyMedia>
+						<EmptyTitle>
+							<h2>{t("sites.empty.heading")}</h2>
+						</EmptyTitle>
+						<EmptyDescription>{canCreate ? t("sites.empty.bodyStaff") : t("sites.empty.body")}</EmptyDescription>
+					</EmptyHeader>
+				</Empty>
+			) : (
+				<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{place.sites.map((site) => (
+						<li key={site.id}>
+							<Card className="relative h-full overflow-hidden pt-0">
+								<div className="bg-muted text-muted-foreground flex h-24 items-center justify-center">
+									<AppWindowIcon className="size-8" aria-hidden="true" />
+								</div>
+								<CardHeader>
+									<CardTitle>
+										<h2>
+											<Link
+												to="/sites/$siteId"
+												params={{ siteId: site.id }}
+												className="after:absolute after:inset-0 hover:underline"
+											>
+												{site.name}
+											</Link>
+										</h2>
+									</CardTitle>
+									<CardDescription>
+										<span className="sr-only">{t("sites.slugLabel")}: </span>
+										{site.slug}
+									</CardDescription>
+								</CardHeader>
+							</Card>
+						</li>
+					))}
+				</ul>
+			)}
+		</>
+	);
+}
+
+/** A slug from a Site's name: "Acme Bakery" → "acme-bakery". */
+function slugFrom(name: string): string {
+	return name
+		.normalize("NFKD")
+		.replace(/[̀-ͯ]/g, "")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 63)
+		.replace(/-+$/g, "");
+}
+
+/** "New Site": a name and a slug (made from the name until the person changes it). */
+function NewSiteDialog({ place }: { place: WorkspacePlace }) {
+	const t = useT();
+	const router = useRouter();
+	const navigate = useNavigate();
+	const [open, setOpen] = useState(false);
+	const [name, setName] = useState("");
+	const [slug, setSlug] = useState("");
+	const [slugEdited, setSlugEdited] = useState(false);
+	const [errors, setErrors] = useState<{ name?: MessageKey; slug?: MessageKey; form?: MessageKey }>({});
+	const [busy, setBusy] = useState(false);
+
+	const reset = () => {
+		setName("");
+		setSlug("");
+		setSlugEdited(false);
+		setErrors({});
+	};
+
+	const submit = async (event: FormEvent) => {
+		event.preventDefault();
+		if (!name.trim()) {
+			setErrors({ name: "sites.dialog.nameRequired" });
+			return;
+		}
+		setBusy(true);
+		setErrors({});
+		try {
+			const api = await getApi();
+			const { site } = await api.sites.create({ workspaceId: place.workspace.id, name, slug });
+			toast.success(t("sites.created", { name: site.name }));
+			setOpen(false);
+			reset();
+			await router.invalidate();
+			await navigate({ to: "/sites/$siteId", params: { siteId: site.id } });
+		} catch (failure) {
+			const code = errorCode(failure);
+			const message = errorMessage(failure);
+			setErrors(code === "SLUG_TAKEN" || code === "SLUG_INVALID" ? { slug: message } : { form: message });
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(next) => {
+				setOpen(next);
+				if (!next) reset();
+			}}
+		>
+			<DialogTrigger render={<Button />}>
+				<PlusIcon aria-hidden="true" />
+				{t("sites.new")}
+			</DialogTrigger>
+			<DialogContent closeLabel={t("sites.dialog.close")} className="sm:max-w-md">
+				<form onSubmit={submit} noValidate className="grid gap-4">
+					<DialogHeader>
+						<DialogTitle>{t("sites.dialog.title")}</DialogTitle>
+						<DialogDescription>{t("sites.dialog.description", { workspace: place.workspace.name })}</DialogDescription>
+					</DialogHeader>
+					<FieldGroup>
+						<Field data-invalid={errors.name ? true : undefined}>
+							<FieldLabel htmlFor="site-name">{t("sites.dialog.name")}</FieldLabel>
+							<Input
+								id="site-name"
+								value={name}
+								maxLength={100}
+								onChange={(event) => {
+									setName(event.target.value);
+									if (!slugEdited) setSlug(slugFrom(event.target.value));
+								}}
+								aria-invalid={errors.name ? true : undefined}
+								aria-describedby={errors.name ? "site-name-error" : undefined}
+							/>
+							{errors.name ? <FieldError id="site-name-error">{t(errors.name)}</FieldError> : null}
+						</Field>
+						<Field data-invalid={errors.slug ? true : undefined}>
+							<FieldLabel htmlFor="site-slug">{t("sites.dialog.slug")}</FieldLabel>
+							<Input
+								id="site-slug"
+								value={slug}
+								maxLength={63}
+								spellCheck={false}
+								autoCapitalize="none"
+								onChange={(event) => {
+									setSlug(event.target.value);
+									setSlugEdited(true);
+								}}
+								aria-invalid={errors.slug ? true : undefined}
+								aria-describedby={errors.slug ? "site-slug-help site-slug-error" : "site-slug-help"}
+							/>
+							<FieldDescription id="site-slug-help">{t("sites.dialog.slugHelp")}</FieldDescription>
+							{errors.slug ? <FieldError id="site-slug-error">{t(errors.slug)}</FieldError> : null}
+						</Field>
+						{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
+					</FieldGroup>
+					<DialogFooter>
+						<DialogClose render={<Button variant="outline" type="button" />}>{t("sites.dialog.cancel")}</DialogClose>
+						<Button type="submit" disabled={busy}>
+							{t("sites.dialog.create")}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}

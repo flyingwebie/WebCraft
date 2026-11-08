@@ -14,7 +14,14 @@ export function errorMessage(error: unknown): MessageKey {
 		case "INVALID_CREDENTIALS":
 		case "UNAUTHORIZED":
 		case "FORBIDDEN":
+		case "WORKSPACE_NOT_FOUND":
+		case "SITE_NOT_FOUND":
+		case "STAFF_NOT_FOUND":
+		case "INVITE_INVALID":
+		case "SLUG_TAKEN":
 			return `errors.${code}`;
+		case "SLUG_INVALID":
+			return data?.problem === "reserved" ? "errors.SLUG_RESERVED" : "errors.SLUG_INVALID";
 		case "PASSWORD_REFUSED":
 			return data?.problem === "too-long"
 				? "errors.PASSWORD_TOO_LONG"
