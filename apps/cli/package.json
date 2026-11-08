@@ -12,6 +12,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@webcraft/auth": "workspace:*",
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*"
 	},

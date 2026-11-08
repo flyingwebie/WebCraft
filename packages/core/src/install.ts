@@ -71,3 +71,33 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 	await boss.start();
 	return { services, boss };
 }
+
+/**
+ * Opens an Install's services for a server command (`webcraft admin …`), with the same settings and
+ * start-up checks as web and worker (a missing setting, a database that is behind, a Master key that
+ * isn't the Install's), but without the job queue. Close `services.database` when done.
+ */
+export async function openInstallForCommand(options: { env: Environment; log: Logger }): Promise<InstallServices> {
+	const { env, log } = options;
+	const config = loadInstallConfig(env);
+	const masterKey = loadMasterKey(env);
+	const database = openDatabase(config.databaseUrl, { maxConnections: 2, applicationName: "webcraft-cli" });
+	try {
+		await assertSchemaCurrent(database);
+		return await createInstallServices(
+			{
+				config,
+				database,
+				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
+				mailer: createLogMailer(log),
+				http: fetchHttp,
+				clock: systemClock,
+				log,
+			},
+			masterKey,
+		);
+	} catch (error) {
+		await database.close();
+		throw error;
+	}
+}

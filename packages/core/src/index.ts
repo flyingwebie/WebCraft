@@ -19,7 +19,13 @@ export {
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export { fetchHttp, type OutgoingHttp } from "./http.ts";
-export { type InstallProcess, type OpenedParts, type OpenInstallOptions, openInstall } from "./install.ts";
+export {
+	type InstallProcess,
+	type OpenedParts,
+	type OpenInstallOptions,
+	openInstall,
+	openInstallForCommand,
+} from "./install.ts";
 export {
 	INSTALL_NAME_MAX_LENGTH,
 	type InstallSettings,

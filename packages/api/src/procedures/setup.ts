@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { procedure, setCookies } from "../context.ts";
+import { procedure, setCookies, superadminOnly } from "../context.ts";
 import { adminLanguage, email, password, personName } from "../inputs.ts";
 
 const token = z.string().max(512);
@@ -30,4 +30,10 @@ export const setup = {
 			setCookies(context, setCookie);
 			return { personId };
 		}),
+
+	/** The Superadmin has been through the wizard's remaining steps: setup is finished for good. */
+	finish: superadminOnly.handler(async ({ context }) => {
+		await context.services.setup.finish(context.person.id);
+		return { stage: await context.services.setup.stage() };
+	}),
 };

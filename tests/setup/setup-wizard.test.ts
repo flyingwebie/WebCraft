@@ -127,3 +127,37 @@ describe("the Superadmin account", () => {
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
 });
+
+describe("after the account step", () => {
+	test("the signed-in Superadmin finishes setup, and the wizard is gone for good", async () => {
+		const superadmin = install.browser();
+		const token = install.setupToken() ?? "";
+		await superadmin.api.setup.claim({ token, ...account() });
+
+		await superadmin.api.setup.finish();
+
+		expect(await superadmin.api.setup.state()).toEqual({ stage: "done" });
+		expect(await install.browser().api.setup.state()).toEqual({ stage: "done" });
+		await expect(superadmin.api.setup.finish()).rejects.toMatchObject({ code: "SETUP_STAGE" });
+		await expect(install.browser().api.setup.checkToken({ token })).rejects.toMatchObject({ code: "SETUP_CLOSED" });
+	});
+
+	test("nobody signed out can finish setup for the Superadmin", async () => {
+		await install.browser().api.setup.claim({ token: install.setupToken() ?? "", ...account() });
+
+		await expect(install.browser().api.setup.finish()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await install.browser().api.setup.state()).toEqual({ stage: "continue" });
+	});
+
+	test("the wizard can't be finished before the Install is claimed", async () => {
+		await install.createSuperadmin();
+		const superadmin = await install.signIn({
+			email: "superadmin@agency.example",
+			password: "a long enough test password",
+		});
+
+		// Created without the wizard, so setup is already finished.
+		expect(await superadmin.api.setup.state()).toEqual({ stage: "done" });
+		await expect(superadmin.api.setup.finish()).rejects.toMatchObject({ code: "SETUP_STAGE" });
+	});
+});
