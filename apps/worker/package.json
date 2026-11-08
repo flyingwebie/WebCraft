@@ -1,0 +1,25 @@
+{
+	"name": "@webcraft/worker",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The background worker (Node LTS): runs pg-boss jobs.",
+	"type": "module",
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"scripts": {
+		"dev": "node --watch src/main.ts",
+		"start": "node src/main.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/core": "workspace:*",
+		"@webcraft/db": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

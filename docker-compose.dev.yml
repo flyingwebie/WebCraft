@@ -1,0 +1,23 @@
+# Postgres for local development only (deployments have their own compose file).
+# `bun run dev` starts it when DATABASE_URL points at this machine and nothing answers there,
+# passing the user, password and port from DATABASE_URL.
+name: webcraft-dev
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-webcraft}
+    ports:
+      - "127.0.0.1:${WEBCRAFT_DEV_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:

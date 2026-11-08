@@ -4,6 +4,10 @@
 
 Private reference material is kept locally in a gitignored folder and is never committed. It may inform decisions, but the names of the third-party products it covers must never appear in anything tracked or published: code, comments, docs, specs, issues, PR text, commit messages, branch names, UI copy, test data. Write everything in our own words and describe features by category ("a visual builder", "a form builder"). Never copy code, CSS, assets or text from it.
 
+## Development
+
+Setup, commands, environment variables, the test harness and code conventions: see `docs/development.md`.
+
 ## Agent skills
 
 ### Issue tracker

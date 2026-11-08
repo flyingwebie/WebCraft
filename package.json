@@ -1,0 +1,57 @@
+{
+	"name": "webcraft",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"type": "module",
+	"workspaces": {
+		"packages": [
+			"apps/*",
+			"packages/*",
+			"tests"
+		],
+		"catalog": {
+			"zod": "^4.5.4",
+			"typescript": "^6.0.3",
+			"@types/node": "^26.4.1",
+			"@types/bun": "^1.4.3",
+			"@orpc/server": "^1.15.6",
+			"@orpc/client": "^1.15.6",
+			"better-auth": "1.7.12",
+			"drizzle-orm": "1.0.0-rc.5",
+			"drizzle-kit": "1.0.0-rc.5",
+			"pg": "^8.23.0",
+			"@types/pg": "^8.23.1",
+			"pg-boss": "^12.38.1",
+			"tailwindcss": "^4.3.3",
+			"next-themes": "^0.4.6",
+			"sonner": "^2.0.8"
+		}
+	},
+	"scripts": {
+		"dev": "bun scripts/dev.ts",
+		"build": "turbo run build",
+		"start": "bun apps/server/src/serve.ts",
+		"start:worker": "node apps/worker/src/main.ts",
+		"test": "bun test",
+		"lint": "biome ci .",
+		"format": "biome check --write .",
+		"typecheck": "turbo run typecheck && tsc -p tsconfig.json",
+		"db:migrate": "bun apps/cli/src/main.ts admin migrate",
+		"db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
+		"db:studio": "drizzle-kit studio --config packages/db/drizzle.config.ts",
+		"check:licences": "bun scripts/check-licences.ts",
+		"check:denylist": "sh scripts/check-denylist.sh"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.6.2",
+		"@types/bun": "catalog:",
+		"@types/node": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"drizzle-kit": "catalog:",
+		"pg": "catalog:",
+		"@types/pg": "catalog:",
+		"turbo": "^2.11.7",
+		"typescript": "catalog:"
+	},
+	"packageManager": "bun@1.4.2"
+}

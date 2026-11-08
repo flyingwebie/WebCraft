@@ -1,0 +1,3 @@
+# The admin host is never indexed. Each Site serves its own robots.txt.
+User-agent: *
+Disallow: /
