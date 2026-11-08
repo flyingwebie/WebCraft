@@ -50,8 +50,12 @@ type Executor = Database["db"] | Transaction;
 
 type Row<Table extends PgTable> = InferSelectModel<Table>;
 
-/** The values of a new row, without the columns the scope fills in. */
-type NewRow<Table extends PgTable> = Omit<InferInsertModel<Table>, "workspaceId" | "siteId">;
+/**
+ * The values of a new row, without the columns the scope fills in: `workspaceId` in a Workspace
+ * scope, and `siteId` too in a Site scope. A Workspace table may still name one of its Workspace's
+ * Sites (`membership_sites`); its foreign key to `sites (workspace_id, id)` keeps it in the Workspace.
+ */
+type NewRow<Table extends PgTable, Filled extends string> = Omit<InferInsertModel<Table>, Filled>;
 
 export type SelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: number };
 
@@ -59,12 +63,12 @@ export type SelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: 
  * Queries on tenant tables, limited to one scope. `where` is the extra condition, if any; the scope
  * always adds its own. `insert` fills in the Workspace (and Site) itself.
  */
-export type ScopedQueries<Table extends PgTable> = {
+export type ScopedQueries<Table extends PgTable, Filled extends string> = {
 	select<T extends Table>(table: T, where?: SQL, options?: SelectOptions): Promise<Row<T>[]>;
 	first<T extends Table>(table: T, where?: SQL, options?: Omit<SelectOptions, "limit">): Promise<Row<T> | undefined>;
 	count<T extends Table>(table: T, where?: SQL): Promise<number>;
-	insert<T extends Table>(table: T, values: NewRow<T>): Promise<Row<T>>;
-	update<T extends Table>(table: T, set: Partial<NewRow<T>>, where?: SQL): Promise<Row<T>[]>;
+	insert<T extends Table>(table: T, values: NewRow<T, Filled>): Promise<Row<T>>;
+	update<T extends Table>(table: T, set: Partial<NewRow<T, Filled>>, where?: SQL): Promise<Row<T>[]>;
 	delete<T extends Table>(table: T, where?: SQL): Promise<number>;
 	/**
 	 * The condition limiting `table` to this scope, and `where` if given: for joins and other
@@ -104,7 +108,7 @@ export type InstallScope = Omit<ScopeBase, "audit"> & {
 };
 
 export type WorkspaceScope = Omit<ScopeBase, "audit"> &
-	ScopedQueries<WorkspaceTable> & {
+	ScopedQueries<WorkspaceTable, "workspaceId"> & {
 		readonly level: "workspace";
 		/**
 		 * Records an action in the Audit log, with who, when, how and this Workspace. `about` names the
@@ -117,7 +121,7 @@ export type WorkspaceScope = Omit<ScopeBase, "audit"> &
 	};
 
 export type SiteScope = ScopeBase &
-	ScopedQueries<SiteTable> & {
+	ScopedQueries<SiteTable, "workspaceId" | "siteId"> & {
 		readonly level: "site";
 		readonly workspace: Workspace;
 		readonly site: Site;
@@ -256,11 +260,11 @@ async function findSite(executor: Executor, siteId: string): Promise<Site | unde
 }
 
 /** The query helpers of one scope: `condition` limits a table to it, `fill` holds the columns `insert` sets. */
-function scopedQueries<Table extends WorkspaceTable>(
+function scopedQueries<Table extends WorkspaceTable, Filled extends string>(
 	executor: Executor,
 	condition: (table: Table) => SQL,
-	fill: Record<string, string>,
-): ScopedQueries<Table> {
+	fill: Record<Filled, string>,
+): ScopedQueries<Table, Filled> {
 	const where = (table: Table, extra?: SQL) => (extra ? (and(condition(table), extra) as SQL) : condition(table));
 	// Drizzle's builders are typed for one known table at a time; these helpers work on any tenant
 	// table, so they go through `unknown` and type their answers by the table they were given.

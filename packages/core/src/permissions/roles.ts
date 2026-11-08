@@ -27,7 +27,10 @@ export const PERMISSIONS = {
 	/** See a Workspace and open it in the admin. */
 	"workspace.view": ["workspace"],
 	"site.create": ["workspace"],
+	/** Invite Members, and resend or revoke Member invites. Nobody grants more access than they hold. */
 	"member.invite": ["workspace"],
+	/** See the Workspace's Members, change their role and Sites, and remove them. */
+	"member.manage": ["workspace"],
 	/** See a Site and open it in the admin. */
 	"site.view": ["site"],
 	/** Change a Site's Structure: Post Types, Fields, Templates, Components, the Design system, settings. */
@@ -73,6 +76,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"workspace.view",
 			"site.create",
 			"member.invite",
+			"member.manage",
 			"site.view",
 			"structure.edit",
 			"entry.edit",
@@ -86,6 +90,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"audit.view",
 			"workspace.view",
 			"member.invite",
+			"member.manage",
 			"site.view",
 			"entry.edit",
 			"entry.publish",

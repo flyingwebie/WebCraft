@@ -93,6 +93,8 @@ describe("inviting Staff", () => {
 			installName: "Northwind Studio",
 			invitedBy: "Sam Superadmin",
 			expiresAt: new Date(install.clock.now().getTime() + 7 * DAY),
+			workspace: null,
+			hasAccount: false,
 		});
 
 		await browser.api.invites.accept({

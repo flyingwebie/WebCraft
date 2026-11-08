@@ -54,7 +54,9 @@ export {
 	type Actor,
 	type ActorMembership,
 	can,
+	holdsAccess,
 	INSTALL,
+	type MemberAccess,
 	type PersonActor,
 	permissionsOn,
 	type Reach,
@@ -104,7 +106,31 @@ export type {
 	WorkspaceTable,
 } from "./tenancy/data-layer.ts";
 export { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "./tenancy/errors.ts";
-export { type MembershipsService, type NewMembership, StaffMembershipError } from "./tenancy/memberships.ts";
+export {
+	INVITE_LIFETIME_DAYS,
+	type InviteDetails,
+	InviteForAnotherAccountError,
+	InviteInvalidError,
+	type InvitesService,
+} from "./tenancy/invites.ts";
+export {
+	AccessNotHeldError,
+	type AccessOffer,
+	type AccessProblem,
+	type Member,
+	type MemberInvite,
+	MemberNotFoundError,
+	type MembersOverview,
+	type MembersService,
+	type SiteAccess,
+	type SiteRef,
+} from "./tenancy/members.ts";
+export {
+	AlreadyMemberError,
+	type MembershipsService,
+	type NewMembership,
+	StaffMembershipError,
+} from "./tenancy/memberships.ts";
 export {
 	checkSlug,
 	normaliseSlug,
@@ -115,10 +141,6 @@ export {
 	SlugTakenError,
 } from "./tenancy/sites.ts";
 export {
-	INVITE_LIFETIME_DAYS,
-	type InviteDetails,
-	InviteInvalidError,
-	type InvitesService,
 	type StaffInvite,
 	type StaffMember,
 	StaffNotFoundError,

@@ -32,7 +32,7 @@ describe("the role table", () => {
 	test("superadmin: every Permission, everywhere", async () => {
 		expect(await permissionsOf(await install.superadmin())).toEqual({
 			install: ["install.manage", "workspace.create", "staff.manage", "audit.view"],
-			workspace: ["audit.view", "workspace.view", "site.create", "member.invite"],
+			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage"],
 			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "media.upload"],
 		});
 	});
@@ -42,7 +42,7 @@ describe("the role table", () => {
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
-			workspace: ["audit.view", "workspace.view", "site.create", "member.invite"],
+			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage"],
 			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "media.upload"],
 		});
 	});
@@ -52,7 +52,7 @@ describe("the role table", () => {
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
-			workspace: ["audit.view", "workspace.view", "member.invite"],
+			workspace: ["audit.view", "workspace.view", "member.invite", "member.manage"],
 			site: ["site.view", "entry.edit", "entry.publish", "media.upload"],
 		});
 	});
@@ -122,6 +122,51 @@ describe("what a role reaches", () => {
 		await expect(browser.api.workspaces.create({ name: "Mine Now" })).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(browser.api.install.settings.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
+});
+
+describe("each role against Workspace and Site scope", () => {
+	/** The Site-level Permissions each Workspace role holds, from the role table above. */
+	const onSite = {
+		owner: ["site.view", "entry.edit", "entry.publish", "media.upload"],
+		editor: ["site.view", "entry.edit", "entry.publish", "media.upload"],
+		author: ["site.view", "entry.edit", "media.upload"],
+	} as const;
+
+	for (const role of ["owner", "editor", "author"] as const) {
+		test(`${role} reaching chosen Sites: their Workspace and those Sites, no other Site, no other Workspace`, async () => {
+			const ours = await install.createWorkspace();
+			const chosen = await install.createSite(ours.id);
+			const notChosen = await install.createSite(ours.id);
+			const theirs = await install.createWorkspace();
+			const theirSite = await install.createSite(theirs.id);
+			const { browser } = await install.createMember({ workspaceId: ours.id, role, sites: [chosen.id] });
+
+			expect((await browser.api.workspaces.get({ workspaceId: ours.id })).permissions).toContain("workspace.view");
+			expect((await browser.api.sites.get({ siteId: chosen.id })).permissions).toEqual([...onSite[role]]);
+			await expect(browser.api.sites.get({ siteId: notChosen.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+			// Sites created later stay out of reach too.
+			const later = await install.createSite(ours.id);
+			await expect(browser.api.sites.get({ siteId: later.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+			await expect(browser.api.workspaces.get({ workspaceId: theirs.id })).rejects.toMatchObject({
+				code: "WORKSPACE_NOT_FOUND",
+			});
+			await expect(browser.api.sites.get({ siteId: theirSite.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		});
+
+		test(`${role} reaching all Sites: every Site of their Workspace, including later ones, and nothing elsewhere`, async () => {
+			const ours = await install.createWorkspace();
+			const first = await install.createSite(ours.id);
+			const theirs = await install.createWorkspace();
+			const theirSite = await install.createSite(theirs.id);
+			const { browser } = await install.createMember({ workspaceId: ours.id, role, sites: "all" });
+			const later = await install.createSite(ours.id);
+
+			for (const site of [first, later]) {
+				expect((await browser.api.sites.get({ siteId: site.id })).permissions).toEqual([...onSite[role]]);
+			}
+			await expect(browser.api.sites.get({ siteId: theirSite.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		});
+	}
 });
 
 describe("Staff never hold a Membership", () => {

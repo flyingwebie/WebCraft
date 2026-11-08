@@ -106,8 +106,14 @@ export const membershipSites = pgTable(
 
 /**
  * Invitations waiting to be accepted. Only a SHA-256 hash of each invite's token is stored; the
- * token itself is only in the email. `role` is the text role key the invite grants (`staff` for
- * now). An invite is deleted once it is accepted, revoked or replaced.
+ * token itself is only in the email. `role` is the text role key the invite grants. An invite is
+ * deleted once it is accepted, revoked or replaced.
+ *
+ * - A Staff invite (`staff`) has no Workspace: it assigns every Workspace (`all_workspaces`) or
+ *   those in `invite_workspaces`.
+ * - A Member invite (`owner`, `editor`, `author`) belongs to one Workspace (`workspace_id`), and the
+ *   Membership it gives reaches every Site of it (`all_sites`) or those in `invite_sites`. There is
+ *   at most one pending Member invite per address and Workspace.
  */
 export const invites = pgTable(
 	"invites",
@@ -118,11 +124,44 @@ export const invites = pgTable(
 		role: text("role").notNull(),
 		/** Staff invites: whether the Staff member will reach every Workspace, or those in `invite_workspaces`. */
 		allWorkspaces: boolean("all_workspaces").notNull().default(false),
+		/** Member invites: the Workspace the Membership is in. Null for Staff invites. */
+		workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+		/** Member invites: whether the Membership will reach every Site, or those in `invite_sites`. */
+		allSites: boolean("all_sites").notNull().default(true),
 		invitedBy: uuid("invited_by").references(() => people.id, { onDelete: "set null" }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 	},
-	(table) => [index("invites_email_idx").on(table.email)],
+	(table) => [
+		index("invites_email_idx").on(table.email),
+		index("invites_workspace_id_idx").on(table.workspaceId),
+		unique("invites_id_workspace_id_unique").on(table.id, table.workspaceId),
+		// Staff invites have no Workspace, and nulls never collide: this holds Member invites only.
+		unique("invites_email_workspace_id_unique").on(table.email, table.workspaceId),
+	],
+);
+
+/** The Sites a Member invite's Membership will reach, when not all of them; always Sites of its own Workspace. */
+export const inviteSites = pgTable(
+	"invite_sites",
+	{
+		inviteId: uuid("invite_id").notNull(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.inviteId, table.siteId] }),
+		foreignKey({
+			name: "invite_sites_invite_fkey",
+			columns: [table.inviteId, table.workspaceId],
+			foreignColumns: [invites.id, invites.workspaceId],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "invite_sites_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+	],
 );
 
 /** The Workspaces a Staff invite assigns, when it doesn't assign them all. */
