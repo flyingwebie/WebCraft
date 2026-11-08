@@ -15,6 +15,7 @@ import { commandNamed, type MarkupSection, RESERVED_COMMANDS, TEMPLATE_COMMANDS 
 import { URL_ATTRIBUTES } from "../escape.ts";
 import { type Expression, expressionPaths, readExpression } from "../expressions.ts";
 import { readFormat } from "../formatters.ts";
+import { mediaReference } from "../media.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -668,8 +669,18 @@ class MarkupParser {
 				this.problem(attribute.offset, refused);
 				continue;
 			}
-			if (URL_ATTRIBUTES.has(name) && /^\s*media:/i.test(attribute.text) && !attribute.bound) {
-				this.problem(attribute.valueOffset, "media: images aren't available yet.");
+			// `media:<id>` names a file of the Site's Media library (an `<img>` renders as a Media image);
+			// only its form is checked here: a file can be deleted later, and then nothing renders.
+			if (
+				URL_ATTRIBUTES.has(name) &&
+				/^\s*media:/i.test(attribute.text) &&
+				!attribute.bound &&
+				mediaReference(attribute.text) === undefined
+			) {
+				this.problem(
+					attribute.valueOffset,
+					"media: is followed by the id of a file in the Site's Media library, such as media:3f9a1c2b-7d4e-4f60-9a1c-2b7d4e5f6071.",
+				);
 				continue;
 			}
 			attributes.push({ name, value: canonicalNodes(attribute.parts) });

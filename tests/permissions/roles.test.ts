@@ -33,7 +33,15 @@ describe("the role table", () => {
 		expect(await permissionsOf(await install.superadmin())).toEqual({
 			install: ["install.manage", "workspace.create", "staff.manage", "audit.view"],
 			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage"],
-			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+			site: [
+				"site.view",
+				"structure.edit",
+				"entry.edit",
+				"entry.publish",
+				"entry.delete",
+				"media.upload",
+				"media.manage",
+			],
 		});
 	});
 
@@ -43,7 +51,15 @@ describe("the role table", () => {
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
 			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage"],
-			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+			site: [
+				"site.view",
+				"structure.edit",
+				"entry.edit",
+				"entry.publish",
+				"entry.delete",
+				"media.upload",
+				"media.manage",
+			],
 		});
 	});
 
@@ -53,21 +69,21 @@ describe("the role table", () => {
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
 			workspace: ["audit.view", "workspace.view", "member.invite", "member.manage"],
-			site: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+			site: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage"],
 		});
 	});
 
-	test("editor: edits, publishes and deletes Content", async () => {
+	test("editor: edits, publishes and deletes Content, and manages every Media file", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "editor" });
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
 			workspace: ["workspace.view"],
-			site: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+			site: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage"],
 		});
 	});
 
-	test("author: edits Content and uploads Media, but can't publish or delete Entries", async () => {
+	test("author: edits Content and uploads Media (changing only their own), but can't publish or delete Entries", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "author" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -127,8 +143,8 @@ describe("what a role reaches", () => {
 describe("each role against Workspace and Site scope", () => {
 	/** The Site-level Permissions each Workspace role holds, from the role table above. */
 	const onSite = {
-		owner: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
-		editor: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+		owner: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage"],
+		editor: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage"],
 		author: ["site.view", "entry.edit", "media.upload"],
 	} as const;
 

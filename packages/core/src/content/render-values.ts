@@ -147,8 +147,9 @@ function fieldValue(field: FieldDefinition, value: Json, sources: ValueSources |
 			return field.multiple ? related : (related[0] ?? null);
 		}
 		case "media":
-			// Media Fields render once the Media library (#73) gives them Media.
-			return null;
+			// The id of a file in the Media library, read as `media:<id>`: an `<img>` bound to it renders
+			// as a Media image, a link as the file's address.
+			return typeof value === "string" ? `media:${value}` : null;
 		default:
 			return value as TemplateValue;
 	}

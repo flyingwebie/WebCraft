@@ -18,7 +18,14 @@ export type Screen = {
  * Sites, a Staff member assigned to it, Members, a pending Staff invite, and a pending Member invite
  * to a person who already has an account.
  */
-export type ScreenFixture = { workspaceId: string; siteId: string; inviteToken: string; joinToken: string };
+export type ScreenFixture = {
+	workspaceId: string;
+	siteId: string;
+	inviteToken: string;
+	joinToken: string;
+	/** A photo in the Site's Media library, in a folder, with its sizes made. */
+	mediaId: string;
+};
 
 export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Sign in", path: "/sign-in", as: "signed-out" },
@@ -35,6 +42,14 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Members (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/members`, as: "staff" },
 	{ name: "Workspace › Members (Owner)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/members`, as: "owner" },
 	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
+	{ name: "Site › Media", path: ({ siteId }) => `/sites/${siteId}/media`, as: "staff" },
+	{
+		name: "Site › Media, a file's details",
+		path: ({ siteId, mediaId }) => `/sites/${siteId}/media?file=${mediaId}`,
+		as: "owner",
+	},
+	{ name: "Site › Media, no match", path: ({ siteId }) => `/sites/${siteId}/media?q=nothing-matches`, as: "staff" },
+	{ name: "Install settings › Storage", path: "/settings/storage", as: "superadmin" },
 	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
 	{ name: "Install › Email log", path: "/email-log", as: "superadmin" },
 	{ name: "Your account", path: "/account", as: "superadmin" },

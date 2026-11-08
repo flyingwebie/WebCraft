@@ -17,6 +17,7 @@
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/db": "workspace:*",
 		"@webcraft/renderer": "workspace:*",
+		"aws4fetch": "1.0.20",
 		"drizzle-orm": "catalog:",
 		"nodemailer": "^10.4.0",
 		"pg-boss": "catalog:",

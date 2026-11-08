@@ -319,7 +319,16 @@ export function checkFields(
 		for (const broken of spec.rules(value, field)) findings.problems.push({ at: path, ...broken });
 		if (field.type === "relationship") {
 			const ids = (Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === "string");
-			findings.references.push({ ids, postTypes: field.postTypes, at: path, problems: findings.problems });
+			findings.references.push({
+				kind: "entries",
+				ids,
+				postTypes: field.postTypes,
+				at: path,
+				problems: findings.problems,
+			});
+		}
+		if (field.type === "media" && typeof value === "string") {
+			findings.references.push({ kind: "media", ids: [value], at: path, problems: findings.problems });
 		}
 	}
 }

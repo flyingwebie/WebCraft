@@ -4,6 +4,7 @@ import {
 	builtInNotFoundPage,
 	directionOf,
 	type ElementTree,
+	mediaReferencesIn,
 	type PageToRender,
 	renderPage,
 	type TemplateValue,
@@ -37,6 +38,9 @@ import {
 } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { listClasses } from "../design-system/classes.ts";
+import type { InstallStorage } from "../media/install-storage.ts";
+import { type StoredMediaFile, storedFile } from "../media/library.ts";
+import { pageMedia } from "../media/page-media.ts";
 import type { DataLayer, Site, VisitorScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname } from "./addresses.ts";
 
@@ -80,10 +84,20 @@ export type SitePages = {
 	 * built-in one, in the Site template.
 	 */
 	notFound(host: SiteHost): Promise<SitePage>;
+	/**
+	 * A Media file of the Site by the name it is served under (`/_media/<name>`): an original or a
+	 * variant, never a raw upload. Null when the Site has none by that name.
+	 */
+	mediaFile(host: SiteHost, name: string): Promise<StoredMediaFile | null>;
 };
 
-export function createSitePages(options: { database: Database; config: InstallConfig; data: DataLayer }): SitePages {
-	const { database, config, data } = options;
+export function createSitePages(options: {
+	database: Database;
+	config: InstallConfig;
+	data: DataLayer;
+	storage: InstallStorage;
+}): SitePages {
+	const { database, config, data, storage } = options;
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
@@ -122,6 +136,10 @@ export function createSitePages(options: { database: Database; config: InstallCo
 			if (found) return { html: await renderEntryPage(scope, host, found) };
 			const builtIn = builtInNotFoundPage(host.defaultLanguage);
 			return { html: await renderSitePage(scope, host, { ...builtIn, values: () => undefined }) };
+		},
+
+		mediaFile(host, name) {
+			return storedFile(data.visitors(host.site), storage, name);
 		},
 	};
 }
@@ -239,16 +257,23 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 		lastPublishedAt: entry.lastPublishedAt,
 	};
 	const site = await siteParts(scope, languages);
+	const related = await relatedEntries(
+		scope,
+		found,
+		linksIn(version.values, postType.fields).map((link) => link.targetId),
+		languages,
+	);
 	const root = entryParts(builtIns, postType.fields, published.fields, {
-		related: await relatedEntries(
-			scope,
-			found,
-			linksIn(version.values, postType.fields).map((link) => link.targetId),
-			languages,
-		),
+		related,
 		site,
 	});
-	return renderSitePage(scope, host, { title: published.title, content, values: (path) => resolvePath(root, path) });
+	return renderSitePage(
+		scope,
+		host,
+		{ title: published.title, content, values: (path) => resolvePath(root, path) },
+		// Media values the content may read: its own, and its related Entries'.
+		[published.fields, [...related.values()].map((entry) => entry.values)],
+	);
 }
 
 /** The Site's published Globals, as `site.x` reads them. */
@@ -268,17 +293,32 @@ async function renderSitePage(
 	scope: VisitorScope,
 	host: SiteHost,
 	page: Pick<PageToRender, "title" | "content" | "values">,
+	contentValues: unknown = null,
 ): Promise<string> {
 	const language = host.defaultLanguage;
-	const site = await siteParts(scope, { language, defaultLanguage: host.defaultLanguage });
+	const languages = { language, defaultLanguage: host.defaultLanguage };
+	const globalValues = publishedGlobals(await scope.first(globals), languages);
+	const site = globalsParts(globalValues.fields, globalValues.values);
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
 	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
+	const siteTemplate = await publishedSiteTemplate(scope);
+	// The Media the page may show: `media:<id>` written in either template, and every media value the
+	// page reads (its content's, the Globals'). Ids that aren't the Site's ready Media find nothing.
+	const shown = await pageMedia(
+		scope,
+		[
+			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null])),
+			...idsIn(JSON.stringify([contentValues, globalValues.values])),
+		],
+		languages,
+	);
 	return renderPage({
 		...page,
 		site: { name: host.site.name, language, direction: directionOf(language) },
-		siteTemplate: await publishedSiteTemplate(scope),
+		siteTemplate,
 		siteValues: (path) => resolvePath(siteRoot, path),
 		className: (classId) => classNames.get(classId),
+		media: (id) => shown.get(id),
 	});
 }
 
@@ -289,6 +329,11 @@ async function publishedSiteTemplate(scope: VisitorScope): Promise<ElementTree |
 		and(eq(templates.kind, "site"), isNull(templates.postTypeId), isNotNull(templates.published)),
 	);
 	return (row?.published as ElementTree | null) ?? undefined;
+}
+
+/** Every id (UUID) written in a piece of text. */
+function idsIn(text: string): string[] {
+	return [...text.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)].map((match) => match[0]);
 }
 
 /** The published Entries the page's Relationships point at, read in the page's language. */

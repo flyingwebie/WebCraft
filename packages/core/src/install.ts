@@ -8,6 +8,7 @@ import { createSmtpMailer } from "./email/smtp-mailer.ts";
 import { fetchHttp } from "./http.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
+import { type ImageProcessor, imagesOnlyInWorker } from "./media/images.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 
@@ -29,6 +30,8 @@ export type OpenInstallOptions = {
 	log: Logger;
 	/** Filled in as each part opens. */
 	opened?: OpenedParts;
+	/** Image processing: the worker hands in the real one; the web process never processes images. */
+	images?: ImageProcessor;
 };
 
 /**
@@ -55,7 +58,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 
 	// Built before the job queue starts, so a wrong Master key is refused first.
 	const services = await createInstallServices(
-		{ ...realPorts(config, database, log), jobs: createJobQueue(boss) },
+		{ ...realPorts(config, database, log), jobs: createJobQueue(boss), images: options.images ?? imagesOnlyInWorker },
 		masterKey,
 	);
 	opened.boss = boss;
@@ -79,6 +82,7 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 			{
 				...realPorts(config, database, log),
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
+				images: imagesOnlyInWorker,
 			},
 			masterKey,
 		);
@@ -89,6 +93,6 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 }
 
 /** The real adapters every process uses; only the job queue differs between them. */
-function realPorts(config: InstallConfig, database: Database, log: Logger): Omit<InstallPorts, "jobs"> {
+function realPorts(config: InstallConfig, database: Database, log: Logger): Omit<InstallPorts, "jobs" | "images"> {
 	return { config, database, mailer: createSmtpMailer(), http: fetchHttp, clock: systemClock, log };
 }

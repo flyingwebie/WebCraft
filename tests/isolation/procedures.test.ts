@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { traverseContractProcedures } from "@orpc/server";
 import { apiRouter } from "@webcraft/api";
-
+import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { element, outlet, tree, value } from "../harness/trees.ts";
@@ -230,6 +230,58 @@ describe("Members", () => {
 		"members.remove",
 		async (api, { workspaceId }) => api.members.remove({ workspaceId, personId: await memberOf(workspaceId) }),
 		{ as: ["staff", "owner"] },
+	);
+});
+
+/** A file in a target's Media library and a folder, made by the Superadmin. */
+async function mediaIn(target: IsolationTarget): Promise<{ mediaId: string; folderId: string }> {
+	const { api } = await install.superadmin();
+	const { media } = await api.media.upload({ siteId: target.siteId, file: upload(pdf(), "isolation.pdf") });
+	const { folder } = await api.media.folders.create({ siteId: target.siteId, name: `Folder ${newSlug()}` });
+	return { mediaId: media.id, folderId: folder.id };
+}
+
+describe("Media", () => {
+	isolation.refuses("media.list", (api, { siteId }) => api.media.list({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"media.get",
+		async (api, target) => api.media.get({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.upload",
+		(api, { siteId }) => api.media.upload({ siteId, file: upload(pdf(), "leaked.pdf") }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"media.update",
+		async (api, target) =>
+			api.media.update({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId, alt: "Changed" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("media.folders.list", (api, { siteId }) => api.media.folders.list({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"media.folders.create",
+		(api, { siteId }) => api.media.folders.create({ siteId, name: `Leaked ${newSlug()}` }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.folders.rename",
+		async (api, target) =>
+			api.media.folders.rename({
+				siteId: target.siteId,
+				folderId: (await mediaIn(target)).folderId,
+				name: `Renamed ${newSlug()}`,
+			}),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"media.folders.delete",
+		async (api, target) =>
+			api.media.folders.delete({ siteId: target.siteId, folderId: (await mediaIn(target)).folderId }),
+		{ as: ["staff", "editor"] },
 	);
 });
 

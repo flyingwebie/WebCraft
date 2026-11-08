@@ -57,6 +57,7 @@ export {
 export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
 export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup.ts";
+export * from "./media/index.ts";
 export {
 	ADMIN_THEMES,
 	type AdminTheme,
@@ -136,6 +137,7 @@ export {
 } from "./site-pages/index.ts";
 export type {
 	Access,
+	BackgroundScope,
 	DataLayer,
 	InstallScope,
 	ScopedQueries,

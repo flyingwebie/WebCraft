@@ -26,6 +26,8 @@ function info(message: string): void {
 }
 
 const env = process.env;
+// Web runs in apps/server and the worker in the repo root: one storage folder for both.
+env.WEBCRAFT_STORAGE_DIR ||= `${ROOT}storage`;
 if (!env.DATABASE_URL) fail("DATABASE_URL is not set. Copy .env.example to .env (see docs/development.md).");
 // The same checks web and worker run when they start, so a bad setting is reported once, here.
 try {

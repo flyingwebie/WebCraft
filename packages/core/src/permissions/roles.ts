@@ -40,7 +40,10 @@ export const PERMISSIONS = {
 	"entry.publish": ["site"],
 	/** Delete an Entry, removing the links other Entries make to it. */
 	"entry.delete": ["site"],
+	/** Upload to the Site's Media library, and change your own uploads. */
 	"media.upload": ["site"],
+	/** Change every file in the Site's Media library, and its folders. */
+	"media.manage": ["site"],
 } as const satisfies Record<string, readonly Level[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -85,6 +88,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"entry.publish",
 			"entry.delete",
 			"media.upload",
+			"media.manage",
 		],
 	},
 	owner: {
@@ -99,11 +103,20 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"entry.publish",
 			"entry.delete",
 			"media.upload",
+			"media.manage",
 		],
 	},
 	editor: {
 		reach: "membership",
-		permissions: ["workspace.view", "site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+		permissions: [
+			"workspace.view",
+			"site.view",
+			"entry.edit",
+			"entry.publish",
+			"entry.delete",
+			"media.upload",
+			"media.manage",
+		],
 	},
 	author: {
 		reach: "membership",

@@ -3,8 +3,11 @@
 	"version": "0.0.0",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
-	"description": "The background worker (Node LTS): runs pg-boss jobs.",
+	"description": "The background worker (Node LTS): runs pg-boss jobs, including image processing.",
 	"type": "module",
+	"exports": {
+		"./images": "./src/images.ts"
+	},
 	"engines": {
 		"node": ">=22.18.0"
 	},
@@ -15,7 +18,9 @@
 	},
 	"dependencies": {
 		"@webcraft/core": "workspace:*",
-		"@webcraft/db": "workspace:*"
+		"@webcraft/db": "workspace:*",
+		"heic-decode": "2.1.0",
+		"sharp": "0.35.5"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",

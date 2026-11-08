@@ -39,6 +39,14 @@ export {
 	TemplateMarkupInvalidError,
 } from "./markup/problems.ts";
 export {
+	type ImagePriority,
+	type MediaReader,
+	mediaReference,
+	mediaReferencesIn,
+	type PageMedia,
+	renderMediaImage,
+} from "./media.ts";
+export {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
 	directionOf,

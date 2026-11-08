@@ -2,11 +2,13 @@ import {
 	canonicalPath,
 	type InstallServices,
 	isReservedPath,
+	MEDIA_PATH,
 	normaliseHostname,
 	pathSegments,
 	type SiteHost,
 } from "@webcraft/core";
 
+import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
@@ -18,13 +20,14 @@ export type SitePipelineOptions = {
 /**
  * The Site request pipeline: every hostname other than the admin host comes here (ADR 0004). It
  * resolves the hostname to a Site (its Staging address, `<site slug>.<sites domain>`, for now), keeps
- * the paths the Install reserves (`/_…`, and files such as `/robots.txt`) apart, then answers the page
+ * the paths the Install reserves (`/_…`, and files such as `/robots.txt`) apart (Media files answer at
+ * `/_media/…`, never kept as pages), then answers the page
  * at the URL from the page cache, rendering and keeping it on a miss: an Entry by its Post Type's URL
  * pattern, else a Page by its path (the home page at `/`). A path with no page gets the Site's 404
  * page. Hostnames that are no Site's get the unbranded 404, and nothing here ever reaches the admin.
  *
  * Steps still to come, in their places: Redirect domains and Redirect rules before everything else,
- * language prefixes and domains, each reserved path's feature (Forms, Media, the Content API,
+ * language prefixes and domains, each reserved path's feature (Forms, the Content API,
  * Modules, `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies), and the 404 log.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
@@ -34,6 +37,9 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		const host = await services.sitePages.resolveHost(normaliseHostname(url.hostname));
 		if (!host) return notFound();
 		return readOnly(request, async () => {
+			if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
+				return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));
+			}
 			const segments = pathSegments(url.pathname);
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
@@ -51,6 +57,24 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			return pageResponse(request, host, page, "MISS");
 		});
 	};
+}
+
+/**
+ * Media files are named by their content hash (ADR 0026): a name always holds the same bytes, so
+ * browsers, the page cache and CDNs may keep them for a year without asking again.
+ */
+const MEDIA_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
+/** A Media file of the Site, `/_media/<hash>-<name>`: an original or a variant, never a raw upload. */
+async function mediaFile(services: InstallServices, request: Request, host: SiteHost, name: string): Promise<Response> {
+	const file = await services.sitePages.mediaFile(host, name);
+	const response = file
+		? await mediaFileResponse(request, file, { "cache-control": MEDIA_CACHE_CONTROL, ...addressHeaders(host) })
+		: null;
+	if (file && !response) {
+		services.log.error("A Media file is missing from storage", { siteId: host.site.id, name });
+	}
+	return response ?? plainText(404, "Not Found", addressHeaders(host));
 }
 
 /**
@@ -108,11 +132,4 @@ function addressHeaders(host: SiteHost): Record<string, string> {
 async function etagOf(html: string): Promise<string> {
 	const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(html)));
 	return `"${Buffer.from(digest).toString("base64url")}"`;
-}
-
-/** Whether an `If-None-Match` header names the ETag (weak comparison, as for GET and HEAD). */
-function matchesETag(header: string | null, etag: string): boolean {
-	if (!header) return false;
-	const plain = (tag: string) => tag.trim().replace(/^W\//, "");
-	return header.split(",").some((tag) => tag.trim() === "*" || plain(tag) === plain(etag));
 }

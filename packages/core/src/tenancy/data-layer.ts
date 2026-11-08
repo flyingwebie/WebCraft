@@ -36,6 +36,13 @@ export type DataLayer = {
 	 * by hostname.
 	 */
 	visitors(site: Site): VisitorScope;
+	/**
+	 * Opens a Site for WebCraft's own work in the background, such as the worker cleaning an upload.
+	 * No person acts, so nothing is checked with `can()` and nothing is written to the Audit log: only
+	 * jobs open one, for the Site named in a payload that a checked procedure queued. Null when the
+	 * Site no longer exists.
+	 */
+	background(siteId: string): Promise<BackgroundScope | null>;
 };
 
 /**
@@ -166,6 +173,20 @@ export type VisitorScope = Pick<
 		now(): Date;
 	};
 
+/**
+ * A Site opened for WebCraft's own background work: the queries of a Site scope, limited to the
+ * Site, with no person, no Audit log and no secrets.
+ */
+export type BackgroundScope = ScopedQueries<SiteTable, "workspaceId" | "siteId"> &
+	ScopeDatabase & {
+		readonly level: "background";
+		readonly workspace: Workspace;
+		readonly site: Site;
+		/** The time, from the Install's clock. */
+		now(): Date;
+		transaction<Result>(work: (scope: BackgroundScope) => Promise<Result>): Promise<Result>;
+	};
+
 type DataLayerOptions = { database: Database; clock: Clock; secrets: Secrets };
 
 export function createDataLayer({ database, clock, secrets }: DataLayerOptions): DataLayer {
@@ -230,6 +251,19 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 		};
 	};
 
+	const backgroundScope = (executor: Executor, workspace: Workspace, site: Site): BackgroundScope => {
+		const condition = (table: SiteTable) => and(eq(table.workspaceId, workspace.id), eq(table.siteId, site.id)) as SQL;
+		return {
+			...scopedQueries(executor, condition, { workspaceId: workspace.id, siteId: site.id }),
+			db: executor,
+			level: "background",
+			workspace,
+			site,
+			now: () => clock.now(),
+			transaction: (work) => inTransaction(executor, (tx) => work(backgroundScope(tx, workspace, site))),
+		};
+	};
+
 	/** Runs `work` in a transaction, or in the one `executor` already is. */
 	const inTransaction = <Result>(executor: Executor, work: (tx: Executor) => Promise<Result>) =>
 		executor === db ? db.transaction((tx) => work(tx)) : work(executor);
@@ -265,6 +299,12 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 				and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id)) as SQL;
 			const { select, first, count, where } = scopedQueries(db, condition, {});
 			return { select, first, count, where, db, level: "visitor", site, now: () => clock.now() };
+		},
+
+		async background(siteId) {
+			const site = isUuid(siteId) ? await findSite(db, siteId) : undefined;
+			const workspace = site ? await findWorkspace(db, site.workspaceId) : undefined;
+			return site && workspace ? backgroundScope(db, workspace, site) : null;
 		},
 	};
 }

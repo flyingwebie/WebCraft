@@ -154,8 +154,8 @@ describe("values where they could run or change the page's structure", () => {
 		);
 	});
 
-	test("media: images, which come with the Media library", async () => {
-		await refuses('<img src="media:abc123" alt="">', 1, 11, "media: images aren't available yet");
+	test("a media: address that doesn't name a file by its id", async () => {
+		await refuses('<img src="media:abc123" alt="">', 1, 11, "media: is followed by the id of a file");
 	});
 });
 

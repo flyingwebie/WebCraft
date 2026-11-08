@@ -1,4 +1,5 @@
 import { escapeAttribute, escapeText, renderTree } from "./html.ts";
+import type { MediaReader } from "./media.ts";
 import type { ElementNode, ElementTree } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
 
@@ -50,22 +51,32 @@ export type PageToRender = {
 	siteValues?: ValueReader;
 	/** The class name of a Class id, for both templates. */
 	className?: (classId: string) => string | undefined;
+	/** The Site's Media items that `media:<id>` refers to, for both templates. */
+	media?: MediaReader;
 };
 
 /**
  * Renders a whole page as an HTML document: `lang` and `dir`, the title, a skip link to the main
  * content, then the Site template with the page's content at its `{{@outlet}}`. The Site template's
  * one <main> gets the id the skip link points at, and `tabindex="-1"` so following the link moves
- * focus there. Pages carry no JavaScript and no inline styles.
+ * focus there. The first Media image of the page's content loads eagerly with high priority; every
+ * other Media image lazily. Pages carry no JavaScript and no inline styles.
  */
 export function renderPage(page: PageToRender): string {
 	const { site } = page;
 	const title = page.title.trim() ? `${page.title} · ${site.name}` : site.name;
-	const content = renderTree(page.content, { values: page.values, language: site.language, className: page.className });
+	const content = renderTree(page.content, {
+		values: page.values,
+		language: site.language,
+		className: page.className,
+		media: page.media,
+		priorityImage: { given: false },
+	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
 		language: site.language,
 		className: page.className,
+		media: page.media,
 		outlet: () => content,
 		extraAttributes: mainAttributes,
 	});

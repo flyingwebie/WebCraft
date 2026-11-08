@@ -7,7 +7,7 @@ import type { ContentProblem } from "./errors.ts";
  * The Field-type registry: everything the content store knows about each Field type, in one place.
  * A type checks its own settings, checks and reads its values, and lists the rules a value breaks.
  * Group and Repeater are containers: the content store walks into their Fields (`field-values.ts`).
- * The Body field (#78) and the media Field's values (#73) plug in here.
+ * The Body field (#78) plugs in here.
  */
 
 /** A JSON value, as Field values are stored and as the APIs give them. */
@@ -85,7 +85,10 @@ export type SelectField = Common<"select", string | string[] | null> & {
 	min: number | null;
 	max: number | null;
 };
-/** A media Field. It holds nothing until the Media library (#73) gives it Media to point at. */
+/**
+ * A media Field: the id of a file in the Site's Media library. Templates read it as `media:<id>`, so
+ * an `<img>` bound to it renders as a Media image, and an `href` as the file's address.
+ */
 export type MediaField = Common<"media", null>;
 export type LinkField = Common<"link", LinkValue | null>;
 export type EmailField = Common<"email", string | null> & { pattern: string | null };
@@ -161,8 +164,13 @@ type Report = (setting: string, message: string) => void;
 /** A rule a value breaks: which rule, and why in words. */
 export type BrokenRule = { rule: string; message: string };
 
-/** Entries a Relationship value points at, to be checked against the Site once every value is read. */
-export type Reference = { ids: string[]; postTypes: readonly string[] };
+/**
+ * What a value points at, checked against the Site once every value is read: Entries of some Post
+ * Types (a Relationship) or files of its Media library (a media Field).
+ */
+export type Reference =
+	| { kind: "entries"; ids: string[]; postTypes: readonly string[] }
+	| { kind: "media"; ids: string[] };
 
 /** What a leaf type does with values. */
 export type ValueSpec<Field extends LeafField> = {
@@ -438,11 +446,16 @@ const media: FieldTypeSpec<MediaField> = {
 	settings: () => ({}),
 	value: {
 		empty: () => null,
-		parse(input, _field, fail) {
+		parse(input, _field, fail, refer) {
 			if (input === null) return null;
-			return fail("Media can be chosen once the Site has a Media library.");
+			if (typeof input !== "string" || !UUID.test(input.trim())) {
+				return fail("A media value is the id of a file in the Site's Media library.");
+			}
+			const id = input.trim().toLowerCase();
+			refer({ kind: "media", ids: [id] });
+			return id;
 		},
-		read: () => null,
+		read: (stored) => (typeof stored === "string" && UUID.test(stored) ? stored : null),
 		rules: () => [],
 	},
 };
@@ -535,7 +548,7 @@ const relationship: FieldTypeSpec<RelationshipField> = {
 			const unique = [...new Set((ids as string[]).map((id) => id.toLowerCase()))];
 			if (unique.length > MAX_LINKED_ENTRIES) return fail(`At most ${MAX_LINKED_ENTRIES} Entries.`);
 			if (unique.length === 0) return null;
-			refer({ ids: unique, postTypes: field.postTypes });
+			refer({ kind: "entries", ids: unique, postTypes: field.postTypes });
 			return field.multiple ? unique : (unique[0] ?? null);
 		},
 		read(stored, field) {

@@ -11,6 +11,9 @@ dist
 build
 *.tsbuildinfo
 
+# Local Media storage in development (WEBCRAFT_STORAGE_DIR)
+/storage/
+
 # Generated files (apps/server/src/routeTree.gen.ts is committed: the typecheck needs it)
 local.db
 local.db-*

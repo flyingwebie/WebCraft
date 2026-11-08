@@ -3,7 +3,7 @@
 // System email it sends through a real SMTP server with the real Mailer.
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { samplePing } from "@webcraft/core";
-
+import { imageInfo, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type LocalSmtpServer, startSmtpServer, type TestInstall } from "../harness/index.ts";
 
 const WORKER = new URL("../../apps/worker/src/main.ts", import.meta.url).pathname;
@@ -90,6 +90,41 @@ test("the worker sends a queued System email through the Install SMTP, signing i
 	expect(await worker.exited).toBe(0);
 	await output;
 });
+
+test("the worker cleans an uploaded photo on Node, then makes its AVIF and WebP widths", async () => {
+	const admin = await install.superadmin();
+	const workspaceId = (await install.createWorkspace()).id;
+	const siteId = (await install.createSite(workspaceId, { slug: "worker-photos" })).id;
+	const { media } = await admin.api.media.upload({
+		siteId,
+		file: upload(await photo({ width: 700, height: 400, orientation: 8, camera: true }), "oven.jpg"),
+	});
+
+	const worker = Bun.spawn(["node", WORKER], {
+		env: { ...process.env, ...install.env },
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	try {
+		const done = await firstLogEntry(worker.stdout, (line) => line.msg === "Made the variants of an image", 45_000);
+		// Upright, the photo is 400 pixels wide: only the 320 width fits.
+		expect(done).toMatchObject({ job: "media.variants", mediaId: media.id, widths: [320] });
+
+		const { media: ready } = await admin.api.media.get({ siteId, mediaId: media.id });
+		expect(ready).toMatchObject({ status: "ready", width: 400, height: 700 });
+		expect(ready.variants.map((variant) => `${variant.format} ${variant.width}`)).toEqual(["avif 320", "webp 320"]);
+		const served = await install.request(`https://worker-photos.sites.test${ready.url}`);
+		expect(await imageInfo(new Uint8Array(await served.arrayBuffer()))).toMatchObject({
+			width: 400,
+			height: 700,
+			exif: false,
+			camera: false,
+		});
+	} finally {
+		worker.kill("SIGTERM");
+	}
+	expect(await worker.exited).toBe(0);
+}, 60_000);
 
 /** Asks `check` again every 100 ms until it answers something, for at most 10 seconds. */
 async function eventually<Value>(check: () => Promise<Value | undefined>): Promise<Value> {

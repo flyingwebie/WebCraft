@@ -1,4 +1,4 @@
-import { entries, entryLinks, postTypes } from "@webcraft/db/schema";
+import { entries, entryLinks, media, postTypes } from "@webcraft/db/schema";
 import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
 
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
@@ -49,16 +49,25 @@ export type ReferenceCheck = Reference & { at: string; problems: ContentProblem[
 
 /**
  * Checks that the Entries Relationship values point at are Entries of the Site, of the Post Types
- * their Field allows. `refuse` (saving) reports a value that points elsewhere as a value of the wrong
- * kind and holds those Entries until the save ends, so they can't be deleted under it; `rule`
- * (checking a stored version) reports it as a broken rule.
+ * their Field allows, and that media values are files of the Site's Media library. `refuse` (saving)
+ * reports a value that points elsewhere as a value of the wrong kind and holds those Entries until
+ * the save ends, so they can't be deleted under it; `rule` (checking a stored version) reports it as
+ * a broken rule.
  */
 export async function checkReferences(
 	scope: Pick<SiteScope, "db" | "where">,
 	checks: readonly ReferenceCheck[],
 	mode: "refuse" | "rule",
 ): Promise<void> {
-	const ids = [...new Set(checks.flatMap((check) => check.ids))];
+	await checkMedia(
+		scope,
+		checks.filter((check) => check.kind === "media"),
+		mode,
+	);
+	const entryChecks = checks.filter(
+		(check): check is Extract<ReferenceCheck, { kind: "entries" }> => check.kind === "entries",
+	);
+	const ids = [...new Set(entryChecks.flatMap((check) => check.ids))];
 	if (ids.length === 0) return;
 	const query = scope.db
 		.select({ id: entries.id, postTypeKey: postTypes.key })
@@ -67,11 +76,32 @@ export async function checkReferences(
 		.where(scope.where(entries, inArray(entries.id, ids)));
 	const rows = mode === "refuse" ? await query.for("key share", { of: entries }) : await query;
 	const keys = new Map(rows.map((row) => [row.id, row.postTypeKey]));
-	for (const check of checks) {
+	for (const check of entryChecks) {
 		const wrong = check.ids.find((id) => !check.postTypes.includes(keys.get(id) ?? ""));
 		if (wrong === undefined) continue;
 		const message = `${wrong} isn't an Entry of ${check.postTypes.join(", ")} on this Site.`;
 		check.problems.push(mode === "refuse" ? { at: check.at, message } : { at: check.at, rule: "postTypes", message });
+	}
+}
+
+/** Media values: each must be a file of the Site's Media library. */
+async function checkMedia(
+	scope: Pick<SiteScope, "db" | "where">,
+	checks: readonly ReferenceCheck[],
+	mode: "refuse" | "rule",
+): Promise<void> {
+	const ids = [...new Set(checks.flatMap((check) => check.ids))];
+	if (ids.length === 0) return;
+	const rows = await scope.db
+		.select({ id: media.id })
+		.from(media)
+		.where(scope.where(media, inArray(media.id, ids)));
+	const found = new Set(rows.map((row) => row.id));
+	for (const check of checks) {
+		const wrong = check.ids.find((id) => !found.has(id));
+		if (wrong === undefined) continue;
+		const message = `There is no file ${wrong} in this Site's Media library.`;
+		check.problems.push(mode === "refuse" ? { at: check.at, message } : { at: check.at, rule: "media", message });
 	}
 }
 
