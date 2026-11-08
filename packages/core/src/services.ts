@@ -1,6 +1,7 @@
 import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 
+import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
 import type { OutgoingHttp } from "./http.ts";
@@ -10,8 +11,12 @@ import type { Logger } from "./log.ts";
 import type { Mailer } from "./mailer.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { People } from "./people.ts";
-import type { Secrets } from "./secrets/store.ts";
+import type { PersonActor } from "./permissions/can.ts";
+import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
+import type { Access, DataLayer, InstallScope, Site, Workspace, WorkspaceScope } from "./tenancy/data-layer.ts";
+import type { InvitesService, StaffService } from "./tenancy/staff.ts";
+import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
 
 /**
  * The edges of a running Install: real adapters in the processes, fakes in tests. Everything else
@@ -33,8 +38,11 @@ export type InstallPorts = {
  * edges in tests.
  */
 export type InstallServices = InstallPorts & {
-	/** Every stored secret, encrypted under the Master key; write-only. */
-	secrets: Secrets;
+	/**
+	 * The Install's own secrets (Install SMTP, shared AI keys), encrypted under the Master key;
+	 * write-only. A Workspace's or Site's secrets are reached through the data layer instead.
+	 */
+	secrets: InstallSecrets;
 	/** Signing in and out, and sessions. */
 	auth: Auth;
 	/** People with an account, and their admin preferences. */
@@ -45,4 +53,31 @@ export type InstallServices = InstallPorts & {
 	settings: InstallSettings;
 	/** Whether the Superadmin has stored the Master key outside the server. */
 	masterKey: MasterKeyBackup;
+	/**
+	 * The tenant data layer: opens the Install, a Workspace or a Site for an actor after checking
+	 * their Permission. Every query on tenant data goes through it (ADR 0007).
+	 */
+	data: DataLayer;
+	/** Who people are to `can()`: their roles and what they reach. */
+	actors: { person(personId: string): Promise<PersonActor> };
+	workspaces: {
+		/** The Workspaces the actor can see. */
+		list(access: Access): Promise<WorkspaceSummary[]>;
+		/** Creates a Workspace; open the Install with `workspace.create` first. */
+		create(scope: InstallScope, input: { name: string }): Promise<Workspace>;
+	};
+	sites: {
+		/** The Sites of the scope's Workspace the actor can see. */
+		list(scope: WorkspaceScope): Promise<Site[]>;
+		/** Creates a Site; open its Workspace with `site.create` first. */
+		create(scope: WorkspaceScope, input: { name: string; slug: string }): Promise<Site>;
+	};
+	/** Staff: inviting them, their Workspaces, pending invites. */
+	staff: StaffService;
+	/** Invite links: what they offer, and accepting them. */
+	invites: InvitesService;
+	audit: {
+		/** The newest entries of the whole Install's Audit log; open the Install with `audit.view` first. */
+		list(scope: InstallScope, options: { limit: number }): Promise<AuditEntry[]>;
+	};
 };

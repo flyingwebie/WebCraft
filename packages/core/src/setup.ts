@@ -8,7 +8,8 @@ import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
 import { readSettingsRow, writeSettingsRow } from "./install-settings.ts";
 import type { Logger } from "./log.ts";
-import { SUPERADMIN_ROLE } from "./people.ts";
+import { SUPERADMIN_ROLE } from "./permissions/roles.ts";
+import { hashToken, newToken } from "./tokens.ts";
 
 /**
  * Where an Install is in its setup:
@@ -181,15 +182,4 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			log.info("The Superadmin finished the setup wizard", { personId });
 		},
 	};
-}
-
-/** 32 random bytes, base64url: 43 characters. */
-function newToken(): string {
-	const bytes = crypto.getRandomValues(new Uint8Array(32));
-	return Buffer.from(bytes).toString("base64url");
-}
-
-async function hashToken(token: string): Promise<string> {
-	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token.trim()));
-	return Buffer.from(digest).toString("hex");
 }

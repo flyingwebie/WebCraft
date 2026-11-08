@@ -1,12 +1,12 @@
-import type { Database } from "@webcraft/db";
-import { masterKeyVersions, secrets as secretsTable } from "@webcraft/db/schema";
+import type { Database, Transaction } from "@webcraft/db";
+import { masterKeyVersions, secrets as secretsTable, sites, workspaces } from "@webcraft/db/schema";
 import { eq, sql } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
 import { seal, unseal } from "./cipher.ts";
 import { KEY_VERSION_LOCK, type KeyVersion, keyVersions } from "./key-versions.ts";
 import { MASTER_KEY_VARIABLE, type MasterKey } from "./master-key.ts";
-import { describeRef, refFromColumns } from "./refs.ts";
+import { type OwnerColumns, refFromColumns } from "./refs.ts";
 
 export type KeyRotationOptions = {
 	database: Database;
@@ -98,11 +98,12 @@ export async function rotateMasterKey({
 			.orderBy(...OWNER_ORDER)
 			.for("update");
 		const unreadable: string[] = [];
+		const describe = await describerFor(tx);
 		for (const row of rows) {
 			const secret = refFromColumns(row);
 			const value = await unseal(from, row.keyVersion, secret, row);
 			if (value === null) {
-				unreadable.push(describeRef(secret));
+				unreadable.push(describe(row));
 				continue;
 			}
 			const sealed = await seal(to, version, secret, value);
@@ -183,7 +184,8 @@ export async function replaceLostMasterKey({
 			.from(secretsTable)
 			.orderBy(...OWNER_ORDER)
 			.for("update");
-		const secrets = rows.map((row) => describeRef(refFromColumns(row)));
+		const describe = await describerFor(tx);
+		const secrets = rows.map(describe);
 		if (secrets.length > 0 && current) {
 			if (confirmFingerprint === undefined) {
 				return {
@@ -216,6 +218,25 @@ export const CONFIRM_FINGERPRINT_LENGTH = 12;
 function confirmsFingerprint(given: string, fingerprint: string): boolean {
 	const typed = given.trim().toLowerCase();
 	return typed.length >= CONFIRM_FINGERPRINT_LENGTH && fingerprint.toLowerCase().startsWith(typed);
+}
+
+/**
+ * Names stored secrets for the person running the command: by Workspace name and Site slug, such
+ * as `"cdn.token" of Site shop in Workspace Acme Ltd`. Never shows a value.
+ */
+async function describerFor(tx: Transaction): Promise<(row: OwnerColumns & { name: string }) => string> {
+	const [workspaceRows, siteRows] = await Promise.all([
+		tx.select({ id: workspaces.id, name: workspaces.name }).from(workspaces),
+		tx.select({ id: sites.id, slug: sites.slug }).from(sites),
+	]);
+	const workspaceNames = new Map(workspaceRows.map((row) => [row.id, row.name]));
+	const siteSlugs = new Map(siteRows.map((row) => [row.id, row.slug]));
+	return ({ workspaceId, siteId, name }) => {
+		if (workspaceId === null) return `"${name}" of the Install`;
+		const workspace = `Workspace ${workspaceNames.get(workspaceId) ?? workspaceId}`;
+		if (siteId === null) return `"${name}" of ${workspace}`;
+		return `"${name}" of Site ${siteSlugs.get(siteId) ?? siteId} in ${workspace}`;
+	};
 }
 
 /** Secrets in the order people read them: the Install's first, then by Workspace, Site and name. */

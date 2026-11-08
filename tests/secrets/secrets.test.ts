@@ -9,8 +9,20 @@ import { createTestInstall, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;
 
+/** The ids of the Workspaces and Sites the secrets below belong to. */
+const ids = { acme: "", shop: "", blog: "", north: "", northOne: "", northTwo: "", south: "", southOne: "", gone: "" };
+
 beforeAll(async () => {
 	install = await createTestInstall();
+	ids.acme = (await install.createWorkspace("Acme")).id;
+	ids.shop = (await install.createSite(ids.acme, { slug: "shop" })).id;
+	ids.blog = (await install.createSite(ids.acme, { slug: "blog" })).id;
+	ids.north = (await install.createWorkspace("North")).id;
+	ids.northOne = (await install.createSite(ids.north, { slug: "north-one" })).id;
+	ids.northTwo = (await install.createSite(ids.north, { slug: "north-two" })).id;
+	ids.south = (await install.createWorkspace("South")).id;
+	ids.southOne = (await install.createSite(ids.south, { slug: "south-one" })).id;
+	ids.gone = (await install.createWorkspace("Gone")).id;
 });
 
 afterAll(async () => {
@@ -31,7 +43,7 @@ describe("useWith", () => {
 	});
 
 	test("waits for an async callback and returns its answer", async () => {
-		const token: SecretRef = { owner: { kind: "site", workspaceId: "acme", siteId: "shop" }, name: "cdn.token" };
+		const token: SecretRef = { owner: { kind: "site", workspaceId: ids.acme, siteId: ids.shop }, name: "cdn.token" };
 		await install.secrets.set(token, "cdn-token-0000000000000000");
 
 		const status = await install.secrets.useWith(token, async (value) => {
@@ -43,7 +55,10 @@ describe("useWith", () => {
 	});
 
 	test("setting a secret again replaces its value", async () => {
-		const password: SecretRef = { owner: { kind: "site", workspaceId: "acme", siteId: "blog" }, name: "smtp.password" };
+		const password: SecretRef = {
+			owner: { kind: "site", workspaceId: ids.acme, siteId: ids.blog },
+			name: "smtp.password",
+		};
 		await install.secrets.set(password, "the first password, long enough");
 		await install.clock.advance(60_000);
 		await install.secrets.set(password, "the second password, long enough");
@@ -59,11 +74,11 @@ describe("useWith", () => {
 	test("keeps the same name apart for the Install, each Workspace and each Site", async () => {
 		const owners = [
 			{ kind: "install" },
-			{ kind: "workspace", workspaceId: "north" },
-			{ kind: "workspace", workspaceId: "south" },
-			{ kind: "site", workspaceId: "north", siteId: "one" },
-			{ kind: "site", workspaceId: "north", siteId: "two" },
-			{ kind: "site", workspaceId: "south", siteId: "one" },
+			{ kind: "workspace", workspaceId: ids.north },
+			{ kind: "workspace", workspaceId: ids.south },
+			{ kind: "site", workspaceId: ids.north, siteId: ids.northOne },
+			{ kind: "site", workspaceId: ids.north, siteId: ids.northTwo },
+			{ kind: "site", workspaceId: ids.south, siteId: ids.southOne },
 		] as const;
 		for (const [index, owner] of owners.entries()) {
 			await install.secrets.set({ owner, name: "shared.name" }, `value number ${index} of the shared name`);
@@ -87,6 +102,24 @@ describe("useWith", () => {
 	});
 });
 
+describe("owners", () => {
+	test("a secret can't belong to a Workspace that doesn't exist", async () => {
+		const ref: SecretRef = { owner: { kind: "workspace", workspaceId: crypto.randomUUID() }, name: "ai.key" };
+
+		await expect(install.secrets.set(ref, "sk-a-key-for-nobody-0000000000")).rejects.toThrow();
+	});
+
+	test("a Site's secret belongs to a Site of its own Workspace, never another Workspace's", async () => {
+		const ref: SecretRef = {
+			owner: { kind: "site", workspaceId: ids.north, siteId: ids.southOne },
+			name: "smtp.password",
+		};
+
+		await expect(install.secrets.set(ref, "a password for the wrong Site")).rejects.toThrow();
+		await expect(install.secrets.describe(ref)).resolves.toEqual({ set: false });
+	});
+});
+
 describe("describe", () => {
 	test("says a secret nobody set is not set", async () => {
 		const description = await install.secrets.describe({ owner: { kind: "install" }, name: "cdn.token" });
@@ -95,7 +128,7 @@ describe("describe", () => {
 	});
 
 	test('says "set", with the last 4 characters and when it was set', async () => {
-		const aiKey: SecretRef = { owner: { kind: "workspace", workspaceId: "acme" }, name: "ai.key" };
+		const aiKey: SecretRef = { owner: { kind: "workspace", workspaceId: ids.acme }, name: "ai.key" };
 		await install.secrets.set(aiKey, "sk-proj-4f9a8b7c6d5e4f3a2b1c0d9e8f7a1b2c");
 
 		const description = await install.secrets.describe(aiKey);
@@ -128,7 +161,7 @@ describe("describe", () => {
 
 describe("remove", () => {
 	test("forgets a secret: it is no longer set and can't be used", async () => {
-		const ref: SecretRef = { owner: { kind: "workspace", workspaceId: "gone" }, name: "ai.key" };
+		const ref: SecretRef = { owner: { kind: "workspace", workspaceId: ids.gone }, name: "ai.key" };
 		await install.secrets.set(ref, "sk-a-key-that-will-be-removed-soon");
 
 		await install.secrets.remove(ref);
@@ -147,10 +180,11 @@ describe("remove", () => {
 });
 
 describe("no read-back", () => {
-	const ref: SecretRef = { owner: { kind: "site", workspaceId: "acme", siteId: "shop" }, name: "webhook.secret" };
+	let ref: SecretRef;
 	const VALUE = "whsec-never-shown-anywhere-9f8e7d6c5b4a";
 
 	beforeAll(async () => {
+		ref = { owner: { kind: "site", workspaceId: ids.acme, siteId: ids.shop }, name: "webhook.secret" };
 		await install.secrets.set(ref, VALUE);
 	});
 
@@ -168,7 +202,7 @@ describe("no read-back", () => {
 
 	test("useWith refuses to hand the value back out of the callback", async () => {
 		await expect(install.secrets.useWith(ref, (value) => value)).rejects.toThrow(
-			"The useWith callback for the secret \"webhook.secret\" of Site shop in Workspace acme returned the secret's value. A secret's value must not leave the callback.",
+			`The useWith callback for the secret "webhook.secret" of Site ${ids.shop} in Workspace ${ids.acme} returned the secret's value. A secret's value must not leave the callback.`,
 		);
 		await expect(install.secrets.useWith(ref, async (value) => `Bearer ${value}`)).rejects.toThrow(
 			"returned the secret's value",

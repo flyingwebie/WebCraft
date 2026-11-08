@@ -7,9 +7,12 @@ export type SecretOwner =
 	| { kind: "workspace"; workspaceId: string }
 	| { kind: "site"; workspaceId: string; siteId: string };
 
+/** The Install itself, as the owner of a secret (Install SMTP, shared AI keys). */
+export type InstallSecretOwner = Extract<SecretOwner, { kind: "install" }>;
+
 /** Names one secret: its owner and a name unique within that owner, such as `smtp.password`. */
-export type SecretRef = {
-	owner: SecretOwner;
+export type SecretRef<Owner extends SecretOwner = SecretOwner> = {
+	owner: Owner;
 	name: string;
 };
 

@@ -20,20 +20,26 @@ const NEW_KEY = "the-master-key-the-install-rotates-to-00002";
 
 type Fixture = [SecretRef, string];
 const INSTALL_SMTP: Fixture = [{ owner: { kind: "install" }, name: "smtp.password" }, "install-smtp-password-123456"];
+/** The Workspace "acme" and its Site "shop" each get a secret once they exist. */
 const ACME_AI: Fixture = [
-	{ owner: { kind: "workspace", workspaceId: "acme" }, name: "ai.key" },
+	{ owner: { kind: "workspace", workspaceId: "" }, name: "ai.key" },
 	"sk-acme-ai-key-abcdefghijklmnop",
 ];
 const SHOP_CDN: Fixture = [
-	{ owner: { kind: "site", workspaceId: "acme", siteId: "shop" }, name: "cdn.token" },
+	{ owner: { kind: "site", workspaceId: "", siteId: "" }, name: "cdn.token" },
 	"cdn-token-for-the-shop-site-zz",
 ];
 const SECRETS = [INSTALL_SMTP, ACME_AI, SHOP_CDN];
 
 let install: TestInstall;
+let acme: string;
 
 beforeEach(async () => {
 	install = await createTestInstall({ masterKey: OLD_KEY });
+	acme = (await install.createWorkspace("acme")).id;
+	const shop = (await install.createSite(acme, { slug: "shop" })).id;
+	ACME_AI[0] = { owner: { kind: "workspace", workspaceId: acme }, name: "ai.key" };
+	SHOP_CDN[0] = { owner: { kind: "site", workspaceId: acme, siteId: shop }, name: "cdn.token" };
 	for (const [ref, value] of SECRETS) {
 		await install.secrets.set(ref, value);
 	}
@@ -194,7 +200,8 @@ test("when one secret can't be decrypted, rotates none of them", async () => {
 	const database = new pg.Client({ connectionString: install.databaseUrl });
 	await database.connect();
 	await database.query(
-		"UPDATE secrets SET ciphertext = set_byte(ciphertext, 0, get_byte(ciphertext, 0) # 1) WHERE workspace_id = 'acme' AND site_id IS NULL AND name = 'ai.key'",
+		"UPDATE secrets SET ciphertext = set_byte(ciphertext, 0, get_byte(ciphertext, 0) # 1) WHERE workspace_id = $1 AND site_id IS NULL AND name = 'ai.key'",
+		[acme],
 	);
 	await database.end();
 

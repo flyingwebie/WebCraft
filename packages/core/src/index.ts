@@ -6,6 +6,13 @@ export {
 	DEFAULT_ADMIN_LANGUAGE,
 	isAdminLanguage,
 } from "./admin-languages.ts";
+export {
+	type AuditDetails,
+	type AuditEntry,
+	type AuditVia,
+	type NewAuditEntry,
+	recordAudit,
+} from "./audit.ts";
 export { type Clock, systemClock } from "./clock.ts";
 export {
 	adminOriginFor,
@@ -42,8 +49,36 @@ export {
 	type People,
 	type Person,
 	type PersonPreferences,
-	SUPERADMIN_ROLE,
 } from "./people.ts";
+export {
+	type Actor,
+	type ActorMembership,
+	can,
+	INSTALL,
+	type PersonActor,
+	permissionsOn,
+	type Reach,
+	type Resource,
+	workspacesReached,
+} from "./permissions/can.ts";
+export {
+	ALL_PERMISSIONS,
+	isPermission,
+	isWorkspaceRole,
+	type Level,
+	PERMISSIONS,
+	type Permission,
+	ROLE_KEYS,
+	ROLES,
+	type RoleDefinition,
+	type RoleKey,
+	type RoleReach,
+	roleDefinition,
+	STAFF_ROLE,
+	SUPERADMIN_ROLE,
+	WORKSPACE_ROLES,
+	type WorkspaceRole,
+} from "./permissions/roles.ts";
 export * from "./secrets/index.ts";
 export type { InstallPorts, InstallServices } from "./services.ts";
 export {
@@ -54,3 +89,40 @@ export {
 	SetupTokenInvalidError,
 	type SuperadminAccount,
 } from "./setup.ts";
+export type {
+	Access,
+	DataLayer,
+	InstallScope,
+	ScopedQueries,
+	ScopedSecrets,
+	SelectOptions,
+	Site,
+	SiteScope,
+	SiteTable,
+	Workspace,
+	WorkspaceScope,
+	WorkspaceTable,
+} from "./tenancy/data-layer.ts";
+export { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "./tenancy/errors.ts";
+export {
+	checkSlug,
+	normaliseSlug,
+	RESERVED_SITE_SLUGS,
+	SITE_NAME_MAX_LENGTH,
+	SlugInvalidError,
+	type SlugProblem,
+	SlugTakenError,
+} from "./tenancy/sites.ts";
+export {
+	INVITE_LIFETIME_DAYS,
+	type InviteDetails,
+	InviteInvalidError,
+	type InvitesService,
+	type StaffInvite,
+	type StaffMember,
+	StaffNotFoundError,
+	type StaffService,
+	type StaffWorkspaces,
+	type WorkspaceRef,
+} from "./tenancy/staff.ts";
+export { WORKSPACE_NAME_MAX_LENGTH, type WorkspaceSummary } from "./tenancy/workspaces.ts";

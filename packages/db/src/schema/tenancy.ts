@@ -1,0 +1,140 @@
+import { boolean, foreignKey, index, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+
+import { installRoles, people } from "./people.ts";
+
+/**
+ * Workspaces: one per client organisation (ADR 0001). Every row of tenant data is tied to one, and
+ * the data layer in `@webcraft/core` never queries tenant data without one (ADR 0007).
+ */
+export const workspaces = pgTable("workspaces", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	name: text("name").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
+
+/**
+ * Sites: one website inside a Workspace. The slug is unique on the Install, because a Site's
+ * Staging address is `<slug>.<sites domain>`.
+ *
+ * Tables of Site data carry both `workspace_id` and `site_id`, with a foreign key to
+ * `(workspace_id, id)` here, so a row can never point at a Site of another Workspace.
+ */
+export const sites = pgTable(
+	"sites",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		slug: text("slug").notNull().unique(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [unique("sites_workspace_id_id_unique").on(table.workspaceId, table.id)],
+);
+
+/**
+ * The Workspaces a Staff member is assigned to, when they aren't assigned to all of them
+ * (`install_roles.all_workspaces`). Staff reach Workspaces only this way: they never hold a
+ * Membership (ADR 0001).
+ */
+export const staffWorkspaces = pgTable(
+	"staff_workspaces",
+	{
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => installRoles.personId, { onDelete: "cascade" }),
+		workspaceId: uuid("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.personId, table.workspaceId] }),
+		index("staff_workspaces_workspace_id_idx").on(table.workspaceId),
+	],
+);
+
+/**
+ * A Member's place in one Workspace: a text role key (`owner`, `editor`, `author`; ADR 0028) and
+ * the Sites they reach, kept apart from the role: every Site of the Workspace (`all_sites`) or the
+ * Sites listed in `membership_sites`.
+ */
+export const memberships = pgTable(
+	"memberships",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		role: text("role").notNull(),
+		allSites: boolean("all_sites").notNull().default(true),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [
+		unique("memberships_workspace_id_person_id_unique").on(table.workspaceId, table.personId),
+		unique("memberships_id_workspace_id_unique").on(table.id, table.workspaceId),
+		index("memberships_person_id_idx").on(table.personId),
+	],
+);
+
+/** The Sites a Membership reaches when it doesn't reach them all; always Sites of its own Workspace. */
+export const membershipSites = pgTable(
+	"membership_sites",
+	{
+		membershipId: uuid("membership_id").notNull(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.membershipId, table.siteId] }),
+		foreignKey({
+			name: "membership_sites_membership_fkey",
+			columns: [table.membershipId, table.workspaceId],
+			foreignColumns: [memberships.id, memberships.workspaceId],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "membership_sites_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+	],
+);
+
+/**
+ * Invitations waiting to be accepted. Only a SHA-256 hash of each invite's token is stored; the
+ * token itself is only in the email. `role` is the text role key the invite grants (`staff` for
+ * now). An invite is deleted once it is accepted, revoked or replaced.
+ */
+export const invites = pgTable(
+	"invites",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		email: text("email").notNull(),
+		tokenHash: text("token_hash").notNull().unique(),
+		role: text("role").notNull(),
+		/** Staff invites: whether the Staff member will reach every Workspace, or those in `invite_workspaces`. */
+		allWorkspaces: boolean("all_workspaces").notNull().default(false),
+		invitedBy: uuid("invited_by").references(() => people.id, { onDelete: "set null" }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [index("invites_email_idx").on(table.email)],
+);
+
+/** The Workspaces a Staff invite assigns, when it doesn't assign them all. */
+export const inviteWorkspaces = pgTable(
+	"invite_workspaces",
+	{
+		inviteId: uuid("invite_id")
+			.notNull()
+			.references(() => invites.id, { onDelete: "cascade" }),
+		workspaceId: uuid("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+	},
+	(table) => [primaryKey({ columns: [table.inviteId, table.workspaceId] })],
+);

@@ -27,7 +27,7 @@ export function createAdminApi(services: InstallServices): (request: Request) =>
 	return async (request) => {
 		const { matched, response } = await handler.handle(request, {
 			prefix: ADMIN_API_PREFIX,
-			context: { services, headers: request.headers },
+			context: { services, headers: request.headers, via: { kind: "admin" } },
 		});
 		if (!matched) return null;
 		response.headers.set("cache-control", "no-store");
