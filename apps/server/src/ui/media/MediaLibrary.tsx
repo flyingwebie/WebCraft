@@ -116,12 +116,27 @@ export function MediaLibrary({
 	const folderId = search.folder && search.folder !== "none" ? search.folder : null;
 	const processing = list.items.some((item) => item.status === "processing") || selected?.status === "processing";
 
-	// The worker cleans images in the background: look again until every file shown is ready.
+	// The worker cleans images in the background: look again until every file shown is ready, every 2
+	// seconds for the first minute, then every 15 (a worker that is down would otherwise be asked forever).
+	const refresh = useRef(onChanged);
+	refresh.current = onChanged;
 	useEffect(() => {
 		if (!processing) return;
-		const timer = setInterval(() => void onChanged(), 2000);
-		return () => clearInterval(timer);
-	}, [processing, onChanged]);
+		let looks = 0;
+		let timer: ReturnType<typeof setTimeout>;
+		const look = () => {
+			timer = setTimeout(
+				async () => {
+					looks++;
+					await refresh.current();
+					look();
+				},
+				looks < 30 ? 2000 : 15_000,
+			);
+		};
+		look();
+		return () => clearTimeout(timer);
+	}, [processing]);
 
 	const upload = async (files: readonly File[]) => {
 		if (files.length === 0 || !canUpload) return;

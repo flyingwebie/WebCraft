@@ -74,8 +74,10 @@ export function renderMediaImage(image: PageMedia, own: readonly [string, string
 	if (className !== undefined) attributes.push(["class", className]);
 	attributes.push(["src", image.url], ["alt", given.get("alt") ?? image.alt ?? ""]);
 	if (width && height) attributes.push(["width", String(width)], ["height", String(height)]);
-	attributes.push(["loading", given.get("loading") ?? (first ? "eager" : "lazy")]);
-	const fetchPriority = given.get("fetchpriority") ?? (first ? "high" : undefined);
+	const loading = given.get("loading") ?? (first ? "eager" : "lazy");
+	attributes.push(["loading", loading]);
+	// A Template that makes its first image lazy on purpose doesn't get it fetched first either.
+	const fetchPriority = given.get("fetchpriority") ?? (first && loading !== "lazy" ? "high" : undefined);
 	if (fetchPriority !== undefined) attributes.push(["fetchpriority", fetchPriority]);
 	for (const [name, value] of own) {
 		if (name !== "class" && !WRITTEN.has(name)) attributes.push([name, value]);

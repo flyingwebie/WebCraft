@@ -370,7 +370,7 @@ An `<img>` whose `src` reads `media:<id>`, written as fixed text in a Template o
 ```
 
 - `alt` is the Template's own when it gives one (`alt=""` makes it Decorative), else the Media library's in the page's language, else empty. `width` and `height` are the original's, or the Template's (one of them scales the other). `sizes` is the Template's, or made from the width shown. The Template's other attributes and Classes stay on the `<img>`.
-- The first Media image in `<main>` loads with `loading="eager" fetchpriority="high"`; every other one `loading="lazy"` (a Template's own `loading` or `fetchpriority` wins).
+- The first Media image in `<main>` loads with `loading="eager" fetchpriority="high"`; every other one `loading="lazy"`. A Template's own `loading` or `fetchpriority` wins, and a first image the Template makes lazy gets no high priority.
 - Before variants exist, the `<img>` comes alone; before the original is cleaned, or for an id that isn't one of the Site's ready images, nothing renders. In any other URL attribute (`href`, a video's `src`), `media:<id>` becomes the file's address.
 - Template markup writes it as it is stored, `<img src="media:<id>">`: the parser checks the id's form only (a file can be deleted later, so it isn't looked up), and `{{ photo }}` in an `src` reads a media Field the same way.
 ## Template markup

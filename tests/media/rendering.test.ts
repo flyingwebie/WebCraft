@@ -155,6 +155,22 @@ describe("Media images on a page", () => {
 		);
 	});
 
+	test("a Template that makes its first image lazy keeps it lazy, without high priority", async () => {
+		const { postType } = await staff.api.postTypes.create({ siteId, name: "Notices", urlPattern: "/notices/{slug}" });
+		const { template } = await staff.api.templates.saveEntryTemplate({
+			siteId,
+			postTypeId: postType.id,
+			tree: tree(element("img", [], { src: `media:${badge.id}`, alt: "", loading: "lazy" })),
+		});
+		await staff.api.templates.publish({ siteId, templateId: template.id });
+		const { entry } = await editor.api.entries.create({ siteId, postTypeId: postType.id, title: "Closed Monday" });
+		await editor.api.entries.publish({ siteId, entryId: entry.id });
+
+		expect(await mainOf("/notices/closed-monday")).toContain(
+			`<img src="${badge.url}" alt="" width="700" height="350" loading="lazy">`,
+		);
+	});
+
 	test("alt text changed in the Media library shows on published pages at once", async () => {
 		await editor.api.media.update({ siteId, mediaId: hero.id, alt: "A sourdough loaf, fresh from the oven" });
 
