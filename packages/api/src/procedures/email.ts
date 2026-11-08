@@ -51,7 +51,7 @@ export const smtp = {
 		.use(sensitive("installSmtp.change"))
 		.input(smtpSettings.extend({ password: smtpPassword.nullable().optional() }))
 		.handler(async ({ context, input }) => {
-			await context.services.email.installSmtp.update(input, context.person.id);
+			await context.services.email.installSmtp.update(context.install, input);
 			return installSmtpView(context.services);
 		}),
 

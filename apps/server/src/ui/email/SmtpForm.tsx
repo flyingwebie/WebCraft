@@ -10,6 +10,7 @@ import { type FormEvent, type ReactNode, type RefObject, useEffect, useId, useRe
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useSensitiveAction } from "../identity-check.tsx";
 import { PasswordInput } from "../PasswordInput.tsx";
 
 /** The Install SMTP as the API shows it. */
@@ -49,6 +50,7 @@ export function SmtpForm({
 	actions(state: { busy: boolean }): ReactNode;
 }) {
 	const t = useT();
+	const runSensitive = useSensitiveAction();
 	const settings = view.settings;
 	const [host, setHost] = useState(settings?.host ?? "");
 	const [port, setPort] = useState(String(settings?.port ?? 587));
@@ -112,11 +114,14 @@ export function SmtpForm({
 		setBusy(true);
 		try {
 			const api = await getApi();
-			const saved = await api.install.smtp.update({
-				...values,
-				// No username: the server takes mail without signing in, so no password is kept.
-				password: values.username ? typedPassword : null,
-			});
+			// A Sensitive action: it changes a secret, so it may ask the person to confirm it's them.
+			const saved = await runSensitive(() =>
+				api.install.smtp.update({
+					...values,
+					// No username: the server takes mail without signing in, so no password is kept.
+					password: values.username ? typedPassword : null,
+				}),
+			);
 			setPassword("");
 			setReplacing(!(saved.settings?.password.set ?? false));
 			await onSaved(saved);

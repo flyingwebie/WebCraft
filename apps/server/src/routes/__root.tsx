@@ -5,6 +5,7 @@ import { Toaster } from "@webcraft/ui/components/sonner.tsx";
 import appCss from "../index.css?url";
 import { getApi } from "../ui/api.ts";
 import { AdminIntl, useT } from "../ui/i18n.tsx";
+import { IdentityCheckProvider } from "../ui/identity-check.tsx";
 
 export const Route = createRootRoute({
 	// Every page needs to know who is signed in, the Admin language and theme, and the setup stage.
@@ -35,9 +36,11 @@ function RootDocument() {
 			</head>
 			<body>
 				<AdminIntl language={code}>
-					<SkipLink />
-					<Outlet />
-					<Toaster theme={shell.theme} position="bottom-right" />
+					<IdentityCheckProvider>
+						<SkipLink />
+						<Outlet />
+						<Toaster theme={shell.theme} position="bottom-right" />
+					</IdentityCheckProvider>
 				</AdminIntl>
 				<Scripts />
 			</body>

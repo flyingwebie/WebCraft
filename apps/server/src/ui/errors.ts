@@ -20,6 +20,12 @@ export function errorMessage(error: unknown): MessageKey {
 		case "INVITE_INVALID":
 		case "SLUG_TAKEN":
 		case "EMAIL_ALWAYS_SENT":
+		case "ACCOUNT_LOCKED":
+		case "TOO_MANY_REQUESTS":
+		case "IDENTITY_CHECK_REQUIRED":
+		case "IDENTITY_CHECK_CANCELLED":
+		case "SENSITIVE_ACTION_REFUSED":
+		case "SESSION_NOT_FOUND":
 			return `errors.${code}`;
 		case "SLUG_INVALID":
 			return data?.problem === "reserved" ? "errors.SLUG_RESERVED" : "errors.SLUG_INVALID";

@@ -26,6 +26,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Install › Workspaces (Staff)", path: "/workspaces", as: "staff" },
 	{ name: "Install › Staff", path: "/staff", as: "superadmin" },
 	{ name: "Install settings › General", path: "/settings/general", as: "superadmin" },
+	{ name: "Install settings › Security", path: "/settings/security", as: "superadmin" },
 	{ name: "Workspace › Sites", path: ({ workspaceId }) => `/workspaces/${workspaceId}`, as: "superadmin" },
 	{ name: "Workspace › Sites (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}`, as: "staff" },
 	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
