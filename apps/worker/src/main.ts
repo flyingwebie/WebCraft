@@ -1,19 +1,6 @@
 // The worker process (Node LTS, ADR 0006): works the job queue until it is told to stop.
 // Node runs this TypeScript directly, so every relative import names its `.ts` file.
-import {
-	coreJobs,
-	createJobQueue,
-	createLogger,
-	createLogMailer,
-	fetchHttp,
-	type InstallServices,
-	loadInstallConfig,
-	loadMasterKey,
-	openSecrets,
-	systemClock,
-	workJobs,
-} from "@webcraft/core";
-import { assertSchemaCurrent, createBoss, type Database, openDatabase } from "@webcraft/db";
+import { coreJobs, createLogger, type OpenedParts, openInstall, workJobs } from "@webcraft/core";
 
 /** How long a stopping worker waits for running jobs to finish. */
 const STOP_TIMEOUT_MS = 30_000;
@@ -21,7 +8,7 @@ const STOP_TIMEOUT_MS = 30_000;
 const log = createLogger({ fields: { process: "worker" } });
 
 /** What has been opened so far, so a stop signal at any moment closes exactly that. */
-const running: { boss?: ReturnType<typeof createBoss>; database?: Database } = {};
+const running: OpenedParts = {};
 
 async function stop(signal: NodeJS.Signals): Promise<void> {
 	log.info("The worker is stopping", { signal });
@@ -39,28 +26,7 @@ async function main(): Promise<void> {
 	process.once("SIGTERM", stop);
 	process.once("SIGINT", stop);
 
-	const config = loadInstallConfig(process.env);
-	const masterKey = loadMasterKey(process.env);
-	running.database = openDatabase(config.databaseUrl, { applicationName: "webcraft-worker" });
-	await assertSchemaCurrent(running.database);
-	const secrets = await openSecrets({ database: running.database, masterKey, clock: systemClock });
-
-	const boss = createBoss(config.databaseUrl, { application_name: "webcraft-worker", instanceName: "worker" });
-	boss.on("error", (error) => log.error("The job queue reported an error", { error }));
-	running.boss = boss;
-	await boss.start();
-
-	const services: InstallServices = {
-		config,
-		database: running.database,
-		jobs: createJobQueue(boss),
-		// Until Install SMTP exists, emails are written to the log with a warning.
-		mailer: createLogMailer(log),
-		secrets,
-		http: fetchHttp,
-		clock: systemClock,
-		log,
-	};
+	const { services, boss } = await openInstall({ env: process.env, processName: "worker", log, opened: running });
 	await workJobs(boss, coreJobs, services);
 	log.info("The worker is working the job queue", { jobs: coreJobs.map((job) => job.name) });
 }

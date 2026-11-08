@@ -8,6 +8,7 @@ export {
 } from "./config.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export { fetchHttp, type OutgoingHttp } from "./http.ts";
+export { type InstallProcess, type OpenedParts, type OpenInstallOptions, openInstall } from "./install.ts";
 export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
 export { createLogMailer, type Mailer, type OutgoingEmail } from "./mailer.ts";
