@@ -30,6 +30,12 @@ export {
 	loadDatabaseUrl,
 	loadInstallConfig,
 } from "./config.ts";
+export {
+	CONFIRMATION_LIFETIME_MS,
+	type Confirmation,
+	ConfirmationInvalidError,
+	type ConfirmationProblem,
+} from "./confirmations.ts";
 export * from "./content/index.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./email/index.ts";

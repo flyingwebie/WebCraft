@@ -2,33 +2,35 @@ import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
-import { classCatalogue, listClasses } from "../design-system/classes.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
-import { entryValues, lockEntry, siteLanguages } from "./entries.ts";
-import { EntryIncompleteError, EntrySlugTakenError } from "./errors.ts";
+import { entryValues, lockEntry, siteLanguages, versionFindings } from "./entries.ts";
+import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError } from "./errors.ts";
+import { linksIn } from "./field-values.ts";
+import { publishGlobals } from "./globals.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { getPostType } from "./post-types.ts";
-import { lockTemplate, parseEntryTemplate } from "./templates.ts";
+import { checkReferences, saveLinks } from "./relationships.ts";
+import { checkEntryTemplate, lockTemplate } from "./templates.ts";
 import { storedVersion } from "./values.ts";
 
 /**
- * One item to publish. Globals, Components, Forms and the Design system join Entries and Templates;
- * Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
+ * One item to publish. Components, Forms and the Design system join Entries, Templates and the
+ * Globals; Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
  */
-export type PublishItem = { kind: "entry"; id: string } | { kind: "template"; id: string };
+export type PublishItem = { kind: "entry"; id: string } | { kind: "template"; id: string } | { kind: "globals" };
 
 /** What publishing did. */
 export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Date };
 
 /**
- * The Permission publishing an item needs: Content takes `entry.publish` (Editors, Owners, Staff);
- * Structure, such as a Template, takes `structure.edit` (Staff only).
+ * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
+ * (Editors, Owners, Staff); Structure, such as a Template, takes `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
-	return item.kind === "entry" ? "entry.publish" : "structure.edit";
+	return item.kind === "template" ? "structure.edit" : "entry.publish";
 }
 
 /**
@@ -37,16 +39,22 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
  * the new version with the next request. Open the Site with `publishPermission(item)`; the check runs
  * again here, so every caller (the admin, the worker's Scheduled publishes) holds it.
  *
- * Refuses an Entry whose required values are empty (`EntryIncompleteError`) or whose slug another
- * published Entry of its Post Type has (`EntrySlugTakenError`), and a Template that no longer fits
- * its Post Type (`ElementTreeInvalidError`).
+ * Refuses an Entry (or the Globals) whose values break a rule (`EntryInvalidError`) or whose required
+ * values are empty (`EntryIncompleteError`), an Entry whose slug another published Entry of its Post
+ * Type has (`EntrySlugTakenError`), and a Template that no longer fits its Post Type
+ * (`ElementTreeInvalidError`).
  */
 export async function publish(scope: SiteScope, item: PublishItem): Promise<Published> {
 	const permission = publishPermission(item);
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
 	return scope.transaction(async (tx) => {
-		const published = item.kind === "entry" ? await publishEntry(tx, item.id) : await publishTemplate(tx, item.id);
+		const published =
+			item.kind === "entry"
+				? await publishEntry(tx, item.id)
+				: item.kind === "template"
+					? await publishTemplate(tx, item.id)
+					: await publishGlobals(tx);
 		await clearPageCache(tx);
 		return published;
 	});
@@ -56,14 +64,13 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 	const row = await lockEntry(scope, entryId);
 	const postType = await getPostType(scope, row.postTypeId);
 	const { defaultLanguage } = await siteLanguages(scope);
+	const languages = { language: defaultLanguage, defaultLanguage };
 	const draft = storedVersion(row.draft);
-	const values = entryValues(draft, postType.fields, { language: defaultLanguage, defaultLanguage });
-	const missing = [
-		...(values.title ? [] : ["title"]),
-		...(values.slug ? [] : ["slug"]),
-		...postType.fields.filter((field) => field.required && !values.fields[field.key]).map((field) => field.key),
-	];
-	if (missing.length > 0) throw new EntryIncompleteError(missing);
+	const findings = versionFindings(draft, postType.fields, languages);
+	await checkReferences(scope, findings.references, "rule");
+	if (findings.problems.some((problem) => problem.rule !== "required")) throw new EntryInvalidError(findings.problems);
+	if (findings.missing.length > 0) throw new EntryIncompleteError(findings.missing);
+	const values = entryValues(draft, postType.fields, languages);
 
 	const now = scope.now();
 	await scope.update(
@@ -71,6 +78,7 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 		{ published: draft, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
 		eq(entries.id, row.id),
 	);
+	await saveLinks(scope, row.id, "published", linksIn(draft.values, postType.fields));
 	await scope.delete(publishedSlugs, eq(publishedSlugs.entryId, row.id));
 	try {
 		await scope.insert(publishedSlugs, {
@@ -94,9 +102,8 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 
 async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
 	const row = await lockTemplate(scope, templateId);
-	// The Post Type may have lost a Field the Draft reads since it was saved.
-	const { ids } = classCatalogue(await listClasses(scope));
-	const tree = parseEntryTemplate(row.draft, await getPostType(scope, row.postTypeId ?? ""), ids);
+	// The Post Type, the Globals, what Relationships point at or the Classes may have changed since.
+	const tree = await checkEntryTemplate(scope, row.postTypeId ?? "", row.draft);
 	const now = scope.now();
 	await scope.update(
 		templates,

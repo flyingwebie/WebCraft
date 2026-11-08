@@ -1,4 +1,4 @@
-import { templates } from "@webcraft/db/schema";
+import { globals, templates } from "@webcraft/db/schema";
 import {
 	type ElementTree,
 	type MarkupNotice,
@@ -11,10 +11,12 @@ import { and, eq } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { sameJson } from "./entries.ts";
 import { TemplateNotFoundError } from "./errors.ts";
-import { BUILT_IN_FIELDS } from "./fields.ts";
-import { getPostType, type PostType, UUID } from "./post-types.ts";
+import type { FieldDefinition } from "./field-types.ts";
+import { storedFields } from "./fields.ts";
+import { sameJson } from "./json.ts";
+import { getPostType, listPostTypes, type PostType, UUID } from "./post-types.ts";
+import { knownValues } from "./render-values.ts";
 
 /** The kinds of Template. The Site template and Archive templates join the Entry template. */
 export type TemplateKind = "entry";
@@ -47,23 +49,62 @@ export type SavedTemplateMarkup = { template: Template; markup: string; notices:
 /** A Template's Draft and published version as Template markup. */
 export type TemplateMarkup = { draft: string; published: string | null };
 
-/** What an Entry template of `postType` may hold: the built-in Fields and its Fields, and no `<main>`. */
-function entryTemplateRules(postType: PostType) {
-	const names = new Set<string>([...BUILT_IN_FIELDS, ...postType.fields.map((field) => field.key)]);
+/** What an Entry template's values may come from: its Post Type, what Relationships point at, the Globals. */
+export type EntryTemplateContext = {
+	postType: PostType;
+	/** Every Post Type of the Site, for what Relationships point at. */
+	postTypes: readonly PostType[];
+	/** The Globals' Fields, for `site.x`. */
+	globalFields: readonly FieldDefinition[];
+};
+
+/**
+ * What an Entry template may hold: the built-in Fields, the Post Type's Fields and their parts
+ * (`address.city`, `team.name`, what a Relationship points at: `category.title`) and the Globals as
+ * `site.x` (see `render-values.ts`); no `<main>`, which is the Site template's, around it.
+ */
+function entryTemplateRules(context: EntryTemplateContext) {
 	return {
-		isKnownValue: (path: string) => names.has(path),
+		isKnownValue: knownValues({
+			fields: context.postType.fields,
+			postTypes: context.postTypes,
+			globalFields: context.globalFields,
+		}),
 		refuseElement: (tag: string) =>
 			tag === "main" ? "An Entry template renders inside the page's <main>; it can't hold another." : undefined,
 	};
 }
 
+/** The Site as an Entry template of `postTypeId` reads it now. */
+async function entryTemplateContext(scope: SiteScope, postTypeId: string): Promise<EntryTemplateContext> {
+	const postType = await getPostType(scope, postTypeId);
+	const postTypes = await listPostTypes(scope);
+	const globalFields = storedFields((await scope.first(globals))?.fields);
+	return { postType, postTypes, globalFields };
+}
+
 /**
- * Checks a tree as an Entry template of `postType` and answers it in canonical form. It may read the
- * built-in Fields and the Post Type's Fields, and reference the Site's Classes (`classIds`); `<main>`
- * belongs to the Site template, around it. Throws `ElementTreeInvalidError` listing what is wrong.
+ * Checks a tree as an Entry template and answers it in canonical form: it may read what
+ * `entryTemplateRules` allows and reference the Site's Classes (`classIds`). Throws
+ * `ElementTreeInvalidError` listing what is wrong.
  */
-export function parseEntryTemplate(tree: unknown, postType: PostType, classIds: ReadonlySet<string>): ElementTree {
-	return parseElementTree(tree, { ...entryTemplateRules(postType), classIds });
+export function parseEntryTemplate(
+	tree: unknown,
+	context: EntryTemplateContext,
+	classIds: ReadonlySet<string>,
+): ElementTree {
+	return parseElementTree(tree, { ...entryTemplateRules(context), classIds });
+}
+
+/**
+ * Checks a tree as the Entry template of a Post Type of the scope's Site, with the Site as it is now:
+ * on save, and again on publish (the Post Type, the Globals, what Relationships point at or the
+ * Classes may have changed since).
+ */
+export async function checkEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<ElementTree> {
+	const context = await entryTemplateContext(scope, postTypeId);
+	const { ids } = classCatalogue(await listClasses(scope));
+	return parseEntryTemplate(tree, context, ids);
 }
 
 /**
@@ -71,10 +112,10 @@ export function parseEntryTemplate(tree: unknown, postType: PostType, classIds: 
  * the template the first time. Visitors see nothing of it until it is published.
  */
 export async function saveEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template> {
-	const postType = await getPostType(scope, postTypeId);
+	const context = await entryTemplateContext(scope, postTypeId);
 	const { ids } = classCatalogue(await listClasses(scope));
-	const draft = parseEntryTemplate(tree, postType, ids);
-	return retryOnRace(() => scope.transaction((tx) => writeEntryTemplateDraft(tx, postType, draft)));
+	const draft = parseEntryTemplate(tree, context, ids);
+	return retryOnRace(() => scope.transaction((tx) => writeEntryTemplateDraft(tx, context.postType, draft)));
 }
 
 /**
@@ -87,17 +128,17 @@ export async function saveEntryTemplateMarkup(
 	postTypeId: string,
 	markup: string,
 ): Promise<SavedTemplateMarkup> {
-	const postType = await getPostType(scope, postTypeId);
+	const context = await entryTemplateContext(scope, postTypeId);
 	return retryOnRace(async () => {
 		const catalogue = classCatalogue(await listClasses(scope));
 		const { tree, notices } = parseTemplateMarkup(markup, {
-			...entryTemplateRules(postType),
+			...entryTemplateRules(context),
 			classNamed: catalogue.named,
 			classForStyle: catalogue.forStyle,
 		});
 		const template = await scope.transaction(async (tx) => {
 			await saveCreatedClasses(tx, catalogue);
-			return writeEntryTemplateDraft(tx, postType, tree);
+			return writeEntryTemplateDraft(tx, context.postType, tree);
 		});
 		return { template, markup: printMarkup(template.draft, catalogue), notices };
 	});
