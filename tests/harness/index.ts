@@ -55,6 +55,12 @@ export const TEST_ADMIN_HOST = "admin.test";
 export const TEST_ADMIN_ORIGIN = `https://${TEST_ADMIN_HOST}`;
 
 /**
+ * The Sites domain of every test Install unless a test chooses another (`WEBCRAFT_SITES_DOMAIN`):
+ * each Site answers on its Staging address, `https://<site slug>.sites.test`.
+ */
+export const TEST_SITES_DOMAIN = "sites.test";
+
+/**
  * The Master key of every test Install unless a test chooses another. Tests never use the key in
  * `.env`, so they behave the same on every machine.
  */
@@ -74,6 +80,10 @@ export type TestInstallOptions = {
 	now?: Date;
 	/** The Master key the Install starts with (`WEBCRAFT_SECRET_KEY`); `TEST_MASTER_KEY` unless given. */
 	masterKey?: string;
+	/** `WEBCRAFT_SITES_DOMAIN`: `TEST_SITES_DOMAIN` unless given; null for an Install without one. */
+	sitesDomain?: string | null;
+	/** `WEBCRAFT_ADMIN_HOST`: `TEST_ADMIN_HOST` unless given. */
+	adminHost?: string;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -104,6 +114,8 @@ export type DrainReport = {
 export type TestInstall = {
 	/** The admin hostname, `admin.test`. */
 	adminHost: string;
+	/** The domain Staging addresses sit under, `sites.test`, or null when the Install has none. */
+	sitesDomain: string | null;
 	/** The Install's database, for tests that start a real process (such as the worker) against it. */
 	databaseUrl: string;
 	/**
@@ -247,13 +259,17 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const http = createFakeHttp();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
-	const env = {
+	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
+	const adminOrigin = `https://${adminHost}`;
+	const sitesDomain = options.sitesDomain === undefined ? TEST_SITES_DOMAIN : options.sitesDomain;
+	const env: Record<string, string> = {
 		DATABASE_URL: databaseUrl,
-		WEBCRAFT_ADMIN_HOST: TEST_ADMIN_HOST,
+		WEBCRAFT_ADMIN_HOST: adminHost,
+		...(sitesDomain ? { WEBCRAFT_SITES_DOMAIN: sitesDomain } : {}),
 		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
 	};
 	const ports: InstallPorts = {
-		config: { databaseUrl, adminHost: TEST_ADMIN_HOST, adminOrigin: TEST_ADMIN_ORIGIN },
+		config: { databaseUrl, adminHost, adminOrigin, sitesDomain },
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
@@ -274,10 +290,10 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	// Scheduled jobs come due by the test clock: the drain sends each one whose time came since then.
 	const schedulesCheckedAt = { time: clock.now() };
 	// The handler keeps this object; a restart swaps the services inside it.
-	const services: InstallServices = await start(env[MASTER_KEY_VARIABLE]);
+	const services: InstallServices = await start(env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY);
 	const secretStore = (masterKey: string) =>
 		createSecrets({ database, clock, masterKey: parseMasterKey(masterKey, MASTER_KEY_VARIABLE) });
-	let secrets = secretStore(env[MASTER_KEY_VARIABLE]);
+	let secrets = secretStore(env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY);
 	const handle = createWebHandler({ services });
 	const send = (request: Request) => handle(request);
 
@@ -303,7 +319,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		{ email, password }: Pick<TestAccount, "email" | "password">,
 		browserOptions: TestBrowserOptions = {},
 	) => {
-		const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN, ...browserOptions });
+		const browser = createTestBrowser({ send, adminOrigin, ...browserOptions });
 		await browser.api.session.signIn({ email, password });
 		return browser;
 	};
@@ -329,13 +345,14 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	};
 
 	return {
-		adminHost: TEST_ADMIN_HOST,
+		adminHost,
+		sitesDomain,
 		databaseUrl,
 		env,
-		adminUrl: (path) => new URL(path, TEST_ADMIN_ORIGIN).toString(),
+		adminUrl: (path) => new URL(path, adminOrigin).toString(),
 		request: (input, init) =>
 			handle(input instanceof Request ? new Request(input, init) : new Request(String(input), init)),
-		browser: (browserOptions) => createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN, ...browserOptions }),
+		browser: (browserOptions) => createTestBrowser({ send, adminOrigin, ...browserOptions }),
 		createSuperadmin,
 		signIn,
 		superadmin,
@@ -387,7 +404,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 				await invite();
 			});
 			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
-			const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
+			const browser = createTestBrowser({ send, adminOrigin });
 			const { personId } = await browser.api.invites.accept({ token, ...account });
 			return { account, personId, browser };
 		},
@@ -411,7 +428,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		clock,
 		logs,
 		async restart(restartOptions = {}) {
-			const masterKey = restartOptions.masterKey ?? env[MASTER_KEY_VARIABLE];
+			const masterKey = restartOptions.masterKey ?? env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY;
 			Object.assign(services, await start(masterKey));
 			secrets = secretStore(masterKey);
 			env[MASTER_KEY_VARIABLE] = masterKey;

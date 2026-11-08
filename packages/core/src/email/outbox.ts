@@ -153,7 +153,10 @@ async function attemptDelivery(ports: OutboxPorts, attempt: Attempt): Promise<vo
 	}
 
 	const attemptedAt = clock.now();
-	const outcome = await send(ports, smtp, emailOf(attempt.message, smtp.settings));
+	// Delivery is at least once: if the server takes the email but recording that fails, the job is
+	// retried and sends it again. The Message-ID stays the same, so mail clients can drop the copy.
+	const email = { ...emailOf(attempt.message, smtp.settings), messageId: messageIdOf(row.id, smtp.settings) };
+	const outcome = await send(ports, smtp, email);
 	const attempts = attempt.attempt;
 
 	if (outcome.ok) {
@@ -290,6 +293,12 @@ export function emailOf(message: Omit<Message, "type">, settings: SmtpSettings):
 		html: message.html,
 		headers: message.headers,
 	};
+}
+
+/** One Message-ID per Email log line: `<line id@the sender's domain>`. */
+function messageIdOf(emailId: string, settings: SmtpSettings): string {
+	const domain = settings.fromAddress.split("@").pop() || "webcraft.invalid";
+	return `<${emailId}@${domain}>`;
 }
 
 function messageOf(email: OutboxEmail): Message {

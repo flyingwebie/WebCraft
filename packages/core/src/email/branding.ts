@@ -1,6 +1,13 @@
 import type { Database } from "@webcraft/db";
 
 import { readSettingsRow, writeSettingsRow } from "../install-settings.ts";
+import {
+	FOOTER_MAX_LENGTH,
+	isAccentColour,
+	isLogoUrl,
+	LOGO_URL_MAX_LENGTH,
+	SENDER_NAME_MAX_LENGTH,
+} from "./branding-rules.ts";
 
 /**
  * Install branding: what the Superadmin sets for every System email. Null means the default: the
@@ -36,9 +43,7 @@ export type InstallBranding = {
 /** WebCraft's own accent colour for emails: the admin's orange, dark enough for white text. */
 export const DEFAULT_ACCENT_COLOUR = "#c2410c";
 
-export const SENDER_NAME_MAX_LENGTH = 80;
-export const FOOTER_MAX_LENGTH = 500;
-export const LOGO_URL_MAX_LENGTH = 2048;
+export { FOOTER_MAX_LENGTH, isAccentColour, isLogoUrl, LOGO_URL_MAX_LENGTH, SENDER_NAME_MAX_LENGTH };
 
 const PRODUCT_NAME = "WebCraft";
 
@@ -103,19 +108,4 @@ function checkFooter(value: string | null): string | null {
 	if (!footer) return null;
 	if (footer.length > FOOTER_MAX_LENGTH) throw new TypeError("The footer text is too long.");
 	return footer;
-}
-
-/** An accent colour as Install branding takes it: `#rrggbb`. */
-export function isAccentColour(value: string): boolean {
-	return /^#[0-9a-fA-F]{6}$/.test(value);
-}
-
-/** A logo address as Install branding takes it: an absolute HTTPS URL. */
-export function isLogoUrl(value: string): boolean {
-	if (value.length > LOGO_URL_MAX_LENGTH) return false;
-	try {
-		return new URL(value).protocol === "https:";
-	} catch {
-		return false;
-	}
 }

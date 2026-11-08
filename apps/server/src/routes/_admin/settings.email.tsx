@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
+import { isAccentColour, isLogoUrl } from "@webcraft/core/email-branding";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
@@ -138,10 +139,10 @@ function BrandingForm({ branding }: { branding: Branding }) {
 	const submit = async (event: FormEvent) => {
 		event.preventDefault();
 		const found: Partial<Record<BrandingField, MessageKey>> = {};
-		if (logoUrl.trim() !== "" && !/^https:\/\/\S+$/i.test(logoUrl.trim())) {
+		if (logoUrl.trim() !== "" && !isLogoUrl(logoUrl.trim())) {
 			found.logoUrl = "emailSettings.branding.logoInvalid";
 		}
-		if (accentColour.trim() !== "" && !/^#[0-9a-f]{6}$/i.test(accentColour.trim())) {
+		if (accentColour.trim() !== "" && !isAccentColour(accentColour.trim())) {
 			found.accentColour = "emailSettings.branding.colourInvalid";
 		}
 		setErrors(found);

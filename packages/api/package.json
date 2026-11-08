@@ -15,6 +15,7 @@
 		"@orpc/server": "catalog:",
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/core": "workspace:*",
+		"@webcraft/renderer": "workspace:*",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

@@ -5,7 +5,8 @@ import { traverseContractProcedures } from "@orpc/server";
 import { apiRouter } from "@webcraft/api";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
-import { workspaceIsolation } from "../harness/isolation.ts";
+import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
+import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
 
@@ -23,6 +24,28 @@ const isolation = workspaceIsolation(() => install);
 let slugs = 0;
 const newSlug = () => `isolation-${++slugs}`;
 
+/** Content in a target's Site, made once by the Superadmin: a Post Type, its Entry template and an Entry. */
+const contents = new Map<string, Promise<{ postTypeId: string; templateId: string; entryId: string }>>();
+function contentIn(target: IsolationTarget) {
+	let content = contents.get(target.siteId);
+	if (!content) {
+		content = (async () => {
+			const { api } = await install.superadmin();
+			const { siteId } = target;
+			const { postType } = await api.postTypes.create({ siteId, name: "Posts", urlPattern: "/posts/{slug}" });
+			const { template } = await api.templates.saveEntryTemplate({
+				siteId,
+				postTypeId: postType.id,
+				tree: tree(element("h1", [value("title")])),
+			});
+			const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Hello" });
+			return { postTypeId: postType.id, templateId: template.id, entryId: entry.id };
+		})();
+		contents.set(target.siteId, content);
+	}
+	return content;
+}
+
 describe("Workspaces", () => {
 	isolation.refuses("workspaces.get", (api, { workspaceId }) => api.workspaces.get({ workspaceId }), {
 		as: ["staff", "owner", "author"],
@@ -36,6 +59,69 @@ describe("Sites", () => {
 	isolation.refuses("sites.get", (api, { siteId }) => api.sites.get({ siteId }), { as: ["staff", "author"] });
 	isolation.refuses("sites.create", (api, { workspaceId }) =>
 		api.sites.create({ workspaceId, name: "Leaked Site", slug: newSlug() }),
+	);
+});
+
+describe("Post Types", () => {
+	isolation.refuses("postTypes.list", (api, { siteId }) => api.postTypes.list({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"postTypes.get",
+		async (api, target) =>
+			api.postTypes.get({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses("postTypes.create", (api, { siteId }) =>
+		api.postTypes.create({ siteId, name: "Leaked", key: newSlug(), urlPattern: `/${newSlug()}/{slug}` }),
+	);
+	isolation.refuses("postTypes.update", async (api, target) =>
+		api.postTypes.update({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId, name: "Renamed" }),
+	);
+});
+
+describe("Entries", () => {
+	isolation.refuses(
+		"entries.list",
+		async (api, target) =>
+			api.entries.list({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.get",
+		async (api, target) => api.entries.get({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"entries.create",
+		async (api, target) =>
+			api.entries.create({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId, title: "Leaked" }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.saveDraft",
+		async (api, target) =>
+			api.entries.saveDraft({ siteId: target.siteId, entryId: (await contentIn(target)).entryId, title: "Changed" }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.publish",
+		async (api, target) => api.entries.publish({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "editor", "owner"] },
+	);
+});
+
+describe("Templates", () => {
+	isolation.refuses("templates.getEntryTemplate", async (api, target) =>
+		api.templates.getEntryTemplate({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveEntryTemplate", async (api, target) =>
+		api.templates.saveEntryTemplate({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			tree: tree(element("h2", [value("title")])),
+		}),
+	);
+	isolation.refuses("templates.publish", async (api, target) =>
+		api.templates.publish({ siteId: target.siteId, templateId: (await contentIn(target)).templateId }),
 	);
 });
 

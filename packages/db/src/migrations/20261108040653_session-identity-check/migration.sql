@@ -1,1 +1,0 @@
-ALTER TABLE "sessions" ADD COLUMN "identity_checked_at" timestamp with time zone;

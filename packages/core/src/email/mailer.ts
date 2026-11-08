@@ -23,6 +23,11 @@ export type OutgoingEmail = {
 	html: string;
 	/** Extra headers, such as `Auto-Submitted`. */
 	headers?: Record<string, string>;
+	/**
+	 * The `Message-ID`, the same for every attempt at one email: if an attempt is sent twice (the
+	 * server took it, but recording that failed), mail clients can drop the copy.
+	 */
+	messageId?: string;
 };
 
 /** The server took the email: its answer, such as `250 2.0.0 OK queued`. */

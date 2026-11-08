@@ -8,9 +8,16 @@ import {
 } from "@webcraft/auth";
 import {
 	EmailAlwaysSentError,
+	EntryIncompleteError,
+	EntryInvalidError,
+	EntryNotFoundError,
+	EntrySlugTakenError,
 	IdentityCheckRequiredError,
 	InviteInvalidError,
 	PermissionDeniedError,
+	PostTypeInvalidError,
+	PostTypeNotFoundError,
+	PostTypeTakenError,
 	RateLimitedError,
 	SensitiveActionRefusedError,
 	SessionNotFoundError,
@@ -21,8 +28,10 @@ import {
 	SlugInvalidError,
 	SlugTakenError,
 	StaffNotFoundError,
+	TemplateNotFoundError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
+import { ElementTreeInvalidError } from "@webcraft/renderer";
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -46,6 +55,63 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof SlugTakenError) {
 		return new ORPCError("SLUG_TAKEN", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof PostTypeNotFoundError) {
+		return new ORPCError("POST_TYPE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof EntryNotFoundError) {
+		return new ORPCError("ENTRY_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof TemplateNotFoundError) {
+		return new ORPCError("TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof PostTypeInvalidError) {
+		return new ORPCError("POST_TYPE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof PostTypeTakenError) {
+		return new ORPCError("POST_TYPE_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { field: error.field },
+			cause: error,
+		});
+	}
+	if (error instanceof EntryInvalidError) {
+		return new ORPCError("ENTRY_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof EntrySlugTakenError) {
+		return new ORPCError("ENTRY_SLUG_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { slug: error.slug },
+			cause: error,
+		});
+	}
+	if (error instanceof EntryIncompleteError) {
+		return new ORPCError("ENTRY_INCOMPLETE", {
+			status: 400,
+			message: error.message,
+			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof ElementTreeInvalidError) {
+		return new ORPCError("TEMPLATE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
 	}
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });

@@ -1,1 +1,0 @@
-ALTER TABLE "install_settings" ADD COLUMN "leaked_password_check" boolean DEFAULT true NOT NULL;
