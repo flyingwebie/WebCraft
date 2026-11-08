@@ -123,9 +123,15 @@ export async function rotateMasterKey({
 
 export type LostKeyReport =
 	| {
-			/** Nothing was changed: these secrets would be deleted. Confirm to go ahead. */
+			/**
+			 * Nothing was changed: these secrets would be deleted. Confirm by passing the start of
+			 * `lostFingerprint` (at least `CONFIRM_FINGERPRINT_LENGTH` characters).
+			 */
 			outcome: "needs-confirmation";
 			secrets: string[];
+			/** The fingerprint of the key being given up: the Install's current key version. */
+			lostFingerprint: string;
+			lostVersion: number;
 	  }
 	| {
 			outcome: "replaced";
@@ -139,20 +145,21 @@ export type LostKeyReport =
 /**
  * Replaces a Master key that was lost (`webcraft admin rotate-key --old-key-lost`). Without the
  * old key no secret can be decrypted, so every secret is deleted and the new key becomes the next
- * key version; the secrets must be set again. Unless `confirmed`, it only lists what it would
- * delete. An Install with no secrets needs no confirmation.
+ * key version; the secrets must be set again. It only lists what it would delete unless
+ * `confirmFingerprint` starts the current key version's fingerprint, which proves the operator
+ * read that listing for this Install. An Install with no secrets needs no confirmation.
  */
 export async function replaceLostMasterKey({
 	database,
 	to,
 	clock,
-	confirmed,
+	confirmFingerprint,
 	source = MASTER_KEY_VARIABLE,
 }: {
 	database: Database;
 	to: MasterKey;
 	clock: Clock;
-	confirmed: boolean;
+	confirmFingerprint?: string;
 	source?: string;
 }): Promise<LostKeyReport> {
 	const newFingerprint = await to.fingerprint();
@@ -177,8 +184,20 @@ export async function replaceLostMasterKey({
 			.orderBy(...OWNER_ORDER)
 			.for("update");
 		const secrets = rows.map((row) => describeRef(refFromColumns(row)));
-		if (secrets.length > 0 && !confirmed) {
-			return { outcome: "needs-confirmation", secrets };
+		if (secrets.length > 0 && current) {
+			if (confirmFingerprint === undefined) {
+				return {
+					outcome: "needs-confirmation",
+					secrets,
+					lostFingerprint: current.fingerprint,
+					lostVersion: current.version,
+				};
+			}
+			if (!confirmsFingerprint(confirmFingerprint, current.fingerprint)) {
+				throw new KeyRotationError(
+					`That doesn't confirm the Install's current Master key (version ${current.version}): give at least the first ${CONFIRM_FINGERPRINT_LENGTH} characters of its fingerprint, as listed without the confirmation. Nothing was deleted.`,
+				);
+			}
 		}
 		await tx.delete(secretsTable);
 		const version = (current?.version ?? 0) + 1;
@@ -189,6 +208,14 @@ export async function replaceLostMasterKey({
 		await tx.insert(masterKeyVersions).values({ version, fingerprint: newFingerprint, createdAt: now });
 		return { outcome: "replaced", version, deleted: secrets, fingerprint: newFingerprint };
 	});
+}
+
+/** How much of the lost key's fingerprint an operator types to confirm deleting every secret. */
+export const CONFIRM_FINGERPRINT_LENGTH = 12;
+
+function confirmsFingerprint(given: string, fingerprint: string): boolean {
+	const typed = given.trim().toLowerCase();
+	return typed.length >= CONFIRM_FINGERPRINT_LENGTH && fingerprint.toLowerCase().startsWith(typed);
 }
 
 /** Secrets in the order people read them: the Install's first, then by Workspace, Site and name. */

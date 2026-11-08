@@ -245,8 +245,17 @@ test("an Install that has no secrets yet takes the new key as its first key vers
 });
 
 describe("when the old key is lost", () => {
-	test("--old-key-lost lists the secrets it would delete and changes nothing without --yes", async () => {
+	/** The listing names the lost key's fingerprint; confirming takes its first 12 characters. */
+	async function lostFingerprint(): Promise<string> {
+		const { stdout } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY }, ["--old-key-lost"]);
+		const found = /fingerprint ([0-9a-f]{64})\./.exec(stdout);
+		if (!found?.[1]) throw new Error(`No fingerprint in: ${stdout}`);
+		return found[1];
+	}
+
+	test("--old-key-lost lists the secrets it would delete and the lost key, and changes nothing", async () => {
 		const { code, stdout } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY }, ["--old-key-lost"]);
+		const fingerprint = await lostFingerprint();
 
 		expect(code).toBe(1);
 		expect(stdout).toBe(
@@ -254,14 +263,37 @@ describe("when the old key is lost", () => {
 				'  "smtp.password" of the Install\n' +
 				'  "ai.key" of Workspace acme\n' +
 				'  "cdn.token" of Site shop in Workspace acme\n' +
-				"Run again with --yes to delete them and use the new key. Then set them again.\n",
+				`The Install's current Master key is version 1, fingerprint ${fingerprint}.\n` +
+				"WEBCRAFT_SECRET_KEY is not that key. If you still have it, or mistyped the new key, stop here: use rotate-key with the old key instead.\n" +
+				`If it is lost, run again with --confirm-fingerprint ${fingerprint.slice(0, 12)} to delete these secrets and use the new key. Then set them again.\n`,
 		);
 		await install.restart({ masterKey: OLD_KEY });
 		await expectSecretsReadable();
 	});
 
-	test("--old-key-lost --yes deletes every secret and makes the new key the next key version", async () => {
-		const { code, stdout } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY }, ["--old-key-lost", "--yes"]);
+	test("refuses a confirmation that doesn't match the lost key's fingerprint, or is too short", async () => {
+		const fingerprint = await lostFingerprint();
+		const wrong = fingerprint.startsWith("0") ? "1".repeat(12) : "0".repeat(12);
+
+		for (const confirmation of [wrong, fingerprint.slice(0, 11)]) {
+			const { code, stderr } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY }, [
+				"--old-key-lost",
+				"--confirm-fingerprint",
+				confirmation,
+			]);
+			expect(code).toBe(1);
+			expect(stderr).toContain("That doesn't confirm the Install's current Master key (version 1)");
+		}
+		await install.restart({ masterKey: OLD_KEY });
+		await expectSecretsReadable();
+	});
+
+	test("--old-key-lost with the lost key's fingerprint deletes every secret and makes the new key the next key version", async () => {
+		const fingerprint = await lostFingerprint();
+		const { code, stdout } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY }, [
+			"--old-key-lost",
+			`--confirm-fingerprint=${fingerprint.slice(0, 12).toUpperCase()}`,
+		]);
 
 		expect(code).toBe(0);
 		expect(stdout).toContain("Deleted 3 secrets. The Install now uses Master key version 2.");
@@ -277,12 +309,22 @@ describe("when the old key is lost", () => {
 	});
 
 	test("refuses to delete anything when WEBCRAFT_SECRET_KEY is the Install's current key", async () => {
-		const { code, stderr } = await rotateKey({ WEBCRAFT_SECRET_KEY: OLD_KEY }, ["--old-key-lost", "--yes"]);
+		const { code, stderr } = await rotateKey({ WEBCRAFT_SECRET_KEY: OLD_KEY }, ["--old-key-lost"]);
 
 		expect(code).toBe(1);
 		expect(stderr).toContain(
 			"webcraft: WEBCRAFT_SECRET_KEY is the Install's current Master key (version 1), so it isn't lost and nothing was deleted.",
 		);
+		await expectSecretsReadable();
+	});
+
+	test("refuses --confirm-fingerprint without --old-key-lost", async () => {
+		const { code } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY, WEBCRAFT_OLD_SECRET_KEY: OLD_KEY }, [
+			"--confirm-fingerprint",
+			"0".repeat(12),
+		]);
+
+		expect(code).not.toBe(0);
 		await expectSecretsReadable();
 	});
 

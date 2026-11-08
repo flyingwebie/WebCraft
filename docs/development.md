@@ -168,8 +168,8 @@ Running the command again after it finished changes nothing. It refuses a new ke
 Secrets can't be recovered without their Master key, and web and worker refuse to start with any other key while secrets exist. To start again with a new key, deleting every secret:
 
 1. Make a new key with `openssl rand -base64 32` and put it in `WEBCRAFT_SECRET_KEY`.
-2. `webcraft admin rotate-key --old-key-lost` lists the secrets that would be deleted and changes nothing.
-3. `webcraft admin rotate-key --old-key-lost --yes` deletes them and makes the new key the next key version. It refuses when `WEBCRAFT_SECRET_KEY` is still the current key.
+2. `webcraft admin rotate-key --old-key-lost` lists the secrets that would be deleted and the lost key's version and fingerprint, and changes nothing. If you still have the old key, or mistyped the new one, stop here and rotate normally.
+3. `webcraft admin rotate-key --old-key-lost --confirm-fingerprint <first 12 characters of that fingerprint>` deletes them and makes the new key the next key version. Typing the fingerprint proves you read the listing for this Install; a bare "yes" would not. It refuses when `WEBCRAFT_SECRET_KEY` is still the current key.
 4. Start web and worker, and set the listed secrets again.
 
 ## Testing

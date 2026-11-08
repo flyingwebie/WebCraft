@@ -8,6 +8,7 @@ export {
 } from "./master-key.ts";
 export type { SecretOwner, SecretRef } from "./refs.ts";
 export {
+	CONFIRM_FINGERPRINT_LENGTH,
 	KeyRotationError,
 	type KeyRotationReport,
 	type LostKeyReport,
