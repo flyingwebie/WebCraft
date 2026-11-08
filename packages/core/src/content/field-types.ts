@@ -665,8 +665,7 @@ function patternRule(value: string, source: string | null): BrokenRule[] {
 
 /**
  * Reads a `pattern` setting: a regular expression, as in an HTML `pattern` attribute. Patterns that
- * could take the server a very long time on some values (a repeated group that repeats inside, such
- * as `(a+)+`) are refused.
+ * could take the server a very long time on some values (see `nestedRepetition`) are refused.
  */
 function pattern(value: unknown, report: Report): string | null {
 	if (value === undefined || value === null || value === "") return null;
@@ -681,20 +680,24 @@ function pattern(value: unknown, report: Report): string | null {
 		return null;
 	}
 	if (nestedRepetition(value)) {
-		report("pattern", "A repeated group can't repeat inside it, as in (a+)+: such patterns can be very slow.");
+		report(
+			"pattern",
+			"A repeated group can't repeat or choose inside it, as in (a+)+ or (a|b)*: such patterns can be very slow.",
+		);
 		return null;
 	}
 	return value;
 }
 
 /**
- * Whether a regular expression repeats a group that can match the same text in more than one way,
- * such as `(a+)+` or `(a|aa)*`: a repeated group holding a repetition or a choice, unless it starts
- * with a fixed character (`(-[a-z]+)*` is fine: each round starts with a dash).
+ * Whether a regular expression repeats a group that can match the same text in more than one way:
+ * a repeated group holding a choice (`(a|aa)*`, `(\\.(a|b))+`), or holding a repetition unless it
+ * starts with a fixed character (`(a+)+` is refused; `(-[a-z]+)*` is fine: each round starts with a
+ * dash). Such patterns can take the server a very long time on some values.
  */
 function nestedRepetition(source: string): boolean {
 	/** The open groups: where each starts, and whether it holds a repetition or a choice. */
-	const groups: { start: number; varies: boolean }[] = [];
+	const groups: { start: number; repeats: boolean; chooses: boolean }[] = [];
 	let inClass = false;
 	for (let index = 0; index < source.length; index++) {
 		const char = source[index];
@@ -708,17 +711,23 @@ function nestedRepetition(source: string): boolean {
 		}
 		const current = groups[groups.length - 1];
 		if (char === "[") inClass = true;
-		else if (char === "(") groups.push({ start: index + 1, varies: false });
-		else if (char === "|" || char === "*" || char === "+" || char === "{") {
-			if (current) current.varies = true;
+		else if (char === "(") groups.push({ start: index + 1, repeats: false, chooses: false });
+		else if (char === "|") {
+			if (current) current.chooses = true;
+		} else if (char === "*" || char === "+" || char === "{") {
+			if (current) current.repeats = true;
 		} else if (char === ")") {
 			const group = groups.pop();
 			if (!group) continue;
 			const next = source[index + 1];
 			const repeated = next === "*" || next === "+" || next === "{";
-			if (repeated && group.varies && !startsWithFixedCharacter(source.slice(group.start, index))) return true;
+			if (repeated && group.chooses) return true;
+			if (repeated && group.repeats && !startsWithFixedCharacter(source.slice(group.start, index))) return true;
 			const parent = groups[groups.length - 1];
-			if (parent && (repeated || group.varies)) parent.varies = true;
+			if (parent) {
+				parent.repeats ||= repeated || group.repeats;
+				parent.chooses ||= group.chooses;
+			}
 		}
 	}
 	return false;

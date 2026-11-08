@@ -148,6 +148,7 @@ describe("defining Fields", () => {
 			{ field: { type: "text", maxLength: 1_000_000 }, at: "fields[0].maxLength" },
 			{ field: { type: "text", pattern: "(unclosed" }, at: "fields[0].pattern" },
 			{ field: { type: "text", pattern: "(a+)+" }, at: "fields[0].pattern" },
+			{ field: { type: "text", pattern: "(a|aa)*" }, at: "fields[0].pattern" },
 			{ field: { type: "text", default: "abc", pattern: "[0-9]+" }, at: "fields[0].default" },
 			{ field: { type: "number", min: 5, max: 1 }, at: "fields[0].max" },
 			{ field: { type: "number", default: "four" }, at: "fields[0].default" },
