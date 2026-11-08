@@ -1,6 +1,7 @@
 import { sites } from "@webcraft/db/schema";
 import { asc } from "drizzle-orm";
 
+import { isUniqueViolation } from "../db-errors.ts";
 import { can } from "../permissions/can.ts";
 import type { Site, WorkspaceScope } from "./data-layer.ts";
 
@@ -46,24 +47,32 @@ export function normaliseSlug(slug: string): string {
 	return slug.trim().toLowerCase();
 }
 
-/** Refuses a slug no Site may have, with `SlugInvalidError`; answers it normalised. */
-export function checkSlug(slug: string): string {
+/**
+ * Refuses a slug no Site may have, with `SlugInvalidError`; answers it normalised. `reserved` lists
+ * the slugs the Install keeps (`RESERVED_SITE_SLUGS` unless given).
+ */
+export function checkSlug(slug: string, reserved: readonly string[] = RESERVED_SITE_SLUGS): string {
 	const normalised = normaliseSlug(slug);
 	if (!SLUG_SHAPE.test(normalised)) throw new SlugInvalidError("shape");
-	if (RESERVED_SITE_SLUGS.includes(normalised)) throw new SlugInvalidError("reserved");
+	if (reserved.includes(normalised)) throw new SlugInvalidError("reserved");
 	return normalised;
 }
 
 /**
  * Creates a Site in the scope's Workspace (open it with `site.create`) and records it in the Audit
- * log. Refuses a slug another Site has (`SlugTakenError`) or no Site may have (`SlugInvalidError`).
+ * log. Refuses a slug another Site has (`SlugTakenError`) or no Site may have (`SlugInvalidError`):
+ * `reserved` lists the slugs the Install keeps.
  */
-export async function createSite(scope: WorkspaceScope, input: { name: string; slug: string }): Promise<Site> {
+export async function createSite(
+	scope: WorkspaceScope,
+	input: { name: string; slug: string },
+	reserved: readonly string[] = RESERVED_SITE_SLUGS,
+): Promise<Site> {
 	const name = input.name.trim();
 	if (!name || name.length > SITE_NAME_MAX_LENGTH) {
 		throw new TypeError(`A Site's name needs 1 to ${SITE_NAME_MAX_LENGTH} characters.`);
 	}
-	const slug = checkSlug(input.slug);
+	const slug = checkSlug(input.slug, reserved);
 	try {
 		return await scope.transaction(async (tx) => {
 			const site = toSite(await tx.insert(sites, { name, slug, createdAt: tx.now() }));
@@ -90,11 +99,4 @@ export async function listSites(scope: WorkspaceScope): Promise<Site[]> {
 
 function toSite(row: typeof sites.$inferSelect): Site {
 	return { id: row.id, workspaceId: row.workspaceId, name: row.name, slug: row.slug, createdAt: row.createdAt };
-}
-
-/** Whether `error` is Postgres refusing a duplicate in the unique constraint `constraint`. */
-function isUniqueViolation(error: unknown, constraint: string): boolean {
-	const cause = (error as { cause?: unknown })?.cause ?? error;
-	const { code, constraint: name } = (cause ?? {}) as { code?: unknown; constraint?: unknown };
-	return code === "23505" && name === constraint;
 }

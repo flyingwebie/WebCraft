@@ -29,6 +29,12 @@ export type DataLayer = {
 	workspace(access: Access, workspaceId: string, permission: Permission): Promise<WorkspaceScope>;
 	/** Opens one Site's data, and so its Workspace's. */
 	site(access: Access, siteId: string, permission: Permission): Promise<SiteScope>;
+	/**
+	 * Opens a Site for its visitors: read-only, with nobody signed in, so only for what any visitor
+	 * may see (published content). Only the Site request pipeline opens one, after finding the Site
+	 * by hostname.
+	 */
+	visitors(site: Site): VisitorScope;
 };
 
 /** Who is acting and how they came in: the permission check and the Audit log both need it. */
@@ -46,7 +52,8 @@ export type WorkspaceTable = PgTable & { workspaceId: AnyPgColumn };
 /** A table of Site data: every row has a `workspace_id` and a `site_id`. */
 export type SiteTable = WorkspaceTable & { siteId: AnyPgColumn };
 
-type Executor = Database["db"] | Transaction;
+/** A connection or a transaction: what a scope's queries run on. */
+export type Executor = Database["db"] | Transaction;
 
 type Row<Table extends PgTable> = InferSelectModel<Table>;
 
@@ -103,8 +110,16 @@ export type InstallScope = Omit<ScopeBase, "audit"> & {
 	transaction<Result>(work: (scope: InstallScope) => Promise<Result>): Promise<Result>;
 };
 
+/**
+ * The database a Workspace or Site scope runs on (its transaction inside `transaction`), for joins
+ * and other queries the helpers don't cover. Every such query on a tenant table must include
+ * `scope.where(table)`.
+ */
+type ScopeDatabase = { readonly db: Executor };
+
 export type WorkspaceScope = Omit<ScopeBase, "audit"> &
-	ScopedQueries<WorkspaceTable> & {
+	ScopedQueries<WorkspaceTable> &
+	ScopeDatabase & {
 		readonly level: "workspace";
 		/**
 		 * Records an action in the Audit log, with who, when, how and this Workspace. `about` names the
@@ -117,12 +132,25 @@ export type WorkspaceScope = Omit<ScopeBase, "audit"> &
 	};
 
 export type SiteScope = ScopeBase &
-	ScopedQueries<SiteTable> & {
+	ScopedQueries<SiteTable> &
+	ScopeDatabase & {
 		readonly level: "site";
 		readonly workspace: Workspace;
 		readonly site: Site;
 		readonly secrets: ScopedSecrets;
 		transaction<Result>(work: (scope: SiteScope) => Promise<Result>): Promise<Result>;
+	};
+
+/**
+ * A Site opened for its visitors: reads only, limited to the Site, with no person, no Audit log and
+ * no secrets. Code reading through it must only read what any visitor may see.
+ */
+export type VisitorScope = Pick<ScopedQueries<SiteTable>, "select" | "first" | "count" | "where"> &
+	ScopeDatabase & {
+		readonly level: "visitor";
+		readonly site: Site;
+		/** The time, from the Install's clock. */
+		now(): Date;
 	};
 
 type DataLayerOptions = { database: Database; clock: Clock; secrets: Secrets };
@@ -167,6 +195,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 			audit: (action, details, about) =>
 				audit(executor, access)(action, details, { workspaceId: workspace.id, siteId: about?.siteId ?? null }),
 			...scopedQueries(executor, condition, { workspaceId: workspace.id }),
+			db: executor,
 			level: "workspace",
 			workspace,
 			secrets: scopedSecrets(secrets, { kind: "workspace", workspaceId: workspace.id }),
@@ -179,6 +208,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 		return {
 			...base(executor, access, { workspaceId: workspace.id, siteId: site.id }),
 			...scopedQueries(executor, condition, { workspaceId: workspace.id, siteId: site.id }),
+			db: executor,
 			level: "site",
 			workspace,
 			site,
@@ -215,6 +245,13 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 			const workspace = await findWorkspace(db, site.workspaceId);
 			if (!workspace) throw new SiteNotFoundError();
 			return siteScope(db, access, workspace, site);
+		},
+
+		visitors(site) {
+			const condition = (table: SiteTable) =>
+				and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id)) as SQL;
+			const { select, first, count, where } = scopedQueries(db, condition, {});
+			return { select, first, count, where, db, level: "visitor", site, now: () => clock.now() };
 		},
 	};
 }

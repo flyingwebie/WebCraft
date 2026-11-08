@@ -14,6 +14,11 @@ export type InstallConfig = {
 	 * development hostname under `.localhost`, which is plain HTTP on `PORT`.
 	 */
 	adminOrigin: string;
+	/**
+	 * The domain Staging addresses sit under (`WEBCRAFT_SITES_DOMAIN`): each Site answers on
+	 * `<site slug>.<sites domain>`. Null when it isn't set: Sites then have no Staging address.
+	 */
+	sitesDomain: string | null;
 };
 
 export type Environment = Record<string, string | undefined>;
@@ -30,6 +35,7 @@ export function loadInstallConfig(env: Environment): InstallConfig {
 		databaseUrl: loadDatabaseUrl(env),
 		adminHost,
 		adminOrigin: adminOriginFor(adminHost, env.PORT),
+		sitesDomain: loadSitesDomain(env),
 	};
 }
 
@@ -63,6 +69,9 @@ export function loadDatabaseUrl(env: Environment): string {
 	return value;
 }
 
+/** A hostname: dot-separated DNS labels, lower case. */
+const HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/;
+
 function loadAdminHost(env: Environment): string {
 	const value = env.WEBCRAFT_ADMIN_HOST?.trim();
 	if (!value) {
@@ -71,10 +80,23 @@ function loadAdminHost(env: Environment): string {
 		);
 	}
 	const host = normaliseHostname(value);
-	if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(host)) {
+	if (!HOSTNAME.test(host)) {
 		throw new ConfigError(
 			`WEBCRAFT_ADMIN_HOST must be a hostname only, without a scheme, port or path (got "${value}").`,
 		);
 	}
 	return host;
+}
+
+/** Reads `WEBCRAFT_SITES_DOMAIN`, which is optional: without it Sites have no Staging address. */
+function loadSitesDomain(env: Environment): string | null {
+	const value = env.WEBCRAFT_SITES_DOMAIN?.trim();
+	if (!value) return null;
+	const domain = normaliseHostname(value);
+	if (!HOSTNAME.test(domain)) {
+		throw new ConfigError(
+			`WEBCRAFT_SITES_DOMAIN must be a domain only, without a scheme, port or path, such as sites.example.com (got "${value}").`,
+		);
+	}
+	return domain;
 }

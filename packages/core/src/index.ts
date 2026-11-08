@@ -23,6 +23,7 @@ export {
 	loadDatabaseUrl,
 	loadInstallConfig,
 } from "./config.ts";
+export * from "./content/index.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./email/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
@@ -89,6 +90,16 @@ export {
 	SetupTokenInvalidError,
 	type SuperadminAccount,
 } from "./setup.ts";
+export {
+	canonicalPath,
+	pathSegments,
+	reservedSlugs,
+	type SiteHost,
+	type SitePage,
+	type SitePages,
+	stagingHostname,
+	stagingUrl,
+} from "./site-pages/index.ts";
 export type {
 	Access,
 	DataLayer,
@@ -99,6 +110,7 @@ export type {
 	Site,
 	SiteScope,
 	SiteTable,
+	VisitorScope,
 	Workspace,
 	WorkspaceScope,
 	WorkspaceTable,

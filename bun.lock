@@ -86,6 +86,7 @@
         "@orpc/server": "catalog:",
         "@webcraft/auth": "workspace:*",
         "@webcraft/core": "workspace:*",
+        "@webcraft/renderer": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -118,6 +119,7 @@
       "dependencies": {
         "@webcraft/auth": "workspace:*",
         "@webcraft/db": "workspace:*",
+        "@webcraft/renderer": "workspace:*",
         "drizzle-orm": "catalog:",
         "nodemailer": "^10.4.0",
         "pg-boss": "catalog:",

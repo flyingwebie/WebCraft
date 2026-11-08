@@ -3,7 +3,7 @@
 	"version": "0.0.0",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
-	"description": "WebCraft's domain modules (secrets, setup, people, Install settings) and the ports (clock, mailer, outgoing HTTP, jobs) every process shares.",
+	"description": "WebCraft's domain modules (tenancy, permissions, the content store and publishing, secrets, setup, people, email) and the ports (clock, mailer, outgoing HTTP, jobs) every process shares.",
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
@@ -15,6 +15,7 @@
 	"dependencies": {
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/db": "workspace:*",
+		"@webcraft/renderer": "workspace:*",
 		"drizzle-orm": "catalog:",
 		"nodemailer": "^10.4.0",
 		"pg-boss": "catalog:",

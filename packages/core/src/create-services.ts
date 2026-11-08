@@ -1,6 +1,19 @@
 import { createAuth } from "@webcraft/auth";
 
 import { listAuditEntries } from "./audit.ts";
+import {
+	createEntry,
+	createPostType,
+	getEntry,
+	getEntryTemplate,
+	getPostType,
+	listEntries,
+	listPostTypes,
+	publish,
+	saveDraft,
+	saveEntryTemplate,
+	updatePostType,
+} from "./content/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
@@ -10,6 +23,7 @@ import { type MasterKey, sessionSigningSecret } from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
+import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
@@ -47,6 +61,7 @@ export async function createInstallServices(
 	const settings = createInstallSettings(database);
 	const installSecrets = installSecretsOnly(store);
 	const email = createEmail({ ...ports, secrets: installSecrets, settings });
+	const data = createDataLayer({ database, clock, secrets: store });
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -55,13 +70,22 @@ export async function createInstallServices(
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,
 		masterKey: createMasterKeyBackup({ database, clock, log, fingerprint: await masterKey.fingerprint() }),
-		data: createDataLayer({ database, clock, secrets: store }),
+		data,
 		actors: { person: (personId) => loadPersonActor(database.db, personId) },
 		workspaces: {
 			list: (access) => listWorkspaces(database, access),
 			create: createWorkspace,
 		},
-		sites: { list: listSites, create: createSite },
+		sites: {
+			list: listSites,
+			create: (scope, input) => createSite(scope, input, reservedSlugs(config)),
+			stagingUrl: (site) => stagingUrl(config, site.slug),
+		},
+		postTypes: { list: listPostTypes, get: getPostType, create: createPostType, update: updatePostType },
+		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft },
+		templates: { entryTemplate: getEntryTemplate, saveEntryTemplate },
+		publishing: { publish },
+		sitePages: createSitePages({ database, config, data }),
 		memberships: createMemberships({ database, clock }),
 		...createStaffServices({ database, auth, email, settings, clock }),
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
