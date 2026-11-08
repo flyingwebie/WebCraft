@@ -246,7 +246,7 @@ Every Field is `{ key, label, type, help, required, translatable, default }` plu
 - **Groups and Repeaters** nest 3 deep at most, with at most 200 Fields in all. They hold no language and can't be translatable themselves: their Fields are, one by one.
 - **Translatable**: text, rich text and link Fields are by default; number, true/false, date, select, media and email only when chosen; Relationships, Groups and Repeaters never (ADR 0003).
 - **Defaults** fill a new Entry's Fields (and a new Repeater row's), and a Global added with one starts the Globals' Draft with it. Fields added to a Post Type later don't change existing Entries. Media, Relationship, Group and Repeater Fields have none (a Group's Fields have their own). A default must keep its Field's rules.
-- **`pattern`** is a regular expression the whole value must match, as an HTML `pattern` attribute reads it (so the admin can use it as is). Patterns that could take very long on some values are refused: a repeated group holding a choice (`(a|aa)*`), or holding a repetition unless it starts with a fixed character (`(a+)+` is refused, `(-[a-z]+)*` is fine).
+- **`pattern`** is a regular expression the whole value must match, as an HTML `pattern` attribute reads it (so the admin can use it as is). Patterns are Staff's input and run on every save, list and publish, so they run on a linear-time engine (RE2, through `re2js`): no pattern can keep the web process busy, whatever its shape (`(a+)+b` is as quick as `[a-z]+`). The engine has no look-around and no back-references, so patterns using them are refused when the Field is defined.
 
 ### Values and validation
 
