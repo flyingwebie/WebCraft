@@ -1,4 +1,5 @@
 import { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, safeUrl } from "@webcraft/renderer";
+import { RE2JS } from "re2js";
 
 import type { ContentProblem } from "./errors.ts";
 
@@ -649,13 +650,17 @@ function countRules(count: number, field: { min: number | null; max: number | nu
 }
 
 /** Compiled patterns, by source. */
-const patterns = new Map<string, RegExp>();
+const patterns = new Map<string, RE2JS>();
 
-/** The pattern a whole value must match, as an HTML `pattern` attribute reads it. */
-function compiledPattern(source: string): RegExp {
+/**
+ * The pattern a whole value must match, as an HTML `pattern` attribute reads it. Patterns are
+ * Staff's input and run on every save, list and publish, so they run on a linear-time engine (RE2):
+ * no pattern can keep the web process busy, whatever its shape and whatever the value.
+ */
+function compiledPattern(source: string): RE2JS {
 	let compiled = patterns.get(source);
 	if (!compiled) {
-		compiled = new RegExp(`^(?:${source})$`, "v");
+		compiled = RE2JS.compile(`^(?:${source})$`);
 		if (patterns.size > 1_000) patterns.clear();
 		patterns.set(source, compiled);
 	}
@@ -664,14 +669,14 @@ function compiledPattern(source: string): RegExp {
 
 function patternRule(value: string, source: string | null): BrokenRule[] {
 	if (source === null) return [];
-	return compiledPattern(source).test(value)
+	return compiledPattern(source).matches(value)
 		? []
 		: [{ rule: "pattern", message: "Doesn't match the Field's pattern." }];
 }
 
 /**
- * Reads a `pattern` setting: a regular expression, as in an HTML `pattern` attribute. Patterns that
- * could take the server a very long time on some values (see `nestedRepetition`) are refused.
+ * Reads a `pattern` setting: a regular expression, as in an HTML `pattern` attribute, in the syntax
+ * the linear-time engine reads (no look-around, no back-references).
  */
 function pattern(value: unknown, report: Report): string | null {
 	if (value === undefined || value === null || value === "") return null;
@@ -682,74 +687,10 @@ function pattern(value: unknown, report: Report): string | null {
 	try {
 		compiledPattern(value);
 	} catch {
-		report("pattern", "Not a regular expression.");
-		return null;
-	}
-	if (nestedRepetition(value)) {
-		report(
-			"pattern",
-			"A repeated group can't repeat or choose inside it, as in (a+)+ or (a|b)*: such patterns can be very slow.",
-		);
+		report("pattern", "Not a regular expression WebCraft can run (look-around and back-references aren't supported).");
 		return null;
 	}
 	return value;
-}
-
-/**
- * Whether a regular expression repeats a group that can match the same text in more than one way:
- * a repeated group holding a choice (`(a|aa)*`, `(\\.(a|b))+`), or holding a repetition unless it
- * starts with a fixed character (`(a+)+` is refused; `(-[a-z]+)*` is fine: each round starts with a
- * dash). Such patterns can take the server a very long time on some values.
- */
-function nestedRepetition(source: string): boolean {
-	/** The open groups: where each starts, and whether it holds a repetition or a choice. */
-	const groups: { start: number; repeats: boolean; chooses: boolean }[] = [];
-	let inClass = false;
-	for (let index = 0; index < source.length; index++) {
-		const char = source[index];
-		if (char === "\\") {
-			index++;
-			continue;
-		}
-		if (inClass) {
-			if (char === "]") inClass = false;
-			continue;
-		}
-		const current = groups[groups.length - 1];
-		if (char === "[") inClass = true;
-		else if (char === "(") groups.push({ start: index + 1, repeats: false, chooses: false });
-		else if (char === "|") {
-			if (current) current.chooses = true;
-		} else if (char === "*" || char === "+" || char === "{") {
-			if (current) current.repeats = true;
-		} else if (char === ")") {
-			const group = groups.pop();
-			if (!group) continue;
-			const next = source[index + 1];
-			const repeated = next === "*" || next === "+" || next === "{";
-			if (repeated && group.chooses) return true;
-			if (repeated && group.repeats && !startsWithFixedCharacter(source.slice(group.start, index))) return true;
-			const parent = groups[groups.length - 1];
-			if (parent) {
-				parent.repeats ||= repeated || group.repeats;
-				parent.chooses ||= group.chooses;
-			}
-		}
-	}
-	return false;
-}
-
-/** Whether a group's content starts with one fixed character that isn't repeated (`-`, `\\.`). */
-function startsWithFixedCharacter(content: string): boolean {
-	const body = content.startsWith("?:") ? content.slice(2) : content;
-	let length = 1;
-	if (body[0] === "\\") {
-		if (/[dDwWsSbBpPkuxc0-9]/.test(body[1] ?? "")) return false;
-		length = 2;
-	} else if (body[0] === undefined || "[(.^$|)*+?{".includes(body[0])) {
-		return false;
-	}
-	return !/[*+?{]/.test(body[length] ?? "");
 }
 
 const DATE_FORMATS: Record<DateMode, string> = {

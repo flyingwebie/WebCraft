@@ -147,8 +147,9 @@ describe("defining Fields", () => {
 			{ field: { type: "text", minLength: 10, maxLength: 5 }, at: "fields[0].maxLength" },
 			{ field: { type: "text", maxLength: 1_000_000 }, at: "fields[0].maxLength" },
 			{ field: { type: "text", pattern: "(unclosed" }, at: "fields[0].pattern" },
-			{ field: { type: "text", pattern: "(a+)+" }, at: "fields[0].pattern" },
-			{ field: { type: "text", pattern: "(a|aa)*" }, at: "fields[0].pattern" },
+			// Patterns run on a linear-time engine, which has no look-around and no back-references.
+			{ field: { type: "text", pattern: "(?=a)a+" }, at: "fields[0].pattern" },
+			{ field: { type: "text", pattern: "(a)\\1" }, at: "fields[0].pattern" },
 			{ field: { type: "text", default: "abc", pattern: "[0-9]+" }, at: "fields[0].default" },
 			{ field: { type: "number", min: 5, max: 1 }, at: "fields[0].max" },
 			{ field: { type: "number", default: "four" }, at: "fields[0].default" },
@@ -346,6 +347,20 @@ describe("values", () => {
 });
 
 describe("rules", () => {
+	test("a pattern that would backtrack for ages elsewhere is checked quickly, on a long value", async () => {
+		const slow = ["(a+)+b", "(a|aa)*b", `${"(?:a*)".repeat(12)}b`, `${".*".repeat(15)}z`];
+		const postType = await postTypeWith(
+			slow.map((pattern, index) => ({ key: `slow${index}`, label: `Slow ${index}`, type: "text" as const, pattern })),
+		);
+		const fields = Object.fromEntries(slow.map((_, index) => [`slow${index}`, `${"a".repeat(1_500)}c`]));
+
+		const { entry } = await author.api.entries.create({ siteId, postTypeId: postType.id, title: "Slow", fields });
+
+		expect(entry.problems.map((problem) => [problem.at, problem.rule])).toEqual(
+			slow.map((_, index) => [`fields.slow${index}`, "pattern"]),
+		);
+	});
+
 	test("broken rules are kept in the Draft and listed by Field, and block publishing", async () => {
 		const postType = await postTypeWith([
 			{ key: "code", label: "Code", type: "text", minLength: 3, maxLength: 6, pattern: "[A-Z]+[0-9]*" },

@@ -20,6 +20,7 @@
 		"drizzle-orm": "catalog:",
 		"nodemailer": "^10.4.0",
 		"pg-boss": "catalog:",
+		"re2js": "^2.9.1",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
