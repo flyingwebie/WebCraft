@@ -1,14 +1,17 @@
 import type { RouterClient } from "@orpc/server";
 
 import { audit } from "./procedures/audit.ts";
+import { entries } from "./procedures/entries.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
 import { me } from "./procedures/me.ts";
+import { postTypes } from "./procedures/post-types.ts";
 import { session } from "./procedures/session.ts";
 import { setup } from "./procedures/setup.ts";
 import { shell } from "./procedures/shell.ts";
 import { sites } from "./procedures/sites.ts";
 import { staff } from "./procedures/staff.ts";
+import { templates } from "./procedures/templates.ts";
 import { workspaces } from "./procedures/workspaces.ts";
 
 /**
@@ -23,6 +26,9 @@ export const apiRouter = {
 	install,
 	workspaces,
 	sites,
+	postTypes,
+	entries,
+	templates,
 	staff,
 	invites,
 	audit,
