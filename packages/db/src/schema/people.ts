@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Everyone with an account on the Install: the Superadmin, Staff and Members. `@webcraft/auth`
@@ -18,6 +18,10 @@ export const people = pgTable(
 		adminLanguage: text("admin_language"),
 		/** Light or dark admin, or `system` to follow the device. */
 		adminTheme: text("admin_theme").notNull().default("system"),
+		/** Wrong passwords in a row since the last right one (or the last lock); 10 lock the account. */
+		failedAttempts: integer("failed_attempts").notNull().default(0),
+		/** Until when the account is locked after too many wrong passwords; null or past: not locked. */
+		lockedUntil: timestamp("locked_until", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
@@ -26,7 +30,10 @@ export const people = pgTable(
 
 /**
  * Signed-in sessions in the admin. `started_at` and `last_active_at` come from WebCraft's clock and
- * decide how long a session lasts; the other columns belong to the sign-in library.
+ * decide how long a session lasts; `identity_checked_at` is when the person last proved who they
+ * are in this session (signing in counts), which Sensitive actions need within the last 10 minutes.
+ * `ip_address` is the client address WebCraft saw when the session was last renewed, and
+ * `user_agent` the browser that signed in; the other columns belong to the sign-in library.
  */
 export const sessions = pgTable(
 	"sessions",
@@ -41,6 +48,7 @@ export const sessions = pgTable(
 		userAgent: text("user_agent"),
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
 		lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull(),
+		identityCheckedAt: timestamp("identity_checked_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

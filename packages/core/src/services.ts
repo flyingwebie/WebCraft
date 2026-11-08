@@ -1,6 +1,7 @@
 import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 
+import type { Account } from "./account.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
@@ -23,6 +24,7 @@ import type { Logger } from "./log.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
+import type { RateLimits } from "./rate-limits.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { SitePages } from "./site-pages/index.ts";
@@ -68,6 +70,10 @@ export type InstallServices = InstallPorts & {
 	secrets: InstallSecrets;
 	/** Signing in and out, and sessions. */
 	auth: Auth;
+	/** A person's own account: their sessions and their password, recorded in the Audit log. */
+	account: Account;
+	/** Rate limits, counted in Postgres so every web process shares them (`RATE_LIMITS`). */
+	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */
 	people: People;
 	/** The setup wizard and its token. */

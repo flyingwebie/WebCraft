@@ -8,6 +8,7 @@ import {
 	MailIcon,
 	ScrollTextIcon,
 	SettingsIcon,
+	ShieldCheckIcon,
 	UsersIcon,
 } from "lucide-react";
 
@@ -94,6 +95,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.general",
 						icon: SettingsIcon,
 						to: "/settings/general",
+						requires: "install.manage",
+					},
+					{
+						id: "security",
+						label: "shell.nav.security",
+						icon: ShieldCheckIcon,
+						to: "/settings/security",
 						requires: "install.manage",
 					},
 					{

@@ -23,8 +23,7 @@ export const members = {
 	 * the same Workspace again replaces the earlier invite.
 	 */
 	invite: signedIn
-		// Sensitive: it grants a role.
-		.use(sensitive)
+		.use(sensitive("member.invite"))
 		.input(z.object({ workspaceId: id, email, role: workspaceRole, sites: memberSites }))
 		.handler(async ({ context, input }) => {
 			const { workspaceId, ...invite } = input;
@@ -47,8 +46,7 @@ export const members = {
 
 	/** Changes a Member's role and Sites; it takes effect on their next request. */
 	changeAccess: signedIn
-		// Sensitive: it changes a person's role and what they can reach.
-		.use(sensitive)
+		.use(sensitive("member.changeAccess"))
 		.input(z.object({ workspaceId: id, personId: id, role: workspaceRole, sites: memberSites }))
 		.handler(async ({ context, input }) => {
 			const workspace = await context.services.data.workspace(context.access, input.workspaceId, "member.manage");
@@ -62,8 +60,7 @@ export const members = {
 
 	/** Removes a Member from the Workspace; it takes effect on their next request. Their account stays. */
 	remove: signedIn
-		// Sensitive: it changes what a person can reach.
-		.use(sensitive)
+		.use(sensitive("member.remove"))
 		.input(z.object({ workspaceId: id, personId: id }))
 		.handler(async ({ context, input }) => {
 			const workspace = await context.services.data.workspace(context.access, input.workspaceId, "member.manage");

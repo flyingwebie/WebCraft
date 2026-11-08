@@ -38,8 +38,13 @@ export type DataLayer = {
 	visitors(site: Site): VisitorScope;
 };
 
-/** Who is acting and how they came in: the permission check and the Audit log both need it. */
-export type Access = { actor: Actor; via: AuditVia };
+/**
+ * Who is acting and how they came in: the permission check and the Audit log both need it.
+ * `identityCheckedAt` is when a person last proved who they are in the admin session the call came
+ * with (null: not since signing in long ago); it is absent for anything that isn't an admin session,
+ * which can never take a Sensitive action.
+ */
+export type Access = { actor: Actor; via: AuditVia; identityCheckedAt?: Date | null };
 
 /** A Workspace, as the data layer hands it out. */
 export type Workspace = { id: string; name: string; createdAt: Date };

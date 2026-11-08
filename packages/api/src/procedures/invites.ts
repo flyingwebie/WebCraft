@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { procedure, setCookies, signedIn } from "../context.ts";
+import { authEndpoint, setCookies, signedIn } from "../context.ts";
 import { adminLanguage, password, personName } from "../inputs.ts";
 
 const token = z.string().max(512);
@@ -9,21 +9,24 @@ const token = z.string().max(512);
 export const invites = {
 	/**
 	 * What the invite offers: the address, the role, who sent it, the Workspace (for a Member invite),
-	 * until when it works, and whether the address already has an account.
+	 * until when it works, and whether the address already has an account. Rate-limited per client
+	 * address, like every endpoint a signed-out person can call.
 	 */
-	get: procedure.input(z.object({ token })).handler(({ context, input }) => context.services.invites.get(input.token)),
+	get: authEndpoint
+		.input(z.object({ token }))
+		.handler(({ context, input }) => context.services.invites.get(input.token)),
 
 	/**
 	 * Accepts the invite by creating the account with the access it grants (a Staff role or a
 	 * Membership), and signs the person in. An address that already has an account joins with `join`.
 	 */
-	accept: procedure
+	accept: authEndpoint
 		.input(z.object({ token, name: personName, password, adminLanguage }))
 		.handler(async ({ context, input }) => {
 			const { services } = context;
 			const { token: inviteToken, ...account } = input;
 			const { personId, email, workspaceId } = await services.invites.accept(inviteToken, account, context.via);
-			const { setCookie } = await services.auth.signIn({ email, password: account.password }, context.headers);
+			const { setCookie } = await services.auth.signIn({ email, password: account.password }, context);
 			setCookies(context, setCookie);
 			// The Workspace a Member invite let them into, for the admin to open; null for Staff.
 			return { personId, workspaceId };

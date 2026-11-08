@@ -14,20 +14,25 @@ import {
 	FieldSet,
 } from "@webcraft/ui/components/field.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
+import { formatUtc } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
+import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
+import { PasswordInput } from "../../ui/PasswordInput.tsx";
 import { roleLabel, type SignedInPerson } from "../../ui/shell/context.ts";
 
 export const Route = createFileRoute("/_admin/account")({
 	staticData: { crumb: "account.pageTitle" },
 	loader: async () => {
 		const api = await getApi();
-		return { emails: (await api.me.emails.get()).emails };
+		const [{ emails }, { sessions }] = await Promise.all([api.me.emails.get(), api.me.sessions.list()]);
+		return { emails, sessions };
 	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "account.pageTitle") }] }),
 	component: AccountPage,
@@ -41,7 +46,10 @@ const THEMES: { value: Theme; label: MessageKey }[] = [
 	{ value: "dark", label: "account.preferences.themeDark" },
 ];
 
-/** Your account: who you are, your Admin language and theme, your emails, and two-factor authentication. */
+/**
+ * Your account: who you are, your Admin language and theme, your password, the browsers signed in
+ * to your account, your emails, and two-factor authentication.
+ */
 function AccountPage() {
 	const t = useT();
 	const { person } = Route.useRouteContext();
@@ -68,6 +76,8 @@ function AccountPage() {
 					</CardContent>
 				</Card>
 				<PreferencesCard person={person} />
+				<PasswordCard />
+				<SessionsCard />
 				<EmailsCard />
 				<Card id="two-factor" tabIndex={-1} className="outline-none">
 					<CardHeader>
@@ -169,6 +179,202 @@ function PreferencesCard({ person }: { person: SignedInPerson }) {
 						</div>
 					</FieldGroup>
 				</form>
+			</CardContent>
+		</Card>
+	);
+}
+
+/** Changing the password: a Sensitive action, which signs out every other session. */
+function PasswordCard() {
+	const t = useT();
+	const router = useRouter();
+	const runSensitive = useSensitiveAction();
+	const [password, setPassword] = useState("");
+	const [repeat, setRepeat] = useState("");
+	const [error, setError] = useState<{ field: "password" | "repeat"; message: MessageKey } | null>(null);
+	const [busy, setBusy] = useState(false);
+
+	const submit = async (event: FormEvent) => {
+		event.preventDefault();
+		if (password !== repeat) {
+			setError({ field: "repeat", message: "account.password.mismatch" });
+			return;
+		}
+		setBusy(true);
+		setError(null);
+		try {
+			const api = await getApi();
+			await runSensitive(() => api.me.changePassword({ newPassword: password }));
+			setPassword("");
+			setRepeat("");
+			toast.success(t("account.password.saved"));
+			await router.invalidate();
+		} catch (failure) {
+			setError({ field: "password", message: errorMessage(failure) });
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const invalid = (field: "password" | "repeat") => (error?.field === field ? true : undefined);
+	const describedBy = (field: "password" | "repeat", help?: string) =>
+		[help, error?.field === field ? `account-${field}-error` : undefined].filter(Boolean).join(" ") || undefined;
+
+	return (
+		<Card id="password" tabIndex={-1} className="outline-none">
+			<CardHeader>
+				<CardTitle>
+					<h2>{t("account.password.heading")}</h2>
+				</CardTitle>
+				<CardDescription>{t("account.password.intro")}</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<form onSubmit={submit} noValidate>
+					<FieldGroup className="gap-6">
+						<Field data-invalid={invalid("password")}>
+							<FieldLabel htmlFor="account-password">{t("account.password.newPassword")}</FieldLabel>
+							<PasswordInput
+								id="account-password"
+								value={password}
+								onChange={(event) => setPassword(event.target.value)}
+								autoComplete="new-password"
+								required
+								aria-invalid={invalid("password")}
+								aria-describedby={describedBy("password", "account-password-help")}
+							/>
+							<FieldDescription id="account-password-help">{t("account.password.newPasswordHelp")}</FieldDescription>
+							{error?.field === "password" ? (
+								<FieldError id="account-password-error">{t(error.message)}</FieldError>
+							) : null}
+						</Field>
+						<Field data-invalid={invalid("repeat")}>
+							<FieldLabel htmlFor="account-repeat">{t("account.password.repeat")}</FieldLabel>
+							<PasswordInput
+								id="account-repeat"
+								value={repeat}
+								onChange={(event) => setRepeat(event.target.value)}
+								autoComplete="new-password"
+								required
+								aria-invalid={invalid("repeat")}
+								aria-describedby={describedBy("repeat")}
+							/>
+							{error?.field === "repeat" ? <FieldError id="account-repeat-error">{t(error.message)}</FieldError> : null}
+						</Field>
+						<div>
+							<Button type="submit" disabled={busy}>
+								{t("account.password.save")}
+							</Button>
+						</div>
+					</FieldGroup>
+				</form>
+			</CardContent>
+		</Card>
+	);
+}
+
+type SessionRow = Awaited<ReturnType<ApiClient["me"]["sessions"]["list"]>>["sessions"][number];
+
+/** The browsers signed in to the account, with a way to sign each out, or every other one. */
+function SessionsCard() {
+	const t = useT();
+	const router = useRouter();
+	const { sessions } = Route.useLoaderData();
+	const [busy, setBusy] = useState(false);
+	const others = sessions.filter((session) => !session.current);
+
+	const device = (session: SessionRow) =>
+		session.browser && session.os
+			? t("account.sessions.deviceBoth", { browser: session.browser, os: session.os })
+			: session.browser
+				? session.browser
+				: session.os
+					? t("account.sessions.deviceOs", { os: session.os })
+					: t("account.sessions.deviceUnknown");
+
+	const act = async (work: () => Promise<string>) => {
+		setBusy(true);
+		try {
+			toast.success(await work());
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const revoke = (session: SessionRow) =>
+		act(async () => {
+			await (await getApi()).me.sessions.revoke({ sessionId: session.id });
+			return t("account.sessions.signedOut");
+		});
+
+	const revokeOthers = () =>
+		act(async () => {
+			const { revoked } = await (await getApi()).me.sessions.revokeOthers();
+			return t("account.sessions.signedOutOthers", { count: revoked });
+		});
+
+	return (
+		<Card id="sessions" tabIndex={-1} className="outline-none">
+			<CardHeader>
+				<CardTitle>
+					<h2>{t("account.sessions.heading")}</h2>
+				</CardTitle>
+				<CardDescription>{t("account.sessions.intro")}</CardDescription>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>{t("account.sessions.browser")}</TableHead>
+							<TableHead>{t("account.sessions.network")}</TableHead>
+							<TableHead>{t("account.sessions.lastUsed")}</TableHead>
+							<TableHead>
+								<span className="sr-only">{t("account.sessions.actions")}</span>
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{sessions.map((session) => (
+							<TableRow key={session.id}>
+								<TableCell>
+									<span className="flex flex-wrap items-center gap-2">
+										{device(session)}
+										{session.current ? <Badge variant="outline">{t("account.sessions.current")}</Badge> : null}
+									</span>
+								</TableCell>
+								<TableCell className="font-mono text-xs">
+									{session.network ?? t("account.sessions.networkUnknown")}
+								</TableCell>
+								<TableCell>{formatUtc(session.lastUsedAt)}</TableCell>
+								<TableCell className="text-end">
+									{session.current ? null : (
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={busy}
+											onClick={() => revoke(session)}
+											aria-label={t("account.sessions.signOutLabel", {
+												device: device(session),
+												lastUsed: formatUtc(session.lastUsedAt),
+											})}
+										>
+											{t("account.sessions.signOut")}
+										</Button>
+									)}
+								</TableCell>
+							</TableRow>
+						))}
+					</TableBody>
+				</Table>
+				{others.length > 0 ? (
+					<div>
+						<Button variant="outline" disabled={busy} onClick={revokeOthers}>
+							{t("account.sessions.signOutOthers")}
+						</Button>
+					</div>
+				) : null}
 			</CardContent>
 		</Card>
 	);

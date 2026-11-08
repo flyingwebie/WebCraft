@@ -13,8 +13,7 @@ export const staff = {
 	 * that works once for 7 days. Inviting the same address again replaces the earlier invite.
 	 */
 	invite: onInstall("staff.manage")
-		// Sensitive: it grants a role.
-		.use(sensitive)
+		.use(sensitive("staff.invite"))
 		.input(z.object({ email, workspaces: reach }))
 		.handler(async ({ context, input }) => ({
 			invite: await context.services.staff.invite(context.install, input),
@@ -30,8 +29,7 @@ export const staff = {
 
 	/** Changes which Workspaces a Staff member reaches. */
 	setWorkspaces: onInstall("staff.manage")
-		// Sensitive: it changes what a person can reach.
-		.use(sensitive)
+		.use(sensitive("staff.changeWorkspaces"))
 		.input(z.object({ personId: id, workspaces: reach }))
 		.handler(async ({ context, input }) => {
 			await context.services.staff.setWorkspaces(context.install, input.personId, input.workspaces);
