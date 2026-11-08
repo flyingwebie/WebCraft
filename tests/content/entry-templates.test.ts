@@ -173,7 +173,7 @@ describe("refused trees", () => {
 	test("anything that isn't a tree of this version", async () => {
 		await refuses({ version: 2, nodes: [] }, "version");
 		await refuses({ version: 1, nodes: "<h1>Hi</h1>" }, "nodes");
-		await refuses({ version: 1, nodes: [{ type: "comment", text: "x" }] }, "nodes[0]");
+		await refuses({ version: 1, nodes: [{ type: "html", html: "<b>x</b>" }] }, "nodes[0]");
 	});
 
 	test("an Entry template for a Post Type the Site doesn't have", async () => {

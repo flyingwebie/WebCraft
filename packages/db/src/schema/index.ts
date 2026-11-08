@@ -2,6 +2,7 @@
 // `bun run db:generate` writes a migration for each change (see docs/development.md).
 export * from "./audit.ts";
 export * from "./content.ts";
+export * from "./design-system.ts";
 export * from "./email.ts";
 export * from "./install.ts";
 export * from "./people.ts";

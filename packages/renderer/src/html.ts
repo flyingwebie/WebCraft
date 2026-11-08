@@ -1,63 +1,27 @@
-import { type Attribute, type ElementTree, type TreeNode, VOID_ELEMENTS } from "./tree.ts";
+import { commandForNode } from "./commands.ts";
+import { escapeAttribute, escapeText, safeAttributeValue } from "./escape.ts";
+import { applyFormat } from "./formatters.ts";
+import { cleanRichText } from "./rich-text.ts";
+import { type Attribute, type ElementTree, type TreeNode, type ValueNode, VOID_ELEMENTS } from "./tree.ts";
+import { type TemplateValue, textOf, type ValueReader } from "./values.ts";
 
-/**
- * Reads the value a binding names, as text. `null` or `undefined` renders as nothing. Every value is
- * escaped for where it lands, so a reader returns plain text, never HTML.
- */
-export type ValueReader = (path: string) => string | null | undefined;
-
-/** Escapes text for an HTML text position. */
-export function escapeText(text: string): string {
-	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-/** Escapes text for a double-quoted attribute value. */
-export function escapeAttribute(text: string): string {
-	return escapeText(text).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-}
-
-/** Attributes holding one URL, checked with `safeUrl`. */
-const URL_ATTRIBUTES: ReadonlySet<string> = new Set(["href", "src", "cite", "poster", "action", "background"]);
-
-/** Attributes holding a list of image candidates, `url [descriptor]`, separated by commas. */
-const SRCSET_ATTRIBUTES: ReadonlySet<string> = new Set(["srcset", "imagesrcset"]);
-
-const SAFE_SCHEMES: ReadonlySet<string> = new Set(["http", "https", "mailto", "tel"]);
-
-/**
- * A URL as it may appear in a page: relative paths, `#anchors`, and `http`, `https`, `mailto` and
- * `tel` addresses pass; anything else (`javascript:`, `data:`, …) becomes `#`. The scheme is read
- * the way browsers read it, ignoring the whitespace and control characters they ignore.
- */
-export function safeUrl(url: string): string {
-	// Browsers drop tabs and newlines anywhere, and leading C0 controls and spaces.
-	const read = url.replace(/[\t\n\r]/g, "");
-	let start = 0;
-	while (start < read.length && read.charCodeAt(start) <= 0x20) start++;
-	const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(read.slice(start))?.[1];
-	if (scheme === undefined) return url;
-	return SAFE_SCHEMES.has(scheme.toLowerCase()) ? url : "#";
-}
-
-function safeSrcset(srcset: string): string {
-	return srcset
-		.split(",")
-		.map((candidate) => {
-			const [url = "", ...descriptor] = candidate.trim().split(/\s+/);
-			return [safeUrl(url), ...descriptor].join(" ");
-		})
-		.join(", ");
-}
+export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
 /** Options for rendering a tree. */
 export type RenderOptions = {
 	/** Reads the value a binding names. */
 	values: ValueReader;
+	/** The page's language, a BCP 47 tag such as `en`, for formatters; English when absent. */
+	language?: string;
 	/** The class name of a Class id; Class references it doesn't know are left out. */
 	className?: (classId: string) => string | undefined;
 };
 
-/** Renders a tree's nodes as HTML: every value escaped for where it lands, every URL checked. */
+/**
+ * Renders a tree's nodes as HTML. Every value is escaped for where it lands (text, an attribute, a
+ * URL), rich text is cleaned against its allowlist, comments are left out, and Conditions render
+ * the branch whose test passes.
+ */
 export function renderTree(tree: ElementTree, options: RenderOptions): string {
 	return renderNodes(tree.nodes, options);
 }
@@ -72,8 +36,13 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 	switch (node.type) {
 		case "text":
 			return escapeText(node.text);
-		case "value":
-			return escapeText(options.values(node.path) ?? "");
+		case "comment":
+			return "";
+		case "value": {
+			const value = options.values(node.path);
+			if (!node.format && isRichText(value)) return cleanRichText(value.html);
+			return escapeText(valueText(node, value, options));
+		}
 		case "element": {
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
@@ -85,12 +54,24 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 			return `<${node.tag}${attributes}>${children}</${node.tag}>`;
 		}
 	}
+	const command = commandForNode(node.type);
+	if (!command) return "";
+	return command.render(node, { read: options.values, nodes: (children) => renderNodes(children, options) });
+}
+
+function isRichText(value: TemplateValue): value is { type: "richText"; html: string } {
+	return typeof value === "object" && value !== null && !(value instanceof Date);
+}
+
+/** A value as text, through its formatter when it has one. */
+function valueText(node: ValueNode, value: TemplateValue, options: RenderOptions): string {
+	return node.format ? applyFormat(value, node.format, options.language ?? "en") : textOf(value);
 }
 
 function renderAttribute(attribute: Attribute, options: RenderOptions): string {
 	let value = "";
-	for (const part of attribute.value) value += part.type === "text" ? part.text : (options.values(part.path) ?? "");
-	if (URL_ATTRIBUTES.has(attribute.name)) value = safeUrl(value);
-	if (SRCSET_ATTRIBUTES.has(attribute.name)) value = safeSrcset(value);
-	return ` ${attribute.name}="${escapeAttribute(value)}"`;
+	for (const part of attribute.value) {
+		value += part.type === "text" ? part.text : valueText(part, options.values(part.path), options);
+	}
+	return ` ${attribute.name}="${escapeAttribute(safeAttributeValue(attribute.name, value))}"`;
 }

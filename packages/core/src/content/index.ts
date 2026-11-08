@@ -47,9 +47,13 @@ export {
 export { type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
 export {
 	getEntryTemplate,
+	getEntryTemplateMarkup,
+	type SavedTemplateMarkup,
 	saveEntryTemplate,
+	saveEntryTemplateMarkup,
 	type Template,
 	type TemplateKind,
+	type TemplateMarkup,
 	type TemplateStatus,
 } from "./templates.ts";
 export type { LanguageValue, Writer } from "./values.ts";

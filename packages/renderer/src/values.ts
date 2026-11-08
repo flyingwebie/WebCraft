@@ -1,0 +1,89 @@
+/**
+ * The values bindings read where a page renders: a Field, a built-in such as `publishedAt`, and later
+ * Globals (`site.x`), Loop items (`item.x`) and Props (`props.x`). The content store hands them over
+ * typed; the renderer decides how each lands in the page.
+ */
+import { richTextToText } from "./rich-text.ts";
+
+/** Rich text: HTML, cleaned against the rich text allowlist wherever it lands. */
+export type RichText = { type: "richText"; html: string };
+
+/** Marks HTML as rich text, so the renderer cleans it and writes it as markup rather than as text. */
+export function richText(html: string): RichText {
+	return { type: "richText", html };
+}
+
+/** A value a binding reads. `null` and `undefined` render as nothing. */
+export type TemplateValue = string | number | boolean | Date | RichText | null | undefined;
+
+/** Reads the value a binding names. */
+export type ValueReader = (path: string) => TemplateValue;
+
+function isRichText(value: TemplateValue): value is RichText {
+	return typeof value === "object" && value !== null && !(value instanceof Date);
+}
+
+/** A date as visitors read it when no formatter says otherwise: `2026-03-02`, in UTC. */
+export function isoDay(date: Date): string {
+	return date.toISOString().slice(0, 10);
+}
+
+/** A value as plain text: dates as `2026-03-02`, rich text without its markup. */
+export function textOf(value: TemplateValue): string {
+	if (value === null || value === undefined) return "";
+	if (typeof value === "string") return value;
+	if (typeof value === "number" || typeof value === "boolean") return String(value);
+	if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : isoDay(value);
+	return richTextToText(value.html);
+}
+
+/** Whether a value is there: not missing, not blank text, not false, not empty rich text. */
+export function isPresent(value: TemplateValue): boolean {
+	if (value === null || value === undefined) return false;
+	if (typeof value === "boolean") return value;
+	if (typeof value === "number") return !Number.isNaN(value);
+	if (value instanceof Date) return !Number.isNaN(value.getTime());
+	if (isRichText(value)) return richTextToText(value.html).trim() !== "";
+	return value.trim() !== "";
+}
+
+function isEmpty(value: TemplateValue): boolean {
+	return value === null || value === undefined || (typeof value !== "boolean" && !isPresent(value));
+}
+
+function toBoolean(value: TemplateValue): boolean {
+	if (typeof value === "boolean") return value;
+	if (value === "true" || value === "false") return value === "true";
+	return isPresent(value);
+}
+
+function toNumber(value: TemplateValue): number {
+	if (typeof value === "number") return value;
+	if (typeof value === "string" && /^\s*-?\d+(?:\.\d+)?\s*$/.test(value)) return Number(value);
+	return Number.NaN;
+}
+
+/**
+ * Whether two values are the same, as `==` in a Condition reads it: empty equals empty (`""`),
+ * a number compares as a number, true and false as a yes or no, anything else as its text.
+ */
+export function sameValue(a: TemplateValue, b: TemplateValue): boolean {
+	if (isEmpty(a) || isEmpty(b)) return isEmpty(a) && isEmpty(b);
+	if (typeof a === "boolean" || typeof b === "boolean") return toBoolean(a) === toBoolean(b);
+	if (typeof a === "number" || typeof b === "number") return toNumber(a) === toNumber(b);
+	return textOf(a) === textOf(b);
+}
+
+/** Reads a date from a value: a date, or text that starts with `YYYY-MM-DD`. */
+export function toDate(value: TemplateValue): Date | undefined {
+	if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;
+	if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}(?:$|T)/.test(value)) return undefined;
+	const date = new Date(value.length === 10 ? `${value}T00:00:00Z` : value);
+	return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+/** Reads a number from a value: a number, or text written as one. */
+export function toFiniteNumber(value: TemplateValue): number | undefined {
+	const number = toNumber(value);
+	return Number.isFinite(number) ? number : undefined;
+}
