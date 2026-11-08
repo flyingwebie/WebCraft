@@ -17,6 +17,9 @@ export type Database = {
 	close(): Promise<void>;
 };
 
+/** An open transaction, as `db.transaction()` hands it to its callback. */
+export type Transaction = Parameters<Parameters<Database["db"]["transaction"]>[0]>[0];
+
 /** Opens a pool to `databaseUrl`. Connections are made on first use, not here. */
 export function openDatabase(databaseUrl: string, options: DatabaseOptions = {}): Database {
 	const pool = new pg.Pool({

@@ -20,7 +20,13 @@ export function createTestClock(start: Date): { clock: TestInstallClock; jobQueu
 		clock: {
 			now: () => new Date(jobQueueClock.now()),
 			set: (time) => jobQueueClock.setTime(time),
-			advance: (milliseconds) => jobQueueClock.tick(milliseconds),
+			// Jumps as if the process had slept: every timer the jump passes fires once, instead of an
+			// interval replaying each period it skipped, so moving days ahead takes no longer than a
+			// minute. Jobs still run by the database's time, which moves the same way.
+			advance: async (milliseconds) => {
+				await jobQueueClock.setTime(jobQueueClock.now() + milliseconds);
+				await jobQueueClock.tick(0);
+			},
 		},
 	};
 }

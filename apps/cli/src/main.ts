@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
-// The `webcraft` command line. For now it has the server commands `admin migrate` and
-// `admin rotate-key`; the generated remote commands, `login` and the other server commands arrive
-// with the CLI ticket.
+// The `webcraft` command line. For now it has the server commands `admin migrate`,
+// `admin rotate-key` and `admin create-superadmin`; the generated remote commands, `login` and the
+// other server commands arrive with the CLI ticket.
 import { readFile } from "node:fs/promises";
+import { EmailInUseError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
 import {
 	CONFIRM_FINGERPRINT_LENGTH,
 	ConfigError,
@@ -11,13 +12,17 @@ import {
 	loadMasterKey,
 	MASTER_KEY_MIN_LENGTH,
 	type MasterKey,
+	MasterKeyMismatchError,
 	OLD_MASTER_KEY_VARIABLE,
 	parseMasterKey,
 	replaceLostMasterKey,
 	rotateMasterKey,
+	SetupClosedError,
 	systemClock,
 } from "@webcraft/core";
 import { assertSchemaCurrent, DatabaseNotReadyError, openDatabase, runMigrations } from "@webcraft/db";
+
+import { createSuperadmin, parseCreateSuperadminOptions } from "./create-superadmin.ts";
 
 const USAGE = `Usage: webcraft <command>
 
@@ -32,13 +37,26 @@ Server commands (run on the server, with the Install's environment):
                      When the old key is lost: lists the secrets that can't be decrypted any more
                      and the lost key's fingerprint. Given the start of that fingerprint, deletes
                      them and starts using the key in WEBCRAFT_SECRET_KEY.
+  admin create-superadmin <email> [--name <name>] [--language <en|it>]
+                     Create the Superadmin of a fresh Install without the setup wizard, which then
+                     closes. The password is asked twice on a terminal, or read from the first line
+                     of standard input; it is never taken from the command line.
 
 Options:
   -h, --help         Show this help.
 `;
 
 /** Errors whose message says everything: shown without a stack trace. */
-const EXPLAINED_ERRORS = [ConfigError, DatabaseNotReadyError, KeyRotationError];
+const EXPLAINED_ERRORS = [
+	ConfigError,
+	DatabaseNotReadyError,
+	KeyRotationError,
+	MasterKeyMismatchError,
+	SetupClosedError,
+	PasswordRefusedError,
+	InvalidEmailError,
+	EmailInUseError,
+];
 
 async function main(args: string[]): Promise<number> {
 	const [group, command, ...rest] = args;
@@ -53,7 +71,14 @@ async function main(args: string[]): Promise<number> {
 		const options = parseRotateKeyOptions(rest);
 		if (options) return rotateKey(options);
 	}
-	process.stderr.write(`Unknown command: webcraft ${args.join(" ")}\n\n${USAGE}`);
+	if (group === "admin" && command === "create-superadmin") {
+		const options = parseCreateSuperadminOptions(rest);
+		if (options) return createSuperadmin(options);
+	}
+	// Only the command is repeated: the rest could hold something secret typed in the wrong place.
+	process.stderr.write(
+		`Unknown command or options: webcraft ${[group, command].filter(Boolean).join(" ")}\n\n${USAGE}`,
+	);
 	return 1;
 }
 

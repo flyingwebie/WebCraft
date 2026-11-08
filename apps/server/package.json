@@ -15,16 +15,23 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@orpc/client": "catalog:",
+		"@orpc/server": "catalog:",
 		"@tailwindcss/vite": "^4.3.3",
 		"@tanstack/react-router": "^1.170.44",
 		"@tanstack/react-start": "^1.169.1",
+		"@webcraft/api": "workspace:*",
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",
 		"@webcraft/ui": "workspace:*",
 		"drizzle-orm": "catalog:",
+		"lucide-react": "^1.41.0",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
-		"tailwindcss": "catalog:"
+		"sonner": "catalog:",
+		"tailwindcss": "catalog:",
+		"use-intl": "^4.14.9",
+		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@types/bun": "catalog:",

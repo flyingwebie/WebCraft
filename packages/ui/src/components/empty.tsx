@@ -1,12 +1,12 @@
-import { cn } from "@webcraft/ui/lib/utils.ts";
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 
 function Empty({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			data-slot="empty"
 			className={cn(
-				"flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-none border-dashed p-6 text-center text-balance md:p-12",
+				"flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-lg border-dashed p-12 text-center text-balance",
 				className,
 			)}
 			{...props}
@@ -26,7 +26,7 @@ const emptyMediaVariants = cva(
 		variants: {
 			variant: {
 				default: "bg-transparent",
-				icon: "bg-muted text-foreground flex size-10 shrink-0 items-center justify-center rounded-none [&_svg:not([class*='size-'])]:size-5",
+				icon: "bg-muted text-foreground flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg:not([class*='size-'])]:size-6",
 			},
 		},
 		defaultVariants: {
@@ -51,13 +51,7 @@ function EmptyMedia({
 }
 
 function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
-	return (
-		<div
-			data-slot="empty-title"
-			className={cn("cn-font-heading text-sm font-medium tracking-tight", className)}
-			{...props}
-		/>
-	);
+	return <div data-slot="empty-title" className={cn("text-lg font-medium tracking-tight", className)} {...props} />;
 }
 
 function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {

@@ -1,0 +1,196 @@
+{
+	"app": {
+		"name": "WebCraft",
+		"skipToContent": "Vai al contenuto principale",
+		"pageTitle": "{page} · WebCraft"
+	},
+	"errors": {
+		"generic": "Qualcosa è andato storto. Riprova.",
+		"SETUP_TOKEN_INVALID": "Questo token di configurazione non apre questa Install. Copialo di nuovo dal log del processo web.",
+		"SETUP_CLOSED": "Questa Install ha già un Superadmin, quindi la configurazione guidata è chiusa.",
+		"PASSWORD_TOO_SHORT": "Usa almeno 12 caratteri.",
+		"PASSWORD_TOO_LONG": "Usa al massimo 128 caratteri.",
+		"PASSWORD_LEAKED": "Questa password compare negli elenchi di password trapelate. Scegline un'altra.",
+		"EMAIL_INVALID": "Inserisci un indirizzo email come nome@esempio.it.",
+		"EMAIL_IN_USE": "Un'altra persona accede già con questo indirizzo email.",
+		"INVALID_CREDENTIALS": "L'email o la password non sono corrette.",
+		"UNAUTHORIZED": "La sessione è terminata. Accedi di nuovo.",
+		"FORBIDDEN": "Non puoi farlo."
+	},
+	"roles": {
+		"superadmin": "Superadmin",
+		"staff": "Staff",
+		"none": "Accesso effettuato"
+	},
+	"languages": {
+		"en": "English",
+		"it": "Italiano"
+	},
+	"setup": {
+		"pageTitle": "Configurazione",
+		"title": "Configura WebCraft",
+		"stepsLabel": "Passaggi della configurazione",
+		"stepCount": "Passaggio {current} di {total}",
+		"stepDone": "Completato",
+		"stepCurrent": "Passaggio attuale",
+		"lockNote": "Questa configurazione guidata si chiude per sempre quando è finita.",
+		"back": "Indietro",
+		"continue": "Continua",
+		"steps": {
+			"token": {
+				"title": "Token di configurazione",
+				"hint": "Dal log del processo web",
+				"doneHint": "Verificato dal log del server",
+				"heading": "Inserisci il token di configurazione",
+				"intro": "All'avvio di WebCraft, il processo web ha scritto nel suo log un token di configurazione monouso. Copialo da lì per dimostrare che gestisci questo server.",
+				"label": "Token di configurazione",
+				"help": "Cerca la riga del log che dice che questa Install non ha ancora un Superadmin.",
+				"required": "Inserisci il token di configurazione."
+			},
+			"account": {
+				"title": "Account del Superadmin",
+				"hint": "Chi gestisce questa Install",
+				"heading": "Crea l'account del Superadmin",
+				"intro": "Questa persona amministra tutta l'Install: ogni Workspace, tutto lo Staff e le impostazioni dell'Install.",
+				"name": "Nome e cognome",
+				"language": "Lingua dell'admin",
+				"email": "Email",
+				"password": "Password",
+				"passwordHelp": "Almeno 12 caratteri. Subito dopo ti chiederemo di aggiungere una passkey o un'app di autenticazione.",
+				"showPassword": "Mostra la password",
+				"hidePassword": "Nascondi la password",
+				"create": "Crea l'account",
+				"nameRequired": "Inserisci un nome."
+			},
+			"twoFactor": {
+				"title": "Autenticazione a due fattori",
+				"hint": "Passkey o app di autenticazione",
+				"heading": "Proteggi il tuo account con l'autenticazione a due fattori",
+				"intro": "Una password da sola può essere indovinata o rubata. Con una passkey o un'app di autenticazione, per accedere serve anche qualcosa che hai solo tu.",
+				"recommend": "Il Superadmin può raggiungere tutto in questa Install, quindi la consigliamo vivamente.",
+				"setUp": "Configura l'autenticazione a due fattori",
+				"later": "Puoi farlo anche più tardi da Il tuo account."
+			}
+		},
+		"finish": "Termina la configurazione",
+		"closed": {
+			"heading": "Questa Install è già configurata",
+			"intro": "Ha un Superadmin, quindi la configurazione guidata è chiusa per sempre.",
+			"signIn": "Vai all'accesso"
+		}
+	},
+	"signIn": {
+		"pageTitle": "Accedi",
+		"heading": "Accedi",
+		"headingNamed": "Accedi a {name}",
+		"email": "Email",
+		"password": "Password",
+		"submit": "Accedi"
+	},
+	"shell": {
+		"navLabel": "Admin",
+		"toggleSidebar": "Mostra o nascondi la barra laterale",
+		"breadcrumbLabel": "Percorso",
+		"levels": {
+			"install": "Install"
+		},
+		"switcher": {
+			"label": "Cambia Workspace o Site",
+			"installSubtitle": "Install · {role}",
+			"heading": "Passa a",
+			"install": "Install"
+		},
+		"userMenu": {
+			"label": "Apri il menu dell'account",
+			"account": "Il tuo account",
+			"signOut": "Esci"
+		},
+		"darkTheme": "Tema scuro",
+		"nav": {
+			"installGroup": "Install",
+			"installSettingsGroup": "Impostazioni dell'Install",
+			"overview": "Panoramica",
+			"general": "Generali"
+		}
+	},
+	"masterKeyBanner": {
+		"title": "Fai una copia della Master key",
+		"body": "WEBCRAFT_SECRET_KEY cifra ogni password SMTP, chiave AI e token API di questa Install. Se va persa, non si possono recuperare. Conservane una copia in un luogo diverso da questo server.",
+		"howTo": "Come farne una copia",
+		"confirm": "Ho fatto una copia",
+		"confirmed": "Grazie. Il banner non comparirà più per questa chiave.",
+		"dialog": {
+			"title": "Fai una copia della Master key",
+			"intro": "La Master key non viene mai salvata nel database né in un Backup: una copia conservata altrove è l'unico modo per leggere i tuoi segreti se perdi il server.",
+			"stepCopy": "Sul server, copia il valore di WEBCRAFT_SECRET_KEY dall'ambiente dell'Install: il file .env accanto al file Docker Compose, oppure le variabili d'ambiente della tua piattaforma.",
+			"stepStore": "Conservalo in un gestore di password o in un altro luogo sicuro che non sia questo server né un Backup.",
+			"stepSecret": "Tienilo segreto: chiunque abbia la chiave e un Backup può leggere ogni segreto salvato.",
+			"fingerprint": "Impronta della chiave in uso",
+			"fingerprintHelp": "I Backup registrano questa impronta, così puoi capire quale chiave serve a un Backup. Non rivela nulla della chiave.",
+			"close": "Chiudi"
+		}
+	},
+	"overview": {
+		"pageTitle": "Panoramica",
+		"heading": "Panoramica",
+		"intro": "Hai effettuato l'accesso a {name} come {role}.",
+		"setupUnfinished": {
+			"heading": "La configurazione non è finita",
+			"body": "Mancano alcuni passaggi della configurazione guidata.",
+			"action": "Continua la configurazione"
+		},
+		"nextSteps": {
+			"heading": "Prossimi passi",
+			"twoFactor": "Aggiungi l'autenticazione a due fattori al tuo account",
+			"general": "Dai un nome a questa Install e scegli la sua lingua predefinita dell'admin"
+		}
+	},
+	"generalSettings": {
+		"pageTitle": "Generali",
+		"heading": "Generali",
+		"intro": "Impostazioni dell'intera Install.",
+		"name": "Nome dell'Install",
+		"nameHelp": "Compare in alto nell'admin. Lascialo vuoto per mostrare WebCraft.",
+		"defaultLanguage": "Lingua predefinita dell'admin",
+		"defaultLanguageHelp": "La lingua delle pagine senza accesso e di chiunque non ne abbia scelta una.",
+		"save": "Salva",
+		"saved": "Salvato."
+	},
+	"account": {
+		"pageTitle": "Il tuo account",
+		"heading": "Il tuo account",
+		"profile": {
+			"heading": "Profilo",
+			"name": "Nome",
+			"email": "Email",
+			"role": "Ruolo"
+		},
+		"preferences": {
+			"heading": "Preferenze",
+			"language": "Lingua dell'admin",
+			"languageHelp": "La lingua in cui vedi l'admin e le tue email.",
+			"installDefault": "Predefinita dell'Install ({language})",
+			"theme": "Aspetto",
+			"themeSystem": "Come questo dispositivo",
+			"themeLight": "Chiaro",
+			"themeDark": "Scuro",
+			"save": "Salva",
+			"saved": "Salvato."
+		},
+		"twoFactor": {
+			"heading": "Autenticazione a due fattori",
+			"status": "Non configurata",
+			"body": "Aggiungi una passkey o un'app di autenticazione, così per accedere serve anche qualcosa che hai solo tu."
+		}
+	},
+	"notFound": {
+		"pageTitle": "Pagina non trovata",
+		"heading": "Pagina non trovata",
+		"body": "A questo indirizzo non c'è nulla.",
+		"home": "Vai all'admin"
+	},
+	"forbidden": {
+		"heading": "Non puoi aprire questa pagina",
+		"body": "Solo il Superadmin può aprirla."
+	}
+}

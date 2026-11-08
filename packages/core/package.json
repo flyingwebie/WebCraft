@@ -3,15 +3,17 @@
 	"version": "0.0.0",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
-	"description": "WebCraft's domain modules (secrets first) and the ports (clock, mailer, outgoing HTTP, jobs) every process shares.",
+	"description": "WebCraft's domain modules (secrets, setup, people, Install settings) and the ports (clock, mailer, outgoing HTTP, jobs) every process shares.",
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./admin-languages": "./src/admin-languages.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@webcraft/auth": "workspace:*",
 		"@webcraft/db": "workspace:*",
 		"drizzle-orm": "catalog:",
 		"pg-boss": "catalog:",

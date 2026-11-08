@@ -1,0 +1,39 @@
+import { sql } from "drizzle-orm";
+import { check, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+import { people } from "./people.ts";
+
+/**
+ * The Install's own settings: one row, with id 1, written the first time a setting changes. Until
+ * then every setting has its default.
+ */
+export const installSettings = pgTable(
+	"install_settings",
+	{
+		id: integer("id").primaryKey().default(1),
+		/** The agency's name for this Install, shown at the top of the admin. */
+		name: text("name"),
+		/** The Admin language of everyone who hasn't chosen their own, and of signed-out pages. */
+		defaultAdminLanguage: text("default_admin_language").notNull().default("en"),
+		/** When the Superadmin finished the setup wizard (or was created headless); it never opens again. */
+		setupFinishedAt: timestamp("setup_finished_at", { withTimezone: true }),
+		/**
+		 * The fingerprint of the Master key a Superadmin confirmed is stored outside the server. The
+		 * banner asking for it returns when the Install runs with another key.
+		 */
+		masterKeyStoredFingerprint: text("master_key_stored_fingerprint"),
+		masterKeyStoredAt: timestamp("master_key_stored_at", { withTimezone: true }),
+		masterKeyStoredBy: uuid("master_key_stored_by").references(() => people.id, { onDelete: "set null" }),
+	},
+	(table) => [check("install_settings_single_row", sql`${table.id} = 1`)],
+);
+
+/**
+ * The one-time tokens that unlock the setup wizard on an Install with no Superadmin yet. Only a
+ * SHA-256 hash of each token is stored; the web process prints the token itself in its logs when it
+ * starts. Every token is deleted once a Superadmin exists.
+ */
+export const setupTokens = pgTable("setup_tokens", {
+	tokenHash: text("token_hash").primaryKey(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});

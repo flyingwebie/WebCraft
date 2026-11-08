@@ -1,15 +1,16 @@
 import { createServer } from "node:net";
 import {
+	type AdminLanguageCode,
 	coreJobs,
+	createInstallServices,
 	createJobQueue,
 	createLogger,
-	createSecrets,
 	ensureQueues,
+	type InstallPorts,
 	type InstallServices,
 	type JobQueue,
 	type LogEntry,
 	MASTER_KEY_VARIABLE,
-	openSecrets,
 	parseMasterKey,
 	runJob,
 	type Secrets,
@@ -18,17 +19,22 @@ import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
 import type { PgBoss } from "pg-boss";
 
+import { createTestBrowser, type TestBrowser } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 
+export { API_PATH, type TestBrowser } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export type { FakeMailer } from "./fake-mailer.ts";
 
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
+
+/** Where people reach a test Install's admin. */
+export const TEST_ADMIN_ORIGIN = `https://${TEST_ADMIN_HOST}`;
 
 /**
  * The Master key of every test Install unless a test chooses another. Tests never use the key in
@@ -51,6 +57,17 @@ export type TestInstallOptions = {
 	/** The Master key the Install starts with (`WEBCRAFT_SECRET_KEY`); `TEST_MASTER_KEY` unless given. */
 	masterKey?: string;
 };
+
+/** A person's account in a test, with the password they sign in with. */
+export type TestAccount = {
+	name: string;
+	email: string;
+	password: string;
+	adminLanguage: AdminLanguageCode;
+};
+
+/** A password every test account can use: long enough for the password rules. */
+export const TEST_PASSWORD = "a long enough test password";
 
 /** One job the drain ran. */
 export type JobRun = {
@@ -80,6 +97,23 @@ export type TestInstall = {
 	adminUrl(path: string): string;
 	/** Sends a standard Request through the web process's handler, in process, without a port. */
 	request(input: string | URL | Request, init?: RequestInit): Promise<Response>;
+	/**
+	 * A new browser on the admin: it keeps cookies like a browser and calls the Management API the
+	 * way the admin does. Give `origin` to send requests from another site's pages.
+	 */
+	browser(options?: { origin?: string }): TestBrowser;
+	/**
+	 * The setup token the web process printed in its log when it last started, or undefined when it
+	 * printed none (the Install has a Superadmin).
+	 */
+	setupToken(): string | undefined;
+	/**
+	 * Creates the Superadmin without the wizard, as `webcraft admin create-superadmin` does, and
+	 * answers the account with its password.
+	 */
+	createSuperadmin(account?: Partial<TestAccount>): Promise<TestAccount>;
+	/** A new browser, signed in with the account's email and password. */
+	signIn(account: Pick<TestAccount, "email" | "password">): Promise<TestBrowser>;
 	/** The job queue the Install uses, to enqueue a job the way the web process would. */
 	jobs: JobQueue;
 	/** Runs every job that is due by the test clock, including the jobs those jobs enqueue. */
@@ -94,11 +128,12 @@ export type TestInstall = {
 	/** Every log entry the Install wrote. */
 	logs: LogEntry[];
 	/**
-	 * Starts the Install again with another Master key, as web and worker do after their
-	 * `WEBCRAFT_SECRET_KEY` changes, running the same start-up check. When the check refuses the key,
-	 * this rejects with the same error and the Install keeps running as before.
+	 * Starts the Install again, with another Master key when given, as web and worker do after their
+	 * `WEBCRAFT_SECRET_KEY` changes, running the same start-up checks (and printing a new setup token
+	 * when the Install has no Superadmin). When the check refuses the key, this rejects with the same
+	 * error and the Install keeps running as before.
 	 */
-	restart(options: { masterKey: string }): Promise<void>;
+	restart(options?: { masterKey?: string }): Promise<void>;
 	/** Stops the Install and drops its database. */
 	close(): Promise<void>;
 };
@@ -140,30 +175,58 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		WEBCRAFT_ADMIN_HOST: TEST_ADMIN_HOST,
 		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
 	};
-	/** Web and worker open secrets with their start-up check; they never start on a database that is behind. */
-	const startSecrets = (masterKey: string) => {
-		const options = { database, masterKey: parseMasterKey(masterKey, MASTER_KEY_VARIABLE), clock };
-		return mode === "migrated" ? openSecrets(options) : Promise.resolve(createSecrets(options));
-	};
-	const services: InstallServices = {
-		config: { databaseUrl, adminHost: TEST_ADMIN_HOST },
+	const ports: InstallPorts = {
+		config: { databaseUrl, adminHost: TEST_ADMIN_HOST, adminOrigin: TEST_ADMIN_ORIGIN },
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
-		secrets: await startSecrets(env[MASTER_KEY_VARIABLE]),
 		http: http.fetch,
 		clock,
 		log,
 	};
+	/**
+	 * Starts the services as the web process does: the Master key check (web and worker never start
+	 * on a database that is behind), then the setup token when the Install has no Superadmin.
+	 */
+	const start = async (masterKey: string) => {
+		const key = parseMasterKey(masterKey, MASTER_KEY_VARIABLE);
+		const started = await createInstallServices(ports, key, { checkMasterKey: mode === "migrated" });
+		if (mode === "migrated") await started.setup.announce();
+		return started;
+	};
+	// The handler keeps this object; a restart swaps the services inside it.
+	const services: InstallServices = await start(env[MASTER_KEY_VARIABLE]);
 	const handle = createWebHandler({ services });
+	const send = (request: Request) => handle(request);
 
 	return {
 		adminHost: TEST_ADMIN_HOST,
 		databaseUrl,
 		env,
-		adminUrl: (path) => new URL(path, `https://${TEST_ADMIN_HOST}`).toString(),
+		adminUrl: (path) => new URL(path, TEST_ADMIN_ORIGIN).toString(),
 		request: (input, init) =>
 			handle(input instanceof Request ? new Request(input, init) : new Request(String(input), init)),
+		browser: (browserOptions) => createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN, ...browserOptions }),
+		async createSuperadmin(overrides = {}) {
+			const account: TestAccount = {
+				name: "Sam Superadmin",
+				email: "superadmin@agency.example",
+				password: TEST_PASSWORD,
+				adminLanguage: "en",
+				...overrides,
+			};
+			await services.setup.createSuperadmin(account);
+			return account;
+		},
+		async signIn({ email, password }) {
+			const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
+			await browser.api.session.signIn({ email, password });
+			return browser;
+		},
+		setupToken: () => {
+			const printed = logs.findLast((entry) => typeof entry.setupToken === "string");
+			return printed?.setupToken as string | undefined;
+		},
 		jobs: services.jobs,
 		drainJobs: () => {
 			if (!boss) throw new Error(`An Install with an ${mode} database has no job queue to drain.`);
@@ -176,8 +239,9 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		http,
 		clock,
 		logs,
-		async restart({ masterKey }) {
-			services.secrets = await startSecrets(masterKey);
+		async restart(restartOptions = {}) {
+			const masterKey = restartOptions.masterKey ?? env[MASTER_KEY_VARIABLE];
+			Object.assign(services, await start(masterKey));
 			env[MASTER_KEY_VARIABLE] = masterKey;
 		},
 		async close() {
