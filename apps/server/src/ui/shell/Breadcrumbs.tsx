@@ -16,6 +16,8 @@ declare module "@tanstack/react-router" {
 	interface StaticDataRouteOption {
 		/** The page's name in the breadcrumbs, after the level it belongs to. */
 		crumb?: MessageKey;
+		/** The page uses the full width of the window (a library or editor), not the reading width. */
+		wide?: boolean;
 	}
 }
 

@@ -112,6 +112,29 @@ describe("people outside the Site", () => {
 		});
 	});
 
+	test("the admin shows files through its own host, only to people who reach the Site", async () => {
+		const file = await uploadAs(editor, "preview.pdf");
+		const path = install.adminUrl(`/api/media/${siteId}/${(file.url ?? "").replace("/_media/", "")}`);
+
+		const seen = await author.request(path);
+		expect(seen.status).toBe(200);
+		expect(seen.headers.get("content-type")).toBe("application/pdf");
+		expect(seen.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+		expect(seen.headers.get("x-content-type-options")).toBe("nosniff");
+
+		const otherSiteId = (await install.createSite(workspaceId)).id;
+		const outsider = (await install.createMember({ workspaceId, role: "owner", sites: [otherSiteId] })).browser;
+		for (const browser of [install.browser(), outsider]) {
+			const refused = await browser.request(path);
+			expect(refused.status).toBe(404);
+			expect(await refused.text()).toBe("Not Found");
+		}
+		expect(
+			(await author.request(install.adminUrl(`/api/media/${otherSiteId}/${(file.url ?? "").slice(8)}`))).status,
+		).toBe(404);
+		expect((await author.request(path, { method: "POST" })).status).toBe(405);
+	});
+
 	test("signed-out people get nothing", async () => {
 		await expect(install.browser().api.media.list({ siteId })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 	});

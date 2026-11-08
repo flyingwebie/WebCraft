@@ -1,15 +1,21 @@
 import { ADMIN_API_PREFIX, createAdminApi } from "@webcraft/api";
-import type { InstallServices } from "@webcraft/core";
-import { normaliseHostname } from "@webcraft/core";
+import {
+	type InstallServices,
+	normaliseHostname,
+	PermissionDeniedError,
+	SiteNotFoundError,
+	type SiteScope,
+} from "@webcraft/core";
 
 import { clientAddress } from "../client-address.ts";
-import { type Handler, json, notFound, plainText } from "../responses.ts";
+import { mediaFileResponse } from "../media-response.ts";
+import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
 import { healthz, readyz } from "./health.ts";
 
 /**
  * Everything served on the admin host. The web process answers its own paths first (`/healthz`,
- * `/readyz`, the Management API at `/api/rpc`, and later `/api/v1`, `/mcp`, OAuth and the Caddy ask
- * endpoint); the admin app renders the rest.
+ * `/readyz`, the Management API at `/api/rpc`, Media previews at `/api/media/…`, and later
+ * `/api/v1`, `/mcp`, OAuth and the Caddy ask endpoint); the admin app renders the rest.
  */
 export function createAdminSide(services: InstallServices, adminApp?: Handler): Handler {
 	const adminApi = createAdminApi(services);
@@ -30,8 +36,41 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 			}
 			return (await adminApi(request, { clientAddress: clientAddress(request, services.config) })) ?? notFound();
 		}
+		if (pathname.startsWith(MEDIA_PREVIEW_PREFIX)) {
+			return readOnly(request, () => mediaPreview(services, request, pathname.slice(MEDIA_PREVIEW_PREFIX.length)));
+		}
 		return adminApp ? adminApp(request) : notFound();
 	};
+}
+
+/** Where the admin shows a Site's Media files (thumbnails and previews): `/api/media/<site id>/<name>`. */
+const MEDIA_PREVIEW_PREFIX = "/api/media/";
+
+/**
+ * A Media file of a Site, for the admin's own pages: only to a signed-in person who can see the Site,
+ * so it works whether or not the Site has an address visitors reach. Anyone else gets the plain 404.
+ */
+async function mediaPreview(services: InstallServices, request: Request, rest: string): Promise<Response> {
+	const [siteId = "", name = "", ...more] = rest.split("/");
+	if (more.length > 0 || !name) return notFound();
+	const { session } = await services.auth.session({
+		headers: request.headers,
+		clientAddress: clientAddress(request, services.config),
+	});
+	if (!session) return notFound();
+	let site: SiteScope;
+	try {
+		const actor = await services.actors.person(session.personId);
+		site = await services.data.site({ actor, via: { kind: "admin" } }, siteId, "site.view");
+	} catch (error) {
+		if (error instanceof SiteNotFoundError || error instanceof PermissionDeniedError) return notFound();
+		throw error;
+	}
+	const file = await services.media.file(site, name);
+	const response = file
+		? await mediaFileResponse(request, file, { "cache-control": "private, max-age=31536000, immutable" })
+		: null;
+	return response ?? notFound();
 }
 
 /**

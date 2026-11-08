@@ -176,6 +176,8 @@ function startWeb(install: TestInstall, port: number, logs: Record<string, unkno
 			DATABASE_URL: install.databaseUrl,
 			WEBCRAFT_ADMIN_HOST: ADMIN_HOST,
 			WEBCRAFT_SECRET_KEY: TEST_MASTER_KEY,
+			// The test Install's own storage folder, where its Media files are.
+			WEBCRAFT_STORAGE_DIR: install.storageDir,
 			PORT: String(port),
 		},
 		stdout: "pipe",

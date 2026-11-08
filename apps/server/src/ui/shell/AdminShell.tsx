@@ -1,4 +1,4 @@
-import { Link, useMatchRoute } from "@tanstack/react-router";
+import { Link, useMatches, useMatchRoute } from "@tanstack/react-router";
 import {
 	Sidebar,
 	SidebarContent,
@@ -42,6 +42,7 @@ export function AdminShell({
 	children: ReactNode;
 }) {
 	const t = useT();
+	const wide = useMatches().some((match) => match.staticData.wide);
 	return (
 		<SidebarProvider>
 			<AdminSidebar shell={shell} person={person} place={place} />
@@ -53,7 +54,9 @@ export function AdminShell({
 				<main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
 					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
 					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
-					<div className="mx-auto w-full max-w-5xl flex-1 p-6 md:p-10">{children}</div>
+					<div className={`mx-auto w-full flex-1 p-6 md:p-10 ${wide ? "max-w-screen-2xl" : "max-w-5xl"}`}>
+						{children}
+					</div>
 				</main>
 			</SidebarInset>
 		</SidebarProvider>

@@ -30,7 +30,17 @@ export function errorMessage(error: unknown): MessageKey {
 		case "IDENTITY_CHECK_CANCELLED":
 		case "SENSITIVE_ACTION_REFUSED":
 		case "SESSION_NOT_FOUND":
+		case "MEDIA_NOT_FOUND":
+		case "MEDIA_FOLDER_NOT_FOUND":
+		case "MEDIA_FOLDER_TAKEN":
+		case "MEDIA_TOO_LARGE":
+		case "MEDIA_INVALID":
+		case "STORAGE_UNREACHABLE":
 			return `errors.${code}`;
+		case "MEDIA_TYPE_REFUSED":
+			return (data as { reason?: unknown } | undefined)?.reason === "svg"
+				? "errors.MEDIA_TYPE_REFUSED_SVG"
+				: "errors.MEDIA_TYPE_REFUSED";
 		case "ACCESS_NOT_HELD":
 			return data?.problem === "manage" ? "errors.ACCESS_NOT_HELD_MANAGE" : "errors.ACCESS_NOT_HELD_GRANT";
 		case "SLUG_INVALID":

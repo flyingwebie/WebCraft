@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, test } from "bun:test";
-
+import { pdf, photo, upload } from "../harness/images.ts";
 import { inviteLinkIn, type TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
@@ -51,7 +51,17 @@ beforeAll(async () => {
 	});
 	const joinToken =
 		new URL(inviteLinkIn(await local.lastEmailTo(author.account.email))).searchParams.get("token") ?? "";
-	fixture = { workspaceId: workspace.id, siteId: site.id, inviteToken, joinToken };
+	// The Media library: a folder holding a photo with its sizes made, and a document.
+	const { folder } = await admin.api.media.folders.create({ siteId: site.id, name: "Products" });
+	const { media } = await admin.api.media.upload({
+		siteId: site.id,
+		file: upload(await photo({ width: 700, height: 500 }), "sourdough-loaf.jpg"),
+		folderId: folder.id,
+	});
+	await admin.api.media.update({ siteId: site.id, mediaId: media.id, alt: "A round sourdough loaf" });
+	await admin.api.media.upload({ siteId: site.id, file: upload(pdf(), "allergen-guide.pdf") });
+	await local.drainJobs();
+	fixture = { workspaceId: workspace.id, siteId: site.id, inviteToken, joinToken, mediaId: media.id };
 });
 
 afterAll(async () => {
