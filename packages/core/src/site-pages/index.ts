@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { entries, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
-import { directionOf, type ElementTree, renderPage } from "@webcraft/renderer";
+import { directionOf, type ElementTree, renderPage, type TemplateValue } from "@webcraft/renderer";
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
@@ -8,6 +8,7 @@ import { entryValues } from "../content/entries.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { bySpecificity, parseUrlPattern, pathSegments, slugIn, type UrlPattern } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
+import { listClasses } from "../design-system/classes.ts";
 import type { DataLayer, Site, VisitorScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname } from "./addresses.ts";
 
@@ -119,30 +120,27 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 	const authorName = entry.authorId ? await nameOf(scope, entry.authorId) : null;
 	// Visitors see the published version: nothing here tells them about the Draft, so its status
 	// is "published" and it was last updated when it was last published.
-	const builtIns: Record<string, string | null> = {
+	const builtIns: Record<string, TemplateValue> = {
 		title: published.title,
 		slug: published.slug,
 		status: "published",
 		author: authorName,
-		createdAt: day(entry.createdAt),
-		updatedAt: day(entry.lastPublishedAt),
-		publishedAt: day(entry.publishedAt),
-		lastPublishedAt: day(entry.lastPublishedAt),
+		createdAt: entry.createdAt,
+		updatedAt: entry.lastPublishedAt,
+		publishedAt: entry.publishedAt,
+		lastPublishedAt: entry.lastPublishedAt,
 	};
+	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
 	return renderPage({
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		title: published.title,
 		template,
 		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : published.fields[path]),
+		className: (classId) => classNames.get(classId),
 	});
 }
 
 async function nameOf(scope: VisitorScope, personId: string): Promise<string | null> {
 	const [row] = await scope.db.select({ name: people.name }).from(people).where(eq(people.id, personId));
 	return row?.name ?? null;
-}
-
-/** A date as visitors read it until Template markup's date formatter: `2026-03-02`. */
-function day(date: Date | null): string | null {
-	return date ? date.toISOString().slice(0, 10) : null;
 }
