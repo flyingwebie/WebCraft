@@ -434,7 +434,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				for (const siteId of to.sites === "all" ? [] : to.sites) {
 					await tx.insert(membershipSites, { membershipId: membership.id, siteId });
 				}
-				const [person] = await db.select({ email: people.email }).from(people).where(eq(people.id, personId));
+				const [person] = await tx.db.select({ email: people.email }).from(people).where(eq(people.id, personId));
 				const about = { memberId: personId, email: person?.email ?? null };
 				if (from.role !== to.role) await tx.audit("member.changeRole", { ...about, from: from.role, to: to.role });
 				if (!sameReach(from.sites, to.sites)) {
@@ -463,7 +463,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				const access = await membershipAccess(tx, membership);
 				assertHolds(tx, access, "manage");
 				await tx.delete(memberships, eq(memberships.id, membership.id));
-				const [person] = await db.select({ email: people.email }).from(people).where(eq(people.id, personId));
+				const [person] = await tx.db.select({ email: people.email }).from(people).where(eq(people.id, personId));
 				await tx.audit("member.remove", {
 					memberId: personId,
 					email: person?.email ?? null,
