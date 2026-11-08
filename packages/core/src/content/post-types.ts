@@ -2,9 +2,9 @@ import { postTypes } from "@webcraft/db/schema";
 import { asc, eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
+import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, PostTypeInvalidError, PostTypeNotFoundError, PostTypeTakenError } from "./errors.ts";
-import { UUID } from "./field-types.ts";
 import {
 	BUILT_IN_FIELDS,
 	type BuiltInField,
@@ -158,7 +158,7 @@ export async function getPostType(scope: Pick<SiteScope, "first">, postTypeId: s
 }
 
 async function findPostType(scope: Pick<SiteScope, "first">, postTypeId: string) {
-	const row = UUID.test(postTypeId) ? await scope.first(postTypes, eq(postTypes.id, postTypeId)) : undefined;
+	const row = isUuid(postTypeId) ? await scope.first(postTypes, eq(postTypes.id, postTypeId)) : undefined;
 	if (!row) throw new PostTypeNotFoundError();
 	return row;
 }
@@ -205,6 +205,3 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 		updatedAt: row.updatedAt,
 	};
 }
-
-/** Any UUID: ids that can't be one are simply not found, rather than a database error. */
-export { UUID };

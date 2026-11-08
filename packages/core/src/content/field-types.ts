@@ -1,6 +1,6 @@
 import { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, safeUrl } from "@webcraft/renderer";
 import { RE2JS } from "re2js";
-
+import { isUuid } from "../ids.ts";
 import type { ContentProblem } from "./errors.ts";
 
 /**
@@ -217,7 +217,6 @@ const LINK_TEXT_MAX_LENGTH = 300;
 const URL_MAX_LENGTH = 2_000;
 const EMAIL_MAX_LENGTH = 320;
 const EMAIL = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
-export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const text: FieldTypeSpec<TextField> = {
 	translation: "default-on",
@@ -448,14 +447,14 @@ const media: FieldTypeSpec<MediaField> = {
 		empty: () => null,
 		parse(input, _field, fail, refer) {
 			if (input === null) return null;
-			if (typeof input !== "string" || !UUID.test(input.trim())) {
+			if (typeof input !== "string" || !isUuid(input.trim())) {
 				return fail("A media value is the id of a file in the Site's Media library.");
 			}
 			const id = input.trim().toLowerCase();
 			refer({ kind: "media", ids: [id] });
 			return id;
 		},
-		read: (stored) => (typeof stored === "string" && UUID.test(stored) ? stored : null),
+		read: (stored) => (typeof stored === "string" && isUuid(stored) ? stored : null),
 		rules: () => [],
 	},
 };
@@ -542,7 +541,7 @@ const relationship: FieldTypeSpec<RelationshipField> = {
 		parse(input, field, fail, refer) {
 			if (input === null || input === "") return null;
 			const ids = field.multiple ? input : [input];
-			if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string" || !UUID.test(id))) {
+			if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string" || !isUuid(id))) {
 				return fail(field.multiple ? "A list of Entry ids." : "An Entry id.");
 			}
 			const unique = [...new Set((ids as string[]).map((id) => id.toLowerCase()))];

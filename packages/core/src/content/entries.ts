@@ -2,6 +2,7 @@ import { entries, people, publishedSlugs, specialPages } from "@webcraft/db/sche
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	type ContentProblem,
@@ -38,7 +39,7 @@ import {
 	publishedPageTree,
 	withParent,
 } from "./pages.ts";
-import { getPostType, listPostTypes, type PostType, UUID } from "./post-types.ts";
+import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, type LinkBack, linkingEntries, linksBack, saveLinks } from "./relationships.ts";
 import { slugify } from "./slugs.ts";
 import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH, pathFor } from "./url-patterns.ts";
@@ -187,7 +188,7 @@ export async function saveDraft(scope: SiteScope, entryId: string, change: Draft
 
 /** One Entry of the scope's Site, in a language (the Default language unless given). */
 export async function getEntry(scope: SiteScope, entryId: string, language?: string): Promise<Entry> {
-	const row = UUID.test(entryId) ? await scope.first(entries, eq(entries.id, entryId)) : undefined;
+	const row = isUuid(entryId) ? await scope.first(entries, eq(entries.id, entryId)) : undefined;
 	if (!row) throw new EntryNotFoundError();
 	const postType = await getPostType(scope, row.postTypeId);
 	const { defaultLanguage } = await siteLanguages(scope);
@@ -355,7 +356,7 @@ async function changeDraft(
 
 /** Reads an Entry for a change, holding it until the transaction ends so changes don't overlap. */
 export async function lockEntry(scope: SiteScope, entryId: string): Promise<EntryRow> {
-	const [row] = UUID.test(entryId)
+	const [row] = isUuid(entryId)
 		? await scope.db
 				.select()
 				.from(entries)

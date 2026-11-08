@@ -2,6 +2,7 @@ import { confirmations } from "@webcraft/db/schema";
 import { and, eq, lt } from "drizzle-orm";
 
 import { sameJson } from "./content/json.ts";
+import { isUuid } from "./ids.ts";
 import type { SiteScope } from "./tenancy/data-layer.ts";
 
 /**
@@ -77,8 +78,7 @@ export async function askConfirmation(scope: SiteScope, request: ConfirmationReq
  * transaction commits.
  */
 export async function useConfirmation(scope: SiteScope, id: string, request: ConfirmationRequest): Promise<void> {
-	const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-	const [row] = UUID.test(id)
+	const [row] = isUuid(id)
 		? await scope.db
 				.delete(confirmations)
 				.where(

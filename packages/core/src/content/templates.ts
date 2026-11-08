@@ -12,13 +12,14 @@ import { and, eq, isNull, type SQL } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
+import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.ts";
 import type { FieldDefinition } from "./field-types.ts";
 import { storedFields } from "./fields.ts";
 import { sameJson } from "./json.ts";
 import { isPagePostType } from "./pages.ts";
-import { getPostType, listPostTypes, type PostType, UUID } from "./post-types.ts";
+import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { knownValues } from "./render-values.ts";
 
 /**
@@ -294,7 +295,7 @@ export async function checkTemplateForPublish(scope: SiteScope, row: TemplateRow
 
 /** Reads a Template for publishing, holding it until the transaction ends. */
 export async function lockTemplate(scope: SiteScope, templateId: string): Promise<TemplateRow> {
-	const [row] = UUID.test(templateId)
+	const [row] = isUuid(templateId)
 		? await scope.db
 				.select()
 				.from(templates)
