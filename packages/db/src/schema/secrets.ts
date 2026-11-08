@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
-import { bytea, check, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { bytea, check, foreignKey, integer, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+
+import { sites, workspaces } from "./tenancy.ts";
 
 /**
  * Every Master key the Install's secrets have been encrypted under, one row per key version. Only
@@ -19,14 +21,16 @@ export const masterKeyVersions = pgTable("master_key_versions", {
  * owner. The authenticated data of each ciphertext binds it to its owner and name, so a ciphertext
  * moved to another row can't be decrypted there.
  *
- * `workspace_id` and `site_id` get their foreign keys when Workspaces and Sites exist.
+ * A Workspace's or Site's secrets go when it is deleted. Code reaches them only through the data
+ * layer (`workspace.secrets`, `site.secrets` in `@webcraft/core`), which can't name another
+ * Workspace's secret.
  */
 export const secrets = pgTable(
 	"secrets",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		workspaceId: text("workspace_id"),
-		siteId: text("site_id"),
+		workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+		siteId: uuid("site_id"),
 		name: text("name").notNull(),
 		keyVersion: integer("key_version")
 			.notNull()
@@ -41,5 +45,10 @@ export const secrets = pgTable(
 	(table) => [
 		unique("secrets_owner_name_unique").on(table.workspaceId, table.siteId, table.name).nullsNotDistinct(),
 		check("secrets_site_has_workspace", sql`${table.siteId} is null or ${table.workspaceId} is not null`),
+		foreignKey({
+			name: "secrets_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
 	],
 );

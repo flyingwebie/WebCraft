@@ -88,13 +88,17 @@ export const verifications = pgTable(
 );
 
 /**
- * Install-level roles (ADR 0001, ADR 0028): `superadmin` or, later, `staff`, stored as a text role
- * key so custom roles can be added without a migration. Members hold their role on a Membership.
+ * Install-level roles (ADR 0001, ADR 0028): `superadmin` or `staff`, stored as a text role key so
+ * custom roles can be added without a migration. Members hold their role on a Membership instead.
+ *
+ * Which Workspaces Staff reach is kept apart from the role: all of them (`all_workspaces`, including
+ * Workspaces created later) or those in `staff_workspaces`. The Superadmin reaches every Workspace.
  */
 export const installRoles = pgTable("install_roles", {
 	personId: uuid("person_id")
 		.primaryKey()
 		.references(() => people.id, { onDelete: "cascade" }),
 	role: text("role").notNull(),
+	allWorkspaces: boolean("all_workspaces").notNull().default(false),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });

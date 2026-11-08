@@ -12,25 +12,68 @@ import {
 	mismatchMessage,
 } from "./key-versions.ts";
 import type { MasterKey } from "./master-key.ts";
-import { checkRef, describeRef, ownerColumns, type SecretRef } from "./refs.ts";
+import {
+	checkRef,
+	describeRef,
+	type InstallSecretOwner,
+	ownerColumns,
+	type SecretOwner,
+	type SecretRef,
+} from "./refs.ts";
 
 /**
  * Every stored secret, encrypted under the Master key. Secrets can be written but never read back:
  * a value reaches code only inside a `useWith` callback.
  */
-export type Secrets = {
+export type Secrets<Owner extends SecretOwner = SecretOwner> = {
 	/** Stores `value` as the secret, replacing any value it had. */
-	set(secret: SecretRef, value: string): Promise<void>;
+	set(secret: SecretRef<Owner>, value: string): Promise<void>;
 	/**
 	 * Calls `use` with the secret's value and returns what it returns, such as the answer of the
 	 * call the secret was filled into. The value must not leave the callback.
 	 */
-	useWith<Result>(secret: SecretRef, use: (value: string) => Result | Promise<Result>): Promise<Result>;
+	useWith<Result>(secret: SecretRef<Owner>, use: (value: string) => Result | Promise<Result>): Promise<Result>;
 	/** What a person may see of a secret: whether it is set, its last 4 characters and when it was set. */
-	describe(secret: SecretRef): Promise<SecretDescription>;
+	describe(secret: SecretRef<Owner>): Promise<SecretDescription>;
 	/** Forgets the secret, so it is no longer set. Does nothing when it isn't. */
-	remove(secret: SecretRef): Promise<void>;
+	remove(secret: SecretRef<Owner>): Promise<void>;
 };
+
+/**
+ * The Install's own secrets, as `services.secrets` offers them. A Workspace's or Site's secrets are
+ * reached only through the data layer (`workspace.secrets`, `site.secrets`), which can't name
+ * another Workspace's secret.
+ */
+export type InstallSecrets = Secrets<InstallSecretOwner>;
+
+/** `store`, limited to the Install's own secrets: anything else is refused with a TypeError. */
+export function installSecretsOnly(store: Secrets): InstallSecrets {
+	const check = (secret: SecretRef<SecretOwner>) => {
+		if (secret.owner.kind !== "install") {
+			throw new TypeError(
+				"Workspace and Site secrets are reached through the data layer (workspace.secrets, site.secrets), not services.secrets.",
+			);
+		}
+	};
+	return {
+		async set(secret, value) {
+			check(secret);
+			return store.set(secret, value);
+		},
+		async useWith(secret, use) {
+			check(secret);
+			return store.useWith(secret, use);
+		},
+		async describe(secret) {
+			check(secret);
+			return store.describe(secret);
+		},
+		async remove(secret) {
+			check(secret);
+			return store.remove(secret);
+		},
+	};
+}
 
 /**
  * A secret as the admin shows it. `lastFour` is null for secrets shorter than 16 characters, so

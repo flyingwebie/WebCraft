@@ -11,7 +11,7 @@ A Bun-workspaces monorepo, scaffolded once with Better-T-Stack (TanStack Start, 
 | `apps/server` | The web process. One request handler routes every request by hostname: the admin host to the admin side (the TanStack Start admin, `/healthz`, `/readyz`, the Management API at `/api/rpc`, later `/api/v1`, `/mcp`, OAuth and the Caddy ask endpoint), every other hostname to the Site pipeline. | Bun 1.4 |
 | `apps/worker` | The worker: runs pg-boss jobs. | Node LTS |
 | `apps/cli` | The `webcraft` command (`webcraft admin migrate`, `rotate-key` and `create-superadmin` for now). | Bun |
-| `packages/core` | Domain modules (secrets, setup, people, Install settings, the Master key banner, email) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
+| `packages/core` | Domain modules (the permission check, the tenant data layer, Workspaces, Sites, Staff, the Audit log, secrets, setup, people, Install settings, the Master key banner, email) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
 | `packages/db` | Postgres: Drizzle schema and migrations, connections, the migrate step, the schema check, the pg-boss job queue. | both |
 | `packages/auth` | WebCraft's auth interface (`Auth`): signing in and out, sessions, creating people, password rules. Better Auth sits behind it; no other package imports Better Auth. | both |
 | `packages/api` | The Management API: oRPC procedures, served to the admin at `/api/rpc`. | both |
@@ -101,10 +101,72 @@ Several worktrees and CI jobs share one Postgres server, so names must never col
 `apps/server/src/handler.ts` is the web process: `createWebHandler({ services, adminApp })` returns a plain `(Request) => Promise<Response>`.
 
 - **Admin host** (`apps/server/src/admin/side.ts`): the web process answers its own paths first (`/healthz`, `/readyz`, the Management API at `/api/rpc`; add `/api/v1`, `/mcp` and the rest there), then hands the request to the admin app. In production the admin's built files are served from `apps/server/dist/client` here too, so Sites never expose them.
-- **`/api/rpc`** is the Management API as the admin's own pages call it: every procedure in `packages/api/src/router.ts`, over oRPC's RPC protocol, signed in with the session cookie. A request another site's page makes (by its `Origin` or `Sec-Fetch-Site` header) is refused with 403, so no other site can act with a signed-in person's cookie. Procedures get `{ services, headers, resHeaders }`; start them from `procedure`, `signedIn` or `superadminOnly` in `packages/api/src/context.ts`, and throw WebCraft's own errors: `packages/api/src/errors.ts` turns them into API error codes, which the admin translates.
+- **`/api/rpc`** is the Management API as the admin's own pages call it: every procedure in `packages/api/src/router.ts`, over oRPC's RPC protocol, signed in with the session cookie. A request another site's page makes (by its `Origin` or `Sec-Fetch-Site` header) is refused with 403, so no other site can act with a signed-in person's cookie. Procedures get `{ services, headers, resHeaders, via }`; start them from `procedure`, `signedIn` or `onInstall(permission)` in `packages/api/src/context.ts` (see "Writing a procedure"), and throw WebCraft's own errors: `packages/api/src/errors.ts` turns them into API error codes, which the admin translates.
 - **Every other hostname** (`apps/server/src/site/pipeline.ts`): the Site pipeline. Until Sites exist it answers every hostname with the unbranded 404 (`Not Found`, plain text). Anything a Site visitor sees must stay unbranded: use `plainText`, `notFound` and `json` from `apps/server/src/responses.ts`.
 - `/healthz` answers 200 while the process is up. `/readyz` answers 200 when the database is reachable and has had every migration this version expects, 503 otherwise. Both answer only on the admin host; container health checks must send `Host: <admin host>`.
 - `apps/server/src/server.ts` is the TanStack Start server entry: it builds the services and wraps the admin renderer in the hostname router. `vite dev` runs it in development; `vite build` bundles it into `dist/server/server.js`, which `apps/server/src/serve.ts` serves with `Bun.serve` in production. Tests call `createWebHandler` directly, without the admin app.
+
+## Tenancy and permissions
+
+An Install holds Workspaces (one per client), and each Workspace holds Sites. The Superadmin and Staff hold an Install-level role; Members hold a Membership in a Workspace (ADR 0001). Every procedure checks a Permission with `can()`, and every query on tenant data goes through the data layer (ADRs 0007, 0028).
+
+### Permissions and roles
+
+`packages/core/src/permissions/`:
+
+- **`PERMISSIONS`** (`roles.ts`) names every Permission and the levels it is checked at: the Install, a Workspace or a Site (`entry.publish` is checked on a Site, `site.create` on a Workspace, `workspace.create` on the Install).
+- **`ROLES`** is the role table: each built-in role (`superadmin`, `staff`, `owner`, `editor`, `author`) is a Permission set, plus what it reaches: the whole Install, the Workspaces its holder is assigned to (Staff), or one Workspace and the Sites its Membership names (Members). Roles are stored as text keys (`install_roles.role`, `memberships.role`); an unknown key grants nothing. Which Workspaces Staff reach (`install_roles.all_workspaces`, `staff_workspaces`) and which Sites a Membership reaches (`memberships.all_sites`, `membership_sites`) are kept apart from the role.
+- **`can(actor, permission, resource)`** answers whether an actor may do something; `permissionsOn(actor, resource)` lists what they may do there (the admin reads these lists to decide what to show). Only person actors exist so far; API tokens, OAuth grants and Modules become more kinds of `Actor`, each limited by what stands behind it.
+- **Adding a Permission**: add it to `PERMISSIONS` with its level, add it to the roles that hold it, and change the role's row in `tests/permissions/roles.test.ts` (one test per role). Never check a role name in code: check a Permission.
+- Staff never hold a Membership: a Staff invite refuses an address someone already signs in with, and `services.memberships.add` refuses Staff and the Superadmin.
+
+### The tenant data layer
+
+`services.data` (`packages/core/src/tenancy/data-layer.ts`) is the only way to tenant data. It opens a scope after checking the Permission, and a scope's queries are limited to its Workspace (and Site):
+
+```ts
+const site = await services.data.site(access, siteId, "entry.publish"); // can() runs here
+const drafts = await site.select(entries, eq(entries.status, "draft")); // only this Site's rows
+const entry = await site.insert(entries, { title, createdAt: site.now() }); // fills workspace_id and site_id
+await site.audit("entry.publish", { entryId: entry.id }); // who, when, how, Workspace and Site filled in
+```
+
+- `services.data.install(access, permission)`, `.workspace(access, workspaceId, permission)` and `.site(access, siteId, permission)` open the three levels. A Workspace or Site the actor can't see answers `WorkspaceNotFoundError` / `SiteNotFoundError` (404), one they see without the Permission `PermissionDeniedError` (403), so nobody learns what exists outside their reach.
+- A Workspace scope works on **Workspace tables** (a `workspace_id` column); a Site scope on **Site tables** (both `workspace_id` and `site_id`, with a composite foreign key to `sites (workspace_id, id)` so a row can never point at another Workspace's Site). Module tables follow the same rule.
+- Scope queries: `select(table, where?, { orderBy, limit })`, `first`, `count`, `insert`, `update(table, set, where?)`, `delete`. For a join or anything else, include `scope.where(table, extra?)` in your own query: every query on a tenant table must carry it. `scope.transaction(work)` runs queries and Audit log entries together.
+- `scope.secrets` holds the Workspace's or Site's secrets (`set(name, value)`, `useWith`, `describe`, `remove`); `services.secrets` holds only the Install's own.
+- The Install scope's `db` is for Install-level tables (Workspaces, Staff, invites); a domain function takes the scope it needs as its first argument, such as `createSite(workspace, input)`.
+
+### Writing a procedure
+
+A procedure validates its input with Zod, opens the data layer with the Permission it needs, and calls a domain function that takes the scope:
+
+```ts
+create: signedIn
+	.input(z.object({ workspaceId: id, name: z.string().trim().min(1).max(100), slug: z.string().max(100) }))
+	.handler(async ({ context, input }) => {
+		const workspace = await context.services.data.workspace(context.access, input.workspaceId, "site.create");
+		return { site: await context.services.sites.create(workspace, input) };
+	}),
+```
+
+- `signedIn` gives `context.access`: the person as `can()` sees them (read fresh on every request, so a change to someone's access takes effect at once) and `via`, how the call came in. Install-level procedures start from `onInstall("staff.manage")`, which gives `context.install`.
+- A Site procedure takes `siteId` only: the data layer finds its Workspace.
+- Every procedure here is internal to the admin; `/api/v1` and the public ones come later.
+- Add one isolation line for it (below) when it takes a `workspaceId` or `siteId`.
+
+### The Audit log
+
+The Audit log is one append-only table (`audit_log`; triggers refuse updates and truncation). `recordAudit` (`packages/core/src/audit.ts`) is the only function that writes it; code calls it through `scope.audit(action, details)`, which fills in who, when, how (`via`), the Workspace and the Site. An Install scope's `audit` takes the Workspace (and Site) the action concerns as a third argument, a Workspace scope's the Site.
+
+- **Actions** are `<noun>.<verb>`: `install.claim`, `superadmin.create`, `masterKey.confirmStored`, `workspace.create`, `site.create`, `staff.invite`, `staff.revokeInvite`, `staff.join`, `staff.changeWorkspaces`.
+- **How** (`AuditVia`): `admin` for `/api/rpc`, `command` with the command's name for `webcraft admin …`. Later kinds: Edit mode, an API token's name, an AI client's name, a Module, Impersonation.
+- **Details** are plain JSON about what changed (a name, an email address); never a secret's value.
+- `audit.list` gives the Superadmin the newest entries; the screens and the Staff and Owner views come with the Audit log screens.
+
+### Staff and invites
+
+The Superadmin invites Staff by email (`staff.invite`), to all Workspaces (including later ones) or chosen ones. The invite is the `staff-invite` System email (see "Email"), in the Install's default Admin language, with a link to `/invite?token=…` that works once, for 7 days; only the token's hash is stored. Inviting the same address again replaces the invite. Accepting creates the account with the role and its Workspaces, records `staff.join`, and signs the person in.
 
 ## Migrations
 
@@ -160,7 +222,7 @@ await services.email.send({
 Every secret (SMTP passwords, AI keys, CDN tokens, Webhook and CAPTCHA secrets) goes through `services.secrets` (`packages/core/src/secrets/`). Secrets are write-only: code gets a value only inside a callback, and people see only "set" and its last 4 characters.
 
 ```ts
-const password = { owner: { kind: "site", workspaceId, siteId }, name: "smtp.password" } as const;
+const password = { owner: { kind: "install" }, name: "smtp.password" } as const;
 
 await services.secrets.set(password, value);                      // stores or replaces it
 await services.secrets.useWith(password, (value) => smtp.login(user, value));
@@ -168,7 +230,7 @@ await services.secrets.describe(password);                        // { set: true
 await services.secrets.remove(password);
 ```
 
-- **Owners**: a secret belongs to the Install (`{ kind: "install" }`: Install SMTP, shared AI keys), a Workspace (`{ kind: "workspace", workspaceId }`) or a Site (`{ kind: "site", workspaceId, siteId }`). A name is unique within its owner: 1 to 200 letters, digits and `.:_-`, such as `smtp.password` or `webhook:<id>:signing`.
+- **Owners**: a secret belongs to the Install (`{ kind: "install" }`: Install SMTP, shared AI keys), a Workspace (its AI key) or a Site (its SMTP, CDN token, Webhook and CAPTCHA secrets). `services.secrets` holds the Install's own; a Workspace's or Site's are reached only through the data layer, `workspace.secrets.set("ai.key", value)`, so code can't name another Workspace's secret (see "The tenant data layer"). They have foreign keys to their Workspace and Site, and go when it is deleted. A name is unique within its owner: 1 to 200 letters, digits and `.:_-`, such as `smtp.password` or `webhook:<id>:signing`.
 - **No read-back**: there is no function that returns a value. `useWith` refuses a callback that returns the value (or a string holding it), so fill the secret into the call inside the callback and return the call's result. Never log a value, put it in a job payload or send it to the browser. `describe` shows no characters of a secret shorter than 16 characters, so never more than a quarter of one shows.
 - **Errors**: `useWith` throws `SecretNotSetError` for a secret nobody set, and `useWith` and `describe` throw `SecretUnreadableError` for one that was changed outside WebCraft. Messages name the secret, never its value.
 - **Encryption**: AES-256-GCM, with a random 12-byte nonce per value, under a key derived with HKDF-SHA256 from the Master key and the secret's key version. The authenticated data binds each ciphertext to its owner and name, so a ciphertext copied into another row can't be decrypted there. Only Web Crypto is used, so the same code runs on Bun and Node.
@@ -207,7 +269,7 @@ Secrets can't be recovered without their Master key, and web and worker refuse t
 ## Signing in and the setup wizard
 
 - **`@webcraft/auth`** is the only way into sign-in: `services.auth.signIn`, `session(headers)`, `signOut`, `createPerson` (inside the caller's transaction). Better Auth 1.7.18 (pinned in the root `package.json` catalog) sits behind it in `packages/auth/src/auth.ts`; no other package imports it. Its own HTTP endpoints are not served: WebCraft's procedures call it. When you upgrade it, read its security advisories and keep the version exact.
-- **People** are the `people` table; their password hash is a row in `credentials`. Install-level roles are text keys in `install_roles` (`superadmin` now, `staff` with Workspaces, ADR 0028). Emails are stored in lower case.
+- **People** are the `people` table; their password hash is a row in `credentials`. Install-level roles are text keys in `install_roles` (`superadmin` and `staff`, ADR 0028; see "Tenancy and permissions"). Emails are stored in lower case.
 - **Passwords** need at least 12 characters (`assertNewPasswordAllowed`). Extra checks, such as the leaked-password lookup, plug in as `passwordChecks` in `createAuth`.
 - **Sessions** end after 7 days unused and 30 days after sign-in, by WebCraft's clock (`services.clock`), so tests move them with `install.clock.advance`. A session in use is renewed at most every 10 minutes. The cookie is `HttpOnly`, `SameSite=Lax` and `Secure` (except on a `.localhost` development host), signed with a key derived from the Master key: a new Master key signs everyone out.
 - **The setup token**: while the Install has no Superadmin, every start of the web process prints a new one-time token and a `setupUrl` in the log (`warn`, fields `setupToken` and `setupUrl`). Only its SHA-256 hash is stored; the last 10 printed stay valid. Claiming the Install with one creates the Superadmin and deletes every token. Creating the Superadmin is serialised with a Postgres advisory lock, across processes.
@@ -223,10 +285,10 @@ The admin is a TanStack Start app in `apps/server/src/routes` (file routes) and 
 - **Text**: every word people see comes from `apps/server/src/messages/en.json` and `it.json`, through `useT()` (`t("shell.nav.overview")`, with ICU placeholders such as `{name}`). Add each key to both files; a missing key fails the typecheck, and `tests/i18n/admin-messages.test.ts` checks that every language has every key with the same placeholders. Page titles come from `pageTitle(language, key)` in the route's `head`.
 - **Right to left**: `<html lang dir>` follows the Admin language (`ADMIN_LANGUAGES` in `@webcraft/core/admin-languages`). Use logical classes (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`, `border-s`) and flip direction icons with `rtl:rotate-180`.
 - **Light and dark**: `<html class="light|dark">` when a person chose, no class to follow the device (`prefers-color-scheme`); the `dark:` variant and the colour variables in `packages/ui/src/styles/globals.css` handle all three.
-- **Levels and the sidebar**: `ui/shell/levels.ts` holds each level's sidebar groups and items (`label`, `icon`, `to`, `visibleTo`). Only the Install level exists; Workspace and Site levels add their entry to `NAVIGATION`, a kind of `AdminPlace`, and their own items, and the context switcher (`ui/shell/ContextSwitcher.tsx`) lists them. A page sets its breadcrumb with `staticData: { crumb: "<message key>" }`; the level's name comes first.
+- **Levels and the sidebar**: `ui/shell/levels.ts` holds each level's sidebar groups and items (`label`, `icon`, `to`, `requires`: the Permission that shows it). The levels are the Install, a Workspace and a Site: pages under `routes/_admin/workspaces.$workspaceId.tsx` are at the Workspace level and pages under `routes/_admin/sites.$siteId.tsx` at the Site level. Those two routes load the Workspace or Site and the person's Permissions there, and set `place` in the route context; the sidebar, the breadcrumbs (the Workspace's and Site's names first) and the context switcher read it. A page reads `Route.useRouteContext().place.permissions` to decide what to offer, never a role name. A page sets its breadcrumb with `staticData: { crumb: "<message key>" }`.
 - **Pages** inside the shell are routes under `routes/_admin/` (signed in only). Start a page with `PageHeader`; use the shadcn components from `@webcraft/ui/components/*`.
 - **The setup wizard's steps** are the list in `ui/setup/steps.tsx`: each has a title, a hint, a stage and a panel. After `two-factor` comes `email` (the Install SMTP, which can be skipped); the Modules step goes after it, as a `continue` step. The last step finishes setup.
-- **Times** are shown in UTC with `formatUtc` (`ui/email/format.ts`), in one fixed form: the server renders pages first, and its date formatting differs from the browser's in small ways, which breaks hydration.
+- **Times** are shown in UTC with `formatUtc`, and days with `formatUtcDate` (`ui/format.ts`), in one fixed form: the server renders pages first, and its date formatting differs from the browser's in small ways, which breaks hydration.
 - **shadcn components** come from preset `b1Fk3bmIS` (`style: base-vega`, zinc, RTL on, see `packages/ui/components.json`). Add one with `bunx shadcn add <name>` in `packages/ui`, then run `bun run lint`: generated code sometimes fails the accessibility rules; fix the component (several are marked `WebCraft:`) rather than switching a rule off, and give every visible or screen-reader string a prop so it can be translated.
 
 ## Testing
@@ -237,15 +299,20 @@ Tests live in `tests/`, grouped by area, and run with `bun test` from the repo r
 
 | Part | What it does |
 | --- | --- |
-| `install.secrets` | The Install's secrets (`set`, `useWith`, `describe`, `remove`), encrypted under its Master key. |
+| `install.secrets` | Every secret of the Install (`set`, `useWith`, `describe`, `remove`), for any owner, encrypted under its Master key: for tests of the secret store. WebCraft's own code reaches a Workspace's or Site's secrets through the data layer. |
 | `install.env` | The environment a real process needs to run as this Install: `DATABASE_URL`, `WEBCRAFT_ADMIN_HOST` and `WEBCRAFT_SECRET_KEY`. |
 | `install.request(url, init)` | Sends a standard `Request` through the handler, in process. Always use a full URL: the hostname decides where it goes. `install.adminUrl("/healthz")` builds admin-host URLs (`https://admin.test/...`). |
 | `install.browser()` | A person's browser on the admin: it keeps cookies and sends the admin's origin. `browser.api` is the typed Management API client (`await browser.api.session.current()`); errors reject with their API `code`. `install.browser({ origin })` sends requests from another site's pages. |
 | `install.createSuperadmin(account?)` | Creates the Superadmin as `webcraft admin create-superadmin` does and answers the account (email, password `TEST_PASSWORD`). |
+| `install.superadmin()` | A browser signed in as the Superadmin (made first when there is none). |
+| `install.createWorkspace(name?)`, `install.createSite(workspaceId, { name?, slug? })` | A Workspace or Site, created by the Superadmin through the API. |
+| `install.createStaff({ workspaces })` | A Staff member, the way people become one: invited, then accepting the link in the email. Answers `{ account, personId, browser }`. |
+| `install.createMember({ workspaceId, role, sites? })` | A Member with a Membership, signed in. Until Member invites exist it gives the Membership directly (`install.addMembership` for an existing person). |
 | `install.signIn(account)` | A new browser, signed in. |
 | `install.setupToken()` | The setup token the web process printed when it last started (the harness starts like the web process, printing one while there's no Superadmin). |
 | `install.jobs.send(job, payload)` | Enqueues a job as the web process would. |
 | `install.drainJobs()` | Runs every job that is due by the test clock, including jobs those jobs enqueue and scheduled jobs whose time came, and returns `{ completed, failed }`. |
+| `install.lastEmailTo(address)` | Runs the due jobs, then answers the newest email to the address: sent through the Install SMTP or, while it isn't set, written to the log (`{ to, subject, text }`). `inviteLinkIn(email)` finds an invite link in one. |
 | `install.sendSystemEmail(email)` | Sends a System email as WebCraft's features do (`services.email.send`); drain the jobs to send it. |
 | `install.mail` | The fake Mailer: `sent` holds every email the server took (with the `smtp` settings it went through, password included), `attempts` every try; `fail(response)` makes every send fail with that answer until `accept()`; `rejectRecipient(address)` refuses one address for good; `clear()` forgets them. |
 | `install.http` | The fake outgoing HTTP: `respond(method, url or RegExp, { status, body, headers } or a function)`; `requests` holds every call. A request nobody prepared an answer for fails like an unreachable server. |
@@ -285,6 +352,14 @@ test("the sample job emails the status of a URL", async () => {
 
 `tests/worker/sample-job.test.ts` shows the job drain, the fake outgoing HTTP and the clock; `tests/email/` shows the fake mailer and `install.sendSystemEmail`; `tests/web/health.test.ts` shows the database modes. Tests in one file share their Install, so give each test its own data (its own Workspace, its own email address) or create an Install per test when they must not see each other. `tests/worker/node-worker.test.ts` starts the real worker with `node`, the way to check something runs on Node; give it `install.env`. It also sends a System email with the real Mailer to `startSmtpServer()` (`tests/harness/smtp-server.ts`), a real SMTP server in the test process, which the browser tests use too (the production web process sends test emails with the real Mailer). Start a real `bun` process (the CLI, the web entry) in an empty directory when a test leaves a setting out on purpose: Bun fills missing variables from the `.env` in the directory it starts in (see `tests/secrets/start-refusal.test.ts`).
 
+**Workspace isolation**: every procedure that takes a `workspaceId` or `siteId` gets one line in `tests/isolation/procedures.test.ts`, proving it works on the caller's own Workspace and refuses another's (404 or 403). The last test there fails when a procedure is missing:
+
+```ts
+isolation.refuses("sites.list", (api, { workspaceId }) => api.sites.list({ workspaceId }), { as: ["staff", "editor"] });
+```
+
+`as` names who calls it (Staff assigned to that one Workspace by default, or a Member of it). The helper is `workspaceIsolation` in `tests/harness/isolation.ts`.
+
 **Seam 2** is a real browser, for accessibility (and later the editors). `tests/browser/harness.ts` starts a test Install served by the production web process (`bun run build` first) on `http://admin.localhost:<port>`, and Chromium through Playwright; `tests/browser/checks.ts` holds the checks; files are named `*.browser.ts` so `bun test` leaves them out, and `bun run test:browser` runs them. Every check runs with the device set to light and to dark (the admin follows the device).
 
 - `expectAccessibleScreen(page, where)`: axe-core finds no violation of WCAG 2.0, 2.1 or 2.2 at A or AA, nor of its best practices; the first Tab reaches "Skip to main content" and following it moves focus to `<main>`; Tab visits every link, button and field in page order, each with a visible focus indicator; no positive `tabindex`; Tab always moves on (no traps); the page logged no errors.
@@ -292,12 +367,12 @@ test("the sample job emails the status of a URL", async () => {
 
 `startBrowserInstall()` also gives the test Install behind the web process (`browserInstall.install`), to prepare data through the Management API, send System emails and drain jobs before the page opens (see `tests/browser/email.browser.ts`).
 
-**Adding a screen** is one line in `tests/browser/screens.ts`: its name, its path and who looks at it (`superadmin` or `signed-out`). For a state a path can't reach (a wizard step, an error shown, an open menu), write a test like `tests/browser/setup-wizard.browser.ts`: drive the page there with Playwright, then call `expectAccessibleScreen` or `expectOverlayUsable`. Don't retest behaviour seam 1 covers.
+**Adding a screen** is one line in `tests/browser/screens.ts`: its name, its path and who looks at it (`superadmin`, `staff` or `signed-out`). A screen inside a Workspace or Site gives its path as a function of the shared fixture (`({ siteId }) => `/sites/${siteId}``); prepare more data in `admin-screens.browser.ts` through `install.install`, the same Install in the test process. For a state a path can't reach (a wizard step, an error shown, an open menu), write a test like `tests/browser/setup-wizard.browser.ts`: drive the page there with Playwright, then call `expectAccessibleScreen` or `expectOverlayUsable`. Don't retest behaviour seam 1 covers.
 
 ```ts
 export const ADMIN_SCREENS: readonly Screen[] = [
 	// ...
-	{ name: "Install › Workspaces", path: "/workspaces", as: "superadmin" },
+	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
 ];
 ```
 
@@ -308,7 +383,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 - **Runtimes** (ADR 0006): `packages/*` and `apps/worker` use standard Web and Node APIs only; Biome rejects the `Bun` global and `bun:*` imports there, and their tsconfigs don't load Bun's types. `apps/server`, `apps/cli`, `tests` and `scripts` may use Bun.
 - **Edges go through ports**: time through `Clock`, email through `Mailer` (only the email sender calls it; features send System emails with `services.email.send`), calls to other servers through `services.http`. Tests replace them with fakes; nothing else is faked.
 - **Secrets** go through `services.secrets` only: never in another table, a log line, a job payload or a response (see "Secrets and the Master key").
-- **Workspace data** goes through the Workspace-scoped data layer and the `can()` check once they exist (ADR 0007); no query without a Workspace.
+- **Workspace data** goes through the data layer (`services.data`), which runs `can()` first (ADR 0007); no query on tenant data without a Workspace, and no check of a role name: check a Permission.
 - **Errors**: Site visitors and unknown hostnames see plain, unbranded answers. Unexpected errors are logged and answered with a plain 500.
 - **Logs**: JSON lines through `Logger` (`services.log`), with fields rather than values pasted into the message.
 - **Licences**: every workspace's `package.json` says `"license": "AGPL-3.0-or-later"`; new dependencies must pass `bun run check:licences`.

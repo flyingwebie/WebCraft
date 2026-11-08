@@ -1,11 +1,22 @@
 import type { ReactNode } from "react";
 
-/** A page's main heading and a short line about it. */
-export function PageHeader({ heading, children }: { heading: string; children?: ReactNode }) {
+/** A page's main heading, a short line about it, and the page's main action (such as "New Site"). */
+export function PageHeader({
+	heading,
+	children,
+	action,
+}: {
+	heading: string;
+	children?: ReactNode;
+	action?: ReactNode;
+}) {
 	return (
-		<div className="mb-8 space-y-1">
-			<h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
-			{children ? <p className="text-muted-foreground">{children}</p> : null}
+		<div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+			<div className="space-y-1">
+				<h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
+				{children ? <p className="text-muted-foreground">{children}</p> : null}
+			</div>
+			{action ? <div className="shrink-0">{action}</div> : null}
 		</div>
 	);
 }

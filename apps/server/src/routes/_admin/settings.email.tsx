@@ -10,16 +10,16 @@ import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
-import { formatUtc } from "../../ui/email/format.ts";
 import { SmtpForm, type SmtpView } from "../../ui/email/SmtpForm.tsx";
 import { errorMessage } from "../../ui/errors.ts";
+import { formatUtc } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/settings/email")({
 	staticData: { crumb: "emailSettings.pageTitle" },
 	loader: async ({ context }) => {
-		if (context.person.installRole !== "superadmin") return null;
+		if (!context.shell.permissions.includes("install.manage")) return null;
 		const api = await getApi();
 		const [smtp, branding] = await Promise.all([api.install.smtp.get(), api.install.emailBranding.get()]);
 		return { smtp, branding };

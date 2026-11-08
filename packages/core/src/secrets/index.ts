@@ -6,7 +6,7 @@ export {
 	MasterKey,
 	parseMasterKey,
 } from "./master-key.ts";
-export type { SecretOwner, SecretRef } from "./refs.ts";
+export type { InstallSecretOwner, SecretOwner, SecretRef } from "./refs.ts";
 export {
 	CONFIRM_FINGERPRINT_LENGTH,
 	KeyRotationError,
@@ -18,6 +18,8 @@ export {
 } from "./rotate.ts";
 export {
 	createSecrets,
+	type InstallSecrets,
+	installSecretsOnly,
 	openSecrets,
 	type SecretDescription,
 	SecretNotSetError,

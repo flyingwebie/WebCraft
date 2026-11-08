@@ -1,5 +1,7 @@
 import type { ApiClient } from "@webcraft/api";
 
+import type { MessageKey } from "../i18n.tsx";
+
 /** What every admin page knows: who is signed in, the Admin language and theme, banners to show. */
 export type ShellContext = Awaited<ReturnType<ApiClient["shell"]["context"]>>;
 
@@ -13,4 +15,16 @@ export function initials(name: string): string {
 		.map((word) => Array.from(word ?? "")[0] ?? "")
 		.join("")
 		.toLocaleUpperCase();
+}
+
+/** The message naming a person's Install-level role: Superadmin, Staff, or just signed in. */
+export function roleLabel(installRole: string | null): MessageKey {
+	switch (installRole) {
+		case "superadmin":
+			return "roles.superadmin";
+		case "staff":
+			return "roles.staff";
+		default:
+			return "roles.none";
+	}
 }

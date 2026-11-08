@@ -11,14 +11,14 @@ import {
 } from "@webcraft/core";
 import { z } from "zod";
 
-import { sensitive, superadminOnly } from "../context.ts";
+import { onInstall, sensitive } from "../context.ts";
 import { email } from "../inputs.ts";
 
 /**
- * Who may manage the Install SMTP, Install branding and the Email log: the Superadmin. When the
- * permission check (`can()`) arrives, this is the one place to change.
+ * Who may manage the Install SMTP, Install branding and the Email log: people who manage the
+ * Install (`install.manage`, the Superadmin).
  */
-const emailAdmin = superadminOnly;
+const emailAdmin = onInstall("install.manage");
 
 /** A mail server's hostname or IP address. */
 const host = z

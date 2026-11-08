@@ -9,3 +9,8 @@ export function formatUtc(value: Date | string): string {
 	const pad = (part: number) => String(part).padStart(2, "0");
 	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`;
 }
+
+/** A day for the admin, in UTC, such as `2026-03-02`: the date part of `formatUtc`, for the same reason. */
+export function formatUtcDate(value: Date | string): string {
+	return formatUtc(value).slice(0, 10);
+}

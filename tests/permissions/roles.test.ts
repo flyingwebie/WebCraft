@@ -1,0 +1,151 @@
+// The role table: every built-in role is a fixed set of Permissions (ADR 0028). One test per row:
+// a person holding the role sees exactly its Permissions on the Install, in a Workspace and on a
+// Site they reach. The admin asks for these lists to decide what to offer.
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
+import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+
+let install: TestInstall;
+let workspaceId: string;
+let siteId: string;
+
+beforeAll(async () => {
+	install = await createTestInstall();
+	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
+	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+});
+
+afterAll(async () => {
+	await install.close();
+});
+
+/** The Permissions `browser`'s person holds on the Install, in the Workspace and on the Site. */
+async function permissionsOf(browser: TestBrowser) {
+	return {
+		install: (await browser.api.shell.context()).permissions,
+		workspace: (await browser.api.workspaces.get({ workspaceId })).permissions,
+		site: (await browser.api.sites.get({ siteId })).permissions,
+	};
+}
+
+describe("the role table", () => {
+	test("superadmin: every Permission, everywhere", async () => {
+		expect(await permissionsOf(await install.superadmin())).toEqual({
+			install: ["install.manage", "workspace.create", "staff.manage", "audit.view"],
+			workspace: ["audit.view", "workspace.view", "site.create", "member.invite"],
+			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "media.upload"],
+		});
+	});
+
+	test("staff: everything in their Workspaces, including Structure and new Sites; nothing on the Install", async () => {
+		const { browser } = await install.createStaff({ workspaces: [workspaceId] });
+
+		expect(await permissionsOf(browser)).toEqual({
+			install: [],
+			workspace: ["audit.view", "workspace.view", "site.create", "member.invite"],
+			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "media.upload"],
+		});
+	});
+
+	test("owner: manages Members and publishes, but never changes Structure or creates Sites", async () => {
+		const { browser } = await install.createMember({ workspaceId, role: "owner" });
+
+		expect(await permissionsOf(browser)).toEqual({
+			install: [],
+			workspace: ["audit.view", "workspace.view", "member.invite"],
+			site: ["site.view", "entry.edit", "entry.publish", "media.upload"],
+		});
+	});
+
+	test("editor: edits and publishes Content", async () => {
+		const { browser } = await install.createMember({ workspaceId, role: "editor" });
+
+		expect(await permissionsOf(browser)).toEqual({
+			install: [],
+			workspace: ["workspace.view"],
+			site: ["site.view", "entry.edit", "entry.publish", "media.upload"],
+		});
+	});
+
+	test("author: edits Content and uploads Media, but can't publish", async () => {
+		const { browser } = await install.createMember({ workspaceId, role: "author" });
+
+		expect(await permissionsOf(browser)).toEqual({
+			install: [],
+			workspace: ["workspace.view"],
+			site: ["site.view", "entry.edit", "media.upload"],
+		});
+	});
+});
+
+describe("what a role reaches", () => {
+	test("Staff reach only the Workspaces they are assigned to, and every Site in them", async () => {
+		const other = await install.createWorkspace("Other Ltd");
+		const otherSite = await install.createSite(other.id);
+		const { browser } = await install.createStaff({ workspaces: [workspaceId] });
+
+		await expect(browser.api.workspaces.get({ workspaceId: other.id })).rejects.toMatchObject({
+			code: "WORKSPACE_NOT_FOUND",
+		});
+		await expect(browser.api.sites.get({ siteId: otherSite.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		const later = await install.createSite(workspaceId);
+		expect((await browser.api.sites.get({ siteId: later.id })).site.id).toBe(later.id);
+	});
+
+	test("a Member reaches only their own Workspace, and only the Sites their Membership names", async () => {
+		const chosen = await install.createSite(workspaceId);
+		const { browser } = await install.createMember({ workspaceId, role: "editor", sites: [chosen.id] });
+
+		expect((await browser.api.sites.get({ siteId: chosen.id })).permissions).toContain("entry.publish");
+		await expect(browser.api.sites.get({ siteId })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect((await browser.api.sites.list({ workspaceId })).sites.map((site) => site.id)).toEqual([chosen.id]);
+		expect((await browser.api.workspaces.list()).workspaces).toEqual([
+			expect.objectContaining({ id: workspaceId, siteCount: 1 }),
+		]);
+	});
+
+	test("Members can't create Sites, even Owners", async () => {
+		const { browser } = await install.createMember({ workspaceId, role: "owner" });
+
+		await expect(
+			browser.api.sites.create({ workspaceId, name: "Owner's Site", slug: "owners-site" }),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+
+	test("people with no role reach nothing", async () => {
+		const { browser } = await install.createMember({ workspaceId, role: "author" });
+		const other = await install.createWorkspace("Elsewhere Ltd");
+
+		await expect(browser.api.workspaces.get({ workspaceId: other.id })).rejects.toMatchObject({
+			code: "WORKSPACE_NOT_FOUND",
+		});
+		await expect(browser.api.workspaces.create({ name: "Mine Now" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(browser.api.install.settings.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});
+
+describe("Staff never hold a Membership", () => {
+	test("Staff can't be given a Membership", async () => {
+		const { personId } = await install.createStaff({ workspaces: "all" });
+
+		await expect(install.addMembership({ personId, workspaceId, role: "owner" })).rejects.toThrow(
+			"Staff never hold a Membership",
+		);
+	});
+
+	test("the Superadmin can't be given a Membership either", async () => {
+		const { person } = await (await install.superadmin()).api.session.current();
+
+		await expect(install.addMembership({ personId: person?.id ?? "", workspaceId, role: "owner" })).rejects.toThrow(
+			"Staff never hold a Membership",
+		);
+	});
+
+	test("a Member can't be invited as Staff", async () => {
+		const { account } = await install.createMember({ workspaceId, role: "editor" });
+
+		await expect(
+			(await install.superadmin()).api.staff.invite({ email: account.email, workspaces: "all" }),
+		).rejects.toMatchObject({ code: "EMAIL_IN_USE" });
+	});
+});

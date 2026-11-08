@@ -10,9 +10,6 @@ export const ADMIN_THEMES = ["system", "light", "dark"] as const;
 /** Light or dark admin, or `system` to follow the device's setting. */
 export type AdminTheme = (typeof ADMIN_THEMES)[number];
 
-/** The Install-level role key of the Superadmin (ADR 0028). Staff get `staff`. */
-export const SUPERADMIN_ROLE = "superadmin";
-
 /** A person with an account on the Install, as the admin shows them. */
 export type Person = {
 	id: string;
@@ -21,7 +18,7 @@ export type Person = {
 	/** Their own Admin language, or null to follow the Install's default. */
 	adminLanguage: AdminLanguageCode | null;
 	adminTheme: AdminTheme;
-	/** Their Install-level role key (`superadmin`), or null for people who hold none. */
+	/** Their Install-level role key (`superadmin` or `staff`), or null for people who hold none. */
 	installRole: string | null;
 };
 

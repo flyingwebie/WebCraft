@@ -7,12 +7,14 @@ import {
 	createInstallServices,
 	createJobQueue,
 	createLogger,
+	createSecrets,
 	ensureQueues,
 	type InstallPorts,
 	type InstallServices,
 	type JobQueue,
 	type LogEntry,
 	MASTER_KEY_VARIABLE,
+	type NewMembership,
 	parseMasterKey,
 	runJob,
 	type Secrets,
@@ -35,6 +37,13 @@ export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
 export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
+
+/** The invite link in an invite email: `https://admin.test/invite?token=…`. Throws when there is none. */
+export function inviteLinkIn(email: { text: string } | undefined): string {
+	const link = email?.text.match(/https:\/\/\S+\/invite\?token=[A-Za-z0-9_-]+/)?.[0];
+	if (!link) throw new Error(`The email holds no invite link:\n${email?.text ?? "(no email)"}`);
+	return link;
+}
 
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
@@ -120,6 +129,38 @@ export type TestInstall = {
 	createSuperadmin(account?: Partial<TestAccount>): Promise<TestAccount>;
 	/** A new browser, signed in with the account's email and password. */
 	signIn(account: Pick<TestAccount, "email" | "password">): Promise<TestBrowser>;
+	/**
+	 * A browser signed in as the Superadmin: the one `createSuperadmin` made, or a new default
+	 * Superadmin when there is none yet. The same browser every time.
+	 */
+	superadmin(): Promise<TestBrowser>;
+	/** Creates a Workspace as the Superadmin. */
+	createWorkspace(name?: string): Promise<{ id: string; name: string }>;
+	/** Creates a Site in a Workspace as the Superadmin; the slug is made unique unless given. */
+	createSite(workspaceId: string, site?: { name?: string; slug?: string }): Promise<{ id: string; slug: string }>;
+	/**
+	 * Makes a Staff member the way people become one: the Superadmin invites them, and they accept
+	 * the link in the email. Answers their account, their id and their signed-in browser.
+	 */
+	/**
+	 * Makes a Member: a new person with a Membership in the Workspace, signed in. There are no Member
+	 * invites yet, so this gives the Membership directly, as accepting an invite will.
+	 */
+	createMember(options: {
+		workspaceId: string;
+		role: "owner" | "editor" | "author";
+		/** The Sites the Membership reaches; all of them unless given. */
+		sites?: "all" | string[];
+		name?: string;
+		email?: string;
+	}): Promise<{ account: TestAccount; personId: string; browser: TestBrowser }>;
+	/** Gives an existing person a Membership, as accepting a Member invite will. */
+	addMembership(membership: NewMembership): Promise<void>;
+	createStaff(options: {
+		workspaces: "all" | string[];
+		name?: string;
+		email?: string;
+	}): Promise<{ account: TestAccount; personId: string; browser: TestBrowser }>;
 	/** The job queue the Install uses, to enqueue a job the way the web process would. */
 	jobs: JobQueue;
 	/**
@@ -127,7 +168,12 @@ export type TestInstall = {
 	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain.
 	 */
 	drainJobs(): Promise<DrainReport>;
-	/** The Install's secrets, encrypted under its Master key: set, use and describe them. */
+	/**
+	 * Every secret of the Install, encrypted under its Master key: set, use and describe them, for
+	 * the Install, a Workspace or a Site (`{ owner: { kind: "site", workspaceId, siteId }, name }`).
+	 * WebCraft's own code reaches a Workspace's or Site's secrets through the data layer; tests of
+	 * the secret store use this.
+	 */
 	readonly secrets: Secrets;
 	/**
 	 * Sends a System email the way WebCraft's features do (`services.email.send`): rendered for each
@@ -136,6 +182,13 @@ export type TestInstall = {
 	sendSystemEmail<Type extends SystemEmailType>(email: SystemEmail<Type>): Promise<SendResult[]>;
 	/** Every email the Install sent. */
 	mail: FakeMailer;
+	/**
+	 * The newest email to `address`: runs the jobs that are due, then looks at what the Install SMTP
+	 * sent or, while it isn't set, what was written to the log instead. Throws when there is none.
+	 * The clock stands still, so emails queued in the same instant can go out in either order: drain
+	 * the jobs between two emails to one address when the order matters.
+	 */
+	lastEmailTo(address: string): Promise<{ to: string; subject: string; text: string }>;
 	/** The Install's outgoing HTTP: prepare answers, read what was requested. */
 	http: FakeHttp;
 	clock: TestInstallClock;
@@ -212,8 +265,55 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const schedulesCheckedAt = { time: clock.now() };
 	// The handler keeps this object; a restart swaps the services inside it.
 	const services: InstallServices = await start(env[MASTER_KEY_VARIABLE]);
+	const secretStore = (masterKey: string) =>
+		createSecrets({ database, clock, masterKey: parseMasterKey(masterKey, MASTER_KEY_VARIABLE) });
+	let secrets = secretStore(env[MASTER_KEY_VARIABLE]);
 	const handle = createWebHandler({ services });
 	const send = (request: Request) => handle(request);
+
+	let superadminAccount: TestAccount | undefined;
+	let superadminBrowser: TestBrowser | undefined;
+	let made = 0;
+	/** A number for names and addresses that must not repeat within this Install. */
+	const next = () => ++made;
+
+	const createSuperadmin = async (overrides: Partial<TestAccount> = {}) => {
+		const account: TestAccount = {
+			name: "Sam Superadmin",
+			email: "superadmin@agency.example",
+			password: TEST_PASSWORD,
+			adminLanguage: "en",
+			...overrides,
+		};
+		await services.setup.createSuperadmin(account);
+		superadminAccount = account;
+		return account;
+	};
+	const signIn = async ({ email, password }: Pick<TestAccount, "email" | "password">) => {
+		const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
+		await browser.api.session.signIn({ email, password });
+		return browser;
+	};
+	const lastEmailTo = async (address: string) => {
+		const to = address.trim().toLowerCase();
+		if (boss) await drainJobs(boss, services);
+		const sent = mail.sent.findLast((email) => email.to === to);
+		if (sent) return { to: sent.to, subject: sent.subject, text: sent.text };
+		const logged = logs.findLast((entry) => (entry.email as { to?: unknown } | undefined)?.to === to)?.email as
+			| { to: string; subject: string; text: string }
+			| undefined;
+		if (logged) return logged;
+		throw new Error(`No email went to ${to}.`);
+	};
+	const superadmin = async () => {
+		if (superadminBrowser) {
+			// A test may have moved the clock past the session's end.
+			if ((await superadminBrowser.api.session.current()).person) return superadminBrowser;
+		}
+		superadminAccount ??= await createSuperadmin();
+		superadminBrowser = await signIn(superadminAccount);
+		return superadminBrowser;
+	};
 
 	return {
 		adminHost: TEST_ADMIN_HOST,
@@ -223,21 +323,54 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		request: (input, init) =>
 			handle(input instanceof Request ? new Request(input, init) : new Request(String(input), init)),
 		browser: (browserOptions) => createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN, ...browserOptions }),
-		async createSuperadmin(overrides = {}) {
+		createSuperadmin,
+		signIn,
+		superadmin,
+		async createWorkspace(name) {
+			const admin = await superadmin();
+			const { workspace } = await admin.api.workspaces.create({ name: name ?? `Workspace ${next()}` });
+			return { id: workspace.id, name: workspace.name };
+		},
+		async createSite(workspaceId, site = {}) {
+			const admin = await superadmin();
+			const number = next();
+			const created = await admin.api.sites.create({
+				workspaceId,
+				name: site.name ?? `Site ${number}`,
+				slug: site.slug ?? `site-${number}`,
+			});
+			return { id: created.site.id, slug: created.site.slug };
+		},
+		async createMember({ workspaceId, role, sites = "all", name, email }) {
+			const number = next();
 			const account: TestAccount = {
-				name: "Sam Superadmin",
-				email: "superadmin@agency.example",
+				name: name ?? `Member ${number}`,
+				email: email ?? `member-${number}@client.example`,
 				password: TEST_PASSWORD,
 				adminLanguage: "en",
-				...overrides,
 			};
-			await services.setup.createSuperadmin(account);
-			return account;
+			const personId = await database.db.transaction(async (tx) => {
+				const created = await services.auth.createPerson(tx, account);
+				await services.memberships.add({ personId: created.personId, workspaceId, role, sites }, tx);
+				return created.personId;
+			});
+			return { account, personId, browser: await signIn(account) };
 		},
-		async signIn({ email, password }) {
+		addMembership: (membership) => services.memberships.add(membership),
+		async createStaff({ workspaces, name, email }) {
+			const admin = await superadmin();
+			const number = next();
+			const account: TestAccount = {
+				name: name ?? `Staff ${number}`,
+				email: email ?? `staff-${number}@agency.example`,
+				password: TEST_PASSWORD,
+				adminLanguage: "en",
+			};
+			await admin.api.staff.invite({ email: account.email, workspaces });
+			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
 			const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
-			await browser.api.session.signIn({ email, password });
-			return browser;
+			const { personId } = await browser.api.invites.accept({ token, ...account });
+			return { account, personId, browser };
 		},
 		setupToken: () => {
 			const printed = logs.findLast((entry) => typeof entry.setupToken === "string");
@@ -250,16 +383,18 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return drainJobs(boss, services);
 		},
 		get secrets() {
-			return services.secrets;
+			return secrets;
 		},
 		sendSystemEmail: (email) => services.email.send(email),
 		mail,
+		lastEmailTo,
 		http,
 		clock,
 		logs,
 		async restart(restartOptions = {}) {
 			const masterKey = restartOptions.masterKey ?? env[MASTER_KEY_VARIABLE];
 			Object.assign(services, await start(masterKey));
+			secrets = secretStore(masterKey);
 			env[MASTER_KEY_VARIABLE] = masterKey;
 		},
 		async close() {

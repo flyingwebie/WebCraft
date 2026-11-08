@@ -1,5 +1,5 @@
 import { ORPCError, os } from "@orpc/server";
-import { type InstallServices, type Person, SUPERADMIN_ROLE } from "@webcraft/core";
+import type { Access, AuditVia, InstallServices, Permission, Person } from "@webcraft/core";
 
 import { toApiError } from "./errors.ts";
 
@@ -10,6 +10,8 @@ export type ApiContext = {
 	headers: Headers;
 	/** Headers the answer will carry, such as the `Set-Cookie` that starts or ends a session. */
 	resHeaders?: Headers;
+	/** How the call came in, for the Audit log: `admin` at `/api/rpc`. */
+	via: AuditVia;
 };
 
 const base = os.$context<ApiContext>();
@@ -39,22 +41,29 @@ export const withPerson = base.middleware(async ({ context, next }) => {
 	return next({ context: { person, sessionId: session?.id ?? null } });
 });
 
-/** Procedures for signed-in people: refuses everyone else with `UNAUTHORIZED`. */
+/**
+ * Procedures for signed-in people: refuses everyone else with `UNAUTHORIZED`. Gives the procedure
+ * `context.access`, the person as `can()` sees them and how they came in, which opens the data layer:
+ *
+ *     const workspace = await context.services.data.workspace(context.access, input.workspaceId, "site.create");
+ */
 export const signedIn = procedure.use(withPerson).use(async ({ context, next }) => {
 	if (!context.person) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
-	return next({ context: { person: context.person } });
+	const actor = await context.services.actors.person(context.person.id);
+	const access: Access = { actor, via: context.via };
+	return next({ context: { person: context.person, access } });
 });
 
 /**
- * Procedures only the Superadmin may call: refuses everyone else with `FORBIDDEN`. The permission
- * check (`can()`) replaces this when roles arrive.
+ * Procedures that need one Permission on the Install, such as `install.manage`: refuses everyone
+ * else with `FORBIDDEN`. Gives the procedure `context.install`, the Install scope it opened.
  */
-export const superadminOnly = signedIn.use(async ({ context, next }) => {
-	if (context.person.installRole !== SUPERADMIN_ROLE) {
-		throw new ORPCError("FORBIDDEN", { message: "Only the Superadmin can do this." });
-	}
-	return next();
-});
+export function onInstall(permission: Permission) {
+	return signedIn.use(async ({ context, next }) => {
+		const install = await context.services.data.install(context.access, permission);
+		return next({ context: { install } });
+	});
+}
 
 /**
  * Sensitive actions, such as changing an SMTP server or another secret. The recent identity check

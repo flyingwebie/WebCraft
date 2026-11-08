@@ -21,7 +21,7 @@ import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
-import type { SignedInPerson } from "../../ui/shell/context.ts";
+import { roleLabel, type SignedInPerson } from "../../ui/shell/context.ts";
 
 export const Route = createFileRoute("/_admin/account")({
 	staticData: { crumb: "account.pageTitle" },
@@ -45,7 +45,7 @@ const THEMES: { value: Theme; label: MessageKey }[] = [
 function AccountPage() {
 	const t = useT();
 	const { person } = Route.useRouteContext();
-	const role = person.installRole === "superadmin" ? t("roles.superadmin") : t("roles.none");
+	const role = t(roleLabel(person.installRole));
 	return (
 		<>
 			<PageHeader heading={t("account.heading")} />

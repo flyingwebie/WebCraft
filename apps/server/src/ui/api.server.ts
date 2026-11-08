@@ -8,5 +8,5 @@ import { startWebServices } from "../web-services.ts";
 export async function serverApi(): Promise<ApiClient> {
 	const services = await startWebServices();
 	const headers = new Headers(getRequestHeaders() as HeadersInit);
-	return createRouterClient(apiRouter, { context: { services, headers } });
+	return createRouterClient(apiRouter, { context: { services, headers, via: { kind: "admin" } } });
 }

@@ -1,6 +1,18 @@
 import { ORPCError } from "@orpc/server";
 import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
-import { EmailAlwaysSentError, SetupClosedError, SetupStageError, SetupTokenInvalidError } from "@webcraft/core";
+import {
+	EmailAlwaysSentError,
+	InviteInvalidError,
+	PermissionDeniedError,
+	SetupClosedError,
+	SetupStageError,
+	SetupTokenInvalidError,
+	SiteNotFoundError,
+	SlugInvalidError,
+	SlugTakenError,
+	StaffNotFoundError,
+	WorkspaceNotFoundError,
+} from "@webcraft/core";
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -8,6 +20,37 @@ import { EmailAlwaysSentError, SetupClosedError, SetupStageError, SetupTokenInva
  */
 export function toApiError(error: unknown): unknown {
 	if (error instanceof ORPCError) return error;
+	if (error instanceof WorkspaceNotFoundError) {
+		return new ORPCError("WORKSPACE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof SiteNotFoundError) {
+		return new ORPCError("SITE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof SlugInvalidError) {
+		return new ORPCError("SLUG_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
+	}
+	if (error instanceof SlugTakenError) {
+		return new ORPCError("SLUG_TAKEN", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof StaffNotFoundError) {
+		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof InviteInvalidError) {
+		return new ORPCError("INVITE_INVALID", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof PermissionDeniedError) {
+		return new ORPCError("FORBIDDEN", {
+			status: 403,
+			message: error.message,
+			data: { permission: error.permission },
+			cause: error,
+		});
+	}
 	if (error instanceof SetupTokenInvalidError) {
 		return new ORPCError("SETUP_TOKEN_INVALID", { status: 403, message: error.message, cause: error });
 	}

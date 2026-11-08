@@ -15,7 +15,7 @@ import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 export const Route = createFileRoute("/_admin/settings/general")({
 	staticData: { crumb: "generalSettings.pageTitle" },
 	loader: async ({ context }) => {
-		if (context.person.installRole !== "superadmin") return { settings: null };
+		if (!context.shell.permissions.includes("install.manage")) return { settings: null };
 		const api = await getApi();
 		return { settings: await api.install.settings.get() };
 	},

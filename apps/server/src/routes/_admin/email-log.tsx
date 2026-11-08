@@ -8,15 +8,15 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
-import { formatUtc } from "../../ui/email/format.ts";
 import { errorMessage } from "../../ui/errors.ts";
+import { formatUtc } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/email-log")({
 	staticData: { crumb: "emailLog.pageTitle" },
 	loader: async ({ context }) => {
-		if (context.person.installRole !== "superadmin") return null;
+		if (!context.shell.permissions.includes("install.manage")) return null;
 		const api = await getApi();
 		return { page: await api.install.emailLog.list({}) };
 	},

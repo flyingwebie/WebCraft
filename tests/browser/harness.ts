@@ -56,7 +56,9 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 	if (!existsSync(BUNDLE)) {
 		throw new Error("The browser tests run the production web process: run `bun run build` first.");
 	}
-	const install = await createTestInstall();
+	// The web process runs on the real clock, so the data prepared in the test process (invites
+	// that expire, sessions) is made at the real time too.
+	const install = await createTestInstall({ now: new Date() });
 	const port = await freePort();
 	const origin = `http://${ADMIN_HOST}:${port}`;
 	const logs: Record<string, unknown>[] = [];

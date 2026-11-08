@@ -16,12 +16,22 @@
 		"INVALID_CREDENTIALS": "L'email o la password non sono corrette.",
 		"UNAUTHORIZED": "La sessione è terminata. Accedi di nuovo.",
 		"FORBIDDEN": "Non puoi farlo.",
-		"EMAIL_ALWAYS_SENT": "Le email di sicurezza non si possono disattivare."
+		"EMAIL_ALWAYS_SENT": "Le email di sicurezza non si possono disattivare.",
+		"WORKSPACE_NOT_FOUND": "Questo Workspace non esiste, o non puoi raggiungerlo.",
+		"SITE_NOT_FOUND": "Questo Site non esiste, o non puoi raggiungerlo.",
+		"STAFF_NOT_FOUND": "Questa persona non fa parte dello Staff.",
+		"INVITE_INVALID": "Questo link di invito non funziona più. Chiedi un nuovo invito.",
+		"SLUG_TAKEN": "Un altro Site ha già questo slug.",
+		"SLUG_INVALID": "Usa da 1 a 63 lettere minuscole, cifre e trattini, iniziando e finendo con una lettera o una cifra.",
+		"SLUG_RESERVED": "Questo slug è riservato all'Install. Scegline un altro."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
 		"staff": "Staff",
-		"none": "Accesso effettuato"
+		"none": "Accesso effettuato",
+		"owner": "Owner",
+		"editor": "Editor",
+		"author": "Author"
 	},
 	"languages": {
 		"en": "English",
@@ -109,7 +119,11 @@
 			"label": "Cambia Workspace o Site",
 			"installSubtitle": "Install · {role}",
 			"heading": "Passa a",
-			"install": "Install"
+			"install": "Install",
+			"workspaceSubtitle": "Workspace · {count, plural, one {# Site} other {# Site}}",
+			"siteSubtitle": "{workspace} · {slug}",
+			"workspaces": "Workspace",
+			"sitesIn": "Site in {workspace}"
 		},
 		"userMenu": {
 			"label": "Apri il menu dell'account",
@@ -123,7 +137,12 @@
 			"overview": "Panoramica",
 			"general": "Generali",
 			"emailLog": "Email log",
-			"email": "Email (SMTP)"
+			"email": "Email (SMTP)",
+			"workspaces": "Workspace",
+			"staff": "Staff",
+			"workspaceGroup": "Workspace",
+			"sites": "Site",
+			"siteGroup": "Site"
 		}
 	},
 	"masterKeyBanner": {
@@ -214,7 +233,7 @@
 	},
 	"forbidden": {
 		"heading": "Non puoi aprire questa pagina",
-		"body": "Solo il Superadmin può aprirla."
+		"body": "Non hai accesso a questa pagina."
 	},
 	"smtpFailingBanner": {
 		"title": "L'SMTP dell'Install non funziona",
@@ -382,6 +401,137 @@
 		"site-smtp-failing": {
 			"name": "SMTP di un Site non funzionante",
 			"description": "Quando il server SMTP di un Site continua a non funzionare."
+		}
+	},
+	"workspaces": {
+		"pageTitle": "Workspace",
+		"heading": "Workspace",
+		"intro": "{count, plural, one {# organizzazione cliente} other {# organizzazioni clienti}} su questa Install.",
+		"introStaff": "Le organizzazioni clienti su cui lavori.",
+		"new": "Nuovo Workspace",
+		"columns": {
+			"name": "Workspace",
+			"sites": "Site",
+			"staff": "Staff assegnato",
+			"created": "Creato"
+		},
+		"noStaff": "Nessuno",
+		"empty": {
+			"heading": "Ancora nessun Workspace",
+			"body": "Crea un Workspace per ogni organizzazione cliente. I suoi Site e i suoi Member vivono al suo interno."
+		},
+		"emptyReach": {
+			"body": "Non sei ancora assegnato a nessun Workspace."
+		},
+		"dialog": {
+			"title": "Nuovo Workspace",
+			"description": "Un Workspace per ogni organizzazione cliente. Potrai assegnargli lo Staff in seguito.",
+			"name": "Nome",
+			"nameHelp": "Il nome del cliente, ad esempio Acme Srl.",
+			"nameRequired": "Inserisci un nome.",
+			"create": "Crea Workspace",
+			"cancel": "Annulla",
+			"close": "Chiudi"
+		},
+		"created": "Workspace {name} creato."
+	},
+	"staff": {
+		"pageTitle": "Staff",
+		"heading": "Staff",
+		"intro": "Le persone della tua agenzia. Lo Staff raggiunge solo i Workspace a cui è assegnato, e non ha mai una Membership.",
+		"invite": "Invita nello Staff",
+		"columns": {
+			"person": "Persona dello Staff",
+			"workspaces": "Workspace",
+			"since": "Dal",
+			"actions": "Azioni"
+		},
+		"allWorkspaces": "Tutti i Workspace",
+		"noWorkspaces": "Nessun Workspace",
+		"changeWorkspaces": "Cambia Workspace",
+		"changeWorkspacesOf": "Cambia Workspace di {name}",
+		"empty": "Ancora nessuno nello Staff. Invita le persone della tua agenzia che costruiscono e gestiscono i Site dei clienti.",
+		"pending": {
+			"heading": "Inviti in attesa",
+			"email": "Email",
+			"workspaces": "Workspace",
+			"invited": "Invitato",
+			"invitedBy": "da {name} · scade il {date}",
+			"expires": "scade il {date}",
+			"actions": "Azioni",
+			"revoke": "Revoca",
+			"revokeOf": "Revoca l'invito a {email}",
+			"revoked": "Invito a {email} revocato.",
+			"empty": "Nessun invito in attesa."
+		},
+		"sheet": {
+			"inviteTitle": "Invita nello Staff",
+			"inviteDescription": "Ricevono un'email con un link valido per 7 giorni, e scelgono da sé nome e password.",
+			"email": "Email",
+			"access": "Accesso ai Workspace",
+			"all": "Tutti i Workspace",
+			"allHelp": "Compresi i Workspace creati in seguito.",
+			"chosen": "Workspace scelti",
+			"chosenHelp": "Solo i Workspace selezionati qui sotto.",
+			"chooseLegend": "Workspace",
+			"noWorkspaces": "Non ci sono ancora Workspace. Scegli Tutti i Workspace, oppure crea prima dei Workspace.",
+			"send": "Invia invito",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"sent": "Invito inviato a {email}.",
+			"changeTitle": "Cambia Workspace",
+			"changeDescription": "I Workspace che {name} raggiunge. La modifica ha effetto subito.",
+			"save": "Salva",
+			"saved": "Salvato."
+		}
+	},
+	"sites": {
+		"pageTitle": "Site",
+		"heading": "Site",
+		"intro": "I siti web di questo Workspace. I Member vedono solo i Site che possono raggiungere.",
+		"new": "Nuovo Site",
+		"empty": {
+			"heading": "Ancora nessun Site",
+			"body": "I Site di un Workspace li crea lo Staff.",
+			"bodyStaff": "Crea il primo sito web di questo Workspace."
+		},
+		"slugLabel": "Slug",
+		"dialog": {
+			"title": "Nuovo Site",
+			"description": "Un sito web di {workspace}. I domini li aggiungerai dopo.",
+			"name": "Nome",
+			"nameRequired": "Inserisci un nome.",
+			"slug": "Slug",
+			"slugHelp": "Lettere minuscole, cifre e trattini. Dà il nome all'indirizzo di Staging del Site, ed è unico su questa Install.",
+			"create": "Crea Site",
+			"cancel": "Annulla",
+			"close": "Chiudi"
+		},
+		"created": "Site {name} creato."
+	},
+	"site": {
+		"pageTitle": "Panoramica",
+		"intro": "Un Site di {workspace}.",
+		"details": "Dettagli",
+		"name": "Nome",
+		"slug": "Slug",
+		"workspace": "Workspace",
+		"created": "Creato"
+	},
+	"invite": {
+		"pageTitle": "Accetta l'invito",
+		"heading": "Unisciti a {install} come Staff",
+		"intro": "{inviter} ha invitato {email}. Scegli il tuo nome e una password per creare il tuo account.",
+		"introNoInviter": "Sei stato invitato come {email}. Scegli il tuo nome e una password per creare il tuo account.",
+		"name": "Nome e cognome",
+		"nameRequired": "Inserisci un nome.",
+		"password": "Password",
+		"passwordHelp": "Almeno 12 caratteri.",
+		"submit": "Crea account",
+		"invalid": {
+			"heading": "Questo link di invito non funziona",
+			"body": "È già stato usato, è stato ritirato o ha più di 7 giorni. Chiedi un nuovo invito a chi ti ha invitato.",
+			"signIn": "Vai all'accesso"
 		}
 	}
 }

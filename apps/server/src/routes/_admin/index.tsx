@@ -12,6 +12,7 @@ import { ChevronRightIcon, MailIcon, SettingsIcon, ShieldCheckIcon } from "lucid
 
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
+import { roleLabel } from "../../ui/shell/context.ts";
 
 export const Route = createFileRoute("/_admin/")({
 	staticData: { crumb: "overview.pageTitle" },
@@ -23,15 +24,15 @@ export const Route = createFileRoute("/_admin/")({
 function OverviewPage() {
 	const t = useT();
 	const { shell, person } = Route.useRouteContext();
-	const superadmin = person.installRole === "superadmin";
-	const role = superadmin ? t("roles.superadmin") : t("roles.none");
+	const canManage = shell.permissions.includes("install.manage");
+	const role = t(roleLabel(person.installRole));
 	return (
 		<>
 			<PageHeader heading={t("overview.heading")}>
 				{t("overview.intro", { name: shell.install.name ?? t("app.name"), role })}
 			</PageHeader>
 			<div className="grid gap-6">
-				{superadmin && shell.setup.stage === "continue" ? (
+				{canManage && shell.setup.stage === "continue" ? (
 					<Card>
 						<CardHeader>
 							<CardTitle>
@@ -65,7 +66,7 @@ function OverviewPage() {
 									<ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden="true" />
 								</Link>
 							</li>
-							{superadmin ? (
+							{canManage ? (
 								<li>
 									<Link to="/settings/general" className="flex items-center gap-3 rounded-md py-3 hover:underline">
 										<SettingsIcon className="text-muted-foreground size-4" aria-hidden="true" />
@@ -74,7 +75,7 @@ function OverviewPage() {
 									</Link>
 								</li>
 							) : null}
-							{superadmin ? (
+							{canManage ? (
 								<li>
 									<Link to="/settings/email" className="flex items-center gap-3 rounded-md py-3 hover:underline">
 										<MailIcon className="text-muted-foreground size-4" aria-hidden="true" />

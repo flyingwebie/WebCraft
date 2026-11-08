@@ -1,14 +1,16 @@
-import type { Auth } from "@webcraft/auth";
+import { type Auth, normaliseEmail } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
 import { installRoles, setupTokens } from "@webcraft/db/schema";
 import { desc, eq, notInArray, sql } from "drizzle-orm";
 
 import type { AdminLanguageCode } from "./admin-languages.ts";
+import { type AuditVia, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
 import { readSettingsRow, writeSettingsRow } from "./install-settings.ts";
 import type { Logger } from "./log.ts";
-import { SUPERADMIN_ROLE } from "./people.ts";
+import { SUPERADMIN_ROLE } from "./permissions/roles.ts";
+import { hashToken, newToken } from "./tokens.ts";
 
 /**
  * Where an Install is in its setup:
@@ -39,13 +41,14 @@ export type InstallSetup = {
 	/**
 	 * Claims the Install with a setup token: creates the Superadmin. Every setup token stops working.
 	 * Refuses with `SetupClosedError` once a Superadmin exists and `SetupTokenInvalidError` for a token
-	 * the web process never printed; a bad account refuses as `Auth.createPerson` does.
+	 * the web process never printed; a bad account refuses as `Auth.createPerson` does. Recorded in
+	 * the Audit log as `install.claim`, done by the new Superadmin through `via`.
 	 */
-	claim(token: string, account: SuperadminAccount): Promise<{ personId: string }>;
+	claim(token: string, account: SuperadminAccount, via: AuditVia): Promise<{ personId: string }>;
 	/**
 	 * Creates the Superadmin without the wizard (`webcraft admin create-superadmin`): setup is then
 	 * finished, and every setup token stops working. Refuses with `SetupClosedError` once a
-	 * Superadmin exists.
+	 * Superadmin exists. Recorded in the Audit log as `superadmin.create`, through the command.
 	 */
 	createSuperadmin(account: SuperadminAccount): Promise<{ personId: string }>;
 	/** The Superadmin finished the wizard's remaining steps; it never opens again. */
@@ -107,8 +110,16 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 		return row !== undefined;
 	};
 
-	/** Creates the Superadmin in one transaction, after `check` passes, holding the setup lock. */
-	const createInLock = (account: SuperadminAccount, check: (tx: Transaction) => Promise<void>, finished: boolean) =>
+	/**
+	 * Creates the Superadmin in one transaction, after `check` passes, holding the setup lock, and
+	 * records it in the Audit log as `action`.
+	 */
+	const createInLock = (
+		account: SuperadminAccount,
+		check: (tx: Transaction) => Promise<void>,
+		finished: boolean,
+		audit: { action: string; via: AuditVia },
+	) =>
 		db.transaction(async (tx) => {
 			await tx.execute(SETUP_LOCK);
 			if (await superadminExists(tx)) throw new SetupClosedError();
@@ -120,6 +131,14 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			await writeSettingsRow(tx, {
 				defaultAdminLanguage: account.adminLanguage,
 				...(finished ? { setupFinishedAt: now } : {}),
+			});
+			await recordAudit(tx, now, {
+				personId,
+				via: audit.via,
+				workspaceId: null,
+				siteId: null,
+				action: audit.action,
+				details: { email: normaliseEmail(account.email) },
 			});
 			return { personId };
 		});
@@ -154,20 +173,24 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			if (!(await tokenExists(db, token))) throw new SetupTokenInvalidError();
 		},
 
-		async claim(token, account) {
+		async claim(token, account, via) {
 			const result = await createInLock(
 				account,
 				async (tx) => {
 					if (!(await tokenExists(tx, token))) throw new SetupTokenInvalidError();
 				},
 				false,
+				{ action: "install.claim", via },
 			);
 			log.info("The setup wizard created the Superadmin; setup tokens no longer work", { personId: result.personId });
 			return result;
 		},
 
 		async createSuperadmin(account) {
-			const result = await createInLock(account, async () => {}, true);
+			const result = await createInLock(account, async () => {}, true, {
+				action: "superadmin.create",
+				via: { kind: "command", name: "create-superadmin" },
+			});
 			log.info("The Superadmin was created without the setup wizard; setup tokens no longer work", {
 				personId: result.personId,
 			});
@@ -181,15 +204,4 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			log.info("The Superadmin finished the setup wizard", { personId });
 		},
 	};
-}
-
-/** 32 random bytes, base64url: 43 characters. */
-function newToken(): string {
-	const bytes = crypto.getRandomValues(new Uint8Array(32));
-	return Buffer.from(bytes).toString("base64url");
-}
-
-async function hashToken(token: string): Promise<string> {
-	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token.trim()));
-	return Buffer.from(digest).toString("hex");
 }

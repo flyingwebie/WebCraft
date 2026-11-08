@@ -1,10 +1,15 @@
 import type { RouterClient } from "@orpc/server";
 
+import { audit } from "./procedures/audit.ts";
 import { install } from "./procedures/install.ts";
+import { invites } from "./procedures/invites.ts";
 import { me } from "./procedures/me.ts";
 import { session } from "./procedures/session.ts";
 import { setup } from "./procedures/setup.ts";
 import { shell } from "./procedures/shell.ts";
+import { sites } from "./procedures/sites.ts";
+import { staff } from "./procedures/staff.ts";
+import { workspaces } from "./procedures/workspaces.ts";
 
 /**
  * Every procedure, by name. The admin calls them all; the public ones will also be served under
@@ -16,6 +21,11 @@ export const apiRouter = {
 	shell,
 	me,
 	install,
+	workspaces,
+	sites,
+	staff,
+	invites,
+	audit,
 };
 
 export type ApiRouter = typeof apiRouter;

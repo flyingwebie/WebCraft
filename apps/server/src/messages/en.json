@@ -16,12 +16,22 @@
 		"INVALID_CREDENTIALS": "The email or password is wrong.",
 		"UNAUTHORIZED": "Your session has ended. Sign in again.",
 		"FORBIDDEN": "You can't do this.",
-		"EMAIL_ALWAYS_SENT": "Security emails can't be turned off."
+		"EMAIL_ALWAYS_SENT": "Security emails can't be turned off.",
+		"WORKSPACE_NOT_FOUND": "There is no such Workspace, or you can't reach it.",
+		"SITE_NOT_FOUND": "There is no such Site, or you can't reach it.",
+		"STAFF_NOT_FOUND": "There is no such Staff member.",
+		"INVITE_INVALID": "This invite link doesn't work any more. Ask for a new invite.",
+		"SLUG_TAKEN": "Another Site already has this slug.",
+		"SLUG_INVALID": "Use 1 to 63 lower-case letters, digits and dashes, starting and ending with a letter or a digit.",
+		"SLUG_RESERVED": "This slug is kept for the Install itself. Choose another one."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
 		"staff": "Staff",
-		"none": "Signed in"
+		"none": "Signed in",
+		"owner": "Owner",
+		"editor": "Editor",
+		"author": "Author"
 	},
 	"languages": {
 		"en": "English",
@@ -109,7 +119,11 @@
 			"label": "Switch Workspace or Site",
 			"installSubtitle": "Install · {role}",
 			"heading": "Switch to",
-			"install": "Install"
+			"install": "Install",
+			"workspaceSubtitle": "Workspace · {count, plural, one {# Site} other {# Sites}}",
+			"siteSubtitle": "{workspace} · {slug}",
+			"workspaces": "Workspaces",
+			"sitesIn": "Sites in {workspace}"
 		},
 		"userMenu": {
 			"label": "Open the account menu",
@@ -123,7 +137,12 @@
 			"overview": "Overview",
 			"general": "General",
 			"emailLog": "Email log",
-			"email": "Email (SMTP)"
+			"email": "Email (SMTP)",
+			"workspaces": "Workspaces",
+			"staff": "Staff",
+			"workspaceGroup": "Workspace",
+			"sites": "Sites",
+			"siteGroup": "Site"
 		}
 	},
 	"masterKeyBanner": {
@@ -214,7 +233,7 @@
 	},
 	"forbidden": {
 		"heading": "You can't open this page",
-		"body": "Only the Superadmin can open it."
+		"body": "You don't have access to this page."
 	},
 	"smtpFailingBanner": {
 		"title": "The Install SMTP is failing",
@@ -382,6 +401,137 @@
 		"site-smtp-failing": {
 			"name": "Site SMTP failing",
 			"description": "When the SMTP server of a Site keeps failing."
+		}
+	},
+	"workspaces": {
+		"pageTitle": "Workspaces",
+		"heading": "Workspaces",
+		"intro": "{count, plural, one {# client organisation} other {# client organisations}} on this Install.",
+		"introStaff": "The client organisations you work on.",
+		"new": "New Workspace",
+		"columns": {
+			"name": "Workspace",
+			"sites": "Sites",
+			"staff": "Staff assigned",
+			"created": "Created"
+		},
+		"noStaff": "None",
+		"empty": {
+			"heading": "No Workspaces yet",
+			"body": "Create a Workspace for each client organisation. Its Sites and Members live inside it."
+		},
+		"emptyReach": {
+			"body": "You aren't assigned to any Workspace yet."
+		},
+		"dialog": {
+			"title": "New Workspace",
+			"description": "One Workspace per client organisation. You can assign Staff to it afterwards.",
+			"name": "Name",
+			"nameHelp": "The client's name, such as Acme Ltd.",
+			"nameRequired": "Enter a name.",
+			"create": "Create Workspace",
+			"cancel": "Cancel",
+			"close": "Close"
+		},
+		"created": "Workspace {name} created."
+	},
+	"staff": {
+		"pageTitle": "Staff",
+		"heading": "Staff",
+		"intro": "Your agency's people. Staff reach only the Workspaces they're assigned to, and never hold a Membership.",
+		"invite": "Invite Staff",
+		"columns": {
+			"person": "Staff member",
+			"workspaces": "Workspaces",
+			"since": "Since",
+			"actions": "Actions"
+		},
+		"allWorkspaces": "All Workspaces",
+		"noWorkspaces": "No Workspaces",
+		"changeWorkspaces": "Change Workspaces",
+		"changeWorkspacesOf": "Change Workspaces for {name}",
+		"empty": "No Staff yet. Invite the people of your agency who build and run your clients' Sites.",
+		"pending": {
+			"heading": "Pending invites",
+			"email": "Email",
+			"workspaces": "Workspaces",
+			"invited": "Invited",
+			"invitedBy": "by {name} · expires {date}",
+			"expires": "expires {date}",
+			"actions": "Actions",
+			"revoke": "Revoke",
+			"revokeOf": "Revoke the invite to {email}",
+			"revoked": "Invite to {email} revoked.",
+			"empty": "No pending invites."
+		},
+		"sheet": {
+			"inviteTitle": "Invite Staff",
+			"inviteDescription": "They get an email with a link valid for 7 days, and choose their own name and password.",
+			"email": "Email",
+			"access": "Workspace access",
+			"all": "All Workspaces",
+			"allHelp": "Including Workspaces created later.",
+			"chosen": "Chosen Workspaces",
+			"chosenHelp": "Only the Workspaces ticked below.",
+			"chooseLegend": "Workspaces",
+			"noWorkspaces": "There are no Workspaces yet. Choose All Workspaces, or create Workspaces first.",
+			"send": "Send invite",
+			"cancel": "Cancel",
+			"close": "Close",
+			"sent": "Invite sent to {email}.",
+			"changeTitle": "Change Workspaces",
+			"changeDescription": "Which Workspaces {name} reaches. The change takes effect at once.",
+			"save": "Save",
+			"saved": "Saved."
+		}
+	},
+	"sites": {
+		"pageTitle": "Sites",
+		"heading": "Sites",
+		"intro": "Websites in this Workspace. Members see only the Sites they can reach.",
+		"new": "New Site",
+		"empty": {
+			"heading": "No Sites yet",
+			"body": "Staff create the Sites of a Workspace.",
+			"bodyStaff": "Create the first website of this Workspace."
+		},
+		"slugLabel": "Slug",
+		"dialog": {
+			"title": "New Site",
+			"description": "A website of {workspace}. You'll add its domains later.",
+			"name": "Name",
+			"nameRequired": "Enter a name.",
+			"slug": "Slug",
+			"slugHelp": "Lower-case letters, digits and dashes. It names the Site's Staging address, and is unique on this Install.",
+			"create": "Create Site",
+			"cancel": "Cancel",
+			"close": "Close"
+		},
+		"created": "Site {name} created."
+	},
+	"site": {
+		"pageTitle": "Overview",
+		"intro": "A Site of {workspace}.",
+		"details": "Details",
+		"name": "Name",
+		"slug": "Slug",
+		"workspace": "Workspace",
+		"created": "Created"
+	},
+	"invite": {
+		"pageTitle": "Accept your invite",
+		"heading": "Join {install} as Staff",
+		"intro": "{inviter} invited {email}. Choose your name and a password to create your account.",
+		"introNoInviter": "You were invited as {email}. Choose your name and a password to create your account.",
+		"name": "Full name",
+		"nameRequired": "Enter a name.",
+		"password": "Password",
+		"passwordHelp": "At least 12 characters.",
+		"submit": "Create account",
+		"invalid": {
+			"heading": "This invite link doesn't work",
+			"body": "It was already used, was withdrawn, or is more than 7 days old. Ask the person who invited you for a new invite.",
+			"signIn": "Go to sign in"
 		}
 	}
 }
