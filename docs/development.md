@@ -247,7 +247,7 @@ Migrations are drizzle-kit files in `packages/db/src/migrations`, applied by the
 - Hand-written SQL (functions, triggers, data fixes) goes in its own custom migration: `bun run db:generate --custom --name=<what-it-does>`. Keeping it separate means a regenerated schema migration never loses it.
 - Every change keeps the previous version working on the new schema: add first, remove in a later release. There are no down-migrations.
 - `webcraft admin migrate` applies pending migrations in one transaction, then installs or upgrades the job queue (pg-boss) schema. Web and worker check both at start-up and refuse to run on a database that is behind; `/readyz` reports the same check.
-- When two branches both add migrations, keep the integration branch's and regenerate yours on top with `bun run db:generate`.
+- When two branches both add migrations, keep the integration branch's and regenerate yours on top with `bun run db:generate`. Git often merges two such migrations without a conflict, but both were generated from the same parent, so the newer snapshot misses the other's tables and the next `db:generate` would write them again. `tests/db/migration-chain.test.ts` fails when that happens: delete your migration's folder and generate it again (a custom one: recreate it with `--custom` and paste its SQL back).
 
 ## Jobs
 
