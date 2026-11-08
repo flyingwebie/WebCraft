@@ -9,7 +9,7 @@ import type { InstallSettings } from "../install-settings.ts";
 import type { InstallBranding } from "./branding.ts";
 import { canTurnOff, SYSTEM_EMAIL_TYPES, type SystemEmailData, type SystemEmailType } from "./catalogue.ts";
 import type { RelatedItem } from "./email-log.ts";
-import { INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
+import { checkSettings, INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
 import { renderEmail } from "./layout.ts";
 import { emailOf, type OutboxPorts, queueEmail, send } from "./outbox.ts";
 import { en } from "./wording/en.ts";
@@ -135,6 +135,7 @@ export function createSystemEmailSender(options: SenderOptions) {
 		}): Promise<TestEmailResult> {
 			const to = normaliseEmail(test.to);
 			assertValidEmail(to);
+			const smtp = checkSettings(test.smtp);
 			const rendered = await render("smtp-test", {}, test.language, false);
 			const now = clock.now();
 			const [row] = await database.db
@@ -155,8 +156,8 @@ export function createSystemEmailSender(options: SenderOptions) {
 			if (!row) throw new Error("The Email log did not take the test email.");
 			const outcome = await send(
 				options,
-				{ settings: test.smtp, password: INSTALL_SMTP_PASSWORD },
-				emailOf({ to, ...rendered, headers: SYSTEM_HEADERS }, test.smtp),
+				{ settings: smtp, password: INSTALL_SMTP_PASSWORD },
+				emailOf({ to, ...rendered, headers: SYSTEM_HEADERS }, smtp),
 				test.password,
 			);
 			await database.db
@@ -172,7 +173,7 @@ export function createSystemEmailSender(options: SenderOptions) {
 			options.log.info("A test email was sent through SMTP settings", {
 				personId: test.personId,
 				emailId: row.id,
-				smtp: { host: test.smtp.host, port: test.smtp.port },
+				smtp: { host: smtp.host, port: smtp.port },
 				status: outcome.ok ? "sent" : "failed",
 				response: outcome.response,
 			});

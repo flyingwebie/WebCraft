@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
-import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, FAKE_SMTP_RESPONSE, type TestAccount, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -12,6 +12,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await install.close();
+});
+
+beforeEach(() => {
+	install.mail.clear();
+	install.mail.accept();
 });
 
 const SMTP = {
@@ -93,5 +98,98 @@ describe("Install SMTP", () => {
 		await expect(browser.api.install.smtp.update({ ...SMTP, password: "x".repeat(20) })).rejects.toMatchObject({
 			code: "UNAUTHORIZED",
 		});
+	});
+});
+
+describe("Send test email", () => {
+	test("sends at once through the settings in the form, before they are saved, and answers the server's reply", async () => {
+		const browser = await install.signIn(superadmin);
+		const before = await browser.api.install.smtp.get();
+
+		const result = await browser.api.install.smtp.sendTest({
+			to: "ops@agency.example",
+			settings: { ...SMTP, host: "smtp.new-provider.example", port: 465, security: "tls" },
+			password: "a typed password 1234",
+		});
+
+		expect(result).toEqual({ status: "sent", response: FAKE_SMTP_RESPONSE });
+		expect(install.mail.sent).toEqual([
+			expect.objectContaining({
+				to: "ops@agency.example",
+				from: { name: "WebCraft", address: SMTP.fromAddress },
+				subject: "Test email from WebCraft",
+				smtp: {
+					host: "smtp.new-provider.example",
+					port: 465,
+					security: "tls",
+					username: SMTP.username,
+					password: "a typed password 1234",
+				},
+			}),
+		]);
+		expect(await browser.api.install.smtp.get()).toEqual(before);
+		expect((await browser.api.install.emailLog.list({})).lines[0]).toMatchObject({
+			type: "smtp-test",
+			recipient: "ops@agency.example",
+			subject: "Test email from WebCraft",
+			smtp: "install",
+			status: "sent",
+			attempts: 1,
+			lastResponse: FAKE_SMTP_RESPONSE,
+			related: { kind: "install-smtp", id: "install" },
+		});
+	});
+
+	test("without a new password it uses the stored one", async () => {
+		const browser = await install.signIn(superadmin);
+		await browser.api.install.smtp.update({ ...SMTP, password: "the stored password 5678" });
+
+		await browser.api.install.smtp.sendTest({ to: "ops@agency.example", settings: SMTP });
+
+		expect(install.mail.sent[0]?.smtp.password).toBe("the stored password 5678");
+	});
+
+	test("a test the server refuses answers its reply, and doesn't count towards Failing", async () => {
+		const browser = await install.signIn(superadmin);
+		await browser.api.install.smtp.update({ ...SMTP, password: "the stored password 5678" });
+		install.mail.fail("535 5.7.8 Authentication failed");
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			expect(await browser.api.install.smtp.sendTest({ to: "ops@agency.example", settings: SMTP })).toEqual({
+				status: "failed",
+				response: "535 5.7.8 Authentication failed",
+			});
+		}
+
+		expect((await browser.api.install.smtp.get()).health).toMatchObject({ state: "working", failuresInARow: 0 });
+		expect((await browser.api.install.emailLog.list({ limit: 1 })).lines[0]).toMatchObject({
+			type: "smtp-test",
+			status: "failed",
+			lastResponse: "535 5.7.8 Authentication failed",
+		});
+	});
+
+	test("is written in the Superadmin's Admin language", async () => {
+		const browser = await install.signIn(superadmin);
+		await browser.api.me.updatePreferences({ adminLanguage: "it" });
+
+		await browser.api.install.smtp.sendTest({ to: "ops@agency.example", settings: SMTP });
+
+		expect(install.mail.sent[0]?.subject).toBe("Email di prova da WebCraft");
+		await browser.api.me.updatePreferences({ adminLanguage: null });
+	});
+
+	test("refuses a recipient that isn't an email address, and people who aren't signed in", async () => {
+		const browser = await install.signIn(superadmin);
+
+		await expect(browser.api.install.smtp.sendTest({ to: "not an address", settings: SMTP })).rejects.toMatchObject({
+			code: "EMAIL_INVALID",
+		});
+		await expect(
+			install.browser().api.install.smtp.sendTest({ to: "ops@agency.example", settings: SMTP }),
+		).rejects.toMatchObject({
+			code: "UNAUTHORIZED",
+		});
+		expect(install.mail.attempts).toEqual([]);
 	});
 });

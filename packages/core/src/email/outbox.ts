@@ -347,7 +347,8 @@ async function recordFailure(
 			},
 		})
 		.returning({ failuresInARow: smtpHealth.failuresInARow, failingSince: smtpHealth.failingSince });
-	if (after?.failingSince && after.failingSince.getTime() === now.getTime()) {
+	// The failure that makes it Failing is the one that brings the count to exactly 3.
+	if (after?.failuresInARow === FAILING_AFTER) {
 		log.error(`The SMTP server is Failing: ${after.failuresInARow} sends in a row failed`, {
 			smtp,
 			failuresInARow: after.failuresInARow,

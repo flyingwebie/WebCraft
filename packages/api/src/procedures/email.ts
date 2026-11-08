@@ -1,4 +1,9 @@
-import { type InstallServices, SMTP_SECURITY } from "@webcraft/core";
+import {
+	categoryOf,
+	type InstallServices,
+	isSystemEmailType,
+	SMTP_SECURITY,
+} from "@webcraft/core";
 import { z } from "zod";
 
 import { sensitive, superadminOnly } from "../context.ts";
@@ -44,6 +49,25 @@ export const smtp = {
 			await context.services.email.installSmtp.update(input, context.person.id);
 			return installSmtpView(context.services);
 		}),
+
+	/**
+	 * Sends a test email at once through the settings in the form, which may not be saved yet, and
+	 * answers whether the server took it, with its reply. Without `password`, the stored one is used.
+	 */
+	sendTest: emailAdmin
+		.input(z.object({ to: email, settings: smtpSettings, password: smtpPassword.optional() }))
+		.handler(async ({ context, input }) => {
+			const { services, person } = context;
+			const language = person.adminLanguage ?? (await services.settings.read()).defaultAdminLanguage;
+			const result = await services.email.sendTest({
+				to: input.to,
+				language,
+				smtp: input.settings,
+				password: input.password,
+				personId: person.id,
+			});
+			return { status: result.status, response: result.response };
+		}),
 };
 
 async function installSmtpView(services: InstallServices) {
@@ -51,3 +75,20 @@ async function installSmtpView(services: InstallServices) {
 	const [settings, health] = await Promise.all([installSmtp.read(), installSmtp.health()]);
 	return { settings, health };
 }
+
+/** The Email log, for the Superadmin. */
+export const emailLog = {
+	/** Every email the Install sent, newest first, a page at a time. Never an email's body. */
+	list: emailAdmin
+		.input(z.object({ after: z.string().max(200).nullish(), limit: z.number().int().min(1).max(200).optional() }))
+		.handler(async ({ context, input }) => {
+			const page = await context.services.email.emailLog.list(input);
+			return {
+				lines: page.lines.map((line) => ({
+					...line,
+					category: isSystemEmailType(line.type) ? categoryOf(line.type) : null,
+				})),
+				next: page.next,
+			};
+		}),
+};

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { superadminOnly } from "../context.ts";
 import { adminLanguage } from "../inputs.ts";
-import { smtp } from "./email.ts";
+import { emailLog, smtp } from "./email.ts";
 
 /** The Install itself, for the Superadmin. */
 export const install = {
@@ -34,4 +34,6 @@ export const install = {
 	},
 	/** The Install SMTP. */
 	smtp,
+	/** The Email log. */
+	emailLog,
 };

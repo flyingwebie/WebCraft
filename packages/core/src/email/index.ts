@@ -96,6 +96,7 @@ export {
 	type SmtpHealth,
 	type SmtpSettings,
 } from "./install-smtp.ts";
+export { emailLogPurge, emailLogPurgeSchedule } from "./jobs.ts";
 export {
 	type Mailer,
 	type MailerReceipt,
