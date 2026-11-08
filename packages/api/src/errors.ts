@@ -20,6 +20,7 @@ import {
 	MemberNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
+	PathTakenError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
@@ -109,6 +110,14 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof PathTakenError) {
+		return new ORPCError("PATH_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { path: error.path, by: error.by },
 			cause: error,
 		});
 	}

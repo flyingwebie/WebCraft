@@ -13,7 +13,7 @@ import {
 	storedFields,
 } from "./fields.ts";
 import { clearPageCache } from "./page-cache.ts";
-import { isPagePostType, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
+import { checkPatternLeavesPages, isPagePostType, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
 import { slugify } from "./slugs.ts";
 import { parseUrlPattern } from "./url-patterns.ts";
 
@@ -55,7 +55,11 @@ export const POST_TYPE_NAME_MAX_LENGTH = 100;
 /** A Post Type key: lower-case letters, digits and dashes, starting with a letter; at most 64. */
 const POST_TYPE_KEY = /^[a-z](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
-/** Creates a Post Type on the scope's Site (open it with `structure.edit`), and records it in the Audit log. */
+/**
+ * Creates a Post Type on the scope's Site (open it with `structure.edit`), and records it in the Audit
+ * log. Its URL pattern owns every path it matches, so one that would take a published Page's path is
+ * refused (`PathTakenError`).
+ */
 export async function createPostType(scope: SiteScope, input: NewPostType): Promise<PostType> {
 	const problems: ContentProblem[] = [];
 	const name = checkName(input.name, problems);
@@ -69,6 +73,7 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 	const urlPattern = checkUrlPattern(input.urlPattern, problems);
 	const fields = parseFields(input.fields ?? [], problems);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
+	await checkPatternLeavesPages(scope, urlPattern);
 
 	return saving(() =>
 		scope.transaction(async (tx) => {
@@ -101,6 +106,7 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 	}
 	const fields = change.fields === undefined ? existing.fields : parseFields(change.fields, problems, existing.fields);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
+	if (urlPattern !== existing.urlPattern) await checkPatternLeavesPages(scope, urlPattern);
 
 	return saving(() =>
 		scope.transaction(async (tx) => {

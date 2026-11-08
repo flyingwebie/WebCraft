@@ -84,6 +84,30 @@ export class EntryIncompleteError extends Error {
 	}
 }
 
+/** What holds a path on a Site: a Post Type's URL pattern, or a published Page. */
+export type PathHolder =
+	| { kind: "postType"; id: string; name: string; urlPattern: string }
+	| { kind: "page"; id: string; title: string };
+
+/**
+ * A path already belongs elsewhere: a Post Type's URL pattern owns every path it matches, and Pages
+ * live outside them, so a path never belongs to both.
+ */
+export class PathTakenError extends Error {
+	override name = "PathTakenError";
+	readonly path: string;
+	readonly by: PathHolder;
+	constructor(path: string, by: PathHolder) {
+		super(
+			by.kind === "postType"
+				? `The path ${path} belongs to ${by.name} (${by.urlPattern}): choose another slug or parent Page.`
+				: `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`,
+		);
+		this.path = path;
+		this.by = by;
+	}
+}
+
 /** Pages are arranged with a Page layout, so the Page Post Type has no Entry template. */
 export class PagesHaveNoEntryTemplateError extends Error {
 	override name = "PagesHaveNoEntryTemplateError";

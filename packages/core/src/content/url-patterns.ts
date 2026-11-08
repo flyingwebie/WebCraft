@@ -96,3 +96,10 @@ export function pathSegments(pathname: string): string[] | undefined {
 export function canonicalPath(segments: readonly string[]): string {
 	return `/${segments.map((segment) => encodeURIComponent(segment)).join("/")}`;
 }
+
+/** The path of an Entry with `slug` under a URL pattern (`/blog/{slug}` gives `/blog/<slug>`), or null for a broken pattern. */
+export function pathFor(pattern: string, slug: string): string | null {
+	const parsed = parseUrlPattern(pattern);
+	if ("problem" in parsed) return null;
+	return canonicalPath(parsed.segments.map((segment) => (segment.kind === "fixed" ? segment.text : slug)));
+}

@@ -3,9 +3,11 @@ import { and, eq, isNull, ne, sql } from "drizzle-orm";
 
 import { isUuid } from "../ids.ts";
 import type { SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
-import { type ContentProblem, EntryInvalidError, PageParentUnpublishedError } from "./errors.ts";
+import { type ContentProblem, EntryInvalidError, PageParentUnpublishedError, PathTakenError } from "./errors.ts";
 import { BUILT_IN_FIELDS } from "./fields.ts";
-import { ENTRY_SLUG } from "./url-patterns.ts";
+import { siteLanguages } from "./languages.ts";
+import type { PostType } from "./post-types.ts";
+import { bySpecificity, canonicalPath, ENTRY_SLUG, parseUrlPattern, slugIn, type UrlPattern } from "./url-patterns.ts";
 import { type EntryVersion, readValue, storedVersion, type ValuePlace } from "./values.ts";
 
 /**
@@ -119,30 +121,112 @@ export async function pageSlugTaken(
 	return drafts > 0;
 }
 
+/** Each published Page's parent Page and slug, in one language: the Site's published Page tree. */
+export type PageTree = Map<string, { parentId: string | null; slug: string }>;
+
+/** The Site's published Pages, by id, with their parent and slug in `language`. */
+export async function publishedPageTree(
+	scope: Pick<SiteScope, "select">,
+	pagesId: string,
+	language: string,
+): Promise<PageTree> {
+	const rows = await scope.select(
+		publishedSlugs,
+		and(eq(publishedSlugs.postTypeId, pagesId), eq(publishedSlugs.language, language)),
+	);
+	return new Map(rows.map((row) => [row.entryId, { parentId: row.parentId, slug: row.slug }]));
+}
+
+/**
+ * A Page's path in a tree, as its parts from the top (`["about", "team"]`), or undefined when a Page
+ * above it isn't in the tree or the Pages loop.
+ */
+export function pathIn(tree: PageTree, pageId: string): string[] | undefined {
+	const parts: string[] = [];
+	const seen = new Set<string>();
+	for (let current: string | null = pageId; current !== null; ) {
+		const page = tree.get(current);
+		if (!page || seen.has(current)) return undefined;
+		seen.add(current);
+		parts.unshift(page.slug);
+		current = page.parentId;
+	}
+	return parts;
+}
+
+/** The Pages under a Page in a tree, at any depth. */
+export function pagesUnder(tree: PageTree, pageId: string): string[] {
+	const under: string[] = [];
+	const visit = (parentId: string) => {
+		for (const [id, page] of tree) {
+			if (page.parentId === parentId && id !== pageId && !under.includes(id)) {
+				under.push(id);
+				visit(id);
+			}
+		}
+	};
+	visit(pageId);
+	return under;
+}
+
 /**
  * Checks, as a Page is published, that the parent Page its Draft names is published and that the
- * Page isn't one of its published ancestors: Pages nest only under published Pages, without loops.
+ * Page isn't one of its own published ancestors: Pages nest only under published Pages, without loops.
  */
-export async function checkPublishedParent(
-	scope: Pick<SiteScope, "first">,
-	pageId: string,
-	parentId: string,
-	language: string,
-): Promise<void> {
-	let current: string | null = parentId;
-	for (let depth = 1; current !== null; depth++) {
+export function checkPublishedParent(tree: PageTree, pageId: string, parentId: string): void {
+	const seen = new Set<string>();
+	for (let current: string | null = parentId; current !== null; ) {
 		if (current === pageId) {
 			throw new EntryInvalidError([{ at: "parentId", message: "A Page can't go under one of its own child Pages." }]);
 		}
-		if (depth >= MAX_PAGE_DEPTH) {
-			throw new EntryInvalidError([{ at: "parentId", message: `Pages nest at most ${MAX_PAGE_DEPTH} deep.` }]);
-		}
-		const row: { parentId: string | null } | undefined = await scope.first(
-			publishedSlugs,
-			and(eq(publishedSlugs.entryId, current), eq(publishedSlugs.language, language)),
-		);
-		if (!row) throw new PageParentUnpublishedError();
-		current = row.parentId;
+		const page = tree.get(current);
+		if (!page || seen.has(current)) throw new PageParentUnpublishedError();
+		seen.add(current);
+		current = page.parentId;
+	}
+}
+
+/** The Post Type whose URL pattern owns a path (the most specific first), if any: Pages can't be there. */
+export function patternOwning(postTypes: readonly PostType[], parts: readonly string[]): PostType | undefined {
+	return postTypes
+		.filter((postType) => !isPagePostType(postType))
+		.map((postType) => ({ postType, pattern: parseUrlPattern(postType.urlPattern) }))
+		.filter((candidate): candidate is { postType: PostType; pattern: UrlPattern } => !("problem" in candidate.pattern))
+		.sort((a, b) => bySpecificity(a.pattern, b.pattern))
+		.find(({ pattern }) => slugIn(pattern, parts) !== undefined)?.postType;
+}
+
+/** A path as visitors write it: `/about/team`, and `/` for no parts. */
+export function pathText(parts: readonly string[]): string {
+	return canonicalPath(parts);
+}
+
+/**
+ * Refuses a URL pattern that would own the path of a published Page of the scope's Site
+ * (`PathTakenError` naming the Page): Pages and Post Types never share a path.
+ */
+export async function checkPatternLeavesPages(
+	scope: Pick<SiteScope, "select" | "first" | "db" | "site">,
+	urlPattern: string,
+): Promise<void> {
+	const pattern = parseUrlPattern(urlPattern);
+	if ("problem" in pattern) return;
+	const pages = await scope.first(postTypes, eq(postTypes.builtIn, PAGE_POST_TYPE.builtIn));
+	if (!pages) return;
+	const { defaultLanguage } = await siteLanguages(scope);
+	const tree = await publishedPageTree(scope, pages.id, defaultLanguage);
+	for (const pageId of tree.keys()) {
+		const parts = pathIn(tree, pageId);
+		if (!parts || slugIn(pattern, parts) === undefined) continue;
+		const row = await scope.first(entries, eq(entries.id, pageId));
+		const title =
+			readValue(storedVersion(row?.published), {
+				key: "title",
+				translatable: true,
+				language: defaultLanguage,
+				defaultLanguage,
+			}) ?? "";
+		throw new PathTakenError(pathText(parts), { kind: "page", id: pageId, title });
 	}
 }
 

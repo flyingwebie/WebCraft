@@ -1,14 +1,24 @@
-import { entries, people, publishedSlugs, sites } from "@webcraft/db/schema";
+import { entries, people, publishedSlugs } from "@webcraft/db/schema";
 import { cleanRichText, richTextToText } from "@webcraft/renderer";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, EntryInvalidError, EntryNotFoundError, EntrySlugTakenError } from "./errors.ts";
 import { type FieldDefinition, RICH_TEXT_VALUE_MAX_LENGTH, TEXT_VALUE_MAX_LENGTH } from "./fields.ts";
-import { checkDraftParent, isPagePostType, pageSlugTaken, parentIn, parentPlace } from "./pages.ts";
+import { siteLanguages } from "./languages.ts";
+import {
+	checkDraftParent,
+	isPagePostType,
+	pageSlugTaken,
+	parentIn,
+	parentPlace,
+	pathIn,
+	pathText,
+	publishedPageTree,
+} from "./pages.ts";
 import { getPostType, type PostType, UUID } from "./post-types.ts";
 import { slugify } from "./slugs.ts";
-import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
+import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH, pathFor } from "./url-patterns.ts";
 import {
 	type EntryVersion,
 	emptyVersion,
@@ -55,6 +65,8 @@ export type Entry = {
 	draft: EntryValues;
 	/** What visitors see; null until it is first published. */
 	published: EntryValues | null;
+	/** Where visitors find it (`/blog/fresh-bread`, `/about/team`); null until it is published. */
+	path: string | null;
 };
 
 /** A change to an Entry's Draft, in one language (the Site's Default language unless given). */
@@ -78,14 +90,7 @@ export const ENTRY_TITLE_MAX_LENGTH = 300;
 
 type EntryRow = typeof entries.$inferSelect;
 
-/** The languages of the scope's Site. Only the Default language exists until Sites get more. */
-export async function siteLanguages(scope: Pick<SiteScope, "db" | "site">): Promise<{ defaultLanguage: string }> {
-	const [row] = await scope.db
-		.select({ defaultLanguage: sites.defaultLanguage })
-		.from(sites)
-		.where(eq(sites.id, scope.site.id));
-	return { defaultLanguage: row?.defaultLanguage ?? "en" };
-}
+export { siteLanguages };
 
 /**
  * Creates an Entry of a Post Type on the scope's Site (open it with `entry.edit`), its Draft holding
@@ -154,7 +159,8 @@ export async function listEntries(scope: SiteScope, postTypeId: string, language
 		scope,
 		rows.map((row) => row.authorId),
 	);
-	return rows.map((row) => entryView(row, postType, chosen, defaultLanguage, authors));
+	const paths = await publishedPaths(scope, postType, rows, chosen);
+	return rows.map((row) => entryView(row, postType, chosen, defaultLanguage, authors, paths));
 }
 
 /**
@@ -314,7 +320,42 @@ async function toEntry(
 	language: string,
 	defaultLanguage: string,
 ): Promise<Entry> {
-	return entryView(row, postType, language, defaultLanguage, await authorNames(scope, [row.authorId]));
+	const authors = await authorNames(scope, [row.authorId]);
+	return entryView(
+		row,
+		postType,
+		language,
+		defaultLanguage,
+		authors,
+		await publishedPaths(scope, postType, [row], language),
+	);
+}
+
+/** Where visitors find each published Entry, by id: its Post Type's URL pattern, or a Page's parents and slug. */
+async function publishedPaths(
+	scope: SiteScope,
+	postType: PostType,
+	rows: readonly EntryRow[],
+	language: string,
+): Promise<Map<string, string>> {
+	const paths = new Map<string, string>();
+	if (isPagePostType(postType)) {
+		const tree = await publishedPageTree(scope, postType.id, language);
+		for (const row of rows) {
+			const parts = pathIn(tree, row.id);
+			if (parts) paths.set(row.id, pathText(parts));
+		}
+		return paths;
+	}
+	const slugs = await scope.select(
+		publishedSlugs,
+		and(eq(publishedSlugs.postTypeId, postType.id), eq(publishedSlugs.language, language)),
+	);
+	for (const { entryId, slug } of slugs) {
+		const path = pathFor(postType.urlPattern, slug);
+		if (path) paths.set(entryId, path);
+	}
+	return paths;
 }
 
 /** The names of the people who wrote Entries, by id. */
@@ -334,6 +375,7 @@ function entryView(
 	language: string,
 	defaultLanguage: string,
 	authors: ReadonlyMap<string, string>,
+	paths: ReadonlyMap<string, string>,
 ): Entry {
 	const values = (version: EntryVersion) => entryValues(version, postType.fields, { language, defaultLanguage });
 	const authorName = row.authorId ? authors.get(row.authorId) : undefined;
@@ -350,6 +392,7 @@ function entryView(
 		language,
 		draft: values(storedVersion(row.draft)),
 		published: row.published === null ? null : values(storedVersion(row.published)),
+		path: paths.get(row.id) ?? null,
 	};
 }
 

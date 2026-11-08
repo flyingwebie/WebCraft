@@ -20,6 +20,8 @@ export {
 	EntrySlugTakenError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
+	type PathHolder,
+	PathTakenError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
@@ -48,7 +50,7 @@ export {
 	type PostTypeChange,
 	updatePostType,
 } from "./post-types.ts";
-export { type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
+export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
 export {
 	getEntryTemplate,
 	getEntryTemplateMarkup,
