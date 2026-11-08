@@ -1,0 +1,206 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "57d6229a-b032-4123-bb19-9cb0c71a3637",
+  "prevIds": [
+    "ef11211a-3313-4b5f-ada5-29a3b8d7b3e7"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "post_types",
+        "built_in"
+      ],
+      "writes": [
+        "s|col|public.post_types.built_in",
+        "n|col|public.post_types.built_in",
+        "e|col|public.post_types.built_in"
+      ],
+      "reads": [
+        "n|tbl|public.post_types",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "published_slugs",
+        "parent_id"
+      ],
+      "writes": [
+        "s|col|public.published_slugs.parent_id",
+        "n|col|public.published_slugs.parent_id",
+        "e|col|public.published_slugs.parent_id"
+      ],
+      "reads": [
+        "n|tbl|public.published_slugs",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "post_types"
+      ],
+      "writes": [
+        "s|uq|public.post_types.post_types_site_id_built_in_unique",
+        "n|uq|public.post_types.post_types_site_id_built_in_unique",
+        "e|uq|public.post_types.post_types_site_id_built_in_unique",
+        "n|con|public.post_types.post_types_site_id_built_in_unique",
+        "n|rel|public.post_types_site_id_built_in_unique"
+      ],
+      "reads": [
+        "n|tbl|public.post_types",
+        "n|sch|public",
+        "n|col|public.post_types.site_id",
+        "n|col|public.post_types.built_in"
+      ]
+    },
+    {
+      "statementType": "alter_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "published_slugs"
+      ],
+      "writes": [
+        "s|uq|public.published_slugs.published_slugs_slug_unique"
+      ],
+      "reads": [
+        "n|tbl|public.published_slugs",
+        "n|sch|public",
+        "n|col|public.published_slugs.site_id",
+        "n|col|public.published_slugs.post_type_id",
+        "n|col|public.published_slugs.language",
+        "n|col|public.published_slugs.parent_id",
+        "n|col|public.published_slugs.slug",
+        "e|col|public.published_slugs.site_id",
+        "e|col|public.published_slugs.post_type_id",
+        "e|col|public.published_slugs.language",
+        "e|col|public.published_slugs.slug"
+      ],
+      "sharedWrites": [
+        "e|uniqueness|public.published_slugs.language.post_type_id.site_id.slug"
+      ],
+      "sqlHash": "fd796f82c5bd19ed"
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "published_slugs"
+      ],
+      "writes": [
+        "s|fk|public.published_slugs.published_slugs_parent_fkey",
+        "n|fk|public.published_slugs.published_slugs_parent_fkey",
+        "e|fk|public.published_slugs.published_slugs_parent_fkey",
+        "n|con|public.published_slugs.published_slugs_parent_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.published_slugs",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.published_slugs.site_id",
+        "n|col|public.published_slugs.parent_id",
+        "n|col|public.entries.site_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id.site_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "post_types",
+        "name": "built_in",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "published_slugs",
+        "name": "parent_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "published_slugs",
+        "name": "published_slugs_parent_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "parent_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "post_types",
+        "name": "post_types_site_id_built_in_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "built_in"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "uniques\u0000[\"public\",\"published_slugs\",\"published_slugs_slug_unique\"]",
+      "set": {
+        "columns": [
+          "site_id",
+          "post_type_id",
+          "language",
+          "parent_id",
+          "slug"
+        ],
+        "nullsNotDistinct": true
+      }
+    }
+  ]
+}

@@ -18,6 +18,8 @@ export {
 	EntryInvalidError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	PageParentUnpublishedError,
+	PagesHaveNoEntryTemplateError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
@@ -35,6 +37,7 @@ export {
 	RICH_TEXT_VALUE_MAX_LENGTH,
 	TEXT_VALUE_MAX_LENGTH,
 } from "./fields.ts";
+export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
 	getPostType,

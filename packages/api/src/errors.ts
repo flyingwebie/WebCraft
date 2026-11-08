@@ -18,6 +18,8 @@ import {
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	MemberNotFoundError,
+	PageParentUnpublishedError,
+	PagesHaveNoEntryTemplateError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
@@ -109,6 +111,12 @@ export function toApiError(error: unknown): unknown {
 			data: { missing: error.missing },
 			cause: error,
 		});
+	}
+	if (error instanceof PagesHaveNoEntryTemplateError) {
+		return new ORPCError("PAGES_HAVE_NO_ENTRY_TEMPLATE", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof PageParentUnpublishedError) {
+		return new ORPCError("PAGE_PARENT_UNPUBLISHED", { status: 409, message: error.message, cause: error });
 	}
 	if (error instanceof ElementTreeInvalidError) {
 		return new ORPCError("TEMPLATE_INVALID", {

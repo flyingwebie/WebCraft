@@ -54,6 +54,7 @@ describe("creating a Post Type", () => {
 			name: "Blog posts",
 			urlPattern: "/blog/{slug}",
 			fields: [{ key: "summary", label: "Summary", type: "text", translatable: true, required: false }],
+			builtIn: null,
 			builtInFields: BUILT_IN_FIELDS,
 			createdAt: install.clock.now(),
 			updatedAt: install.clock.now(),

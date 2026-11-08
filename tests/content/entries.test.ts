@@ -63,6 +63,7 @@ describe("creating an Entry", () => {
 			draft: {
 				title: "Sourdough starter",
 				slug: "sourdough-starter",
+				parentId: null,
 				fields: { summary: "Feed it daily.", sku: null },
 			},
 			published: null,

@@ -50,13 +50,15 @@ export const BUILT_IN_FIELDS = [
 export type BuiltInField = (typeof BUILT_IN_FIELDS)[number];
 
 /**
- * Names a Field key can't take: the built-in Fields, the names Template markup reads values from
- * (`site.x` Globals, `props.x` Props, `item.x` Loop items) and the words Conditions' tests use
- * (`and`, `or`, `not`, `true`, `false`).
+ * Names a Field key can't take: the built-in Fields (a Page's `parent` too), the names Template
+ * markup reads values from (`site.x` Globals, `props.x` Props, `item.x` Loop items) and the words
+ * Conditions' tests use (`and`, `or`, `not`, `true`, `false`).
  */
 const RESERVED_KEYS = new Set(
 	[
 		...BUILT_IN_FIELDS,
+		"parent",
+		"path",
 		...EXPRESSION_KEYWORDS,
 		"id",
 		"site",

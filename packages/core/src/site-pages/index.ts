@@ -5,6 +5,7 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
 import { entryValues } from "../content/entries.ts";
+import { findPublishedPage, isPagePostType } from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { bySpecificity, parseUrlPattern, pathSegments, slugIn, type UrlPattern } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
@@ -63,14 +64,25 @@ export function createSitePages(options: { database: Database; config: InstallCo
 			const segments = pathSegments(pathname);
 			if (!segments) return null;
 			const scope = data.visitors(host.site);
-			const found = await findPublishedEntry(scope, segments, host.defaultLanguage);
+			const postTypes = await listPostTypes(scope);
+			// Post Types' URL patterns own every path they match; Pages live outside them.
+			const found =
+				(await findPublishedEntry(scope, postTypes, segments, host.defaultLanguage)) ??
+				(await findPage(scope, postTypes, segments, host.defaultLanguage));
 			if (!found) return null;
 			return { html: await renderEntryPage(scope, host, found) };
 		},
 	};
 }
 
-type FoundEntry = { postType: PostType; entry: typeof entries.$inferSelect; template: ElementTree };
+/** A published Entry to render, with what its content renders through: its Entry template or Page layout. */
+type FoundEntry = { postType: PostType; entry: typeof entries.$inferSelect; content: ElementTree };
+
+/**
+ * A Page's layout: the Components placed in its content area. Pages get their Page layout with
+ * Components; until then a Page's content is empty.
+ */
+const EMPTY_PAGE_LAYOUT: ElementTree = { version: 1, nodes: [] };
 
 /**
  * The published Entry at a path: each Post Type's URL pattern is tried, most specific first, and the
@@ -79,10 +91,12 @@ type FoundEntry = { postType: PostType; entry: typeof entries.$inferSelect; temp
  */
 async function findPublishedEntry(
 	scope: VisitorScope,
+	postTypes: readonly PostType[],
 	segments: readonly string[],
 	language: string,
 ): Promise<FoundEntry | undefined> {
-	const candidates = (await listPostTypes(scope))
+	const candidates = postTypes
+		.filter((postType) => !isPagePostType(postType))
 		.map((postType) => ({ postType, pattern: parseUrlPattern(postType.urlPattern) }))
 		.filter((candidate): candidate is { postType: PostType; pattern: UrlPattern } => !("problem" in candidate.pattern))
 		.sort((a, b) => bySpecificity(a.pattern, b.pattern));
@@ -105,13 +119,28 @@ async function findPublishedEntry(
 			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id), isNotNull(templates.published)),
 		);
 		if (!template) return undefined;
-		return { postType, entry, template: template.published as ElementTree };
+		return { postType, entry, content: template.published as ElementTree };
 	}
 	return undefined;
 }
 
+/** The published Page at a path: its parent Page's path and its own slug. */
+async function findPage(
+	scope: VisitorScope,
+	postTypes: readonly PostType[],
+	segments: readonly string[],
+	language: string,
+): Promise<FoundEntry | undefined> {
+	const pages = postTypes.find(isPagePostType);
+	if (!pages) return undefined;
+	const pageId = await findPublishedPage(scope, pages.id, segments, language);
+	if (!pageId) return undefined;
+	const entry = await scope.first(entries, and(eq(entries.id, pageId), isNotNull(entries.published)));
+	return entry ? { postType: pages, entry, content: EMPTY_PAGE_LAYOUT } : undefined;
+}
+
 async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: FoundEntry): Promise<string> {
-	const { postType, entry, template } = found;
+	const { postType, entry, content } = found;
 	const language = host.defaultLanguage;
 	const published = entryValues(storedVersion(entry.published), postType.fields, {
 		language,
@@ -140,7 +169,7 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		title: published.title,
 		siteTemplate: await publishedSiteTemplate(scope),
-		content: template,
+		content,
 		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : fields[path]),
 		className: (classId) => classNames.get(classId),
 	});

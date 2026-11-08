@@ -13,6 +13,7 @@ import {
 	storedFields,
 } from "./fields.ts";
 import { clearPageCache } from "./page-cache.ts";
+import { isPagePostType, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
 import { slugify } from "./slugs.ts";
 import { parseUrlPattern } from "./url-patterns.ts";
 
@@ -23,12 +24,17 @@ export type PostType = {
 	/** Names it in Template markup, the APIs and files, such as `blog`. */
 	key: string;
 	name: string;
-	/** Where its Entries are, such as `/blog/{slug}`. */
+	/**
+	 * Which built-in Post Type it is: `page` for the Page Post Type every Site has; null for one Staff
+	 * made.
+	 */
+	builtIn: "page" | null;
+	/** Where its Entries are, such as `/blog/{slug}`; `/{path}` for Pages, found by parent Page and slug. */
 	urlPattern: string;
 	/** The Fields it adds, in order. */
 	fields: FieldDefinition[];
-	/** The Fields every Entry has, whatever its Post Type. */
-	builtInFields: readonly BuiltInField[];
+	/** The Fields every Entry of it has, whatever its Post Type: Pages add `parent`. */
+	builtInFields: readonly (BuiltInField | "parent")[];
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -82,8 +88,17 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 	const existing = toPostType(await findPostType(scope, postTypeId));
 	const problems: ContentProblem[] = [];
 	const name = change.name === undefined ? existing.name : checkName(change.name, problems);
-	const urlPattern =
-		change.urlPattern === undefined ? existing.urlPattern : checkUrlPattern(change.urlPattern, problems);
+	let urlPattern = existing.urlPattern;
+	if (change.urlPattern !== undefined && isPagePostType(existing)) {
+		if (change.urlPattern.trim() !== existing.urlPattern) {
+			problems.push({
+				at: "urlPattern",
+				message: "Pages are found by their parent Page and slug, so their URL pattern can't change.",
+			});
+		}
+	} else if (change.urlPattern !== undefined) {
+		urlPattern = checkUrlPattern(change.urlPattern, problems);
+	}
 	const fields = change.fields === undefined ? existing.fields : parseFields(change.fields, problems, existing.fields);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 
@@ -157,9 +172,10 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 		siteId: row.siteId,
 		key: row.key,
 		name: row.name,
+		builtIn: row.builtIn === "page" ? "page" : null,
 		urlPattern: row.urlPattern,
 		fields: storedFields(row.fields),
-		builtInFields: BUILT_IN_FIELDS,
+		builtInFields: row.builtIn === "page" ? PAGE_BUILT_IN_FIELDS : BUILT_IN_FIELDS,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

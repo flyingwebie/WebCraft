@@ -9,6 +9,7 @@ import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { entryValues, lockEntry, siteLanguages } from "./entries.ts";
 import { EntryIncompleteError, EntrySlugTakenError } from "./errors.ts";
 import { clearPageCache } from "./page-cache.ts";
+import { checkPublishedParent, isPagePostType, parentIn } from "./pages.ts";
 import { getPostType } from "./post-types.ts";
 import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
 import { storedVersion } from "./values.ts";
@@ -37,8 +38,9 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
  * again here, so every caller (the admin, the worker's Scheduled publishes) holds it.
  *
  * Refuses an Entry whose required values are empty (`EntryIncompleteError`) or whose slug another
- * published Entry of its Post Type has (`EntrySlugTakenError`), and a Template that no longer fits
- * its Post Type (`ElementTreeInvalidError`).
+ * published Entry of its Post Type has (`EntrySlugTakenError`; for a Page, another published Page
+ * under the same parent), a Page whose parent Page isn't published (`PageParentUnpublishedError`),
+ * and a Template that no longer fits what it renders (`ElementTreeInvalidError`).
  */
 export async function publish(scope: SiteScope, item: PublishItem): Promise<Published> {
 	const permission = publishPermission(item);
@@ -63,6 +65,9 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 		...postType.fields.filter((field) => field.required && !values.fields[field.key]).map((field) => field.key),
 	];
 	if (missing.length > 0) throw new EntryIncompleteError(missing);
+	// A Page nests under its published parent Page; publishing moves it, with every Page under it.
+	const parentId = isPagePostType(postType) ? parentIn(draft, defaultLanguage) : null;
+	if (parentId !== null) await checkPublishedParent(scope, row.id, parentId, defaultLanguage);
 
 	const now = scope.now();
 	await scope.update(
@@ -77,9 +82,12 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 			postTypeId: row.postTypeId,
 			language: defaultLanguage,
 			slug: values.slug,
+			parentId,
 		});
 	} catch (error) {
-		if (isUniqueViolation(error, "published_slugs_slug_unique")) throw new EntrySlugTakenError(values.slug);
+		if (isUniqueViolation(error, "published_slugs_slug_unique")) {
+			throw new EntrySlugTakenError(values.slug, isPagePostType(postType) ? "siblingPages" : "postType");
+		}
 		throw error;
 	}
 	await scope.audit("entry.publish", {

@@ -14,8 +14,9 @@ import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { sameJson } from "./entries.ts";
-import { TemplateNotFoundError } from "./errors.ts";
+import { PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.ts";
 import { BUILT_IN_FIELDS } from "./fields.ts";
+import { isPagePostType } from "./pages.ts";
 import { getPostType, type PostType, UUID } from "./post-types.ts";
 
 /**
@@ -103,10 +104,18 @@ export function parseEntryTemplate(tree: unknown, postType: PostType, classIds: 
 
 /**
  * Saves the Draft of a Post Type's Entry template (open the Site with `structure.edit`), creating
- * the template the first time. Visitors see nothing of it until it is published.
+ * the template the first time. Visitors see nothing of it until it is published. Pages have none:
+ * they are arranged with a Page layout.
  */
 export async function saveEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template> {
-	return saveTemplate(scope, { kind: "entry", postType: await getPostType(scope, postTypeId) }, tree);
+	return saveTemplate(scope, await entryTemplateTarget(scope, postTypeId), tree);
+}
+
+/** The Entry template of a Post Type; Pages have none (`PagesHaveNoEntryTemplateError`). */
+async function entryTemplateTarget(scope: SiteScope, postTypeId: string): Promise<TemplateTarget> {
+	const postType = await getPostType(scope, postTypeId);
+	if (isPagePostType(postType)) throw new PagesHaveNoEntryTemplateError();
+	return { kind: "entry", postType };
 }
 
 /**
@@ -133,7 +142,7 @@ export async function saveEntryTemplateMarkup(
 	postTypeId: string,
 	markup: string,
 ): Promise<SavedTemplateMarkup> {
-	return saveTemplateMarkup(scope, { kind: "entry", postType: await getPostType(scope, postTypeId) }, markup);
+	return saveTemplateMarkup(scope, await entryTemplateTarget(scope, postTypeId), markup);
 }
 
 /** Saves the Draft of the Site template from Template markup, as `saveEntryTemplateMarkup` does. */

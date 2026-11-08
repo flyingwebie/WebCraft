@@ -1,4 +1,4 @@
-/** One reason something was refused, and where: a Field key, `urlPattern`, `fields[2].key`. */
+/** One reason something was refused, and where: a Field key, `urlPattern`, `fields[2].key`, `parentId`. */
 export type ContentProblem = { at: string; message: string };
 
 /** There is no such Post Type on the Site. */
@@ -59,12 +59,16 @@ export class EntryInvalidError extends Error {
 	}
 }
 
-/** Another Entry of the Post Type already has the slug. */
+/** Another Entry of the Post Type (for a Page, another Page under the same parent) already has the slug. */
 export class EntrySlugTakenError extends Error {
 	override name = "EntrySlugTakenError";
 	readonly slug: string;
-	constructor(slug: string) {
-		super(`Another Entry of this Post Type already has the slug ${slug}.`);
+	constructor(slug: string, among: "postType" | "siblingPages" = "postType") {
+		super(
+			among === "siblingPages"
+				? `Another Page under the same parent already has the slug ${slug}.`
+				: `Another Entry of this Post Type already has the slug ${slug}.`,
+		);
 		this.slug = slug;
 	}
 }
@@ -77,6 +81,22 @@ export class EntryIncompleteError extends Error {
 	constructor(missing: readonly string[]) {
 		super(`The Entry can't be published until these have a value: ${missing.join(", ")}.`);
 		this.missing = missing;
+	}
+}
+
+/** Pages are arranged with a Page layout, so the Page Post Type has no Entry template. */
+export class PagesHaveNoEntryTemplateError extends Error {
+	override name = "PagesHaveNoEntryTemplateError";
+	constructor() {
+		super("Pages are arranged with a Page layout, not an Entry template.");
+	}
+}
+
+/** A Page can't be published while its parent Page isn't: its address starts with its parent's. */
+export class PageParentUnpublishedError extends Error {
+	override name = "PageParentUnpublishedError";
+	constructor() {
+		super("Publish the parent Page first: a Page's address starts with its parent's.");
 	}
 }
 

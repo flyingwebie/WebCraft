@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, EntryInvalidError, EntryNotFoundError, EntrySlugTakenError } from "./errors.ts";
 import { type FieldDefinition, RICH_TEXT_VALUE_MAX_LENGTH, TEXT_VALUE_MAX_LENGTH } from "./fields.ts";
+import { checkDraftParent, isPagePostType, pageSlugTaken, parentIn, parentPlace } from "./pages.ts";
 import { getPostType, type PostType, UUID } from "./post-types.ts";
 import { slugify } from "./slugs.ts";
 import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
@@ -28,6 +29,8 @@ export type EntryStatus = "draft" | "published" | "changed";
 export type EntryValues = {
 	title: string;
 	slug: string;
+	/** A Page's parent Page; null for a top-level Page and for every other Entry. */
+	parentId: string | null;
 	/** Every Field of the Post Type, by key; null when empty. */
 	fields: Record<string, string | null>;
 };
@@ -60,6 +63,11 @@ export type DraftChange = {
 	title?: string;
 	/** A new slug; WebCraft makes one from the title for a new Entry without one. */
 	slug?: string;
+	/**
+	 * A Page's parent Page, null to move it to the top level. Only Pages have one; a published Page
+	 * moves, with every Page under it, when it is published.
+	 */
+	parentId?: string | null;
 	/** Values of the Post Type's Fields, by key; null or "" clears one. */
 	fields?: Record<string, string | null>;
 };
@@ -97,7 +105,15 @@ export async function createEntry(scope: SiteScope, input: NewEntry): Promise<En
 		});
 		const languages = await siteLanguages(tx);
 		const language = input.language ?? languages.defaultLanguage;
-		const slug = input.slug ?? (await freeSlug(tx, postType, row.id, language, slugify(input.title)));
+		const taken = isPagePostType(postType)
+			? (candidate: string) =>
+					pageSlugTaken(tx, row, input.parentId ?? null, {
+						language,
+						defaultLanguage: languages.defaultLanguage,
+						value: candidate,
+					})
+			: (candidate: string) => slugTaken(tx, postType.id, row.id, language, candidate);
+		const slug = input.slug ?? (await freeSlug(taken, slugify(input.title) || slugify(postType.name) || "entry"));
 		const saved = await changeDraft(tx, row, postType, { ...input, slug }, languages.defaultLanguage);
 		return toEntry(tx, saved, postType, language, languages.defaultLanguage);
 	});
@@ -180,6 +196,12 @@ async function changeDraft(
 		}
 		version = writeValue(version, place("slug"), slug, by);
 	}
+	if (change.parentId !== undefined && change.parentId !== null && !isPagePostType(postType)) {
+		problems.push({ at: "parentId", message: "Only Pages have a parent Page." });
+	} else if (change.parentId !== undefined && isPagePostType(postType)) {
+		if (change.parentId !== null) await checkDraftParent(scope, row, change.parentId, defaultLanguage, problems);
+		version = writeValue(version, parentPlace(defaultLanguage), change.parentId, by);
+	}
 	for (const [key, value] of Object.entries(change.fields ?? {})) {
 		const field = postType.fields.find((candidate) => candidate.key === key);
 		if (!field) {
@@ -197,7 +219,17 @@ async function changeDraft(
 		version = writeValue(version, place(key), stored, by);
 	}
 	if (problems.length > 0) throw new EntryInvalidError(problems);
-	if (slug && (await slugTaken(scope, postType.id, row.id, language, slug))) throw new EntrySlugTakenError(slug);
+	if (isPagePostType(postType)) {
+		// A Page's slug is unique among the Pages under its parent, so a move checks it too.
+		const pageSlug = slug ?? readValue(version, place("slug"));
+		const parentId = parentIn(version, defaultLanguage);
+		const value = { language, defaultLanguage, value: pageSlug ?? "" };
+		if ((slug || change.parentId !== undefined) && pageSlug && (await pageSlugTaken(scope, row, parentId, value))) {
+			throw new EntrySlugTakenError(pageSlug, "siblingPages");
+		}
+	} else if (slug && (await slugTaken(scope, postType.id, row.id, language, slug))) {
+		throw new EntrySlugTakenError(slug);
+	}
 
 	const [saved] = await scope.update(entries, { draft: version, updatedAt: scope.now() }, eq(entries.id, row.id));
 	if (!saved) throw new EntryNotFoundError();
@@ -256,18 +288,11 @@ async function slugTaken(
 	return drafts > 0;
 }
 
-/** A slug made from `base` that no other Entry of the Post Type has: `base`, then `base-2`, `base-3`, … */
-async function freeSlug(
-	scope: SiteScope,
-	postType: PostType,
-	entryId: string,
-	language: string,
-	base: string,
-): Promise<string> {
-	const stem = base || slugify(postType.name) || "entry";
+/** A slug made from `stem` that isn't `taken`: `stem`, then `stem-2`, `stem-3`, … */
+async function freeSlug(taken: (candidate: string) => Promise<boolean>, stem: string): Promise<string> {
 	for (let attempt = 1; ; attempt++) {
 		const candidate = attempt === 1 ? stem : `${stem}-${attempt}`;
-		if (!(await slugTaken(scope, postType.id, entryId, language, candidate))) return candidate;
+		if (!(await taken(candidate))) return candidate;
 	}
 }
 
@@ -338,6 +363,7 @@ export function entryValues(
 	return {
 		title: read("title") ?? "",
 		slug: read("slug") ?? "",
+		parentId: parentIn(version, languages.defaultLanguage),
 		fields: Object.fromEntries(fields.map((field) => [field.key, read(field.key)])),
 	};
 }
