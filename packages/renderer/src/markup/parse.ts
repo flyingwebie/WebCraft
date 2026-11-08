@@ -413,9 +413,11 @@ class MarkupParser {
 			this.problem(curly.offset + 2 + pathText.length + 1 + (formats[0]?.length ?? 0), "A value has one formatter.");
 			return undefined;
 		}
-		const read = readFormat(formats[0] ?? "");
+		const formatText = formats[0] ?? "";
+		const read = readFormat(formatText);
 		if ("problem" in read) {
-			this.problem(curly.innerOffset + pathText.length + 1, read.problem);
+			const leading = formatText.length - formatText.trimStart().length;
+			this.problem(curly.innerOffset + pathText.length + 1 + leading, read.problem);
 			return undefined;
 		}
 		return { type: "value", path, format: read.format };
@@ -768,6 +770,7 @@ class MarkupParser {
 		const parts: AttributePart[] = [];
 		let raw = "";
 		let bound = false;
+		let commandReported = false;
 		const flush = () => {
 			if (raw) parts.push({ type: "text", text: decodeHTMLAttribute(raw) });
 			raw = "";
@@ -793,7 +796,8 @@ class MarkupParser {
 				const curly = this.readCurly();
 				const inner = curly.inner.trim();
 				if (inner.startsWith("@") || inner.startsWith("/")) {
-					this.problem(curly.offset, "Template commands can't be used inside attribute values.");
+					if (!commandReported) this.problem(curly.offset, "Template commands can't be used inside attribute values.");
+					commandReported = true;
 					continue;
 				}
 				const value = this.readValue(curly);
