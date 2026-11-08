@@ -22,7 +22,7 @@ export const setup = {
 		.handler(async ({ context, input }) => {
 			const { services } = context;
 			const { token: setupToken, ...account } = input;
-			const { personId } = await services.setup.claim(setupToken.trim(), account);
+			const { personId } = await services.setup.claim(setupToken.trim(), account, context.via);
 			const { setCookie } = await services.auth.signIn(
 				{ email: account.email, password: account.password },
 				context.headers,

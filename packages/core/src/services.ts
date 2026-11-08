@@ -15,6 +15,7 @@ import type { PersonActor } from "./permissions/can.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { Access, DataLayer, InstallScope, Site, Workspace, WorkspaceScope } from "./tenancy/data-layer.ts";
+import type { MembershipsService } from "./tenancy/memberships.ts";
 import type { InvitesService, StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
 
@@ -72,6 +73,8 @@ export type InstallServices = InstallPorts & {
 		/** Creates a Site; open its Workspace with `site.create` first. */
 		create(scope: WorkspaceScope, input: { name: string; slug: string }): Promise<Site>;
 	};
+	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
+	memberships: MembershipsService;
 	/** Staff: inviting them, their Workspaces, pending invites. */
 	staff: StaffService;
 	/** Invite links: what they offer, and accepting them. */

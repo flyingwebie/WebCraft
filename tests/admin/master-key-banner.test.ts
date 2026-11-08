@@ -50,6 +50,27 @@ describe("the Master key banner", () => {
 		expect(JSON.stringify(install.logs)).not.toContain(TEST_MASTER_KEY);
 	});
 
+	test("the confirmation is recorded in the Audit log with the key's fingerprint", async () => {
+		const browser = await install.signIn(superadmin);
+		const { person } = await browser.api.session.current();
+
+		const { fingerprint } = await browser.api.install.masterKey.confirmStored();
+
+		const { entries } = await browser.api.audit.list({ limit: 1 });
+		expect(entries).toEqual([
+			{
+				id: expect.any(String),
+				at: install.clock.now(),
+				action: "masterKey.confirmStored",
+				personId: person?.id ?? null,
+				via: { kind: "admin" },
+				workspaceId: null,
+				siteId: null,
+				details: { fingerprint },
+			},
+		]);
+	});
+
 	test("comes back when the Install starts with another Master key", async () => {
 		const browser = await install.signIn(superadmin);
 		await browser.api.install.masterKey.confirmStored();

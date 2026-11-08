@@ -10,6 +10,7 @@ import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
+import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
 import { createStaffServices } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
@@ -58,6 +59,7 @@ export async function createInstallServices(
 			create: createWorkspace,
 		},
 		sites: { list: listSites, create: createSite },
+		memberships: createMemberships({ database, clock }),
 		...createStaffServices({ database, auth, mailer: ports.mailer, settings, config, clock }),
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
 	};

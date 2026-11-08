@@ -27,7 +27,7 @@ export const install = {
 		})),
 		/** The Superadmin confirms the running Master key is stored outside the server. */
 		confirmStored: onInstall("install.manage").handler(async ({ context }) => ({
-			...(await context.services.masterKey.confirmStored(context.person.id)),
+			...(await context.services.masterKey.confirmStored(context.install)),
 			fingerprint: context.services.masterKey.fingerprint,
 		})),
 	},

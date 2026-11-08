@@ -104,6 +104,7 @@ export type {
 	WorkspaceTable,
 } from "./tenancy/data-layer.ts";
 export { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "./tenancy/errors.ts";
+export { type MembershipsService, type NewMembership, StaffMembershipError } from "./tenancy/memberships.ts";
 export {
 	checkSlug,
 	normaliseSlug,

@@ -50,6 +50,25 @@ describe("webcraft admin create-superadmin", () => {
 		});
 	});
 
+	test("is recorded in the Audit log as done by the command", async () => {
+		await createSuperadmin(["ops@agency.example"], `${PASSWORD}\n`);
+
+		const browser = await install.signIn({ email: "ops@agency.example", password: PASSWORD });
+		const { person } = await browser.api.session.current();
+		expect((await browser.api.audit.list()).entries).toEqual([
+			{
+				id: expect.any(String),
+				at: expect.any(Date),
+				action: "superadmin.create",
+				personId: person?.id ?? null,
+				via: { kind: "command", name: "create-superadmin" },
+				workspaceId: null,
+				siteId: null,
+				details: { email: "ops@agency.example" },
+			},
+		]);
+	});
+
 	test("finishes setup: the wizard and the setup token in the log stop working", async () => {
 		const token = install.setupToken() ?? "";
 

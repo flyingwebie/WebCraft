@@ -69,6 +69,25 @@ describe("the setup token", () => {
 		expect(await browser.api.setup.state()).toEqual({ stage: "continue" });
 	});
 
+	test("claiming the Install is recorded in the Audit log, with who and how", async () => {
+		const browser = install.browser();
+
+		const { personId } = await browser.api.setup.claim({ token: install.setupToken() ?? "", ...account() });
+
+		expect((await browser.api.audit.list()).entries).toEqual([
+			{
+				id: expect.any(String),
+				at: install.clock.now(),
+				action: "install.claim",
+				personId,
+				via: { kind: "admin" },
+				workspaceId: null,
+				siteId: null,
+				details: { email: "ada@agency.example" },
+			},
+		]);
+	});
+
 	test("works only once: nobody can claim the Install again, with it or any other token", async () => {
 		const token = install.setupToken() ?? "";
 		await install.browser().api.setup.claim({ token, ...account() });

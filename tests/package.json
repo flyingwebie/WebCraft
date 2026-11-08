@@ -10,6 +10,7 @@
 	},
 	"dependencies": {
 		"@orpc/client": "catalog:",
+		"@orpc/server": "catalog:",
 		"@webcraft/api": "workspace:*",
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",

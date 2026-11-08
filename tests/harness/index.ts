@@ -12,6 +12,7 @@ import {
 	type JobQueue,
 	type LogEntry,
 	MASTER_KEY_VARIABLE,
+	type NewMembership,
 	parseMasterKey,
 	runJob,
 	type Secrets,
@@ -135,6 +136,20 @@ export type TestInstall = {
 	 * Makes a Staff member the way people become one: the Superadmin invites them, and they accept
 	 * the link in the email. Answers their account, their id and their signed-in browser.
 	 */
+	/**
+	 * Makes a Member: a new person with a Membership in the Workspace, signed in. There are no Member
+	 * invites yet, so this gives the Membership directly, as accepting an invite will.
+	 */
+	createMember(options: {
+		workspaceId: string;
+		role: "owner" | "editor" | "author";
+		/** The Sites the Membership reaches; all of them unless given. */
+		sites?: "all" | string[];
+		name?: string;
+		email?: string;
+	}): Promise<{ account: TestAccount; personId: string; browser: TestBrowser }>;
+	/** Gives an existing person a Membership, as accepting a Member invite will. */
+	addMembership(membership: NewMembership): Promise<void>;
 	createStaff(options: {
 		workspaces: "all" | string[];
 		name?: string;
@@ -292,6 +307,22 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			});
 			return { id: created.site.id, slug: created.site.slug };
 		},
+		async createMember({ workspaceId, role, sites = "all", name, email }) {
+			const number = next();
+			const account: TestAccount = {
+				name: name ?? `Member ${number}`,
+				email: email ?? `member-${number}@client.example`,
+				password: TEST_PASSWORD,
+				adminLanguage: "en",
+			};
+			const personId = await database.db.transaction(async (tx) => {
+				const created = await services.auth.createPerson(tx, account);
+				await services.memberships.add({ personId: created.personId, workspaceId, role, sites }, tx);
+				return created.personId;
+			});
+			return { account, personId, browser: await signIn(account) };
+		},
+		addMembership: (membership) => services.memberships.add(membership),
 		async createStaff({ workspaces, name, email }) {
 			const admin = await superadmin();
 			const number = next();
