@@ -1,4 +1,4 @@
-import { ENTRY_TITLE_MAX_LENGTH, publishPermission, TEXT_VALUE_MAX_LENGTH } from "@webcraft/core";
+import { ENTRY_TITLE_MAX_LENGTH, publishPermission, RICH_TEXT_VALUE_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
@@ -7,12 +7,12 @@ import { id } from "../inputs.ts";
 /** A language tag, such as `en`; the Site decides which it has. */
 const language = z.string().min(2).max(35);
 
-/** Field values by key; null or "" clears one. */
+/** Field values by key (rich text as HTML); null or "" clears one. The server checks each by its Field type. */
 const fieldValues = z.record(
 	z.string().max(100),
 	z
 		.string()
-		.max(TEXT_VALUE_MAX_LENGTH * 2)
+		.max(RICH_TEXT_VALUE_MAX_LENGTH * 2)
 		.nullable(),
 );
 

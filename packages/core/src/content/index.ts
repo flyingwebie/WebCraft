@@ -32,6 +32,7 @@ export {
 	type FieldInput,
 	type FieldType,
 	MAX_FIELDS,
+	RICH_TEXT_VALUE_MAX_LENGTH,
 	TEXT_VALUE_MAX_LENGTH,
 } from "./fields.ts";
 export {

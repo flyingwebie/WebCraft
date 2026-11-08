@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { entries, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
-import { directionOf, type ElementTree, renderPage, type TemplateValue } from "@webcraft/renderer";
+import { directionOf, type ElementTree, renderPage, richText, type TemplateValue } from "@webcraft/renderer";
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
@@ -130,12 +130,17 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 		publishedAt: entry.publishedAt,
 		lastPublishedAt: entry.lastPublishedAt,
 	};
+	const fields: Record<string, TemplateValue> = {};
+	for (const field of postType.fields) {
+		const value = published.fields[field.key] ?? null;
+		fields[field.key] = field.type === "richText" && value !== null ? richText(value) : value;
+	}
 	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
 	return renderPage({
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		title: published.title,
 		template,
-		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : published.fields[path]),
+		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : fields[path]),
 		className: (classId) => classNames.get(classId),
 	});
 }
