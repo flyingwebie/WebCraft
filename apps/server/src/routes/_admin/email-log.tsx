@@ -135,9 +135,9 @@ function EmailLogRow({ line }: { line: Line }) {
 	return (
 		<tr className="align-top">
 			<td className="px-3 py-2 whitespace-nowrap">{formatUtc(line.time)}</td>
-			<td className="px-3 py-2">{t.has(typeKey) ? t(typeKey) : line.type}</td>
-			<td className="px-3 py-2 break-all">{line.recipient}</td>
-			<td className="px-3 py-2">{line.subject}</td>
+			<td className="min-w-36 px-3 py-2">{t.has(typeKey) ? t(typeKey) : line.type}</td>
+			<td className="px-3 py-2 whitespace-nowrap">{line.recipient}</td>
+			<td className="min-w-56 px-3 py-2">{line.subject}</td>
 			<td className="px-3 py-2 whitespace-nowrap">
 				{line.smtp === "install" ? t("emailLog.smtp.install") : t("emailLog.smtp.none")}
 			</td>
@@ -150,7 +150,7 @@ function EmailLogRow({ line }: { line: Line }) {
 				) : null}
 			</td>
 			<td className="px-3 py-2 text-end tabular-nums">{line.attempts}</td>
-			<td className="text-muted-foreground px-3 py-2 break-words">{line.lastResponse}</td>
+			<td className="text-muted-foreground min-w-56 px-3 py-2 break-words">{line.lastResponse}</td>
 			<td className="px-3 py-2 whitespace-nowrap">
 				<RelatedLink related={line.related} />
 			</td>
