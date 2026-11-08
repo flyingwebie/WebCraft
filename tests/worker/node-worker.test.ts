@@ -26,7 +26,7 @@ test("the worker process runs on Node and works the sample job", async () => {
 	await install.jobs.send(samplePing, { url, notify: "ops@agency.example" });
 
 	const worker = Bun.spawn(["node", WORKER], {
-		env: { ...process.env, DATABASE_URL: install.databaseUrl, WEBCRAFT_ADMIN_HOST: install.adminHost },
+		env: { ...process.env, ...install.env },
 		stdout: "pipe",
 		stderr: "pipe",
 	});

@@ -1,0 +1,325 @@
+{
+  "type": "base",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "7eec1eb7-253d-4f9c-ad39-ef8629d7ae5c",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "master_key_versions"
+      ],
+      "writes": [
+        "s|tbl|public.master_key_versions",
+        "n|tbl|public.master_key_versions",
+        "e|tbl|public.master_key_versions",
+        "n|rel|public.master_key_versions",
+        "n|type|public.master_key_versions",
+        "n|rel|public.master_key_versions_pkey",
+        "n|rel|public.master_key_versions_fingerprint_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "secrets"
+      ],
+      "writes": [
+        "s|tbl|public.secrets",
+        "n|tbl|public.secrets",
+        "e|tbl|public.secrets",
+        "n|rel|public.secrets",
+        "n|type|public.secrets",
+        "n|rel|public.secrets_pkey",
+        "n|rel|public.secrets_owner_name_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "secrets"
+      ],
+      "writes": [
+        "s|fk|public.secrets.secrets_key_version_master_key_versions_version_fkey",
+        "n|fk|public.secrets.secrets_key_version_master_key_versions_version_fkey",
+        "e|fk|public.secrets.secrets_key_version_master_key_versions_version_fkey",
+        "n|con|public.secrets.secrets_key_version_master_key_versions_version_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.secrets",
+        "n|sch|public",
+        "n|tbl|public.master_key_versions",
+        "n|sch|public",
+        "n|col|public.secrets.key_version",
+        "n|col|public.master_key_versions.version",
+        "e|uniqueness|public.master_key_versions.version"
+      ]
+    }
+  ],
+  "ddl": [
+    {
+      "schema": "public",
+      "name": "master_key_versions",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "secrets",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "table": "master_key_versions",
+      "name": "version",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "master_key_versions",
+      "name": "fingerprint",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "master_key_versions",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "master_key_versions",
+      "name": "retired_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "id",
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "workspace_id",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "site_id",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "key_version",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "iv",
+      "type": "bytea",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "ciphertext",
+      "type": "bytea",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "secrets_key_version_master_key_versions_version_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "key_version"
+      ],
+      "schemaTo": "public",
+      "tableTo": "master_key_versions",
+      "columnsTo": [
+        "version"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "master_key_versions",
+      "name": "master_key_versions_pkey",
+      "columns": [
+        "version"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "secrets_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "secrets_owner_name_unique",
+      "nameExplicit": true,
+      "columns": [
+        "workspace_id",
+        "site_id",
+        "name"
+      ],
+      "nullsNotDistinct": true,
+      "entityType": "uniques"
+    },
+    {
+      "schema": "public",
+      "table": "master_key_versions",
+      "name": "master_key_versions_fingerprint_key",
+      "nameExplicit": false,
+      "columns": [
+        "fingerprint"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    },
+    {
+      "schema": "public",
+      "table": "secrets",
+      "name": "secrets_site_has_workspace",
+      "value": "\"site_id\" is null or \"workspace_id\" is not null",
+      "entityType": "checks"
+    }
+  ]
+}

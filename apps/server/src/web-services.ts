@@ -3,8 +3,12 @@ import {
 	createLogger,
 	createLogMailer,
 	fetchHttp,
+	type InstallConfig,
 	type InstallServices,
 	loadInstallConfig,
+	loadMasterKey,
+	type MasterKey,
+	openSecrets,
 	systemClock,
 } from "@webcraft/core";
 import { assertSchemaCurrent, createBoss, openDatabase } from "@webcraft/db";
@@ -25,11 +29,24 @@ export function startWebServices(env: Record<string, string | undefined> = proce
 	return cache.webcraftWebServices;
 }
 
+/**
+ * Reads and checks the web process's settings, refusing to go on when one is missing or malformed
+ * (including a Master key shorter than 32 characters). The production entry calls it before it
+ * loads the server bundle, so a bad setting is reported first.
+ */
+export function loadWebSettings(env: Record<string, string | undefined>): {
+	config: InstallConfig;
+	masterKey: MasterKey;
+} {
+	return { config: loadInstallConfig(env), masterKey: loadMasterKey(env) };
+}
+
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
-	const config = loadInstallConfig(env);
+	const { config, masterKey } = loadWebSettings(env);
 	const log = createLogger({ fields: { process: "web" } });
 	const database = openDatabase(config.databaseUrl, { applicationName: "webcraft-web" });
 	await assertSchemaCurrent(database);
+	const secrets = await openSecrets({ database, masterKey, clock: systemClock });
 
 	// The web process only sends jobs; the worker works them and does the queue's upkeep.
 	const boss = createBoss(config.databaseUrl, {
@@ -47,6 +64,7 @@ async function openWebServices(env: Record<string, string | undefined>): Promise
 		jobs: createJobQueue(boss),
 		// Until Install SMTP exists, emails are written to the log with a warning.
 		mailer: createLogMailer(log),
+		secrets,
 		http: fetchHttp,
 		clock: systemClock,
 		log,

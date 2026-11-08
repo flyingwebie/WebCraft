@@ -3,11 +3,16 @@ import {
 	coreJobs,
 	createJobQueue,
 	createLogger,
+	createSecrets,
 	ensureQueues,
 	type InstallServices,
 	type JobQueue,
 	type LogEntry,
+	MASTER_KEY_VARIABLE,
+	openSecrets,
+	parseMasterKey,
 	runJob,
+	type Secrets,
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
@@ -25,6 +30,12 @@ export type { FakeMailer } from "./fake-mailer.ts";
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
 
+/**
+ * The Master key of every test Install unless a test chooses another. Tests never use the key in
+ * `.env`, so they behave the same on every machine.
+ */
+export const TEST_MASTER_KEY = "test-master-key-0123456789abcdefghijklmnop";
+
 /** Where a test Install's clock starts unless a test says otherwise: a Monday morning. */
 export const DEFAULT_TEST_TIME = new Date("2026-03-02T09:00:00.000Z");
 
@@ -37,6 +48,8 @@ export type TestInstallOptions = {
 	database?: "migrated" | "empty" | "unreachable";
 	/** Where the clock starts. */
 	now?: Date;
+	/** The Master key the Install starts with (`WEBCRAFT_SECRET_KEY`); `TEST_MASTER_KEY` unless given. */
+	masterKey?: string;
 };
 
 /** One job the drain ran. */
@@ -58,6 +71,11 @@ export type TestInstall = {
 	adminHost: string;
 	/** The Install's database, for tests that start a real process (such as the worker) against it. */
 	databaseUrl: string;
+	/**
+	 * The environment a real process (the worker, the CLI) needs to run as this Install:
+	 * `DATABASE_URL`, `WEBCRAFT_ADMIN_HOST` and `WEBCRAFT_SECRET_KEY`.
+	 */
+	readonly env: Record<string, string>;
 	/** A URL on the admin host, such as `adminUrl("/healthz")`. */
 	adminUrl(path: string): string;
 	/** Sends a standard Request through the web process's handler, in process, without a port. */
@@ -66,6 +84,8 @@ export type TestInstall = {
 	jobs: JobQueue;
 	/** Runs every job that is due by the test clock, including the jobs those jobs enqueue. */
 	drainJobs(): Promise<DrainReport>;
+	/** The Install's secrets, encrypted under its Master key: set, use and describe them. */
+	readonly secrets: Secrets;
 	/** Every email the Install sent. */
 	mail: FakeMailer;
 	/** The Install's outgoing HTTP: prepare answers, read what was requested. */
@@ -73,6 +93,12 @@ export type TestInstall = {
 	clock: TestInstallClock;
 	/** Every log entry the Install wrote. */
 	logs: LogEntry[];
+	/**
+	 * Starts the Install again with another Master key, as web and worker do after their
+	 * `WEBCRAFT_SECRET_KEY` changes, running the same start-up check. When the check refuses the key,
+	 * this rejects with the same error and the Install keeps running as before.
+	 */
+	restart(options: { masterKey: string }): Promise<void>;
 	/** Stops the Install and drops its database. */
 	close(): Promise<void>;
 };
@@ -109,11 +135,22 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 
 	const mail = createFakeMailer();
 	const http = createFakeHttp();
+	const env = {
+		DATABASE_URL: databaseUrl,
+		WEBCRAFT_ADMIN_HOST: TEST_ADMIN_HOST,
+		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
+	};
+	/** Web and worker open secrets with their start-up check; they never start on a database that is behind. */
+	const startSecrets = (masterKey: string) => {
+		const options = { database, masterKey: parseMasterKey(masterKey, MASTER_KEY_VARIABLE), clock };
+		return mode === "migrated" ? openSecrets(options) : Promise.resolve(createSecrets(options));
+	};
 	const services: InstallServices = {
 		config: { databaseUrl, adminHost: TEST_ADMIN_HOST },
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
+		secrets: await startSecrets(env[MASTER_KEY_VARIABLE]),
 		http: http.fetch,
 		clock,
 		log,
@@ -123,6 +160,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	return {
 		adminHost: TEST_ADMIN_HOST,
 		databaseUrl,
+		env,
 		adminUrl: (path) => new URL(path, `https://${TEST_ADMIN_HOST}`).toString(),
 		request: (input, init) =>
 			handle(input instanceof Request ? new Request(input, init) : new Request(String(input), init)),
@@ -131,10 +169,17 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			if (!boss) throw new Error(`An Install with an ${mode} database has no job queue to drain.`);
 			return drainJobs(boss, services);
 		},
+		get secrets() {
+			return services.secrets;
+		},
 		mail,
 		http,
 		clock,
 		logs,
+		async restart({ masterKey }) {
+			services.secrets = await startSecrets(masterKey);
+			env[MASTER_KEY_VARIABLE] = masterKey;
+		},
 		async close() {
 			await boss?.stop({ graceful: false, close: true });
 			await database.close();

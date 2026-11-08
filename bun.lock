@@ -103,6 +103,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@webcraft/db": "workspace:*",
+        "drizzle-orm": "catalog:",
         "pg-boss": "catalog:",
         "zod": "catalog:",
       },
