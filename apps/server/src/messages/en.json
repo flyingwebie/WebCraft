@@ -23,7 +23,19 @@
 		"INVITE_INVALID": "This invite link doesn't work any more. Ask for a new invite.",
 		"SLUG_TAKEN": "Another Site already has this slug.",
 		"SLUG_INVALID": "Use 1 to 63 lower-case letters, digits and dashes, starting and ending with a letter or a digit.",
-		"SLUG_RESERVED": "This slug is kept for the Install itself. Choose another one."
+		"SLUG_RESERVED": "This slug is kept for the Install itself. Choose another one.",
+		"MEMBER_NOT_FOUND": "There is no such Member in this Workspace.",
+		"ALREADY_MEMBER": "This person is already a Member of this Workspace. Change their role or Sites instead.",
+		"STAFF_MEMBERSHIP": "This address belongs to the agency's Staff, who never hold a Membership.",
+		"ACCESS_NOT_HELD_GRANT": "You can't give more access than you hold, in role or in Sites.",
+		"ACCESS_NOT_HELD_MANAGE": "This Member has access you don't hold, so you can't change or remove them.",
+		"INVITE_OTHER_ACCOUNT": "This invite was sent to another email address. Sign in with that address to accept it.",
+		"ACCOUNT_LOCKED": "This account is locked for up to 15 minutes after too many wrong passwords. Try again later.",
+		"TOO_MANY_REQUESTS": "Too many attempts. Wait a minute, then try again.",
+		"IDENTITY_CHECK_REQUIRED": "Confirm it's you to continue.",
+		"IDENTITY_CHECK_CANCELLED": "Nothing was changed: confirm it's you to continue.",
+		"SENSITIVE_ACTION_REFUSED": "Only a person signed in to the admin can do this.",
+		"SESSION_NOT_FOUND": "That session has already ended."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -136,13 +148,15 @@
 			"installSettingsGroup": "Install settings",
 			"overview": "Overview",
 			"general": "General",
+			"security": "Security",
 			"emailLog": "Email log",
 			"email": "Email (SMTP)",
 			"workspaces": "Workspaces",
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
 			"sites": "Sites",
-			"siteGroup": "Site"
+			"siteGroup": "Site",
+			"members": "Members"
 		}
 	},
 	"masterKeyBanner": {
@@ -189,6 +203,15 @@
 		"save": "Save",
 		"saved": "Saved."
 	},
+	"securitySettings": {
+		"pageTitle": "Security",
+		"heading": "Security",
+		"intro": "How the Install protects people's accounts.",
+		"leakedPasswordCheck": "Check new passwords against lists of leaked passwords",
+		"leakedPasswordCheckHelp": "Only the first 5 characters of a password's SHA-1 hash leave the server, so the password itself is never sent. When the lookup can't be reached, the password is accepted. Switch the check off for an Install that is always offline.",
+		"save": "Save",
+		"saved": "Saved."
+	},
 	"account": {
 		"pageTitle": "Your account",
 		"heading": "Your account",
@@ -210,6 +233,34 @@
 			"save": "Save",
 			"saved": "Saved."
 		},
+		"password": {
+			"heading": "Password",
+			"intro": "Changing your password signs you out of every other session.",
+			"newPassword": "New password",
+			"newPasswordHelp": "At least 12 characters. Passwords found in lists of leaked passwords are refused.",
+			"repeat": "Repeat the new password",
+			"mismatch": "The passwords don't match.",
+			"save": "Change password",
+			"saved": "Password changed. Your other sessions were signed out."
+		},
+		"sessions": {
+			"heading": "Sessions",
+			"intro": "The browsers signed in to your account. Sign out any you don't recognise.",
+			"browser": "Browser",
+			"network": "Network",
+			"lastUsed": "Last used",
+			"actions": "Actions",
+			"deviceBoth": "{browser} on {os}",
+			"deviceOs": "A browser on {os}",
+			"deviceUnknown": "Unknown browser",
+			"networkUnknown": "Unknown",
+			"current": "This browser",
+			"signOut": "Sign out",
+			"signOutLabel": "Sign out {device}, last used {lastUsed}",
+			"signedOut": "Signed out.",
+			"signOutOthers": "Sign out of every other session",
+			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}"
+		},
 		"twoFactor": {
 			"heading": "Two-factor authentication",
 			"status": "Not set up",
@@ -224,6 +275,14 @@
 			"save": "Save",
 			"saved": "Saved."
 		}
+	},
+	"identityCheck": {
+		"title": "Confirm it's you",
+		"body": "This change needs your password. In this browser you won't be asked again for 10 minutes.",
+		"password": "Password",
+		"wrongPassword": "That password is wrong.",
+		"confirm": "Confirm",
+		"cancel": "Cancel"
 	},
 	"notFound": {
 		"pageTitle": "Page not found",
@@ -485,6 +544,96 @@
 			"saved": "Saved."
 		}
 	},
+	"members": {
+		"pageTitle": "Members",
+		"heading": "Members",
+		"intro": "People from {workspace} who can sign in to this Workspace. Each Membership has one role and reaches all Sites or chosen ones.",
+		"invite": "Invite Member",
+		"search": "Search Members",
+		"roleFilter": "Show role",
+		"allRoles": "All roles",
+		"columns": {
+			"member": "Member",
+			"role": "Role",
+			"sites": "Site access",
+			"actions": "Actions"
+		},
+		"allSites": "All Sites",
+		"noSites": "No Sites",
+		"someSites": "{names}",
+		"someAndOtherSites": "{names} and {count, plural, one {# other Site} other {# other Sites}}",
+		"onlyOtherSites": "{count, plural, one {# Site} other {# Sites}} you don't reach",
+		"you": "you",
+		"empty": "No Members yet. Invite the client's people who edit this Workspace's Sites.",
+		"noMatch": "No Members match.",
+		"actionsOf": "Actions for {name}",
+		"changeAccess": "Change role and Sites",
+		"remove": "Remove from Workspace",
+		"pending": {
+			"heading": "Pending invites",
+			"email": "Email",
+			"role": "Role",
+			"sites": "Site access",
+			"invitedBy": "by {name} · expires {date}",
+			"expires": "expires {date}",
+			"actions": "Actions",
+			"resend": "Resend",
+			"resendOf": "Resend the invite to {email}",
+			"resent": "Invite to {email} sent again.",
+			"revoke": "Revoke",
+			"revokeOf": "Revoke the invite to {email}",
+			"revoked": "Invite to {email} revoked.",
+			"empty": "No pending invites."
+		},
+		"staff": {
+			"heading": "Agency Staff aren't Members",
+			"body": "Staff from {agency} are managed by the Superadmin and reach this Workspace through their assignment, not a Membership.",
+			"count": "{count, plural, =0 {{workspace} has no Staff assigned.} one {# Staff member assigned to {workspace}:} other {# Staff assigned to {workspace}:}}"
+		},
+		"rolesCard": {
+			"heading": "What each role can do",
+			"owner": "Manages Members, edits and publishes.",
+			"editor": "Edits and publishes Content.",
+			"author": "Edits and saves Drafts. An Editor or Owner publishes."
+		},
+		"sheet": {
+			"inviteTitle": "Invite a Member",
+			"inviteDescription": "They get an email in their Admin language with a link valid for 7 days.",
+			"email": "Email",
+			"role": "Role",
+			"roleHelp": {
+				"owner": "Manages Members, edits and publishes Content on the Sites they reach.",
+				"editor": "Edits and publishes Content on the Sites they reach.",
+				"author": "Edits Content and saves Drafts; can't publish."
+			},
+			"access": "Site access",
+			"all": "All Sites",
+			"allHelp": "Including Sites created later.",
+			"chosen": "Chosen Sites",
+			"chosenHelp": "Only the Sites ticked below.",
+			"chooseLegend": "Sites",
+			"notReached": "You can't offer this Site with this role.",
+			"noSites": "There are no Sites you can offer yet.",
+			"chooseSite": "Choose at least one Site.",
+			"limitNote": "You can't grant more access than you hold. An Owner can only offer the Sites they reach.",
+			"send": "Send invite",
+			"cancel": "Cancel",
+			"close": "Close",
+			"sent": "Invite sent to {email}.",
+			"changeTitle": "Change role and Sites",
+			"changeDescription": "What {name} can do in this Workspace. The change takes effect at once.",
+			"save": "Save",
+			"saved": "Saved."
+		},
+		"removeDialog": {
+			"title": "Remove {name}?",
+			"body": "{name} loses access to {workspace} and its Sites at once. Their account stays, with any other Workspaces they belong to.",
+			"confirm": "Remove",
+			"cancel": "Cancel",
+			"close": "Close",
+			"removed": "{name} was removed from {workspace}."
+		}
+	},
 	"sites": {
 		"pageTitle": "Sites",
 		"heading": "Sites",
@@ -532,6 +681,18 @@
 			"heading": "This invite link doesn't work",
 			"body": "It was already used, was withdrawn, or is more than 7 days old. Ask the person who invited you for a new invite.",
 			"signIn": "Go to sign in"
+		},
+		"memberHeading": "Join {workspace} as {role}",
+		"memberIntro": "{inviter} invited {email} to {workspace} on {install}. Choose your name and a password to create your account.",
+		"memberIntroNoInviter": "You were invited to {workspace} on {install} as {email}. Choose your name and a password to create your account.",
+		"join": {
+			"intro": "{inviter} invited {email} to {workspace} on {install}. You already have an account: sign in to join.",
+			"introNoInviter": "You were invited to {workspace} on {install} as {email}. You already have an account: sign in to join.",
+			"signedInAs": "You're signed in as {email}.",
+			"otherAccount": "You're signed in as {current}. Signing in below switches to {email}.",
+			"password": "Password",
+			"signIn": "Sign in and join",
+			"submit": "Join {workspace}"
 		}
 	}
 }

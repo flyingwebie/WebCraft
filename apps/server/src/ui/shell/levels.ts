@@ -8,6 +8,7 @@ import {
 	MailIcon,
 	ScrollTextIcon,
 	SettingsIcon,
+	ShieldCheckIcon,
 	UsersIcon,
 } from "lucide-react";
 
@@ -51,7 +52,16 @@ export type NavItem = {
 	exact?: boolean;
 };
 
-export type NavGroup = { id: string; label: MessageKey; items: NavItem[] };
+export type NavGroup = {
+	id: string;
+	label: MessageKey;
+	items: NavItem[];
+	/**
+	 * Shown only to people holding this Permission at the place, such as a Site's Structure group
+	 * (`structure.edit`): Members see Content only, never Structure.
+	 */
+	requires?: Permission;
+};
 
 /** One level's sidebar: groups of items, and items pinned to its bottom. */
 export type LevelNavigation = { groups: NavGroup[]; footer: NavItem[] };
@@ -88,6 +98,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						requires: "install.manage",
 					},
 					{
+						id: "security",
+						label: "shell.nav.security",
+						icon: ShieldCheckIcon,
+						to: "/settings/security",
+						requires: "install.manage",
+					},
+					{
 						id: "email",
 						label: "shell.nav.email",
 						icon: MailIcon,
@@ -106,6 +123,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 				label: "shell.nav.workspaceGroup",
 				items: [
 					{ id: "sites", label: "shell.nav.sites", icon: GlobeIcon, to: "/workspaces/$workspaceId", exact: true },
+					{
+						id: "members",
+						label: "shell.nav.members",
+						icon: UsersIcon,
+						to: "/workspaces/$workspaceId/members",
+						requires: "member.manage",
+					},
 				],
 			},
 		],
@@ -131,12 +155,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 	},
 };
 
-/** The sidebar of a place, with only the items the person may see and no empty groups. */
+/** The sidebar of a place, with only the groups and items the person may see, and no empty groups. */
 export function navigationFor(place: AdminPlace): LevelNavigation {
-	const visible = (item: NavItem) => !item.requires || place.permissions.includes(item.requires);
+	const visible = (entry: { requires?: Permission }) => !entry.requires || place.permissions.includes(entry.requires);
 	const level = NAVIGATION[place.level];
 	return {
 		groups: level.groups
+			.filter(visible)
 			.map((group) => ({ ...group, items: group.items.filter(visible) }))
 			.filter((group) => group.items.length > 0),
 		footer: level.footer.filter(visible),

@@ -1,22 +1,37 @@
 import { ORPCError } from "@orpc/server";
-import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
 import {
+	AccountLockedError,
+	EmailInUseError,
+	InvalidCredentialsError,
+	InvalidEmailError,
+	PasswordRefusedError,
+} from "@webcraft/auth";
+import {
+	AccessNotHeldError,
+	AlreadyMemberError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
 	EntryInvalidError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	IdentityCheckRequiredError,
+	InviteForAnotherAccountError,
 	InviteInvalidError,
+	MemberNotFoundError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	RateLimitedError,
+	SensitiveActionRefusedError,
+	SessionNotFoundError,
 	SetupClosedError,
 	SetupStageError,
 	SetupTokenInvalidError,
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
+	StaffMembershipError,
 	StaffNotFoundError,
 	TemplateNotFoundError,
 	WorkspaceNotFoundError,
@@ -114,14 +129,53 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
+	if (error instanceof SessionNotFoundError) {
+		return new ORPCError("SESSION_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
 	if (error instanceof InviteInvalidError) {
 		return new ORPCError("INVITE_INVALID", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof InviteForAnotherAccountError) {
+		return new ORPCError("INVITE_OTHER_ACCOUNT", { status: 403, message: error.message, cause: error });
+	}
+	if (error instanceof MemberNotFoundError) {
+		return new ORPCError("MEMBER_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof AlreadyMemberError) {
+		return new ORPCError("ALREADY_MEMBER", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof StaffMembershipError) {
+		return new ORPCError("STAFF_MEMBERSHIP", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof AccessNotHeldError) {
+		return new ORPCError("ACCESS_NOT_HELD", {
+			status: 403,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
 	}
 	if (error instanceof PermissionDeniedError) {
 		return new ORPCError("FORBIDDEN", {
 			status: 403,
 			message: error.message,
 			data: { permission: error.permission },
+			cause: error,
+		});
+	}
+	if (error instanceof IdentityCheckRequiredError) {
+		return new ORPCError("IDENTITY_CHECK_REQUIRED", {
+			status: 403,
+			message: error.message,
+			data: { action: error.action },
+			cause: error,
+		});
+	}
+	if (error instanceof SensitiveActionRefusedError) {
+		return new ORPCError("SENSITIVE_ACTION_REFUSED", {
+			status: 403,
+			message: error.message,
+			data: { action: error.action },
 			cause: error,
 		});
 	}
@@ -153,6 +207,22 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { types: error.types },
+			cause: error,
+		});
+	}
+	if (error instanceof RateLimitedError) {
+		return new ORPCError("TOO_MANY_REQUESTS", {
+			status: 429,
+			message: error.message,
+			data: { retryAfterSeconds: error.retryAfterSeconds },
+			cause: error,
+		});
+	}
+	if (error instanceof AccountLockedError) {
+		return new ORPCError("ACCOUNT_LOCKED", {
+			status: 423,
+			message: error.message,
+			data: { retryAfterSeconds: error.retryAfterSeconds },
 			cause: error,
 		});
 	}

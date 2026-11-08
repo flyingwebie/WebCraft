@@ -1,4 +1,11 @@
 export {
+	type Account,
+	describeUserAgent,
+	networkOf,
+	SessionNotFoundError,
+	type SessionView,
+} from "./account.ts";
+export {
 	ADMIN_LANGUAGE_CODES,
 	ADMIN_LANGUAGES,
 	type AdminLanguageCode,
@@ -37,6 +44,7 @@ export {
 } from "./install.ts";
 export {
 	INSTALL_NAME_MAX_LENGTH,
+	type InstallSecuritySettings,
 	type InstallSettings,
 	type InstallSettingsValues,
 } from "./install-settings.ts";
@@ -55,7 +63,9 @@ export {
 	type Actor,
 	type ActorMembership,
 	can,
+	holdsAccess,
 	INSTALL,
+	type MemberAccess,
 	type PersonActor,
 	permissionsOn,
 	type Reach,
@@ -80,6 +90,22 @@ export {
 	WORKSPACE_ROLES,
 	type WorkspaceRole,
 } from "./permissions/roles.ts";
+export {
+	ALL_SENSITIVE_ACTIONS,
+	assertSensitiveActionAllowed,
+	IdentityCheckRequiredError,
+	RECENT_IDENTITY_CHECK_MS,
+	SENSITIVE_ACTIONS,
+	type SensitiveAction,
+	SensitiveActionRefusedError,
+} from "./permissions/sensitive.ts";
+export {
+	RATE_LIMITS,
+	RateLimitedError,
+	type RateLimitName,
+	type RateLimitRule,
+	type RateLimits,
+} from "./rate-limits.ts";
 export * from "./secrets/index.ts";
 export type { InstallPorts, InstallServices } from "./services.ts";
 export {
@@ -116,7 +142,31 @@ export type {
 	WorkspaceTable,
 } from "./tenancy/data-layer.ts";
 export { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "./tenancy/errors.ts";
-export { type MembershipsService, type NewMembership, StaffMembershipError } from "./tenancy/memberships.ts";
+export {
+	INVITE_LIFETIME_DAYS,
+	type InviteDetails,
+	InviteForAnotherAccountError,
+	InviteInvalidError,
+	type InvitesService,
+} from "./tenancy/invites.ts";
+export {
+	AccessNotHeldError,
+	type AccessOffer,
+	type AccessProblem,
+	type Member,
+	type MemberInvite,
+	MemberNotFoundError,
+	type MembersOverview,
+	type MembersService,
+	type SiteAccess,
+	type SiteRef,
+} from "./tenancy/members.ts";
+export {
+	AlreadyMemberError,
+	type MembershipsService,
+	type NewMembership,
+	StaffMembershipError,
+} from "./tenancy/memberships.ts";
 export {
 	checkSlug,
 	normaliseSlug,
@@ -127,10 +177,6 @@ export {
 	SlugTakenError,
 } from "./tenancy/sites.ts";
 export {
-	INVITE_LIFETIME_DAYS,
-	type InviteDetails,
-	InviteInvalidError,
-	type InvitesService,
 	type StaffInvite,
 	type StaffMember,
 	StaffNotFoundError,

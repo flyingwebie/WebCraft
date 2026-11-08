@@ -6,7 +6,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Subprocess } from "bun";
-import { type Browser, type BrowserContext, chromium, type Page } from "playwright";
+import { type Browser, type BrowserContext, type Cookie, chromium, type Page } from "playwright";
 
 import { createTestInstall, TEST_MASTER_KEY, type TestAccount, type TestInstall } from "../harness/index.ts";
 
@@ -45,8 +45,22 @@ export type BrowserInstall = {
 	 * follows the device until a person chooses, so this is how both themes are checked.
 	 */
 	newPage(theme: Theme): Promise<Page>;
-	/** Signs in through the sign-in page and waits for the admin to open. */
+	/**
+	 * Signs in and waits for the admin to open. The first time for an account it goes through the
+	 * sign-in page; after that the page gets the same session, as a browser that stayed signed in
+	 * would (the web process limits sign-ins per address, and every page here comes from this machine).
+	 */
 	signIn(page: Page, account: Pick<TestAccount, "email" | "password">): Promise<void>;
+	/**
+	 * Signs the page in with a session whose last identity check is `minutesAgo` old, so the next
+	 * Sensitive action asks "Confirm it's you". The web process runs on the real clock, so the test
+	 * Install makes the session with its own clock set back, and the page gets its cookie.
+	 */
+	signInWithOldIdentityCheck(
+		page: Page,
+		account: Pick<TestAccount, "email" | "password">,
+		minutesAgo: number,
+	): Promise<void>;
 	/** Stops the web process and the browser, and drops the database. */
 	close(): Promise<void>;
 };
@@ -65,6 +79,7 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 	let web: Subprocess | undefined;
 	let browser: Browser | undefined;
 	const contexts: BrowserContext[] = [];
+	const signedIn = new Map<string, Cookie[]>();
 
 	const close = async () => {
 		await Promise.all(contexts.map((context) => context.close().catch(() => {})));
@@ -116,11 +131,36 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 			return page;
 		},
 		async signIn(page, { email, password }) {
+			const cookies = signedIn.get(email);
+			if (cookies) {
+				await page.context().addCookies(cookies);
+				await page.goto(new URL("/", origin).toString());
+				await page.waitForLoadState("networkidle");
+				return;
+			}
 			await page.goto(new URL("/sign-in", origin).toString());
 			await page.locator("#sign-in-email").fill(email);
 			await page.locator("#sign-in-password").fill(password);
 			await page.locator("form button[type=submit]").click();
 			await page.waitForURL((url) => url.pathname !== "/sign-in");
+			await page.waitForLoadState("networkidle");
+			signedIn.set(email, await page.context().cookies());
+		},
+		async signInWithOldIdentityCheck(page, account, minutesAgo) {
+			const now = install.clock.now();
+			await install.clock.set(new Date(Date.now() - minutesAgo * 60_000));
+			const local = await install.signIn(account);
+			await install.clock.set(now);
+			// The test Install's admin is on https, so its cookie carries the `__Secure-` prefix; the
+			// web process here is on plain http, where the same signed value goes without it.
+			const value = local.cookies.get("__Secure-webcraft.session_token");
+			if (!value) throw new Error("The test Install's sign-in set no session cookie.");
+			await page
+				.context()
+				.addCookies([
+					{ name: "webcraft.session_token", value, domain: ADMIN_HOST, path: "/", httpOnly: true, sameSite: "Lax" },
+				]);
+			await page.goto(new URL("/", origin).toString());
 			await page.waitForLoadState("networkidle");
 		},
 		close,

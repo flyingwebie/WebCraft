@@ -5,7 +5,8 @@ import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import { type AuditDetails, type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
-import { type Actor, can, INSTALL, type Resource } from "../permissions/can.ts";
+import { isUuid } from "../ids.ts";
+import { type Actor, can, INSTALL, personIdOf, type Resource } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SecretDescription, SecretOwner, Secrets } from "../secrets/index.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "./errors.ts";
@@ -37,8 +38,13 @@ export type DataLayer = {
 	visitors(site: Site): VisitorScope;
 };
 
-/** Who is acting and how they came in: the permission check and the Audit log both need it. */
-export type Access = { actor: Actor; via: AuditVia };
+/**
+ * Who is acting and how they came in: the permission check and the Audit log both need it.
+ * `identityCheckedAt` is when a person last proved who they are in the admin session the call came
+ * with (null: not since signing in long ago); it is absent for anything that isn't an admin session,
+ * which can never take a Sensitive action.
+ */
+export type Access = { actor: Actor; via: AuditVia; identityCheckedAt?: Date | null };
 
 /** A Workspace, as the data layer hands it out. */
 export type Workspace = { id: string; name: string; createdAt: Date };
@@ -57,8 +63,12 @@ export type Executor = Database["db"] | Transaction;
 
 type Row<Table extends PgTable> = InferSelectModel<Table>;
 
-/** The values of a new row, without the columns the scope fills in. */
-type NewRow<Table extends PgTable> = Omit<InferInsertModel<Table>, "workspaceId" | "siteId">;
+/**
+ * The values of a new row, without the columns the scope fills in: `workspaceId` in a Workspace
+ * scope, and `siteId` too in a Site scope. A Workspace table may still name one of its Workspace's
+ * Sites (`membership_sites`); its foreign key to `sites (workspace_id, id)` keeps it in the Workspace.
+ */
+type NewRow<Table extends PgTable, Filled extends string> = Omit<InferInsertModel<Table>, Filled>;
 
 export type SelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: number };
 
@@ -66,12 +76,12 @@ export type SelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: 
  * Queries on tenant tables, limited to one scope. `where` is the extra condition, if any; the scope
  * always adds its own. `insert` fills in the Workspace (and Site) itself.
  */
-export type ScopedQueries<Table extends PgTable> = {
+export type ScopedQueries<Table extends PgTable, Filled extends string> = {
 	select<T extends Table>(table: T, where?: SQL, options?: SelectOptions): Promise<Row<T>[]>;
 	first<T extends Table>(table: T, where?: SQL, options?: Omit<SelectOptions, "limit">): Promise<Row<T> | undefined>;
 	count<T extends Table>(table: T, where?: SQL): Promise<number>;
-	insert<T extends Table>(table: T, values: NewRow<T>): Promise<Row<T>>;
-	update<T extends Table>(table: T, set: Partial<NewRow<T>>, where?: SQL): Promise<Row<T>[]>;
+	insert<T extends Table>(table: T, values: NewRow<T, Filled>): Promise<Row<T>>;
+	update<T extends Table>(table: T, set: Partial<NewRow<T, Filled>>, where?: SQL): Promise<Row<T>[]>;
 	delete<T extends Table>(table: T, where?: SQL): Promise<number>;
 	/**
 	 * The condition limiting `table` to this scope, and `where` if given: for joins and other
@@ -118,7 +128,7 @@ export type InstallScope = Omit<ScopeBase, "audit"> & {
 type ScopeDatabase = { readonly db: Executor };
 
 export type WorkspaceScope = Omit<ScopeBase, "audit"> &
-	ScopedQueries<WorkspaceTable> &
+	ScopedQueries<WorkspaceTable, "workspaceId"> &
 	ScopeDatabase & {
 		readonly level: "workspace";
 		/**
@@ -132,7 +142,7 @@ export type WorkspaceScope = Omit<ScopeBase, "audit"> &
 	};
 
 export type SiteScope = ScopeBase &
-	ScopedQueries<SiteTable> &
+	ScopedQueries<SiteTable, "workspaceId" | "siteId"> &
 	ScopeDatabase & {
 		readonly level: "site";
 		readonly workspace: Workspace;
@@ -145,7 +155,10 @@ export type SiteScope = ScopeBase &
  * A Site opened for its visitors: reads only, limited to the Site, with no person, no Audit log and
  * no secrets. Code reading through it must only read what any visitor may see.
  */
-export type VisitorScope = Pick<ScopedQueries<SiteTable>, "select" | "first" | "count" | "where"> &
+export type VisitorScope = Pick<
+	ScopedQueries<SiteTable, "workspaceId" | "siteId">,
+	"select" | "first" | "count" | "where"
+> &
 	ScopeDatabase & {
 		readonly level: "visitor";
 		readonly site: Site;
@@ -228,7 +241,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 		},
 
 		async workspace(access, workspaceId, permission) {
-			const workspace = UUID.test(workspaceId) ? await findWorkspace(db, workspaceId) : undefined;
+			const workspace = isUuid(workspaceId) ? await findWorkspace(db, workspaceId) : undefined;
 			if (!workspace) throw new WorkspaceNotFoundError();
 			const resource: Resource = { level: "workspace", workspaceId: workspace.id };
 			if (!can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
@@ -237,7 +250,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 		},
 
 		async site(access, siteId, permission) {
-			const site = UUID.test(siteId) ? await findSite(db, siteId) : undefined;
+			const site = isUuid(siteId) ? await findSite(db, siteId) : undefined;
 			if (!site) throw new SiteNotFoundError();
 			const resource: Resource = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
 			if (!can(access.actor, "site.view", resource)) throw new SiteNotFoundError();
@@ -256,18 +269,8 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 	};
 }
 
-/** Any UUID: ids that can't be one are simply not found, rather than a database error. */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function check(actor: Actor, permission: Permission, resource: Resource): void {
 	if (!can(actor, permission, resource)) throw new PermissionDeniedError(permission);
-}
-
-function personIdOf(actor: Actor): string | null {
-	switch (actor.kind) {
-		case "person":
-			return actor.personId;
-	}
 }
 
 async function findWorkspace(executor: Executor, workspaceId: string): Promise<Workspace | undefined> {
@@ -293,11 +296,11 @@ async function findSite(executor: Executor, siteId: string): Promise<Site | unde
 }
 
 /** The query helpers of one scope: `condition` limits a table to it, `fill` holds the columns `insert` sets. */
-function scopedQueries<Table extends WorkspaceTable>(
+function scopedQueries<Table extends WorkspaceTable, Filled extends string>(
 	executor: Executor,
 	condition: (table: Table) => SQL,
-	fill: Record<string, string>,
-): ScopedQueries<Table> {
+	fill: Record<Filled, string>,
+): ScopedQueries<Table, Filled> {
 	const where = (table: Table, extra?: SQL) => (extra ? (and(condition(table), extra) as SQL) : condition(table));
 	// Drizzle's builders are typed for one known table at a time; these helpers work on any tenant
 	// table, so they go through `unknown` and type their answers by the table they were given.

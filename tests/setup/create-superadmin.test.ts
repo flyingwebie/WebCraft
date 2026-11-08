@@ -9,7 +9,9 @@ import { createTestInstall, type TestInstall } from "../harness/index.ts";
 
 const CLI = join(new URL("../../", import.meta.url).pathname, "apps/cli/src/main.ts");
 const EMPTY_DIRECTORY = mkdtempSync(join(tmpdir(), "webcraft-cli-"));
-const PASSWORD = "correct horse battery staple";
+// A real process does the real leaked-password lookup (or accepts the password when offline), so
+// this one must not be on any leaked list.
+const PASSWORD = "ops team keeps this webcraft install safe 2026";
 
 let install: TestInstall;
 

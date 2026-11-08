@@ -107,7 +107,19 @@ export async function expectOverlayUsable(
 
 	await page.keyboard.press("Escape");
 	await overlay.waitFor({ state: "hidden" });
-	const backOnTrigger = await trigger.evaluate((element) => element === document.activeElement);
+	// Focus may come back a frame or two after the overlay hides (a button disabled while its action
+	// ran is enabled again first), so it gets a moment to settle.
+	const backOnTrigger = await trigger.evaluate((element) => {
+		const deadline = performance.now() + 1000;
+		return new Promise<boolean>((resolve) => {
+			const check = () => {
+				if (element === document.activeElement) resolve(true);
+				else if (performance.now() > deadline) resolve(false);
+				else requestAnimationFrame(check);
+			};
+			check();
+		});
+	});
 	expect({ where, escapeClosesAndReturnsFocus: backOnTrigger }).toEqual({ where, escapeClosesAndReturnsFocus: true });
 }
 

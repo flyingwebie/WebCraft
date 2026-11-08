@@ -1,23 +1,16 @@
-import { type Auth, assertValidEmail, EmailInUseError, normaliseEmail } from "@webcraft/auth";
+import { assertValidEmail, EmailInUseError, normaliseEmail } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
 import { installRoles, invites, inviteWorkspaces, people, staffWorkspaces, workspaces } from "@webcraft/db/schema";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 
-import type { AdminLanguageCode } from "../admin-languages.ts";
-import { type AuditVia, recordAudit } from "../audit.ts";
-import type { Clock } from "../clock.ts";
 import type { Email } from "../email/index.ts";
-import type { InstallSettings } from "../install-settings.ts";
-import type { Reach } from "../permissions/can.ts";
-import { ROLES, STAFF_ROLE } from "../permissions/roles.ts";
+import { isUuid } from "../ids.ts";
+import { personIdOf, type Reach } from "../permissions/can.ts";
+import { ASSIGNED_ROLES, STAFF_ROLE } from "../permissions/roles.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import type { InstallScope } from "./data-layer.ts";
 import { WorkspaceNotFoundError } from "./errors.ts";
-
-/** How long an invite link works. */
-export const INVITE_LIFETIME_DAYS = 7;
-
-const INVITE_LIFETIME_MS = INVITE_LIFETIME_DAYS * 24 * 60 * 60 * 1000;
+import { INVITE_LIFETIME_DAYS, INVITE_LIFETIME_MS, InviteInvalidError, invitePath } from "./invites.ts";
 
 /** A Workspace as Staff lists name it. */
 export type WorkspaceRef = { id: string; name: string };
@@ -43,24 +36,6 @@ export type StaffInvite = {
 	expiresAt: Date;
 };
 
-/** What the person opening an invite link sees. */
-export type InviteDetails = {
-	email: string;
-	/** The role key the invite grants, such as `staff`. */
-	role: string;
-	installName: string | null;
-	invitedBy: string | null;
-	expiresAt: Date;
-};
-
-/** The invite link doesn't work: it was used, revoked, replaced or has expired, or never existed. */
-export class InviteInvalidError extends Error {
-	override name = "InviteInvalidError";
-	constructor() {
-		super("This invite link doesn't work any more. Ask for a new invite.");
-	}
-}
-
 /** The person isn't Staff. */
 export class StaffNotFoundError extends Error {
 	override name = "StaffNotFoundError";
@@ -83,37 +58,14 @@ export type StaffService = {
 	setWorkspaces(scope: InstallScope, personId: string, workspaces: Reach): Promise<void>;
 };
 
-export type InvitesService = {
-	/** What an invite link offers; `InviteInvalidError` when it doesn't work. */
-	get(token: string): Promise<InviteDetails>;
-	/** Accepts an invite: creates the person's account with the role it grants. */
-	accept(
-		token: string,
-		account: { name: string; password: string; adminLanguage: AdminLanguageCode },
-		via: AuditVia,
-	): Promise<{ personId: string; email: string }>;
-};
-
 type StaffOptions = {
-	database: Database;
-	auth: Auth;
 	email: Email;
-	settings: InstallSettings;
-	clock: Clock;
 };
-
-/** The roles that reach Workspaces by assignment. */
-const ASSIGNED_ROLES = Object.entries(ROLES)
-	.filter(([, role]) => role.reach === "assigned-workspaces")
-	.map(([key]) => key);
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Executor = Database["db"] | Transaction;
 
-export function createStaffServices(options: StaffOptions): { staff: StaffService; invites: InvitesService } {
-	const { database, auth, email, settings, clock } = options;
-	const { db } = database;
+export function createStaff(options: StaffOptions): StaffService {
+	const { email } = options;
 
 	/** The Workspaces each invite assigns, by invite id, sorted by name. */
 	const inviteWorkspaceRefs = async (executor: Executor, inviteIds: string[]) => {
@@ -129,7 +81,11 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 		return refs;
 	};
 
-	const pendingInvites = async (executor: Executor, where?: ReturnType<typeof eq>): Promise<StaffInvite[]> => {
+	const pendingInvites = async (
+		executor: Executor,
+		now: Date,
+		where?: ReturnType<typeof eq>,
+	): Promise<StaffInvite[]> => {
 		const rows = await executor
 			.select({
 				id: invites.id,
@@ -142,7 +98,7 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 			})
 			.from(invites)
 			.leftJoin(people, eq(people.id, invites.invitedBy))
-			.where(and(inArray(invites.role, ASSIGNED_ROLES), gt(invites.expiresAt, clock.now()), where))
+			.where(and(inArray(invites.role, ASSIGNED_ROLES), gt(invites.expiresAt, now), where))
 			.orderBy(asc(invites.email));
 		const refs = await inviteWorkspaceRefs(
 			executor,
@@ -158,19 +114,10 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 		}));
 	};
 
-	/** The invite a token opens, if it still works. */
-	const findInvite = async (executor: Executor, token: string) => {
-		const [row] = await executor
-			.select()
-			.from(invites)
-			.where(and(eq(invites.tokenHash, await hashToken(token)), gt(invites.expiresAt, clock.now())));
-		return row;
-	};
-
 	const assertWorkspacesExist = async (executor: Executor, reach: Reach) => {
 		if (reach === "all" || reach.length === 0) return;
 		const ids = [...new Set(reach)];
-		if (!ids.every((id) => UUID.test(id))) throw new WorkspaceNotFoundError();
+		if (!ids.every((id) => isUuid(id))) throw new WorkspaceNotFoundError();
 		const found = await executor.select({ id: workspaces.id }).from(workspaces).where(inArray(workspaces.id, ids));
 		if (found.length !== ids.length) throw new WorkspaceNotFoundError();
 	};
@@ -214,7 +161,7 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 						: assigned.filter((ref) => ref.personId === row.id).map(({ id, name }) => ({ id, name })),
 					since: row.since,
 				})),
-				invites: await pendingInvites(scope.db),
+				invites: await pendingInvites(scope.db, scope.now()),
 			};
 		},
 
@@ -236,7 +183,7 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 						tokenHash: await hashToken(token),
 						role: STAFF_ROLE,
 						allWorkspaces: input.workspaces === "all",
-						invitedBy: personOf(scope),
+						invitedBy: personIdOf(scope.access.actor),
 						createdAt: now,
 						expiresAt: new Date(now.getTime() + INVITE_LIFETIME_MS),
 					})
@@ -248,7 +195,7 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 						.values([...new Set(input.workspaces)].map((workspaceId) => ({ inviteId: created.id, workspaceId })));
 				}
 				await tx.audit("staff.invite", { email: address, workspaces: describeReach(input.workspaces) });
-				const [invite] = await pendingInvites(tx.db, eq(invites.id, created.id));
+				const [invite] = await pendingInvites(tx.db, now, eq(invites.id, created.id));
 				if (!invite) throw new Error("The invite was not saved.");
 				return invite;
 			});
@@ -259,7 +206,7 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 				to: { email: address },
 				data: {
 					inviterName: invite.invitedBy?.name ?? "WebCraft",
-					acceptPath: `/invite?token=${token}`,
+					acceptPath: invitePath(token),
 					expiresInDays: INVITE_LIFETIME_DAYS,
 				},
 				related: { kind: "invite", id: invite.id },
@@ -268,7 +215,7 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 		},
 
 		async revokeInvite(scope, inviteId) {
-			if (!UUID.test(inviteId)) throw new InviteInvalidError();
+			if (!isUuid(inviteId)) throw new InviteInvalidError();
 			await scope.transaction(async (tx) => {
 				const [removed] = await tx.db
 					.delete(invites)
@@ -280,7 +227,7 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 		},
 
 		async setWorkspaces(scope, personId, reach) {
-			if (!UUID.test(personId)) throw new StaffNotFoundError();
+			if (!isUuid(personId)) throw new StaffNotFoundError();
 			await scope.transaction(async (tx) => {
 				const [role] = await tx.db
 					.select({ role: installRoles.role })
@@ -305,66 +252,5 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 		},
 	};
 
-	const invitesService: InvitesService = {
-		async get(token) {
-			const invite = await findInvite(db, token);
-			if (!invite) throw new InviteInvalidError();
-			const [inviter] = invite.invitedBy
-				? await db.select({ name: people.name }).from(people).where(eq(people.id, invite.invitedBy))
-				: [];
-			return {
-				email: invite.email,
-				role: invite.role,
-				installName: (await settings.read()).name,
-				invitedBy: inviter?.name ?? null,
-				expiresAt: invite.expiresAt,
-			};
-		},
-
-		async accept(token, account, via) {
-			return db.transaction(async (tx) => {
-				const found = await findInvite(tx, token);
-				if (!found) throw new InviteInvalidError();
-				// Two people opening the same link at once: the second waits here, then finds it gone.
-				const [invite] = await tx.select().from(invites).where(eq(invites.id, found.id)).for("update");
-				// Only Staff invites exist so far; Member invites will be accepted into a Membership instead.
-				if (!invite || !ASSIGNED_ROLES.includes(invite.role)) throw new InviteInvalidError();
-				const assigned = invite.allWorkspaces
-					? []
-					: (
-							await tx
-								.select({ workspaceId: inviteWorkspaces.workspaceId })
-								.from(inviteWorkspaces)
-								.where(eq(inviteWorkspaces.inviteId, invite.id))
-						).map((row) => row.workspaceId);
-				const { personId } = await auth.createPerson(tx, { ...account, email: invite.email });
-				const now = clock.now();
-				await tx
-					.insert(installRoles)
-					.values({ personId, role: invite.role, allWorkspaces: invite.allWorkspaces, createdAt: now });
-				if (assigned.length > 0) {
-					await tx
-						.insert(staffWorkspaces)
-						.values(assigned.map((workspaceId) => ({ personId, workspaceId, createdAt: now })));
-				}
-				await tx.delete(invites).where(eq(invites.id, invite.id));
-				await recordAudit(tx, now, {
-					personId,
-					via,
-					workspaceId: null,
-					siteId: null,
-					action: "staff.join",
-					details: { email: invite.email, workspaces: invite.allWorkspaces ? "all" : assigned },
-				});
-				return { personId, email: invite.email };
-			});
-		},
-	};
-
-	return { staff, invites: invitesService };
-}
-
-function personOf(scope: InstallScope): string | null {
-	const { actor } = scope.access;
-	return actor.kind === "person" ? actor.personId : null;
+	return staff;
 }

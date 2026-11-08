@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import type { Clock } from "../clock.ts";
 import type { Logger } from "../log.ts";
 import type { SecretDescription, Secrets } from "../secrets/store.ts";
+import type { InstallScope } from "../tenancy/data-layer.ts";
 import type { SmtpSecurity } from "./mailer.ts";
 
 /** How a connection to an SMTP server is secured. */
@@ -60,10 +61,12 @@ export type InstallSmtp = {
 	read(): Promise<InstallSmtpSettings | null>;
 	health(): Promise<SmtpHealth>;
 	/**
-	 * Sets it, all settings at once. The password goes into the Install's secrets. A server with new
-	 * settings starts with a clean record: it is Failing again only after 3 more failed sends.
+	 * Sets it, all settings at once, and records the change in the Audit log (never the password).
+	 * The password goes into the Install's secrets. A server with new settings starts with a clean
+	 * record: it is Failing again only after 3 more failed sends. A Sensitive action
+	 * (`installSmtp.change`): open the Install with `install.manage` and check it first.
 	 */
-	update(change: InstallSmtpChange, personId: string): Promise<InstallSmtpSettings>;
+	update(scope: InstallScope, change: InstallSmtpChange): Promise<InstallSmtpSettings>;
 };
 
 type Options = { database: Database; secrets: Secrets; clock: Clock; log: Logger };
@@ -96,22 +99,25 @@ export function createInstallSmtp({ database, secrets, clock, log }: Options): I
 			return record;
 		},
 
-		async update(change, personId) {
+		async update(scope, change) {
 			const settings = checkSettings(change);
 			const now = clock.now();
-			await db.transaction(async (tx) => {
-				await tx
+			const personId = scope.access.actor.personId;
+			const password = change.password === undefined ? "kept" : change.password === null ? "removed" : "replaced";
+			await scope.transaction(async (tx) => {
+				await tx.db
 					.insert(installSmtp)
 					.values({ id: 1, ...settings, updatedAt: now, updatedBy: personId })
 					.onConflictDoUpdate({ target: installSmtp.id, set: { ...settings, updatedAt: now, updatedBy: personId } });
-				await tx.delete(smtpHealth).where(eq(smtpHealth.smtp, INSTALL_SMTP));
+				await tx.db.delete(smtpHealth).where(eq(smtpHealth.smtp, INSTALL_SMTP));
+				await tx.audit("installSmtp.change", { ...settings, password });
 			});
 			if (change.password === null) await secrets.remove(INSTALL_SMTP_PASSWORD);
 			else if (change.password !== undefined) await secrets.set(INSTALL_SMTP_PASSWORD, change.password);
 			log.info("The Install SMTP was changed", {
 				personId,
 				smtp: { host: settings.host, port: settings.port, security: settings.security, username: settings.username },
-				password: change.password === undefined ? "kept" : change.password === null ? "removed" : "replaced",
+				password,
 			});
 			const saved = await read();
 			if (!saved) throw new Error("The Install SMTP was not saved.");

@@ -1,5 +1,6 @@
-import { createAuth } from "@webcraft/auth";
+import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 
+import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import {
 	createEntry,
@@ -21,15 +22,18 @@ import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
+import { createRateLimits } from "./rate-limits.ts";
 import { type MasterKey, sessionSigningSecret } from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
+import { createInvites } from "./tenancy/invites.ts";
+import { createMembers } from "./tenancy/members.ts";
 import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
-import { createStaffServices } from "./tenancy/staff.ts";
+import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
 
 export type CreateServicesOptions = {
@@ -53,21 +57,32 @@ export async function createInstallServices(
 	const secretsOptions = { database, masterKey, clock };
 	// Every secret; the data layer hands out a Workspace's or a Site's, `services.secrets` the Install's.
 	const store = options.checkMasterKey === false ? createSecrets(secretsOptions) : await openSecrets(secretsOptions);
+	const settings = createInstallSettings(database);
+	const installSecrets = installSecretsOnly(store);
+	const email = createEmail({ ...ports, secrets: installSecrets, settings });
 	const auth = createAuth({
 		database,
 		clock,
 		adminOrigin: config.adminOrigin,
 		secret: await sessionSigningSecret(masterKey),
 		log,
+		passwordChecks: [
+			leakedPasswordCheck({
+				http: ports.http,
+				log,
+				enabled: async () => (await settings.security()).leakedPasswordCheck,
+			}),
+		],
+		onAccountLocked: reportAccountLock({ database, clock, email }),
 	});
-	const settings = createInstallSettings(database);
-	const installSecrets = installSecretsOnly(store);
-	const email = createEmail({ ...ports, secrets: installSecrets, settings });
 	const data = createDataLayer({ database, clock, secrets: store });
+	const memberships = createMemberships({ database, clock });
 	return {
 		...ports,
 		secrets: installSecrets,
 		auth,
+		account: createAccount({ database, auth, clock }),
+		rateLimits: createRateLimits({ database, clock, log }),
 		people: createPeople({ database, clock }),
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,
@@ -93,8 +108,10 @@ export async function createInstallServices(
 		},
 		publishing: { publish },
 		sitePages: createSitePages({ database, config, data }),
-		memberships: createMemberships({ database, clock }),
-		...createStaffServices({ database, auth, email, settings, clock }),
+		memberships,
+		members: createMembers({ database, email }),
+		staff: createStaff({ email }),
+		invites: createInvites({ database, auth, settings, clock, memberships }),
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
 		email,
 	};

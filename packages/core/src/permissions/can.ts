@@ -35,6 +35,14 @@ export type PersonActor = {
  */
 export type Actor = PersonActor;
 
+/** The person behind an actor, or null for actors with no person (tokens and Modules, later). */
+export function personIdOf(actor: Actor): string | null {
+	switch (actor.kind) {
+		case "person":
+			return actor.personId;
+	}
+}
+
 /**
  * Whether `actor` may do `permission` on `resource`. The one permission check: every procedure goes
  * through it (most of them through the data layer). Throws a TypeError when the Permission isn't
@@ -61,6 +69,40 @@ export function permissionsOn(actor: Actor, resource: Resource): Permission[] {
 	);
 }
 
+/** Stands for every Site of a Workspace, including Sites created later. */
+const EVERY_SITE = Symbol("every Site of the Workspace");
+
+/** What a role is looked up for: a resource, or every Site of a Workspace at once. */
+type Target = Resource | { level: "site"; workspaceId: string; siteId: typeof EVERY_SITE };
+
+/** The access a Membership gives: a Workspace role key, and the Sites of its Workspace it reaches. */
+export type MemberAccess = { role: string; sites: Reach };
+
+/**
+ * Whether `actor` holds at least the access a Membership in the Workspace gives: every Permission of
+ * its role on the Workspace, and on every Site it reaches (for "all", on every Site of the Workspace,
+ * including Sites created later). Nobody grants more access than they hold, in role or in Sites:
+ * inviting a Member or changing a Member's access needs this for the new access, and changing or
+ * removing a Member needs it for the access they have now. A role key that isn't a Workspace role is
+ * never held this way.
+ */
+export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAccess): boolean {
+	const role = roleDefinition(access.role);
+	if (role?.reach !== "membership") return false;
+	const checkedOn = (level: Level) =>
+		role.permissions.filter((permission) => (PERMISSIONS[permission] as readonly Level[]).includes(level));
+	const workspace: Resource = { level: "workspace", workspaceId };
+	if (!checkedOn("workspace").every((permission) => can(actor, permission, workspace))) return false;
+	const onSites = checkedOn("site");
+	const targets: (string | typeof EVERY_SITE)[] = access.sites === "all" ? [EVERY_SITE] : [...access.sites];
+	return targets.every((siteId) => {
+		const held = rolesReaching(actor, { level: "site", workspaceId, siteId }).flatMap(
+			(key) => roleDefinition(key)?.permissions ?? [],
+		);
+		return onSites.every((permission) => held.includes(permission));
+	});
+}
+
 /**
  * The Workspaces `actor` holds any role in: "all" for the Superadmin and Staff assigned to every
  * Workspace. Listing Workspaces starts here, then keeps those `can(actor, "workspace.view", …)` allows.
@@ -74,8 +116,8 @@ export function workspacesReached(actor: Actor): Reach {
 	return [...new Set([...(staffWorkspaces ?? []), ...memberships.map((membership) => membership.workspaceId)])];
 }
 
-/** The role keys `actor` holds whose reach covers `resource`. */
-function rolesReaching(actor: PersonActor, resource: Resource): string[] {
+/** The role keys `actor` holds whose reach covers `target`. */
+function rolesReaching(actor: PersonActor, target: Target): string[] {
 	const roles: string[] = [];
 	const { installRole } = actor;
 	if (installRole) {
@@ -83,23 +125,24 @@ function rolesReaching(actor: PersonActor, resource: Resource): string[] {
 		const covered =
 			reach === "install" ||
 			(reach === "assigned-workspaces" &&
-				resource.level !== "install" &&
-				includes(installRole.workspaces, resource.workspaceId));
+				target.level !== "install" &&
+				includes(installRole.workspaces, target.workspaceId));
 		if (covered) roles.push(installRole.role);
 	}
-	if (resource.level !== "install") {
+	if (target.level !== "install") {
 		for (const membership of actor.memberships) {
-			if (membership.workspaceId !== resource.workspaceId) continue;
+			if (membership.workspaceId !== target.workspaceId) continue;
 			if (roleDefinition(membership.role)?.reach !== "membership") continue;
-			if (resource.level === "site" && !includes(membership.sites, resource.siteId)) continue;
+			if (target.level === "site" && !includes(membership.sites, target.siteId)) continue;
 			roles.push(membership.role);
 		}
 	}
 	return roles;
 }
 
-function includes(reach: Reach, id: string): boolean {
-	return reach === "all" || reach.includes(id);
+/** Whether `reach` covers `id`; only "all" covers every Site at once. */
+function includes(reach: Reach, id: string | typeof EVERY_SITE): boolean {
+	return reach === "all" || (typeof id === "string" && reach.includes(id));
 }
 
 function describeLevel(level: Level): string {

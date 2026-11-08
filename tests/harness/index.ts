@@ -26,13 +26,13 @@ import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
 import type { PgBoss } from "pg-boss";
 
-import { createTestBrowser, type TestBrowser } from "./browser.ts";
+import { createTestBrowser, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 
-export { API_PATH, type TestBrowser } from "./browser.ts";
+export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
@@ -44,6 +44,9 @@ export function inviteLinkIn(email: { text: string } | undefined): string {
 	if (!link) throw new Error(`The email holds no invite link:\n${email?.text ?? "(no email)"}`);
 	return link;
 }
+
+/** Requests to the leaked-password range service (see `leakedPasswordCheck` in `@webcraft/auth`). */
+export const LEAKED_PASSWORD_RANGE = /^https:\/\/api\.pwnedpasswords\.com\/range\/[0-9A-F]{5}$/;
 
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
@@ -126,9 +129,11 @@ export type TestInstall = {
 	request(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 	/**
 	 * A new browser on the admin: it keeps cookies like a browser and calls the Management API the
-	 * way the admin does. Give `origin` to send requests from another site's pages.
+	 * way the admin does. Each browser comes from its own client address unless `address` says
+	 * otherwise (null: one the web process can't tell); `userAgent` is the browser it says it is.
+	 * Give `origin` to send requests from another site's pages.
 	 */
-	browser(options?: { origin?: string }): TestBrowser;
+	browser(options?: TestBrowserOptions): TestBrowser;
 	/**
 	 * The setup token the web process printed in its log when it last started, or undefined when it
 	 * printed none (the Install has a Superadmin).
@@ -140,7 +145,7 @@ export type TestInstall = {
 	 */
 	createSuperadmin(account?: Partial<TestAccount>): Promise<TestAccount>;
 	/** A new browser, signed in with the account's email and password. */
-	signIn(account: Pick<TestAccount, "email" | "password">): Promise<TestBrowser>;
+	signIn(account: Pick<TestAccount, "email" | "password">, browser?: TestBrowserOptions): Promise<TestBrowser>;
 	/**
 	 * A browser signed in as the Superadmin: the one `createSuperadmin` made, or a new default
 	 * Superadmin when there is none yet. The same browser every time.
@@ -151,12 +156,9 @@ export type TestInstall = {
 	/** Creates a Site in a Workspace as the Superadmin; the slug is made unique unless given. */
 	createSite(workspaceId: string, site?: { name?: string; slug?: string }): Promise<{ id: string; slug: string }>;
 	/**
-	 * Makes a Staff member the way people become one: the Superadmin invites them, and they accept
-	 * the link in the email. Answers their account, their id and their signed-in browser.
-	 */
-	/**
-	 * Makes a Member: a new person with a Membership in the Workspace, signed in. There are no Member
-	 * invites yet, so this gives the Membership directly, as accepting an invite will.
+	 * Makes a Member the way people become one: the Superadmin invites them into the Workspace, and
+	 * they accept the link in the email with a new account. Answers their account, their id and their
+	 * signed-in browser.
 	 */
 	createMember(options: {
 		workspaceId: string;
@@ -166,8 +168,15 @@ export type TestInstall = {
 		name?: string;
 		email?: string;
 	}): Promise<{ account: TestAccount; personId: string; browser: TestBrowser }>;
-	/** Gives an existing person a Membership, as accepting a Member invite will. */
+	/**
+	 * Gives an existing person a Membership directly, as accepting a Member invite does underneath:
+	 * for tests of what a Membership may never be (Staff never hold one).
+	 */
 	addMembership(membership: NewMembership): Promise<void>;
+	/**
+	 * Makes a Staff member the way people become one: the Superadmin invites them, and they accept
+	 * the link in the email. Answers their account, their id and their signed-in browser.
+	 */
 	createStaff(options: {
 		workspaces: "all" | string[];
 		name?: string;
@@ -201,7 +210,10 @@ export type TestInstall = {
 	 * the jobs between two emails to one address when the order matters.
 	 */
 	lastEmailTo(address: string): Promise<{ to: string; subject: string; text: string }>;
-	/** The Install's outgoing HTTP: prepare answers, read what was requested. */
+	/**
+	 * The Install's outgoing HTTP: prepare answers, read what was requested. The leaked-password
+	 * range service answers that no password is leaked unless a test answers it otherwise.
+	 */
 	http: FakeHttp;
 	clock: TestInstallClock;
 	/** Every log entry the Install wrote. */
@@ -249,6 +261,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 
 	const mail = createFakeMailer();
 	const http = createFakeHttp();
+	// The leaked-password range service lists no password as leaked unless a test says otherwise.
+	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
 	const adminOrigin = `https://${adminHost}`;
 	const sitesDomain = options.sitesDomain === undefined ? TEST_SITES_DOMAIN : options.sitesDomain;
@@ -305,8 +319,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		superadminAccount = account;
 		return account;
 	};
-	const signIn = async ({ email, password }: Pick<TestAccount, "email" | "password">) => {
-		const browser = createTestBrowser({ send, adminOrigin });
+	const signIn = async (
+		{ email, password }: Pick<TestAccount, "email" | "password">,
+		browserOptions: TestBrowserOptions = {},
+	) => {
+		const browser = createTestBrowser({ send, adminOrigin, ...browserOptions });
 		await browser.api.session.signIn({ email, password });
 		return browser;
 	};
@@ -329,6 +346,20 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		superadminAccount ??= await createSuperadmin();
 		superadminBrowser = await signIn(superadminAccount);
 		return superadminBrowser;
+	};
+
+	/**
+	 * Runs a Sensitive action as the Superadmin. A test may have moved the clock past the last identity
+	 * check, so when one is asked for, the Superadmin confirms their password and the call is retried.
+	 */
+	const asSuperadmin = async <Result>(admin: TestBrowser, call: () => Promise<Result>): Promise<Result> => {
+		try {
+			return await call();
+		} catch (error) {
+			if ((error as { code?: string }).code !== "IDENTITY_CHECK_REQUIRED" || !superadminAccount) throw error;
+			await admin.api.session.confirmIdentity({ password: superadminAccount.password });
+			return call();
+		}
 	};
 
 	return {
@@ -359,6 +390,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return { id: created.site.id, slug: created.site.slug };
 		},
 		async createMember({ workspaceId, role, sites = "all", name, email }) {
+			const admin = await superadmin();
 			const number = next();
 			const account: TestAccount = {
 				name: name ?? `Member ${number}`,
@@ -366,12 +398,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 				password: TEST_PASSWORD,
 				adminLanguage: "en",
 			};
-			const personId = await database.db.transaction(async (tx) => {
-				const created = await services.auth.createPerson(tx, account);
-				await services.memberships.add({ personId: created.personId, workspaceId, role, sites }, tx);
-				return created.personId;
-			});
-			return { account, personId, browser: await signIn(account) };
+			await asSuperadmin(admin, () => admin.api.members.invite({ workspaceId, email: account.email, role, sites }));
+			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
+			const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
+			const { personId } = await browser.api.invites.accept({ token, ...account });
+			return { account, personId, browser };
 		},
 		addMembership: (membership) => services.memberships.add(membership),
 		async createStaff({ workspaces, name, email }) {
@@ -383,7 +414,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 				password: TEST_PASSWORD,
 				adminLanguage: "en",
 			};
-			await admin.api.staff.invite({ email: account.email, workspaces });
+			await asSuperadmin(admin, () => admin.api.staff.invite({ email: account.email, workspaces }));
 			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
 			const browser = createTestBrowser({ send, adminOrigin });
 			const { personId } = await browser.api.invites.accept({ token, ...account });

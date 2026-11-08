@@ -76,6 +76,26 @@ describe("Install SMTP", () => {
 		expect(removed.settings).toMatchObject({ username: null, password: { set: false } });
 	});
 
+	test("each change is recorded in the Audit log, with what changed but never the password", async () => {
+		const browser = await install.signIn(superadmin);
+
+		await browser.api.install.smtp.update({ ...SMTP, password: "an audited smtp password" });
+		await browser.api.install.smtp.update({ ...SMTP, port: 465, security: "tls" });
+		await browser.api.install.smtp.update({ ...SMTP, password: null });
+
+		const admin = await install.superadmin();
+		const { entries } = await admin.api.audit.list({ limit: 3 });
+		const settings = { host: SMTP.host, username: SMTP.username, fromAddress: SMTP.fromAddress, replyTo: null };
+		expect(entries).toMatchObject([
+			{ action: "installSmtp.change", details: { ...settings, port: 587, security: "starttls", password: "removed" } },
+			{ action: "installSmtp.change", details: { ...settings, port: 465, security: "tls", password: "kept" } },
+			{ action: "installSmtp.change", details: { ...settings, port: 587, security: "starttls", password: "replaced" } },
+		]);
+		const personId = (await browser.api.session.current()).person?.id;
+		expect(entries.every((entry) => entry.personId === personId && entry.via.kind === "admin")).toBe(true);
+		expect(JSON.stringify(entries)).not.toContain("an audited smtp password");
+	});
+
 	test("addresses, host and port are checked", async () => {
 		const browser = await install.signIn(superadmin);
 

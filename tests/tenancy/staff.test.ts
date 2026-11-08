@@ -93,6 +93,8 @@ describe("inviting Staff", () => {
 			installName: "Northwind Studio",
 			invitedBy: "Sam Superadmin",
 			expiresAt: new Date(install.clock.now().getTime() + 7 * DAY),
+			workspace: null,
+			hasAccount: false,
 		});
 
 		await browser.api.invites.accept({
@@ -229,6 +231,44 @@ describe("invite links", () => {
 		).rejects.toMatchObject({ code: "PASSWORD_REFUSED" });
 
 		expect((await install.browser().api.invites.get({ token })).email).toBe("short@agency.example");
+	});
+});
+
+describe("a Staff invite to an address that got an account meanwhile", () => {
+	/** A Staff invite to `email`, then the same address joins Acme as a Member through a Member invite. */
+	async function staffInviteThenMembership(email: string) {
+		await admin.api.session.confirmIdentity({ password: superadmin.password });
+		await admin.api.staff.invite({ email, workspaces: "all" });
+		const staffToken = await tokenFor(email);
+		await admin.api.members.invite({ workspaceId: acme.id, email, role: "author", sites: "all" });
+		const member = install.browser();
+		const { personId } = await member.api.invites.accept({
+			token: await tokenFor(email),
+			name: "Dual Person",
+			password: TEST_PASSWORD,
+			adminLanguage: "en",
+		});
+		return { staffToken, personId, member };
+	}
+
+	test("is refused when the account holds a Membership: Staff never do", async () => {
+		const { staffToken, member } = await staffInviteThenMembership("dual@agency.example");
+
+		expect((await member.api.invites.get({ token: staffToken })).hasAccount).toBe(true);
+		await expect(member.api.invites.join({ token: staffToken })).rejects.toMatchObject({ code: "STAFF_MEMBERSHIP" });
+		expect((await member.api.session.current()).person?.installRole ?? null).toBeNull();
+	});
+
+	test("makes the account Staff when it holds no Membership any more", async () => {
+		const { staffToken, personId, member } = await staffInviteThenMembership("former@agency.example");
+		await admin.api.session.confirmIdentity({ password: superadmin.password });
+		await admin.api.members.remove({ workspaceId: acme.id, personId });
+
+		const { workspaceId } = await member.api.invites.join({ token: staffToken });
+
+		expect(workspaceId).toBeNull();
+		expect((await member.api.session.current()).person?.installRole).toBe("staff");
+		await expect(member.api.invites.get({ token: staffToken })).rejects.toMatchObject({ code: "INVITE_INVALID" });
 	});
 });
 

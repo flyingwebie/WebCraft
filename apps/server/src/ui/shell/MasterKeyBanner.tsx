@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { useSensitiveAction } from "../identity-check.tsx";
 
 /**
  * Asks the Superadmin to keep a copy of the Master key outside the server, until they confirm they
@@ -25,13 +26,14 @@ import { useT } from "../i18n.tsx";
 export function MasterKeyBanner() {
 	const t = useT();
 	const router = useRouter();
+	const runSensitive = useSensitiveAction();
 	const [busy, setBusy] = useState(false);
 
 	const confirm = async () => {
 		setBusy(true);
 		try {
 			const api = await getApi();
-			await api.install.masterKey.confirmStored();
+			await runSensitive(() => api.install.masterKey.confirmStored());
 			toast.success(t("masterKeyBanner.confirmed"));
 			await router.invalidate();
 			// The banner and its buttons are gone: keep keyboard focus on the page, not lost.

@@ -5,6 +5,7 @@ import { entries } from "./procedures/entries.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
 import { me } from "./procedures/me.ts";
+import { members } from "./procedures/members.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { session } from "./procedures/session.ts";
 import { setup } from "./procedures/setup.ts";
@@ -29,6 +30,7 @@ export const apiRouter = {
 	postTypes,
 	entries,
 	templates,
+	members,
 	staff,
 	invites,
 	audit,

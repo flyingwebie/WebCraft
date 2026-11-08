@@ -3,6 +3,7 @@ import type { Database } from "@webcraft/db";
 import type { Clock } from "./clock.ts";
 import { readSettingsRow, writeSettingsRow } from "./install-settings.ts";
 import type { Logger } from "./log.ts";
+import { personIdOf } from "./permissions/can.ts";
 import type { InstallScope } from "./tenancy/data-layer.ts";
 
 /**
@@ -38,8 +39,7 @@ export function createMasterKeyBackup(options: {
 			return { stored: true, confirmedAt: row.masterKeyStoredAt, confirmedBy: row.masterKeyStoredBy };
 		},
 		async confirmStored(scope) {
-			const { actor } = scope.access;
-			const personId = actor.kind === "person" ? actor.personId : null;
+			const personId = personIdOf(scope.access.actor);
 			const confirmedAt = clock.now();
 			await scope.transaction(async (tx) => {
 				await writeSettingsRow(tx.db, {

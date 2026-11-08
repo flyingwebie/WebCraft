@@ -1,4 +1,4 @@
-import { ADMIN_LANGUAGE_CODES } from "@webcraft/core";
+import { ADMIN_LANGUAGE_CODES, WORKSPACE_ROLES } from "@webcraft/core";
 import { z } from "zod";
 
 /** A person's name as they type it. */
@@ -17,3 +17,9 @@ export const id = z.uuid();
 
 /** Which Workspaces (or Sites) something reaches: `"all"`, including ones created later, or a list of ids. */
 export const reach = z.union([z.literal("all"), z.array(id).max(1000)]);
+
+/** A Workspace role a Membership holds: `owner`, `editor` or `author`. */
+export const workspaceRole = z.enum(WORKSPACE_ROLES);
+
+/** Which Sites of its Workspace a Membership reaches: `"all"`, including ones created later, or at least one chosen Site. */
+export const memberSites = z.union([z.literal("all"), z.array(id).min(1).max(1000)]);

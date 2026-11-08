@@ -1,7 +1,7 @@
 import { INSTALL_NAME_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
-import { onInstall } from "../context.ts";
+import { onInstall, sensitive } from "../context.ts";
 import { adminLanguage } from "../inputs.ts";
 import { emailBranding, emailLog, smtp } from "./email.ts";
 
@@ -27,10 +27,23 @@ export const install = {
 			fingerprint: context.services.masterKey.fingerprint,
 		})),
 		/** The Superadmin confirms the running Master key is stored outside the server. */
-		confirmStored: onInstall("install.manage").handler(async ({ context }) => ({
-			...(await context.services.masterKey.confirmStored(context.install)),
-			fingerprint: context.services.masterKey.fingerprint,
-		})),
+		confirmStored: onInstall("install.manage")
+			.use(sensitive("masterKey.confirmStored"))
+			.handler(async ({ context }) => ({
+				...(await context.services.masterKey.confirmStored(context.install)),
+				fingerprint: context.services.masterKey.fingerprint,
+			})),
+	},
+	/** Install settings › Security: how the Install checks people's passwords. */
+	security: {
+		get: onInstall("install.manage").handler(({ context }) => context.services.settings.security()),
+		/** Switches the leaked-password check on new passwords on or off. */
+		update: onInstall("install.manage")
+			.use(sensitive("leakedPasswordCheck.change"))
+			.input(z.object({ leakedPasswordCheck: z.boolean() }))
+			.handler(({ context, input }) =>
+				context.services.settings.setLeakedPasswordCheck(context.install, input.leakedPasswordCheck),
+			),
 	},
 	/** The Install SMTP. */
 	smtp,

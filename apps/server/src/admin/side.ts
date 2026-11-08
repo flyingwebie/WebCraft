@@ -2,6 +2,7 @@ import { ADMIN_API_PREFIX, createAdminApi } from "@webcraft/api";
 import type { InstallServices } from "@webcraft/core";
 import { normaliseHostname } from "@webcraft/core";
 
+import { clientAddress } from "../client-address.ts";
 import { type Handler, json, notFound, plainText } from "../responses.ts";
 import { healthz, readyz } from "./health.ts";
 
@@ -27,7 +28,7 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 			if (!fromAdminPages(request, services.config.adminHost)) {
 				return json(403, { code: "FORBIDDEN", message: "Requests to the admin must come from the admin's own pages." });
 			}
-			return (await adminApi(request)) ?? notFound();
+			return (await adminApi(request, { clientAddress: clientAddress(request, services.config) })) ?? notFound();
 		}
 		return adminApp ? adminApp(request) : notFound();
 	};
