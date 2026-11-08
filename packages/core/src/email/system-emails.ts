@@ -6,7 +6,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { type AdminLanguageCode, adminLanguageDirection, isAdminLanguage } from "../admin-languages.ts";
 import type { InstallConfig } from "../config.ts";
 import type { InstallSettings } from "../install-settings.ts";
-import type { InstallBranding } from "./branding.ts";
+import type { EmailBranding, InstallBranding } from "./branding.ts";
 import { canTurnOff, SYSTEM_EMAIL_TYPES, type SystemEmailData, type SystemEmailType } from "./catalogue.ts";
 import type { RelatedItem } from "./email-log.ts";
 import { checkSettings, INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
@@ -61,13 +61,13 @@ export function createSystemEmailSender(options: SenderOptions) {
 	const { database, config, settings, branding, clock } = options;
 
 	/** Renders a type's wording in one language, inside the layout, under Install branding. */
-	const render = async <Type extends SystemEmailType>(
+	const render = <Type extends SystemEmailType>(
+		brand: EmailBranding,
 		type: Type,
 		data: SystemEmailData<Type>,
 		language: AdminLanguageCode,
 		forPerson: boolean,
 	) => {
-		const brand = await branding.resolve();
 		const wording = WORDING[language];
 		const write = wording.types[type] as (
 			data: SystemEmailData<Type>,
@@ -96,13 +96,14 @@ export function createSystemEmailSender(options: SenderOptions) {
 		async send<Type extends SystemEmailType>(email: SystemEmail<Type>): Promise<SendResult[]> {
 			const data = SYSTEM_EMAIL_TYPES[email.type].data.parse(email.data) as SystemEmailData<Type>;
 			const addressees = await resolveRecipients(database, settings, email.type, email.to);
+			const brand = await branding.resolve();
 			const results: SendResult[] = [];
 			for (const addressee of addressees) {
 				if (addressee.turnedOff) {
 					results.push({ recipient: addressee.email, status: "turned-off", emailId: null });
 					continue;
 				}
-				const rendered = await render(email.type, data, addressee.language, addressee.personId !== null);
+				const rendered = render(brand, email.type, data, addressee.language, addressee.personId !== null);
 				const { emailId, status } = await queueEmail(options, {
 					type: email.type,
 					to: addressee.email,
@@ -136,7 +137,7 @@ export function createSystemEmailSender(options: SenderOptions) {
 			const to = normaliseEmail(test.to);
 			assertValidEmail(to);
 			const smtp = checkSettings(test.smtp);
-			const rendered = await render("smtp-test", {}, test.language, false);
+			const rendered = render(await branding.resolve(), "smtp-test", {}, test.language, false);
 			const now = clock.now();
 			const [row] = await database.db
 				.insert(emailLog)
