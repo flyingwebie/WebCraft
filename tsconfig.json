@@ -1,0 +1,3 @@
+{
+  "extends": "@webcraft/config/tsconfig.base.json"
+}
