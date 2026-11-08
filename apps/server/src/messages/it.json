@@ -23,7 +23,13 @@
 		"INVITE_INVALID": "Questo link di invito non funziona più. Chiedi un nuovo invito.",
 		"SLUG_TAKEN": "Un altro Site ha già questo slug.",
 		"SLUG_INVALID": "Usa da 1 a 63 lettere minuscole, cifre e trattini, iniziando e finendo con una lettera o una cifra.",
-		"SLUG_RESERVED": "Questo slug è riservato all'Install. Scegline un altro."
+		"SLUG_RESERVED": "Questo slug è riservato all'Install. Scegline un altro.",
+		"MEMBER_NOT_FOUND": "In questo Workspace non c'è un Membro così.",
+		"ALREADY_MEMBER": "Questa persona è già Membro di questo Workspace. Cambia invece il suo ruolo o i suoi Site.",
+		"STAFF_MEMBERSHIP": "Questo indirizzo appartiene allo Staff dell'agenzia, che non ha mai una Membership.",
+		"ACCESS_NOT_HELD_GRANT": "Non puoi concedere più accesso di quello che hai, né come ruolo né come Site.",
+		"ACCESS_NOT_HELD_MANAGE": "Questo Membro ha un accesso che tu non hai, quindi non puoi modificarlo o rimuoverlo.",
+		"INVITE_OTHER_ACCOUNT": "Questo invito è stato inviato a un altro indirizzo email. Accedi con quell'indirizzo per accettarlo."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -142,7 +148,8 @@
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
 			"sites": "Site",
-			"siteGroup": "Site"
+			"siteGroup": "Site",
+			"members": "Membri"
 		}
 	},
 	"masterKeyBanner": {
@@ -485,6 +492,96 @@
 			"saved": "Salvato."
 		}
 	},
+	"members": {
+		"pageTitle": "Membri",
+		"heading": "Membri",
+		"intro": "Le persone di {workspace} che possono accedere a questo Workspace. Ogni Membership ha un ruolo e raggiunge tutti i Site o quelli scelti.",
+		"invite": "Invita un Membro",
+		"search": "Cerca tra i Membri",
+		"roleFilter": "Mostra ruolo",
+		"allRoles": "Tutti i ruoli",
+		"columns": {
+			"member": "Membro",
+			"role": "Ruolo",
+			"sites": "Accesso ai Site",
+			"actions": "Azioni"
+		},
+		"allSites": "Tutti i Site",
+		"noSites": "Nessun Site",
+		"someSites": "{names}",
+		"someAndOtherSites": "{names} e {count, plural, one {# altro Site} other {# altri Site}}",
+		"onlyOtherSites": "{count, plural, one {# Site} other {# Site}} che non raggiungi",
+		"you": "tu",
+		"empty": "Ancora nessun Membro. Invita le persone del cliente che modificano i Site di questo Workspace.",
+		"noMatch": "Nessun Membro corrisponde.",
+		"actionsOf": "Azioni per {name}",
+		"changeAccess": "Cambia ruolo e Site",
+		"remove": "Rimuovi dal Workspace",
+		"pending": {
+			"heading": "Inviti in attesa",
+			"email": "Email",
+			"role": "Ruolo",
+			"sites": "Accesso ai Site",
+			"invitedBy": "da {name} · scade il {date}",
+			"expires": "scade il {date}",
+			"actions": "Azioni",
+			"resend": "Reinvia",
+			"resendOf": "Reinvia l'invito a {email}",
+			"resent": "Invito a {email} inviato di nuovo.",
+			"revoke": "Revoca",
+			"revokeOf": "Revoca l'invito a {email}",
+			"revoked": "Invito a {email} revocato.",
+			"empty": "Nessun invito in attesa."
+		},
+		"staff": {
+			"heading": "Lo Staff dell'agenzia non è fatto di Membri",
+			"body": "Lo Staff di {agency} è gestito dal Superadmin e raggiunge questo Workspace perché vi è assegnato, non con una Membership.",
+			"count": "{count, plural, =0 {{workspace} non ha Staff assegnato.} one {# persona dello Staff assegnata a {workspace}:} other {# persone dello Staff assegnate a {workspace}:}}"
+		},
+		"rolesCard": {
+			"heading": "Cosa può fare ogni ruolo",
+			"owner": "Gestisce i Membri, modifica e pubblica.",
+			"editor": "Modifica e pubblica i Contenuti.",
+			"author": "Modifica e salva Bozze. Pubblica un Editor o un Owner."
+		},
+		"sheet": {
+			"inviteTitle": "Invita un Membro",
+			"inviteDescription": "Ricevono un'email nella loro lingua dell'admin con un link valido per 7 giorni.",
+			"email": "Email",
+			"role": "Ruolo",
+			"roleHelp": {
+				"owner": "Gestisce i Membri, modifica e pubblica i Contenuti dei Site che raggiunge.",
+				"editor": "Modifica e pubblica i Contenuti dei Site che raggiunge.",
+				"author": "Modifica i Contenuti e salva Bozze; non può pubblicare."
+			},
+			"access": "Accesso ai Site",
+			"all": "Tutti i Site",
+			"allHelp": "Compresi i Site creati in seguito.",
+			"chosen": "Site scelti",
+			"chosenHelp": "Solo i Site selezionati qui sotto.",
+			"chooseLegend": "Site",
+			"notReached": "Non puoi offrire questo Site con questo ruolo.",
+			"noSites": "Non ci sono ancora Site che puoi offrire.",
+			"chooseSite": "Scegli almeno un Site.",
+			"limitNote": "Non puoi concedere più accesso di quello che hai. Un Owner può offrire solo i Site che raggiunge.",
+			"send": "Invia invito",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"sent": "Invito inviato a {email}.",
+			"changeTitle": "Cambia ruolo e Site",
+			"changeDescription": "Cosa può fare {name} in questo Workspace. La modifica vale subito.",
+			"save": "Salva",
+			"saved": "Salvato."
+		},
+		"removeDialog": {
+			"title": "Rimuovere {name}?",
+			"body": "{name} perde subito l'accesso a {workspace} e ai suoi Site. Il suo account resta, con gli altri Workspace di cui fa parte.",
+			"confirm": "Rimuovi",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"removed": "{name} è stato rimosso da {workspace}."
+		}
+	},
 	"sites": {
 		"pageTitle": "Site",
 		"heading": "Site",
@@ -532,6 +629,18 @@
 			"heading": "Questo link di invito non funziona",
 			"body": "È già stato usato, è stato ritirato o ha più di 7 giorni. Chiedi un nuovo invito a chi ti ha invitato.",
 			"signIn": "Vai all'accesso"
+		},
+		"memberHeading": "Entra in {workspace} come {role}",
+		"memberIntro": "{inviter} ha invitato {email} in {workspace} su {install}. Scegli il tuo nome e una password per creare il tuo account.",
+		"memberIntroNoInviter": "Sei stato invitato in {workspace} su {install} come {email}. Scegli il tuo nome e una password per creare il tuo account.",
+		"join": {
+			"intro": "{inviter} ha invitato {email} in {workspace} su {install}. Hai già un account: accedi per entrare.",
+			"introNoInviter": "Sei stato invitato in {workspace} su {install} come {email}. Hai già un account: accedi per entrare.",
+			"signedInAs": "Hai effettuato l'accesso come {email}.",
+			"otherAccount": "Hai effettuato l'accesso come {current}. Accedendo qui sotto passi a {email}.",
+			"password": "Password",
+			"signIn": "Accedi ed entra",
+			"submit": "Entra in {workspace}"
 		}
 	}
 }

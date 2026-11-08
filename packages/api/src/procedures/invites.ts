@@ -22,10 +22,11 @@ export const invites = {
 		.handler(async ({ context, input }) => {
 			const { services } = context;
 			const { token: inviteToken, ...account } = input;
-			const { personId, email } = await services.invites.accept(inviteToken, account, context.via);
+			const { personId, email, workspaceId } = await services.invites.accept(inviteToken, account, context.via);
 			const { setCookie } = await services.auth.signIn({ email, password: account.password }, context.headers);
 			setCookies(context, setCookie);
-			return { personId };
+			// The Workspace a Member invite let them into, for the admin to open; null for Staff.
+			return { personId, workspaceId };
 		}),
 
 	/**

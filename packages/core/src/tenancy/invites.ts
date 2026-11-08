@@ -74,7 +74,7 @@ export type InvitesService = {
 		token: string,
 		account: { name: string; password: string; adminLanguage: AdminLanguageCode },
 		via: AuditVia,
-	): Promise<{ personId: string; email: string }>;
+	): Promise<{ personId: string; email: string; workspaceId: string | null }>;
 	/**
 	 * Accepts a Member invite with the signed-in person's existing account, adding the Membership it
 	 * grants. The invite must be to the address they sign in with (`InviteForAnotherAccountError`).
@@ -209,9 +209,12 @@ export function createInvites(options: InvitesOptions): InvitesService {
 				const staff = ASSIGNED_ROLES.includes(invite.role);
 				if (!staff && !invite.workspaceId) throw new InviteInvalidError();
 				const { personId } = await auth.createPerson(tx, { ...account, email: invite.email });
-				if (staff) await joinStaff(tx, invite, personId, via);
-				else await joinWorkspace(tx, invite, personId, via);
-				return { personId, email: invite.email };
+				if (staff) {
+					await joinStaff(tx, invite, personId, via);
+					return { personId, email: invite.email, workspaceId: null };
+				}
+				const { workspaceId } = await joinWorkspace(tx, invite, personId, via);
+				return { personId, email: invite.email, workspaceId };
 			});
 		},
 

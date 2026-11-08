@@ -24,6 +24,7 @@ import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/worksp
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
 import { Route as AdminSitesSiteIdIndexRouteImport } from './routes/_admin/sites.$siteId.index'
 import { Route as AdminWorkspacesWorkspaceIdIndexRouteImport } from './routes/_admin/workspaces.$workspaceId.index'
+import { Route as AdminWorkspacesWorkspaceIdMembersRouteImport } from './routes/_admin/workspaces.$workspaceId.members'
 
 const AdminRoute = AdminRouteImport.update({
   id: '/_admin',
@@ -101,6 +102,12 @@ const AdminWorkspacesWorkspaceIdIndexRoute =
     path: '/',
     getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
   } as any)
+const AdminWorkspacesWorkspaceIdMembersRoute =
+  AdminWorkspacesWorkspaceIdMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AdminIndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
 }
@@ -129,6 +137,7 @@ export interface FileRoutesByTo {
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
+  '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdIndexRoute
 }
@@ -147,6 +156,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/_admin/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/_admin/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/_admin/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
 }
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/workspaces/'
+    | '/workspaces/$workspaceId/members'
     | '/sites/$siteId/'
     | '/workspaces/$workspaceId/'
   fileRoutesByTo: FileRoutesByTo
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/settings/email'
     | '/settings/general'
     | '/workspaces'
+    | '/workspaces/$workspaceId/members'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
   id:
@@ -196,6 +208,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId'
     | '/_admin/workspaces/$workspaceId'
     | '/_admin/workspaces/'
+    | '/_admin/workspaces/$workspaceId/members'
     | '/_admin/sites/$siteId/'
     | '/_admin/workspaces/$workspaceId/'
   fileRoutesById: FileRoutesById
@@ -314,6 +327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWorkspacesWorkspaceIdIndexRouteImport
       parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
+    '/_admin/workspaces/$workspaceId/members': {
+      id: '/_admin/workspaces/$workspaceId/members'
+      path: '/members'
+      fullPath: '/workspaces/$workspaceId/members'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdMembersRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
   }
 }
 
@@ -329,11 +349,14 @@ const AdminSitesSiteIdRouteWithChildren =
   AdminSitesSiteIdRoute._addFileChildren(AdminSitesSiteIdRouteChildren)
 
 interface AdminWorkspacesWorkspaceIdRouteChildren {
+  AdminWorkspacesWorkspaceIdMembersRoute: typeof AdminWorkspacesWorkspaceIdMembersRoute
   AdminWorkspacesWorkspaceIdIndexRoute: typeof AdminWorkspacesWorkspaceIdIndexRoute
 }
 
 const AdminWorkspacesWorkspaceIdRouteChildren: AdminWorkspacesWorkspaceIdRouteChildren =
   {
+    AdminWorkspacesWorkspaceIdMembersRoute:
+      AdminWorkspacesWorkspaceIdMembersRoute,
     AdminWorkspacesWorkspaceIdIndexRoute: AdminWorkspacesWorkspaceIdIndexRoute,
   }
 

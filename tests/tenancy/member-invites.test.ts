@@ -88,7 +88,9 @@ describe("accepting a Member invite", () => {
 			hasAccount: false,
 		});
 
-		await browser.api.invites.accept({ token, name: "Giulia Romano", password: TEST_PASSWORD, adminLanguage: "it" });
+		expect(
+			await browser.api.invites.accept({ token, name: "Giulia Romano", password: TEST_PASSWORD, adminLanguage: "it" }),
+		).toEqual({ personId: expect.any(String), workspaceId: acme.id });
 
 		expect((await browser.api.session.current()).person).toMatchObject({
 			name: "Giulia Romano",
