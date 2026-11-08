@@ -1,5 +1,10 @@
-/** One reason something was refused, and where: a Field key, `urlPattern`, `fields[2].key`, `parentId`. */
-export type ContentProblem = { at: string; message: string };
+/**
+ * One reason something was refused, and where: `urlPattern`, `parentId`, `fields[2].key`, or a value's path such
+ * as `fields.team[1].name`. A value that breaks one of its Field's rules says which (`required`,
+ * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
+ * `postTypes`), so the admin can word it in the person's language.
+ */
+export type ContentProblem = { at: string; message: string; rule?: string };
 
 /** There is no such Post Type on the Site. */
 export class PostTypeNotFoundError extends Error {
@@ -81,10 +86,45 @@ export class EntrySlugTakenError extends Error {
 	}
 }
 
+/**
+ * Deleting the Entry is blocked: other Entries point at it through a required Relationship. Change
+ * them first.
+ */
+export class EntryLinkedError extends Error {
+	override name = "EntryLinkedError";
+	readonly blockedBy: readonly { entryId: string; postTypeId: string; title: string; fields: readonly string[] }[];
+	constructor(blockedBy: EntryLinkedError["blockedBy"]) {
+		super(
+			`The Entry can't be deleted: ${blockedBy.map((entry) => entry.title || entry.entryId).join(", ")} must point at it through a required Relationship.`,
+		);
+		this.blockedBy = blockedBy;
+	}
+}
+
+/** The Globals' values can't be saved or published: `problems` says which and why. */
+export class GlobalsInvalidError extends Error {
+	override name = "GlobalsInvalidError";
+	readonly problems: readonly ContentProblem[];
+	constructor(problems: readonly ContentProblem[]) {
+		super(`The Globals can't be saved: ${describe(problems)}`);
+		this.problems = problems;
+	}
+}
+
+/** The Globals can't be published yet: required values are empty. */
+export class GlobalsIncompleteError extends Error {
+	override name = "GlobalsIncompleteError";
+	readonly missing: readonly string[];
+	constructor(missing: readonly string[]) {
+		super(`The Globals can't be published until these have a value: ${missing.join(", ")}.`);
+		this.missing = missing;
+	}
+}
+
 /** The Entry can't be published yet: required values are empty. */
 export class EntryIncompleteError extends Error {
 	override name = "EntryIncompleteError";
-	/** The keys of the empty values: `title`, `slug` or Field keys. */
+	/** The paths of the empty values: `title`, `slug`, Field keys, `address.city`, `team[0].name`. */
 	readonly missing: readonly string[];
 	constructor(missing: readonly string[]) {
 		super(`The Entry can't be published until these have a value: ${missing.join(", ")}.`);
@@ -121,6 +161,17 @@ export class PagesHaveNoEntryTemplateError extends Error {
 	override name = "PagesHaveNoEntryTemplateError";
 	constructor() {
 		super("Pages are arranged with a Page layout, not an Entry template.");
+	}
+}
+
+/** A Page with Pages under it can't be deleted: they would point at nothing. */
+export class PageHasChildrenError extends Error {
+	override name = "PageHasChildrenError";
+	/** How many Pages name it as their parent, in their Drafts or published. */
+	readonly children: number;
+	constructor(children: number) {
+		super("Pages are nested under this Page: move or delete them first.");
+		this.children = children;
 	}
 }
 

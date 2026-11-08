@@ -1,22 +1,39 @@
 import type { Database } from "@webcraft/db";
-import { entries, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
+import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
 import {
 	builtInNotFoundPage,
 	directionOf,
 	type ElementTree,
 	type PageToRender,
 	renderPage,
-	richText,
 	type TemplateValue,
 } from "@webcraft/renderer";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
 import { entryValues } from "../content/entries.ts";
-import { findPublishedPage, isPagePostType } from "../content/pages.ts";
+import { linksIn } from "../content/field-values.ts";
+import { publishedGlobals } from "../content/globals.ts";
+import {
+	findPublishedPage,
+	isPagePostType,
+	type PageTree,
+	pathIn,
+	pathText,
+	publishedPageTree,
+} from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
+import { publishedEntries } from "../content/relationships.ts";
+import { entryParts, globalsParts, type Parts, type RelatedEntry, resolvePath } from "../content/render-values.ts";
 import { specialPageId } from "../content/special-pages.ts";
-import { bySpecificity, parseUrlPattern, pathSegments, slugIn, type UrlPattern } from "../content/url-patterns.ts";
+import {
+	bySpecificity,
+	parseUrlPattern,
+	pathFor,
+	pathSegments,
+	slugIn,
+	type UrlPattern,
+} from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { listClasses } from "../design-system/classes.ts";
 import type { DataLayer, Site, VisitorScope } from "../tenancy/data-layer.ts";
@@ -120,7 +137,13 @@ export function isReservedPath(segments: readonly string[]): boolean {
 }
 
 /** A published Entry to render, with what its content renders through: its Entry template or Page layout. */
-type FoundEntry = { postType: PostType; entry: typeof entries.$inferSelect; content: ElementTree };
+type FoundEntry = {
+	postType: PostType;
+	/** Every Post Type of the Site, for what Relationships point at. */
+	postTypes: readonly PostType[];
+	entry: typeof entries.$inferSelect;
+	content: ElementTree;
+};
 
 /**
  * A Page's layout: the Components placed in its content area. Pages get their Page layout with
@@ -163,7 +186,7 @@ async function findPublishedEntry(
 			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id), isNotNull(templates.published)),
 		);
 		if (!template) return undefined;
-		return { postType, entry, content: template.published as ElementTree };
+		return { postType, postTypes, entry, content: template.published as ElementTree };
 	}
 	return undefined;
 }
@@ -190,16 +213,16 @@ async function publishedPage(
 ): Promise<FoundEntry | undefined> {
 	const pages = postTypes.find(isPagePostType);
 	const entry = await scope.first(entries, and(eq(entries.id, pageId), isNotNull(entries.published)));
-	return pages && entry?.postTypeId === pages.id ? { postType: pages, entry, content: EMPTY_PAGE_LAYOUT } : undefined;
+	if (!pages || entry?.postTypeId !== pages.id) return undefined;
+	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT };
 }
 
 async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: FoundEntry): Promise<string> {
 	const { postType, entry, content } = found;
 	const language = host.defaultLanguage;
-	const published = entryValues(storedVersion(entry.published), postType.fields, {
-		language,
-		defaultLanguage: host.defaultLanguage,
-	});
+	const languages = { language, defaultLanguage: host.defaultLanguage };
+	const version = storedVersion(entry.published);
+	const published = entryValues(version, postType.fields, languages);
 	const authorName = entry.authorId ? await nameOf(scope, entry.authorId) : null;
 	// Visitors see the published version: nothing here tells them about the Draft, so its status
 	// is "published" and it was last updated when it was last published.
@@ -213,30 +236,46 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 		publishedAt: entry.publishedAt,
 		lastPublishedAt: entry.lastPublishedAt,
 	};
-	const fields: Record<string, TemplateValue> = {};
-	for (const field of postType.fields) {
-		const value = published.fields[field.key] ?? null;
-		fields[field.key] = field.type === "richText" && value !== null ? richText(value) : value;
-	}
-	return renderSitePage(scope, host, {
-		title: published.title,
-		content,
-		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : fields[path]),
+	const site = await siteParts(scope, languages);
+	const root = entryParts(builtIns, postType.fields, published.fields, {
+		related: await relatedEntries(
+			scope,
+			found,
+			linksIn(version.values, postType.fields).map((link) => link.targetId),
+			languages,
+		),
+		site,
 	});
+	return renderSitePage(scope, host, { title: published.title, content, values: (path) => resolvePath(root, path) });
 }
 
-/** A page of the Site in its Site template (the published one, or the built-in one), with its Classes. */
+/** The Site's published Globals, as `site.x` reads them. */
+async function siteParts(
+	scope: VisitorScope,
+	languages: { language: string; defaultLanguage: string },
+): Promise<Parts> {
+	const site = publishedGlobals(await scope.first(globals), languages);
+	return globalsParts(site.fields, site.values);
+}
+
+/**
+ * A page of the Site in its Site template (the published one, or the built-in one), with its
+ * Classes. The Site template reads the Globals as `site.x`.
+ */
 async function renderSitePage(
 	scope: VisitorScope,
 	host: SiteHost,
 	page: Pick<PageToRender, "title" | "content" | "values">,
 ): Promise<string> {
 	const language = host.defaultLanguage;
+	const site = await siteParts(scope, { language, defaultLanguage: host.defaultLanguage });
+	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
 	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
 	return renderPage({
 		...page,
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		siteTemplate: await publishedSiteTemplate(scope),
+		siteValues: (path) => resolvePath(siteRoot, path),
 		className: (classId) => classNames.get(classId),
 	});
 }
@@ -248,6 +287,45 @@ async function publishedSiteTemplate(scope: VisitorScope): Promise<ElementTree |
 		and(eq(templates.kind, "site"), isNull(templates.postTypeId), isNotNull(templates.published)),
 	);
 	return (row?.published as ElementTree | null) ?? undefined;
+}
+
+/** The published Entries the page's Relationships point at, read in the page's language. */
+async function relatedEntries(
+	scope: VisitorScope,
+	found: FoundEntry,
+	ids: readonly string[],
+	languages: { language: string; defaultLanguage: string },
+): Promise<Map<string, RelatedEntry>> {
+	const byId = new Map(found.postTypes.map((postType) => [postType.id, postType]));
+	const related = new Map<string, RelatedEntry>();
+	let pageTree: PageTree | undefined;
+	for (const row of await publishedEntries(scope, [...new Set(ids)])) {
+		const postType = byId.get(row.postTypeId);
+		if (!postType) continue;
+		const values = entryValues(storedVersion(row.published), postType.fields, languages);
+		let url: string | null = null;
+		if (isPagePostType(postType)) {
+			pageTree ??= await publishedPageTree(scope, postType.id, languages.language);
+			const parts = pathIn(pageTree, row.id);
+			url = parts ? pathText(parts) : null;
+		} else if (values.slug) {
+			url = pathFor(postType.urlPattern, values.slug);
+		}
+		related.set(row.id, {
+			fields: postType.fields,
+			values: values.fields,
+			builtIns: {
+				title: values.title,
+				slug: values.slug,
+				url,
+				createdAt: row.createdAt,
+				updatedAt: row.lastPublishedAt,
+				publishedAt: row.publishedAt,
+				lastPublishedAt: row.lastPublishedAt,
+			},
+		});
+	}
+	return related;
 }
 
 async function nameOf(scope: VisitorScope, personId: string): Promise<string | null> {

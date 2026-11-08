@@ -123,6 +123,25 @@ describe("Entries", () => {
 		async (api, target) => api.entries.publish({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
 		{ as: ["staff", "editor", "owner"] },
 	);
+	// Without a confirmation it only answers what deleting would do.
+	isolation.refuses(
+		"entries.delete",
+		async (api, target) => api.entries.delete({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Globals", () => {
+	isolation.refuses("globals.get", (api, { siteId }) => api.globals.get({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("globals.setFields", (api, { siteId }) =>
+		api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] }),
+	);
+	isolation.refuses("globals.saveDraft", (api, { siteId }) => api.globals.saveDraft({ siteId, fields: {} }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("globals.publish", (api, { siteId }) => api.globals.publish({ siteId }), {
+		as: ["staff", "editor"],
+	});
 });
 
 describe("Templates", () => {

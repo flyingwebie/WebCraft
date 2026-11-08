@@ -68,6 +68,8 @@ describe("creating an Entry", () => {
 			},
 			published: null,
 			path: null,
+			problems: [],
+			linkedFrom: [],
 		});
 		expect((await editor.api.entries.get({ siteId, entryId: entry.id })).entry).toEqual(entry);
 	});

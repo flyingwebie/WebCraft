@@ -38,6 +38,8 @@ export const PERMISSIONS = {
 	/** Edit Content and save Drafts. */
 	"entry.edit": ["site"],
 	"entry.publish": ["site"],
+	/** Delete an Entry, removing the links other Entries make to it. */
+	"entry.delete": ["site"],
 	"media.upload": ["site"],
 } as const satisfies Record<string, readonly Level[]>;
 
@@ -81,6 +83,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"structure.edit",
 			"entry.edit",
 			"entry.publish",
+			"entry.delete",
 			"media.upload",
 		],
 	},
@@ -94,12 +97,13 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"site.view",
 			"entry.edit",
 			"entry.publish",
+			"entry.delete",
 			"media.upload",
 		],
 	},
 	editor: {
 		reach: "membership",
-		permissions: ["workspace.view", "site.view", "entry.edit", "entry.publish", "media.upload"],
+		permissions: ["workspace.view", "site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
 	},
 	author: {
 		reach: "membership",

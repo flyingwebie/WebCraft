@@ -9,15 +9,20 @@ import {
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
+	ConfirmationInvalidError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
 	EntryInvalidError,
+	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	GlobalsIncompleteError,
+	GlobalsInvalidError,
 	IdentityCheckRequiredError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	MemberNotFoundError,
+	PageHasChildrenError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
@@ -70,6 +75,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EntryNotFoundError) {
 		return new ORPCError("ENTRY_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof PageHasChildrenError) {
+		return new ORPCError("PAGE_HAS_CHILDREN", {
+			status: 409,
+			message: error.message,
+			data: { children: error.children },
+			cause: error,
+		});
 	}
 	if (error instanceof PageNotFoundError) {
 		return new ORPCError("PAGE_NOT_FOUND", { status: 404, message: error.message, cause: error });
@@ -130,6 +143,38 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof PageParentUnpublishedError) {
 		return new ORPCError("PAGE_PARENT_UNPUBLISHED", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof EntryLinkedError) {
+		return new ORPCError("ENTRY_LINKED", {
+			status: 409,
+			message: error.message,
+			data: { blockedBy: error.blockedBy },
+			cause: error,
+		});
+	}
+	if (error instanceof GlobalsInvalidError) {
+		return new ORPCError("GLOBALS_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof GlobalsIncompleteError) {
+		return new ORPCError("GLOBALS_INCOMPLETE", {
+			status: 400,
+			message: error.message,
+			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof ConfirmationInvalidError) {
+		return new ORPCError("CONFIRMATION_INVALID", {
+			status: 409,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
 	}
 	if (error instanceof ElementTreeInvalidError) {
 		return new ORPCError("TEMPLATE_INVALID", {

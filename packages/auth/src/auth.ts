@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { and, desc, eq, gt, ne } from "drizzle-orm";
-import { type AccountLock, createLockout } from "./lockout.ts";
+import { type AccountLock, AccountLockedError, createLockout } from "./lockout.ts";
 import {
 	assertNewPasswordAllowed,
 	hashPassword,
@@ -93,8 +93,9 @@ export class InvalidCredentialsError extends Error {
 export type Auth = {
 	/**
 	 * Checks an email and password and starts a session. Answers the `Set-Cookie` values that carry
-	 * the session; throws `InvalidCredentialsError` when they don't match a person, and
-	 * `AccountLockedError` while the account is locked or when this wrong password locks it.
+	 * the session; throws `InvalidCredentialsError` when they don't match a person, and also while
+	 * the account is locked (and when this wrong password locks it), so the answer never tells which
+	 * addresses have an account.
 	 */
 	signIn(
 		input: { email: string; password: string },
@@ -111,7 +112,8 @@ export type Auth = {
 	/**
 	 * Checks the person's password again inside a session they are signed in with, and records the
 	 * check on that session alone. Throws `InvalidCredentialsError` when the password is wrong, and
-	 * `AccountLockedError` as signing in does: wrong passwords here count towards the lock too.
+	 * `AccountLockedError` when the account is locked: wrong passwords here count towards the lock too.
+	 * (The person is signed in, so saying so tells nobody anything new.)
 	 */
 	confirmIdentity(
 		session: Session,
@@ -164,8 +166,18 @@ export function createAuth(options: AuthOptions): Auth {
 				.select({ id: people.id })
 				.from(people)
 				.where(eq(people.email, normaliseEmail(email)));
-			// While locked, nothing is checked: not even the right password gets in.
-			if (person) await lockout.assertUnlocked(person.id);
+			// While locked, not even the right password gets in. The answer is the same as for a wrong
+			// password, and costs a password hash like one, so it never tells which addresses have an
+			// account; the person learns of the lock from its email.
+			if (person) {
+				try {
+					await lockout.assertUnlocked(person.id);
+				} catch (error) {
+					if (!(error instanceof AccountLockedError)) throw error;
+					await hashPassword(password);
+					throw new InvalidCredentialsError();
+				}
+			}
 			try {
 				const { headers: answer, response } = await library.api.signInEmail({
 					body: { email: email.trim(), password },
@@ -178,7 +190,12 @@ export function createAuth(options: AuthOptions): Auth {
 				return { personId: response.user.id, setCookie: answer.getSetCookie() };
 			} catch (error) {
 				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) {
-					if (person) await lockout.recordFailure(person.id, clientAddress);
+					if (person) {
+						// The wrong password that locks the account answers like any other.
+						await lockout.recordFailure(person.id, clientAddress).catch((lockError: unknown) => {
+							if (!(lockError instanceof AccountLockedError)) throw lockError;
+						});
+					}
 					throw new InvalidCredentialsError();
 				}
 				throw error;

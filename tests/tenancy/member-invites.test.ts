@@ -103,6 +103,7 @@ describe("accepting a Member invite", () => {
 			"site.view",
 			"entry.edit",
 			"entry.publish",
+			"entry.delete",
 			"media.upload",
 		]);
 		await expect(browser.api.sites.get({ siteId: careers.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });

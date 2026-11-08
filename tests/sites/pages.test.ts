@@ -307,3 +307,68 @@ describe("slugs and parents", () => {
 		expect(await titleAt(site, "/b/a")).toBe("A");
 	});
 });
+
+describe("deleting a Page", () => {
+	test("is refused while Pages are under it, in their Drafts or published; a home page that goes leaves / without a page", async () => {
+		const site = await newSite();
+		const about = await publishPage(site, "About");
+		const team = await publishPage(site, "Team", about);
+		const { entry: draftChild } = await editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.pagesId,
+			title: "Careers",
+			parentId: team,
+		});
+		await staff.api.pages.setHomePage({ siteId: site.siteId, pageId: about });
+
+		for (const entryId of [about, team]) {
+			await expect(editor.api.entries.delete({ siteId: site.siteId, entryId })).rejects.toMatchObject({
+				code: "PAGE_HAS_CHILDREN",
+				status: 409,
+				data: { children: 1 },
+			});
+		}
+
+		const deleteNow = async (entryId: string) => {
+			const { confirmation } = await editor.api.entries.delete({ siteId: site.siteId, entryId });
+			await editor.api.entries.delete({ siteId: site.siteId, entryId, confirmation: confirmation?.id });
+		};
+		await deleteNow(draftChild.id);
+		await deleteNow(team);
+		await deleteNow(about);
+
+		expect(await titleAt(site, "/")).toBe(404);
+		expect(await titleAt(site, "/about")).toBe(404);
+		expect((await staff.api.pages.settings({ siteId: site.siteId })).settings.homePage).toBeNull();
+	});
+});
+
+describe("a Relationship that points at a Page", () => {
+	test("gives the Page's path as its url", async () => {
+		const site = await newSite();
+		const about = await publishPage(site, "About");
+		const team = await publishPage(site, "Team", about);
+		const { postType } = await staff.api.postTypes.create({
+			siteId: site.siteId,
+			name: "Blog posts",
+			urlPattern: "/blog/{slug}",
+			fields: [{ key: "seeAlso", label: "See also", type: "relationship", postTypes: ["page"], multiple: false }],
+		});
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId: site.siteId,
+			postTypeId: postType.id,
+			markup: '<article><a href="{{ seeAlso.url }}">{{ seeAlso.title }}</a></article>',
+		});
+		await staff.api.templates.publish({ siteId: site.siteId, templateId: saved.template.id });
+		const { entry } = await editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: postType.id,
+			title: "Meet the bakers",
+			fields: { seeAlso: team },
+		});
+		await editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
+
+		const html = await (await install.request(`${site.origin}/blog/meet-the-bakers`)).text();
+		expect(html).toContain('<article><a href="/about/team">Team</a></article>');
+	});
+});

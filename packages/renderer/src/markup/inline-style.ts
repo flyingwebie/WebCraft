@@ -8,8 +8,11 @@ import { safeUrl } from "../escape.ts";
 
 const PROPERTY = /^(?:--[A-Za-z0-9_-]+|-?[A-Za-z][A-Za-z0-9-]*)$/;
 
-/** Words that only ever meant script in CSS. */
-const SCRIPT_IN_CSS = /expression\s*\(|javascript:|vbscript:|-moz-binding|behavior\s*:/i;
+/** Words that only ever meant script in CSS values. */
+const SCRIPT_IN_CSS = /expression\s*\(|javascript:|vbscript:/i;
+
+/** Properties that only ever loaded script into a page. */
+const SCRIPT_PROPERTY = /^(?:-moz-binding|-ms-behavior|behavior)$/i;
 
 /**
  * Reads an inline style's declarations. Answers them in canonical form (empty for a style with
@@ -28,6 +31,7 @@ export function readInlineStyle(style: string): { declarations: string } | { pro
 		if (/[{}<>\\]/.test(value)) return { problem: `The value of ${rawProperty} can't hold {, }, <, > or \\.` };
 		const unsafeUrl = urlsIn(value).find((url) => safeUrl(url) !== url);
 		if (unsafeUrl !== undefined) return { problem: `${unsafeUrl} isn't an address a style may use.` };
+		if (SCRIPT_PROPERTY.test(rawProperty)) return { problem: `${rawProperty} isn't allowed in a style.` };
 		if (SCRIPT_IN_CSS.test(value)) return { problem: `The value of ${rawProperty} isn't allowed.` };
 		const property = rawProperty.startsWith("--") ? rawProperty : rawProperty.toLowerCase();
 		declarations.push(`${property}: ${value};`);

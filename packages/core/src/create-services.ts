@@ -5,9 +5,11 @@ import { listAuditEntries } from "./audit.ts";
 import {
 	createEntry,
 	createPostType,
+	deleteEntry,
 	getEntry,
 	getEntryTemplate,
 	getEntryTemplateMarkup,
+	getGlobals,
 	getPostType,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
@@ -18,8 +20,10 @@ import {
 	saveDraft,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
+	saveGlobalsDraft,
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
+	setGlobalFields,
 	setSpecialPage,
 	updatePostType,
 } from "./content/index.ts";
@@ -105,7 +109,8 @@ export async function createInstallServices(
 			stagingUrl: (site) => stagingUrl(config, site.slug),
 		},
 		postTypes: { list: listPostTypes, get: getPostType, create: createPostType, update: updatePostType },
-		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft },
+		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft, delete: deleteEntry },
+		globals: { get: getGlobals, setFields: setGlobalFields, saveDraft: saveGlobalsDraft },
 		templates: {
 			entryTemplate: getEntryTemplate,
 			saveEntryTemplate,

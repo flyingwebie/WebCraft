@@ -6,8 +6,10 @@ import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
-import { entryValues, lockEntry, siteLanguages } from "./entries.ts";
+import { entryValues, lockEntry, siteLanguages, versionFindings } from "./entries.ts";
 import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
+import { linksIn } from "./field-values.ts";
+import { publishGlobals } from "./globals.ts";
 import { clearPageCache } from "./page-cache.ts";
 import {
 	checkPublishedParent,
@@ -21,15 +23,16 @@ import {
 	publishedPageTree,
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
+import { checkReferences, saveLinks } from "./relationships.ts";
 import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
 import { pathFor } from "./url-patterns.ts";
 import { storedVersion } from "./values.ts";
 
 /**
- * One item to publish. Globals, Components, Forms and the Design system join Entries and Templates;
- * Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
+ * One item to publish. Components, Forms and the Design system join Entries, Templates and the
+ * Globals; Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
  */
-export type PublishItem = { kind: "entry"; id: string } | { kind: "template"; id: string };
+export type PublishItem = { kind: "entry"; id: string } | { kind: "template"; id: string } | { kind: "globals" };
 
 /** A published path that a publish changed: where visitors found an Entry or Page, and where now. */
 export type PathChange = { entryId: string; language: string; from: string; to: string };
@@ -41,11 +44,11 @@ export type PathChange = { entryId: string; language: string; from: string; to: 
 export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Date; pathChanges: PathChange[] };
 
 /**
- * The Permission publishing an item needs: Content takes `entry.publish` (Editors, Owners, Staff);
- * Structure, such as a Template, takes `structure.edit` (Staff only).
+ * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
+ * (Editors, Owners, Staff); Structure, such as a Template, takes `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
-	return item.kind === "entry" ? "entry.publish" : "structure.edit";
+	return item.kind === "template" ? "structure.edit" : "entry.publish";
 }
 
 /**
@@ -54,17 +57,24 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
  * the new version with the next request. Open the Site with `publishPermission(item)`; the check runs
  * again here, so every caller (the admin, the worker's Scheduled publishes) holds it.
  *
- * Refuses an Entry whose required values are empty (`EntryIncompleteError`) or whose slug another
- * published Entry of its Post Type has (`EntrySlugTakenError`; for a Page, another published Page
- * under the same parent), a Page whose parent Page isn't published (`PageParentUnpublishedError`),
- * and a Template that no longer fits what it renders (`ElementTreeInvalidError`).
+ * Refuses an Entry (or the Globals) whose values break a rule (`EntryInvalidError`) or whose required
+ * values are empty (`EntryIncompleteError`), an Entry whose slug another published Entry of its Post
+ * Type has (`EntrySlugTakenError`; for a Page, another published Page under the same parent), a Page
+ * whose parent Page isn't published (`PageParentUnpublishedError`) or whose path, or that of a Page
+ * under it, a Post Type's URL pattern owns (`PathTakenError`), and a Template that no longer fits
+ * what it renders (`ElementTreeInvalidError`).
  */
 export async function publish(scope: SiteScope, item: PublishItem): Promise<Published> {
 	const permission = publishPermission(item);
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
 	return scope.transaction(async (tx) => {
-		const published = item.kind === "entry" ? await publishEntry(tx, item.id) : await publishTemplate(tx, item.id);
+		const published =
+			item.kind === "entry"
+				? await publishEntry(tx, item.id)
+				: item.kind === "template"
+					? await publishTemplate(tx, item.id)
+					: await publishGlobals(tx);
 		await clearPageCache(tx);
 		return published;
 	});
@@ -74,14 +84,13 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 	const row = await lockEntry(scope, entryId);
 	const postType = await getPostType(scope, row.postTypeId);
 	const { defaultLanguage } = await siteLanguages(scope);
+	const languages = { language: defaultLanguage, defaultLanguage };
 	const draft = storedVersion(row.draft);
-	const values = entryValues(draft, postType.fields, { language: defaultLanguage, defaultLanguage });
-	const missing = [
-		...(values.title ? [] : ["title"]),
-		...(values.slug ? [] : ["slug"]),
-		...postType.fields.filter((field) => field.required && !values.fields[field.key]).map((field) => field.key),
-	];
-	if (missing.length > 0) throw new EntryIncompleteError(missing);
+	const findings = versionFindings(draft, postType.fields, languages);
+	await checkReferences(scope, findings.references, "rule");
+	if (findings.problems.some((problem) => problem.rule !== "required")) throw new EntryInvalidError(findings.problems);
+	if (findings.missing.length > 0) throw new EntryIncompleteError(findings.missing);
+	const values = entryValues(draft, postType.fields, languages);
 	const parentId = isPagePostType(postType) ? parentIn(draft, defaultLanguage) : null;
 	const paths = isPagePostType(postType)
 		? await pagePaths(scope, postType, row.id, { parentId, slug: values.slug }, defaultLanguage)
@@ -93,6 +102,7 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 		{ published: draft, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
 		eq(entries.id, row.id),
 	);
+	await saveLinks(scope, row.id, "published", linksIn(draft.values, postType.fields));
 	await scope.delete(publishedSlugs, eq(publishedSlugs.entryId, row.id));
 	try {
 		await scope.insert(publishedSlugs, {
@@ -182,6 +192,8 @@ async function pagePaths(
 
 async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
 	const row = await lockTemplate(scope, templateId);
+	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes)
+	// may have changed since the Draft was saved.
 	const tree = await checkTemplateForPublish(scope, row);
 	const now = scope.now();
 	await scope.update(

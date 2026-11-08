@@ -35,30 +35,51 @@ async function failTimes(account: Pick<TestAccount, "email">, times: number) {
 }
 
 describe("lockout", () => {
+	// Signing in never says an account is locked: that would tell a guesser the address has an
+	// account. The person learns it from the email the lock sends.
 	test("10 wrong passwords in a row lock the account for 15 minutes: even the right password is refused", async () => {
 		const person = await newPerson();
-		await failTimes(person, 9);
+		await failTimes(person, 10);
 
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({
-			code: "ACCOUNT_LOCKED",
-			status: 423,
-			data: { retryAfterSeconds: 15 * 60 },
-		});
 		await install.clock.advance(5 * MINUTE);
-		await expect(attempt(person, person.password)).rejects.toMatchObject({
-			code: "ACCOUNT_LOCKED",
-			data: { retryAfterSeconds: 10 * 60 },
-		});
+		await expect(attempt(person, person.password)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
+	});
+
+	test("a locked account answers exactly like an address with no account", async () => {
+		const person = await newPerson();
+		const nobody = { email: "nobody-here@client.example" };
+		for (let attempts = 0; attempts < 10; attempts++) {
+			for (const account of [person, nobody]) {
+				await expect(attempt(account, WRONG)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
+			}
+		}
+
+		const answers = await Promise.all(
+			[person, nobody].map((account) =>
+				install.request(install.adminUrl("/api/rpc/session/signIn"), {
+					method: "POST",
+					headers: { "content-type": "application/json", origin: "https://admin.test" },
+					body: JSON.stringify({ json: { email: account.email, password: WRONG } }),
+				}),
+			),
+		);
+		const [locked, unknown] = await Promise.all(
+			answers.map(async (response) => ({
+				status: response.status,
+				retryAfter: response.headers.get("retry-after"),
+				body: await response.json(),
+			})),
+		);
+		expect(locked).toEqual(unknown);
 	});
 
 	test("the account unlocks by itself after 15 minutes, and trying while locked doesn't make it longer", async () => {
 		const person = await newPerson();
-		await failTimes(person, 9);
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
+		await failTimes(person, 10);
 
 		await install.clock.advance(14 * MINUTE);
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
-		await expect(attempt(person, person.password)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
+		await failTimes(person, 1);
+		await expect(attempt(person, person.password)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
 		await install.clock.advance(MINUTE);
 
 		await expect(attempt(person, person.password)).resolves.toMatchObject({ person: { email: person.email } });
@@ -66,12 +87,13 @@ describe("lockout", () => {
 
 	test("after it unlocks, it takes 10 more wrong passwords to lock it again", async () => {
 		const person = await newPerson();
-		await failTimes(person, 9);
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
+		await failTimes(person, 10);
 		await install.clock.advance(15 * MINUTE);
 
 		await failTimes(person, 9);
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
+		await expect(attempt(person, person.password)).resolves.toBeDefined();
+		await failTimes(person, 10);
+		await expect(attempt(person, person.password)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
 	});
 
 	test("a right password starts the count again: only failures in a row lock", async () => {
@@ -83,26 +105,9 @@ describe("lockout", () => {
 		await expect(attempt(person, person.password)).resolves.toBeDefined();
 	});
 
-	test("the Retry-After header says how long to wait", async () => {
-		const person = await newPerson();
-		await failTimes(person, 10 - 1);
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
-
-		const response = await install.request(install.adminUrl("/api/rpc/session/signIn"), {
-			method: "POST",
-			headers: { "content-type": "application/json", origin: "https://admin.test" },
-			body: JSON.stringify({ json: { email: person.email, password: person.password } }),
-		});
-
-		expect(response.status).toBe(423);
-		expect(response.headers.get("retry-after")).toBe(String(15 * 60));
-	});
-
 	test("the person is emailed, once, in their Admin language", async () => {
 		const person = await newPerson();
-		await failTimes(person, 9);
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
-		await expect(attempt(person, WRONG)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
+		await failTimes(person, 12);
 
 		const email = await install.lastEmailTo(person.email);
 		expect(email.subject).toBe("Your account is locked for a while");
@@ -117,7 +122,7 @@ describe("lockout", () => {
 	test("is recorded in the Audit log, with where the last attempt came from", async () => {
 		const person = await newPerson();
 		await failTimes(person, 9);
-		await expect(attempt(person, WRONG, "203.0.113.66")).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
+		await expect(attempt(person, WRONG, "203.0.113.66")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
 
 		const admin = await install.superadmin();
 		const [entry] = (await admin.api.audit.list({ limit: 1 })).entries;
@@ -153,7 +158,8 @@ describe("lockout", () => {
 			code: "ACCOUNT_LOCKED",
 		});
 		expect(await browser.api.session.current()).toMatchObject({ person: { email: person.email } });
-		await expect(attempt(person, person.password)).rejects.toMatchObject({ code: "ACCOUNT_LOCKED" });
+		// Signing in elsewhere is refused like a wrong password.
+		await expect(attempt(person, person.password)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
 	});
 
 	test("an address nobody signs in with never locks, so the answer never tells which addresses exist", async () => {

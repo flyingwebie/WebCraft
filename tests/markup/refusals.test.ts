@@ -213,6 +213,14 @@ describe("limits", () => {
 		await refuses(`{{@if ${chain}}}x{{/if}}`, 1, 6, "A test nests at most 32 deep");
 	});
 
+	test("a very long and/or chain is refused the same way, not crashed on", async () => {
+		for (const joiner of [" and ", " or "]) {
+			const chain = Array.from({ length: 40_000 }, () => "title").join(joiner);
+
+			await refuses(`{{@if ${chain}}}x{{/if}}`, 1, 6, "A test nests at most 32 deep");
+		}
+	});
+
 	test("a Template holds at most 10,000 nodes", async () => {
 		const problems = await problemsOf("<br>".repeat(10_001));
 

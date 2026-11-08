@@ -245,3 +245,47 @@ describe("Entry templates", () => {
 		).rejects.toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0]" }] } });
 	});
 });
+
+describe("the Site template's values", () => {
+	test("are the Site's Globals, as site.x: one footer phone number for every page", async () => {
+		const { siteId, url } = await siteWithPost();
+		await staff.api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] });
+		await editor.api.globals.saveDraft({ siteId, fields: { phone: "+353 21 000 0000" } });
+		await editor.api.globals.publish({ siteId });
+
+		const saved = await staff.api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: '<main>{{@outlet}}</main><footer><a href="tel:{{ site.phone }}">{{ site.phone }}</a></footer>',
+		});
+		await staff.api.templates.publish({ siteId, templateId: saved.template.id });
+
+		expect(await bodyOf(url)).toEndWith('<footer><a href="tel:+353 21 000 0000">+353 21 000 0000</a></footer>');
+	});
+
+	test("never an Entry's own: the Site template wraps every page, whatever it shows", async () => {
+		const { siteId } = await siteWithPost();
+
+		for (const markup of [
+			"<main>{{@outlet}}</main><p>{{ title }}</p>",
+			"<main>{{@outlet}}</main><p>{{ site.phone }}</p>",
+		]) {
+			await expect(staff.api.templates.saveSiteTemplateMarkup({ siteId, markup })).rejects.toMatchObject({
+				code: "TEMPLATE_MARKUP_INVALID",
+			});
+		}
+	});
+
+	test("a Global the published Site template reads can't be lost from under it when it is published again", async () => {
+		const { siteId } = await siteWithPost();
+		await staff.api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] });
+		const saved = await staff.api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: "<main>{{@outlet}}</main><footer>{{ site.phone }}</footer>",
+		});
+		await staff.api.globals.setFields({ siteId, fields: [] });
+
+		await expect(staff.api.templates.publish({ siteId, templateId: saved.template.id })).rejects.toMatchObject({
+			code: "TEMPLATE_INVALID",
+		});
+	});
+});

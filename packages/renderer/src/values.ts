@@ -13,14 +13,22 @@ export function richText(html: string): RichText {
 	return { type: "richText", html };
 }
 
-/** A value a binding reads. `null` and `undefined` render as nothing. */
-export type TemplateValue = string | number | boolean | Date | RichText | null | undefined;
+/**
+ * A value a binding reads. `null` and `undefined` render as nothing. A list (a multi-select's labels,
+ * a Repeater's Field across its rows, the Entries a Relationship points at) renders as its values
+ * joined with commas, until Loops show them one by one.
+ */
+export type TemplateValue = string | number | boolean | Date | RichText | readonly TemplateValue[] | null | undefined;
 
 /** Reads the value a binding names. */
 export type ValueReader = (path: string) => TemplateValue;
 
-function isRichText(value: TemplateValue): value is RichText {
-	return typeof value === "object" && value !== null && !(value instanceof Date);
+export function isList(value: TemplateValue): value is readonly TemplateValue[] {
+	return Array.isArray(value);
+}
+
+export function isRichText(value: TemplateValue): value is RichText {
+	return typeof value === "object" && value !== null && !(value instanceof Date) && !Array.isArray(value);
 }
 
 /** A date as visitors read it when no formatter says otherwise: `2026-03-02`, in UTC. */
@@ -28,23 +36,30 @@ export function isoDay(date: Date): string {
 	return date.toISOString().slice(0, 10);
 }
 
-/** A value as plain text: dates as `2026-03-02`, rich text without its markup. */
+/** A value as plain text: dates as `2026-03-02`, rich text without its markup, a list joined with commas. */
 export function textOf(value: TemplateValue): string {
 	if (value === null || value === undefined) return "";
+	if (isList(value)) return joinList(value.map(textOf));
 	if (typeof value === "string") return value;
 	if (typeof value === "number" || typeof value === "boolean") return String(value);
 	if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : isoDay(value);
 	return richTextToText(value.html);
 }
 
-/** Whether a value is there: not missing, not blank text, not false, not empty rich text. */
+/** A list's values as text, the empty ones left out, joined with commas. */
+export function joinList(texts: readonly string[]): string {
+	return texts.filter((text) => text !== "").join(", ");
+}
+
+/** Whether a value is there: not missing, not blank text, not false, not empty rich text, not an empty list. */
 export function isPresent(value: TemplateValue): boolean {
 	if (value === null || value === undefined) return false;
+	if (isList(value)) return value.some(isPresent);
 	if (typeof value === "boolean") return value;
 	if (typeof value === "number") return !Number.isNaN(value);
 	if (value instanceof Date) return !Number.isNaN(value.getTime());
 	if (isRichText(value)) return richTextToText(value.html).trim() !== "";
-	return value.trim() !== "";
+	return typeof value === "string" && value.trim() !== "";
 }
 
 function isEmpty(value: TemplateValue): boolean {

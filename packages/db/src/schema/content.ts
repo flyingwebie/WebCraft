@@ -173,6 +173,114 @@ export const templates = pgTable(
 );
 
 /**
+ * The links Relationship values make: one row per Entry, version, Relationship Field and Entry
+ * pointed at, written whenever a Draft is saved or published. The values themselves stay in the
+ * versions; these rows let WebCraft find what points at an Entry (the link back of a two-way
+ * Relationship, and what deleting it would unlink) with one indexed lookup. Rows go when either
+ * Entry is deleted.
+ */
+export const entryLinks = pgTable(
+	"entry_links",
+	{
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** The Entry whose Relationship value makes the link. */
+		entryId: uuid("entry_id").notNull(),
+		/** Which version of it: `draft` or `published`. */
+		version: text("version").notNull(),
+		/** The Relationship Field's definition path, such as `categories` or `team.person` inside a Repeater. */
+		field: text("field").notNull(),
+		/** The Entry pointed at. */
+		targetId: uuid("target_id").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.entryId, table.version, table.field, table.targetId] }),
+		foreignKey({
+			name: "entry_links_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "entry_links_entry_fkey",
+			columns: [table.siteId, table.entryId],
+			foreignColumns: [entries.siteId, entries.id],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "entry_links_target_fkey",
+			columns: [table.siteId, table.targetId],
+			foreignColumns: [entries.siteId, entries.id],
+		}).onDelete("cascade"),
+		index("entry_links_site_id_target_id_idx").on(table.siteId, table.targetId),
+	],
+);
+
+/**
+ * A Site's Globals: one set of Fields per Site (its phone number, address, footer text), defined by
+ * Staff, with values in a Draft and a published version like an Entry's. Field changes apply at once;
+ * values go live when the Globals are published. The row is made the first time it is needed.
+ */
+export const globals = pgTable(
+	"globals",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** The Fields, in order: a JSON list of Field definitions. */
+		fields: jsonb("fields").notNull().default(sql`'[]'::jsonb`),
+		/** The Draft values. */
+		draft: jsonb("draft").notNull(),
+		/** The published values visitors see; null until the first publish. */
+		published: jsonb("published"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		/** When the Fields or the Draft last changed. */
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		publishedAt: timestamp("published_at", { withTimezone: true }),
+		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
+	},
+	(table) => [
+		foreignKey({
+			name: "globals_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		unique("globals_site_id_unique").on(table.siteId),
+	],
+);
+
+/**
+ * Two-step confirmations (spec › Management API): the first call of a destructive procedure answers
+ * a preview (how many links deleting an Entry removes) and the id of one of these rows; the second
+ * call passes the id back to go ahead. A confirmation belongs to one person, one action and one
+ * target, holds the preview it was given for, lasts 5 minutes and works once.
+ */
+export const confirmations = pgTable(
+	"confirmations",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		/** What is confirmed, as an Audit log action: `entry.delete`. */
+		action: text("action").notNull(),
+		/** What it is done to, such as the Entry's id. */
+		target: text("target").notNull(),
+		/** The preview the person saw; the action goes ahead only while it is still the same. */
+		preview: jsonb("preview").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			name: "confirmations_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+	],
+);
+
+/**
  * The Pages a Site gives a special job: `home` answers at `/`, and `notFound` answers every path with
  * no page, with status 404. Staff choose them (Structure); a Page that is deleted gives its job up,
  * and the Site falls back to no home page and the built-in 404 page.

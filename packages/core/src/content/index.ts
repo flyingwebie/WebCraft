@@ -1,10 +1,13 @@
 // The content store (spec › Content store) and publishing: Post Types with their Fields, Entries
-// with a Draft and a published version, Templates stored as element trees, and publishing one item.
+// with a Draft and a published version, the Globals, Templates stored as element trees, and
+// publishing one item.
 export {
 	createEntry,
 	type DraftChange,
+	deleteEntry,
 	ENTRY_TITLE_MAX_LENGTH,
 	type Entry,
+	type EntryDeletion,
 	type EntryStatus,
 	type EntryValues,
 	getEntry,
@@ -16,8 +19,12 @@ export {
 	type ContentProblem,
 	EntryIncompleteError,
 	EntryInvalidError,
+	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	GlobalsIncompleteError,
+	GlobalsInvalidError,
+	PageHasChildrenError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
@@ -31,15 +38,30 @@ export {
 export {
 	BUILT_IN_FIELDS,
 	type BuiltInField,
+	DATE_MODES,
+	type DateMode,
+	FIELD_HELP_MAX_LENGTH,
 	FIELD_LABEL_MAX_LENGTH,
 	FIELD_TYPES,
 	type FieldDefinition,
 	type FieldInput,
 	type FieldType,
+	type Json,
+	type LinkValue,
+	MAX_FIELD_DEPTH,
 	MAX_FIELDS,
+	MAX_ROWS,
 	RICH_TEXT_VALUE_MAX_LENGTH,
+	type SelectOption,
 	TEXT_VALUE_MAX_LENGTH,
 } from "./fields.ts";
+export {
+	type Globals,
+	type GlobalsChange,
+	getGlobals,
+	saveGlobalsDraft,
+	setGlobalFields,
+} from "./globals.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
@@ -52,6 +74,7 @@ export {
 	updatePostType,
 } from "./post-types.ts";
 export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
+export type { LinkBack } from "./relationships.ts";
 export {
 	type ChosenPage,
 	getSpecialPages,

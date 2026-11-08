@@ -10,7 +10,7 @@ import {
 	type ValueNode,
 	VOID_ELEMENTS,
 } from "./tree.ts";
-import { type TemplateValue, textOf, type ValueReader } from "./values.ts";
+import { isList, isRichText, joinList, type TemplateValue, textOf, type ValueReader } from "./values.ts";
 
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
@@ -52,11 +52,8 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 			return escapeText(node.text);
 		case "comment":
 			return "";
-		case "value": {
-			const value = options.values(node.path);
-			if (!node.format && isRichText(value)) return cleanRichText(value.html);
-			return escapeText(valueText(node, value, options));
-		}
+		case "value":
+			return valueHtml(node, options.values(node.path), options);
 		case "element": {
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
@@ -80,12 +77,16 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 	});
 }
 
-function isRichText(value: TemplateValue): value is { type: "richText"; html: string } {
-	return typeof value === "object" && value !== null && !(value instanceof Date);
+/** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */
+function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions): string {
+	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options)));
+	if (!node.format && isRichText(value)) return cleanRichText(value.html);
+	return escapeText(valueText(node, value, options));
 }
 
-/** A value as text, through its formatter when it has one. */
-function valueText(node: ValueNode, value: TemplateValue, options: RenderOptions): string {
+/** A value as text, through its formatter when it has one (each of a list's values through it). */
+function valueText(node: Pick<ValueNode, "format">, value: TemplateValue, options: RenderOptions): string {
+	if (isList(value)) return joinList(value.map((item) => valueText(node, item, options)));
 	return node.format ? applyFormat(value, node.format, options.language ?? "en") : textOf(value);
 }
 

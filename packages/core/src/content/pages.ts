@@ -8,7 +8,7 @@ import { BUILT_IN_FIELDS } from "./fields.ts";
 import { siteLanguages } from "./languages.ts";
 import type { PostType } from "./post-types.ts";
 import { bySpecificity, canonicalPath, ENTRY_SLUG, parseUrlPattern, slugIn, type UrlPattern } from "./url-patterns.ts";
-import { type EntryVersion, readValue, storedVersion, type ValuePlace } from "./values.ts";
+import { type EntryVersion, type LanguageValue, readValue, storedVersion, type Writer } from "./values.ts";
 
 /**
  * Pages: the Entries of the built-in Page Post Type every Site has. A Page is arranged with a Page
@@ -50,14 +50,44 @@ export function isPagePostType(postType: { builtIn: string | null }): boolean {
 /** How deep Pages nest: a Page's path has at most this many parts. */
 export const MAX_PAGE_DEPTH = 10;
 
-/** Where a Page's parent is stored in each version: one value shared by every language. */
-export function parentPlace(defaultLanguage: string): ValuePlace {
-	return { key: "parent", translatable: false, language: defaultLanguage, defaultLanguage };
+/**
+ * The parent Page a version names, or null for a top-level Page. It is stored beside `title` and
+ * `slug` as `parent`: one value shared by every language, under the Default language.
+ */
+export function parentIn(version: EntryVersion, defaultLanguage: string): string | null {
+	const byLanguage = version.values.parent as Record<string, LanguageValue | undefined> | undefined;
+	const value = byLanguage?.[defaultLanguage]?.value;
+	return typeof value === "string" ? value : null;
 }
 
-/** The parent Page a version names, or null for a top-level Page. */
-export function parentIn(version: EntryVersion, defaultLanguage: string): string | null {
-	return readValue(version, parentPlace(defaultLanguage));
+/** A version with a new parent Page (null for the top level); an unchanged parent keeps its writer. */
+export function withParent(
+	version: EntryVersion,
+	parentId: string | null,
+	defaultLanguage: string,
+	by: Writer,
+): EntryVersion {
+	const byLanguage = { ...((version.values.parent ?? {}) as Record<string, LanguageValue>) };
+	if (parentId === null) delete byLanguage[defaultLanguage];
+	else if (byLanguage[defaultLanguage]?.value !== parentId) byLanguage[defaultLanguage] = { value: parentId, by };
+	return { values: { ...version.values, parent: byLanguage } };
+}
+
+/** How many Pages name a Page as their parent, in their Draft or published. */
+export async function childPagesOf(
+	scope: Pick<SiteScope, "select">,
+	page: { id: string; postTypeId: string },
+	defaultLanguage: string,
+): Promise<number> {
+	const published = await scope.select(publishedSlugs, eq(publishedSlugs.parentId, page.id));
+	const drafts = await scope.select(
+		entries,
+		and(
+			eq(entries.postTypeId, page.postTypeId),
+			sql`${entries.draft} -> 'values' -> 'parent' -> ${defaultLanguage}::text ->> 'value' = ${page.id}::text`,
+		),
+	);
+	return new Set([...published.map((row) => row.entryId), ...drafts.map((row) => row.id)]).size;
 }
 
 /**
@@ -222,7 +252,6 @@ export async function checkPatternLeavesPages(
 		const title =
 			readValue(storedVersion(row?.published), {
 				key: "title",
-				translatable: true,
 				language: defaultLanguage,
 				defaultLanguage,
 			}) ?? "";

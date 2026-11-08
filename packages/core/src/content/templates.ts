@@ -1,4 +1,4 @@
-import { templates } from "@webcraft/db/schema";
+import { globals, templates } from "@webcraft/db/schema";
 import {
 	checkSiteTemplate,
 	type ElementTree,
@@ -13,11 +13,13 @@ import { and, eq, isNull, type SQL } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { sameJson } from "./entries.ts";
 import { PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.ts";
-import { BUILT_IN_FIELDS } from "./fields.ts";
+import type { FieldDefinition } from "./field-types.ts";
+import { storedFields } from "./fields.ts";
+import { sameJson } from "./json.ts";
 import { isPagePostType } from "./pages.ts";
-import { getPostType, type PostType, UUID } from "./post-types.ts";
+import { getPostType, listPostTypes, type PostType, UUID } from "./post-types.ts";
+import { knownValues } from "./render-values.ts";
 
 /**
  * The kinds of Template: the Site template (one per Site, around every page) and Entry templates
@@ -53,38 +55,68 @@ export type SavedTemplateMarkup = { template: Template; markup: string; notices:
 /** A Template's Draft and published version as Template markup. */
 export type TemplateMarkup = { draft: string; published: string | null };
 
+/** What an Entry template's values may come from: its Post Type, what Relationships point at, the Globals. */
+export type EntryTemplateContext = {
+	postType: PostType;
+	/** Every Post Type of the Site, for what Relationships point at. */
+	postTypes: readonly PostType[];
+	/** The Globals' Fields, for `site.x`. */
+	globalFields: readonly FieldDefinition[];
+};
+
 /**
- * What an Entry template of `postType` may hold: the built-in Fields and its Fields, and neither
- * `<main>` nor `{{@outlet}}` (both belong to the Site template around it).
+ * What an Entry template may hold: the built-in Fields, the Post Type's Fields and their parts
+ * (`address.city`, `team.name`, what a Relationship points at: `category.title`) and the Globals as
+ * `site.x` (see `render-values.ts`); neither `<main>` nor `{{@outlet}}`, which are the Site
+ * template's, around it.
  */
-function entryTemplateRules(postType: PostType) {
-	const names = new Set<string>([...BUILT_IN_FIELDS, ...postType.fields.map((field) => field.key)]);
+function entryTemplateRules(context: EntryTemplateContext) {
 	return {
-		isKnownValue: (path: string) => names.has(path),
+		isKnownValue: knownValues({
+			fields: context.postType.fields,
+			postTypes: context.postTypes,
+			globalFields: context.globalFields,
+		}),
 		refuseElement: (tag: string) =>
 			tag === "main" ? "An Entry template renders inside the page's <main>; it can't hold another." : undefined,
 		refuseCommand: refuseSiteTemplateCommands,
 	};
 }
 
-/**
- * What the Site template may hold: one <main> at the top level of the page, holding the one
- * `{{@outlet}}` (`checkSiteTemplate`). It reads no values yet; the Globals join them.
- */
-function siteTemplateRules() {
-	return { isKnownValue: (_path: string) => false, checkTree: checkSiteTemplate };
+/** The Site as an Entry template of `postTypeId` reads it now. */
+async function entryTemplateContext(scope: SiteScope, postTypeId: string): Promise<EntryTemplateContext> {
+	const postType = await getPostType(scope, postTypeId);
+	const postTypes = await listPostTypes(scope);
+	return { postType, postTypes, globalFields: await globalFieldsOf(scope) };
 }
 
-/** Which Template a save or read is about: a Post Type's Entry template, or the Site template. */
-type TemplateTarget = { kind: "entry"; postType: PostType } | { kind: "site" };
+/** The Globals' Fields, which Templates read as `site.x`. */
+async function globalFieldsOf(scope: Pick<SiteScope, "first">): Promise<FieldDefinition[]> {
+	return storedFields((await scope.first(globals))?.fields);
+}
+
+/**
+ * What the Site template may hold: the Globals as `site.x` (it wraps every page, so it reads no
+ * Entry's values), and one <main> at the top level of the page holding the one `{{@outlet}}`
+ * (`checkSiteTemplate`).
+ */
+function siteTemplateRules(globalFields: readonly FieldDefinition[]) {
+	const known = knownValues({ fields: [], postTypes: [], globalFields });
+	return { isKnownValue: (path: string) => path.startsWith("site.") && known(path), checkTree: checkSiteTemplate };
+}
+
+/** Which Template a save or read is about, with what it may read: an Entry template, or the Site template. */
+type TemplateTarget =
+	| { kind: "entry"; context: EntryTemplateContext }
+	| { kind: "site"; globalFields: readonly FieldDefinition[] };
 
 function rulesFor(target: TemplateTarget) {
-	return target.kind === "entry" ? entryTemplateRules(target.postType) : siteTemplateRules();
+	return target.kind === "entry" ? entryTemplateRules(target.context) : siteTemplateRules(target.globalFields);
 }
 
 function whereFor(target: TemplateTarget): SQL {
 	return target.kind === "entry"
-		? (and(eq(templates.kind, "entry"), eq(templates.postTypeId, target.postType.id)) as SQL)
+		? (and(eq(templates.kind, "entry"), eq(templates.postTypeId, target.context.postType.id)) as SQL)
 		: (and(eq(templates.kind, "site"), isNull(templates.postTypeId)) as SQL);
 }
 
@@ -93,13 +125,16 @@ function parseTemplate(tree: unknown, target: TemplateTarget, classIds: Readonly
 	return parseElementTree(tree, { ...rulesFor(target), classIds });
 }
 
-/**
- * Checks a tree as an Entry template of `postType` and answers it in canonical form. It may read the
- * built-in Fields and the Post Type's Fields, and reference the Site's Classes (`classIds`); `<main>`
- * belongs to the Site template, around it. Throws `ElementTreeInvalidError` listing what is wrong.
- */
-export function parseEntryTemplate(tree: unknown, postType: PostType, classIds: ReadonlySet<string>): ElementTree {
-	return parseElementTree(tree, { ...entryTemplateRules(postType), classIds });
+/** An Entry template to save: Pages have none, being arranged with a Page layout (`PagesHaveNoEntryTemplateError`). */
+async function entryTemplateTarget(scope: SiteScope, postTypeId: string): Promise<TemplateTarget> {
+	const context = await entryTemplateContext(scope, postTypeId);
+	if (isPagePostType(context.postType)) throw new PagesHaveNoEntryTemplateError();
+	return { kind: "entry", context };
+}
+
+/** The Site template to save, with the Globals it may read. */
+async function siteTemplateTarget(scope: SiteScope): Promise<TemplateTarget> {
+	return { kind: "site", globalFields: await globalFieldsOf(scope) };
 }
 
 /**
@@ -111,19 +146,12 @@ export async function saveEntryTemplate(scope: SiteScope, postTypeId: string, tr
 	return saveTemplate(scope, await entryTemplateTarget(scope, postTypeId), tree);
 }
 
-/** The Entry template of a Post Type; Pages have none (`PagesHaveNoEntryTemplateError`). */
-async function entryTemplateTarget(scope: SiteScope, postTypeId: string): Promise<TemplateTarget> {
-	const postType = await getPostType(scope, postTypeId);
-	if (isPagePostType(postType)) throw new PagesHaveNoEntryTemplateError();
-	return { kind: "entry", postType };
-}
-
 /**
  * Saves the Draft of the Site template (open the Site with `structure.edit`), creating it the first
  * time. Visitors see the built-in one until it is published.
  */
 export async function saveSiteTemplate(scope: SiteScope, tree: unknown): Promise<Template> {
-	return saveTemplate(scope, { kind: "site" }, tree);
+	return saveTemplate(scope, await siteTemplateTarget(scope), tree);
 }
 
 async function saveTemplate(scope: SiteScope, target: TemplateTarget, tree: unknown): Promise<Template> {
@@ -147,7 +175,7 @@ export async function saveEntryTemplateMarkup(
 
 /** Saves the Draft of the Site template from Template markup, as `saveEntryTemplateMarkup` does. */
 export async function saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup> {
-	return saveTemplateMarkup(scope, { kind: "site" }, markup);
+	return saveTemplateMarkup(scope, await siteTemplateTarget(scope), markup);
 }
 
 async function saveTemplateMarkup(
@@ -212,7 +240,7 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 		updated ??
 			(await scope.insert(templates, {
 				kind: target.kind,
-				postTypeId: target.kind === "entry" ? target.postType.id : null,
+				postTypeId: target.kind === "entry" ? target.context.postType.id : null,
 				draft,
 				createdAt: now,
 				updatedAt: now,
@@ -240,25 +268,26 @@ async function retryOnRace<T>(save: () => Promise<T>): Promise<T> {
 /** The Entry template of a Post Type, or null while it has none. */
 export async function getEntryTemplate(scope: SiteScope, postTypeId: string): Promise<Template | null> {
 	const postType = await getPostType(scope, postTypeId);
-	const row = await scope.first(templates, whereFor({ kind: "entry", postType }));
+	const row = await scope.first(templates, and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id)));
 	return row ? toTemplate(row) : null;
 }
 
 /** The Site template, or null while the Site has none (and shows the built-in one). */
 export async function getSiteTemplate(scope: Pick<SiteScope, "first">): Promise<Template | null> {
-	const row = await scope.first(templates, whereFor({ kind: "site" }));
+	const row = await scope.first(templates, and(eq(templates.kind, "site"), isNull(templates.postTypeId)));
 	return row ? toTemplate(row) : null;
 }
 
 /**
- * Checks a Template's Draft again before it is published, answering it in canonical form: its Post
- * Type may have lost a Field the Draft reads since it was saved.
+ * Checks a Template's Draft again before it is published, answering it in canonical form: what it
+ * reads (its Post Type, the Globals, what Relationships point at) or its Classes may have changed
+ * since it was saved.
  */
 export async function checkTemplateForPublish(scope: SiteScope, row: TemplateRow): Promise<ElementTree> {
 	const target: TemplateTarget =
 		row.kind === "site"
-			? { kind: "site" }
-			: { kind: "entry", postType: await getPostType(scope, row.postTypeId ?? "") };
+			? await siteTemplateTarget(scope)
+			: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
 	const { ids } = classCatalogue(await listClasses(scope));
 	return parseTemplate(row.draft, target, ids);
 }
