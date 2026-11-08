@@ -1,10 +1,13 @@
 // `bun run dev`: local development in one command. Run it from the repo root, where Bun loads `.env`.
 //
+// 0. Refuses to go on without the settings web and worker need, including a Master key
+//    (WEBCRAFT_SECRET_KEY) of at least 32 characters.
 // 1. Makes sure Postgres answers at DATABASE_URL. Only when it doesn't, and DATABASE_URL points at
 //    this machine, it starts docker-compose.dev.yml with the same user, password and port.
 // 2. Creates the database named in DATABASE_URL if it doesn't exist yet.
 // 3. Runs the migrate step.
 // 4. Starts the web process (`vite dev` on Bun) and the worker (Node, restarting on changes).
+import { ConfigError, loadInstallConfig, loadMasterKey } from "@webcraft/core";
 import pg from "pg";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -24,7 +27,14 @@ function info(message: string): void {
 
 const env = process.env;
 if (!env.DATABASE_URL) fail("DATABASE_URL is not set. Copy .env.example to .env (see docs/development.md).");
-if (!env.WEBCRAFT_ADMIN_HOST) fail("WEBCRAFT_ADMIN_HOST is not set. Copy .env.example to .env.");
+// The same checks web and worker run when they start, so a bad setting is reported once, here.
+try {
+	loadInstallConfig(env);
+	loadMasterKey(env);
+} catch (error) {
+	if (error instanceof ConfigError) fail(`${error.message} Set it in .env.`);
+	throw error;
+}
 
 const databaseUrl = new URL(env.DATABASE_URL);
 const databaseName = decodeURIComponent(databaseUrl.pathname.slice(1));

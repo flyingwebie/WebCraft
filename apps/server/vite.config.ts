@@ -19,8 +19,9 @@ export default defineConfig({
 			build: {
 				rolldownOptions: {
 					// @webcraft/db finds its migration files next to its own source, so the production
-					// bundle loads it from there at run time instead of copying it into dist/server.
-					external: ["@webcraft/db"],
+					// bundle loads it (and its schema) from there at run time instead of copying it into
+					// dist/server. Drizzle stays outside too, so the bundle and @webcraft/db share one copy.
+					external: [/^@webcraft\/db(\/|$)/, /^drizzle-orm(\/|$)/],
 				},
 			},
 		},

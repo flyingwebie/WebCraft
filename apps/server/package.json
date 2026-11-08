@@ -21,6 +21,7 @@
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",
 		"@webcraft/ui": "workspace:*",
+		"drizzle-orm": "catalog:",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
 		"tailwindcss": "catalog:"
