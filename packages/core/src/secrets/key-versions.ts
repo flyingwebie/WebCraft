@@ -55,7 +55,7 @@ export function mismatchMessage(versions: KeyVersion[], fingerprint: string, sou
 	if (!current) return `${source} is not this Install's Master key.`;
 	const retired = versions.find((version) => version.fingerprint === fingerprint);
 	if (retired) {
-		return `${source} is the Install's old Master key (version ${retired.version}), retired when the key was rotated on ${retired.retiredAt?.toISOString() ?? "an unknown date"}. Use the current Master key (version ${current.version}).`;
+		return `${source} is the Install's old Master key (version ${retired.version}), retired when the key was rotated on ${retired.retiredAt?.toISOString() ?? "an unknown date"}. Start web and worker with the current Master key (version ${current.version}).`;
 	}
-	return `${source} is not this Install's Master key: its secrets are encrypted under Master key version ${current.version}, whose fingerprint starts with ${current.fingerprint.slice(0, 16)}. Use that key. To change the Master key, run \`webcraft admin rotate-key\`.`;
+	return `${source} is not this Install's Master key: its secrets are encrypted under Master key version ${current.version}, whose fingerprint starts with ${current.fingerprint.slice(0, 16)}. Start web and worker with that key. To change it, or if it is lost, run \`webcraft admin rotate-key\` (see \`webcraft --help\`).`;
 }

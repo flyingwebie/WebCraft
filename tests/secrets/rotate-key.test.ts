@@ -1,7 +1,7 @@
 // `webcraft admin rotate-key` re-encrypts every secret under a new Master key. The new key is in
 // WEBCRAFT_SECRET_KEY, where web and worker read it from afterwards; the key being replaced is
 // passed once, in WEBCRAFT_OLD_SECRET_KEY or a file. These tests run the real command.
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -242,4 +242,57 @@ test("an Install that has no secrets yet takes the new key as its first key vers
 	} finally {
 		await fresh.close();
 	}
+});
+
+describe("when the old key is lost", () => {
+	test("--old-key-lost lists the secrets it would delete and changes nothing without --yes", async () => {
+		const { code, stdout } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY }, ["--old-key-lost"]);
+
+		expect(code).toBe(1);
+		expect(stdout).toBe(
+			"Without the old Master key these 3 secrets can't be decrypted, so they would be deleted:\n" +
+				'  "smtp.password" of the Install\n' +
+				'  "ai.key" of Workspace acme\n' +
+				'  "cdn.token" of Site shop in Workspace acme\n' +
+				"Run again with --yes to delete them and use the new key. Then set them again.\n",
+		);
+		await install.restart({ masterKey: OLD_KEY });
+		await expectSecretsReadable();
+	});
+
+	test("--old-key-lost --yes deletes every secret and makes the new key the next key version", async () => {
+		const { code, stdout } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY }, ["--old-key-lost", "--yes"]);
+
+		expect(code).toBe(0);
+		expect(stdout).toContain("Deleted 3 secrets. The Install now uses Master key version 2.");
+		expect(stdout).toContain('  "ai.key" of Workspace acme\n');
+		await expect(install.restart({ masterKey: OLD_KEY })).rejects.toThrow("old Master key (version 1)");
+		await install.restart({ masterKey: NEW_KEY });
+		for (const [ref] of SECRETS) {
+			expect(await install.secrets.describe(ref)).toEqual({ set: false });
+		}
+		const [ref, value] = INSTALL_SMTP;
+		await install.secrets.set(ref, value);
+		await install.secrets.useWith(ref, (seen) => expect(seen).toBe(value));
+	});
+
+	test("refuses to delete anything when WEBCRAFT_SECRET_KEY is the Install's current key", async () => {
+		const { code, stderr } = await rotateKey({ WEBCRAFT_SECRET_KEY: OLD_KEY }, ["--old-key-lost", "--yes"]);
+
+		expect(code).toBe(1);
+		expect(stderr).toContain(
+			"webcraft: WEBCRAFT_SECRET_KEY is the Install's current Master key (version 1), so it isn't lost and nothing was deleted.",
+		);
+		await expectSecretsReadable();
+	});
+
+	test("refuses --old-key-lost together with an old key", async () => {
+		const { code, stderr } = await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY, WEBCRAFT_OLD_SECRET_KEY: OLD_KEY }, [
+			"--old-key-lost",
+		]);
+
+		expect(code).toBe(1);
+		expect(stderr).toContain("--old-key-lost is for when the old key is lost; don't pass the old key with it.");
+		await expectSecretsReadable();
+	});
 });

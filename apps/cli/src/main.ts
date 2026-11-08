@@ -12,6 +12,7 @@ import {
 	type MasterKey,
 	OLD_MASTER_KEY_VARIABLE,
 	parseMasterKey,
+	replaceLostMasterKey,
 	rotateMasterKey,
 	systemClock,
 } from "@webcraft/core";
@@ -26,6 +27,9 @@ Server commands (run on the server, with the Install's environment):
                      Re-encrypt every secret under a new Master key. Stop web and worker first.
                      WEBCRAFT_SECRET_KEY holds the new key; the key being replaced comes from
                      WEBCRAFT_OLD_SECRET_KEY, or from the file given with --old-key-file.
+  admin rotate-key --old-key-lost [--yes]
+                     When the old key is lost: lists the secrets that can't be decrypted any more,
+                     and with --yes deletes them and starts using the key in WEBCRAFT_SECRET_KEY.
 
 Options:
   -h, --help         Show this help.
@@ -68,21 +72,32 @@ async function migrate(): Promise<number> {
 	return 0;
 }
 
-type RotateKeyOptions = { oldKeyFile?: string };
+type RotateKeyOptions = { oldKeyFile?: string; oldKeyLost: boolean; yes: boolean };
 
+/** Reads `[--old-key-file <path> | --old-key-lost [--yes]]`; null for anything else. */
 function parseRotateKeyOptions(args: string[]): RotateKeyOptions | null {
-	if (args.length === 0) return {};
-	const [flag, path, ...rest] = args;
-	if (rest.length === 0 && path && flag === "--old-key-file") return { oldKeyFile: path };
-	if (rest.length === 0 && !path && flag?.startsWith("--old-key-file=")) {
-		return { oldKeyFile: flag.slice("--old-key-file=".length) };
+	const options: RotateKeyOptions = { oldKeyLost: false, yes: false };
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index] ?? "";
+		if (arg === "--old-key-lost") options.oldKeyLost = true;
+		else if (arg === "--yes") options.yes = true;
+		else if (arg === "--old-key-file" && args[index + 1]) options.oldKeyFile = args[++index];
+		else if (arg.startsWith("--old-key-file=") && arg.length > "--old-key-file=".length) {
+			options.oldKeyFile = arg.slice("--old-key-file=".length);
+		} else return null;
 	}
-	return null;
+	return options.yes && !options.oldKeyLost ? null : options;
 }
 
 async function rotateKey(options: RotateKeyOptions): Promise<number> {
 	const databaseUrl = loadDatabaseUrl(process.env);
 	const newKey = loadMasterKey(process.env);
+	if (options.oldKeyLost) {
+		if (options.oldKeyFile !== undefined || process.env[OLD_MASTER_KEY_VARIABLE]) {
+			throw new ConfigError("--old-key-lost is for when the old key is lost; don't pass the old key with it.");
+		}
+		return replaceLostKey(databaseUrl, newKey, options.yes);
+	}
 	const oldKey = await loadOldKey(options);
 
 	const database = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-rotate-key" });
@@ -101,9 +116,8 @@ async function rotateKey(options: RotateKeyOptions): Promise<number> {
 			);
 			return 0;
 		}
-		const secrets = `${report.reencrypted} secret${report.reencrypted === 1 ? "" : "s"}`;
 		process.stdout.write(
-			`Re-encrypted ${secrets} under Master key version ${report.version}.\n` +
+			`Re-encrypted ${countSecrets(report.reencrypted)} under Master key version ${report.version}.\n` +
 				`Fingerprint of the new Master key: ${report.fingerprint}\n` +
 				"Start web and worker with the new key in WEBCRAFT_SECRET_KEY, and keep a copy of it outside the server. The old key no longer opens anything.\n",
 		);
@@ -111,6 +125,38 @@ async function rotateKey(options: RotateKeyOptions): Promise<number> {
 	} finally {
 		await database.close();
 	}
+}
+
+async function replaceLostKey(databaseUrl: string, newKey: MasterKey, confirmed: boolean): Promise<number> {
+	const database = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-rotate-key" });
+	try {
+		await assertSchemaCurrent(database);
+		const report = await replaceLostMasterKey({ database, to: newKey, clock: systemClock, confirmed });
+		const list = (secrets: string[]) => secrets.map((secret) => `  ${secret}\n`).join("");
+		if (report.outcome === "needs-confirmation") {
+			process.stdout.write(
+				`Without the old Master key ${countSecrets(report.secrets.length, "these")} can't be decrypted, so they would be deleted:\n` +
+					list(report.secrets) +
+					"Run again with --yes to delete them and use the new key. Then set them again.\n",
+			);
+			return 1;
+		}
+		process.stdout.write(
+			`Deleted ${countSecrets(report.deleted.length)}. The Install now uses Master key version ${report.version}.\n` +
+				`Fingerprint of the new Master key: ${report.fingerprint}\n` +
+				(report.deleted.length > 0 ? `Set these secrets again:\n${list(report.deleted)}` : "") +
+				"Start web and worker with the new key in WEBCRAFT_SECRET_KEY, and keep a copy of it outside the server.\n",
+		);
+		return 0;
+	} finally {
+		await database.close();
+	}
+}
+
+/** "3 secrets", "1 secret", or with a word before the number: "these 3 secrets". */
+function countSecrets(count: number, before?: string): string {
+	const counted = `${count} secret${count === 1 ? "" : "s"}`;
+	return before ? `${count === 1 ? "this" : before} ${counted}` : counted;
 }
 
 /** The key being replaced, from `--old-key-file` or `WEBCRAFT_OLD_SECRET_KEY` (not both). */

@@ -142,9 +142,7 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 				const [current] = versions;
 				if (!current || current.fingerprint !== fingerprint) {
 					// Most likely the key was rotated while this process kept running with the old one.
-					throw new MasterKeyMismatchError(
-						`${mismatchMessage(versions, fingerprint, "This process's Master key")} Restart web and worker with it.`,
-					);
+					throw new MasterKeyMismatchError(mismatchMessage(versions, fingerprint, "This process's Master key"));
 				}
 				const sealed = await seal(masterKey, current.version, secret, value);
 				const now = clock.now();

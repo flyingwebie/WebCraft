@@ -10,7 +10,9 @@ export type { SecretOwner, SecretRef } from "./refs.ts";
 export {
 	KeyRotationError,
 	type KeyRotationReport,
+	type LostKeyReport,
 	OLD_MASTER_KEY_VARIABLE,
+	replaceLostMasterKey,
 	rotateMasterKey,
 } from "./rotate.ts";
 export {

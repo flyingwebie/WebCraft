@@ -92,7 +92,11 @@ export async function rotateMasterKey({
 		}
 		await tx.insert(masterKeyVersions).values({ version, fingerprint: newFingerprint, createdAt: now });
 
-		const rows = await tx.select().from(secretsTable).orderBy(secretsTable.id).for("update");
+		const rows = await tx
+			.select()
+			.from(secretsTable)
+			.orderBy(...OWNER_ORDER)
+			.for("update");
 		const unreadable: string[] = [];
 		for (const row of rows) {
 			const secret = refFromColumns(row);
@@ -116,6 +120,83 @@ export async function rotateMasterKey({
 		return { outcome: "rotated", version, reencrypted: rows.length, fingerprint: newFingerprint };
 	});
 }
+
+export type LostKeyReport =
+	| {
+			/** Nothing was changed: these secrets would be deleted. Confirm to go ahead. */
+			outcome: "needs-confirmation";
+			secrets: string[];
+	  }
+	| {
+			outcome: "replaced";
+			/** The new key's version. */
+			version: number;
+			/** The secrets that were deleted, to be set again. */
+			deleted: string[];
+			fingerprint: string;
+	  };
+
+/**
+ * Replaces a Master key that was lost (`webcraft admin rotate-key --old-key-lost`). Without the
+ * old key no secret can be decrypted, so every secret is deleted and the new key becomes the next
+ * key version; the secrets must be set again. Unless `confirmed`, it only lists what it would
+ * delete. An Install with no secrets needs no confirmation.
+ */
+export async function replaceLostMasterKey({
+	database,
+	to,
+	clock,
+	confirmed,
+	source = MASTER_KEY_VARIABLE,
+}: {
+	database: Database;
+	to: MasterKey;
+	clock: Clock;
+	confirmed: boolean;
+	source?: string;
+}): Promise<LostKeyReport> {
+	const newFingerprint = await to.fingerprint();
+	return database.db.transaction(async (tx) => {
+		await tx.execute(sql`select pg_advisory_xact_lock(${KEY_VERSION_LOCK})`);
+		const versions = await keyVersions(tx);
+		const [current] = versions;
+		if (current?.fingerprint === newFingerprint) {
+			throw new KeyRotationError(
+				`${source} is the Install's current Master key (version ${current.version}), so it isn't lost and nothing was deleted.`,
+			);
+		}
+		const usedBefore = versions.find((version) => version.fingerprint === newFingerprint);
+		if (usedBefore) {
+			throw new KeyRotationError(
+				`${source} is a key this Install used before (version ${usedBefore.version}). A new Master key must never have been used. ${MAKE_ONE}`,
+			);
+		}
+		const rows = await tx
+			.select({ workspaceId: secretsTable.workspaceId, siteId: secretsTable.siteId, name: secretsTable.name })
+			.from(secretsTable)
+			.orderBy(...OWNER_ORDER)
+			.for("update");
+		const secrets = rows.map((row) => describeRef(refFromColumns(row)));
+		if (secrets.length > 0 && !confirmed) {
+			return { outcome: "needs-confirmation", secrets };
+		}
+		await tx.delete(secretsTable);
+		const version = (current?.version ?? 0) + 1;
+		const now = clock.now();
+		if (current) {
+			await tx.update(masterKeyVersions).set({ retiredAt: now }).where(eq(masterKeyVersions.version, current.version));
+		}
+		await tx.insert(masterKeyVersions).values({ version, fingerprint: newFingerprint, createdAt: now });
+		return { outcome: "replaced", version, deleted: secrets, fingerprint: newFingerprint };
+	});
+}
+
+/** Secrets in the order people read them: the Install's first, then by Workspace, Site and name. */
+const OWNER_ORDER = [
+	sql`${secretsTable.workspaceId} asc nulls first`,
+	sql`${secretsTable.siteId} asc nulls first`,
+	sql`${secretsTable.name} asc`,
+];
 
 function notTheCurrentKey(versions: KeyVersion[], current: KeyVersion, fingerprint: string, source: string): string {
 	const retired = versions.find((version) => version.fingerprint === fingerprint);

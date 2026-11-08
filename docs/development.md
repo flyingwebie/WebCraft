@@ -163,7 +163,14 @@ await services.secrets.remove(password);
 
 Running the command again after it finished changes nothing. It refuses a new key the Install used before, and an old key that isn't the current one. Web or worker left running with the old key can no longer read or write secrets, and both refuse to start again until they have the new key, naming the key version they need.
 
-There is no way to recover secrets without their Master key: an Install that lost it must set its secrets again.
+### When the Master key is lost
+
+Secrets can't be recovered without their Master key, and web and worker refuse to start with any other key while secrets exist. To start again with a new key, deleting every secret:
+
+1. Make a new key with `openssl rand -base64 32` and put it in `WEBCRAFT_SECRET_KEY`.
+2. `webcraft admin rotate-key --old-key-lost` lists the secrets that would be deleted and changes nothing.
+3. `webcraft admin rotate-key --old-key-lost --yes` deletes them and makes the new key the next key version. It refuses when `WEBCRAFT_SECRET_KEY` is still the current key.
+4. Start web and worker, and set the listed secrets again.
 
 ## Testing
 
