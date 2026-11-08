@@ -16,6 +16,13 @@ export type KeyVersion = {
 
 type Queries = Pick<Database["db"], "select">;
 
+/**
+ * The advisory lock that ties writing a secret to the current key version. Setting a secret holds
+ * it shared while it encrypts and stores; rotating the Master key holds it alone. So no secret is
+ * written under a key that a rotation running at the same moment is retiring.
+ */
+export const KEY_VERSION_LOCK = 7_349_049;
+
 /** Every key version the Install has had, newest (the current one) first. */
 export function keyVersions(db: Queries): Promise<KeyVersion[]> {
 	return db.select().from(masterKeyVersions).orderBy(desc(masterKeyVersions.version));

@@ -3,23 +3,16 @@ import { masterKeyVersions, secrets as secretsTable } from "@webcraft/db/schema"
 import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
-import { assertMasterKeyMatches, keyVersions, MasterKeyMismatchError, mismatchMessage } from "./key-versions.ts";
-import { type MasterKey, secretsKey } from "./master-key.ts";
-
-/**
- * Who a secret belongs to: the Install itself (Install SMTP, shared AI keys), one Workspace (its
- * AI key) or one Site of a Workspace (its SMTP, CDN token, Webhook and CAPTCHA secrets).
- */
-export type SecretOwner =
-	| { kind: "install" }
-	| { kind: "workspace"; workspaceId: string }
-	| { kind: "site"; workspaceId: string; siteId: string };
-
-/** Names one secret: its owner and a name unique within that owner, such as `smtp.password`. */
-export type SecretRef = {
-	owner: SecretOwner;
-	name: string;
-};
+import { type Sealed, seal, unseal } from "./cipher.ts";
+import {
+	assertMasterKeyMatches,
+	KEY_VERSION_LOCK,
+	keyVersions,
+	MasterKeyMismatchError,
+	mismatchMessage,
+} from "./key-versions.ts";
+import type { MasterKey } from "./master-key.ts";
+import { checkRef, describeRef, ownerColumns, type SecretRef } from "./refs.ts";
 
 /**
  * Every stored secret, encrypted under the Master key. Secrets can be written but never read back:
@@ -48,6 +41,9 @@ export type SecretDescription = { set: false } | { set: true; lastFour: string |
 /** Secrets shorter than this show no characters at all. */
 const SHORTEST_WITH_LAST_FOUR = 16;
 
+/** The longest value a secret may have, in characters. */
+const LONGEST_VALUE = 65_536;
+
 /** The secret has no value. */
 export class SecretNotSetError extends Error {
 	override name = "SecretNotSetError";
@@ -61,20 +57,13 @@ export class SecretUnreadableError extends Error {
 	override name = "SecretUnreadableError";
 }
 
-type StoredSecret = { keyVersion: number; iv: Uint8Array; ciphertext: Uint8Array; updatedAt: Date };
+type StoredSecret = Sealed & { keyVersion: number; updatedAt: Date };
 
 type SecretsOptions = {
 	database: Database;
 	masterKey: MasterKey;
 	clock: Clock;
 };
-
-/**
- * Ties writing a secret to the current key version: `set` holds it shared while it encrypts and
- * stores, and rotating the Master key holds it alone, so no secret is written under a key that a
- * rotation running at the same moment is retiring.
- */
-const KEY_VERSION_LOCK = 7_349_049;
 
 /**
  * Opens the Install's secrets the way web and worker do at start-up: refuses a Master key that
@@ -122,21 +111,16 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 	async function decrypt(secret: SecretRef, stored: StoredSecret): Promise<string> {
 		if ((await versionOfOwnKey()) !== stored.keyVersion) {
 			throw new SecretUnreadableError(
-				`The secret ${describeRef(secret)} is encrypted under Master key version ${stored.keyVersion}, which is not this process's Master key.`,
+				`The secret ${describeRef(secret)} is encrypted under Master key version ${stored.keyVersion}, which is not this process's Master key. Restart web and worker with the Install's current Master key.`,
 			);
 		}
-		try {
-			const plaintext = await crypto.subtle.decrypt(
-				{ name: "AES-GCM", iv: new Uint8Array(stored.iv), additionalData: authenticatedData(secret) },
-				await secretsKey(masterKey, stored.keyVersion),
-				new Uint8Array(stored.ciphertext),
-			);
-			return new TextDecoder().decode(plaintext);
-		} catch {
+		const value = await unseal(masterKey, stored.keyVersion, secret, stored);
+		if (value === null) {
 			throw new SecretUnreadableError(
 				`The secret ${describeRef(secret)} can't be decrypted: its stored value was changed outside WebCraft.`,
 			);
 		}
+		return value;
 	}
 
 	return {
@@ -162,17 +146,12 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 						`${mismatchMessage(versions, fingerprint, "This process's Master key")} Restart web and worker with it.`,
 					);
 				}
-				const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-				const ciphertext = await crypto.subtle.encrypt(
-					{ name: "AES-GCM", iv, additionalData: authenticatedData(secret) },
-					await secretsKey(masterKey, current.version),
-					new TextEncoder().encode(value),
-				);
+				const sealed = await seal(masterKey, current.version, secret, value);
 				const now = clock.now();
 				const stored = {
 					keyVersion: current.version,
-					iv: Buffer.from(iv),
-					ciphertext: Buffer.from(ciphertext),
+					iv: Buffer.from(sealed.iv),
+					ciphertext: Buffer.from(sealed.ciphertext),
 					updatedAt: now,
 				};
 				await tx
@@ -222,29 +201,6 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 	};
 }
 
-/** AES-GCM's recommended nonce length. A random nonce per encryption is safe for this few values. */
-const IV_BYTES = 12;
-
-/**
- * The authenticated data of a secret's ciphertext: its owner and name. Decrypting with any other
- * owner or name fails, so a ciphertext copied into another row is useless there.
- */
-function authenticatedData({ owner, name }: SecretRef): Uint8Array<ArrayBuffer> {
-	const { workspaceId, siteId } = ownerColumns(owner);
-	return new TextEncoder().encode(JSON.stringify(["webcraft secret", owner.kind, workspaceId, siteId, name]));
-}
-
-function ownerColumns(owner: SecretOwner): { workspaceId: string | null; siteId: string | null } {
-	switch (owner.kind) {
-		case "install":
-			return { workspaceId: null, siteId: null };
-		case "workspace":
-			return { workspaceId: owner.workspaceId, siteId: null };
-		case "site":
-			return { workspaceId: owner.workspaceId, siteId: owner.siteId };
-	}
-}
-
 function whereSecret(secret: SecretRef): SQL | undefined {
 	const { workspaceId, siteId } = ownerColumns(secret.owner);
 	return and(
@@ -252,37 +208,6 @@ function whereSecret(secret: SecretRef): SQL | undefined {
 		siteId === null ? isNull(secretsTable.siteId) : eq(secretsTable.siteId, siteId),
 		eq(secretsTable.name, secret.name),
 	);
-}
-
-function describeRef({ owner, name }: SecretRef): string {
-	switch (owner.kind) {
-		case "install":
-			return `"${name}" of the Install`;
-		case "workspace":
-			return `"${name}" of Workspace ${owner.workspaceId}`;
-		case "site":
-			return `"${name}" of Site ${owner.siteId} in Workspace ${owner.workspaceId}`;
-	}
-}
-
-/** Secret names are chosen by WebCraft's code, such as `smtp.password` or `webhook:<id>:signing`. */
-const SECRET_NAME = /^[A-Za-z0-9._:-]{1,200}$/;
-
-/** The longest value a secret may have, in characters. */
-const LONGEST_VALUE = 65_536;
-
-function checkRef({ owner, name }: SecretRef): void {
-	if (!SECRET_NAME.test(name)) {
-		throw new TypeError(
-			`"${name}" is not a secret name: use 1 to 200 letters, digits, dots, colons, dashes and underscores.`,
-		);
-	}
-	if (owner.kind !== "install" && !owner.workspaceId.trim()) {
-		throw new TypeError("A secret's owner needs a Workspace id.");
-	}
-	if (owner.kind === "site" && !owner.siteId.trim()) {
-		throw new TypeError("A secret's owner needs a Site id.");
-	}
 }
 
 function checkValue(value: string): void {
