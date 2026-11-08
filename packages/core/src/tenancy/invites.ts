@@ -5,6 +5,7 @@ import {
 	inviteSites,
 	invites,
 	inviteWorkspaces,
+	memberships as membershipsTable,
 	people,
 	staffWorkspaces,
 	workspaces,
@@ -17,7 +18,7 @@ import type { Clock } from "../clock.ts";
 import type { InstallSettings } from "../install-settings.ts";
 import { ASSIGNED_ROLES, isWorkspaceRole } from "../permissions/roles.ts";
 import { hashToken } from "../tokens.ts";
-import type { MembershipsService } from "./memberships.ts";
+import { type MembershipsService, StaffMembershipError } from "./memberships.ts";
 
 /** How long an invite link works. */
 export const INVITE_LIFETIME_DAYS = 7;
@@ -79,7 +80,7 @@ export type InvitesService = {
 	 * Accepts a Member invite with the signed-in person's existing account, adding the Membership it
 	 * grants. The invite must be to the address they sign in with (`InviteForAnotherAccountError`).
 	 */
-	join(token: string, personId: string, via: AuditVia): Promise<{ workspaceId: string }>;
+	join(token: string, personId: string, via: AuditVia): Promise<{ workspaceId: string | null }>;
 };
 
 type InvitesOptions = {
@@ -216,10 +217,26 @@ export function createInvites(options: InvitesOptions): InvitesService {
 		async join(token, personId, via) {
 			return db.transaction(async (tx) => {
 				const invite = await lockInvite(tx, token);
-				if (!invite.workspaceId) throw new InviteInvalidError();
+				const staff = ASSIGNED_ROLES.includes(invite.role);
+				if (!staff && !invite.workspaceId) throw new InviteInvalidError();
 				const [person] = await tx.select({ email: people.email }).from(people).where(eq(people.id, personId));
 				if (person?.email !== invite.email) throw new InviteForAnotherAccountError();
-				return joinWorkspace(tx, invite, personId, via);
+				if (!staff) return joinWorkspace(tx, invite, personId, via);
+				// A Staff invite only goes to an address with no account, but the address can get one
+				// meanwhile (through a Member invite). Staff never hold a Membership or another role.
+				const [membership] = await tx
+					.select({ personId: membershipsTable.personId })
+					.from(membershipsTable)
+					.where(eq(membershipsTable.personId, personId))
+					.limit(1);
+				const [role] = await tx
+					.select({ personId: installRoles.personId })
+					.from(installRoles)
+					.where(eq(installRoles.personId, personId))
+					.limit(1);
+				if (membership || role) throw new StaffMembershipError();
+				await joinStaff(tx, invite, personId, via);
+				return { workspaceId: null };
 			});
 		},
 	};
