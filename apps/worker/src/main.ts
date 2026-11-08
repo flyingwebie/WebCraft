@@ -35,8 +35,9 @@ async function main(): Promise<void> {
 	process.once("SIGINT", stop);
 
 	const { services, boss } = await openInstall({ env: process.env, processName: "worker", log, opened: running });
-	await workJobs(boss, coreJobs, services);
+	// Schedules first: a stop signal that comes once jobs run then never lands in the middle of them.
 	await scheduleJobs(boss, coreSchedules);
+	await workJobs(boss, coreJobs, services);
 	log.info("The worker is working the job queue", {
 		jobs: coreJobs.map((job) => job.name),
 		schedules: coreSchedules.map((schedule) => `${schedule.job.name} (${schedule.cron})`),

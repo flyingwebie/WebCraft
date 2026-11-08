@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { and, desc, eq, gt, ne } from "drizzle-orm";
-
+import { type AccountLock, createLockout } from "./lockout.ts";
 import {
 	assertNewPasswordAllowed,
 	hashPassword,
@@ -13,7 +13,7 @@ import {
 	type PasswordCheck,
 	verifyPassword,
 } from "./passwords.ts";
-import { createPerson, type NewPerson, PASSWORD_PROVIDER } from "./people.ts";
+import { createPerson, type NewPerson, normaliseEmail, PASSWORD_PROVIDER } from "./people.ts";
 
 /** Sessions end after this long without being used. */
 export const SESSION_IDLE_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -43,6 +43,11 @@ export type AuthOptions = {
 	log: AuthLog;
 	/** Extra checks on new passwords, after the length rules (the leaked-password lookup plugs in here). */
 	passwordChecks?: readonly PasswordCheck[];
+	/**
+	 * Called once when wrong passwords lock an account, before the attempt is refused: the person is
+	 * told and the lock recorded there. A failure here is logged; the account stays locked.
+	 */
+	onAccountLocked?: (lock: AccountLock) => Promise<void>;
 };
 
 /** A signed-in session, as WebCraft sees it. */
@@ -88,7 +93,8 @@ export class InvalidCredentialsError extends Error {
 export type Auth = {
 	/**
 	 * Checks an email and password and starts a session. Answers the `Set-Cookie` values that carry
-	 * the session; throws `InvalidCredentialsError` when they don't match a person.
+	 * the session; throws `InvalidCredentialsError` when they don't match a person, and
+	 * `AccountLockedError` while the account is locked or when this wrong password locks it.
 	 */
 	signIn(
 		input: { email: string; password: string },
@@ -104,9 +110,14 @@ export type Auth = {
 	signOut(headers: Headers): Promise<{ setCookie: string[] }>;
 	/**
 	 * Checks the person's password again inside a session they are signed in with, and records the
-	 * check on that session alone. Throws `InvalidCredentialsError` when the password is wrong.
+	 * check on that session alone. Throws `InvalidCredentialsError` when the password is wrong, and
+	 * `AccountLockedError` as signing in does: wrong passwords here count towards the lock too.
 	 */
-	confirmIdentity(session: Session, proof: { password: string }): Promise<{ identityCheckedAt: Date }>;
+	confirmIdentity(
+		session: Session,
+		proof: { password: string },
+		request: Pick<AuthRequest, "clientAddress">,
+	): Promise<{ identityCheckedAt: Date }>;
 	/** The person's sessions that haven't ended, most recently used first. */
 	listSessions(personId: string): Promise<SessionDetails[]>;
 	/** Ends one of the person's sessions; false when they have no such session. */
@@ -130,9 +141,31 @@ export type Auth = {
 export function createAuth(options: AuthOptions): Auth {
 	const { database, clock, log } = options;
 	const library = createLibrary(options);
+	const lockout = createLockout({
+		database,
+		clock,
+		onLocked: async (lock) => {
+			log.warn("An account was locked after too many wrong passwords", {
+				personId: lock.personId,
+				lockedUntil: lock.lockedUntil,
+				clientAddress: lock.clientAddress,
+			});
+			try {
+				await options.onAccountLocked?.(lock);
+			} catch (error) {
+				log.error("Telling a person their account was locked failed", { error, personId: lock.personId });
+			}
+		},
+	});
 
 	return {
 		async signIn({ email, password }, { headers, clientAddress }) {
+			const [person] = await database.db
+				.select({ id: people.id })
+				.from(people)
+				.where(eq(people.email, normaliseEmail(email)));
+			// While locked, nothing is checked: not even the right password gets in.
+			if (person) await lockout.assertUnlocked(person.id);
 			try {
 				const { headers: answer, response } = await library.api.signInEmail({
 					body: { email: email.trim(), password },
@@ -141,9 +174,11 @@ export function createAuth(options: AuthOptions): Auth {
 				});
 				// The library would read the address from headers any client can send; WebCraft's own is used.
 				await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, response.token));
+				await lockout.recordSuccess(response.user.id);
 				return { personId: response.user.id, setCookie: answer.getSetCookie() };
 			} catch (error) {
 				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) {
+					if (person) await lockout.recordFailure(person.id, clientAddress);
 					throw new InvalidCredentialsError();
 				}
 				throw error;
@@ -187,8 +222,13 @@ export function createAuth(options: AuthOptions): Auth {
 			return { setCookie: answer.getSetCookie() };
 		},
 
-		async confirmIdentity(session, { password }) {
-			if (!(await passwordMatches(database, session.personId, password))) throw new InvalidCredentialsError();
+		async confirmIdentity(session, { password }, { clientAddress }) {
+			await lockout.assertUnlocked(session.personId);
+			if (!(await passwordMatches(database, session.personId, password))) {
+				await lockout.recordFailure(session.personId, clientAddress);
+				throw new InvalidCredentialsError();
+			}
+			await lockout.recordSuccess(session.personId);
 			const identityCheckedAt = clock.now();
 			await database.db
 				.update(sessions)

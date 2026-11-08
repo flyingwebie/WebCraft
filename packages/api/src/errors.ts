@@ -1,10 +1,17 @@
 import { ORPCError } from "@orpc/server";
-import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
+import {
+	AccountLockedError,
+	EmailInUseError,
+	InvalidCredentialsError,
+	InvalidEmailError,
+	PasswordRefusedError,
+} from "@webcraft/auth";
 import {
 	EmailAlwaysSentError,
 	IdentityCheckRequiredError,
 	InviteInvalidError,
 	PermissionDeniedError,
+	RateLimitedError,
 	SensitiveActionRefusedError,
 	SessionNotFoundError,
 	SetupClosedError,
@@ -101,6 +108,22 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { types: error.types },
+			cause: error,
+		});
+	}
+	if (error instanceof RateLimitedError) {
+		return new ORPCError("TOO_MANY_REQUESTS", {
+			status: 429,
+			message: error.message,
+			data: { retryAfterSeconds: error.retryAfterSeconds },
+			cause: error,
+		});
+	}
+	if (error instanceof AccountLockedError) {
+		return new ORPCError("ACCOUNT_LOCKED", {
+			status: 423,
+			message: error.message,
+			data: { retryAfterSeconds: error.retryAfterSeconds },
 			cause: error,
 		});
 	}

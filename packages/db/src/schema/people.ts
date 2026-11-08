@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Everyone with an account on the Install: the Superadmin, Staff and Members. `@webcraft/auth`
@@ -18,6 +18,10 @@ export const people = pgTable(
 		adminLanguage: text("admin_language"),
 		/** Light or dark admin, or `system` to follow the device. */
 		adminTheme: text("admin_theme").notNull().default("system"),
+		/** Wrong passwords in a row since the last right one (or the last lock); 10 lock the account. */
+		failedAttempts: integer("failed_attempts").notNull().default(0),
+		/** Until when the account is locked after too many wrong passwords; null or past: not locked. */
+		lockedUntil: timestamp("locked_until", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

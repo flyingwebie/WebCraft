@@ -43,14 +43,15 @@ describe("signing in", () => {
 	test("a wrong password is refused, and so is an unknown email, with the same answer", async () => {
 		const browser = install.browser();
 
-		const wrongPassword = browser.api.session.signIn({ email: superadmin.email, password: "not the right password" });
-		const unknownEmail = browser.api.session.signIn({ email: "nobody@agency.example", password: superadmin.password });
+		const [wrongPassword, unknownEmail] = await Promise.allSettled([
+			browser.api.session.signIn({ email: superadmin.email, password: "not the right password" }),
+			browser.api.session.signIn({ email: "nobody@agency.example", password: superadmin.password }),
+		]);
 
-		await expect(wrongPassword).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
-		await expect(unknownEmail).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
-		const [first, second] = await Promise.allSettled([wrongPassword, unknownEmail]);
-		expect(first.status === "rejected" && first.reason.message).toBe(
-			second.status === "rejected" && second.reason.message,
+		expect(wrongPassword).toMatchObject({ status: "rejected", reason: { code: "INVALID_CREDENTIALS", status: 401 } });
+		expect(unknownEmail).toMatchObject({ status: "rejected", reason: { code: "INVALID_CREDENTIALS", status: 401 } });
+		expect(wrongPassword.status === "rejected" && wrongPassword.reason.message).toBe(
+			unknownEmail.status === "rejected" && unknownEmail.reason.message,
 		);
 		expect(browser.cookies.size).toBe(0);
 		expect(await browser.api.session.current()).toEqual({ person: null });

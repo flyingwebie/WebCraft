@@ -96,6 +96,13 @@ export {
 	type SensitiveAction,
 	SensitiveActionRefusedError,
 } from "./permissions/sensitive.ts";
+export {
+	RATE_LIMITS,
+	RateLimitedError,
+	type RateLimitName,
+	type RateLimitRule,
+	type RateLimits,
+} from "./rate-limits.ts";
 export * from "./secrets/index.ts";
 export type { InstallPorts, InstallServices } from "./services.ts";
 export {

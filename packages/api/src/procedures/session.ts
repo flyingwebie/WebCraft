@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { procedure, setCookies, signedIn, withPerson } from "../context.ts";
+import { authEndpoint, procedure, rateLimited, setCookies, signedIn, withPerson } from "../context.ts";
 import { email, password } from "../inputs.ts";
 import { personView } from "../views.ts";
 
@@ -13,7 +13,7 @@ export const session = {
 	})),
 
 	/** Checks an email and password and starts a session: the answer sets the session cookie. */
-	signIn: procedure.input(z.object({ email, password })).handler(async ({ context, input }) => {
+	signIn: authEndpoint.input(z.object({ email, password })).handler(async ({ context, input }) => {
 		const { services } = context;
 		const { personId, setCookie } = await services.auth.signIn(input, context);
 		setCookies(context, setCookie);
@@ -26,10 +26,13 @@ export const session = {
 	 * Confirms who the signed-in person is with their password, for this browser's session only:
 	 * Sensitive actions are allowed in it for the next 10 minutes.
 	 */
-	confirmIdentity: signedIn.input(z.object({ password })).handler(async ({ context, input }) => {
-		await context.services.auth.confirmIdentity(context.session, input);
-		return { ok: true as const };
-	}),
+	confirmIdentity: signedIn
+		.use(rateLimited("auth"))
+		.input(z.object({ password }))
+		.handler(async ({ context, input }) => {
+			await context.services.auth.confirmIdentity(context.session, input, context);
+			return { ok: true as const };
+		}),
 
 	/** Ends this browser's session: the answer clears the session cookie. */
 	signOut: procedure.handler(async ({ context }) => {

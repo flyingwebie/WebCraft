@@ -13,6 +13,7 @@ import type { Logger } from "./log.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
+import type { RateLimits } from "./rate-limits.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { Access, DataLayer, InstallScope, Site, Workspace, WorkspaceScope } from "./tenancy/data-layer.ts";
@@ -49,6 +50,8 @@ export type InstallServices = InstallPorts & {
 	auth: Auth;
 	/** A person's own account: their sessions and their password, recorded in the Audit log. */
 	account: Account;
+	/** Rate limits, counted in Postgres so every web process shares them (`RATE_LIMITS`). */
+	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */
 	people: People;
 	/** The setup wizard and its token. */

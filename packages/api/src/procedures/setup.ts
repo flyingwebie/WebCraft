@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { onInstall, procedure, setCookies } from "../context.ts";
+import { authEndpoint, onInstall, procedure, setCookies } from "../context.ts";
 import { adminLanguage, email, password, personName } from "../inputs.ts";
 
 const token = z.string().max(512);
@@ -11,13 +11,13 @@ export const setup = {
 	state: procedure.handler(async ({ context }) => ({ stage: await context.services.setup.stage() })),
 
 	/** Checks a setup token before the wizard asks for the account, without using it up. */
-	checkToken: procedure.input(z.object({ token })).handler(async ({ context, input }) => {
+	checkToken: authEndpoint.input(z.object({ token })).handler(async ({ context, input }) => {
 		await context.services.setup.checkToken(input.token.trim());
 		return { ok: true as const };
 	}),
 
 	/** Claims the Install with the setup token: creates the Superadmin and signs them in. */
-	claim: procedure
+	claim: authEndpoint
 		.input(z.object({ token, name: personName, email, password, adminLanguage }))
 		.handler(async ({ context, input }) => {
 			const { services } = context;

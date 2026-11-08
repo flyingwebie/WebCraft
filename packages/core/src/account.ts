@@ -1,8 +1,9 @@
-import type { Auth, Session } from "@webcraft/auth";
+import type { AccountLock, Auth, Session } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
 
 import { type AuditDetails, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
+import type { Email } from "./email/index.ts";
 import type { Access } from "./tenancy/data-layer.ts";
 
 /** A session as the person sees it in Your account › Sessions. */
@@ -90,6 +91,37 @@ export function createAccount({ database, auth, clock }: { database: Database; a
 				audit(tx, access, "password.change", { signedOutSessions }),
 			);
 		},
+	};
+}
+
+/**
+ * What happens when wrong passwords lock an account: the person gets the `account-locked` security
+ * email, and the lock goes in the Audit log. Nobody acted (the attempts may not be the person's), so
+ * the entry names the locked person in its details, with where the last attempt came from.
+ */
+export function reportAccountLock({ database, clock, email }: { database: Database; clock: Clock; email: Email }) {
+	return async (lock: AccountLock): Promise<void> => {
+		const lockedMinutes = Math.round((lock.lockedUntil.getTime() - clock.now().getTime()) / 60_000);
+		await recordAudit(database.db, clock.now(), {
+			personId: null,
+			via: { kind: "admin" },
+			workspaceId: null,
+			siteId: null,
+			action: "account.lock",
+			details: {
+				personId: lock.personId,
+				email: lock.email,
+				failedAttempts: lock.failedAttempts,
+				lockedUntil: lock.lockedUntil.toISOString(),
+				clientAddress: lock.clientAddress,
+			},
+		});
+		await email.send({
+			type: "account-locked",
+			to: [{ personId: lock.personId }],
+			data: { failedAttempts: lock.failedAttempts, lockedMinutes },
+			related: { kind: "person", id: lock.personId },
+		});
 	};
 }
 

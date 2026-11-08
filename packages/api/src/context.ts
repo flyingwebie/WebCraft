@@ -7,6 +7,7 @@ import {
 	type InstallServices,
 	type Permission,
 	type Person,
+	type RateLimitName,
 	type SensitiveAction,
 } from "@webcraft/core";
 
@@ -28,11 +29,16 @@ export type ApiContext = {
 const base = os.$context<ApiContext>();
 
 /** The builder every procedure starts from. Errors from WebCraft's modules leave it as API errors. */
-export const procedure = base.use(async ({ next }) => {
+export const procedure = base.use(async ({ context, next }) => {
 	try {
 		return await next();
 	} catch (error) {
-		throw toApiError(error);
+		const answer = toApiError(error);
+		// Refusals that pass with time (a locked account, too many requests) say when to try again.
+		const retryAfter =
+			answer instanceof ORPCError ? (answer.data as { retryAfterSeconds?: unknown })?.retryAfterSeconds : undefined;
+		if (typeof retryAfter === "number") context.resHeaders?.set("retry-after", String(retryAfter));
+		throw answer;
 	}
 });
 
@@ -40,6 +46,22 @@ export const procedure = base.use(async ({ next }) => {
 export function setCookies(context: ApiContext, lines: readonly string[]): void {
 	for (const line of lines) context.resHeaders?.append("set-cookie", line);
 }
+
+/**
+ * Counts the request against a rate limit for its client address (`RATE_LIMITS` in
+ * `@webcraft/core`), refusing it with `TOO_MANY_REQUESTS` and a `Retry-After` once the address used
+ * the limit up. Auth endpoints (anything that checks a password, a setup token or an invite link)
+ * use `rateLimited("auth")`.
+ */
+export function rateLimited(name: RateLimitName) {
+	return base.middleware(async ({ context, next }) => {
+		await context.services.rateLimits.hit(name, context.clientAddress);
+		return next();
+	});
+}
+
+/** The auth endpoints: procedures that check a password, a setup token or an invite link. */
+export const authEndpoint = procedure.use(rateLimited("auth"));
 
 /**
  * Reads the session the request carries and the person it belongs to (`context.person`, null when

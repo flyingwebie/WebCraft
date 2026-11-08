@@ -4,5 +4,6 @@ export * from "./audit.ts";
 export * from "./email.ts";
 export * from "./install.ts";
 export * from "./people.ts";
+export * from "./rate-limits.ts";
 export * from "./secrets.ts";
 export * from "./tenancy.ts";

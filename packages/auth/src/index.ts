@@ -20,6 +20,12 @@ export {
 	leakedPasswordCheck,
 } from "./leaked-passwords.ts";
 export {
+	type AccountLock,
+	AccountLockedError,
+	LOCK_AFTER_FAILED_ATTEMPTS,
+	LOCK_DURATION_MS,
+} from "./lockout.ts";
+export {
 	assertNewPasswordAllowed,
 	MAX_PASSWORD_LENGTH,
 	MIN_PASSWORD_LENGTH,
