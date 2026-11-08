@@ -110,7 +110,18 @@ describe("on an Install whose secrets are encrypted under another key", () => {
 		expect(output).not.toContain(OTHER_KEY);
 	}, 20_000);
 
-	test("the web process refuses to start the same way", async () => {
+	test("the production web entry refuses to start the same way", async () => {
+		const { code, output } = await start(["bun", WEB], { ...BASE_ENV, ...install.env, WEBCRAFT_SECRET_KEY: OTHER_KEY });
+
+		expect(code).toBe(1);
+		expect(output).toContain(
+			"WEBCRAFT_SECRET_KEY is not this Install's Master key: its secrets are encrypted under Master key version 1",
+		);
+		expect(output).toContain("webcraft admin rotate-key");
+		expect(output).not.toContain(OTHER_KEY);
+	}, 20_000);
+
+	test("the web process's services refuse to open the same way", async () => {
 		await expect(install.restart({ masterKey: OTHER_KEY })).rejects.toThrow(
 			"WEBCRAFT_SECRET_KEY is not this Install's Master key: its secrets are encrypted under Master key version 1",
 		);
