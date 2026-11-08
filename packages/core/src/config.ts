@@ -9,6 +9,11 @@ export type InstallConfig = {
 	 * `/readyz`; every other hostname is resolved to a Site.
 	 */
 	adminHost: string;
+	/**
+	 * Where people reach the admin, such as `https://admin.example.com`: always HTTPS, except for a
+	 * development hostname under `.localhost`, which is plain HTTP on `PORT`.
+	 */
+	adminOrigin: string;
 };
 
 export type Environment = Record<string, string | undefined>;
@@ -20,10 +25,22 @@ export class ConfigError extends Error {
 
 /** Reads the settings every process needs, refusing to go on when one is missing or wrong. */
 export function loadInstallConfig(env: Environment): InstallConfig {
+	const adminHost = loadAdminHost(env);
 	return {
 		databaseUrl: loadDatabaseUrl(env),
-		adminHost: loadAdminHost(env),
+		adminHost,
+		adminOrigin: adminOriginFor(adminHost, env.PORT),
 	};
+}
+
+/** Development hostnames: the browser reaches them over plain HTTP on this machine. */
+export function isDevelopmentHostname(hostname: string): boolean {
+	return hostname === "localhost" || hostname.endsWith(".localhost");
+}
+
+/** The admin's origin: HTTPS, or plain HTTP on `port` (default 3000) for a `.localhost` hostname. */
+export function adminOriginFor(adminHost: string, port?: string): string {
+	return isDevelopmentHostname(adminHost) ? `http://${adminHost}:${port?.trim() || "3000"}` : `https://${adminHost}`;
 }
 
 /** Reads `DATABASE_URL`, the only setting the `migrate` step needs. */

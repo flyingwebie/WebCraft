@@ -14,6 +14,7 @@ const MAKE_ONE = "Make one with `openssl rand -base64 32` and keep a copy outsid
  */
 const HKDF_SALT = new TextEncoder().encode("webcraft master key");
 const FINGERPRINT_LABEL = "webcraft master key fingerprint";
+const SESSION_SIGNING_LABEL = "webcraft session cookie signing";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -97,6 +98,16 @@ export function secretsKey(masterKey: MasterKey, version: number): Promise<Crypt
 		state.secretsKeys.set(version, key);
 	}
 	return key;
+}
+
+/**
+ * The secret that signs admin session cookies, derived from the Master key: every web process of an
+ * Install has the same one without storing it, and a new Master key signs everyone out. Only the
+ * Install's start-up uses it, so it is not part of `@webcraft/core`'s public exports.
+ */
+export async function sessionSigningSecret(masterKey: MasterKey): Promise<string> {
+	const bits = await crypto.subtle.deriveBits(hkdf(SESSION_SIGNING_LABEL), await stateOf(masterKey).base, 256);
+	return Array.from(new Uint8Array(bits), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /** Only keys made here derive anything; a `new MasterKey()` made elsewhere refuses to be used. */

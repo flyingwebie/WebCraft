@@ -13,6 +13,8 @@
 	},
 	"dependencies": {
 		"@orpc/server": "catalog:",
+		"@webcraft/auth": "workspace:*",
+		"@webcraft/core": "workspace:*",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

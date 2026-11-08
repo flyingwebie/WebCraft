@@ -1,0 +1,100 @@
+import { sql } from "drizzle-orm";
+import { boolean, check, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+/**
+ * Everyone with an account on the Install: the Superadmin, Staff and Members. `@webcraft/auth`
+ * signs people in with these rows (its library calls this table "user"); WebCraft adds each
+ * person's admin preferences. Emails are stored in lower case.
+ */
+export const people = pgTable(
+	"people",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		name: text("name").notNull(),
+		email: text("email").notNull().unique(),
+		emailVerified: boolean("email_verified").notNull().default(false),
+		image: text("image"),
+		/** The person's Admin language, such as `it`. Null follows the Install's default Admin language. */
+		adminLanguage: text("admin_language"),
+		/** Light or dark admin, or `system` to follow the device. */
+		adminTheme: text("admin_theme").notNull().default("system"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [check("people_admin_theme_known", sql`${table.adminTheme} in ('system', 'light', 'dark')`)],
+);
+
+/**
+ * Signed-in sessions in the admin. `started_at` and `last_active_at` come from WebCraft's clock and
+ * decide how long a session lasts; the other columns belong to the sign-in library.
+ */
+export const sessions = pgTable(
+	"sessions",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		token: text("token").notNull().unique(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+		ipAddress: text("ip_address"),
+		userAgent: text("user_agent"),
+		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+		lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [index("sessions_person_id_idx").on(table.personId)],
+);
+
+/**
+ * The ways a person signs in: for now one row per person holding their password hash (provider
+ * `credential`). Later sign-in methods add rows of their own. The sign-in library calls it "account".
+ */
+export const credentials = pgTable(
+	"credentials",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		accountId: text("account_id").notNull(),
+		providerId: text("provider_id").notNull(),
+		accessToken: text("access_token"),
+		refreshToken: text("refresh_token"),
+		idToken: text("id_token"),
+		accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+		refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+		scope: text("scope"),
+		password: text("password"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [index("credentials_person_id_idx").on(table.personId)],
+);
+
+/** Short-lived values the sign-in library checks once, such as verification codes. */
+export const verifications = pgTable(
+	"verifications",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		identifier: text("identifier").notNull(),
+		value: text("value").notNull(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [index("verifications_identifier_idx").on(table.identifier)],
+);
+
+/**
+ * Install-level roles (ADR 0001, ADR 0028): `superadmin` or, later, `staff`, stored as a text role
+ * key so custom roles can be added without a migration. Members hold their role on a Membership.
+ */
+export const installRoles = pgTable("install_roles", {
+	personId: uuid("person_id")
+		.primaryKey()
+		.references(() => people.id, { onDelete: "cascade" }),
+	role: text("role").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});

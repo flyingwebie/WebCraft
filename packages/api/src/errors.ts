@@ -1,0 +1,38 @@
+import { ORPCError } from "@orpc/server";
+import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
+import { SetupClosedError, SetupStageError, SetupTokenInvalidError } from "@webcraft/core";
+
+/**
+ * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
+ * translates for people. Anything else passes through as it is (an unexpected error becomes a 500).
+ */
+export function toApiError(error: unknown): unknown {
+	if (error instanceof ORPCError) return error;
+	if (error instanceof SetupTokenInvalidError) {
+		return new ORPCError("SETUP_TOKEN_INVALID", { status: 403, message: error.message, cause: error });
+	}
+	if (error instanceof SetupClosedError) {
+		return new ORPCError("SETUP_CLOSED", { status: 410, message: error.message, cause: error });
+	}
+	if (error instanceof SetupStageError) {
+		return new ORPCError("SETUP_STAGE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof PasswordRefusedError) {
+		return new ORPCError("PASSWORD_REFUSED", {
+			status: 400,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
+	}
+	if (error instanceof InvalidEmailError) {
+		return new ORPCError("EMAIL_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof EmailInUseError) {
+		return new ORPCError("EMAIL_IN_USE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof InvalidCredentialsError) {
+		return new ORPCError("INVALID_CREDENTIALS", { status: 401, message: error.message, cause: error });
+	}
+	return error;
+}

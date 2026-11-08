@@ -9,6 +9,8 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@orpc/client": "catalog:",
+		"@webcraft/api": "workspace:*",
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",
 		"@webcraft/server": "workspace:*",
@@ -16,9 +18,11 @@
 		"pg-boss": "catalog:"
 	},
 	"devDependencies": {
+		"@axe-core/playwright": "4.14.0",
 		"@types/bun": "catalog:",
 		"@types/pg": "catalog:",
 		"@webcraft/config": "workspace:*",
+		"playwright": "1.65.0",
 		"typescript": "catalog:"
 	}
 }

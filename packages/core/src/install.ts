@@ -3,12 +3,12 @@ import type { PgBoss } from "pg-boss";
 
 import { systemClock } from "./clock.ts";
 import { type Environment, loadInstallConfig } from "./config.ts";
+import { createInstallServices } from "./create-services.ts";
 import { fetchHttp } from "./http.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import { createLogMailer } from "./mailer.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
-import { openSecrets } from "./secrets/store.ts";
 import type { InstallServices } from "./services.ts";
 
 /** The two long-running processes of an Install (ADR 0006). */
@@ -45,7 +45,6 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 	const database = openDatabase(config.databaseUrl, { applicationName });
 	opened.database = database;
 	await assertSchemaCurrent(database);
-	const secrets = await openSecrets({ database, masterKey, clock: systemClock });
 
 	const boss = createBoss(config.databaseUrl, {
 		...JOB_QUEUE_OPTIONS[processName],
@@ -53,19 +52,22 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 		instanceName: processName,
 	});
 	boss.on("error", (error) => log.error("The job queue reported an error", { error }));
+
+	// Built before the job queue starts, so a wrong Master key is refused first.
+	const services = await createInstallServices(
+		{
+			config,
+			database,
+			jobs: createJobQueue(boss),
+			// Until Install SMTP exists, emails are written to the log with a warning.
+			mailer: createLogMailer(log),
+			http: fetchHttp,
+			clock: systemClock,
+			log,
+		},
+		masterKey,
+	);
 	opened.boss = boss;
 	await boss.start();
-
-	const services: InstallServices = {
-		config,
-		database,
-		jobs: createJobQueue(boss),
-		// Until Install SMTP exists, emails are written to the log with a warning.
-		mailer: createLogMailer(log),
-		secrets,
-		http: fetchHttp,
-		clock: systemClock,
-		log,
-	};
 	return { services, boss };
 }
