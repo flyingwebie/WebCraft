@@ -135,9 +135,15 @@ export function readExpression(text: string): { expression: Expression } | { pro
 		throw new ExpressionSyntaxError(token.offset, message);
 	};
 
+	// Each `and` or `or` in a chain nests the tree one level deeper, so a chain is bounded while it is
+	// read: a very long one is refused before its tree is built, never walked until the stack runs out.
+	const tooDeep = (): never => {
+		throw new ExpressionSyntaxError(0, `A test nests at most ${EXPRESSION_MAX_DEPTH} deep.`);
+	};
 	const parseOr = (depth: number): Expression => {
 		let left = parseAnd(depth);
-		while (isWord(peek(), "or")) {
+		for (let chained = 1; isWord(peek(), "or"); chained++) {
+			if (depth + chained > EXPRESSION_MAX_DEPTH) tooDeep();
 			index++;
 			left = { type: "or", left, right: parseAnd(depth) };
 		}
@@ -145,7 +151,8 @@ export function readExpression(text: string): { expression: Expression } | { pro
 	};
 	const parseAnd = (depth: number): Expression => {
 		let left = parseNot(depth);
-		while (isWord(peek(), "and")) {
+		for (let chained = 1; isWord(peek(), "and"); chained++) {
+			if (depth + chained > EXPRESSION_MAX_DEPTH) tooDeep();
 			index++;
 			left = { type: "and", left, right: parseNot(depth) };
 		}
