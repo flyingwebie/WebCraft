@@ -194,7 +194,10 @@ export type TestInstall = {
 	 * the jobs between two emails to one address when the order matters.
 	 */
 	lastEmailTo(address: string): Promise<{ to: string; subject: string; text: string }>;
-	/** The Install's outgoing HTTP: prepare answers, read what was requested. */
+	/**
+	 * The Install's outgoing HTTP: prepare answers, read what was requested. The leaked-password
+	 * range service answers that no password is leaked unless a test answers it otherwise.
+	 */
 	http: FakeHttp;
 	clock: TestInstallClock;
 	/** Every log entry the Install wrote. */
@@ -376,7 +379,13 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 				password: TEST_PASSWORD,
 				adminLanguage: "en",
 			};
-			await admin.api.staff.invite({ email: account.email, workspaces });
+			const invite = () => admin.api.staff.invite({ email: account.email, workspaces });
+			// Inviting is a Sensitive action: a test may have moved the clock past the last identity check.
+			await invite().catch(async (error: { code?: string }) => {
+				if (error.code !== "IDENTITY_CHECK_REQUIRED" || !superadminAccount) throw error;
+				await admin.api.session.confirmIdentity({ password: superadminAccount.password });
+				await invite();
+			});
 			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
 			const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
 			const { personId } = await browser.api.invites.accept({ token, ...account });

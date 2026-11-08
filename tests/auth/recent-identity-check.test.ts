@@ -96,6 +96,15 @@ describe("Sensitive actions", () => {
 	});
 });
 
+describe("the test harness", () => {
+	test("makes Staff even when the Superadmin's last identity check is old", async () => {
+		await install.superadmin();
+		await install.clock.advance(30 * MINUTE);
+
+		await expect(install.createStaff({ workspaces: "all" })).resolves.toMatchObject({ personId: expect.any(String) });
+	});
+});
+
 describe("actions that aren't Sensitive", () => {
 	test("need no recent identity check", async () => {
 		const browser = await install.signIn(superadmin);
