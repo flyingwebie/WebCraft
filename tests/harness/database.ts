@@ -78,7 +78,9 @@ async function dropLeftovers(): Promise<void> {
 		client.query<{ datname: string }>("SELECT datname FROM pg_database WHERE starts_with(datname, $1)", [ours]),
 	);
 	for (const { datname } of rows) {
-		const startedAt = Number.parseInt(datname.slice(ours.length).split("_")[0] ?? "", 36);
+		// Only names this harness makes: <start time>_<6 hex digits>_<tpl or a number>.
+		const match = /^([0-9a-z]{8,})_[0-9a-f]{6}_(tpl|\d+)$/.exec(datname.slice(ours.length));
+		const startedAt = match?.[1] ? Number.parseInt(match[1], 36) : Number.NaN;
 		if (Number.isFinite(startedAt) && Date.now() - startedAt > LEFTOVER_AGE_MS) {
 			await dropDatabase(datname);
 		}
