@@ -4,8 +4,19 @@
  * finds the Entry and its published Template and hands them over. It runs inside the web process.
  * Template markup (parse, validate, print) joins it later.
  */
-export { escapeAttribute, escapeText, type RenderOptions, renderTree, safeUrl, type ValueReader } from "./html.ts";
+export {
+	escapeAttribute,
+	escapeText,
+	type RenderOptions,
+	type RenderValue,
+	type RichText,
+	renderTree,
+	safeUrl,
+	type ValueReader,
+	valueText,
+} from "./html.ts";
 export { directionOf, type PageToRender, renderPage } from "./page.ts";
+export { cleanRichText, RICH_TEXT_ELEMENTS, richTextToText } from "./rich-text.ts";
 export {
 	type Attribute,
 	type AttributePart,
