@@ -37,6 +37,7 @@ export function createSmtpMailer(): Mailer {
 					text: email.text,
 					html: email.html,
 					headers: email.headers,
+					...(email.messageId ? { messageId: email.messageId } : {}),
 				});
 				return { response: info.response };
 			} catch (error) {
