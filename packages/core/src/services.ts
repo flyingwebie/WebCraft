@@ -7,6 +7,10 @@ import type { InstallConfig } from "./config.ts";
 import type {
 	DraftChange,
 	Entry,
+	EntryDeletion,
+	FieldInput,
+	Globals,
+	GlobalsChange,
 	NewEntry,
 	NewPostType,
 	PostType,
@@ -111,6 +115,21 @@ export type InstallServices = InstallPorts & {
 		create(scope: SiteScope, input: NewEntry): Promise<Entry>;
 		/** The one way an Entry's Draft changes. */
 		saveDraft(scope: SiteScope, entryId: string, change: DraftChange): Promise<Entry>;
+		/**
+		 * Deletes an Entry in two steps: without `confirmation` it answers how many Entries link to it
+		 * and a confirmation id; with the id it deletes it and removes those links. Open the Site with
+		 * `entry.delete`.
+		 */
+		delete(scope: SiteScope, entryId: string, confirmation?: string): Promise<EntryDeletion>;
+	};
+	/**
+	 * The Globals: one set of Fields per Site. Staff set the Fields (`structure.edit`); Members edit the
+	 * Draft (`entry.edit`); publishing goes through `publishing.publish` with `{ kind: "globals" }`.
+	 */
+	globals: {
+		get(scope: SiteScope, language?: string): Promise<Globals>;
+		setFields(scope: SiteScope, fields: readonly FieldInput[]): Promise<Globals>;
+		saveDraft(scope: SiteScope, change: GlobalsChange): Promise<Globals>;
 	};
 	/** Templates, stored as element trees with a Draft and a published version. Structure: `structure.edit`. */
 	templates: {

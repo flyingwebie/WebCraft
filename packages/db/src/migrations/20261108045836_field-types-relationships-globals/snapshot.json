@@ -1,0 +1,884 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "c94e9f60-743d-4698-a333-fa49a820964e",
+  "prevIds": [
+    "087422f6-648d-42ef-ae86-370102c4fe7e"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "confirmations"
+      ],
+      "writes": [
+        "s|tbl|public.confirmations",
+        "n|tbl|public.confirmations",
+        "e|tbl|public.confirmations",
+        "n|rel|public.confirmations",
+        "n|type|public.confirmations",
+        "n|rel|public.confirmations_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "entry_links"
+      ],
+      "writes": [
+        "s|tbl|public.entry_links",
+        "n|tbl|public.entry_links",
+        "e|tbl|public.entry_links",
+        "n|rel|public.entry_links",
+        "n|type|public.entry_links",
+        "n|rel|public.entry_links_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "globals"
+      ],
+      "writes": [
+        "s|tbl|public.globals",
+        "n|tbl|public.globals",
+        "e|tbl|public.globals",
+        "n|rel|public.globals",
+        "n|type|public.globals",
+        "n|rel|public.globals_pkey",
+        "n|rel|public.globals_site_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "entry_links",
+        "entry_links_site_id_target_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.entry_links_site_id_target_id_idx",
+        "n|idx|public.entry_links_site_id_target_id_idx",
+        "e|idx|public.entry_links_site_id_target_id_idx",
+        "n|rel|public.entry_links_site_id_target_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.entry_links",
+        "n|sch|public",
+        "n|col|public.entry_links.site_id",
+        "n|col|public.entry_links.target_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "confirmations"
+      ],
+      "writes": [
+        "s|fk|public.confirmations.confirmations_person_id_people_id_fkey",
+        "n|fk|public.confirmations.confirmations_person_id_people_id_fkey",
+        "e|fk|public.confirmations.confirmations_person_id_people_id_fkey",
+        "n|con|public.confirmations.confirmations_person_id_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.confirmations",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.confirmations.person_id",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "confirmations"
+      ],
+      "writes": [
+        "s|fk|public.confirmations.confirmations_site_fkey",
+        "n|fk|public.confirmations.confirmations_site_fkey",
+        "e|fk|public.confirmations.confirmations_site_fkey",
+        "n|con|public.confirmations.confirmations_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.confirmations",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.confirmations.workspace_id",
+        "n|col|public.confirmations.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "entry_links"
+      ],
+      "writes": [
+        "s|fk|public.entry_links.entry_links_site_fkey",
+        "n|fk|public.entry_links.entry_links_site_fkey",
+        "e|fk|public.entry_links.entry_links_site_fkey",
+        "n|con|public.entry_links.entry_links_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.entry_links",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.entry_links.workspace_id",
+        "n|col|public.entry_links.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "entry_links"
+      ],
+      "writes": [
+        "s|fk|public.entry_links.entry_links_entry_fkey",
+        "n|fk|public.entry_links.entry_links_entry_fkey",
+        "e|fk|public.entry_links.entry_links_entry_fkey",
+        "n|con|public.entry_links.entry_links_entry_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.entry_links",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.entry_links.site_id",
+        "n|col|public.entry_links.entry_id",
+        "n|col|public.entries.site_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "entry_links"
+      ],
+      "writes": [
+        "s|fk|public.entry_links.entry_links_target_fkey",
+        "n|fk|public.entry_links.entry_links_target_fkey",
+        "e|fk|public.entry_links.entry_links_target_fkey",
+        "n|con|public.entry_links.entry_links_target_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.entry_links",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.entry_links.site_id",
+        "n|col|public.entry_links.target_id",
+        "n|col|public.entries.site_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "globals"
+      ],
+      "writes": [
+        "s|fk|public.globals.globals_site_fkey",
+        "n|fk|public.globals.globals_site_fkey",
+        "e|fk|public.globals.globals_site_fkey",
+        "n|con|public.globals.globals_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.globals",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.globals.workspace_id",
+        "n|col|public.globals.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "confirmations",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "entry_links",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "globals",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "person_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "action",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "target",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "preview",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "entry_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "version",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "field",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "target_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "fields",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "draft",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "published",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "last_published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "entry_links_site_id_target_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "target_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "confirmations_person_id_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "person_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "confirmations_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "entry_links_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "entry_links_entry_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "entry_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "entry_links_target_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "target_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "globals_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entry_links",
+        "name": "entry_links_pkey",
+        "columns": [
+          "entry_id",
+          "version",
+          "field",
+          "target_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "confirmations",
+        "name": "confirmations_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "globals_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "globals",
+        "name": "globals_site_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    }
+  ]
+}

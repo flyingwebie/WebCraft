@@ -1,13 +1,14 @@
-import { templates } from "@webcraft/db/schema";
+import { globals, templates } from "@webcraft/db/schema";
 import { type ElementTree, parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { sameJson } from "./entries.ts";
 import { TemplateNotFoundError } from "./errors.ts";
-import { BUILT_IN_FIELDS } from "./fields.ts";
-import { getPostType, type PostType, UUID } from "./post-types.ts";
+import { storedFields } from "./fields.ts";
+import { sameJson } from "./json.ts";
+import { getPostType, listPostTypes, type PostType, UUID } from "./post-types.ts";
+import { knownValues } from "./render-values.ts";
 
 /** The kinds of Template. The Site template and Archive templates join the Entry template. */
 export type TemplateKind = "entry";
@@ -36,16 +37,36 @@ type TemplateRow = typeof templates.$inferSelect;
 
 /**
  * Checks a tree as an Entry template of `postType` and answers it in canonical form. It may read the
- * built-in Fields and the Post Type's Fields; `<main>` belongs to the Site template, around it.
- * Throws `ElementTreeInvalidError` listing what is wrong.
+ * built-in Fields, the Post Type's Fields and their parts (`address.city`, `team.name`, what a
+ * Relationship points at: `category.title`), and the Globals as `site.x`; `<main>` belongs to the
+ * Site template, around it. Throws `ElementTreeInvalidError` listing what is wrong.
  */
-export function parseEntryTemplate(tree: unknown, postType: PostType): ElementTree {
-	const names = new Set<string>([...BUILT_IN_FIELDS, ...postType.fields.map((field) => field.key)]);
+export function parseEntryTemplate(
+	tree: unknown,
+	context: {
+		postType: PostType;
+		postTypes: readonly PostType[];
+		globalFields: Parameters<typeof knownValues>[0]["globalFields"];
+	},
+): ElementTree {
+	const isKnownValue = knownValues({
+		fields: context.postType.fields,
+		postTypes: context.postTypes,
+		globalFields: context.globalFields,
+	});
 	return parseElementTree(tree, {
-		isKnownValue: (path) => names.has(path),
+		isKnownValue,
 		refuseElement: (tag) =>
 			tag === "main" ? "An Entry template renders inside the page's <main>; it can't hold another." : undefined,
 	});
+}
+
+/** Checks a tree as the Entry template of a Post Type of the scope's Site, with the Site as it is now. */
+export async function checkEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<ElementTree> {
+	const postType = await getPostType(scope, postTypeId);
+	const postTypes = await listPostTypes(scope);
+	const globalFields = storedFields((await scope.first(globals))?.fields);
+	return parseEntryTemplate(tree, { postType, postTypes, globalFields });
 }
 
 /**
@@ -54,7 +75,7 @@ export function parseEntryTemplate(tree: unknown, postType: PostType): ElementTr
  */
 export async function saveEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template> {
 	const postType = await getPostType(scope, postTypeId);
-	const draft = parseEntryTemplate(tree, postType);
+	const draft = await checkEntryTemplate(scope, postType.id, tree);
 	const save = () =>
 		scope.transaction(async (tx) => {
 			const now = tx.now();

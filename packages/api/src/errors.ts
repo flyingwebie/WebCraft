@@ -3,11 +3,15 @@ import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRe
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
+	ConfirmationInvalidError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
 	EntryInvalidError,
+	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	GlobalsIncompleteError,
+	GlobalsInvalidError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	MemberNotFoundError,
@@ -97,6 +101,38 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof EntryLinkedError) {
+		return new ORPCError("ENTRY_LINKED", {
+			status: 409,
+			message: error.message,
+			data: { blockedBy: error.blockedBy },
+			cause: error,
+		});
+	}
+	if (error instanceof GlobalsInvalidError) {
+		return new ORPCError("GLOBALS_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof GlobalsIncompleteError) {
+		return new ORPCError("GLOBALS_INCOMPLETE", {
+			status: 400,
+			message: error.message,
+			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof ConfirmationInvalidError) {
+		return new ORPCError("CONFIRMATION_INVALID", {
+			status: 409,
+			message: error.message,
+			data: { problem: error.problem },
 			cause: error,
 		});
 	}
