@@ -1,6 +1,15 @@
 import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
-import { Building2Icon, GlobeIcon, LayoutDashboardIcon, type LucideIcon, SettingsIcon, UsersIcon } from "lucide-react";
+import {
+	Building2Icon,
+	GlobeIcon,
+	LayoutDashboardIcon,
+	type LucideIcon,
+	MailIcon,
+	ScrollTextIcon,
+	SettingsIcon,
+	UsersIcon,
+} from "lucide-react";
 
 import type { MessageKey } from "../i18n.tsx";
 
@@ -58,6 +67,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 					{ id: "overview", label: "shell.nav.overview", icon: LayoutDashboardIcon, to: "/", exact: true },
 					{ id: "workspaces", label: "shell.nav.workspaces", icon: Building2Icon, to: "/workspaces" },
 					{ id: "staff", label: "shell.nav.staff", icon: UsersIcon, to: "/staff", requires: "staff.manage" },
+					{
+						id: "email-log",
+						label: "shell.nav.emailLog",
+						icon: ScrollTextIcon,
+						to: "/email-log",
+						requires: "install.manage",
+					},
 				],
 			},
 			{
@@ -69,6 +85,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.general",
 						icon: SettingsIcon,
 						to: "/settings/general",
+						requires: "install.manage",
+					},
+					{
+						id: "email",
+						label: "shell.nav.email",
+						icon: MailIcon,
+						to: "/settings/email",
 						requires: "install.manage",
 					},
 				],

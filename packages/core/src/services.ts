@@ -4,11 +4,11 @@ import type { Database } from "@webcraft/db";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
+import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
 import type { JobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
-import type { Mailer } from "./mailer.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
@@ -83,4 +83,6 @@ export type InstallServices = InstallPorts & {
 		/** The newest entries of the whole Install's Audit log; open the Install with `audit.view` first. */
 		list(scope: InstallScope, options: { limit: number }): Promise<AuditEntry[]>;
 	};
+	/** The Install SMTP, Install branding, the System email sender, the Email log and email preferences. */
+	email: Email;
 };

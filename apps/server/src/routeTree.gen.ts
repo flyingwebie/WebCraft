@@ -15,7 +15,9 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
+import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
+import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
 import { Route as AdminSitesSiteIdRouteImport } from './routes/_admin/sites.$siteId'
 import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/workspaces.index'
@@ -52,9 +54,19 @@ const AdminAccountRoute = AdminAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminEmailLogRoute = AdminEmailLogRouteImport.update({
+  id: '/email-log',
+  path: '/email-log',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminStaffRoute = AdminStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSettingsEmailRoute = AdminSettingsEmailRouteImport.update({
+  id: '/settings/email',
+  path: '/settings/email',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
@@ -96,7 +108,9 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/account': typeof AdminAccountRoute
+  '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
+  '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
@@ -109,8 +123,10 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/account': typeof AdminAccountRoute
+  '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
   '/': typeof AdminIndexRoute
+  '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
@@ -123,8 +139,10 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/_admin/account': typeof AdminAccountRoute
+  '/_admin/email-log': typeof AdminEmailLogRoute
   '/_admin/staff': typeof AdminStaffRoute
   '/_admin/': typeof AdminIndexRoute
+  '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
@@ -140,7 +158,9 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/account'
+    | '/email-log'
     | '/staff'
+    | '/settings/email'
     | '/settings/general'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
@@ -153,8 +173,10 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/account'
+    | '/email-log'
     | '/staff'
     | '/'
+    | '/settings/email'
     | '/settings/general'
     | '/workspaces'
     | '/sites/$siteId'
@@ -166,8 +188,10 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/_admin/account'
+    | '/_admin/email-log'
     | '/_admin/staff'
     | '/_admin/'
+    | '/_admin/settings/email'
     | '/_admin/settings/general'
     | '/_admin/sites/$siteId'
     | '/_admin/workspaces/$workspaceId'
@@ -227,11 +251,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAccountRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/email-log': {
+      id: '/_admin/email-log'
+      path: '/email-log'
+      fullPath: '/email-log'
+      preLoaderRoute: typeof AdminEmailLogRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/staff': {
       id: '/_admin/staff'
       path: '/staff'
       fullPath: '/staff'
       preLoaderRoute: typeof AdminStaffRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/settings/email': {
+      id: '/_admin/settings/email'
+      path: '/settings/email'
+      fullPath: '/settings/email'
+      preLoaderRoute: typeof AdminSettingsEmailRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_admin/settings/general': {
@@ -306,8 +344,10 @@ const AdminWorkspacesWorkspaceIdRouteWithChildren =
 
 interface AdminRouteChildren {
   AdminAccountRoute: typeof AdminAccountRoute
+  AdminEmailLogRoute: typeof AdminEmailLogRoute
   AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
   AdminSitesSiteIdRoute: typeof AdminSitesSiteIdRouteWithChildren
   AdminWorkspacesWorkspaceIdRoute: typeof AdminWorkspacesWorkspaceIdRouteWithChildren
@@ -316,8 +356,10 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAccountRoute: AdminAccountRoute,
+  AdminEmailLogRoute: AdminEmailLogRoute,
   AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminSettingsEmailRoute: AdminSettingsEmailRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
   AdminSitesSiteIdRoute: AdminSitesSiteIdRouteWithChildren,
   AdminWorkspacesWorkspaceIdRoute: AdminWorkspacesWorkspaceIdRouteWithChildren,

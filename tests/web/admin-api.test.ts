@@ -23,7 +23,7 @@ describe("the Management API at /api/rpc", () => {
 
 		expect(response.status).toBe(405);
 		expect(response.headers.get("allow")).toBe("POST");
-		expect((await browser.api.shell.context()).banners).toEqual({ masterKey: true });
+		expect((await browser.api.shell.context()).banners.masterKey).toBe(true);
 	});
 
 	test("refuses requests from another site's pages, even with the person's cookie", async () => {
@@ -37,7 +37,7 @@ describe("the Management API at /api/rpc", () => {
 		});
 
 		expect(response.status).toBe(403);
-		expect((await browser.api.shell.context()).banners).toEqual({ masterKey: true });
+		expect((await browser.api.shell.context()).banners.masterKey).toBe(true);
 	});
 
 	test("answers are never cached", async () => {

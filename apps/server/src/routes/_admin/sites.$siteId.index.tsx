@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
-import { useFormatter } from "use-intl";
 
+import { formatUtcDate } from "../../ui/format.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -14,7 +14,6 @@ export const Route = createFileRoute("/_admin/sites/$siteId/")({
 /** Site › Overview: the Site's first page. Its Content, Structure and settings arrive with their screens. */
 function SiteOverviewPage() {
 	const t = useT();
-	const format = useFormatter();
 	const { site, place } = Route.useRouteContext();
 	const workspace = place.level === "site" ? place.workspace.name : "";
 	return (
@@ -35,7 +34,7 @@ function SiteOverviewPage() {
 						<dt className="text-muted-foreground">{t("site.workspace")}</dt>
 						<dd>{workspace}</dd>
 						<dt className="text-muted-foreground">{t("site.created")}</dt>
-						<dd>{format.dateTime(site.createdAt, { dateStyle: "medium" })}</dd>
+						<dd>{formatUtcDate(site.createdAt)}</dd>
 					</dl>
 				</CardContent>
 			</Card>

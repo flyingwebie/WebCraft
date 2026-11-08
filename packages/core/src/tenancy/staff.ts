@@ -6,15 +6,13 @@ import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import type { AdminLanguageCode } from "../admin-languages.ts";
 import { type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
-import type { InstallConfig } from "../config.ts";
+import type { Email } from "../email/index.ts";
 import type { InstallSettings } from "../install-settings.ts";
-import type { Mailer } from "../mailer.ts";
 import type { Reach } from "../permissions/can.ts";
 import { ROLES, STAFF_ROLE } from "../permissions/roles.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import type { InstallScope } from "./data-layer.ts";
 import { WorkspaceNotFoundError } from "./errors.ts";
-import { sendStaffInviteEmail } from "./invite-email.ts";
 
 /** How long an invite link works. */
 export const INVITE_LIFETIME_DAYS = 7;
@@ -99,9 +97,8 @@ export type InvitesService = {
 type StaffOptions = {
 	database: Database;
 	auth: Auth;
-	mailer: Mailer;
+	email: Email;
 	settings: InstallSettings;
-	config: InstallConfig;
 	clock: Clock;
 };
 
@@ -115,7 +112,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Executor = Database["db"] | Transaction;
 
 export function createStaffServices(options: StaffOptions): { staff: StaffService; invites: InvitesService } {
-	const { database, auth, mailer, settings, config, clock } = options;
+	const { database, auth, email, settings, clock } = options;
 	const { db } = database;
 
 	/** The Workspaces each invite assigns, by invite id, sorted by name. */
@@ -223,19 +220,19 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 
 		async invite(scope, input) {
 			assertValidEmail(input.email);
-			const email = normaliseEmail(input.email);
+			const address = normaliseEmail(input.email);
 			const token = newToken();
 			const invite = await scope.transaction(async (tx) => {
-				const [existing] = await tx.db.select({ id: people.id }).from(people).where(eq(people.email, email));
-				if (existing) throw new EmailInUseError(`Another person already signs in with ${email}.`);
+				const [existing] = await tx.db.select({ id: people.id }).from(people).where(eq(people.email, address));
+				if (existing) throw new EmailInUseError(`Another person already signs in with ${address}.`);
 				await assertWorkspacesExist(tx.db, input.workspaces);
 				// One pending Staff invite per address: a new invite replaces the earlier one and its link.
-				await tx.db.delete(invites).where(and(eq(invites.email, email), inArray(invites.role, ASSIGNED_ROLES)));
+				await tx.db.delete(invites).where(and(eq(invites.email, address), inArray(invites.role, ASSIGNED_ROLES)));
 				const now = tx.now();
 				const [created] = await tx.db
 					.insert(invites)
 					.values({
-						email,
+						email: address,
 						tokenHash: await hashToken(token),
 						role: STAFF_ROLE,
 						allWorkspaces: input.workspaces === "all",
@@ -250,21 +247,22 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 						.insert(inviteWorkspaces)
 						.values([...new Set(input.workspaces)].map((workspaceId) => ({ inviteId: created.id, workspaceId })));
 				}
-				await tx.audit("staff.invite", { email, workspaces: describeReach(input.workspaces) });
+				await tx.audit("staff.invite", { email: address, workspaces: describeReach(input.workspaces) });
 				const [invite] = await pendingInvites(tx.db, eq(invites.id, created.id));
 				if (!invite) throw new Error("The invite was not saved.");
 				return invite;
 			});
-			const { name, defaultAdminLanguage } = await settings.read();
-			const link = new URL("/invite", config.adminOrigin);
-			link.searchParams.set("token", token);
-			await sendStaffInviteEmail(mailer, {
-				to: email,
-				link: link.toString(),
-				inviterName: invite.invitedBy?.name ?? "WebCraft",
-				installName: name ?? "WebCraft",
-				days: INVITE_LIFETIME_DAYS,
-				language: defaultAdminLanguage,
+			// A security email: it always goes, in the Install's default Admin language (the invitee has
+			// no account yet), and links only into the admin.
+			await email.send({
+				type: "staff-invite",
+				to: { email: address },
+				data: {
+					inviterName: invite.invitedBy?.name ?? "WebCraft",
+					acceptPath: `/invite?token=${token}`,
+					expiresInDays: INVITE_LIFETIME_DAYS,
+				},
+				related: { kind: "invite", id: invite.id },
 			});
 			return invite;
 		},

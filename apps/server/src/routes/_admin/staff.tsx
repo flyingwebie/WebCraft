@@ -27,10 +27,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SendIcon, UserPlusIcon } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
-import { useFormatter } from "use-intl";
 
 import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
+import { formatUtcDate } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -59,11 +59,9 @@ const fromAccess = (access: Access): "all" | string[] => (access.mode === "all" 
 /** Install › Staff: the agency's people, the Workspaces they reach, and pending invites. */
 function StaffPage() {
 	const t = useT();
-	const format = useFormatter();
 	const data = Route.useLoaderData();
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 	const { staff, invites, workspaces } = data;
-	const date = (value: Date) => format.dateTime(value, { dateStyle: "medium" });
 	const reach = (assigned: "all" | WorkspaceOption[]) =>
 		assigned === "all"
 			? t("staff.allWorkspaces")
@@ -98,7 +96,7 @@ function StaffPage() {
 											<span className="text-muted-foreground block text-xs">{person.email}</span>
 										</TableCell>
 										<TableCell className="whitespace-normal">{reach(person.workspaces)}</TableCell>
-										<TableCell className="text-muted-foreground">{date(person.since)}</TableCell>
+										<TableCell className="text-muted-foreground">{formatUtcDate(person.since)}</TableCell>
 										<TableCell className="pe-4 text-end">
 											<ChangeWorkspacesSheet person={person} workspaces={workspaces} />
 										</TableCell>
@@ -132,8 +130,11 @@ function StaffPage() {
 											<TableCell className="whitespace-normal">{reach(invite.workspaces)}</TableCell>
 											<TableCell className="text-muted-foreground">
 												{invite.invitedBy
-													? t("staff.pending.invitedBy", { name: invite.invitedBy.name, date: date(invite.expiresAt) })
-													: t("staff.pending.expires", { date: date(invite.expiresAt) })}
+													? t("staff.pending.invitedBy", {
+															name: invite.invitedBy.name,
+															date: formatUtcDate(invite.expiresAt),
+														})
+													: t("staff.pending.expires", { date: formatUtcDate(invite.expiresAt) })}
 											</TableCell>
 											<TableCell className="pe-4 text-end">
 												<RevokeInviteButton invite={invite} />

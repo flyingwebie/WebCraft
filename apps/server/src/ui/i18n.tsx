@@ -15,16 +15,10 @@ declare module "use-intl" {
 	}
 }
 
-/**
- * The time zone dates and times are shown in. People have no time zone setting yet, and the page
- * must render the same on the server and in the browser, so the admin shows UTC.
- */
-export const ADMIN_TIME_ZONE = "UTC";
-
 /** Shows everything inside in one Admin language. */
 export function AdminIntl({ language, children }: { language: AdminLanguageCode; children: ReactNode }) {
 	return (
-		<IntlProvider locale={language} messages={adminMessages[language]} timeZone={ADMIN_TIME_ZONE}>
+		<IntlProvider locale={language} messages={adminMessages[language]}>
 			{children}
 		</IntlProvider>
 	);

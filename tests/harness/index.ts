@@ -1,7 +1,9 @@
 import { createServer } from "node:net";
 import {
 	type AdminLanguageCode,
+	type Clock,
 	coreJobs,
+	coreSchedules,
 	createInstallServices,
 	createJobQueue,
 	createLogger,
@@ -16,6 +18,9 @@ import {
 	parseMasterKey,
 	runJob,
 	type Secrets,
+	type SendResult,
+	type SystemEmail,
+	type SystemEmailType,
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
@@ -30,7 +35,8 @@ import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 export { API_PATH, type TestBrowser } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
-export type { FakeMailer } from "./fake-mailer.ts";
+export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
+export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
 
 /** The invite link in an invite email: `https://admin.test/invite?token=…`. Throws when there is none. */
 export function inviteLinkIn(email: { text: string } | undefined): string {
@@ -157,7 +163,10 @@ export type TestInstall = {
 	}): Promise<{ account: TestAccount; personId: string; browser: TestBrowser }>;
 	/** The job queue the Install uses, to enqueue a job the way the web process would. */
 	jobs: JobQueue;
-	/** Runs every job that is due by the test clock, including the jobs those jobs enqueue. */
+	/**
+	 * Runs every job that is due by the test clock, including the jobs those jobs enqueue, and the
+	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain.
+	 */
 	drainJobs(): Promise<DrainReport>;
 	/**
 	 * Every secret of the Install, encrypted under its Master key: set, use and describe them, for
@@ -166,8 +175,20 @@ export type TestInstall = {
 	 * the secret store use this.
 	 */
 	readonly secrets: Secrets;
+	/**
+	 * Sends a System email the way WebCraft's features do (`services.email.send`): rendered for each
+	 * recipient, recorded in the Email log and queued; drain the jobs to send it.
+	 */
+	sendSystemEmail<Type extends SystemEmailType>(email: SystemEmail<Type>): Promise<SendResult[]>;
 	/** Every email the Install sent. */
 	mail: FakeMailer;
+	/**
+	 * The newest email to `address`: runs the jobs that are due, then looks at what the Install SMTP
+	 * sent or, while it isn't set, what was written to the log instead. Throws when there is none.
+	 * The clock stands still, so emails queued in the same instant can go out in either order: drain
+	 * the jobs between two emails to one address when the order matters.
+	 */
+	lastEmailTo(address: string): Promise<{ to: string; subject: string; text: string }>;
 	/** The Install's outgoing HTTP: prepare answers, read what was requested. */
 	http: FakeHttp;
 	clock: TestInstallClock;
@@ -240,6 +261,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		if (mode === "migrated") await started.setup.announce();
 		return started;
 	};
+	// Scheduled jobs come due by the test clock: the drain sends each one whose time came since then.
+	const schedulesCheckedAt = { time: clock.now() };
 	// The handler keeps this object; a restart swaps the services inside it.
 	const services: InstallServices = await start(env[MASTER_KEY_VARIABLE]);
 	const secretStore = (masterKey: string) =>
@@ -270,6 +293,17 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
 		await browser.api.session.signIn({ email, password });
 		return browser;
+	};
+	const lastEmailTo = async (address: string) => {
+		const to = address.trim().toLowerCase();
+		if (boss) await drainJobs(boss, services);
+		const sent = mail.sent.findLast((email) => email.to === to);
+		if (sent) return { to: sent.to, subject: sent.subject, text: sent.text };
+		const logged = logs.findLast((entry) => (entry.email as { to?: unknown } | undefined)?.to === to)?.email as
+			| { to: string; subject: string; text: string }
+			| undefined;
+		if (logged) return logged;
+		throw new Error(`No email went to ${to}.`);
 	};
 	const superadmin = async () => {
 		if (superadminBrowser) {
@@ -333,8 +367,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 				adminLanguage: "en",
 			};
 			await admin.api.staff.invite({ email: account.email, workspaces });
-			const sent = mail.sent.findLast((message) => message.to === account.email);
-			const token = new URL(inviteLinkIn(sent)).searchParams.get("token") ?? "";
+			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
 			const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
 			const { personId } = await browser.api.invites.accept({ token, ...account });
 			return { account, personId, browser };
@@ -344,14 +377,17 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return printed?.setupToken as string | undefined;
 		},
 		jobs: services.jobs,
-		drainJobs: () => {
+		drainJobs: async () => {
 			if (!boss) throw new Error(`An Install with an ${mode} database has no job queue to drain.`);
+			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt);
 			return drainJobs(boss, services);
 		},
 		get secrets() {
 			return secrets;
 		},
+		sendSystemEmail: (email) => services.email.send(email),
 		mail,
+		lastEmailTo,
 		http,
 		clock,
 		logs,
@@ -367,6 +403,19 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			await testDatabase?.drop();
 		},
 	};
+}
+
+/**
+ * Sends each scheduled job whose time came, by the test clock, since the last drain: once, however
+ * many times it came due (as the worker does after being down).
+ */
+async function sendDueSchedules(boss: PgBoss, jobs: JobQueue, clock: Clock, checkedAt: { time: Date }) {
+	const now = clock.now();
+	for (const schedule of coreSchedules) {
+		const [next] = boss.previewSchedule(schedule.cron, { from: checkedAt.time, count: 1, tz: "UTC" });
+		if (next && next.getTime() <= now.getTime()) await jobs.send(schedule.job, schedule.payload);
+	}
+	checkedAt.time = now;
 }
 
 /** Every round fetches each queue until a round finds nothing due; this stops a job loop. */

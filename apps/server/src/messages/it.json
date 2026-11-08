@@ -16,6 +16,7 @@
 		"INVALID_CREDENTIALS": "L'email o la password non sono corrette.",
 		"UNAUTHORIZED": "La sessione è terminata. Accedi di nuovo.",
 		"FORBIDDEN": "Non puoi farlo.",
+		"EMAIL_ALWAYS_SENT": "Le email di sicurezza non si possono disattivare.",
 		"WORKSPACE_NOT_FOUND": "Questo Workspace non esiste, o non puoi raggiungerlo.",
 		"SITE_NOT_FOUND": "Questo Site non esiste, o non puoi raggiungerlo.",
 		"STAFF_NOT_FOUND": "Questa persona non fa parte dello Staff.",
@@ -80,6 +81,16 @@
 				"recommend": "Il Superadmin può raggiungere tutto in questa Install, quindi la consigliamo vivamente.",
 				"setUp": "Configura l'autenticazione a due fattori",
 				"later": "Puoi farlo anche più tardi da Il tuo account."
+			},
+			"email": {
+				"title": "Email dell'Install (SMTP)",
+				"hint": "Invia inviti ed email di sicurezza",
+				"heading": "Configura l'email dell'Install",
+				"intro": "WebCraft invia inviti, reimpostazioni della password e avvisi di sicurezza tramite un server SMTP, come quello del tuo provider email o di un servizio di invio.",
+				"later": "Per ora puoi saltare questo passo: finché non c'è un SMTP, queste email vengono scritte nel log web. Puoi configurarlo più tardi in Impostazioni dell'Install › Email (SMTP).",
+				"skip": "Salta per ora",
+				"save": "Salva e continua",
+				"saveAndFinish": "Salva e concludi"
 			}
 		},
 		"finish": "Termina la configurazione",
@@ -125,6 +136,8 @@
 			"installSettingsGroup": "Impostazioni dell'Install",
 			"overview": "Panoramica",
 			"general": "Generali",
+			"emailLog": "Email log",
+			"email": "Email (SMTP)",
 			"workspaces": "Workspace",
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
@@ -161,7 +174,8 @@
 		"nextSteps": {
 			"heading": "Prossimi passi",
 			"twoFactor": "Aggiungi l'autenticazione a due fattori al tuo account",
-			"general": "Dai un nome a questa Install e scegli la sua lingua predefinita dell'admin"
+			"general": "Dai un nome a questa Install e scegli la sua lingua predefinita dell'admin",
+			"email": "Configura l'SMTP dell'Install, così inviti ed email di sicurezza partono"
 		}
 	},
 	"generalSettings": {
@@ -200,6 +214,15 @@
 			"heading": "Autenticazione a due fattori",
 			"status": "Non configurata",
 			"body": "Aggiungi una passkey o un'app di autenticazione, così per accedere serve anche qualcosa che hai solo tu."
+		},
+		"emails": {
+			"heading": "Email",
+			"intro": "Scegli quali email di lavoro e di avviso ricevere.",
+			"security": "Le email di sicurezza, come inviti, reimpostazioni della password e avvisi sul tuo accesso, vengono sempre inviate.",
+			"work": "Lavoro",
+			"alerts": "Avvisi",
+			"save": "Salva",
+			"saved": "Salvato."
 		}
 	},
 	"notFound": {
@@ -211,6 +234,174 @@
 	"forbidden": {
 		"heading": "Non puoi aprire questa pagina",
 		"body": "Non hai accesso a questa pagina."
+	},
+	"smtpFailingBanner": {
+		"title": "L'SMTP dell'Install non funziona",
+		"body": "Diverse email di fila non sono partite, quindi inviti, reimpostazioni della password e avvisi di sicurezza non arrivano. Ognuna viene riprovata per circa 24 ore.",
+		"action": "Controlla Email (SMTP)"
+	},
+	"emailSettings": {
+		"pageTitle": "Email (SMTP)",
+		"heading": "Email (SMTP)",
+		"intro": "Come questa Install invia le System email: inviti, reimpostazioni della password e avvisi di sicurezza. La password è salvata cifrata.",
+		"status": {
+			"notSetTitle": "Nessun SMTP configurato",
+			"notSetBody": "Finché non ne configuri uno, le email vengono scritte nel log web invece di essere inviate.",
+			"failingTitle": "Questo SMTP non funziona",
+			"failingBody": "{count} invii di fila non sono riusciti, dal {since}. Ogni email viene riprovata per circa 24 ore.",
+			"lastResponse": "L'ultima risposta del server: {response}"
+		},
+		"server": {
+			"heading": "Dettagli del server",
+			"host": "Host",
+			"port": "Porta",
+			"security": "Cifratura",
+			"securityStarttls": "STARTTLS",
+			"securityTls": "SSL/TLS",
+			"securityNone": "Nessuna",
+			"username": "Nome utente",
+			"usernameHelp": "Lascialo vuoto per un server che accetta la posta senza accesso.",
+			"password": "Password",
+			"passwordSet": "Impostata, finisce con {lastFour}",
+			"passwordSetHidden": "Impostata",
+			"replace": "Sostituisci",
+			"keep": "Tieni la password salvata",
+			"passwordHelp": "Salvata cifrata. Si può sostituire ma non verrà più mostrata."
+		},
+		"sender": {
+			"heading": "Mittente",
+			"fromAddress": "Indirizzo mittente",
+			"fromAddressHelp": "Deve essere consentito dal tuo server, altrimenti la posta potrebbe essere rifiutata. Il nome del mittente viene dal branding dell'Install.",
+			"replyTo": "Rispondi a (facoltativo)"
+		},
+		"test": {
+			"heading": "Prova",
+			"intro": "Invia un messaggio di prova con le impostazioni qui sopra, prima di salvarle.",
+			"to": "Invia a",
+			"send": "Invia email di prova",
+			"delivered": "Consegnata a {to}",
+			"failed": "Non consegnata a {to}",
+			"response": "La risposta del server: {response}"
+		},
+		"errors": {
+			"hostRequired": "Inserisci il nome host del server, come smtp.example.com.",
+			"portInvalid": "Inserisci una porta da 1 a 65535.",
+			"emailInvalid": "Inserisci un indirizzo email come nome@example.com."
+		},
+		"save": "Salva",
+		"discard": "Annulla le modifiche",
+		"saved": "Salvato.",
+		"branding": {
+			"heading": "Branding dell'Install",
+			"intro": "Quello che ogni System email riporta.",
+			"senderName": "Nome del mittente",
+			"senderNameHelp": "Lascialo vuoto per usare {name}.",
+			"logoUrl": "Indirizzo del logo",
+			"logoUrlHelp": "Un indirizzo HTTPS di un'immagine, mostrata alta circa 40 pixel. Lascialo vuoto per mostrare il nome del mittente.",
+			"accentColour": "Colore principale",
+			"accentColourHelp": "La barra in alto e il pulsante, come #c2410c. Lascialo vuoto per {colour}.",
+			"pickColour": "Scegli il colore principale",
+			"footer": "Testo a piè di pagina",
+			"footerHelp": "Mostrato sotto ogni email, come l'indirizzo della tua agenzia.",
+			"save": "Salva il branding",
+			"logoInvalid": "Inserisci un indirizzo che inizia con https://.",
+			"colourInvalid": "Inserisci un colore come #c2410c."
+		},
+		"emailLogLink": "Vedi tutte le email nell'Email log"
+	},
+	"emailLog": {
+		"pageTitle": "Email log",
+		"heading": "Email log",
+		"intro": "Tutte le email inviate da questa Install negli ultimi 90 giorni. Il testo delle email non viene mai conservato.",
+		"tableLabel": "Email, dalla più recente",
+		"columns": {
+			"time": "Ora",
+			"type": "Tipo",
+			"recipient": "Destinatario",
+			"subject": "Oggetto",
+			"smtp": "SMTP",
+			"status": "Stato",
+			"attempts": "Tentativi",
+			"lastResponse": "Ultima risposta",
+			"related": "Riguarda"
+		},
+		"smtp": {
+			"install": "SMTP dell'Install",
+			"none": "Nessuno: scritta nel log"
+		},
+		"status": {
+			"queued": "In coda",
+			"retrying": "Nuovo tentativo",
+			"sent": "Inviata",
+			"failed": "Non inviata",
+			"logged": "Scritta nel log"
+		},
+		"nextAttempt": "Prossimo tentativo {time}",
+		"related": {
+			"installSmtp": "Email (SMTP)"
+		},
+		"emptyTitle": "Ancora nessuna email",
+		"emptyBody": "Le email inviate dall'Install compariranno qui.",
+		"older": "Mostra email più vecchie"
+	},
+	"emailTypes": {
+		"smtp-test": {
+			"name": "Email di prova"
+		},
+		"staff-invite": {
+			"name": "Invito come Staff"
+		},
+		"member-invite": {
+			"name": "Invito come Member"
+		},
+		"password-reset": {
+			"name": "Reimpostazione della password"
+		},
+		"email-change-confirm": {
+			"name": "Nuovo indirizzo email da confermare"
+		},
+		"email-change-notice": {
+			"name": "Cambio dell'indirizzo email"
+		},
+		"account-locked": {
+			"name": "Account bloccato"
+		},
+		"two-factor-reset": {
+			"name": "Autenticazione a due fattori reimpostata"
+		},
+		"two-factor-changed": {
+			"name": "Autenticazione a due fattori modificata"
+		},
+		"api-token-created": {
+			"name": "Nuovo token API"
+		},
+		"ai-client-approved": {
+			"name": "Client AI approvato"
+		},
+		"review-submitted": {
+			"name": "Inviato in revisione",
+			"description": "Quando un Author invia qualcosa in revisione su un Site a cui hai accesso."
+		},
+		"review-result": {
+			"name": "Esito della revisione",
+			"description": "Quando qualcosa che hai inviato in revisione viene pubblicato o rimandato."
+		},
+		"scheduled-publish-failed": {
+			"name": "Pubblicazione programmata non riuscita",
+			"description": "Quando una pubblicazione programmata non va a buon fine."
+		},
+		"ai-key-cap": {
+			"name": "Limite della chiave AI condivisa",
+			"description": "Quando un Workspace ha usato l'80% o tutto il limite mensile sulla chiave AI condivisa."
+		},
+		"domain-unreachable": {
+			"name": "Dominio non raggiungibile",
+			"description": "Quando il Domain check non riesce a raggiungere il dominio di un Site."
+		},
+		"site-smtp-failing": {
+			"name": "SMTP di un Site non funzionante",
+			"description": "Quando il server SMTP di un Site continua a non funzionare."
+		}
 	},
 	"workspaces": {
 		"pageTitle": "Workspace",

@@ -30,10 +30,10 @@ export const THEMES: readonly Theme[] = ["light", "dark"];
 
 export type BrowserInstall = {
 	/**
-	 * The same Install, in the test process (see ../harness): to prepare data through the Management
-	 * API before a page opens, such as `install.local.createWorkspace("Acme Ltd")`.
+	 * The test Install the web process serves, in this process: its Management API browsers, job
+	 * drain, fake mailer and clock (the web process itself sends with the real Mailer).
 	 */
-	local: TestInstall;
+	install: TestInstall;
 	/** A URL on the admin, such as `adminUrl("/setup")`. */
 	adminUrl(path: string): string;
 	/** The setup token the web process printed in its log when it started. */
@@ -85,7 +85,7 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 	const started = browser;
 
 	return {
-		local: install,
+		install,
 		adminUrl: (path) => new URL(path, origin).toString(),
 		setupToken() {
 			const token = logs.findLast((entry) => typeof entry.setupToken === "string")?.setupToken;
@@ -175,7 +175,9 @@ async function waitUntilReady(origin: string, web: Subprocess, logs: Record<stri
 		}
 		await Bun.sleep(100);
 	}
-	throw new Error(`The web process didn't start:\n${logs.map((entry) => JSON.stringify(entry)).join("\n")}`);
+	throw new Error(
+		`The web process didn't start (if the code changed since the last \`bun run build\`, build again: these tests serve the built bundle):\n${logs.map((entry) => JSON.stringify(entry)).join("\n")}`,
+	);
 }
 
 async function freePort(): Promise<number> {

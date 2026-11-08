@@ -24,6 +24,7 @@ export {
 	loadInstallConfig,
 } from "./config.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
+export * from "./email/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export { fetchHttp, type OutgoingHttp } from "./http.ts";
 export {
@@ -40,7 +41,6 @@ export {
 } from "./install-settings.ts";
 export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
-export { createLogMailer, type Mailer, type OutgoingEmail } from "./mailer.ts";
 export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup.ts";
 export {
 	ADMIN_THEMES,

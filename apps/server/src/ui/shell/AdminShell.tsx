@@ -22,6 +22,7 @@ import { ContextSwitcher } from "./ContextSwitcher.tsx";
 import type { ShellContext, SignedInPerson } from "./context.ts";
 import { type AdminPlace, navigationFor, placeParams } from "./levels.ts";
 import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
+import { SmtpFailingBanner } from "./SmtpFailingBanner.tsx";
 import { ThemeSwitch } from "./ThemeSwitch.tsx";
 import { UserMenu } from "./UserMenu.tsx";
 
@@ -50,6 +51,7 @@ export function AdminShell({
 					<Breadcrumbs place={place} />
 				</header>
 				<main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
+					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
 					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
 					<div className="mx-auto w-full max-w-5xl flex-1 p-6 md:p-10">{children}</div>
 				</main>

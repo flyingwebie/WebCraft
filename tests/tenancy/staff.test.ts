@@ -24,6 +24,15 @@ beforeAll(async () => {
 	superadmin = await install.createSuperadmin({ name: "Sam Superadmin" });
 	admin = await install.signIn(superadmin);
 	await admin.api.install.settings.update({ name: "Northwind Studio" });
+	await admin.api.install.smtp.update({
+		host: "smtp.agency.example",
+		port: 587,
+		security: "starttls",
+		username: "mailer@agency.example",
+		fromAddress: "noreply@agency.example",
+		replyTo: null,
+		password: "the smtp password 9x8y",
+	});
 	const created = async (name: string) => {
 		const { workspace } = await admin.api.workspaces.create({ name });
 		return { id: workspace.id, name: workspace.name };
@@ -39,21 +48,23 @@ afterAll(async () => {
 /** Accepts the invite in the newest email to `email` with a fresh browser, and answers the browser. */
 async function accept(email: string, name = "Ciara Staff"): Promise<TestBrowser> {
 	const browser = install.browser();
-	await browser.api.invites.accept({ token: tokenFor(email), name, password: TEST_PASSWORD, adminLanguage: "en" });
+	const token = await tokenFor(email);
+	await browser.api.invites.accept({ token, name, password: TEST_PASSWORD, adminLanguage: "en" });
 	return browser;
 }
 
-function tokenFor(email: string): string {
-	const sent = install.mail.sent.findLast((message) => message.to === email);
-	if (!sent) throw new Error(`No email went to ${email}.`);
-	return new URL(inviteLinkIn(sent)).searchParams.get("token") ?? "";
+/** The token of the invite link in the newest email to `email`. */
+async function tokenFor(email: string): Promise<string> {
+	return new URL(inviteLinkIn(await install.lastEmailTo(email))).searchParams.get("token") ?? "";
 }
 
 describe("inviting Staff", () => {
 	test("the Superadmin invites Staff to chosen Workspaces, and an email with a link valid for 7 days goes out", async () => {
+		await install.drainJobs();
 		install.mail.clear();
 
 		const { invite } = await admin.api.staff.invite({ email: " Ciara@Agency.example ", workspaces: [acme.id] });
+		await install.drainJobs();
 
 		expect(invite).toEqual({
 			id: expect.any(String),
@@ -66,8 +77,9 @@ describe("inviting Staff", () => {
 		expect(install.mail.sent).toHaveLength(1);
 		const [email] = install.mail.sent;
 		expect(email?.to).toBe("ciara@agency.example");
-		expect(email?.subject).toBe("Join Northwind Studio as Staff");
+		expect(email?.subject).toBe("Sam Superadmin invited you to Northwind Studio");
 		expect(email?.text).toContain("Sam Superadmin invited you to join Northwind Studio as Staff.");
+		expect(email?.text).toContain("The invite works for 7 days.");
 		expect(inviteLinkIn(email)).toStartWith(install.adminUrl("/invite?token="));
 	});
 
@@ -75,7 +87,7 @@ describe("inviting Staff", () => {
 		await admin.api.staff.invite({ email: "aoife@agency.example", workspaces: [acme.id, nimbus.id] });
 		const browser = install.browser();
 
-		expect(await browser.api.invites.get({ token: tokenFor("aoife@agency.example") })).toEqual({
+		expect(await browser.api.invites.get({ token: await tokenFor("aoife@agency.example") })).toEqual({
 			email: "aoife@agency.example",
 			role: "staff",
 			installName: "Northwind Studio",
@@ -84,7 +96,7 @@ describe("inviting Staff", () => {
 		});
 
 		await browser.api.invites.accept({
-			token: tokenFor("aoife@agency.example"),
+			token: await tokenFor("aoife@agency.example"),
 			name: "Aoife Kelly",
 			password: TEST_PASSWORD,
 			adminLanguage: "it",
@@ -158,7 +170,7 @@ describe("inviting Staff", () => {
 describe("invite links", () => {
 	test("work once", async () => {
 		await admin.api.staff.invite({ email: "once@agency.example", workspaces: [acme.id] });
-		const token = tokenFor("once@agency.example");
+		const token = await tokenFor("once@agency.example");
 		await accept("once@agency.example");
 
 		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
@@ -169,7 +181,7 @@ describe("invite links", () => {
 
 	test("stop working after 7 days", async () => {
 		await admin.api.staff.invite({ email: "late@agency.example", workspaces: [acme.id] });
-		const token = tokenFor("late@agency.example");
+		const token = await tokenFor("late@agency.example");
 
 		await install.clock.advance(7 * DAY + 1000);
 		// A week unused also ends the Superadmin's session.
@@ -183,7 +195,7 @@ describe("invite links", () => {
 
 	test("inviting the same address again sends a new link and the earlier one stops working", async () => {
 		await admin.api.staff.invite({ email: "again@agency.example", workspaces: [acme.id] });
-		const first = tokenFor("again@agency.example");
+		const first = await tokenFor("again@agency.example");
 
 		await admin.api.staff.invite({ email: "again@agency.example", workspaces: [nimbus.id] });
 
@@ -198,7 +210,7 @@ describe("invite links", () => {
 
 	test("a revoked invite's link stops working", async () => {
 		const { invite } = await admin.api.staff.invite({ email: "revoked@agency.example", workspaces: [acme.id] });
-		const token = tokenFor("revoked@agency.example");
+		const token = await tokenFor("revoked@agency.example");
 
 		await admin.api.staff.revokeInvite({ inviteId: invite.id });
 
@@ -210,7 +222,7 @@ describe("invite links", () => {
 
 	test("refuses a password the rules don't allow, and the link keeps working", async () => {
 		await admin.api.staff.invite({ email: "short@agency.example", workspaces: [acme.id] });
-		const token = tokenFor("short@agency.example");
+		const token = await tokenFor("short@agency.example");
 
 		await expect(
 			install.browser().api.invites.accept({ token, name: "Short", password: "too short", adminLanguage: "en" }),
@@ -294,6 +306,8 @@ describe("the Audit log", () => {
 	test("records invites, joining, revoking and changed assignments, with who, when and how", async () => {
 		const { person: me } = await admin.api.session.current();
 		const { invite } = await admin.api.staff.invite({ email: "audit@agency.example", workspaces: [acme.id] });
+		// Sent now: two emails queued in the same instant could go out in either order.
+		await install.drainJobs();
 		await admin.api.staff.revokeInvite({ inviteId: invite.id });
 		await admin.api.staff.invite({ email: "audit@agency.example", workspaces: [acme.id] });
 		const staff = await accept("audit@agency.example", "Audrey Audit");

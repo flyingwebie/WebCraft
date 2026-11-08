@@ -2,7 +2,7 @@
 // the Workspace and Site levels, from the keyboard.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import type { TestAccount } from "../harness/index.ts";
+import { inviteLinkIn, type TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -14,10 +14,10 @@ let siteId: string;
 beforeAll(async () => {
 	install = await startBrowserInstall();
 	superadmin = await install.createSuperadmin();
-	workspaceId = (await install.local.createWorkspace("Acme Ltd")).id;
-	await install.local.createWorkspace("Nimbus Bikes");
-	siteId = (await install.local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
-	await install.local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" });
+	workspaceId = (await install.install.createWorkspace("Acme Ltd")).id;
+	await install.install.createWorkspace("Nimbus Bikes");
+	siteId = (await install.install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await install.install.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" });
 });
 
 afterAll(async () => {
@@ -110,10 +110,9 @@ for (const theme of THEMES) {
 
 describe("accepting an invite", () => {
 	test("the link opens the form and leaves the token out of the address; accepting signs the person in", async () => {
-		const admin = await install.local.superadmin();
+		const admin = await install.install.superadmin();
 		await admin.api.staff.invite({ email: "aoife@agency.example", workspaces: [workspaceId] });
-		const email = install.local.mail.sent.findLast((sent) => sent.to === "aoife@agency.example");
-		const link = new URL(email?.text.match(/https:\/\/\S+\/invite\?token=\S+/)?.[0] ?? "");
+		const link = new URL(inviteLinkIn(await install.install.lastEmailTo("aoife@agency.example")));
 		const page = await install.newPage("light");
 
 		await page.goto(install.adminUrl(`/invite${link.search}`));

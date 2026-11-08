@@ -13,7 +13,7 @@ let fixture: ScreenFixture;
 beforeAll(async () => {
 	install = await startBrowserInstall();
 	superadmin = await install.createSuperadmin();
-	const { local } = install;
+	const local = install.install;
 	const workspace = await local.createWorkspace("Acme Ltd");
 	await local.createWorkspace("Nimbus Bikes");
 	const site = await local.createSite(workspace.id, { name: "Acme Bakery", slug: "bakery" });
@@ -22,7 +22,7 @@ beforeAll(async () => {
 	await local.createStaff({ workspaces: "all", name: "Tom Walsh" });
 	const admin = await local.superadmin();
 	await admin.api.staff.invite({ email: "niamh@agency.example", workspaces: [workspace.id] });
-	const invite = local.mail.sent.findLast((email) => email.to === "niamh@agency.example");
+	const invite = await local.lastEmailTo("niamh@agency.example");
 	const inviteToken = new URL(inviteLinkIn(invite)).searchParams.get("token") ?? "";
 	fixture = { workspaceId: workspace.id, siteId: site.id, inviteToken };
 });

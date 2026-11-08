@@ -29,6 +29,8 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Sites", path: ({ workspaceId }) => `/workspaces/${workspaceId}`, as: "superadmin" },
 	{ name: "Workspace › Sites (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}`, as: "staff" },
 	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
+	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
+	{ name: "Install › Email log", path: "/email-log", as: "superadmin" },
 	{ name: "Your account", path: "/account", as: "superadmin" },
 	{ name: "Accept an invite", path: ({ inviteToken }) => `/invite?token=${inviteToken}`, as: "signed-out" },
 	{ name: "Accept an invite (link no longer works)", path: "/invite?token=used-up", as: "signed-out" },

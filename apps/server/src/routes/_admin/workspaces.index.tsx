@@ -18,10 +18,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Building2Icon, PlusIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
-import { useFormatter } from "use-intl";
 
 import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
+import { formatUtcDate } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 import { initials } from "../../ui/shell/context.ts";
@@ -39,7 +39,6 @@ export const Route = createFileRoute("/_admin/workspaces/")({
 /** Install › Workspaces: every Workspace the person reaches; the Superadmin creates them here. */
 function WorkspacesPage() {
 	const t = useT();
-	const format = useFormatter();
 	const { workspaces } = Route.useLoaderData();
 	const { shell } = Route.useRouteContext();
 	const canCreate = shell.permissions.includes("workspace.create");
@@ -95,9 +94,7 @@ function WorkspacesPage() {
 											? workspace.staff.map((person) => person.name).join(", ")
 											: t("workspaces.noStaff")}
 									</TableCell>
-									<TableCell className="text-muted-foreground pe-4">
-										{format.dateTime(workspace.createdAt, { dateStyle: "medium" })}
-									</TableCell>
+									<TableCell className="text-muted-foreground pe-4">{formatUtcDate(workspace.createdAt)}</TableCell>
 								</TableRow>
 							))}
 						</TableBody>

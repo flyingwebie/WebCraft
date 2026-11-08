@@ -8,7 +8,8 @@ export const shell = {
 	/**
 	 * The signed-in person (or null), their Permissions on the Install and the Workspaces they reach,
 	 * the Admin language and theme pages are shown in, the setup stage, the Install's name, and which
-	 * banners to show.
+	 * banners to show: the Master key one, and the notice that the Install SMTP is Failing (both for
+	 * people who manage the Install).
 	 */
 	context: procedure.use(withPerson).handler(async ({ context }) => {
 		const { services, person } = context;
@@ -16,8 +17,14 @@ export const shell = {
 		const code = person?.adminLanguage ?? settings.defaultAdminLanguage;
 		const actor = person ? await services.actors.person(person.id) : null;
 		const workspaces = actor ? await services.workspaces.list({ actor, via: context.via }) : [];
-		const masterKeyBanner =
-			actor && can(actor, "install.manage", INSTALL) ? !(await services.masterKey.status()).stored : false;
+		const managesInstall = actor ? can(actor, "install.manage", INSTALL) : false;
+		const [masterKeyBanner, smtpFailing] = managesInstall
+			? await Promise.all([
+					services.masterKey.status().then((status) => !status.stored),
+					// Emails about a Failing Install SMTP would go through it, so this notice is the alert.
+					services.email.installSmtp.health().then((health) => health.state === "failing"),
+				])
+			: [false, false];
 		return {
 			setup: { stage },
 			person: person ? personView(person) : null,
@@ -28,7 +35,7 @@ export const shell = {
 			language: { code, dir: adminLanguageDirection(code) },
 			theme: person?.adminTheme ?? "system",
 			install: { name: settings.name, defaultAdminLanguage: settings.defaultAdminLanguage },
-			banners: { masterKey: masterKeyBanner },
+			banners: { masterKey: masterKeyBanner, smtpFailing },
 		};
 	}),
 };

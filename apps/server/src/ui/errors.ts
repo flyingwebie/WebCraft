@@ -19,6 +19,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "STAFF_NOT_FOUND":
 		case "INVITE_INVALID":
 		case "SLUG_TAKEN":
+		case "EMAIL_ALWAYS_SENT":
 			return `errors.${code}`;
 		case "SLUG_INVALID":
 			return data?.problem === "reserved" ? "errors.SLUG_RESERVED" : "errors.SLUG_INVALID";

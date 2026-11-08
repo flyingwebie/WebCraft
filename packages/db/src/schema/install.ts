@@ -24,6 +24,14 @@ export const installSettings = pgTable(
 		masterKeyStoredFingerprint: text("master_key_stored_fingerprint"),
 		masterKeyStoredAt: timestamp("master_key_stored_at", { withTimezone: true }),
 		masterKeyStoredBy: uuid("master_key_stored_by").references(() => people.id, { onDelete: "set null" }),
+		/**
+		 * Install branding: what every System email carries. The sender name (the Install's name, then
+		 * WebCraft, when unset), an HTTPS logo address, the accent colour (`#rrggbb`) and footer text.
+		 */
+		emailSenderName: text("email_sender_name"),
+		emailLogoUrl: text("email_logo_url"),
+		emailAccentColour: text("email_accent_colour"),
+		emailFooter: text("email_footer"),
 	},
 	(table) => [check("install_settings_single_row", sql`${table.id} = 1`)],
 );

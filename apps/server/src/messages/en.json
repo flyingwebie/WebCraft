@@ -16,6 +16,7 @@
 		"INVALID_CREDENTIALS": "The email or password is wrong.",
 		"UNAUTHORIZED": "Your session has ended. Sign in again.",
 		"FORBIDDEN": "You can't do this.",
+		"EMAIL_ALWAYS_SENT": "Security emails can't be turned off.",
 		"WORKSPACE_NOT_FOUND": "There is no such Workspace, or you can't reach it.",
 		"SITE_NOT_FOUND": "There is no such Site, or you can't reach it.",
 		"STAFF_NOT_FOUND": "There is no such Staff member.",
@@ -80,6 +81,16 @@
 				"recommend": "The Superadmin can reach everything on this Install, so we strongly recommend it.",
 				"setUp": "Set up two-factor authentication",
 				"later": "You can also do it later from Your account."
+			},
+			"email": {
+				"title": "Install email (SMTP)",
+				"hint": "Sends invites and security email",
+				"heading": "Set up the Install email",
+				"intro": "WebCraft sends invites, password resets and security notices through an SMTP server, such as your email provider's or a sending service's.",
+				"later": "You can skip this for now: until an SMTP is set, these emails are written to the web log. You can set it later in Install settings › Email (SMTP).",
+				"skip": "Skip for now",
+				"save": "Save and continue",
+				"saveAndFinish": "Save and finish"
 			}
 		},
 		"finish": "Finish setup",
@@ -125,6 +136,8 @@
 			"installSettingsGroup": "Install settings",
 			"overview": "Overview",
 			"general": "General",
+			"emailLog": "Email log",
+			"email": "Email (SMTP)",
 			"workspaces": "Workspaces",
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
@@ -161,7 +174,8 @@
 		"nextSteps": {
 			"heading": "Next steps",
 			"twoFactor": "Add two-factor authentication to your account",
-			"general": "Name this Install and choose its default Admin language"
+			"general": "Name this Install and choose its default Admin language",
+			"email": "Set the Install SMTP, so invites and security emails go out"
 		}
 	},
 	"generalSettings": {
@@ -200,6 +214,15 @@
 			"heading": "Two-factor authentication",
 			"status": "Not set up",
 			"body": "Add a passkey or an authenticator app, so signing in also needs something only you have."
+		},
+		"emails": {
+			"heading": "Emails",
+			"intro": "Choose which work and alert emails you get.",
+			"security": "Security emails, such as invites, password resets and notices about your sign-in, are always sent.",
+			"work": "Work",
+			"alerts": "Alerts",
+			"save": "Save",
+			"saved": "Saved."
 		}
 	},
 	"notFound": {
@@ -211,6 +234,174 @@
 	"forbidden": {
 		"heading": "You can't open this page",
 		"body": "You don't have access to this page."
+	},
+	"smtpFailingBanner": {
+		"title": "The Install SMTP is failing",
+		"body": "Several emails in a row couldn't be sent, so invites, password resets and security notices aren't going out. Each is retried for about 24 hours.",
+		"action": "Check Email (SMTP)"
+	},
+	"emailSettings": {
+		"pageTitle": "Email (SMTP)",
+		"heading": "Email (SMTP)",
+		"intro": "How this Install sends System emails: invites, password resets and security notices. The password is stored encrypted.",
+		"status": {
+			"notSetTitle": "No SMTP is set yet",
+			"notSetBody": "Until you set one, emails are written to the web log instead of being sent.",
+			"failingTitle": "This SMTP is failing",
+			"failingBody": "{count} sends in a row have failed, since {since}. Each email is retried for about 24 hours.",
+			"lastResponse": "The server's last answer: {response}"
+		},
+		"server": {
+			"heading": "Server details",
+			"host": "Host",
+			"port": "Port",
+			"security": "Encryption",
+			"securityStarttls": "STARTTLS",
+			"securityTls": "SSL/TLS",
+			"securityNone": "None",
+			"username": "Username",
+			"usernameHelp": "Leave it empty for a server that takes mail without signing in.",
+			"password": "Password",
+			"passwordSet": "Set, ending in {lastFour}",
+			"passwordSetHidden": "Set",
+			"replace": "Replace",
+			"keep": "Keep the stored password",
+			"passwordHelp": "Stored encrypted. It can be replaced but never shown again."
+		},
+		"sender": {
+			"heading": "Sender",
+			"fromAddress": "From address",
+			"fromAddressHelp": "Must be allowed by your server, or mail may be refused. The sender name comes from the Install branding.",
+			"replyTo": "Reply-to (optional)"
+		},
+		"test": {
+			"heading": "Test",
+			"intro": "Send a test message using the settings above, before you save them.",
+			"to": "Send to",
+			"send": "Send test email",
+			"delivered": "Delivered to {to}",
+			"failed": "Not delivered to {to}",
+			"response": "The server's answer: {response}"
+		},
+		"errors": {
+			"hostRequired": "Enter the server's hostname, such as smtp.example.com.",
+			"portInvalid": "Enter a port from 1 to 65535.",
+			"emailInvalid": "Enter an email address such as name@example.com."
+		},
+		"save": "Save",
+		"discard": "Discard",
+		"saved": "Saved.",
+		"branding": {
+			"heading": "Install branding",
+			"intro": "What every System email carries.",
+			"senderName": "Sender name",
+			"senderNameHelp": "Leave it empty to use {name}.",
+			"logoUrl": "Logo address",
+			"logoUrlHelp": "An HTTPS address of an image, shown about 40 pixels high. Leave it empty to show the sender name instead.",
+			"accentColour": "Accent colour",
+			"accentColourHelp": "The bar at the top and the button, such as #c2410c. Leave it empty for {colour}.",
+			"pickColour": "Pick the accent colour",
+			"footer": "Footer text",
+			"footerHelp": "Shown under every email, such as your agency's address.",
+			"save": "Save branding",
+			"logoInvalid": "Enter an address that starts with https://.",
+			"colourInvalid": "Enter a colour such as #c2410c."
+		},
+		"emailLogLink": "See every email in the Email log"
+	},
+	"emailLog": {
+		"pageTitle": "Email log",
+		"heading": "Email log",
+		"intro": "Every email this Install sent in the last 90 days. Email bodies are never kept.",
+		"tableLabel": "Emails, newest first",
+		"columns": {
+			"time": "Time",
+			"type": "Type",
+			"recipient": "Recipient",
+			"subject": "Subject",
+			"smtp": "SMTP",
+			"status": "Status",
+			"attempts": "Attempts",
+			"lastResponse": "Last answer",
+			"related": "About"
+		},
+		"smtp": {
+			"install": "Install SMTP",
+			"none": "None: written to the log"
+		},
+		"status": {
+			"queued": "Queued",
+			"retrying": "Retrying",
+			"sent": "Sent",
+			"failed": "Failed",
+			"logged": "Written to the log"
+		},
+		"nextAttempt": "Next attempt {time}",
+		"related": {
+			"installSmtp": "Email (SMTP)"
+		},
+		"emptyTitle": "No emails yet",
+		"emptyBody": "Emails the Install sends will show here.",
+		"older": "Show older emails"
+	},
+	"emailTypes": {
+		"smtp-test": {
+			"name": "Test email"
+		},
+		"staff-invite": {
+			"name": "Staff invite"
+		},
+		"member-invite": {
+			"name": "Member invite"
+		},
+		"password-reset": {
+			"name": "Password reset"
+		},
+		"email-change-confirm": {
+			"name": "New email address to confirm"
+		},
+		"email-change-notice": {
+			"name": "Email address change"
+		},
+		"account-locked": {
+			"name": "Account locked"
+		},
+		"two-factor-reset": {
+			"name": "Two-factor authentication reset"
+		},
+		"two-factor-changed": {
+			"name": "Two-factor authentication changed"
+		},
+		"api-token-created": {
+			"name": "New API token"
+		},
+		"ai-client-approved": {
+			"name": "AI client approved"
+		},
+		"review-submitted": {
+			"name": "Submitted for review",
+			"description": "When an Author submits something for review on a Site you can reach."
+		},
+		"review-result": {
+			"name": "Review result",
+			"description": "When something you submitted for review is published or sent back."
+		},
+		"scheduled-publish-failed": {
+			"name": "Scheduled publish failed",
+			"description": "When a scheduled publish doesn't go through."
+		},
+		"ai-key-cap": {
+			"name": "Shared AI key cap",
+			"description": "When a Workspace has used 80% or all of its monthly cap on the shared AI key."
+		},
+		"domain-unreachable": {
+			"name": "Domain unreachable",
+			"description": "When the Domain check can't reach a Site's domain."
+		},
+		"site-smtp-failing": {
+			"name": "Site SMTP failing",
+			"description": "When the SMTP server of a Site keeps failing."
+		}
 	},
 	"workspaces": {
 		"pageTitle": "Workspaces",

@@ -11,7 +11,7 @@ A Bun-workspaces monorepo, scaffolded once with Better-T-Stack (TanStack Start, 
 | `apps/server` | The web process. One request handler routes every request by hostname: the admin host to the admin side (the TanStack Start admin, `/healthz`, `/readyz`, the Management API at `/api/rpc`, later `/api/v1`, `/mcp`, OAuth and the Caddy ask endpoint), every other hostname to the Site pipeline. | Bun 1.4 |
 | `apps/worker` | The worker: runs pg-boss jobs. | Node LTS |
 | `apps/cli` | The `webcraft` command (`webcraft admin migrate`, `rotate-key` and `create-superadmin` for now). | Bun |
-| `packages/core` | Domain modules (the permission check, the tenant data layer, Workspaces, Sites, Staff, the Audit log, secrets, setup, people, Install settings, the Master key banner) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
+| `packages/core` | Domain modules (the permission check, the tenant data layer, Workspaces, Sites, Staff, the Audit log, secrets, setup, people, Install settings, the Master key banner, email) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
 | `packages/db` | Postgres: Drizzle schema and migrations, connections, the migrate step, the schema check, the pg-boss job queue. | both |
 | `packages/auth` | WebCraft's auth interface (`Auth`): signing in and out, sessions, creating people, password rules. Better Auth sits behind it; no other package imports Better Auth. | both |
 | `packages/api` | The Management API: oRPC procedures, served to the admin at `/api/rpc`. | both |
@@ -166,7 +166,7 @@ The Audit log is one append-only table (`audit_log`; triggers refuse updates and
 
 ### Staff and invites
 
-The Superadmin invites Staff by email (`staff.invite`), to all Workspaces (including later ones) or chosen ones. The invite email goes through the `Mailer` from one function (`sendStaffInviteEmail` in `packages/core/src/tenancy/invite-email.ts`), in the Install's default Admin language, with a link to `/invite?token=…` that works once, for 7 days; only the token's hash is stored. Inviting the same address again replaces the invite. Accepting creates the account with the role and its Workspaces, records `staff.join`, and signs the person in.
+The Superadmin invites Staff by email (`staff.invite`), to all Workspaces (including later ones) or chosen ones. The invite is the `staff-invite` System email (see "Email"), in the Install's default Admin language, with a link to `/invite?token=…` that works once, for 7 days; only the token's hash is stored. Inviting the same address again replaces the invite. Accepting creates the account with the role and its Workspaces, records `staff.join`, and signs the person in.
 
 ## Migrations
 
@@ -180,13 +180,42 @@ Migrations are drizzle-kit files in `packages/db/src/migrations`, applied by the
 
 ## Jobs
 
-Jobs are defined in `packages/core/src/jobs/` with `defineJob({ name, payload, queue, run })`, and listed in `coreJobs` (`packages/core/src/jobs/index.ts`); the worker only works listed jobs. `sample-ping.ts` is the sample to copy.
+Jobs are defined with `defineJob({ name, payload, queue, run })` (in `packages/core/src/jobs/`, or next to their module, such as `email/outbox.ts`) and listed in `coreJobs` (`packages/core/src/jobs/index.ts`); the worker only works listed jobs. `sample-ping.ts` is the sample to copy.
 
 - `name` is the queue name, `area.action` (`email.send`). Never rename one that has shipped.
 - `payload` is a Zod schema; it is checked when the job is sent and again when it runs.
 - `queue` holds retry and expiry settings (`retryLimit`, `retryDelay`, `retryBackoff`, ...).
-- `run(payload, services)` gets the same `InstallServices` as the web process: use `services.clock`, `services.mailer`, `services.http` and `services.log`, never `Date.now()`, `fetch` or `console` directly.
+- `run(payload, services)` gets the same `InstallServices` as the web process: use `services.clock`, `services.http` and `services.log`, never `Date.now()`, `fetch` or `console` directly. To email someone, send a System email (see "Email"); never call `services.mailer`.
 - Enqueue with `services.jobs.send(job, payload, { startAfter })`.
+- **Scheduled jobs**: `defineSchedule({ job, cron, payload })`, listed in `coreSchedules`. `cron` is read in UTC (`17 3 * * *` is every day at 03:17). The worker registers every listed schedule when it starts (and removes ones no longer listed); when it was down at a due time, the job runs once when it is back. The test harness's `drainJobs()` sends each scheduled job whose time came by the test clock since the last drain.
+
+## Email
+
+Everything about email is in `packages/core/src/email/`, behind `services.email`. Nothing else calls the `Mailer`: every email goes through the System email sender, which records it in the Email log and queues it.
+
+**Sending a System email** (an email to a person with an account, or to an address about to get one, such as an invite):
+
+```ts
+await services.email.send({
+	type: "review-submitted",                       // from the catalogue
+	to: [{ personId }, { email: "new@client.example", language: "it" }],
+	data: { authorName, itemTitle, siteName, reviewPath: `/sites/${siteId}/review/${id}` },
+	related: { kind: "entry", id },                  // what the Email log links to
+});
+// → [{ recipient, status: "queued" | "logged" | "turned-off", emailId }]
+```
+
+- **The catalogue** (`email/catalogue.ts`) lists every System email type with its category and a Zod schema of its data. `security` emails (invites, resets, sign-in changes) always go; each `work` and `alert` type can be turned off by each person in Your account › Emails, and is then skipped for them (`turned-off`). Add a type to the catalogue, its wording to `email/wording/en.ts` and `it.ts` (a missing one fails the typecheck), and its name (and, for work and alert types, a description) under `emailTypes` in the admin's message files. Never rename a type that shipped.
+- **Links** in data are admin paths (`/invites/abc`), never full URLs: the sender puts the admin's origin in front, so System emails only ever link into the admin.
+- **Language and layout**: each recipient gets the email in their Admin language (a bare address: the `language` given, else the Install's default), in one built-in layout (`email/layout.ts`: logo or sender name on a bar in the accent colour, heading, paragraphs, one button, footer), under **Install branding** (Install settings › Email (SMTP): sender name, logo address, accent colour, footer text). Every value is escaped. Work and alert emails link to the person's switches.
+- **Which SMTP**: each queued email names its SMTP (`SmtpChoice` in `email/outbox.ts`). System emails always use the Install SMTP; a Site's own SMTP becomes another choice with Site mail. The Install SMTP password is the Install secret `smtp.password`, filled in only for the send.
+- **No SMTP yet**: until the Superadmin sets the Install SMTP, the email is written to the log (`warn`, with `to`, `subject` and `text`) instead of being sent, and the Email log says "Written to the log".
+- **Delivery and retries**: the `email.send` job sends it. A failed attempt is tried again after 1 minute, then a wait that doubles up to 4 hours, until 24 hours after it was queued; then it is Failed. An address the server refuses for good (a 5xx answer to `RCPT TO`) is Failed at once. Completed `email.send` jobs, which hold the body, are deleted after an hour.
+- **Failing**: 3 failed sends in a row make the SMTP Failing: logged as an error, shown in Install settings › Email (SMTP) and as a notice on every admin page for the Superadmin (an email about a failing Install SMTP would go through it). A send that goes through, or saving new settings, clears it. Test emails don't count.
+- **Test email**: `services.email.sendTest` sends at once through settings that may not be saved yet, and answers the server's reply.
+- **The Email log** keeps time, type, recipient, subject, SMTP, status (Queued, Retrying, Sent, Failed, Written to the log), attempts, the server's last answer and the related item, never the body. The `email.purge-log` job deletes lines older than 90 days every day.
+- **The Mailer** (`email/mailer.ts`) is the edge: `send(email, smtp)` over SMTP with Nodemailer (`email/smtp-mailer.ts`), rejecting with `SmtpDeliveryError` (the server's answer, and whether it refused the recipient for good).
+- **Who manages it**: the Install SMTP, Install branding and the Email log procedures (`packages/api/src/procedures/email.ts`) are for the Superadmin, through one gate at the top of that file (`emailAdmin`). Changing the SMTP goes through the `sensitive` middleware (`packages/api/src/context.ts`), where the recent identity check will go.
 
 ## Secrets and the Master key
 
@@ -257,9 +286,9 @@ The admin is a TanStack Start app in `apps/server/src/routes` (file routes) and 
 - **Right to left**: `<html lang dir>` follows the Admin language (`ADMIN_LANGUAGES` in `@webcraft/core/admin-languages`). Use logical classes (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`, `border-s`) and flip direction icons with `rtl:rotate-180`.
 - **Light and dark**: `<html class="light|dark">` when a person chose, no class to follow the device (`prefers-color-scheme`); the `dark:` variant and the colour variables in `packages/ui/src/styles/globals.css` handle all three.
 - **Levels and the sidebar**: `ui/shell/levels.ts` holds each level's sidebar groups and items (`label`, `icon`, `to`, `requires`: the Permission that shows it). The levels are the Install, a Workspace and a Site: pages under `routes/_admin/workspaces.$workspaceId.tsx` are at the Workspace level and pages under `routes/_admin/sites.$siteId.tsx` at the Site level. Those two routes load the Workspace or Site and the person's Permissions there, and set `place` in the route context; the sidebar, the breadcrumbs (the Workspace's and Site's names first) and the context switcher read it. A page reads `Route.useRouteContext().place.permissions` to decide what to offer, never a role name. A page sets its breadcrumb with `staticData: { crumb: "<message key>" }`.
-- **Dates** show in UTC (`ADMIN_TIME_ZONE`), so a page renders the same on the server and in the browser; use `useFormatter()` from `use-intl`.
 - **Pages** inside the shell are routes under `routes/_admin/` (signed in only). Start a page with `PageHeader`; use the shadcn components from `@webcraft/ui/components/*`.
-- **The setup wizard's steps** are the list in `ui/setup/steps.tsx`: each has a title, a hint, a stage and a panel. The Install email step and the Modules step go after `two-factor` as `continue` steps; the last step finishes setup.
+- **The setup wizard's steps** are the list in `ui/setup/steps.tsx`: each has a title, a hint, a stage and a panel. After `two-factor` comes `email` (the Install SMTP, which can be skipped); the Modules step goes after it, as a `continue` step. The last step finishes setup.
+- **Times** are shown in UTC with `formatUtc`, and days with `formatUtcDate` (`ui/format.ts`), in one fixed form: the server renders pages first, and its date formatting differs from the browser's in small ways, which breaks hydration.
 - **shadcn components** come from preset `b1Fk3bmIS` (`style: base-vega`, zinc, RTL on, see `packages/ui/components.json`). Add one with `bunx shadcn add <name>` in `packages/ui`, then run `bun run lint`: generated code sometimes fails the accessibility rules; fix the component (several are marked `WebCraft:`) rather than switching a rule off, and give every visible or screen-reader string a prop so it can be translated.
 
 ## Testing
@@ -282,8 +311,10 @@ Tests live in `tests/`, grouped by area, and run with `bun test` from the repo r
 | `install.signIn(account)` | A new browser, signed in. |
 | `install.setupToken()` | The setup token the web process printed when it last started (the harness starts like the web process, printing one while there's no Superadmin). |
 | `install.jobs.send(job, payload)` | Enqueues a job as the web process would. |
-| `install.drainJobs()` | Runs every job that is due by the test clock, including jobs those jobs enqueue, and returns `{ completed, failed }`. |
-| `install.mail` | The fake Mailer: `install.mail.sent` holds every email; `clear()` forgets them. |
+| `install.drainJobs()` | Runs every job that is due by the test clock, including jobs those jobs enqueue and scheduled jobs whose time came, and returns `{ completed, failed }`. |
+| `install.lastEmailTo(address)` | Runs the due jobs, then answers the newest email to the address: sent through the Install SMTP or, while it isn't set, written to the log (`{ to, subject, text }`). `inviteLinkIn(email)` finds an invite link in one. |
+| `install.sendSystemEmail(email)` | Sends a System email as WebCraft's features do (`services.email.send`); drain the jobs to send it. |
+| `install.mail` | The fake Mailer: `sent` holds every email the server took (with the `smtp` settings it went through, password included), `attempts` every try; `fail(response)` makes every send fail with that answer until `accept()`; `rejectRecipient(address)` refuses one address for good; `clear()` forgets them. |
 | `install.http` | The fake outgoing HTTP: `respond(method, url or RegExp, { status, body, headers } or a function)`; `requests` holds every call. A request nobody prepared an answer for fails like an unreachable server. |
 | `install.clock` | Time stands still until `advance(ms)` or `set(date)`. The job queue reads the same time inside Postgres, so a job sent with `startAfter` in an hour runs only after `advance` passes it, and retries wait for their delay. `advance` jumps like a process that slept, so moving days ahead is quick. Sessions expire by this clock too. Starts at `2026-03-02T09:00:00Z` unless you pass `{ now }`. |
 | `install.logs` | Every log entry the Install wrote. |
@@ -319,7 +350,7 @@ test("the sample job emails the status of a URL", async () => {
 });
 ```
 
-`tests/worker/sample-job.test.ts` uses every part of the harness; `tests/web/health.test.ts` shows the database modes. Tests in one file share their Install, so give each test its own data (its own Workspace, its own email address) or create an Install per test when they must not see each other. `tests/worker/node-worker.test.ts` starts the real worker with `node`, the way to check something runs on Node; give it `install.env`. Start a real `bun` process (the CLI, the web entry) in an empty directory when a test leaves a setting out on purpose: Bun fills missing variables from the `.env` in the directory it starts in (see `tests/secrets/start-refusal.test.ts`).
+`tests/worker/sample-job.test.ts` shows the job drain, the fake outgoing HTTP and the clock; `tests/email/` shows the fake mailer and `install.sendSystemEmail`; `tests/web/health.test.ts` shows the database modes. Tests in one file share their Install, so give each test its own data (its own Workspace, its own email address) or create an Install per test when they must not see each other. `tests/worker/node-worker.test.ts` starts the real worker with `node`, the way to check something runs on Node; give it `install.env`. It also sends a System email with the real Mailer to `startSmtpServer()` (`tests/harness/smtp-server.ts`), a real SMTP server in the test process, which the browser tests use too (the production web process sends test emails with the real Mailer). Start a real `bun` process (the CLI, the web entry) in an empty directory when a test leaves a setting out on purpose: Bun fills missing variables from the `.env` in the directory it starts in (see `tests/secrets/start-refusal.test.ts`).
 
 **Workspace isolation**: every procedure that takes a `workspaceId` or `siteId` gets one line in `tests/isolation/procedures.test.ts`, proving it works on the caller's own Workspace and refuses another's (404 or 403). The last test there fails when a procedure is missing:
 
@@ -334,7 +365,9 @@ isolation.refuses("sites.list", (api, { workspaceId }) => api.sites.list({ works
 - `expectAccessibleScreen(page, where)`: axe-core finds no violation of WCAG 2.0, 2.1 or 2.2 at A or AA, nor of its best practices; the first Tab reaches "Skip to main content" and following it moves focus to `<main>`; Tab visits every link, button and field in page order, each with a visible focus indicator; no positive `tabindex`; Tab always moves on (no traps); the page logged no errors.
 - `expectOverlayUsable(page, trigger, "menu" | "dialog", where)`: opens a menu or dialog from the keyboard, checks it with axe, and Escape closes it with focus back on the trigger.
 
-**Adding a screen** is one line in `tests/browser/screens.ts`: its name, its path and who looks at it (`superadmin`, `staff` or `signed-out`). A screen inside a Workspace or Site gives its path as a function of the shared fixture (`({ siteId }) => `/sites/${siteId}``); prepare more data in `admin-screens.browser.ts` through `install.local`, the same Install in the test process. For a state a path can't reach (a wizard step, an error shown, an open menu), write a test like `tests/browser/setup-wizard.browser.ts`: drive the page there with Playwright, then call `expectAccessibleScreen` or `expectOverlayUsable`. Don't retest behaviour seam 1 covers.
+`startBrowserInstall()` also gives the test Install behind the web process (`browserInstall.install`), to prepare data through the Management API, send System emails and drain jobs before the page opens (see `tests/browser/email.browser.ts`).
+
+**Adding a screen** is one line in `tests/browser/screens.ts`: its name, its path and who looks at it (`superadmin`, `staff` or `signed-out`). A screen inside a Workspace or Site gives its path as a function of the shared fixture (`({ siteId }) => `/sites/${siteId}``); prepare more data in `admin-screens.browser.ts` through `install.install`, the same Install in the test process. For a state a path can't reach (a wizard step, an error shown, an open menu), write a test like `tests/browser/setup-wizard.browser.ts`: drive the page there with Playwright, then call `expectAccessibleScreen` or `expectOverlayUsable`. Don't retest behaviour seam 1 covers.
 
 ```ts
 export const ADMIN_SCREENS: readonly Screen[] = [
@@ -348,7 +381,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 - **Words**: use `GLOSSARY.md` terms exactly, in code, tests, UI text and commits. British spelling in prose ("licence", "normalise").
 - **TypeScript**: strict, with explicit `.ts`/`.tsx` extensions on relative imports and only erasable syntax (no `enum`, `namespace` or parameter properties). That lets Node run shared code and the worker without a build step.
 - **Runtimes** (ADR 0006): `packages/*` and `apps/worker` use standard Web and Node APIs only; Biome rejects the `Bun` global and `bun:*` imports there, and their tsconfigs don't load Bun's types. `apps/server`, `apps/cli`, `tests` and `scripts` may use Bun.
-- **Edges go through ports**: time through `Clock`, email through `Mailer`, calls to other servers through `services.http`. Tests replace them with fakes; nothing else is faked.
+- **Edges go through ports**: time through `Clock`, email through `Mailer` (only the email sender calls it; features send System emails with `services.email.send`), calls to other servers through `services.http`. Tests replace them with fakes; nothing else is faked.
 - **Secrets** go through `services.secrets` only: never in another table, a log line, a job payload or a response (see "Secrets and the Master key").
 - **Workspace data** goes through the data layer (`services.data`), which runs `can()` first (ADR 0007); no query on tenant data without a Workspace, and no check of a role name: check a Permission.
 - **Errors**: Site visitors and unknown hostnames see plain, unbranded answers. Unexpected errors are logged and answered with a plain 500.

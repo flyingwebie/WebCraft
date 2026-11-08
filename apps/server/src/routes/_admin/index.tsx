@@ -8,7 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@webcraft/ui/components/card.tsx";
-import { ChevronRightIcon, SettingsIcon, ShieldCheckIcon } from "lucide-react";
+import { ChevronRightIcon, MailIcon, SettingsIcon, ShieldCheckIcon } from "lucide-react";
 
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
@@ -71,6 +71,15 @@ function OverviewPage() {
 									<Link to="/settings/general" className="flex items-center gap-3 rounded-md py-3 hover:underline">
 										<SettingsIcon className="text-muted-foreground size-4" aria-hidden="true" />
 										<span className="flex-1">{t("overview.nextSteps.general")}</span>
+										<ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden="true" />
+									</Link>
+								</li>
+							) : null}
+							{canManage ? (
+								<li>
+									<Link to="/settings/email" className="flex items-center gap-3 rounded-md py-3 hover:underline">
+										<MailIcon className="text-muted-foreground size-4" aria-hidden="true" />
+										<span className="flex-1">{t("overview.nextSteps.email")}</span>
 										<ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden="true" />
 									</Link>
 								</li>

@@ -1,6 +1,7 @@
 import { createAuth } from "@webcraft/auth";
 
 import { listAuditEntries } from "./audit.ts";
+import { createEmail } from "./email/index.ts";
 import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
 import { createPeople } from "./people.ts";
@@ -44,9 +45,11 @@ export async function createInstallServices(
 		log,
 	});
 	const settings = createInstallSettings(database);
+	const installSecrets = installSecretsOnly(store);
+	const email = createEmail({ ...ports, secrets: installSecrets, settings });
 	return {
 		...ports,
-		secrets: installSecretsOnly(store),
+		secrets: installSecrets,
 		auth,
 		people: createPeople({ database, clock }),
 		setup: createInstallSetup({ database, auth, config, clock, log }),
@@ -60,7 +63,8 @@ export async function createInstallServices(
 		},
 		sites: { list: listSites, create: createSite },
 		memberships: createMemberships({ database, clock }),
-		...createStaffServices({ database, auth, mailer: ports.mailer, settings, config, clock }),
+		...createStaffServices({ database, auth, email, settings, clock }),
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
+		email,
 	};
 }
