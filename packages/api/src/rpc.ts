@@ -1,3 +1,4 @@
+import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ResponseHeadersPlugin } from "@orpc/server/plugins";
 import type { InstallServices } from "@webcraft/core";
@@ -12,7 +13,17 @@ export const ADMIN_API_PREFIX = "/api/rpc";
  * session cookie. Answers null for paths outside `/api/rpc`.
  */
 export function createAdminApi(services: InstallServices): (request: Request) => Promise<Response | null> {
-	const handler = new RPCHandler(apiRouter, { plugins: [new ResponseHeadersPlugin()] });
+	const handler = new RPCHandler(apiRouter, {
+		plugins: [new ResponseHeadersPlugin()],
+		clientInterceptors: [
+			// Refusals (bad input, no session, a wrong token) are answers; anything else is a failure to log.
+			// The caller only gets a plain 500.
+			onError((error, { path }) => {
+				if (error instanceof ORPCError && error.status < 500) return;
+				services.log.error("A Management API call failed unexpectedly", { error, procedure: path.join(".") });
+			}),
+		],
+	});
 	return async (request) => {
 		const { matched, response } = await handler.handle(request, {
 			prefix: ADMIN_API_PREFIX,

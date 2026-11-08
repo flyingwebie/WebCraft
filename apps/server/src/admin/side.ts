@@ -2,7 +2,7 @@ import { ADMIN_API_PREFIX, createAdminApi } from "@webcraft/api";
 import type { InstallServices } from "@webcraft/core";
 import { normaliseHostname } from "@webcraft/core";
 
-import { type Handler, json, notFound } from "../responses.ts";
+import { type Handler, json, notFound, plainText } from "../responses.ts";
 import { healthz, readyz } from "./health.ts";
 
 /**
@@ -21,6 +21,9 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 				return readyz(request, services);
 		}
 		if (pathname === ADMIN_API_PREFIX || pathname.startsWith(`${ADMIN_API_PREFIX}/`)) {
+			// Only POST: a link or a top-level navigation from another site (which carries the
+			// SameSite=Lax cookie) can never call a procedure.
+			if (request.method !== "POST") return plainText(405, "Method Not Allowed", { allow: "POST" });
 			if (!fromAdminPages(request, services.config.adminHost)) {
 				return json(403, { code: "FORBIDDEN", message: "Requests to the admin must come from the admin's own pages." });
 			}

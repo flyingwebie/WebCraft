@@ -15,8 +15,14 @@ export function SetupWizard({ shell, linkedToken }: { shell: ShellContext; linke
 
 	// The wizard can switch language before anyone has an account: the page follows it.
 	useEffect(() => {
-		document.documentElement.lang = language;
-		document.documentElement.dir = adminLanguageDirection(language);
+		const html = document.documentElement;
+		const before = { lang: html.lang, dir: html.dir };
+		html.lang = language;
+		html.dir = adminLanguageDirection(language);
+		return () => {
+			html.lang = before.lang;
+			html.dir = before.dir;
+		};
 	}, [language]);
 
 	return (

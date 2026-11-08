@@ -1,5 +1,5 @@
 import { ORPCError, os } from "@orpc/server";
-import type { InstallServices, Person } from "@webcraft/core";
+import { type InstallServices, type Person, SUPERADMIN_ROLE } from "@webcraft/core";
 
 import { toApiError } from "./errors.ts";
 
@@ -50,7 +50,7 @@ export const signedIn = procedure.use(withPerson).use(async ({ context, next }) 
  * check (`can()`) replaces this when roles arrive.
  */
 export const superadminOnly = signedIn.use(async ({ context, next }) => {
-	if (context.person.installRole !== "superadmin") {
+	if (context.person.installRole !== SUPERADMIN_ROLE) {
 		throw new ORPCError("FORBIDDEN", { message: "Only the Superadmin can do this." });
 	}
 	return next();
