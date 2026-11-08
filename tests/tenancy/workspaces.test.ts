@@ -62,3 +62,19 @@ describe("creating Workspaces", () => {
 		});
 	});
 });
+
+describe("the Staff a Workspace lists", () => {
+	test("go to the people who manage its Members (Owners), never to its Editors and Authors", async () => {
+		const workspace = await install.createWorkspace("Staffed Ltd");
+		const staff = await install.createStaff({ workspaces: [workspace.id], name: "Agency Anna" });
+		const owner = await install.createMember({ workspaceId: workspace.id, role: "owner" });
+		const editor = await install.createMember({ workspaceId: workspace.id, role: "editor" });
+		const author = await install.createMember({ workspaceId: workspace.id, role: "author" });
+		const listed = async (browser: typeof owner.browser) =>
+			(await browser.api.workspaces.list()).workspaces.find((candidate) => candidate.id === workspace.id)?.staff;
+
+		expect(await listed(owner.browser)).toEqual([{ id: staff.personId, name: "Agency Anna" }]);
+		expect(await listed(editor.browser)).toEqual([]);
+		expect(await listed(author.browser)).toEqual([]);
+	});
+});

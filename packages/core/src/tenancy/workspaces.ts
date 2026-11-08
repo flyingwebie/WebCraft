@@ -1,9 +1,9 @@
 import type { Database } from "@webcraft/db";
 import { installRoles, people, sites, staffWorkspaces, workspaces } from "@webcraft/db/schema";
-import { asc, eq, inArray, or } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import { can, workspacesReached } from "../permissions/can.ts";
-import { ROLES } from "../permissions/roles.ts";
+import { ASSIGNED_ROLES } from "../permissions/roles.ts";
 import type { Access, InstallScope, Workspace } from "./data-layer.ts";
 
 /** The longest Workspace name, in characters. */
@@ -12,7 +12,10 @@ export const WORKSPACE_NAME_MAX_LENGTH = 100;
 /** A Workspace in a list: how many of its Sites the person reaches, and the Staff assigned to it. */
 export type WorkspaceSummary = Workspace & {
 	siteCount: number;
-	/** Staff assigned to it, including Staff assigned to every Workspace, by name. */
+	/**
+	 * Staff assigned to it, including Staff assigned to every Workspace, by name; only for those who
+	 * manage its Members (`member.manage`), empty for everyone else.
+	 */
 	staff: { id: string; name: string }[];
 };
 
@@ -32,11 +35,6 @@ export function createWorkspace(scope: InstallScope, input: { name: string }): P
 		return workspace;
 	});
 }
-
-/** The roles that reach Workspaces by assignment (Staff). */
-const ASSIGNED_ROLES = Object.entries(ROLES)
-	.filter(([, role]) => role.reach === "assigned-workspaces")
-	.map(([key]) => key);
 
 /**
  * The Workspaces the actor can see (`workspace.view`), by name. An Install-level list, so it reads
@@ -78,20 +76,14 @@ export async function listWorkspaces(database: Database, access: Access): Promis
 				site.workspaceId === workspace.id &&
 				can(actor, "site.view", { level: "site", workspaceId: workspace.id, siteId: site.id }),
 		).length;
+		// Who in the agency reaches the Workspace is for the people who manage its Members (Owners,
+		// Staff), not for every Editor and Author.
 		const staff = new Map<string, { id: string; name: string }>();
-		for (const row of staffRows) {
-			if (row.allWorkspaces || row.workspaceId === workspace.id) staff.set(row.id, { id: row.id, name: row.name });
+		if (can(actor, "member.manage", { level: "workspace", workspaceId: workspace.id })) {
+			for (const row of staffRows) {
+				if (row.allWorkspaces || row.workspaceId === workspace.id) staff.set(row.id, { id: row.id, name: row.name });
+			}
 		}
 		return { ...workspace, siteCount, staff: [...staff.values()] };
 	});
-}
-
-/** Whether every id names a Workspace. */
-export async function workspacesExist(database: Database, ids: readonly string[]): Promise<boolean> {
-	if (ids.length === 0) return true;
-	const rows = await database.db
-		.select({ id: workspaces.id })
-		.from(workspaces)
-		.where(or(...ids.map((id) => eq(workspaces.id, id))));
-	return rows.length === new Set(ids).size;
 }

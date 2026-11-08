@@ -35,6 +35,14 @@ export type PersonActor = {
  */
 export type Actor = PersonActor;
 
+/** The person behind an actor, or null for actors with no person (tokens and Modules, later). */
+export function personIdOf(actor: Actor): string | null {
+	switch (actor.kind) {
+		case "person":
+			return actor.personId;
+	}
+}
+
 /**
  * Whether `actor` may do `permission` on `resource`. The one permission check: every procedure goes
  * through it (most of them through the data layer). Throws a TypeError when the Permission isn't

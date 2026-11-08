@@ -15,7 +15,7 @@ import type { AdminLanguageCode } from "../admin-languages.ts";
 import { type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallSettings } from "../install-settings.ts";
-import { isWorkspaceRole, ROLES } from "../permissions/roles.ts";
+import { ASSIGNED_ROLES, isWorkspaceRole } from "../permissions/roles.ts";
 import { hashToken } from "../tokens.ts";
 import type { MembershipsService } from "./memberships.ts";
 
@@ -93,11 +93,6 @@ type InvitesOptions = {
 type Executor = Database["db"] | Transaction;
 
 type InviteRow = typeof invites.$inferSelect;
-
-/** The roles that reach Workspaces by assignment (Staff). */
-const ASSIGNED_ROLES = Object.entries(ROLES)
-	.filter(([, role]) => role.reach === "assigned-workspaces")
-	.map(([key]) => key);
 
 export function createInvites(options: InvitesOptions): InvitesService {
 	const { database, auth, settings, clock, memberships } = options;
