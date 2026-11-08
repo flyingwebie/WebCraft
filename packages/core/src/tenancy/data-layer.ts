@@ -3,7 +3,7 @@ import { sites, workspaces } from "@webcraft/db/schema";
 import { and, count, eq, type InferInsertModel, type InferSelectModel, type SQL } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
-import { type AuditDetails, type AuditVia, recordAudit } from "../audit.ts";
+import { type AuditDetails, type AuditVia, type RecordedAuditEntry, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import { isUuid } from "../ids.ts";
 import { type Actor, can, INSTALL, personIdOf, type Resource } from "../permissions/can.ts";
@@ -96,6 +96,8 @@ export type ScopedSecrets = {
 	useWith<Result>(name: string, use: (value: string) => Result | Promise<Result>): Promise<Result>;
 	describe(name: string): Promise<SecretDescription>;
 	remove(name: string): Promise<void>;
+	/** The names of this Workspace's (or Site's) secrets that start with `prefix`. */
+	names(prefix: string): Promise<string[]>;
 };
 
 type ScopeBase = {
@@ -166,78 +168,135 @@ export type VisitorScope = Pick<
 		now(): Date;
 	};
 
-type DataLayerOptions = { database: Database; clock: Clock; secrets: Secrets };
+type DataLayerOptions = {
+	database: Database;
+	clock: Clock;
+	secrets: Secrets;
+	/**
+	 * Hears of every Audit log entry a scope writes, once it is saved: after its transaction commits
+	 * (never when it rolls back), or at once outside one. It must not throw; the Module host reacts
+	 * to some entries by queuing Modules' events.
+	 */
+	afterAudit?: (entry: RecordedAuditEntry) => Promise<void>;
+};
 
-export function createDataLayer({ database, clock, secrets }: DataLayerOptions): DataLayer {
+/** What runs once the transaction a scope works in commits. Null: the scope isn't in a transaction. */
+type AfterCommit = (() => Promise<void>)[] | null;
+
+export function createDataLayer({ database, clock, secrets, afterAudit }: DataLayerOptions): DataLayer {
 	const { db } = database;
 
 	const audit =
-		(executor: Executor, access: Access) =>
-		(action: string, details: AuditDetails | undefined, where: { workspaceId: string | null; siteId: string | null }) =>
-			recordAudit(executor, clock.now(), {
+		(executor: Executor, access: Access, afterCommit: AfterCommit) =>
+		async (
+			action: string,
+			details: AuditDetails | undefined,
+			where: { workspaceId: string | null; siteId: string | null },
+		) => {
+			const at = clock.now();
+			await recordAudit(executor, at, {
 				personId: personIdOf(access.actor),
 				via: access.via,
 				...where,
 				action,
 				details,
 			});
+			if (!afterAudit) return;
+			const announce = () => afterAudit({ action, ...where, at, details: details ?? {} }).catch(() => {});
+			if (afterCommit) afterCommit.push(announce);
+			else await announce();
+		};
 
-	const base = (executor: Executor, access: Access, where: { workspaceId: string | null; siteId: string | null }) => ({
+	const base = (
+		executor: Executor,
+		access: Access,
+		where: { workspaceId: string | null; siteId: string | null },
+		afterCommit: AfterCommit,
+	) => ({
 		access,
 		now: () => clock.now(),
-		audit: (action: string, details?: AuditDetails) => audit(executor, access)(action, details, where),
+		audit: (action: string, details?: AuditDetails) => audit(executor, access, afterCommit)(action, details, where),
 	});
 
-	const installScope = (executor: Executor, access: Access): InstallScope => ({
+	const installScope = (executor: Executor, access: Access, afterCommit: AfterCommit): InstallScope => ({
 		access,
 		now: () => clock.now(),
 		audit: (action, details, about) =>
-			audit(executor, access)(action, details, {
+			audit(executor, access, afterCommit)(action, details, {
 				workspaceId: about?.workspaceId ?? null,
 				siteId: about?.siteId ?? null,
 			}),
 		level: "install",
 		db: executor,
-		transaction: (work) => inTransaction(executor, (tx) => work(installScope(tx, access))),
+		transaction: (work) =>
+			inTransaction(executor, afterCommit, (tx, pending) => work(installScope(tx, access, pending))),
 	});
 
-	const workspaceScope = (executor: Executor, access: Access, workspace: Workspace): WorkspaceScope => {
+	const workspaceScope = (
+		executor: Executor,
+		access: Access,
+		workspace: Workspace,
+		afterCommit: AfterCommit,
+	): WorkspaceScope => {
 		const condition = (table: WorkspaceTable) => eq(table.workspaceId, workspace.id);
 		return {
-			...base(executor, access, { workspaceId: workspace.id, siteId: null }),
+			...base(executor, access, { workspaceId: workspace.id, siteId: null }, afterCommit),
 			audit: (action, details, about) =>
-				audit(executor, access)(action, details, { workspaceId: workspace.id, siteId: about?.siteId ?? null }),
+				audit(executor, access, afterCommit)(action, details, {
+					workspaceId: workspace.id,
+					siteId: about?.siteId ?? null,
+				}),
 			...scopedQueries(executor, condition, { workspaceId: workspace.id }),
 			db: executor,
 			level: "workspace",
 			workspace,
 			secrets: scopedSecrets(secrets, { kind: "workspace", workspaceId: workspace.id }),
-			transaction: (work) => inTransaction(executor, (tx) => work(workspaceScope(tx, access, workspace))),
+			transaction: (work) =>
+				inTransaction(executor, afterCommit, (tx, pending) => work(workspaceScope(tx, access, workspace, pending))),
 		};
 	};
 
-	const siteScope = (executor: Executor, access: Access, workspace: Workspace, site: Site): SiteScope => {
+	const siteScope = (
+		executor: Executor,
+		access: Access,
+		workspace: Workspace,
+		site: Site,
+		afterCommit: AfterCommit,
+	): SiteScope => {
 		const condition = (table: SiteTable) => and(eq(table.workspaceId, workspace.id), eq(table.siteId, site.id)) as SQL;
 		return {
-			...base(executor, access, { workspaceId: workspace.id, siteId: site.id }),
+			...base(executor, access, { workspaceId: workspace.id, siteId: site.id }, afterCommit),
 			...scopedQueries(executor, condition, { workspaceId: workspace.id, siteId: site.id }),
 			db: executor,
 			level: "site",
 			workspace,
 			site,
 			secrets: scopedSecrets(secrets, { kind: "site", workspaceId: workspace.id, siteId: site.id }),
-			transaction: (work) => inTransaction(executor, (tx) => work(siteScope(tx, access, workspace, site))),
+			transaction: (work) =>
+				inTransaction(executor, afterCommit, (tx, pending) => work(siteScope(tx, access, workspace, site, pending))),
 		};
 	};
 
-	/** Runs `work` in a transaction, or in the one `executor` already is. */
-	const inTransaction = <Result>(executor: Executor, work: (tx: Executor) => Promise<Result>) =>
-		executor === db ? db.transaction((tx) => work(tx)) : work(executor);
+	/**
+	 * Runs `work` in a transaction, or in the one `executor` already is. What the transaction's scopes
+	 * leave for after the commit runs once the outermost one commits.
+	 */
+	const inTransaction = async <Result>(
+		executor: Executor,
+		afterCommit: AfterCommit,
+		work: (tx: Executor, afterCommit: AfterCommit) => Promise<Result>,
+	): Promise<Result> => {
+		if (executor !== db) return work(executor, afterCommit);
+		const pending: (() => Promise<void>)[] = [];
+		const result = await db.transaction((tx) => work(tx, pending));
+		for (const announce of pending) await announce();
+		return result;
+	};
 
 	return {
 		async install(access, permission) {
 			check(access.actor, permission, INSTALL);
-			return installScope(db, access);
+			return installScope(db, access, null);
 		},
 
 		async workspace(access, workspaceId, permission) {
@@ -246,7 +305,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 			const resource: Resource = { level: "workspace", workspaceId: workspace.id };
 			if (!can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
 			check(access.actor, permission, resource);
-			return workspaceScope(db, access, workspace);
+			return workspaceScope(db, access, workspace, null);
 		},
 
 		async site(access, siteId, permission) {
@@ -257,7 +316,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 			check(access.actor, permission, resource);
 			const workspace = await findWorkspace(db, site.workspaceId);
 			if (!workspace) throw new SiteNotFoundError();
-			return siteScope(db, access, workspace, site);
+			return siteScope(db, access, workspace, site, null);
 		},
 
 		visitors(site) {
@@ -362,5 +421,6 @@ function scopedSecrets(secrets: Secrets, owner: SecretOwner): ScopedSecrets {
 		useWith: (name, use) => secrets.useWith({ owner, name }, use),
 		describe: (name) => secrets.describe({ owner, name }),
 		remove: (name) => secrets.remove({ owner, name }),
+		names: (prefix) => secrets.names(owner, prefix),
 	};
 }

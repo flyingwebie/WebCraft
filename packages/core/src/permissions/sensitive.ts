@@ -28,6 +28,8 @@ export const SENSITIVE_ACTIONS = {
 	"password.change": "changes how a person signs in",
 	/** The leaked-password check on new passwords, Install-wide. */
 	"leakedPasswordCheck.change": "changes how passwords are checked",
+	/** Approving a Module: what it asks for (Permissions, outside hosts, email) is granted. */
+	"module.approve": "grants a Module access",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

@@ -1,9 +1,11 @@
 import {
 	assertMasterKeyMatches,
 	createLogger,
+	FIRST_PARTY_MODULES,
 	type InstallServices,
 	loadInstallConfig,
 	loadMasterKey,
+	moduleSchemas,
 	openInstall,
 } from "@webcraft/core";
 import { assertSchemaCurrent, openDatabase } from "@webcraft/db";
@@ -34,7 +36,7 @@ export async function checkWebSettings(env: Record<string, string | undefined>):
 	const masterKey = loadMasterKey(env);
 	const database = openDatabase(config.databaseUrl, { maxConnections: 1, applicationName: "webcraft-web" });
 	try {
-		await assertSchemaCurrent(database);
+		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 		await assertMasterKeyMatches(database, masterKey);
 	} finally {
 		await database.close();

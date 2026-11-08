@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
 import type { Logger } from "../log.ts";
+import { actingPerson } from "../permissions/can.ts";
 import type { SecretDescription, Secrets } from "../secrets/store.ts";
 import type { InstallScope } from "../tenancy/data-layer.ts";
 import type { SmtpSecurity } from "./mailer.ts";
@@ -102,7 +103,7 @@ export function createInstallSmtp({ database, secrets, clock, log }: Options): I
 		async update(scope, change) {
 			const settings = checkSettings(change);
 			const now = clock.now();
-			const personId = scope.access.actor.personId;
+			const personId = actingPerson(scope.access.actor);
 			const password = change.password === undefined ? "kept" : change.password === null ? "removed" : "replaced";
 			await scope.transaction(async (tx) => {
 				await tx.db

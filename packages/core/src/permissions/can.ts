@@ -28,19 +28,54 @@ export type PersonActor = {
 };
 
 /**
- * Who `can()` is asked about. Only people exist so far. Later kinds slot in here, each limited by
- * what stands behind it: an API token acts as its person within one Workspace and its Toolsets; an
- * OAuth grant is a person plus scope, Toolsets and "may publish"; a Module holds the Permissions its
- * manifest declares and the Superadmin approved.
+ * A Module acting by itself: in one of its background jobs, events or Site routes. It acts in one
+ * place at a time, the Site (or the Workspace, for Workspace-level Modules) where it is switched on
+ * and runs now. There it holds `site.view` / `workspace.view` and the Permissions it adds; nothing
+ * anywhere else, and never a Permission of WebCraft's own beyond seeing the place.
  */
-export type Actor = PersonActor;
+export type ModuleActor = {
+	kind: "module";
+	moduleId: string;
+	/** The keys of the Permissions it adds, such as `sample.notes.edit`. */
+	permissions: readonly string[];
+	place: { level: "workspace"; workspaceId: string } | { level: "site"; workspaceId: string; siteId: string };
+};
 
-/** The person behind an actor, or null for actors with no person (tokens and Modules, later). */
+/**
+ * Who `can()` is asked about: a person or a Module. Later kinds slot in here, each limited by what
+ * stands behind it: an API token acts as its person within one Workspace and its Toolsets; an
+ * OAuth grant is a person plus scope, Toolsets and "may publish".
+ */
+export type Actor = PersonActor | ModuleActor;
+
+/**
+ * A Permission a Module adds (ADR 0028): named under the Module's id (`sample.notes.edit`), checked
+ * at the Module's level, and held by the built-in roles it lists (the Superadmin always among them).
+ */
+export type AddedPermission = {
+	readonly key: string;
+	readonly levels: readonly Level[];
+	readonly roles: readonly string[];
+};
+
+/** The person behind an actor, or null for actors with no person (Modules; tokens later). */
 export function personIdOf(actor: Actor): string | null {
 	switch (actor.kind) {
 		case "person":
 			return actor.personId;
+		case "module":
+			return null;
 	}
+}
+
+/**
+ * The person behind an actor, for what only a person does (confirming an action, writing a value
+ * that records who wrote it). Throws for any other actor, which never gets that far.
+ */
+export function actingPerson(actor: Actor): string {
+	const personId = personIdOf(actor);
+	if (personId === null) throw new TypeError(`Only a person can do this, not a ${actor.kind}.`);
+	return personId;
 }
 
 /**
@@ -48,17 +83,36 @@ export function personIdOf(actor: Actor): string | null {
  * through it (most of them through the data layer). Throws a TypeError when the Permission isn't
  * checked at the resource's level, such as `entry.publish` on a whole Workspace.
  */
-export function can(actor: Actor, permission: Permission, resource: Resource): boolean {
-	const levels: readonly Level[] = PERMISSIONS[permission];
+export function can(actor: Actor, permission: Permission | AddedPermission, resource: Resource): boolean {
+	const key = typeof permission === "string" ? permission : permission.key;
+	const levels: readonly Level[] = typeof permission === "string" ? PERMISSIONS[permission] : permission.levels;
 	if (!levels.includes(resource.level)) {
 		throw new TypeError(
-			`The Permission ${permission} is checked on ${levels.join(" or ")}, not on ${describeLevel(resource.level)}.`,
+			`The Permission ${key} is checked on ${levels.join(" or ")}, not on ${describeLevel(resource.level)}.`,
 		);
 	}
 	switch (actor.kind) {
 		case "person":
-			return rolesReaching(actor, resource).some((role) => roleDefinition(role)?.permissions.includes(permission));
+			return rolesReaching(actor, resource).some((role) =>
+				typeof permission === "string"
+					? roleDefinition(role)?.permissions.includes(permission)
+					: roleDefinition(role) !== undefined && permission.roles.includes(role),
+			);
+		case "module":
+			return (
+				moduleReaches(actor, resource) && (MODULE_VIEW_PERMISSIONS.includes(key) || actor.permissions.includes(key))
+			);
 	}
+}
+
+/** What a Module holds wherever it acts, so it can open its place. */
+const MODULE_VIEW_PERMISSIONS: readonly string[] = ["workspace.view", "site.view"];
+
+/** Whether `resource` is the Module's place, or a Site of the Workspace a Workspace-level Module acts in. */
+function moduleReaches(actor: ModuleActor, resource: Resource): boolean {
+	if (resource.level === "install" || resource.workspaceId !== actor.place.workspaceId) return false;
+	if (actor.place.level === "workspace") return true;
+	return resource.level === "site" && resource.siteId === actor.place.siteId;
 }
 
 /** Every Permission `actor` holds on `resource`, in the order of `PERMISSIONS`. */
@@ -87,6 +141,7 @@ export type MemberAccess = { role: string; sites: Reach };
  * never held this way.
  */
 export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAccess): boolean {
+	if (actor.kind !== "person") return false;
 	const role = roleDefinition(access.role);
 	if (role?.reach !== "membership") return false;
 	const checkedOn = (level: Level) =>
@@ -108,6 +163,7 @@ export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAcc
  * Workspace. Listing Workspaces starts here, then keeps those `can(actor, "workspace.view", …)` allows.
  */
 export function workspacesReached(actor: Actor): Reach {
+	if (actor.kind === "module") return [actor.place.workspaceId];
 	const { installRole, memberships } = actor;
 	const reach = installRole ? roleDefinition(installRole.role)?.reach : undefined;
 	if (reach === "install") return "all";

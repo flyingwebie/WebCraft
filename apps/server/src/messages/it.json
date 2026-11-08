@@ -453,6 +453,10 @@
 			"name": "Limite della chiave AI condivisa",
 			"description": "Quando un Workspace ha usato l'80% o tutto il limite mensile sulla chiave AI condivisa."
 		},
+		"module-message": {
+			"name": "Email dei Moduli",
+			"description": "Le email che ti inviano i Moduli di questa Installazione."
+		},
 		"domain-unreachable": {
 			"name": "Dominio non raggiungibile",
 			"description": "Quando il Domain check non riesce a raggiungere il dominio di un Site."

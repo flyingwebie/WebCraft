@@ -6,6 +6,13 @@ import pg from "pg";
 import { PgBoss } from "pg-boss";
 
 import { JOB_QUEUE_SCHEMA, JOB_QUEUE_SCHEMA_VERSION } from "./job-queue.ts";
+import { applyModuleMigrations, type ModuleSchema, pendingModuleMigrations } from "./module-migrations.ts";
+
+/** What the migrate step and the schema check know besides WebCraft's own migrations: the Modules of this build. */
+export type SchemaOptions = {
+	/** The Modules whose migrations run after WebCraft's own (see `ModuleSchema`). */
+	modules?: readonly ModuleSchema[];
+};
 
 /** The folder `drizzle-kit generate` writes migrations to, one subfolder per migration. */
 export const migrationsFolder = fileURLToPath(new URL("./migrations", import.meta.url));
@@ -14,29 +21,31 @@ const MIGRATIONS_SCHEMA = "drizzle";
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
 export type MigrationReport = {
-	/** The migrations this run applied, oldest first. */
+	/** The migrations this run applied, oldest first: WebCraft's own, then Modules' as `<module>/<name>`. */
 	appliedMigrations: string[];
 	/** The job queue schema version before the run (null when it wasn't installed) and after it. */
 	jobQueueSchema: { from: number | null; to: number };
 };
 
 /**
- * The `migrate` step (ADR 0031): applies every pending migration in one transaction, then installs
- * or upgrades the job queue's schema. Web and worker never change the schema themselves.
+ * The `migrate` step (ADR 0031): applies every pending migration of WebCraft's in one transaction,
+ * then every pending Module migration in another (see `applyModuleMigrations`), then installs or
+ * upgrades the job queue's schema. Web and worker never change the schema themselves.
  */
-export async function runMigrations(databaseUrl: string): Promise<MigrationReport> {
+export async function runMigrations(databaseUrl: string, options: SchemaOptions = {}): Promise<MigrationReport> {
 	const pool = new pg.Pool({ connectionString: databaseUrl, max: 1, application_name: "webcraft-migrate" });
 	pool.on("error", () => {});
 	try {
-		const before = await readSchemaState(pool);
+		const before = await readSchemaState(pool, {});
 		await migrate(drizzle({ client: pool }), {
 			migrationsFolder,
 			migrationsSchema: MIGRATIONS_SCHEMA,
 			migrationsTable: MIGRATIONS_TABLE,
 		});
+		const modules = await applyModuleMigrations(pool, options.modules ?? []);
 		await installJobQueueSchema(databaseUrl);
 		return {
-			appliedMigrations: before.pendingMigrations,
+			appliedMigrations: [...before.pendingMigrations, ...modules],
 			jobQueueSchema: { from: before.jobQueueVersion, to: JOB_QUEUE_SCHEMA_VERSION },
 		};
 	} finally {
@@ -81,10 +90,10 @@ export type SchemaCheck =
  * job queue schema this build expects? A database that is ahead (after going back one version)
  * counts as current, because every schema change keeps the previous version working (ADR 0031).
  */
-export async function checkSchema(database: { pool: pg.Pool }): Promise<SchemaCheck> {
+export async function checkSchema(database: { pool: pg.Pool }, options: SchemaOptions = {}): Promise<SchemaCheck> {
 	let state: SchemaState;
 	try {
-		state = await readSchemaState(database.pool);
+		state = await readSchemaState(database.pool, options);
 	} catch (error) {
 		return { state: "unreachable", error: error instanceof Error ? error : new Error(String(error)) };
 	}
@@ -106,8 +115,8 @@ export class DatabaseNotReadyError extends Error {
 }
 
 /** Refuses to go on unless the database is reachable and has had every migration (ADR 0031). */
-export async function assertSchemaCurrent(database: { pool: pg.Pool }): Promise<void> {
-	const check = await checkSchema(database);
+export async function assertSchemaCurrent(database: { pool: pg.Pool }, options: SchemaOptions = {}): Promise<void> {
+	const check = await checkSchema(database, options);
 	if (check.state === "unreachable") {
 		throw new DatabaseNotReadyError(`Cannot reach the database: ${check.error.message}`, {
 			cause: check.error,
@@ -129,10 +138,11 @@ type SchemaState = {
 	jobQueueVersion: number | null;
 };
 
-async function readSchemaState(pool: pg.Pool): Promise<SchemaState> {
+async function readSchemaState(pool: pg.Pool, options: SchemaOptions): Promise<SchemaState> {
 	const applied = await appliedMigrationNames(pool);
+	const modules = await pendingModuleMigrations(pool, options.modules ?? []);
 	return {
-		pendingMigrations: localMigrationNames().filter((name) => !applied.has(name)),
+		pendingMigrations: [...localMigrationNames().filter((name) => !applied.has(name)), ...modules],
 		jobQueueVersion: await installedJobQueueVersion(pool),
 	};
 }

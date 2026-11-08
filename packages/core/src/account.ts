@@ -4,6 +4,7 @@ import type { Database, Transaction } from "@webcraft/db";
 import { type AuditDetails, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { Email } from "./email/index.ts";
+import { actingPerson } from "./permissions/can.ts";
 import type { Access } from "./tenancy/data-layer.ts";
 
 /** A session as the person sees it in Your account › Sessions. */
@@ -53,7 +54,7 @@ export type Account = {
 export function createAccount({ database, auth, clock }: { database: Database; auth: Auth; clock: Clock }): Account {
 	const audit = (executor: Database["db"] | Transaction, access: Access, action: string, details: AuditDetails) =>
 		recordAudit(executor, clock.now(), {
-			personId: access.actor.personId,
+			personId: actingPerson(access.actor),
 			via: access.via,
 			workspaceId: null,
 			siteId: null,

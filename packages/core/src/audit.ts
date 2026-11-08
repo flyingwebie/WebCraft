@@ -8,11 +8,12 @@ type Executor = Database["db"] | Transaction;
  * How an action came in, recorded with every Audit log entry:
  * - `admin`: the admin, at `/api/rpc` (the setup wizard included).
  * - `command`: a server command, `webcraft admin <name>`.
+ * - `module`: a Module acting by itself (its id): in a background job, an event or a Site route.
  *
  * Later ways in add their kinds here: Edit mode, an API token (its name), an AI client (its name),
- * a Module (its id), and Impersonation ("<Staff> as <Member>").
+ * and Impersonation ("<Staff> as <Member>").
  */
-export type AuditVia = { kind: "admin" } | { kind: "command"; name: string };
+export type AuditVia = { kind: "admin" } | { kind: "command"; name: string } | { kind: "module"; name: string };
 
 /** Something changed, as the Audit log keeps it. Values are plain JSON; never put a secret's value here. */
 export type AuditDetails = Record<string, unknown>;
@@ -31,6 +32,15 @@ export type NewAuditEntry = {
 
 export type AuditEntry = Required<NewAuditEntry> & { id: string; at: Date };
 
+/** An Audit log entry a scope wrote, as the data layer announces it once it is saved. */
+export type RecordedAuditEntry = {
+	action: string;
+	workspaceId: string | null;
+	siteId: string | null;
+	at: Date;
+	details: AuditDetails;
+};
+
 /**
  * Writes one Audit log entry, inside the caller's transaction when given one, so the entry is saved
  * together with the change it records or not at all. The only way anything is written to the Audit
@@ -42,7 +52,7 @@ export async function recordAudit(executor: Executor, at: Date, entry: NewAuditE
 		occurredAt: at,
 		personId: entry.personId,
 		via: via.kind,
-		viaName: via.kind === "command" ? via.name : null,
+		viaName: via.kind === "admin" ? null : via.name,
 		workspaceId: entry.workspaceId,
 		siteId: entry.siteId,
 		action: entry.action,
@@ -58,7 +68,7 @@ export async function listAuditEntries(executor: Executor, options: { limit: num
 		at: row.occurredAt,
 		action: row.action,
 		personId: row.personId,
-		via: row.via === "command" ? { kind: "command", name: row.viaName ?? "" } : { kind: "admin" },
+		via: row.via === "command" || row.via === "module" ? { kind: row.via, name: row.viaName ?? "" } : { kind: "admin" },
 		workspaceId: row.workspaceId,
 		siteId: row.siteId,
 		details: (row.details ?? {}) as AuditDetails,

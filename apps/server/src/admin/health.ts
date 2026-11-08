@@ -14,7 +14,7 @@ export function healthz(request: Request): Promise<Response> {
  */
 export function readyz(request: Request, services: InstallServices): Promise<Response> {
 	return readOnly(request, async () => {
-		const check = await checkSchema(services.database);
+		const check = await checkSchema(services.database, { modules: services.modules.schemas });
 		switch (check.state) {
 			case "current":
 				return json(200, { status: "ready", checks: { database: "ok", schema: "current" } });

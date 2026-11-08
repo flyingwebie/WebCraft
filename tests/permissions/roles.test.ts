@@ -31,19 +31,35 @@ async function permissionsOf(browser: TestBrowser) {
 describe("the role table", () => {
 	test("superadmin: every Permission, everywhere", async () => {
 		expect(await permissionsOf(await install.superadmin())).toEqual({
-			install: ["install.manage", "workspace.create", "staff.manage", "audit.view"],
-			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage"],
-			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+			install: ["install.manage", "workspace.create", "staff.manage", "audit.view", "module.approve"],
+			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage", "module.manage"],
+			site: [
+				"module.manage",
+				"site.view",
+				"structure.edit",
+				"entry.edit",
+				"entry.publish",
+				"entry.delete",
+				"media.upload",
+			],
 		});
 	});
 
-	test("staff: everything in their Workspaces, including Structure and new Sites; nothing on the Install", async () => {
+	test("staff: everything in their Workspaces, including Structure, new Sites and Modules; nothing on the Install", async () => {
 		const { browser } = await install.createStaff({ workspaces: [workspaceId] });
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
-			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage"],
-			site: ["site.view", "structure.edit", "entry.edit", "entry.publish", "entry.delete", "media.upload"],
+			workspace: ["audit.view", "workspace.view", "site.create", "member.invite", "member.manage", "module.manage"],
+			site: [
+				"module.manage",
+				"site.view",
+				"structure.edit",
+				"entry.edit",
+				"entry.publish",
+				"entry.delete",
+				"media.upload",
+			],
 		});
 	});
 

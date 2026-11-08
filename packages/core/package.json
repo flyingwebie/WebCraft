@@ -16,15 +16,18 @@
 	"dependencies": {
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/db": "workspace:*",
+		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/renderer": "workspace:*",
 		"drizzle-orm": "catalog:",
 		"nodemailer": "^10.4.0",
 		"pg-boss": "catalog:",
+		"semver": "^7.8.6",
 		"zod": "catalog:"
 	},
 	"devDependencies": {
 		"@types/node": "catalog:",
 		"@types/nodemailer": "^8.0.2",
+		"@types/semver": "^7.7.1",
 		"@webcraft/config": "workspace:*",
 		"typescript": "catalog:"
 	}

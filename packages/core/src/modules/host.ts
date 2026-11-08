@@ -1,0 +1,584 @@
+import type { ModuleSchema } from "@webcraft/db";
+import { moduleApprovals, moduleSwitches, people } from "@webcraft/db/schema";
+import {
+	type Label,
+	MODULE_EVENTS,
+	type ModuleContext,
+	type ModuleDefinition,
+	type ModuleEventName,
+	ModuleRefusedError,
+	wordsIn,
+} from "@webcraft/module-sdk";
+import { and, eq, getTableName, isNull } from "drizzle-orm";
+
+import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
+import type { Permission } from "../permissions/roles.ts";
+import type { Access, InstallScope, Site } from "../tenancy/data-layer.ts";
+import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "../tenancy/errors.ts";
+import {
+	type AdditionsView,
+	additionsView,
+	type ConsentView,
+	consentItems,
+	consentView,
+	isCovered,
+} from "./consent.ts";
+import { moduleData, type PlaceScope, placeQueries } from "./data.ts";
+import {
+	ModuleCannotRunError,
+	ModuleChangedError,
+	ModuleFailedError,
+	ModuleNotApprovedError,
+	ModuleNotFoundError,
+} from "./errors.ts";
+import { moduleEventJob, type QueuedEvent, type QueuedJob, type QueuedPlace } from "./jobs.ts";
+import { listModuleLog, type ModuleLogLine } from "./module-log.ts";
+import {
+	type CompiledRoute,
+	type LoadedModule,
+	loadModules,
+	type ModuleRegistry,
+	type RunnableModule,
+	resolvePermission,
+} from "./registry.ts";
+import {
+	describeError,
+	isModuleAnswer,
+	moduleAccess,
+	moduleContext,
+	openPlace,
+	placeOf,
+	procedureContext,
+	type RuntimeDeps,
+	routeContext,
+	writeLine,
+} from "./runtime.ts";
+import { moduleSchemas } from "./schemas.ts";
+
+/**
+ * Where a Module stands on this Install:
+ * - `cannot-run`: its definition breaks a rule of the Module SDK; WebCraft never runs it.
+ * - `waiting`: the Superadmin hasn't approved it (or withdrew the approval).
+ * - `update-waiting`: this version asks for more than the Superadmin approved for an earlier one;
+ *   it is off everywhere until they approve it.
+ * - `approved`: it runs wherever it is on.
+ */
+export type ModuleStatus = "cannot-run" | "waiting" | "update-waiting" | "approved";
+
+/** A Module on the Install's Modules screen and its consent screen. */
+export type ModuleView = {
+	id: string;
+	name: string;
+	description: string;
+	version: string;
+	level: "site" | "workspace";
+	onByDefault: boolean;
+	status: ModuleStatus;
+	/** Why WebCraft can't run it, for `cannot-run`. */
+	problem: string | null;
+	approval: { version: string; approvedAt: Date; approvedBy: string | null } | null;
+	asks: ConsentView;
+	adds: AdditionsView;
+};
+
+/** A Module where Staff switch it: on a Site (Site-level Modules) or a Workspace (Workspace-level ones). */
+export type PlaceModuleView = {
+	id: string;
+	name: string;
+	description: string;
+	version: string;
+	status: ModuleStatus;
+	/** Staff's switch here (the Module's `onByDefault` until they change it). It runs only when also approved. */
+	on: boolean;
+	onByDefault: boolean;
+};
+
+/** What removing a Module's data from a place deletes, by table; asked for first, then confirmed. */
+export type ModuleDataRemoval =
+	| { removed: false; tables: { table: string; rows: number }[]; secrets: number; confirmation: Confirmation }
+	| { removed: true; tables: { table: string; rows: number }[]; secrets: number };
+
+/** One of a Module's admin pages a person may open at a place. */
+export type ModulePageView = { moduleId: string; path: string; label: string };
+
+/** An Audit log entry as the Module host hears of it, once its change is saved. */
+export type RecordedAction = RecordedAuditEntry;
+
+/** A call to one of a Module's procedures, by a person through the Management API. */
+export type ProcedureCall = {
+	access: Access;
+	person: { id: string; language: string };
+	moduleId: string;
+	/** Its dotted name, such as `notes.add`. */
+	procedure: string;
+	/** The Site (Site-level Modules) or Workspace it is called on. */
+	placeId: string;
+	input: unknown;
+};
+
+/** The Module host: what WebCraft knows about Modules and runs for them (`services.modules`). */
+export type ModuleHost = {
+	readonly registry: ModuleRegistry;
+	/** What the `migrate` step and the schema check need to know about this Install's Modules. */
+	readonly schemas: ModuleSchema[];
+	/** Every Module of this build, for the Superadmin (open the Install with `module.approve`). */
+	list(scope: InstallScope, language: string): Promise<ModuleView[]>;
+	/**
+	 * Approves everything `version` of a Module asks for (a Sensitive action: it grants access).
+	 * Refuses another version than this Install runs, which the consent screen would have shown.
+	 */
+	approve(scope: InstallScope, moduleId: string, version: string): Promise<void>;
+	/** Withdraws a Module's approval: it stops everywhere, keeping its data, until approved again. */
+	withdraw(scope: InstallScope, moduleId: string): Promise<void>;
+	/** A Module's newest Module log lines, for the Superadmin. */
+	log(scope: InstallScope, moduleId: string, options: { limit: number }): Promise<ModuleLogLine[]>;
+	/** The Modules Staff switch at a place (open it with `module.manage`). */
+	placeList(scope: PlaceScope, language: string): Promise<PlaceModuleView[]>;
+	/** Switches a Module on or off at a place (`module.manage`). Off keeps its data; only approved Modules switch on. */
+	setOn(scope: PlaceScope, moduleId: string, on: boolean, language: string): Promise<PlaceModuleView>;
+	/**
+	 * Removes a Module's data from a place, in two steps (`module.manage`): the first call deletes
+	 * nothing and answers how many rows of each table and how many secrets would go, with a
+	 * confirmation id; the second, with the id, deletes them and switches the Module off there.
+	 */
+	removeData(scope: PlaceScope, moduleId: string, confirmation?: string): Promise<ModuleDataRemoval>;
+	/** The admin pages of the Modules running at a place that the scope's person may open. */
+	pages(scope: PlaceScope, language: string): Promise<ModulePageView[]>;
+	/** Runs one of a Module's procedures for a person, where the Module runs and they hold its Permission. */
+	callProcedure(call: ProcedureCall): Promise<unknown>;
+	/** Answers a request under `/_wc/m/<prefix>/` on a Site, or null when no running Module answers it. */
+	answerSiteRoute(site: Site, request: Request): Promise<Response | null>;
+	/** Queues the event an Audit log entry stands for, for each Module that reacts to it. Never throws. */
+	afterAudit(entry: RecordedAction): Promise<void>;
+	/** Runs a queued event (the `modules.event` job). */
+	runEvent(payload: QueuedEvent): Promise<void>;
+	/** Runs a queued job of a Module's (the `modules.job` job). */
+	runJob(payload: QueuedJob): Promise<void>;
+};
+
+export type ModuleHostOptions = RuntimeDeps & { modules: readonly ModuleDefinition[] };
+
+/** The Audit log actions Modules hear of, as SDK events with the data the SDK promises. */
+const EVENTS_OF_ACTIONS: Record<string, { event: ModuleEventName; data: (details: AuditDetails) => object }> = {
+	"entry.publish": { event: "entry.published", data: ({ entryId, postTypeId }) => ({ entryId, postTypeId }) },
+	"entry.delete": { event: "entry.deleted", data: ({ entryId, postTypeId }) => ({ entryId, postTypeId }) },
+	"template.publish": { event: "template.published", data: ({ templateId }) => ({ templateId }) },
+	"globals.publish": { event: "globals.published", data: () => ({}) },
+};
+
+const PLAIN = { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" };
+
+export function createModuleHost(options: ModuleHostOptions): ModuleHost {
+	const { database, modules, data, jobs, log } = options;
+	const registry = loadModules(modules);
+	const { db } = database;
+
+	/** What the Superadmin approved for each Module, by id. */
+	const approvals = async (moduleId?: string) => {
+		const rows = await db
+			.select({
+				moduleId: moduleApprovals.moduleId,
+				version: moduleApprovals.version,
+				granted: moduleApprovals.granted,
+				approvedAt: moduleApprovals.approvedAt,
+				approvedBy: people.name,
+			})
+			.from(moduleApprovals)
+			.leftJoin(people, eq(people.id, moduleApprovals.approvedBy))
+			.where(moduleId === undefined ? undefined : eq(moduleApprovals.moduleId, moduleId));
+		return new Map(rows.map((row) => [row.moduleId, row]));
+	};
+
+	const statusOf = (module: LoadedModule, granted: readonly string[] | undefined): ModuleStatus => {
+		if (!module.runnable) return "cannot-run";
+		if (granted === undefined) return "waiting";
+		return isCovered(module.manifest, granted) ? "approved" : "update-waiting";
+	};
+
+	const isApproved = async (module: RunnableModule) =>
+		statusOf(module, (await approvals(module.id)).get(module.id)?.granted) === "approved";
+
+	const words = (module: LoadedModule, label: Label | undefined, language: string) =>
+		label && module.manifest ? wordsIn(label, language, module.manifest.adminLanguages) : "";
+
+	const find = (moduleId: string): LoadedModule => {
+		const module = registry.get(moduleId);
+		if (!module) throw new ModuleNotFoundError();
+		return module;
+	};
+
+	/** A Module of the place's level: Site-level ones on Sites, Workspace-level ones on Workspaces. */
+	const atPlace = (scope: PlaceScope, moduleId: string): RunnableModule => {
+		const module = registry.get(moduleId);
+		if (!module?.runnable || module.level !== scope.level) throw new ModuleNotFoundError();
+		return module;
+	};
+
+	const switchWhere = (scope: PlaceScope, module: RunnableModule) =>
+		scope.level === "site"
+			? eq(moduleSwitches.moduleId, module.id)
+			: and(eq(moduleSwitches.moduleId, module.id), isNull(moduleSwitches.siteId));
+
+	/** Staff's switch for a Module at a place: their choice, or the Module's default. */
+	const switchedOn = async (scope: PlaceScope, module: RunnableModule): Promise<boolean> => {
+		const row = await placeQueries(scope).first(moduleSwitches, switchWhere(scope, module));
+		return row ? row.on : module.manifest.onByDefault;
+	};
+
+	/** Records Staff's switch at a place. */
+	const recordSwitch = async (scope: PlaceScope, module: RunnableModule, on: boolean) => {
+		const values = { on, changedAt: scope.now(), changedBy: personIdOf(scope.access.actor) };
+		const changed = await placeQueries(scope).update(moduleSwitches, values, switchWhere(scope, module));
+		if (changed.length > 0) return;
+		const row = { moduleId: module.id, ...values };
+		if (scope.level === "site") await scope.insert(moduleSwitches, row);
+		else await scope.insert(moduleSwitches, { ...row, siteId: null });
+	};
+
+	/** Whether a Module runs at a place: approved for this version, and switched on there. */
+	const runsAt = async (scope: PlaceScope, module: RunnableModule) =>
+		(await isApproved(module)) && (await switchedOn(scope, module));
+
+	/** The place where a Module acts for an event on a Site: the Site, or its Workspace. */
+	const placeFor = (module: RunnableModule, workspaceId: string, siteId: string): QueuedPlace =>
+		module.level === "site" ? { level: "site", workspaceId, siteId } : { level: "workspace", workspaceId };
+
+	/**
+	 * Opens a place for a Module acting by itself, if it runs there; null when it doesn't (or the
+	 * place is gone), and its queued work then does nothing.
+	 */
+	const openForModule = async (module: RunnableModule, place: QueuedPlace): Promise<PlaceScope | null> => {
+		try {
+			const scope = await openPlace(data, moduleAccess(module, place), place);
+			return (await runsAt(scope, module)) ? scope : null;
+		} catch (error) {
+			if (error instanceof SiteNotFoundError || error instanceof WorkspaceNotFoundError) return null;
+			throw error;
+		}
+	};
+
+	/**
+	 * Runs a Module's queued work. A failure goes to the Module log and is tried again (the job
+	 * fails); a refusal is logged and never tried again: the Module must change.
+	 */
+	const runQueued = async (
+		module: RunnableModule,
+		place: QueuedPlace,
+		what: { event: string; siteId: string } | { job: string },
+		work: (scope: PlaceScope) => Promise<void>,
+	) => {
+		const scope = await openForModule(module, place);
+		if (!scope) return;
+		try {
+			await work(scope);
+		} catch (error) {
+			const kind = "event" in what ? `event ${what.event}` : `job ${what.job}`;
+			await writeLine(options, module, place, "error", `The ${kind} failed.`, { ...what, error: describeError(error) });
+			log.warn("A Module's background work failed", { moduleId: module.id, ...what, error });
+			if (error instanceof ModuleRefusedError) return;
+			throw error;
+		}
+	};
+
+	return {
+		registry,
+		schemas: moduleSchemas(modules),
+
+		async list(_scope, language) {
+			const approved = await approvals();
+			return registry.all().map((module) => {
+				const approval = approved.get(module.id);
+				const { manifest } = module;
+				return {
+					id: module.id,
+					name: words(module, manifest?.name, language) || module.id,
+					description: words(module, manifest?.description, language),
+					version: manifest?.version ?? "",
+					level: manifest?.level ?? "site",
+					onByDefault: manifest?.onByDefault ?? false,
+					status: statusOf(module, approval?.granted),
+					problem: module.runnable ? null : module.problem,
+					approval: approval
+						? { version: approval.version, approvedAt: approval.approvedAt, approvedBy: approval.approvedBy }
+						: null,
+					asks: manifest
+						? consentView(manifest, approval?.granted ?? null, language)
+						: { permissions: [], uses: [], outsideHosts: [], siteScript: null },
+					adds: additionsView(module, language),
+				};
+			});
+		},
+
+		async approve(scope, moduleId, version) {
+			const module = find(moduleId);
+			if (!module.runnable) throw new ModuleCannotRunError(module.problem);
+			if (module.manifest.version !== version) throw new ModuleChangedError(module.manifest.version);
+			const granted = consentItems(module.manifest);
+			const values = { version, granted, approvedAt: scope.now(), approvedBy: personIdOf(scope.access.actor) };
+			await scope.transaction(async (tx) => {
+				await tx.db
+					.insert(moduleApprovals)
+					.values({ moduleId, ...values })
+					.onConflictDoUpdate({ target: moduleApprovals.moduleId, set: values });
+				await tx.audit("module.approve", { moduleId, version, granted });
+			});
+		},
+
+		async withdraw(scope, moduleId) {
+			const module = find(moduleId);
+			await scope.transaction(async (tx) => {
+				await tx.db.delete(moduleApprovals).where(eq(moduleApprovals.moduleId, module.id));
+				await tx.audit("module.withdraw", { moduleId: module.id });
+			});
+		},
+
+		async log(scope, moduleId, logOptions) {
+			return listModuleLog(scope.db, find(moduleId).id, logOptions);
+		},
+
+		async placeList(scope, language) {
+			const approved = await approvals();
+			const views: PlaceModuleView[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.level !== scope.level) continue;
+				views.push({
+					id: module.id,
+					name: words(module, module.manifest.name, language),
+					description: words(module, module.manifest.description, language),
+					version: module.manifest.version,
+					status: statusOf(module, approved.get(module.id)?.granted),
+					on: await switchedOn(scope, module),
+					onByDefault: module.manifest.onByDefault,
+				});
+			}
+			return views;
+		},
+
+		async setOn(scope, moduleId, on, language) {
+			const module = atPlace(scope, moduleId);
+			if (on && !(await isApproved(module))) throw new ModuleNotApprovedError();
+			await scope.transaction(async (tx) => {
+				await recordSwitch(tx, module, on);
+				await tx.audit(on ? "module.switchOn" : "module.switchOff", { moduleId: module.id });
+			});
+			const view = (await this.placeList(scope, language)).find((candidate) => candidate.id === module.id);
+			if (!view) throw new ModuleNotFoundError();
+			return view;
+		},
+
+		async removeData(scope, moduleId, confirmation) {
+			const module = atPlace(scope, moduleId);
+			return scope.transaction(async (tx) => {
+				const tables = [...module.tables];
+				const rows = moduleData(module, tx);
+				const counts: { table: string; rows: number }[] = [];
+				for (const table of tables) counts.push({ table: getTableName(table), rows: await rows.count(table) });
+				const secretNames = await tx.secrets.names(`module:${module.id}:`);
+				const request = {
+					action: "module.removeData",
+					target: module.id,
+					preview: { tables: counts, secrets: secretNames.length },
+				};
+				if (confirmation === undefined) {
+					return {
+						removed: false,
+						tables: counts,
+						secrets: secretNames.length,
+						confirmation: await askConfirmation(tx, request),
+					};
+				}
+				await useConfirmation(tx, confirmation, request);
+				// Children before the tables they point at: a definition lists parents first.
+				for (const table of tables.reverse()) await rows.delete(table);
+				for (const name of secretNames) await tx.secrets.remove(name);
+				await recordSwitch(tx, module, false);
+				await tx.audit("module.removeData", { moduleId: module.id, tables: counts, secrets: secretNames.length });
+				return { removed: true, tables: counts, secrets: secretNames.length };
+			});
+		},
+
+		async pages(scope, language) {
+			const pages: ModulePageView[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.level !== scope.level || module.pages.length === 0) continue;
+				if (!(await runsAt(scope, module))) continue;
+				for (const page of module.pages) {
+					if (!holds(scope, module, page.permission)) continue;
+					pages.push({ moduleId: module.id, path: page.path, label: words(module, page.label, language) });
+				}
+			}
+			return pages;
+		},
+
+		async callProcedure(call) {
+			const module = registry.get(call.moduleId);
+			const procedure = module?.runnable ? module.procedures.get(call.procedure) : undefined;
+			if (!module?.runnable || !procedure) throw new ModuleNotFoundError();
+			const scope =
+				module.level === "site"
+					? await data.site(call.access, call.placeId, "site.view")
+					: await data.workspace(call.access, call.placeId, "workspace.view");
+			if (!(await runsAt(scope, module))) throw new ModuleNotFoundError();
+			const permission = resolvePermission(module, procedure.permission);
+			if (!canAt(scope, permission)) throw new PermissionDeniedError(keyOf(permission));
+			const context = procedureContext(module, scope, options, call.person, (name) => holds(scope, module, name));
+			try {
+				return await procedure.run(call.input as Record<string, unknown>, context);
+			} catch (error) {
+				if (isModuleAnswer(error)) throw error;
+				await writeLine(options, module, placeOf(scope), "error", `The procedure ${call.procedure} failed.`, {
+					procedure: call.procedure,
+					error: describeError(error),
+				});
+				log.warn("A Module procedure failed", { moduleId: module.id, procedure: call.procedure, error });
+				throw new ModuleFailedError();
+			}
+		},
+
+		async answerSiteRoute(site, request) {
+			const url = new URL(request.url);
+			const [, prefix = "", ...rest] = url.pathname.slice("/_wc/m".length).split("/");
+			const module = registry.byRoutePrefix(prefix);
+			if (!module) return null;
+			let segments: string[];
+			try {
+				segments = rest.filter((part) => part !== "").map((part) => decodeURIComponent(part));
+			} catch {
+				return null;
+			}
+			const matches = module.routes.flatMap((compiled) => {
+				const params = matchRoute(compiled, segments);
+				return params ? [{ compiled, params }] : [];
+			});
+			if (matches.length === 0) return null;
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) return null;
+			const method = request.method === "HEAD" ? "GET" : request.method;
+			const match = matches.find(({ compiled }) => compiled.route.method === method);
+			if (!match) {
+				const allow: string[] = [...new Set(matches.map(({ compiled }) => compiled.route.method))];
+				if (allow.includes("GET")) allow.push("HEAD");
+				return new Response("Method Not Allowed", { status: 405, headers: { ...PLAIN, allow: allow.join(", ") } });
+			}
+			const { route } = match.compiled;
+			let response: Response;
+			try {
+				response = await route.handle(request, routeContext(module, scope, options, match.params));
+				if (!(response instanceof Response))
+					throw new TypeError("The Site route answered something that isn't a Response.");
+			} catch (error) {
+				await writeLine(options, module, place, "error", `The Site route ${route.method} ${route.path} failed.`, {
+					route: `${route.method} ${route.path}`,
+					error: describeError(error),
+				});
+				log.warn("A Module's Site route failed", { moduleId: module.id, route: route.path, error });
+				return new Response("Internal Server Error", { status: 500, headers: PLAIN });
+			}
+			const headers = new Headers(response.headers);
+			// Never cached as a page; a Module lets browsers keep its answer only by saying so itself.
+			if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
+			headers.set("x-content-type-options", "nosniff");
+			return new Response(request.method === "HEAD" ? null : response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers,
+			});
+		},
+
+		async afterAudit(entry) {
+			const mapping = EVENTS_OF_ACTIONS[entry.action];
+			const { workspaceId, siteId } = entry;
+			if (!mapping || siteId === null || workspaceId === null) return;
+			const eventData = mapping.data(entry.details) as Record<string, unknown>;
+			for (const module of registry.all()) {
+				if (!module.runnable || !module.events.has(mapping.event)) continue;
+				try {
+					await jobs.send(moduleEventJob, {
+						moduleId: module.id,
+						event: mapping.event,
+						workspaceId,
+						siteId,
+						occurredAt: entry.at.toISOString(),
+						data: eventData,
+					});
+				} catch (error) {
+					// The change is saved; the Module misses this event, and the Module log says so.
+					log.error("A Module event couldn't be queued", { moduleId: module.id, event: mapping.event, error });
+					await writeLine(
+						options,
+						module,
+						placeFor(module, workspaceId, siteId),
+						"error",
+						`The event ${mapping.event} couldn't be queued.`,
+						{ event: mapping.event, error: describeError(error) },
+					).catch(() => {});
+				}
+			}
+		},
+
+		async runEvent(payload) {
+			const module = registry.get(payload.moduleId);
+			if (!module?.runnable || !(MODULE_EVENTS as readonly string[]).includes(payload.event)) return;
+			const name = payload.event as ModuleEventName;
+			const handler = module.definition.events?.[name] as
+				| ((event: unknown, context: ModuleContext) => Promise<void>)
+				| undefined;
+			if (!handler) return;
+			const place = placeFor(module, payload.workspaceId, payload.siteId);
+			await runQueued(module, place, { event: name, siteId: payload.siteId }, (scope) =>
+				handler(
+					{ name, siteId: payload.siteId, occurredAt: new Date(payload.occurredAt), data: payload.data },
+					moduleContext(module, scope, options),
+				),
+			);
+		},
+
+		async runJob(payload) {
+			const module = registry.get(payload.moduleId);
+			const job = module?.runnable ? module.jobs.get(payload.job) : undefined;
+			if (!module?.runnable || !job) return;
+			await runQueued(module, payload.place, { job: payload.job }, async (scope) => {
+				const parsed = job.payload.safeParse(payload.payload);
+				if (!parsed.success) {
+					throw new ModuleRefusedError("job", `The job ${payload.job} doesn't take its queued payload any more.`);
+				}
+				await job.run(parsed.data, moduleContext(module, scope, options));
+			});
+		},
+	};
+}
+
+/** Whether the scope's actor holds a Permission a Module names (its own, or one of WebCraft's) at the place. */
+export function holds(scope: PlaceScope, module: RunnableModule, name: string): boolean {
+	return canAt(scope, resolvePermission(module, name));
+}
+
+function canAt(scope: PlaceScope, permission: AddedPermission | Permission): boolean {
+	const resource =
+		scope.level === "site"
+			? ({ level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const)
+			: ({ level: "workspace", workspaceId: scope.workspace.id } as const);
+	return can(scope.access.actor, permission, resource);
+}
+
+function keyOf(permission: AddedPermission | Permission): string {
+	return typeof permission === "string" ? permission : permission.key;
+}
+
+/** A Site route's parameters when its parts match the path's segments, or null. */
+function matchRoute({ parts }: CompiledRoute, segments: readonly string[]): Record<string, string> | null {
+	if (parts.length !== segments.length) return null;
+	const params: Record<string, string> = {};
+	for (const [index, part] of parts.entries()) {
+		const segment = segments[index] ?? "";
+		if ("fixed" in part) {
+			if (part.fixed !== segment) return null;
+		} else {
+			params[part.param] = segment;
+		}
+	}
+	return params;
+}

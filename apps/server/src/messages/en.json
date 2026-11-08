@@ -453,6 +453,10 @@
 			"name": "Shared AI key cap",
 			"description": "When a Workspace has used 80% or all of its monthly cap on the shared AI key."
 		},
+		"module-message": {
+			"name": "Module emails",
+			"description": "Emails the Modules on this Install send you."
+		},
 		"domain-unreachable": {
 			"name": "Domain unreachable",
 			"description": "When the Domain check can't reach a Site's domain."

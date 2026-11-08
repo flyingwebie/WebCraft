@@ -1,5 +1,7 @@
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
+import { moduleEventJob, moduleJob } from "../modules/jobs.ts";
+import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
 import type { JobDefinition } from "./define.ts";
 import { samplePing } from "./sample-ping.ts";
@@ -9,10 +11,22 @@ import type { JobSchedule } from "./schedules.ts";
  * Every job the worker runs, and the test harness drains. A job that isn't listed here is never
  * worked, so add each new job to this list.
  */
-export const coreJobs = [samplePing, emailSend, emailLogPurge, rateLimitsPurge] as readonly JobDefinition<unknown>[];
+export const coreJobs = [
+	samplePing,
+	emailSend,
+	emailLogPurge,
+	rateLimitsPurge,
+	moduleEventJob,
+	moduleJob,
+	moduleLogPurge,
+] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
-export const coreSchedules = [emailLogPurgeSchedule, rateLimitsPurgeSchedule] as readonly JobSchedule<unknown>[];
+export const coreSchedules = [
+	emailLogPurgeSchedule,
+	rateLimitsPurgeSchedule,
+	moduleLogPurgeSchedule,
+] as readonly JobSchedule<unknown>[];
 
 export {
 	createJobQueue,
