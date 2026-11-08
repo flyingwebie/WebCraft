@@ -1,0 +1,36 @@
+import { z } from "zod";
+
+import { signedIn } from "../context.ts";
+import { id } from "../inputs.ts";
+
+/**
+ * The Pages a Site gives a special job: its home page, at `/`, and its 404 page, for every path with
+ * no page. Everyone who sees the Site sees which they are; Staff choose them (Structure).
+ */
+export const pages = {
+	/** Which Pages are the Site's home page and 404 page; null where none is chosen. */
+	settings: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "site.view");
+		return { settings: await context.services.pages.settings(site) };
+	}),
+
+	/**
+	 * Chooses the Page that answers at `/` (null for none). A Page that isn't published yet shows once
+	 * it is; its own path then sends visitors on to `/`.
+	 */
+	setHomePage: signedIn.input(z.object({ siteId: id, pageId: id.nullable() })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { settings: await context.services.pages.setHomePage(site, input.pageId) };
+	}),
+
+	/**
+	 * Chooses the Page that answers every path with no page, with status 404 (null for the built-in
+	 * one, which also stands in while the chosen Page isn't published).
+	 */
+	setNotFoundPage: signedIn
+		.input(z.object({ siteId: id, pageId: id.nullable() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { settings: await context.services.pages.setNotFoundPage(site, input.pageId) };
+		}),
+};

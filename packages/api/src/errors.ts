@@ -18,6 +18,7 @@ import {
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	MemberNotFoundError,
+	PageNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
 	PathTakenError,
@@ -69,6 +70,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EntryNotFoundError) {
 		return new ORPCError("ENTRY_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof PageNotFoundError) {
+		return new ORPCError("PAGE_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof TemplateNotFoundError) {
 		return new ORPCError("TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });

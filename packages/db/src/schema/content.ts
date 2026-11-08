@@ -171,3 +171,33 @@ export const templates = pgTable(
 			.nullsNotDistinct(),
 	],
 );
+
+/**
+ * The Pages a Site gives a special job: `home` answers at `/`, and `notFound` answers every path with
+ * no page, with status 404. Staff choose them (Structure); a Page that is deleted gives its job up,
+ * and the Site falls back to no home page and the built-in 404 page.
+ */
+export const specialPages = pgTable(
+	"special_pages",
+	{
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** The Page's job: `home` or `notFound`. */
+		role: text("role").notNull(),
+		/** The Page, an Entry of the Site's Page Post Type. */
+		entryId: uuid("entry_id").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.siteId, table.role] }),
+		foreignKey({
+			name: "special_pages_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "special_pages_entry_fkey",
+			columns: [table.siteId, table.entryId],
+			foreignColumns: [entries.siteId, entries.id],
+		}).onDelete("cascade"),
+	],
+);

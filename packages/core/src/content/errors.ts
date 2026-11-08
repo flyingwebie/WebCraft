@@ -17,6 +17,14 @@ export class EntryNotFoundError extends Error {
 	}
 }
 
+/** There is no such Page on the Site: no Entry of its Page Post Type with that id. */
+export class PageNotFoundError extends Error {
+	override name = "PageNotFoundError";
+	constructor() {
+		super("There is no such Page on this Site.");
+	}
+}
+
 /** There is no such Template on the Site. */
 export class TemplateNotFoundError extends Error {
 	override name = "TemplateNotFoundError";

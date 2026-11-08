@@ -161,6 +161,27 @@ describe("Templates", () => {
 	);
 });
 
+describe("Pages", () => {
+	/** A Page in a target's Site, made by the Superadmin. */
+	const pageIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const { postTypes } = await api.postTypes.list({ siteId: target.siteId });
+		const pages = postTypes.find((postType) => postType.builtIn === "page");
+		const { entry } = await api.entries.create({ siteId: target.siteId, postTypeId: pages?.id ?? "", title: "Page" });
+		return entry.id;
+	};
+
+	isolation.refuses("pages.settings", (api, { siteId }) => api.pages.settings({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("pages.setHomePage", async (api, target) =>
+		api.pages.setHomePage({ siteId: target.siteId, pageId: await pageIn(target) }),
+	);
+	isolation.refuses("pages.setNotFoundPage", async (api, target) =>
+		api.pages.setNotFoundPage({ siteId: target.siteId, pageId: await pageIn(target) }),
+	);
+});
+
 describe("Members", () => {
 	isolation.refuses("members.list", (api, { workspaceId }) => api.members.list({ workspaceId }), {
 		as: ["staff", "owner"],

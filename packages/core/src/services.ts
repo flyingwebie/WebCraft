@@ -15,6 +15,7 @@ import type {
 	Published,
 	PublishItem,
 	SavedTemplateMarkup,
+	SpecialPages,
 	Template,
 	TemplateMarkup,
 } from "./content/index.ts";
@@ -139,6 +140,17 @@ export type InstallServices = InstallPorts & {
 		siteTemplateMarkup(scope: SiteScope): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
 		/** Saves the Site template's Draft from Template markup; inline styles become generated Classes. */
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
+	};
+	/**
+	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing
+	 * them is Structure: open the Site with `structure.edit`; anyone who sees the Site may read them.
+	 */
+	pages: {
+		settings(scope: SiteScope): Promise<SpecialPages>;
+		/** Chooses the home page, or none with null; it applies at once. */
+		setHomePage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
+		/** Chooses the 404 page, or the built-in one with null; it applies at once. */
+		setNotFoundPage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
 	};
 	publishing: {
 		/**

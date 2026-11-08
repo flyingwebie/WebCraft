@@ -18,6 +18,7 @@ export {
 	EntryInvalidError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	PageNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
 	type PathHolder,
@@ -51,6 +52,13 @@ export {
 	updatePostType,
 } from "./post-types.ts";
 export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
+export {
+	type ChosenPage,
+	getSpecialPages,
+	type SpecialPageRole,
+	type SpecialPages,
+	setSpecialPage,
+} from "./special-pages.ts";
 export {
 	getEntryTemplate,
 	getEntryTemplateMarkup,

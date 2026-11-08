@@ -11,6 +11,7 @@ import {
 	getPostType,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
+	getSpecialPages,
 	listEntries,
 	listPostTypes,
 	publish,
@@ -19,6 +20,7 @@ import {
 	saveEntryTemplateMarkup,
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
+	setSpecialPage,
 	updatePostType,
 } from "./content/index.ts";
 import { createEmail } from "./email/index.ts";
@@ -113,6 +115,11 @@ export async function createInstallServices(
 			saveSiteTemplate,
 			siteTemplateMarkup: getSiteTemplateMarkup,
 			saveSiteTemplateMarkup,
+		},
+		pages: {
+			settings: getSpecialPages,
+			setHomePage: (scope, pageId) => setSpecialPage(scope, "home", pageId),
+			setNotFoundPage: (scope, pageId) => setSpecialPage(scope, "notFound", pageId),
 		},
 		publishing: { publish },
 		sitePages: createSitePages({ database, config, data }),

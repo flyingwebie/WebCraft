@@ -1,4 +1,4 @@
-import { entries, people, publishedSlugs } from "@webcraft/db/schema";
+import { entries, people, publishedSlugs, specialPages } from "@webcraft/db/schema";
 import { cleanRichText, richTextToText } from "@webcraft/renderer";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
@@ -341,9 +341,11 @@ async function publishedPaths(
 	const paths = new Map<string, string>();
 	if (isPagePostType(postType)) {
 		const tree = await publishedPageTree(scope, postType.id, language);
+		const home = (await scope.first(specialPages, eq(specialPages.role, "home")))?.entryId;
 		for (const row of rows) {
 			const parts = pathIn(tree, row.id);
-			if (parts) paths.set(row.id, pathText(parts));
+			// The home page is found at `/`; its own path sends visitors there.
+			if (parts) paths.set(row.id, row.id === home ? "/" : pathText(parts));
 		}
 		return paths;
 	}

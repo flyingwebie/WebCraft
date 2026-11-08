@@ -96,12 +96,43 @@ function mainAttributes(element: ElementNode): readonly (readonly [string, strin
 }
 
 /** The words WebCraft itself writes into Site pages, by language. */
-type PageWords = { skipLink: string };
+type PageWords = { skipLink: string; notFoundTitle: string; notFoundText: string };
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
-	en: { skipLink: "Skip to main content" },
-	it: { skipLink: "Vai al contenuto principale" },
+	en: {
+		skipLink: "Skip to main content",
+		notFoundTitle: "Page not found",
+		notFoundText: "There is no page at this address.",
+	},
+	it: {
+		skipLink: "Vai al contenuto principale",
+		notFoundTitle: "Pagina non trovata",
+		notFoundText: "Non c'è nessuna pagina a questo indirizzo.",
+	},
 };
+
+/**
+ * The built-in 404 page, for a Site that hasn't chosen one: its title, and its content for the Site
+ * template's outlet (a heading and one sentence), in the page's language.
+ */
+export function builtInNotFoundPage(language: string): { title: string; content: ElementTree } {
+	const words = pageWords(language);
+	const element = (id: string, tag: string, text: string): ElementNode => ({
+		type: "element",
+		id,
+		tag,
+		attributes: [],
+		classes: [],
+		children: [{ type: "text", text }],
+	});
+	return {
+		title: words.notFoundTitle,
+		content: {
+			version: 1,
+			nodes: [element("notFoundTitle", "h1", words.notFoundTitle), element("notFoundText", "p", words.notFoundText)],
+		},
+	};
+}
 
 /** WebCraft's own words in a page's language (by its primary subtag), English when it has none. */
 export function pageWords(language: string): PageWords {

@@ -1,12 +1,21 @@
 import type { Database } from "@webcraft/db";
 import { entries, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
-import { directionOf, type ElementTree, renderPage, richText, type TemplateValue } from "@webcraft/renderer";
+import {
+	builtInNotFoundPage,
+	directionOf,
+	type ElementTree,
+	type PageToRender,
+	renderPage,
+	richText,
+	type TemplateValue,
+} from "@webcraft/renderer";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
 import { entryValues } from "../content/entries.ts";
 import { findPublishedPage, isPagePostType } from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
+import { specialPageId } from "../content/special-pages.ts";
 import { bySpecificity, parseUrlPattern, pathSegments, slugIn, type UrlPattern } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { listClasses } from "../design-system/classes.ts";
@@ -33,15 +42,26 @@ export type SiteHost = {
 /** A rendered page of a Site. */
 export type SitePage = { html: string };
 
+/** What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to `/`). */
+export type SiteAnswer = ({ kind: "page" } & SitePage) | { kind: "redirect"; location: string };
+
 /**
  * The Site side of the content store, for the web process's Site request pipeline: which Site a
- * hostname belongs to, and the page at a path. Only published content is read.
+ * hostname belongs to, the page at a path and the Site's 404 page. Only published content is read.
  */
 export type SitePages = {
 	/** The Site a hostname belongs to, or null for a hostname that is no Site's (an unbranded 404). */
 	resolveHost(hostname: string): Promise<SiteHost | null>;
-	/** The published page at `pathname` on the Site, or null when there is none. */
-	render(host: SiteHost, pathname: string): Promise<SitePage | null>;
+	/**
+	 * What `pathname` answers on the Site: the published Entry a Post Type's URL pattern finds there,
+	 * else the published Page at that path (the home page at `/`); null when there is none.
+	 */
+	render(host: SiteHost, pathname: string): Promise<SiteAnswer | null>;
+	/**
+	 * The Site's 404 page, for a path with no page: the Page Staff chose, once published, else the
+	 * built-in one, in the Site template.
+	 */
+	notFound(host: SiteHost): Promise<SitePage>;
 };
 
 export function createSitePages(options: { database: Database; config: InstallConfig; data: DataLayer }): SitePages {
@@ -62,17 +82,41 @@ export function createSitePages(options: { database: Database; config: InstallCo
 
 		async render(host, pathname) {
 			const segments = pathSegments(pathname);
-			if (!segments) return null;
+			if (!segments || isReservedPath(segments)) return null;
 			const scope = data.visitors(host.site);
 			const postTypes = await listPostTypes(scope);
+			const home = await specialPageId(scope, "home");
 			// Post Types' URL patterns own every path they match; Pages live outside them.
 			const found =
-				(await findPublishedEntry(scope, postTypes, segments, host.defaultLanguage)) ??
-				(await findPage(scope, postTypes, segments, host.defaultLanguage));
+				segments.length === 0
+					? home && (await publishedPage(scope, postTypes, home))
+					: ((await findPublishedEntry(scope, postTypes, segments, host.defaultLanguage)) ??
+						(await findPage(scope, postTypes, segments, host.defaultLanguage)));
 			if (!found) return null;
-			return { html: await renderEntryPage(scope, host, found) };
+			if (segments.length > 0 && found.entry.id === home) return { kind: "redirect", location: "/" };
+			return { kind: "page", html: await renderEntryPage(scope, host, found) };
+		},
+
+		async notFound(host) {
+			const scope = data.visitors(host.site);
+			const chosen = await specialPageId(scope, "notFound");
+			const found = chosen && (await publishedPage(scope, await listPostTypes(scope), chosen));
+			if (found) return { html: await renderEntryPage(scope, host, found) };
+			const builtIn = builtInNotFoundPage(host.defaultLanguage);
+			return { html: await renderSitePage(scope, host, { ...builtIn, values: () => undefined }) };
 		},
 	};
+}
+
+/**
+ * Paths the Install keeps on every Site, outside Pages and Post Types: everything under a first part
+ * starting with `_` (`/_webcraft/…`, `/_media/…`, `/_content/v1/…`, `/_wc/m/<module>/…`) and every
+ * path naming a file, with a dot in it (`/sitemap.xml`, `/robots.txt`, `/llms.txt`, Markdown copies
+ * such as `/about.md`). No slug or URL pattern part can start with `_` or hold a dot, so no Page or
+ * Entry is ever there. Each feature answers its own paths; until then they are a plain 404.
+ */
+export function isReservedPath(segments: readonly string[]): boolean {
+	return (segments[0]?.startsWith("_") ?? false) || segments.some((segment) => segment.includes("."));
 }
 
 /** A published Entry to render, with what its content renders through: its Entry template or Page layout. */
@@ -135,8 +179,18 @@ async function findPage(
 	if (!pages) return undefined;
 	const pageId = await findPublishedPage(scope, pages.id, segments, language);
 	if (!pageId) return undefined;
+	return publishedPage(scope, postTypes, pageId);
+}
+
+/** A published Page of the Site, by id, ready to render; undefined when it isn't one. */
+async function publishedPage(
+	scope: VisitorScope,
+	postTypes: readonly PostType[],
+	pageId: string,
+): Promise<FoundEntry | undefined> {
+	const pages = postTypes.find(isPagePostType);
 	const entry = await scope.first(entries, and(eq(entries.id, pageId), isNotNull(entries.published)));
-	return entry ? { postType: pages, entry, content: EMPTY_PAGE_LAYOUT } : undefined;
+	return pages && entry?.postTypeId === pages.id ? { postType: pages, entry, content: EMPTY_PAGE_LAYOUT } : undefined;
 }
 
 async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: FoundEntry): Promise<string> {
@@ -164,13 +218,25 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 		const value = published.fields[field.key] ?? null;
 		fields[field.key] = field.type === "richText" && value !== null ? richText(value) : value;
 	}
-	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
-	return renderPage({
-		site: { name: host.site.name, language, direction: directionOf(language) },
+	return renderSitePage(scope, host, {
 		title: published.title,
-		siteTemplate: await publishedSiteTemplate(scope),
 		content,
 		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : fields[path]),
+	});
+}
+
+/** A page of the Site in its Site template (the published one, or the built-in one), with its Classes. */
+async function renderSitePage(
+	scope: VisitorScope,
+	host: SiteHost,
+	page: Pick<PageToRender, "title" | "content" | "values">,
+): Promise<string> {
+	const language = host.defaultLanguage;
+	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
+	return renderPage({
+		...page,
+		site: { name: host.site.name, language, direction: directionOf(language) },
+		siteTemplate: await publishedSiteTemplate(scope),
 		className: (classId) => classNames.get(classId),
 	});
 }

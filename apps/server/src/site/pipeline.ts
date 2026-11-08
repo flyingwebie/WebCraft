@@ -1,4 +1,11 @@
-import { canonicalPath, type InstallServices, normaliseHostname, pathSegments, type SiteHost } from "@webcraft/core";
+import {
+	canonicalPath,
+	type InstallServices,
+	isReservedPath,
+	normaliseHostname,
+	pathSegments,
+	type SiteHost,
+} from "@webcraft/core";
 
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
@@ -10,13 +17,15 @@ export type SitePipelineOptions = {
 
 /**
  * The Site request pipeline: every hostname other than the admin host comes here (ADR 0004). It
- * resolves the hostname to a Site (its Staging address, `<site slug>.<sites domain>`, for now), then
- * answers the page at the URL from the page cache, rendering and keeping it on a miss. Hostnames that
- * are no Site's get the unbranded 404, and nothing here ever reaches the admin.
+ * resolves the hostname to a Site (its Staging address, `<site slug>.<sites domain>`, for now), keeps
+ * the paths the Install reserves (`/_…`, and files such as `/robots.txt`) apart, then answers the page
+ * at the URL from the page cache, rendering and keeping it on a miss: an Entry by its Post Type's URL
+ * pattern, else a Page by its path (the home page at `/`). A path with no page gets the Site's 404
+ * page. Hostnames that are no Site's get the unbranded 404, and nothing here ever reaches the admin.
  *
- * Steps still to come, in order: Redirect domains and rules, language prefixes and domains, reserved
- * paths (`/_webcraft/…`, `/_media/…`, `/_content/v1/…`), special files (`sitemap.xml`, `robots.txt`,
- * `llms.txt`), then the Entry by URL pattern, and the Site's 404 page and 404 log.
+ * Steps still to come, in their places: Redirect domains and Redirect rules before everything else,
+ * language prefixes and domains, each reserved path's feature (Forms, Media, the Content API,
+ * Modules, `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies), and the 404 log.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();
@@ -26,15 +35,18 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		if (!host) return notFound();
 		return readOnly(request, async () => {
 			const segments = pathSegments(url.pathname);
-			if (!segments) return siteNotFound(host);
+			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
+			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
+			if (!segments) return notFoundPage(services, host);
 			// Pages are kept by normalised URL: one form of the path, and no query parameters (no
 			// parameter changes a page yet; Filters will allow theirs, sorted).
 			const key = canonicalPath(segments);
 			const cached = cache.get(host.site.id, host.cacheGeneration, key);
 			if (cached) return pageResponse(request, host, cached, "HIT");
-			const rendered = await services.sitePages.render(host, url.pathname);
-			if (!rendered) return siteNotFound(host);
-			const page = { html: rendered.html, etag: await etagOf(rendered.html) };
+			const answer = await services.sitePages.render(host, url.pathname);
+			if (!answer) return notFoundPage(services, host);
+			if (answer.kind === "redirect") return redirect(host, answer.location);
+			const page = { html: answer.html, etag: await etagOf(answer.html) };
 			cache.set(host.site.id, host.cacheGeneration, key, page);
 			return pageResponse(request, host, page, "MISS");
 		});
@@ -61,9 +73,30 @@ function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheS
 	return new Response(page.html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
 }
 
-/** A path with no page on a known Site: the plain, unbranded 404 until Sites get their own 404 page. */
-function siteNotFound(host: SiteHost): Response {
-	return plainText(404, "Not Found", addressHeaders(host));
+/**
+ * A path with no page on a known Site: the Site's 404 page, with status 404. It is never kept in the
+ * page cache, nor by browsers and proxies, so every miss reaches the Site (and its 404 log) and a page
+ * published at the path shows at once.
+ */
+async function notFoundPage(services: InstallServices, host: SiteHost): Promise<Response> {
+	const page = await services.sitePages.notFound(host);
+	return new Response(page.html, {
+		status: 404,
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store",
+			"x-content-type-options": "nosniff",
+			...addressHeaders(host),
+		},
+	});
+}
+
+/** A permanent redirect within the Site, such as the home page's own path to `/`. */
+function redirect(host: SiteHost, location: string): Response {
+	return new Response(null, {
+		status: 301,
+		headers: { location, "cache-control": PAGE_CACHE_CONTROL, ...addressHeaders(host) },
+	});
 }
 
 /** A Staging address is never indexed by search engines. */
