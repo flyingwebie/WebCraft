@@ -24,6 +24,12 @@ export {
 	EntrySlugTakenError,
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
+	PageHasChildrenError,
+	PageNotFoundError,
+	PageParentUnpublishedError,
+	PagesHaveNoEntryTemplateError,
+	type PathHolder,
+	PathTakenError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
@@ -56,6 +62,7 @@ export {
 	saveGlobalsDraft,
 	setGlobalFields,
 } from "./globals.ts";
+export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
 	getPostType,
@@ -66,14 +73,25 @@ export {
 	type PostTypeChange,
 	updatePostType,
 } from "./post-types.ts";
-export { type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
+export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
 export type { LinkBack } from "./relationships.ts";
+export {
+	type ChosenPage,
+	getSpecialPages,
+	type SpecialPageRole,
+	type SpecialPages,
+	setSpecialPage,
+} from "./special-pages.ts";
 export {
 	getEntryTemplate,
 	getEntryTemplateMarkup,
+	getSiteTemplate,
+	getSiteTemplateMarkup,
 	type SavedTemplateMarkup,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
+	saveSiteTemplate,
+	saveSiteTemplateMarkup,
 	type Template,
 	type TemplateKind,
 	type TemplateMarkup,

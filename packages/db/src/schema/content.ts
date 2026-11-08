@@ -14,7 +14,8 @@ import { sites } from "./tenancy.ts";
 
 /**
  * Post Types: the kinds of Entry a Site holds, with their URL pattern and Fields. Post Types are
- * Structure without a Draft: changes apply at once.
+ * Structure without a Draft: changes apply at once. Every Site has the built-in Page Post Type
+ * (`built_in = 'page'`), made with the Site.
  */
 export const postTypes = pgTable(
 	"post_types",
@@ -29,6 +30,11 @@ export const postTypes = pgTable(
 		urlPattern: text("url_pattern").notNull(),
 		/** The Fields, in order: a JSON list of Field definitions. */
 		fields: jsonb("fields").notNull().default(sql`'[]'::jsonb`),
+		/**
+		 * Which built-in Post Type this is: `page` for the Page Post Type (its URL pattern is `/{path}`:
+		 * each Page's path is its parent Page's path and its own slug); null for one Staff made.
+		 */
+		builtIn: text("built_in"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
@@ -41,6 +47,7 @@ export const postTypes = pgTable(
 		unique("post_types_site_id_id_unique").on(table.siteId, table.id),
 		unique("post_types_site_id_key_unique").on(table.siteId, table.key),
 		unique("post_types_site_id_url_pattern_unique").on(table.siteId, table.urlPattern),
+		unique("post_types_site_id_built_in_unique").on(table.siteId, table.builtIn),
 	],
 );
 
@@ -88,7 +95,8 @@ export const entries = pgTable(
 /**
  * The published slug of each Entry in each language, so the Site request pipeline finds an Entry
  * by URL with one indexed lookup, and two published Entries of a Post Type never share a slug.
- * Written by publish.
+ * A Page also keeps its published parent Page: two Pages share a slug only under different parents,
+ * and a Page's path is found one parent at a time. Written by publish.
  */
 export const publishedSlugs = pgTable(
 	"published_slugs",
@@ -99,6 +107,8 @@ export const publishedSlugs = pgTable(
 		postTypeId: uuid("post_type_id").notNull(),
 		language: text("language").notNull(),
 		slug: text("slug").notNull(),
+		/** A Page's published parent Page; null for a top-level Page and for every other Entry. */
+		parentId: uuid("parent_id"),
 	},
 	(table) => [
 		primaryKey({ columns: [table.entryId, table.language] }),
@@ -112,7 +122,14 @@ export const publishedSlugs = pgTable(
 			columns: [table.siteId, table.entryId],
 			foreignColumns: [entries.siteId, entries.id],
 		}).onDelete("cascade"),
-		unique("published_slugs_slug_unique").on(table.siteId, table.postTypeId, table.language, table.slug),
+		foreignKey({
+			name: "published_slugs_parent_fkey",
+			columns: [table.siteId, table.parentId],
+			foreignColumns: [entries.siteId, entries.id],
+		}),
+		unique("published_slugs_slug_unique")
+			.on(table.siteId, table.postTypeId, table.language, table.parentId, table.slug)
+			.nullsNotDistinct(),
 	],
 );
 
@@ -259,6 +276,36 @@ export const confirmations = pgTable(
 			name: "confirmations_site_fkey",
 			columns: [table.workspaceId, table.siteId],
 			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+	],
+);
+
+/**
+ * The Pages a Site gives a special job: `home` answers at `/`, and `notFound` answers every path with
+ * no page, with status 404. Staff choose them (Structure); a Page that is deleted gives its job up,
+ * and the Site falls back to no home page and the built-in 404 page.
+ */
+export const specialPages = pgTable(
+	"special_pages",
+	{
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** The Page's job: `home` or `notFound`. */
+		role: text("role").notNull(),
+		/** The Page, an Entry of the Site's Page Post Type. */
+		entryId: uuid("entry_id").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.siteId, table.role] }),
+		foreignKey({
+			name: "special_pages_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "special_pages_entry_fkey",
+			columns: [table.siteId, table.entryId],
+			foreignColumns: [entries.siteId, entries.id],
 		}).onDelete("cascade"),
 	],
 );

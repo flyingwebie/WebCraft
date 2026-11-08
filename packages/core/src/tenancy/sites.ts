@@ -1,6 +1,7 @@
 import { sites } from "@webcraft/db/schema";
 import { asc } from "drizzle-orm";
 
+import { addPagePostType } from "../content/pages.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { can } from "../permissions/can.ts";
 import type { Site, WorkspaceScope } from "./data-layer.ts";
@@ -59,8 +60,8 @@ export function checkSlug(slug: string, reserved: readonly string[] = RESERVED_S
 }
 
 /**
- * Creates a Site in the scope's Workspace (open it with `site.create`) and records it in the Audit
- * log. Refuses a slug another Site has (`SlugTakenError`) or no Site may have (`SlugInvalidError`):
+ * Creates a Site in the scope's Workspace (open it with `site.create`), with the built-in Page Post
+ * Type every Site has, and records it in the Audit log. Refuses a slug another Site has (`SlugTakenError`) or no Site may have (`SlugInvalidError`):
  * `reserved` lists the slugs the Install keeps.
  */
 export async function createSite(
@@ -76,6 +77,7 @@ export async function createSite(
 	try {
 		return await scope.transaction(async (tx) => {
 			const site = toSite(await tx.insert(sites, { name, slug, createdAt: tx.now() }));
+			await addPagePostType(tx, site.id);
 			await tx.audit("site.create", { name, slug }, { siteId: site.id });
 			return site;
 		});

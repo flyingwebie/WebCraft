@@ -67,6 +67,7 @@ describe("creating a Post Type", () => {
 					pattern: null,
 				},
 			],
+			builtIn: null,
 			builtInFields: BUILT_IN_FIELDS,
 			createdAt: install.clock.now(),
 			updatedAt: install.clock.now(),

@@ -125,8 +125,10 @@ export {
 } from "./setup.ts";
 export {
 	canonicalPath,
+	isReservedPath,
 	pathSegments,
 	reservedSlugs,
+	type SiteAnswer,
 	type SiteHost,
 	type SitePage,
 	type SitePages,

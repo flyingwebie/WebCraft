@@ -150,7 +150,7 @@ export async function publishGlobals(scope: SiteScope): Promise<Published> {
 		eq(globals.id, row.id),
 	);
 	await scope.audit("globals.publish", { globalsId: row.id });
-	return { kind: "globals", id: row.id, publishedAt: now };
+	return { kind: "globals", id: row.id, publishedAt: now, pathChanges: [] };
 }
 
 /** The Site's published Globals: their Fields and published values (empty while never published). */

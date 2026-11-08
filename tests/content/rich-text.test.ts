@@ -110,7 +110,7 @@ describe("on render", () => {
 		const html = await (await install.request(`https://bakery.sites.test/${key}/shown`)).text();
 
 		expect(html).toContain(
-			'<main><article title="Fresh &quot;bread&quot; &amp; more">' +
+			'<main id="wc-main" tabindex="-1"><article title="Fresh &quot;bread&quot; &amp; more">' +
 				'<div><p>Fresh <em>"bread"</em> &amp; <a href="/menu">more</a></p></div>' +
 				"<p>Fresh…</p></article></main>",
 		);
@@ -141,6 +141,6 @@ describe("on render", () => {
 		// The page is rendered for the first time now, from the changed published version.
 		const html = await (await install.request(`https://bakery.sites.test/${key}/tampered`)).text();
 
-		expect(html).toContain(`<main><div>${CLEAN}</div></main>`);
+		expect(html).toContain(`<main id="wc-main" tabindex="-1"><div>${CLEAN}</div></main>`);
 	});
 });

@@ -15,6 +15,7 @@ import {
 	storedFields,
 } from "./fields.ts";
 import { clearPageCache } from "./page-cache.ts";
+import { checkPatternLeavesPages, isPagePostType, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
 import { slugify } from "./slugs.ts";
 import { parseUrlPattern } from "./url-patterns.ts";
 
@@ -25,12 +26,17 @@ export type PostType = {
 	/** Names it in Template markup, the APIs and files, such as `blog`. */
 	key: string;
 	name: string;
-	/** Where its Entries are, such as `/blog/{slug}`. */
+	/**
+	 * Which built-in Post Type it is: `page` for the Page Post Type every Site has; null for one Staff
+	 * made.
+	 */
+	builtIn: "page" | null;
+	/** Where its Entries are, such as `/blog/{slug}`; `/{path}` for Pages, found by parent Page and slug. */
 	urlPattern: string;
 	/** The Fields it adds, in order. */
 	fields: FieldDefinition[];
-	/** The Fields every Entry has, whatever its Post Type. */
-	builtInFields: readonly BuiltInField[];
+	/** The Fields every Entry of it has, whatever its Post Type: Pages add `parent`. */
+	builtInFields: readonly (BuiltInField | "parent")[];
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -51,7 +57,11 @@ export const POST_TYPE_NAME_MAX_LENGTH = 100;
 /** A Post Type key: lower-case letters, digits and dashes, starting with a letter; at most 64. */
 const POST_TYPE_KEY = /^[a-z](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
-/** Creates a Post Type on the scope's Site (open it with `structure.edit`), and records it in the Audit log. */
+/**
+ * Creates a Post Type on the scope's Site (open it with `structure.edit`), and records it in the Audit
+ * log. Its URL pattern owns every path it matches, so one that would take a published Page's path is
+ * refused (`PathTakenError`).
+ */
 export async function createPostType(scope: SiteScope, input: NewPostType): Promise<PostType> {
 	const problems: ContentProblem[] = [];
 	const name = checkName(input.name, problems);
@@ -66,6 +76,7 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 	// A Relationship may point at the Post Type's own Entries.
 	const fields = parseFields(input.fields ?? [], problems, await defineContext(scope, key));
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
+	await checkPatternLeavesPages(scope, urlPattern);
 
 	return saving(() =>
 		scope.transaction(async (tx) => {
@@ -85,13 +96,23 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 	const existing = toPostType(await findPostType(scope, postTypeId));
 	const problems: ContentProblem[] = [];
 	const name = change.name === undefined ? existing.name : checkName(change.name, problems);
-	const urlPattern =
-		change.urlPattern === undefined ? existing.urlPattern : checkUrlPattern(change.urlPattern, problems);
+	let urlPattern = existing.urlPattern;
+	if (change.urlPattern !== undefined && isPagePostType(existing)) {
+		if (change.urlPattern.trim() !== existing.urlPattern) {
+			problems.push({
+				at: "urlPattern",
+				message: "Pages are found by their parent Page and slug, so their URL pattern can't change.",
+			});
+		}
+	} else if (change.urlPattern !== undefined) {
+		urlPattern = checkUrlPattern(change.urlPattern, problems);
+	}
 	const fields =
 		change.fields === undefined
 			? existing.fields
-			: parseFields(change.fields, problems, await defineContext(scope, existing.key), existing.fields);
+			: parseFields(change.fields, problems, await defineContext(scope, existing.key, existing), existing.fields);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
+	if (urlPattern !== existing.urlPattern) await checkPatternLeavesPages(scope, urlPattern);
 
 	return saving(() =>
 		scope.transaction(async (tx) => {
@@ -113,10 +134,16 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 }
 
 /** What defining a Post Type's Fields needs to know: the Post Types Relationships may point at. */
-async function defineContext(scope: Pick<SiteScope, "select">, ownKey: string) {
-	const keys = new Set((await listPostTypes(scope)).map((postType) => postType.key));
+async function defineContext(
+	scope: Pick<SiteScope, "select">,
+	ownKey: string,
+	postType: { builtIn: string | null } = { builtIn: null },
+) {
+	const keys = new Set((await listPostTypes(scope)).map((existing) => existing.key));
 	keys.add(ownKey);
-	return { postTypeKeys: keys, owner: "postType" as const, reservedKeys: RESERVED_FIELD_KEYS };
+	// A Page's parent is one of its built-in Fields.
+	const reservedKeys = isPagePostType(postType) ? new Set([...RESERVED_FIELD_KEYS, "parent"]) : RESERVED_FIELD_KEYS;
+	return { postTypeKeys: keys, owner: "postType" as const, reservedKeys };
 }
 
 /** The Post Types of the scope's Site, by name. */
@@ -170,9 +197,10 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 		siteId: row.siteId,
 		key: row.key,
 		name: row.name,
+		builtIn: row.builtIn === "page" ? "page" : null,
 		urlPattern: row.urlPattern,
 		fields: storedFields(row.fields),
-		builtInFields: BUILT_IN_FIELDS,
+		builtInFields: row.builtIn === "page" ? PAGE_BUILT_IN_FIELDS : BUILT_IN_FIELDS,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

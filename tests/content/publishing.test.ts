@@ -192,7 +192,14 @@ describe("the Audit log", () => {
 			via: { kind: "admin" },
 			workspaceId,
 			siteId,
-			details: { entryId: entry.id, postTypeId, title: "Cinnamon roll", slug: "cinnamon-roll" },
+			details: {
+				entryId: entry.id,
+				postTypeId,
+				title: "Cinnamon roll",
+				slug: "cinnamon-roll",
+				path: "/products/cinnamon-roll",
+				pathChanges: [],
+			},
 		});
 	});
 

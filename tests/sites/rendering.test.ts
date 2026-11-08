@@ -55,7 +55,7 @@ async function publishedPage(
 }
 
 describe("semantic HTML", () => {
-	test("a whole page: lang and dir, the title with the Site's name, the template inside <main>", async () => {
+	test("a whole page: lang and dir, the title with the Site's name, a skip link, the template inside <main>", async () => {
 		const { html, response } = await publishedPage(
 			tree(
 				element("article", [
@@ -77,7 +77,8 @@ describe("semantic HTML", () => {
 				"<title>Daily bread · Acme &lt;Bakery&gt; &amp; Co</title>",
 				"</head>",
 				"<body>",
-				"<main><article><header><h1>Daily bread</h1><p>By Edie &lt;Editor&gt;</p></header>" +
+				'<a class="wc-skip-link" href="#wc-main">Skip to main content</a>',
+				'<main id="wc-main" tabindex="-1"><article><header><h1>Daily bread</h1><p>By Edie &lt;Editor&gt;</p></header>' +
 					"<section><h2>Note</h2><p>Fresh at seven.</p></section></article></main>",
 				"</body>",
 				"</html>",
@@ -111,7 +112,7 @@ describe("semantic HTML", () => {
 			{ title: "Shapes" },
 		);
 
-		expect(html).toContain("<main><p>a<br>b</p><hr><pre>\n\n  indented</pre></main>");
+		expect(html).toContain('<main id="wc-main" tabindex="-1"><p>a<br>b</p><hr><pre>\n\n  indented</pre></main>');
 	});
 });
 

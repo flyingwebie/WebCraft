@@ -29,7 +29,7 @@ async function uploadImage(name: string, width: number, height: number, alt?: st
 async function mainOf(path: string): Promise<string> {
 	const response = await install.request(onSite(path));
 	expect(response.status).toBe(200);
-	return /<main>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
+	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
 }
 
 /** The <picture> WebCraft writes for a Media image, as the API describes its files. */
@@ -291,6 +291,24 @@ describe("Template markup", () => {
 				picture(badge, `<img src="${badge.url}" alt="Award" width="700" height="350" loading="lazy">`),
 				"</figure>",
 			].join(""),
+		);
+	});
+});
+
+describe("the Site template", () => {
+	test("its own Media images load lazily; the content's first image keeps high priority", async () => {
+		const saved = await staff.api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: `<header><img src="media:${badge.id}" alt="Acme Bakery"></header><main>{{@outlet}}</main>`,
+		});
+		await staff.api.templates.publish({ siteId, templateId: saved.template.id });
+
+		const html = await (await install.request(onSite("/products/sourdough-loaf"))).text();
+		expect(html).toContain(
+			`<header>${picture(badge, `<img src="${badge.url}" alt="Acme Bakery" width="700" height="350" loading="lazy">`)}</header>`,
+		);
+		expect(await mainOf("/products/sourdough-loaf")).toContain(
+			`<img src="${hero.url}" alt="A sourdough loaf, fresh from the oven" width="1000" height="600" loading="eager" fetchpriority="high">`,
 		);
 	});
 });

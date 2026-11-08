@@ -23,6 +23,13 @@ export type RenderOptions = {
 	language?: string;
 	/** The class name of a Class id; Class references it doesn't know are left out. */
 	className?: (classId: string) => string | undefined;
+	/** What `{{@outlet}}` shows: the page's content, already rendered. Nothing when absent. */
+	outlet?: () => string;
+	/**
+	 * Attributes WebCraft adds to an element, written after the element's own (such as the id of
+	 * the page's <main>, which the skip link points at); their values are escaped.
+	 */
+	extraAttributes?: (element: ElementNode) => readonly (readonly [name: string, value: string])[];
 	/**
 	 * Finds the Site's Media items that `media:<id>` refers to. Without it, `media:` is no URL a page
 	 * may hold, and becomes `#`.
@@ -63,6 +70,9 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
 			for (const attribute of node.attributes) attributes += renderAttribute(attribute, options);
+			for (const [name, value] of options.extraAttributes?.(node) ?? []) {
+				attributes += ` ${name}="${escapeAttribute(value)}"`;
+			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
 			let children = renderNodes(node.children, options);
 			// An HTML parser drops a newline right after <pre>; repeat it so the content stays as written.
@@ -72,7 +82,11 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 	}
 	const command = commandForNode(node.type);
 	if (!command) return "";
-	return command.render(node, { read: options.values, nodes: (children) => renderNodes(children, options) });
+	return command.render(node, {
+		read: options.values,
+		nodes: (children) => renderNodes(children, options),
+		outlet: () => options.outlet?.() ?? "",
+	});
 }
 
 /** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */

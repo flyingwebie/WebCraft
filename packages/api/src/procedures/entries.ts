@@ -23,7 +23,10 @@ export const entries = {
 			return { entry: await context.services.entries.get(site, input.entryId, input.language) };
 		}),
 
-	/** Creates an Entry of a Post Type; its values go into the Draft. A slug is made from the title when none is given. */
+	/**
+	 * Creates an Entry of a Post Type; its values go into the Draft. A slug is made from the title when
+	 * none is given. A Page may name its parent Page.
+	 */
 	create: signedIn
 		.input(
 			z.object({
@@ -32,6 +35,7 @@ export const entries = {
 				language: language.optional(),
 				title: z.string().trim().min(1).max(ENTRY_TITLE_MAX_LENGTH),
 				slug: z.string().max(500).optional(),
+				parentId: id.nullable().optional(),
 				fields: fieldValues.optional(),
 			}),
 		)
@@ -56,6 +60,8 @@ export const entries = {
 					.max(ENTRY_TITLE_MAX_LENGTH * 2)
 					.optional(),
 				slug: z.string().max(500).optional(),
+				/** A Page's parent Page; null moves it to the top level. */
+				parentId: id.nullable().optional(),
 				fields: fieldValues.optional(),
 			}),
 		)

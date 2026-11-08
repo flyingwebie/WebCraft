@@ -1,5 +1,6 @@
 // Element trees for tests, written briefly: `tree(element("article", [element("h1", [value("title")])]))`.
-// Comments, Conditions and value formatters are written out as the stored shapes they are.
+// Comments, Conditions and value formatters are written out as the stored shapes they are;
+// `outlet()` is the Site template's `{{@outlet}}`.
 // The shapes are the stored, canonical form (ADR 0002) that the Management API takes and answers.
 // Element ids are left out, as a new element arrives from an editor; WebCraft fills them in.
 
@@ -39,7 +40,8 @@ export type TestNode =
 			type: "condition";
 			branches: { test: TestExpression; children: TestNode[] }[];
 			otherwise: TestNode[] | null;
-	  };
+	  }
+	| { type: "outlet" };
 
 export type TestTree = { version: 1; nodes: TestNode[] };
 
@@ -66,6 +68,11 @@ export function element(
 
 export function text(content: string): TestNode {
 	return { type: "text", text: content };
+}
+
+/** The Site template's content outlet, `{{@outlet}}`: where each page's content goes. */
+export function outlet(): TestNode {
+	return { type: "outlet" };
 }
 
 /** A binding: the value at `path` (`title`, a Field key) where the page renders. */

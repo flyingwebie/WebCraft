@@ -48,7 +48,7 @@ export type BuiltInField = (typeof BUILT_IN_FIELDS)[number];
 /**
  * Names a Post Type's Field can't take: the built-in Fields, the names Template markup reads values
  * from (`site.x` Globals, `props.x` Props, `item.x` Loop items) and the words Conditions' tests use
- * (`and`, `or`, `not`, `true`, `false`).
+ * (`and`, `or`, `not`, `true`, `false`). The Page Post Type keeps `parent` too.
  */
 export const RESERVED_FIELD_KEYS: ReadonlySet<string> = new Set(
 	[

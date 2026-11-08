@@ -1,4 +1,4 @@
-import { entries, people, publishedSlugs, sites } from "@webcraft/db/schema";
+import { entries, people, publishedSlugs, specialPages } from "@webcraft/db/schema";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
@@ -9,6 +9,7 @@ import {
 	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	PageHasChildrenError,
 } from "./errors.ts";
 import type { FieldDefinition, Json } from "./field-types.ts";
 import {
@@ -24,14 +25,27 @@ import {
 	writeFields,
 } from "./field-values.ts";
 import { sameJson } from "./json.ts";
+import { siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
+import {
+	checkDraftParent,
+	childPagesOf,
+	isPagePostType,
+	pageSlugTaken,
+	parentIn,
+	pathIn,
+	pathText,
+	publishedPageTree,
+	withParent,
+} from "./pages.ts";
 import { getPostType, listPostTypes, type PostType, UUID } from "./post-types.ts";
 import { checkReferences, type LinkBack, linkingEntries, linksBack, saveLinks } from "./relationships.ts";
 import { slugify } from "./slugs.ts";
-import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
+import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH, pathFor } from "./url-patterns.ts";
 import { type EntryVersion, emptyVersion, readValue, storedVersion, type Writer, writeValue } from "./values.ts";
 
 export { sameJson } from "./json.ts";
+export { siteLanguages };
 
 /**
  * Where an Entry stands: `draft` (never published), `published` (visitors see the Draft as it is) or
@@ -43,6 +57,8 @@ export type EntryStatus = "draft" | "published" | "changed";
 export type EntryValues = {
 	title: string;
 	slug: string;
+	/** A Page's parent Page; null for a top-level Page and for every other Entry. */
+	parentId: string | null;
 	/** Every Field of the Post Type, by key, as its type gives it (see the Field types). */
 	fields: Record<string, Json>;
 };
@@ -74,6 +90,8 @@ export type Entry = {
 	problems: ContentProblem[];
 	/** The Entries whose Drafts point at this one through a two-way Relationship. */
 	linkedFrom: LinkBack[];
+	/** Where visitors find it (`/blog/fresh-bread`, `/about/team`, `/` for the home page); null until it is published. */
+	path: string | null;
 };
 
 /** A change to an Entry's Draft, in one language (the Site's Default language unless given). */
@@ -82,6 +100,11 @@ export type DraftChange = {
 	title?: string;
 	/** A new slug; WebCraft makes one from the title for a new Entry without one. */
 	slug?: string;
+	/**
+	 * A Page's parent Page, null to move it to the top level. Only Pages have one; a published Page
+	 * moves, with every Page under it, when it is published.
+	 */
+	parentId?: string | null;
 	/**
 	 * Values of the Post Type's Fields, by key, each as its type takes it; null or "" clears one. A
 	 * Group's value is its Fields' values by key (only those given change); a Repeater's is its whole
@@ -107,19 +130,11 @@ export const ENTRY_TITLE_MAX_LENGTH = 300;
 
 type EntryRow = typeof entries.$inferSelect;
 
-/** The languages of the scope's Site. Only the Default language exists until Sites get more. */
-export async function siteLanguages(scope: Pick<SiteScope, "db" | "site">): Promise<{ defaultLanguage: string }> {
-	const [row] = await scope.db
-		.select({ defaultLanguage: sites.defaultLanguage })
-		.from(sites)
-		.where(eq(sites.id, scope.site.id));
-	return { defaultLanguage: row?.defaultLanguage ?? "en" };
-}
-
 /**
  * Creates an Entry of a Post Type on the scope's Site (open it with `entry.edit`), its Draft holding
  * the Fields' defaults and the values given. The person who creates it is its author. A slug is made
- * from the title when none is given, unique within the Post Type.
+ * from the title when none is given, unique within the Post Type (for a Page, among the Pages under
+ * its parent).
  */
 export async function createEntry(scope: SiteScope, input: NewEntry): Promise<Entry> {
 	const postType = await getPostType(scope, input.postTypeId);
@@ -134,7 +149,15 @@ export async function createEntry(scope: SiteScope, input: NewEntry): Promise<En
 		});
 		const languages = await siteLanguages(tx);
 		const language = input.language ?? languages.defaultLanguage;
-		const slug = input.slug ?? (await freeSlug(tx, postType, row.id, language, slugify(input.title)));
+		const taken = isPagePostType(postType)
+			? (candidate: string) =>
+					pageSlugTaken(tx, row, input.parentId ?? null, {
+						language,
+						defaultLanguage: languages.defaultLanguage,
+						value: candidate,
+					})
+			: (candidate: string) => slugTaken(tx, postType.id, row.id, language, candidate);
+		const slug = input.slug ?? (await freeSlug(taken, slugify(input.title) || slugify(postType.name) || "entry"));
 		const { postTypeId: _, ...change } = input;
 		const saved = await changeDraft(
 			tx,
@@ -187,13 +210,19 @@ export async function listEntries(scope: SiteScope, postTypeId: string, language
  * deletes nothing and answers how many other Entries link to it, with a confirmation id; with that
  * id it deletes the Entry and removes the links to it from those Entries' Drafts and published
  * versions, so no Relationship points at nothing. An Entry another Entry must point at (through a
- * required Relationship) can't be deleted: `EntryLinkedError` lists those Entries.
+ * required Relationship) can't be deleted: `EntryLinkedError` lists those Entries. Nor can a Page with
+ * Pages under it, in their Drafts or published (`PageHasChildrenError`): they would point at nothing.
  */
 export async function deleteEntry(scope: SiteScope, entryId: string, confirmation?: string): Promise<EntryDeletion> {
 	return scope.transaction(async (tx) => {
 		const row = await lockEntry(tx, entryId);
 		const allPostTypes = await listPostTypes(tx);
 		const { defaultLanguage } = await siteLanguages(tx);
+		const postTypeOfRow = allPostTypes.find((postType) => postType.id === row.postTypeId);
+		if (postTypeOfRow && isPagePostType(postTypeOfRow)) {
+			const children = await childPagesOf(tx, row, defaultLanguage);
+			if (children > 0) throw new PageHasChildrenError(children);
+		}
 		const linking = await linkingEntries(tx, row.id, allPostTypes, defaultLanguage);
 		const blockedBy = linking.filter((entry) => entry.required);
 		if (blockedBy.length > 0) {
@@ -287,6 +316,12 @@ async function changeDraft(
 			}
 			version = writeValue(version, { key: "slug", ...languages }, slug, by);
 		}
+		if (change.parentId !== undefined && change.parentId !== null && !isPagePostType(postType)) {
+			problems.push({ at: "parentId", message: "Only Pages have a parent Page." });
+		} else if (change.parentId !== undefined && isPagePostType(postType)) {
+			if (change.parentId !== null) await checkDraftParent(scope, row, change.parentId, defaultLanguage, problems);
+			version = withParent(version, change.parentId, defaultLanguage, by);
+		}
 		if (change.fields !== undefined) {
 			const context: WriteContext = { ...languages, by, problems, references: [], newRowId: randomRowId };
 			version = {
@@ -299,7 +334,17 @@ async function changeDraft(
 			);
 		}
 		if (problems.length > 0) throw new EntryInvalidError(problems);
-		if (slug && (await slugTaken(scope, postType.id, row.id, language, slug))) throw new EntrySlugTakenError(slug);
+		if (isPagePostType(postType)) {
+			// A Page's slug is unique among the Pages under its parent, so a move checks it too.
+			const pageSlug = slug || readValue(version, { key: "slug", ...languages });
+			const parentId = parentIn(version, defaultLanguage);
+			const moved = slug || change.parentId !== undefined;
+			if (moved && pageSlug && (await pageSlugTaken(scope, row, parentId, { ...languages, value: pageSlug }))) {
+				throw new EntrySlugTakenError(pageSlug, "siblingPages");
+			}
+		} else if (slug && (await slugTaken(scope, postType.id, row.id, language, slug))) {
+			throw new EntrySlugTakenError(slug);
+		}
 	}
 
 	const [saved] = await scope.update(entries, { draft: version, updatedAt: scope.now() }, eq(entries.id, row.id));
@@ -350,18 +395,11 @@ async function slugTaken(
 	return drafts > 0;
 }
 
-/** A slug made from `base` that no other Entry of the Post Type has: `base`, then `base-2`, `base-3`, … */
-async function freeSlug(
-	scope: SiteScope,
-	postType: PostType,
-	entryId: string,
-	language: string,
-	base: string,
-): Promise<string> {
-	const stem = base || slugify(postType.name) || "entry";
+/** A slug made from `stem` that isn't `taken`: `stem`, then `stem-2`, `stem-3`, … */
+async function freeSlug(taken: (candidate: string) => Promise<boolean>, stem: string): Promise<string> {
 	for (let attempt = 1; ; attempt++) {
 		const candidate = attempt === 1 ? stem : `${stem}-${attempt}`;
-		if (!(await slugTaken(scope, postType.id, entryId, language, candidate))) return candidate;
+		if (!(await taken(candidate))) return candidate;
 	}
 }
 
@@ -427,6 +465,7 @@ async function entryViews(
 		await listPostTypes(scope),
 		languages,
 	);
+	const paths = await publishedPaths(scope, postType, rows, language);
 	const findings = rows.map((row) => versionFindings(storedVersion(row.draft), postType.fields, languages));
 	await checkReferences(
 		scope,
@@ -451,8 +490,41 @@ async function entryViews(
 			published: row.published === null ? null : values(storedVersion(row.published)),
 			problems: findings[index]?.problems ?? [],
 			linkedFrom: back.get(row.id) ?? [],
+			path: paths.get(row.id) ?? null,
 		};
 	});
+}
+
+/**
+ * Where visitors find each published Entry, by id: its Post Type's URL pattern with its slug, or a
+ * Page's parents and slug (the home page at `/`).
+ */
+async function publishedPaths(
+	scope: SiteScope,
+	postType: PostType,
+	rows: readonly EntryRow[],
+	language: string,
+): Promise<Map<string, string>> {
+	const paths = new Map<string, string>();
+	if (isPagePostType(postType)) {
+		const tree = await publishedPageTree(scope, postType.id, language);
+		const home = (await scope.first(specialPages, eq(specialPages.role, "home")))?.entryId;
+		for (const row of rows) {
+			const parts = pathIn(tree, row.id);
+			// The home page is found at `/`; its own path sends visitors there.
+			if (parts) paths.set(row.id, row.id === home ? "/" : pathText(parts));
+		}
+		return paths;
+	}
+	const slugs = await scope.select(
+		publishedSlugs,
+		and(eq(publishedSlugs.postTypeId, postType.id), eq(publishedSlugs.language, language)),
+	);
+	for (const { entryId, slug } of slugs) {
+		const path = pathFor(postType.urlPattern, slug);
+		if (path) paths.set(entryId, path);
+	}
+	return paths;
 }
 
 /** The names of the people who wrote Entries, by id. */
@@ -475,6 +547,7 @@ export function entryValues(
 	return {
 		title: readValue(version, { key: "title", ...languages }) ?? "",
 		slug: readValue(version, { key: "slug", ...languages }) ?? "",
+		parentId: parentIn(version, languages.defaultLanguage),
 		fields: readFields(version.values, fields, languages),
 	};
 }

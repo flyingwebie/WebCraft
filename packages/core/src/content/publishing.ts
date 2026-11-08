@@ -1,5 +1,5 @@
 import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { can } from "../permissions/can.ts";
@@ -7,13 +7,25 @@ import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { entryValues, lockEntry, siteLanguages, versionFindings } from "./entries.ts";
-import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError } from "./errors.ts";
+import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
 import { linksIn } from "./field-values.ts";
 import { publishGlobals } from "./globals.ts";
 import { clearPageCache } from "./page-cache.ts";
-import { getPostType } from "./post-types.ts";
+import {
+	checkPublishedParent,
+	isPagePostType,
+	MAX_PAGE_DEPTH,
+	pagesUnder,
+	parentIn,
+	pathIn,
+	pathText,
+	patternOwning,
+	publishedPageTree,
+} from "./pages.ts";
+import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, saveLinks } from "./relationships.ts";
-import { checkEntryTemplate, lockTemplate } from "./templates.ts";
+import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
+import { pathFor } from "./url-patterns.ts";
 import { storedVersion } from "./values.ts";
 
 /**
@@ -22,8 +34,14 @@ import { storedVersion } from "./values.ts";
  */
 export type PublishItem = { kind: "entry"; id: string } | { kind: "template"; id: string } | { kind: "globals" };
 
-/** What publishing did. */
-export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Date };
+/** A published path that a publish changed: where visitors found an Entry or Page, and where now. */
+export type PathChange = { entryId: string; language: string; from: string; to: string };
+
+/**
+ * What publishing did. `pathChanges` lists every published path it changed (an Entry's new slug, a
+ * Page that moved and every Page under it), so Redirect rules can send the old paths on.
+ */
+export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Date; pathChanges: PathChange[] };
 
 /**
  * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
@@ -41,8 +59,10 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
  *
  * Refuses an Entry (or the Globals) whose values break a rule (`EntryInvalidError`) or whose required
  * values are empty (`EntryIncompleteError`), an Entry whose slug another published Entry of its Post
- * Type has (`EntrySlugTakenError`), and a Template that no longer fits its Post Type
- * (`ElementTreeInvalidError`).
+ * Type has (`EntrySlugTakenError`; for a Page, another published Page under the same parent), a Page
+ * whose parent Page isn't published (`PageParentUnpublishedError`) or whose path, or that of a Page
+ * under it, a Post Type's URL pattern owns (`PathTakenError`), and a Template that no longer fits
+ * what it renders (`ElementTreeInvalidError`).
  */
 export async function publish(scope: SiteScope, item: PublishItem): Promise<Published> {
 	const permission = publishPermission(item);
@@ -71,6 +91,10 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 	if (findings.problems.some((problem) => problem.rule !== "required")) throw new EntryInvalidError(findings.problems);
 	if (findings.missing.length > 0) throw new EntryIncompleteError(findings.missing);
 	const values = entryValues(draft, postType.fields, languages);
+	const parentId = isPagePostType(postType) ? parentIn(draft, defaultLanguage) : null;
+	const paths = isPagePostType(postType)
+		? await pagePaths(scope, postType, row.id, { parentId, slug: values.slug }, defaultLanguage)
+		: await entryPaths(scope, postType, row.id, values.slug, defaultLanguage);
 
 	const now = scope.now();
 	await scope.update(
@@ -86,9 +110,12 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 			postTypeId: row.postTypeId,
 			language: defaultLanguage,
 			slug: values.slug,
+			parentId,
 		});
 	} catch (error) {
-		if (isUniqueViolation(error, "published_slugs_slug_unique")) throw new EntrySlugTakenError(values.slug);
+		if (isUniqueViolation(error, "published_slugs_slug_unique")) {
+			throw new EntrySlugTakenError(values.slug, isPagePostType(postType) ? "siblingPages" : "postType");
+		}
 		throw error;
 	}
 	await scope.audit("entry.publish", {
@@ -96,14 +123,78 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 		postTypeId: row.postTypeId,
 		title: values.title,
 		slug: values.slug,
+		path: paths.path,
+		pathChanges: paths.changes,
 	});
-	return { kind: "entry", id: row.id, publishedAt: now };
+	return { kind: "entry", id: row.id, publishedAt: now, pathChanges: paths.changes };
+}
+
+/** Where a published Entry will be, and which published paths publishing it changes. */
+type NewPaths = { path: string; changes: PathChange[] };
+
+/** An Entry's path under its Post Type's URL pattern, before and after publishing its new slug. */
+async function entryPaths(
+	scope: SiteScope,
+	postType: PostType,
+	entryId: string,
+	slug: string,
+	language: string,
+): Promise<NewPaths> {
+	const before = await scope.first(
+		publishedSlugs,
+		and(eq(publishedSlugs.entryId, entryId), eq(publishedSlugs.language, language)),
+	);
+	const path = pathFor(postType.urlPattern, slug) ?? "";
+	const from = before ? pathFor(postType.urlPattern, before.slug) : null;
+	return { path, changes: from && from !== path ? [{ entryId, language, from, to: path }] : [] };
+}
+
+/**
+ * A Page's path, and those of the Pages under it, before and after it is published under `parentId`
+ * with `slug`. Refuses a parent that isn't published or would make a loop, Pages ending up more than
+ * `MAX_PAGE_DEPTH` deep, and a path a Post Type's URL pattern owns (`PathTakenError`).
+ */
+async function pagePaths(
+	scope: SiteScope,
+	pages: PostType,
+	pageId: string,
+	next: { parentId: string | null; slug: string },
+	language: string,
+): Promise<NewPaths> {
+	const tree = await publishedPageTree(scope, pages.id, language);
+	if (next.parentId !== null) checkPublishedParent(tree, pageId, next.parentId);
+	const moving = [pageId, ...pagesUnder(tree, pageId)];
+	const before = new Map(moving.map((id) => [id, pathIn(tree, id)]));
+	tree.set(pageId, next);
+	const postTypes = await listPostTypes(scope);
+	const changes: PathChange[] = [];
+	for (const id of moving) {
+		const parts = pathIn(tree, id) ?? [];
+		if (parts.length > MAX_PAGE_DEPTH) {
+			throw new EntryInvalidError([{ at: "parentId", message: `Pages nest at most ${MAX_PAGE_DEPTH} deep.` }]);
+		}
+		const owner = patternOwning(postTypes, parts);
+		if (owner) {
+			throw new PathTakenError(pathText(parts), {
+				kind: "postType",
+				id: owner.id,
+				name: owner.name,
+				urlPattern: owner.urlPattern,
+			});
+		}
+		const from = before.get(id);
+		if (from && pathText(from) !== pathText(parts)) {
+			changes.push({ entryId: id, language, from: pathText(from), to: pathText(parts) });
+		}
+	}
+	return { path: pathText(pathIn(tree, pageId) ?? []), changes };
 }
 
 async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
 	const row = await lockTemplate(scope, templateId);
-	// The Post Type, the Globals, what Relationships point at or the Classes may have changed since.
-	const tree = await checkEntryTemplate(scope, row.postTypeId ?? "", row.draft);
+	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes)
+	// may have changed since the Draft was saved.
+	const tree = await checkTemplateForPublish(scope, row);
 	const now = scope.now();
 	await scope.update(
 		templates,
@@ -111,5 +202,5 @@ async function publishTemplate(scope: SiteScope, templateId: string): Promise<Pu
 		eq(templates.id, row.id),
 	);
 	await scope.audit("template.publish", { templateId: row.id, kind: row.kind, postTypeId: row.postTypeId });
-	return { kind: "template", id: row.id, publishedAt: now };
+	return { kind: "template", id: row.id, publishedAt: now, pathChanges: [] };
 }
