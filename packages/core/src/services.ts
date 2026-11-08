@@ -14,7 +14,9 @@ import type {
 	PostTypeChange,
 	Published,
 	PublishItem,
+	SavedTemplateMarkup,
 	Template,
+	TemplateMarkup,
 } from "./content/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
@@ -123,6 +125,13 @@ export type InstallServices = InstallPorts & {
 		/** A Post Type's Entry template, or null while it has none. */
 		entryTemplate(scope: SiteScope, postTypeId: string): Promise<Template | null>;
 		saveEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template>;
+		/** A Post Type's Entry template as Template markup (its Draft and published version), or null while it has none. */
+		entryTemplateMarkup(
+			scope: SiteScope,
+			postTypeId: string,
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
+		/** Saves an Entry template's Draft from Template markup; inline styles become generated Classes. */
+		saveEntryTemplateMarkup(scope: SiteScope, postTypeId: string, markup: string): Promise<SavedTemplateMarkup>;
 	};
 	publishing: {
 		/**

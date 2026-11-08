@@ -32,6 +32,7 @@ export {
 	type FieldInput,
 	type FieldType,
 	MAX_FIELDS,
+	RICH_TEXT_VALUE_MAX_LENGTH,
 	TEXT_VALUE_MAX_LENGTH,
 } from "./fields.ts";
 export {
@@ -47,9 +48,13 @@ export {
 export { type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
 export {
 	getEntryTemplate,
+	getEntryTemplateMarkup,
+	type SavedTemplateMarkup,
 	saveEntryTemplate,
+	saveEntryTemplateMarkup,
 	type Template,
 	type TemplateKind,
+	type TemplateMarkup,
 	type TemplateStatus,
 } from "./templates.ts";
 export type { LanguageValue, Writer } from "./values.ts";

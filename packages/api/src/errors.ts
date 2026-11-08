@@ -36,7 +36,7 @@ import {
 	TemplateNotFoundError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
-import { ElementTreeInvalidError } from "@webcraft/renderer";
+import { ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -112,6 +112,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ElementTreeInvalidError) {
 		return new ORPCError("TEMPLATE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof TemplateMarkupInvalidError) {
+		return new ORPCError("TEMPLATE_MARKUP_INVALID", {
 			status: 400,
 			message: error.message,
 			data: { problems: error.problems },

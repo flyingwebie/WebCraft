@@ -1,9 +1,10 @@
 import { entries, people, publishedSlugs, sites } from "@webcraft/db/schema";
+import { cleanRichText, richTextToText } from "@webcraft/renderer";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, EntryInvalidError, EntryNotFoundError, EntrySlugTakenError } from "./errors.ts";
-import { type FieldDefinition, TEXT_VALUE_MAX_LENGTH } from "./fields.ts";
+import { type FieldDefinition, RICH_TEXT_VALUE_MAX_LENGTH, TEXT_VALUE_MAX_LENGTH } from "./fields.ts";
 import { getPostType, type PostType, UUID } from "./post-types.ts";
 import { slugify } from "./slugs.ts";
 import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
@@ -185,10 +186,15 @@ async function changeDraft(
 			problems.push({ at: `fields.${key}`, message: `${postType.name} has no Field ${key}.` });
 			continue;
 		}
-		if (value !== null && value.length > TEXT_VALUE_MAX_LENGTH) {
-			problems.push({ at: `fields.${key}`, message: `A text value has at most ${TEXT_VALUE_MAX_LENGTH} characters.` });
+		const stored = field.type === "richText" ? cleanRichTextValue(value) : value;
+		const limit = field.type === "richText" ? RICH_TEXT_VALUE_MAX_LENGTH : TEXT_VALUE_MAX_LENGTH;
+		if (stored !== null && stored.length > limit) {
+			problems.push({
+				at: `fields.${key}`,
+				message: `A ${field.type === "richText" ? "rich text" : "text"} value has at most ${limit} characters.`,
+			});
 		}
-		version = writeValue(version, place(key), value, by);
+		version = writeValue(version, place(key), stored, by);
 	}
 	if (problems.length > 0) throw new EntryInvalidError(problems);
 	if (slug && (await slugTaken(scope, postType.id, row.id, language, slug))) throw new EntrySlugTakenError(slug);
@@ -196,6 +202,16 @@ async function changeDraft(
 	const [saved] = await scope.update(entries, { draft: version, updatedAt: scope.now() }, eq(entries.id, row.id));
 	if (!saved) throw new EntryNotFoundError();
 	return saved;
+}
+
+/**
+ * Rich text as it is stored: cleaned against the rich text allowlist (ADR 0017), and null when no
+ * text is left.
+ */
+function cleanRichTextValue(value: string | null): string | null {
+	if (value === null) return null;
+	const clean = cleanRichText(value);
+	return richTextToText(clean).trim() === "" ? null : clean;
 }
 
 /** Reads an Entry for a change, holding it until the transaction ends so changes don't overlap. */

@@ -7,12 +7,14 @@ import {
 	createPostType,
 	getEntry,
 	getEntryTemplate,
+	getEntryTemplateMarkup,
 	getPostType,
 	listEntries,
 	listPostTypes,
 	publish,
 	saveDraft,
 	saveEntryTemplate,
+	saveEntryTemplateMarkup,
 	updatePostType,
 } from "./content/index.ts";
 import { createEmail } from "./email/index.ts";
@@ -98,7 +100,12 @@ export async function createInstallServices(
 		},
 		postTypes: { list: listPostTypes, get: getPostType, create: createPostType, update: updatePostType },
 		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft },
-		templates: { entryTemplate: getEntryTemplate, saveEntryTemplate },
+		templates: {
+			entryTemplate: getEntryTemplate,
+			saveEntryTemplate,
+			entryTemplateMarkup: getEntryTemplateMarkup,
+			saveEntryTemplateMarkup,
+		},
 		publishing: { publish },
 		sitePages: createSitePages({ database, config, data }),
 		memberships,

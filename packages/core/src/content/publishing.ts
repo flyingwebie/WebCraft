@@ -2,6 +2,7 @@ import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
+import { classCatalogue, listClasses } from "../design-system/classes.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -94,7 +95,8 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
 	const row = await lockTemplate(scope, templateId);
 	// The Post Type may have lost a Field the Draft reads since it was saved.
-	const tree = parseEntryTemplate(row.draft, await getPostType(scope, row.postTypeId ?? ""));
+	const { ids } = classCatalogue(await listClasses(scope));
+	const tree = parseEntryTemplate(row.draft, await getPostType(scope, row.postTypeId ?? ""), ids);
 	const now = scope.now();
 	await scope.update(
 		templates,

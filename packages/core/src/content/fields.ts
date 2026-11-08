@@ -1,7 +1,12 @@
+import { EXPRESSION_KEYWORDS, RICH_TEXT_MAX_LENGTH } from "@webcraft/renderer";
+
 import type { ContentProblem } from "./errors.ts";
 
-/** The Field types there are. More join them (rich text, number, Relationship, …). */
-export const FIELD_TYPES = ["text"] as const;
+/**
+ * The Field types there are: `text`, and `richText` (short formatted text kept as HTML, cleaned
+ * against the rich text allowlist on save and on render). More join them (number, Relationship, …).
+ */
+export const FIELD_TYPES = ["text", "richText"] as const;
 
 export type FieldType = (typeof FIELD_TYPES)[number];
 
@@ -45,13 +50,25 @@ export const BUILT_IN_FIELDS = [
 export type BuiltInField = (typeof BUILT_IN_FIELDS)[number];
 
 /**
- * Names a Field key can't take: the built-in Fields, and the names Template markup reads values
- * from (`site.x` Globals, `props.x` Props, `item.x` Loop items).
+ * Names a Field key can't take: the built-in Fields, the names Template markup reads values from
+ * (`site.x` Globals, `props.x` Props, `item.x` Loop items) and the words Conditions' tests use
+ * (`and`, `or`, `not`, `true`, `false`).
  */
 const RESERVED_KEYS = new Set(
-	[...BUILT_IN_FIELDS, "id", "site", "props", "item", "loop", "entry", "language", "url", "type", "fields"].map((key) =>
-		key.toLowerCase(),
-	),
+	[
+		...BUILT_IN_FIELDS,
+		...EXPRESSION_KEYWORDS,
+		"id",
+		"site",
+		"props",
+		"item",
+		"loop",
+		"entry",
+		"language",
+		"url",
+		"type",
+		"fields",
+	].map((key) => key.toLowerCase()),
 );
 
 /** A Field key: starts with a lower-case letter, then letters, digits and underscores; at most 64. */
@@ -60,9 +77,10 @@ const FIELD_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;
 /** The most Fields a Post Type has. */
 export const MAX_FIELDS = 200;
 
-/** The longest label, and the longest text Field value, in characters. */
+/** The longest label, the longest text Field value and the longest rich text value (cleaned HTML), in characters. */
 export const FIELD_LABEL_MAX_LENGTH = 100;
 export const TEXT_VALUE_MAX_LENGTH = 2_000;
+export const RICH_TEXT_VALUE_MAX_LENGTH = RICH_TEXT_MAX_LENGTH;
 
 /**
  * Checks a Post Type's Fields, adding a problem for each one that is wrong. `existing` holds the
