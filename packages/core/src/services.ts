@@ -4,6 +4,17 @@ import type { Database } from "@webcraft/db";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
+import type {
+	DraftChange,
+	Entry,
+	NewEntry,
+	NewPostType,
+	PostType,
+	PostTypeChange,
+	Published,
+	PublishItem,
+	Template,
+} from "./content/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
@@ -14,7 +25,16 @@ import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
-import type { Access, DataLayer, InstallScope, Site, Workspace, WorkspaceScope } from "./tenancy/data-layer.ts";
+import type { SitePages } from "./site-pages/index.ts";
+import type {
+	Access,
+	DataLayer,
+	InstallScope,
+	Site,
+	SiteScope,
+	Workspace,
+	WorkspaceScope,
+} from "./tenancy/data-layer.ts";
 import type { MembershipsService } from "./tenancy/memberships.ts";
 import type { InvitesService, StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
@@ -72,7 +92,39 @@ export type InstallServices = InstallPorts & {
 		list(scope: WorkspaceScope): Promise<Site[]>;
 		/** Creates a Site; open its Workspace with `site.create` first. */
 		create(scope: WorkspaceScope, input: { name: string; slug: string }): Promise<Site>;
+		/** Where the Site's Staging address is (`https://<slug>.<sites domain>`), or null without a sites domain. */
+		stagingUrl(site: Pick<Site, "slug">): string | null;
 	};
+	/** Post Types: the kinds of Entry a Site holds, their URL patterns and Fields. Structure: open the Site with `structure.edit` to change them. */
+	postTypes: {
+		list(scope: SiteScope): Promise<PostType[]>;
+		get(scope: SiteScope, postTypeId: string): Promise<PostType>;
+		create(scope: SiteScope, input: NewPostType): Promise<PostType>;
+		update(scope: SiteScope, postTypeId: string, change: PostTypeChange): Promise<PostType>;
+	};
+	/** Entries, each with a Draft and a published version. Open the Site with `entry.edit` to change them. */
+	entries: {
+		list(scope: SiteScope, postTypeId: string, language?: string): Promise<Entry[]>;
+		get(scope: SiteScope, entryId: string, language?: string): Promise<Entry>;
+		create(scope: SiteScope, input: NewEntry): Promise<Entry>;
+		/** The one way an Entry's Draft changes. */
+		saveDraft(scope: SiteScope, entryId: string, change: DraftChange): Promise<Entry>;
+	};
+	/** Templates, stored as element trees with a Draft and a published version. Structure: `structure.edit`. */
+	templates: {
+		/** A Post Type's Entry template, or null while it has none. */
+		entryTemplate(scope: SiteScope, postTypeId: string): Promise<Template | null>;
+		saveEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template>;
+	};
+	publishing: {
+		/**
+		 * Publishes one item: copies its Draft over the published version, clears the Site's page cache
+		 * and writes the Audit log. Open the Site with `publishPermission(item)`.
+		 */
+		publish(scope: SiteScope, item: PublishItem): Promise<Published>;
+	};
+	/** The Site side: which Site a hostname belongs to, and its published pages. */
+	sitePages: SitePages;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
 	/** Staff: inviting them, their Workspaces, pending invites. */

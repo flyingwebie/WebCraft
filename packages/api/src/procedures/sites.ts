@@ -12,7 +12,10 @@ export const sites = {
 		return { sites: await context.services.sites.list(workspace) };
 	}),
 
-	/** One Site, its Workspace, and the Permissions the person holds on it (the admin shows what they may do). */
+	/**
+	 * One Site, its Workspace, the Permissions the person holds on it (the admin shows what they may
+	 * do), and its Staging address (null when the Install has no sites domain).
+	 */
 	get: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const { site, workspace } = await context.services.data.site(context.access, input.siteId, "site.view");
 		const permissions = permissionsOn(context.access.actor, {
@@ -20,7 +23,12 @@ export const sites = {
 			workspaceId: workspace.id,
 			siteId: site.id,
 		});
-		return { site, workspace: { id: workspace.id, name: workspace.name }, permissions };
+		return {
+			site,
+			workspace: { id: workspace.id, name: workspace.name },
+			permissions,
+			stagingUrl: context.services.sites.stagingUrl(site),
+		};
 	}),
 
 	/** Creates a Site in a Workspace. Its slug is unique on the Install: the Staging address is `<slug>.<sites domain>`. */

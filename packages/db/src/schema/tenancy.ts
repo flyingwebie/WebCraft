@@ -1,4 +1,15 @@
-import { boolean, foreignKey, index, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+	bigint,
+	boolean,
+	foreignKey,
+	index,
+	pgTable,
+	primaryKey,
+	text,
+	timestamp,
+	unique,
+	uuid,
+} from "drizzle-orm/pg-core";
 
 import { installRoles, people } from "./people.ts";
 
@@ -18,6 +29,10 @@ export const workspaces = pgTable("workspaces", {
  *
  * Tables of Site data carry both `workspace_id` and `site_id`, with a foreign key to
  * `(workspace_id, id)` here, so a row can never point at a Site of another Workspace.
+ *
+ * `page_cache_generation` goes up with every publish: the web process keeps rendered pages under
+ * the generation they were rendered at, so raising it clears the Site's whole page cache, from any
+ * process (the worker publishes too).
  */
 export const sites = pgTable(
 	"sites",
@@ -28,6 +43,9 @@ export const sites = pgTable(
 			.references(() => workspaces.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		slug: text("slug").notNull().unique(),
+		/** The language the Site is written in first, a BCP 47 tag. Its URLs have no language prefix. */
+		defaultLanguage: text("default_language").notNull().default("en"),
+		pageCacheGeneration: bigint("page_cache_generation", { mode: "number" }).notNull().default(0),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [unique("sites_workspace_id_id_unique").on(table.workspaceId, table.id)],
