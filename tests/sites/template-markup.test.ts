@@ -235,3 +235,12 @@ describe("comments and literal {{", () => {
 		expect(main).toBe('<p title="{{ title }}">Write {{ title }} for An Entry</p>');
 	});
 });
+
+describe("inline styles", () => {
+	test("pages carry the generated Class's name, never a style attribute", async () => {
+		const { main, html } = await rendered('<p style="color: rebeccapurple">{{ title }}</p>');
+
+		expect(main).toMatch(/^<p class="style-[0-9a-f]{8}">An Entry<\/p>$/);
+		expect(html).not.toMatch(/\sstyle=/);
+	});
+});

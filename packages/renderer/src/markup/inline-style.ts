@@ -26,9 +26,9 @@ export function readInlineStyle(style: string): { declarations: string } | { pro
 		if (!PROPERTY.test(rawProperty)) return { problem: `${rawProperty} isn't a CSS property name.` };
 		if (!value) return { problem: `${rawProperty} has no value.` };
 		if (/[{}<>\\]/.test(value)) return { problem: `The value of ${rawProperty} can't hold {, }, <, > or \\.` };
-		if (SCRIPT_IN_CSS.test(value)) return { problem: `The value of ${rawProperty} isn't allowed.` };
 		const unsafeUrl = urlsIn(value).find((url) => safeUrl(url) !== url);
 		if (unsafeUrl !== undefined) return { problem: `${unsafeUrl} isn't an address a style may use.` };
+		if (SCRIPT_IN_CSS.test(value)) return { problem: `The value of ${rawProperty} isn't allowed.` };
 		const property = rawProperty.startsWith("--") ? rawProperty : rawProperty.toLowerCase();
 		declarations.push(`${property}: ${value};`);
 	}

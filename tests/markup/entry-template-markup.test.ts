@@ -156,3 +156,82 @@ describe("saving Template markup", () => {
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 });
+
+describe("inline styles", () => {
+	/** The generated Class a notice names. */
+	const classIn = (notice: { message: string } | undefined) =>
+		/the Class (style-[0-9a-f]{8})\b/.exec(notice?.message ?? "")?.[1] ?? "(none)";
+
+	test("become a generated Class, with a notice; the same declarations find the same Class", async () => {
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: '<p style="color:red;  margin : 0 auto">A</p>\n<p style="color: red; margin: 0 auto;">B</p>',
+		});
+
+		expect(saved.notices).toEqual([
+			{ line: 1, column: 4, message: expect.stringContaining("The inline style became the Class style-") },
+			{ line: 2, column: 4, message: expect.stringContaining("The inline style became the Class style-") },
+		]);
+		const name = classIn(saved.notices[0]);
+		expect(classIn(saved.notices[1])).toBe(name);
+		const [first, , second] = saved.template.draft.nodes as { classes?: string[] }[];
+		expect(first?.classes).toHaveLength(1);
+		expect(second?.classes).toEqual(first?.classes ?? []);
+		expect(saved.markup).toMatch(
+			new RegExp(
+				`^<p class="${name}" data-wc-id="[A-Za-z0-9]{12}">A</p>\\n<p class="${name}" data-wc-id="[A-Za-z0-9]{12}">B</p>$`,
+			),
+		);
+		expect(saved.markup).not.toContain("style=");
+	});
+
+	test("the printed markup names the Class, so saving it again needs no new Class", async () => {
+		const first = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: '<h2 class="" style="text-transform: uppercase">{{ title }}</h2><p style="">x</p>',
+		});
+		const again = await staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: first.markup });
+
+		expect(first.notices).toHaveLength(1);
+		expect(again.notices).toEqual([]);
+		expect(again.template.draft).toEqual(first.template.draft);
+		expect(again.markup).toBe(first.markup);
+	});
+
+	test("an element keeps its Classes and gains the generated one after them", async () => {
+		const made = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: '<p style="color: green">x</p>',
+		});
+		const green = classIn(made.notices[0]);
+
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: `<p style="font-weight: bold" class="${green}">y</p>`,
+		});
+
+		const bold = classIn(saved.notices[0]);
+		expect(bold).not.toBe(green);
+		expect(saved.markup).toStartWith(`<p class="${green} ${bold}" data-wc-id=`);
+	});
+
+	test("a style that can't become a Class is refused", async () => {
+		for (const [style, says] of [
+			["color: red; {", "isn't a CSS declaration"],
+			["background: url(javascript:alert(1))", "isn't an address a style may use"],
+			["width: expression(alert(1))", "isn't allowed"],
+			["color red", "isn't a CSS declaration"],
+		] as const) {
+			await expect(
+				staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: `<p style="${style}">x</p>` }),
+			).rejects.toMatchObject({
+				code: "TEMPLATE_MARKUP_INVALID",
+				data: { problems: [{ line: 1, column: 11, message: expect.stringContaining(says) }] },
+			});
+		}
+	});
+});
