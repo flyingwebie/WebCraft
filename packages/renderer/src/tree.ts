@@ -11,7 +11,8 @@
  *   `item.x`), optionally through a formatter, read where the page renders and escaped for where it
  *   lands;
  * - a comment: kept for the people who build the Site, never sent to visitors;
- * - a Template command's node, such as a Condition (`commands.ts`).
+ * - a Template command's node, such as a Condition or the Site template's content outlet
+ *   (`commands.ts`).
  *
  * Attributes are a list, not an object, because Postgres `jsonb` doesn't keep the order of keys and
  * a round trip must lose nothing. A canonical tree never has two text nodes side by side, nor empty
@@ -61,6 +62,9 @@ export type ConditionNode = {
 };
 
 export type ConditionBranch = { test: Expression; children: TreeNode[] };
+
+/** The content outlet (`{{@outlet}}`): where the Site template shows each page's content. */
+export type OutletNode = { type: "outlet" };
 
 export type Attribute = {
 	/** A lower-case attribute name. */
@@ -457,9 +461,25 @@ export type ParseTreeOptions = {
 	 * `<main>`: the Site template does); undefined allows it.
 	 */
 	refuseElement?: (tag: string) => string | undefined;
+	/**
+	 * Refuses a Template command this kind of tree mustn't hold, by its name, answering why (only the
+	 * Site template holds `{{@outlet}}`); undefined allows it.
+	 */
+	refuseCommand?: (name: string) => string | undefined;
+	/**
+	 * Checks rules about the tree as a whole once every node is read (the Site template holds one
+	 * `{{@outlet}}`), reporting each problem on the node it is about, or on the tree.
+	 */
+	checkTree?: TreeCheck;
 	/** Makes an id for an element that has none; random by default. */
 	newId?: () => string;
 };
+
+/** A check of a whole tree: reports `problem(node, message)` for a node, `problem(undefined, …)` for the tree. */
+export type TreeCheck = (
+	nodes: readonly TreeNode[],
+	problem: (node: TreeNode | undefined, message: string) => void,
+) => void;
 
 /** The most problems one error reports; the first ones are enough to fix. */
 export const MAX_PROBLEMS = 20;
@@ -490,6 +510,8 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 	const problems: TreeProblem[] = [];
 	const ids = new Set<string>();
 	const newId = options.newId ?? randomElementId;
+	/** Where each node was read, for problems `checkTree` reports on a node. */
+	const where = new WeakMap<object, string>();
 	let count = 0;
 
 	const problem = (at: string, message: string) => {
@@ -603,7 +625,10 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 				return;
 			}
 			const result = parseNode(node, here, ancestors, depth);
-			if (result) parsed.push(result);
+			if (result) {
+				where.set(result, here);
+				parsed.push(result);
+			}
 		});
 		return canonicalNodes(parsed);
 	};
@@ -638,6 +663,11 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		}
 		const command = commandForNode(raw.type);
 		if (command) {
+			const refused = options.refuseCommand?.(command.name);
+			if (refused) {
+				problem(at, refused);
+				return undefined;
+			}
 			return command.check(raw, at, {
 				problem,
 				expression: (expression, here) =>
@@ -688,6 +718,9 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 	const { version, nodes } = (input ?? {}) as { version?: unknown; nodes?: unknown };
 	if (version !== ELEMENT_TREE_VERSION) problem("version", `The element tree version is ${ELEMENT_TREE_VERSION}.`);
 	const tree: ElementTree = { version: ELEMENT_TREE_VERSION, nodes: parseNodes(nodes, "nodes", [], 1) };
+	if (problems.length === 0) {
+		options.checkTree?.(tree.nodes, (node, message) => problem((node && where.get(node)) || "nodes", message));
+	}
 	if (problems.length > 0) throw new ElementTreeInvalidError(problems);
 	return tree;
 }

@@ -132,6 +132,13 @@ export type InstallServices = InstallPorts & {
 		): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
 		/** Saves an Entry template's Draft from Template markup; inline styles become generated Classes. */
 		saveEntryTemplateMarkup(scope: SiteScope, postTypeId: string, markup: string): Promise<SavedTemplateMarkup>;
+		/** The Site template, or null while the Site has none (its pages show the built-in one). */
+		siteTemplate(scope: SiteScope): Promise<Template | null>;
+		saveSiteTemplate(scope: SiteScope, tree: unknown): Promise<Template>;
+		/** The Site template as Template markup (its Draft and published version), or null while it has none. */
+		siteTemplateMarkup(scope: SiteScope): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
+		/** Saves the Site template's Draft from Template markup; inline styles become generated Classes. */
+		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
 	};
 	publishing: {
 		/**

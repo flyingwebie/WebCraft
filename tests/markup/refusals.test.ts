@@ -96,7 +96,7 @@ describe("unknown names", () => {
 		await refuses('<Card title="x"></Card>', 1, 1, "There is no Component named Card");
 		await refuses("{{@repeat items}}x{{/repeat}}", 1, 1, "There is no Template command {{@repeat}}");
 		await refuses("{{@loop posts as post}}x{{/loop}}", 1, 1, "{{@loop}} isn't available yet");
-		await refuses("<p>{{@outlet}}</p>", 1, 4, "{{@outlet}} isn't available yet");
+		await refuses("<p>{{@outlet}}</p>", 1, 4, "{{@outlet}} belongs to the Site template");
 	});
 
 	test("values, formatters and Classes", async () => {

@@ -2,7 +2,6 @@ import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
-import { classCatalogue, listClasses } from "../design-system/classes.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -11,7 +10,7 @@ import { entryValues, lockEntry, siteLanguages } from "./entries.ts";
 import { EntryIncompleteError, EntrySlugTakenError } from "./errors.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { getPostType } from "./post-types.ts";
-import { lockTemplate, parseEntryTemplate } from "./templates.ts";
+import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
 import { storedVersion } from "./values.ts";
 
 /**
@@ -94,9 +93,7 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 
 async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
 	const row = await lockTemplate(scope, templateId);
-	// The Post Type may have lost a Field the Draft reads since it was saved.
-	const { ids } = classCatalogue(await listClasses(scope));
-	const tree = parseEntryTemplate(row.draft, await getPostType(scope, row.postTypeId ?? ""), ids);
+	const tree = await checkTemplateForPublish(scope, row);
 	const now = scope.now();
 	await scope.update(
 		templates,

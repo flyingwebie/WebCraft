@@ -38,7 +38,8 @@ export {
 	type MarkupProblem,
 	TemplateMarkupInvalidError,
 } from "./markup/problems.ts";
-export { directionOf, type PageToRender, renderPage } from "./page.ts";
+export { BUILT_IN_SITE_TEMPLATE, directionOf, PAGE_HOOKS, type PageToRender, pageWords, renderPage } from "./page.ts";
+export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
 export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText } from "./rich-text.ts";
 export {
 	type Attribute,
@@ -51,12 +52,14 @@ export {
 	type ElementTree,
 	ElementTreeInvalidError,
 	elementsOf,
+	type OutletNode,
 	type ParseTreeOptions,
 	parseElementTree,
 	randomElementId,
 	TEMPLATE_ELEMENTS,
 	type TextNode,
 	TREE_LIMITS,
+	type TreeCheck,
 	type TreeNode,
 	type TreeProblem,
 	type ValueNode,

@@ -1,7 +1,7 @@
 import type { Database } from "@webcraft/db";
 import { entries, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
 import { directionOf, type ElementTree, renderPage, richText, type TemplateValue } from "@webcraft/renderer";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
 import { entryValues } from "../content/entries.ts";
@@ -139,10 +139,20 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 	return renderPage({
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		title: published.title,
-		template,
+		siteTemplate: await publishedSiteTemplate(scope),
+		content: template,
 		values: (path) => (Object.hasOwn(builtIns, path) ? builtIns[path] : fields[path]),
 		className: (classId) => classNames.get(classId),
 	});
+}
+
+/** The Site template visitors see, or undefined while none is published (pages get the built-in one). */
+async function publishedSiteTemplate(scope: VisitorScope): Promise<ElementTree | undefined> {
+	const row = await scope.first(
+		templates,
+		and(eq(templates.kind, "site"), isNull(templates.postTypeId), isNotNull(templates.published)),
+	);
+	return (row?.published as ElementTree | null) ?? undefined;
 }
 
 async function nameOf(scope: VisitorScope, personId: string): Promise<string | null> {

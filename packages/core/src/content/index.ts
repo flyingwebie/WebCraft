@@ -49,9 +49,13 @@ export { type Published, type PublishItem, publish, publishPermission } from "./
 export {
 	getEntryTemplate,
 	getEntryTemplateMarkup,
+	getSiteTemplate,
+	getSiteTemplateMarkup,
 	type SavedTemplateMarkup,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
+	saveSiteTemplate,
+	saveSiteTemplateMarkup,
 	type Template,
 	type TemplateKind,
 	type TemplateMarkup,
