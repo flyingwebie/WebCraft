@@ -12,4 +12,6 @@ cp .env.example .env   # then set WEBCRAFT_SECRET_KEY: openssl rand -base64 32
 bun run dev
 ```
 
+Then open the link to the setup wizard that the web process prints in its log, and create the Superadmin.
+
 WebCraft is licensed AGPL-3.0-or-later (see ADR 0012).
