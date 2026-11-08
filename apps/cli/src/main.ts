@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { EmailInUseError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
 import {
+	CONFIRM_FINGERPRINT_LENGTH,
 	ConfigError,
 	KeyRotationError,
 	loadDatabaseUrl,
@@ -32,9 +33,10 @@ Server commands (run on the server, with the Install's environment):
                      Re-encrypt every secret under a new Master key. Stop web and worker first.
                      WEBCRAFT_SECRET_KEY holds the new key; the key being replaced comes from
                      WEBCRAFT_OLD_SECRET_KEY, or from the file given with --old-key-file.
-  admin rotate-key --old-key-lost [--yes]
-                     When the old key is lost: lists the secrets that can't be decrypted any more,
-                     and with --yes deletes them and starts using the key in WEBCRAFT_SECRET_KEY.
+  admin rotate-key --old-key-lost [--confirm-fingerprint <start of fingerprint>]
+                     When the old key is lost: lists the secrets that can't be decrypted any more
+                     and the lost key's fingerprint. Given the start of that fingerprint, deletes
+                     them and starts using the key in WEBCRAFT_SECRET_KEY.
   admin create-superadmin <email> [--name <name>] [--language <en|it>]
                      Create the Superadmin of a fresh Install without the setup wizard, which then
                      closes. The password is asked twice on a terminal, or read from the first line
@@ -97,21 +99,38 @@ async function migrate(): Promise<number> {
 	return 0;
 }
 
-type RotateKeyOptions = { oldKeyFile?: string; oldKeyLost: boolean; yes: boolean };
+type RotateKeyOptions = { oldKeyFile?: string; oldKeyLost: boolean; confirmFingerprint?: string };
 
-/** Reads `[--old-key-file <path> | --old-key-lost [--yes]]`; null for anything else. */
+/**
+ * Reads `[--old-key-file <path> | --old-key-lost [--confirm-fingerprint <hex>]]`; null for
+ * anything else.
+ */
 function parseRotateKeyOptions(args: string[]): RotateKeyOptions | null {
-	const options: RotateKeyOptions = { oldKeyLost: false, yes: false };
+	const options: RotateKeyOptions = { oldKeyLost: false };
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index] ?? "";
-		if (arg === "--old-key-lost") options.oldKeyLost = true;
-		else if (arg === "--yes") options.yes = true;
-		else if (arg === "--old-key-file" && args[index + 1]) options.oldKeyFile = args[++index];
-		else if (arg.startsWith("--old-key-file=") && arg.length > "--old-key-file=".length) {
-			options.oldKeyFile = arg.slice("--old-key-file=".length);
-		} else return null;
+		const value = (name: string): string | undefined => {
+			if (arg === name && args[index + 1]) return args[++index];
+			if (arg.startsWith(`${name}=`) && arg.length > name.length + 1) return arg.slice(name.length + 1);
+			return undefined;
+		};
+		if (arg === "--old-key-lost") {
+			options.oldKeyLost = true;
+			continue;
+		}
+		const oldKeyFile = value("--old-key-file");
+		if (oldKeyFile !== undefined) {
+			options.oldKeyFile = oldKeyFile;
+			continue;
+		}
+		const confirmFingerprint = value("--confirm-fingerprint");
+		if (confirmFingerprint !== undefined) {
+			options.confirmFingerprint = confirmFingerprint;
+			continue;
+		}
+		return null;
 	}
-	return options.yes && !options.oldKeyLost ? null : options;
+	return options.confirmFingerprint !== undefined && !options.oldKeyLost ? null : options;
 }
 
 async function rotateKey(options: RotateKeyOptions): Promise<number> {
@@ -121,7 +140,7 @@ async function rotateKey(options: RotateKeyOptions): Promise<number> {
 		if (options.oldKeyFile !== undefined || process.env[OLD_MASTER_KEY_VARIABLE]) {
 			throw new ConfigError("--old-key-lost is for when the old key is lost; don't pass the old key with it.");
 		}
-		return replaceLostKey(databaseUrl, newKey, options.yes);
+		return replaceLostKey(databaseUrl, newKey, options.confirmFingerprint);
 	}
 	const oldKey = await loadOldKey(options);
 
@@ -152,17 +171,24 @@ async function rotateKey(options: RotateKeyOptions): Promise<number> {
 	}
 }
 
-async function replaceLostKey(databaseUrl: string, newKey: MasterKey, confirmed: boolean): Promise<number> {
+async function replaceLostKey(
+	databaseUrl: string,
+	newKey: MasterKey,
+	confirmFingerprint: string | undefined,
+): Promise<number> {
 	const database = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-rotate-key" });
 	try {
 		await assertSchemaCurrent(database);
-		const report = await replaceLostMasterKey({ database, to: newKey, clock: systemClock, confirmed });
+		const report = await replaceLostMasterKey({ database, to: newKey, clock: systemClock, confirmFingerprint });
 		const list = (secrets: string[]) => secrets.map((secret) => `  ${secret}\n`).join("");
 		if (report.outcome === "needs-confirmation") {
+			const confirm = report.lostFingerprint.slice(0, CONFIRM_FINGERPRINT_LENGTH);
 			process.stdout.write(
 				`Without the old Master key ${countSecrets(report.secrets.length, "these")} can't be decrypted, so they would be deleted:\n` +
 					list(report.secrets) +
-					"Run again with --yes to delete them and use the new key. Then set them again.\n",
+					`The Install's current Master key is version ${report.lostVersion}, fingerprint ${report.lostFingerprint}.\n` +
+					"WEBCRAFT_SECRET_KEY is not that key. If you still have it, or mistyped the new key, stop here: use rotate-key with the old key instead.\n" +
+					`If it is lost, run again with --confirm-fingerprint ${confirm} to delete these secrets and use the new key. Then set them again.\n`,
 			);
 			return 1;
 		}

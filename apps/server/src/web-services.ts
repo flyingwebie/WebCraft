@@ -1,12 +1,12 @@
 import {
+	assertMasterKeyMatches,
 	createLogger,
-	type InstallConfig,
 	type InstallServices,
 	loadInstallConfig,
 	loadMasterKey,
-	type MasterKey,
 	openInstall,
 } from "@webcraft/core";
+import { assertSchemaCurrent, openDatabase } from "@webcraft/db";
 
 type Cache = { webcraftWebServices?: Promise<InstallServices> };
 
@@ -25,15 +25,20 @@ export function startWebServices(env: Record<string, string | undefined> = proce
 }
 
 /**
- * Reads and checks the web process's settings, refusing to go on when one is missing or malformed
- * (including a Master key shorter than 32 characters). The production entry calls it before it
- * loads the server bundle, so a bad setting is reported first.
+ * What the production entry checks before it loads the server bundle: the settings, that the
+ * database is current, and that the Master key is the one the Install's secrets are encrypted
+ * under. A wrong setting is then reported first, in plain words.
  */
-export function loadWebSettings(env: Record<string, string | undefined>): {
-	config: InstallConfig;
-	masterKey: MasterKey;
-} {
-	return { config: loadInstallConfig(env), masterKey: loadMasterKey(env) };
+export async function checkWebSettings(env: Record<string, string | undefined>): Promise<void> {
+	const config = loadInstallConfig(env);
+	const masterKey = loadMasterKey(env);
+	const database = openDatabase(config.databaseUrl, { maxConnections: 1, applicationName: "webcraft-web" });
+	try {
+		await assertSchemaCurrent(database);
+		await assertMasterKeyMatches(database, masterKey);
+	} finally {
+		await database.close();
+	}
 }
 
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
