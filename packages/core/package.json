@@ -6,7 +6,8 @@
 	"description": "WebCraft's domain modules (secrets, setup, people, Install settings) and the ports (clock, mailer, outgoing HTTP, jobs) every process shares.",
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./admin-languages": "./src/admin-languages.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

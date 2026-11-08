@@ -1,0 +1,196 @@
+{
+	"app": {
+		"name": "WebCraft",
+		"skipToContent": "Skip to main content",
+		"pageTitle": "{page} · WebCraft"
+	},
+	"errors": {
+		"generic": "Something went wrong. Try again.",
+		"SETUP_TOKEN_INVALID": "That setup token doesn't open this Install. Copy it again from the web process's log.",
+		"SETUP_CLOSED": "This Install already has a Superadmin, so the setup wizard is closed.",
+		"PASSWORD_TOO_SHORT": "Use at least 12 characters.",
+		"PASSWORD_TOO_LONG": "Use at most 128 characters.",
+		"PASSWORD_LEAKED": "This password appears in lists of leaked passwords. Choose another one.",
+		"EMAIL_INVALID": "Enter an email address such as name@example.com.",
+		"EMAIL_IN_USE": "Another person already signs in with this email address.",
+		"INVALID_CREDENTIALS": "The email or password is wrong.",
+		"UNAUTHORIZED": "Your session has ended. Sign in again.",
+		"FORBIDDEN": "You can't do this."
+	},
+	"roles": {
+		"superadmin": "Superadmin",
+		"staff": "Staff",
+		"none": "Signed in"
+	},
+	"languages": {
+		"en": "English",
+		"it": "Italiano"
+	},
+	"setup": {
+		"pageTitle": "Setup",
+		"title": "Set up WebCraft",
+		"stepsLabel": "Setup steps",
+		"stepCount": "Step {current} of {total}",
+		"stepDone": "Done",
+		"stepCurrent": "Current step",
+		"lockNote": "This wizard locks for good once setup is finished.",
+		"back": "Back",
+		"continue": "Continue",
+		"steps": {
+			"token": {
+				"title": "Setup token",
+				"hint": "From the web process's log",
+				"doneHint": "Verified from the server log",
+				"heading": "Enter the setup token",
+				"intro": "When WebCraft started, the web process wrote a one-time setup token in its log. Copy it from there to show that you run this server.",
+				"label": "Setup token",
+				"help": "Look for the log line saying this Install has no Superadmin yet.",
+				"required": "Enter the setup token."
+			},
+			"account": {
+				"title": "Superadmin account",
+				"hint": "Who runs this Install",
+				"heading": "Create the Superadmin account",
+				"intro": "This person administers the whole Install: every Workspace, all Staff and the Install settings.",
+				"name": "Full name",
+				"language": "Admin language",
+				"email": "Email",
+				"password": "Password",
+				"passwordHelp": "At least 12 characters. You'll be asked to add a passkey or an authenticator app next.",
+				"showPassword": "Show password",
+				"hidePassword": "Hide password",
+				"create": "Create account",
+				"nameRequired": "Enter a name."
+			},
+			"twoFactor": {
+				"title": "Two-factor authentication",
+				"hint": "Passkey or authenticator app",
+				"heading": "Protect your account with two-factor authentication",
+				"intro": "A password alone can be guessed or stolen. With a passkey or an authenticator app, signing in also needs something only you have.",
+				"recommend": "The Superadmin can reach everything on this Install, so we strongly recommend it.",
+				"setUp": "Set up two-factor authentication",
+				"later": "You can also do it later from Your account."
+			}
+		},
+		"finish": "Finish setup",
+		"closed": {
+			"heading": "This Install is already set up",
+			"intro": "It has a Superadmin, so the setup wizard is closed for good.",
+			"signIn": "Go to sign in"
+		}
+	},
+	"signIn": {
+		"pageTitle": "Sign in",
+		"heading": "Sign in",
+		"headingNamed": "Sign in to {name}",
+		"email": "Email",
+		"password": "Password",
+		"submit": "Sign in"
+	},
+	"shell": {
+		"navLabel": "Admin",
+		"toggleSidebar": "Show or hide the sidebar",
+		"breadcrumbLabel": "Breadcrumb",
+		"levels": {
+			"install": "Install"
+		},
+		"switcher": {
+			"label": "Switch Workspace or Site",
+			"installSubtitle": "Install · {role}",
+			"heading": "Switch to",
+			"install": "Install"
+		},
+		"userMenu": {
+			"label": "Open the account menu",
+			"account": "Your account",
+			"signOut": "Sign out"
+		},
+		"darkTheme": "Dark theme",
+		"nav": {
+			"installGroup": "Install",
+			"installSettingsGroup": "Install settings",
+			"overview": "Overview",
+			"general": "General"
+		}
+	},
+	"masterKeyBanner": {
+		"title": "Back up your Master key",
+		"body": "WEBCRAFT_SECRET_KEY encrypts every SMTP password, AI key and API token on this Install. If it is lost, they cannot be recovered. Keep a copy somewhere other than this server.",
+		"howTo": "How to back up",
+		"confirm": "I've backed it up",
+		"confirmed": "Thanks. The banner won't show again for this key.",
+		"dialog": {
+			"title": "Back up your Master key",
+			"intro": "The Master key is never stored in the database or in a Backup, so a copy kept elsewhere is the only way to read your secrets after losing the server.",
+			"stepCopy": "On the server, copy the value of WEBCRAFT_SECRET_KEY from the Install's environment: the .env file next to your Docker Compose file, or your platform's environment variables.",
+			"stepStore": "Store it in a password manager or another safe place that is not this server and not a Backup.",
+			"stepSecret": "Keep it secret: anyone with the key and a Backup can read every stored secret.",
+			"fingerprint": "Fingerprint of the running key",
+			"fingerprintHelp": "Backups record this fingerprint, so you can tell which key a Backup needs. It reveals nothing about the key.",
+			"close": "Close"
+		}
+	},
+	"overview": {
+		"pageTitle": "Overview",
+		"heading": "Overview",
+		"intro": "You're signed in to {name} as {role}.",
+		"setupUnfinished": {
+			"heading": "Setup isn't finished",
+			"body": "A few steps of the setup wizard are left.",
+			"action": "Continue setup"
+		},
+		"nextSteps": {
+			"heading": "Next steps",
+			"twoFactor": "Add two-factor authentication to your account",
+			"general": "Name this Install and choose its default Admin language"
+		}
+	},
+	"generalSettings": {
+		"pageTitle": "General",
+		"heading": "General",
+		"intro": "Settings for the whole Install.",
+		"name": "Install name",
+		"nameHelp": "Shown at the top of the admin. Leave it empty to show WebCraft.",
+		"defaultLanguage": "Default Admin language",
+		"defaultLanguageHelp": "The language of signed-out pages and of everyone who hasn't chosen their own.",
+		"save": "Save",
+		"saved": "Saved."
+	},
+	"account": {
+		"pageTitle": "Your account",
+		"heading": "Your account",
+		"profile": {
+			"heading": "Profile",
+			"name": "Name",
+			"email": "Email",
+			"role": "Role"
+		},
+		"preferences": {
+			"heading": "Preferences",
+			"language": "Admin language",
+			"languageHelp": "The language you see the admin and your own emails in.",
+			"installDefault": "Install default ({language})",
+			"theme": "Appearance",
+			"themeSystem": "Same as this device",
+			"themeLight": "Light",
+			"themeDark": "Dark",
+			"save": "Save",
+			"saved": "Saved."
+		},
+		"twoFactor": {
+			"heading": "Two-factor authentication",
+			"status": "Not set up",
+			"body": "Add a passkey or an authenticator app, so signing in also needs something only you have."
+		}
+	},
+	"notFound": {
+		"pageTitle": "Page not found",
+		"heading": "Page not found",
+		"body": "There is nothing at this address.",
+		"home": "Go to the admin"
+	},
+	"forbidden": {
+		"heading": "You can't open this page",
+		"body": "Only the Superadmin can open it."
+	}
+}

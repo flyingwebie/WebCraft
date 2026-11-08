@@ -15,7 +15,8 @@
 		"@webcraft/db": "workspace:*",
 		"@webcraft/server": "workspace:*",
 		"pg": "catalog:",
-		"pg-boss": "catalog:"
+		"pg-boss": "catalog:",
+		"use-intl": "^4.14.9"
 	},
 	"devDependencies": {
 		"@axe-core/playwright": "4.14.0",

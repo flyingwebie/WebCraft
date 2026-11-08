@@ -19,7 +19,7 @@ export const shell = {
 			person: person ? personView(person) : null,
 			language: { code, dir: adminLanguageDirection(code) },
 			theme: person?.adminTheme ?? "system",
-			install: { name: settings.name },
+			install: { name: settings.name, defaultAdminLanguage: settings.defaultAdminLanguage },
 			banners: { masterKey: masterKeyBanner },
 		};
 	}),

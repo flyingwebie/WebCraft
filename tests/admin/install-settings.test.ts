@@ -22,7 +22,10 @@ describe("Install settings › General", () => {
 		await browser.api.install.settings.update({ name: "  Northwind Studio " });
 
 		expect(await browser.api.install.settings.get()).toEqual({ name: "Northwind Studio", defaultAdminLanguage: "en" });
-		expect((await install.browser().api.shell.context()).install).toEqual({ name: "Northwind Studio" });
+		expect((await install.browser().api.shell.context()).install).toEqual({
+			name: "Northwind Studio",
+			defaultAdminLanguage: "en",
+		});
 	});
 
 	test("clearing the name shows no name again", async () => {

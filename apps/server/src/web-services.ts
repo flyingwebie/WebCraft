@@ -39,5 +39,7 @@ export function loadWebSettings(env: Record<string, string | undefined>): {
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
 	const log = createLogger({ fields: { process: "web" } });
 	const { services } = await openInstall({ env, processName: "web", log });
+	// On an Install with no Superadmin, prints the setup token that unlocks the setup wizard.
+	await services.setup.announce();
 	return services;
 }

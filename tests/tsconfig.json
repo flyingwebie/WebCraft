@@ -1,7 +1,8 @@
 {
 	"extends": "@webcraft/config/tsconfig.base.json",
 	"compilerOptions": {
-		"types": ["bun"]
+		"types": ["bun"],
+		"lib": ["ES2023", "DOM", "DOM.Iterable"]
 	},
 	"include": ["**/*.ts"],
 	"exclude": ["node_modules"]
