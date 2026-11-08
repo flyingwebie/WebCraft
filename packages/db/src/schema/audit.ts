@@ -3,8 +3,9 @@ import { bigint, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-or
 
 /**
  * The Audit log: who did what, where, when and how they came in. Append-only: rows are inserted
- * and never changed (a trigger refuses updates). It has no foreign keys on purpose, so an entry
- * outlives the person, Workspace or Site it mentions.
+ * and never changed (triggers in the migration `audit-log-append-only` refuse updates and
+ * truncation; deleting old entries stays possible for retention). It has no foreign keys on
+ * purpose, so an entry outlives the person, Workspace or Site it mentions.
  */
 export const auditLog = pgTable(
 	"audit_log",
