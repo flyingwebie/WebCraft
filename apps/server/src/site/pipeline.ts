@@ -3,6 +3,9 @@ import { canonicalPath, type InstallServices, normaliseHostname, pathSegments, t
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
+/** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
+const MODULE_ROUTES = "/_wc/m";
+
 export type SitePipelineOptions = {
 	/** The page cache; a new one holding the default amount unless given. */
 	pageCache?: PageCache;
@@ -14,9 +17,13 @@ export type SitePipelineOptions = {
  * answers the page at the URL from the page cache, rendering and keeping it on a miss. Hostnames that
  * are no Site's get the unbranded 404, and nothing here ever reaches the admin.
  *
- * Steps still to come, in order: Redirect domains and rules, language prefixes and domains, reserved
- * paths (`/_webcraft/…`, `/_media/…`, `/_content/v1/…`), special files (`sitemap.xml`, `robots.txt`,
- * `llms.txt`), then the Entry by URL pattern, and the Site's 404 page and 404 log.
+ * Modules' Site routes (`/_wc/m/<route prefix>/…`) go to the Module host, which answers them where
+ * the Module runs; they are never cached.
+ *
+ * Steps still to come, in order: Redirect domains and rules, language prefixes and domains, the
+ * other reserved paths (`/_webcraft/…`, `/_media/…`, `/_content/v1/…`), special files
+ * (`sitemap.xml`, `robots.txt`, `llms.txt`), then the Entry by URL pattern, and the Site's 404 page
+ * and 404 log.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();
@@ -24,6 +31,13 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		const url = new URL(request.url);
 		const host = await services.sitePages.resolveHost(normaliseHostname(url.hostname));
 		if (!host) return notFound();
+		if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
+			// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
+			const answer = await services.modules.answerSiteRoute(host.site, request);
+			if (!answer) return siteNotFound(host);
+			for (const [name, value] of Object.entries(addressHeaders(host))) answer.headers.set(name, value);
+			return answer;
+		}
 		return readOnly(request, async () => {
 			const segments = pathSegments(url.pathname);
 			if (!segments) return siteNotFound(host);

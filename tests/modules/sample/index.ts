@@ -128,6 +128,13 @@ export const sample = defineModule({
 				},
 			}),
 		},
+		broken: procedure({
+			permission: "notes.view",
+			input: z.object({}),
+			async run() {
+				throw new Error("The sample's broken procedure broke, as it should.");
+			},
+		}),
 		probe: procedure({
 			permission: "notes.edit",
 			input: z.object({ attempt: z.enum(PROBES) }),
@@ -183,7 +190,8 @@ export const sample = defineModule({
 	adminPages: [{ path: "notes", label: { en: "Notes", it: "Note" }, permission: "notes.view" }],
 	events: {
 		async "entry.published"(event, context) {
-			await addNote(context, `Entry ${event.data.entryId} was published.`, "module");
+			const note = await addNote(context, `Entry ${event.data.entryId} was published.`, "module");
+			await context.audit("note.add", { noteId: note.id, entryId: event.data.entryId });
 			const token = await context.secrets.describe("hook-token");
 			const response = await context.http(SAMPLE_HOOK, {
 				method: "POST",
@@ -192,6 +200,7 @@ export const sample = defineModule({
 					...(token.set ? { authorization: `Bearer ${context.secrets.placeholder("hook-token")}` } : {}),
 				},
 				body: JSON.stringify({ entryId: event.data.entryId, siteId: event.siteId }),
+				timeoutMs: 2000,
 			});
 			if (!response.ok) throw new Error(`The hook answered ${response.status}.`);
 		},

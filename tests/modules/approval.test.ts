@@ -231,6 +231,81 @@ describe("withdrawing an approval", () => {
 });
 
 describe("Modules WebCraft can't run", () => {
+	const routes = sample.siteRoutes ?? [];
+	const broken: [string, ModuleDefinition, string][] = [
+		[
+			"a procedure needing a Permission the manifest doesn't declare",
+			{ ...sample, procedures: { notes: { delete: { ...sample.procedures.notes.add, permission: "notes.delete" } } } },
+			"needs the Permission notes.delete, which the manifest doesn't declare",
+		],
+		[
+			"Site routes without a route prefix",
+			{ ...sample, manifest: { ...sample.manifest, routePrefix: undefined } },
+			"no routePrefix",
+		],
+		[
+			"Site routes on a Workspace-level Module",
+			{ ...sampleBoard, siteRoutes: routes },
+			"Only Site-level Modules answer on Sites",
+		],
+		[
+			"a table outside its own schema",
+			{ ...sampleBoard, tables: sample.tables },
+			"isn't in the Module's own schema, m_sample_board",
+		],
+		[
+			"an extension point that comes later",
+			{ ...sampleBoard, blockTypes: [{} as never] },
+			"Block types come in a later version",
+		],
+		[
+			"an event WebCraft doesn't have",
+			{ ...sampleBoard, events: { "entry.saved": async () => {} } as never },
+			"no event",
+		],
+		[
+			"migrations that don't sort oldest first",
+			{
+				...sampleBoard,
+				migrations: [
+					{ name: "0002-later", sql: "SELECT 1;" },
+					{ name: "0001-earlier", sql: "SELECT 1;" },
+				],
+			},
+			"doesn't sort after 0002-later",
+		],
+		[
+			"words missing in a language it declares",
+			{ ...sample, manifest: { ...sample.manifest, name: { en: "Sample notes" } } },
+			"Words are missing in it",
+		],
+	];
+
+	for (const [what, definition, reason] of broken) {
+		test(`lists ${what} with the reason`, async () => {
+			const refused = await createTestInstall({ modules: [definition] });
+			try {
+				const { modules } = await (await refused.superadmin()).api.modules.list();
+				expect(modules[0]?.status).toBe("cannot-run");
+				expect(modules[0]?.problem).toContain(reason);
+			} finally {
+				await refused.close();
+			}
+		});
+	}
+
+	test("a second Module with the same id can't run", async () => {
+		const twice = await createTestInstall({
+			modules: [sample, { ...sample, manifest: { ...sample.manifest, routePrefix: "other" } }],
+		});
+		try {
+			const { modules } = await (await twice.superadmin()).api.modules.list();
+			expect(modules.map((module) => module.status)).toEqual(["waiting", "cannot-run"]);
+		} finally {
+			await twice.close();
+		}
+	});
+
 	test("a definition that breaks a rule is listed with the reason, and can't be approved", async () => {
 		const broken: ModuleDefinition = {
 			...sample,

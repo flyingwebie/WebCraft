@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
+import { languageOf } from "./modules.ts";
 
 /** Sites: the websites of a Workspace. */
 export const sites = {
@@ -14,10 +15,12 @@ export const sites = {
 
 	/**
 	 * One Site, its Workspace, the Permissions the person holds on it (the admin shows what they may
-	 * do), and its Staging address (null when the Install has no sites domain).
+	 * do), its Staging address (null when the Install has no sites domain), and the admin pages of the
+	 * Modules running on it that the person may open.
 	 */
 	get: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
-		const { site, workspace } = await context.services.data.site(context.access, input.siteId, "site.view");
+		const scope = await context.services.data.site(context.access, input.siteId, "site.view");
+		const { site, workspace } = scope;
 		const permissions = permissionsOn(context.access.actor, {
 			level: "site",
 			workspaceId: workspace.id,
@@ -28,6 +31,7 @@ export const sites = {
 			workspace: { id: workspace.id, name: workspace.name },
 			permissions,
 			stagingUrl: context.services.sites.stagingUrl(site),
+			modulePages: await context.services.modules.pages(scope, await languageOf(context.services, context.person)),
 		};
 	}),
 

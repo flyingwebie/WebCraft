@@ -21,7 +21,7 @@ export type GuardedFetch = (request: Request, options: GuardedFetchOptions) => P
 export type GuardedFetchOptions = {
 	/** The host names that may be called, in lower case. */
 	allowedHosts: readonly string[];
-	/** At most 3. */
+	/** At most 3 (the default); 0 hands a redirect back without following it. */
 	maxRedirects?: number;
 	timeoutMs?: number;
 	maxBytes?: number;
@@ -101,7 +101,8 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 					throw new GuardedFetchError("unreachable", `${hop.url.host} didn't answer.`, { cause: error });
 				}
 				const location = response.headers.get("location");
-				if (!REDIRECTS.has(response.status) || location === null) {
+				// With no redirects allowed, a redirect is handed back as it is, for the caller to read.
+				if (!REDIRECTS.has(response.status) || location === null || maxRedirects === 0) {
 					return await Promise.race([readLimited(response, maxBytes), aborted]);
 				}
 				await response.body?.cancel();

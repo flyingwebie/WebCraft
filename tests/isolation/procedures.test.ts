@@ -2,16 +2,22 @@
 // Workspace's data. Each procedure gets one line here; the last test fails when one is missing.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { traverseContractProcedures } from "@orpc/server";
-import { apiRouter } from "@webcraft/api";
+import { type ApiClient, apiRouter } from "@webcraft/api";
+import type { ModuleApi } from "@webcraft/module-sdk";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { element, tree, value } from "../harness/trees.ts";
+import { sampleBoard } from "../modules/sample/board.ts";
+import { sample } from "../modules/sample/index.ts";
 
 let install: TestInstall;
 
 beforeAll(async () => {
-	install = await createTestInstall();
+	install = await createTestInstall({ modules: [sample, sampleBoard] });
+	const admin = await install.superadmin();
+	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
 });
 
 afterAll(async () => {
@@ -198,6 +204,52 @@ describe("Members", () => {
 	isolation.refuses(
 		"members.remove",
 		async (api, { workspaceId }) => api.members.remove({ workspaceId, personId: await memberOf(workspaceId) }),
+		{ as: ["staff", "owner"] },
+	);
+});
+
+/** A Module's procedures, from the person's Management API (`m.<module id>`). */
+function moduleOf<Definition extends typeof sample | typeof sampleBoard>(api: ApiClient, moduleId: string) {
+	return (api as unknown as { m: Record<string, ModuleApi<Definition>> }).m[moduleId] as ModuleApi<Definition>;
+}
+
+/** Switches the sample board on in the Workspace, as the Superadmin. */
+async function boardOn(workspaceId: string): Promise<void> {
+	const admin = await install.superadmin();
+	await admin.api.modules.setOnWorkspace({ workspaceId, moduleId: "sample-board", on: true });
+}
+
+describe("Modules", () => {
+	isolation.refuses("modules.siteList", (api, { siteId }) => api.modules.siteList({ siteId }));
+	isolation.refuses("modules.workspaceList", (api, { workspaceId }) => api.modules.workspaceList({ workspaceId }));
+	isolation.refuses("modules.setOnSite", (api, { siteId }) =>
+		api.modules.setOnSite({ siteId, moduleId: "sample", on: true }),
+	);
+	isolation.refuses("modules.setOnWorkspace", (api, { workspaceId }) =>
+		api.modules.setOnWorkspace({ workspaceId, moduleId: "sample-board", on: false }),
+	);
+	isolation.refuses("modules.removeSiteData", (api, { siteId }) =>
+		api.modules.removeSiteData({ siteId, moduleId: "sample" }),
+	);
+	isolation.refuses("modules.removeWorkspaceData", (api, { workspaceId }) =>
+		api.modules.removeWorkspaceData({ workspaceId, moduleId: "sample-board" }),
+	);
+	isolation.refuses(
+		"m.sample.notes.list",
+		(api, { siteId }) => moduleOf<typeof sample>(api, "sample").notes.list({ siteId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"m.sample.notes.add",
+		(api, { siteId }) => moduleOf<typeof sample>(api, "sample").notes.add({ siteId, body: "Ours" }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.sample-board.pins.add",
+		async (api, { workspaceId }) => {
+			await boardOn(workspaceId);
+			return moduleOf<typeof sampleBoard>(api, "sample-board").pins.add({ workspaceId, text: "Ours" });
+		},
 		{ as: ["staff", "owner"] },
 	);
 });
