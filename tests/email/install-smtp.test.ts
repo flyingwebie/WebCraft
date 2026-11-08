@@ -14,9 +14,11 @@ afterAll(async () => {
 	await install.close();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
 	install.mail.clear();
 	install.mail.accept();
+	// Each test's emails are newer than the last test's, so "newest first" picks them.
+	await install.clock.advance(1_000);
 });
 
 const SMTP = {

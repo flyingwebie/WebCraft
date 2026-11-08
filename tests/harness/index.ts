@@ -34,6 +34,7 @@ export { API_PATH, type TestBrowser } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
+export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
 
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
