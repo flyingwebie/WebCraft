@@ -6,6 +6,7 @@ import type { OutgoingHttp } from "./http.ts";
 import type { JobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import type { Mailer } from "./mailer.ts";
+import type { Secrets } from "./secrets/store.ts";
 
 /**
  * Everything a running Install's code works with. The web process, the worker and the test
@@ -16,6 +17,8 @@ export type InstallServices = {
 	database: Database;
 	jobs: JobQueue;
 	mailer: Mailer;
+	/** Every stored secret, encrypted under the Master key; write-only. */
+	secrets: Secrets;
 	http: OutgoingHttp;
 	clock: Clock;
 	log: Logger;

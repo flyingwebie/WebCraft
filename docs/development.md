@@ -10,8 +10,8 @@ A Bun-workspaces monorepo, scaffolded once with Better-T-Stack (TanStack Start, 
 | --- | --- | --- |
 | `apps/server` | The web process. One request handler routes every request by hostname: the admin host to the admin side (the TanStack Start admin, `/healthz`, `/readyz`, later `/api/v1`, `/mcp`, OAuth and the Caddy ask endpoint), every other hostname to the Site pipeline. | Bun 1.4 |
 | `apps/worker` | The worker: runs pg-boss jobs. | Node LTS |
-| `apps/cli` | The `webcraft` command (`webcraft admin migrate` for now). | Bun |
-| `packages/core` | Domain modules and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
+| `apps/cli` | The `webcraft` command (`webcraft admin migrate` and `webcraft admin rotate-key` for now). | Bun |
+| `packages/core` | Domain modules (secrets so far) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, job definitions, `InstallServices`. | both |
 | `packages/db` | Postgres: Drizzle schema and migrations, connections, the migrate step, the schema check, the pg-boss job queue. | both |
 | `packages/auth` | WebCraft's auth interface, with Better Auth behind it (placeholder). | both |
 | `packages/api` | The Management API: oRPC procedures (placeholder). | both |
@@ -37,16 +37,19 @@ You need Bun 1.4, Node 22.18 or later (CI and the images use the current LTS), a
 
 ```sh
 bun install
-cp .env.example .env     # then set DATABASE_URL (see "Databases" below)
+cp .env.example .env     # then set DATABASE_URL (see "Databases" below) and WEBCRAFT_SECRET_KEY
 bun run dev
 ```
 
+Make the Master key for `WEBCRAFT_SECRET_KEY` with `openssl rand -base64 32` (see "Secrets and the Master key").
+
 `bun run dev` does everything in one go:
 
-1. Checks that Postgres answers at `DATABASE_URL`. Only when it doesn't, and the host is this machine, it starts `docker-compose.dev.yml` with the user, password and port from `DATABASE_URL`. A server that already answers is never touched.
-2. Creates the database named in `DATABASE_URL` if it's missing.
-3. Runs the migrate step.
-4. Starts the web process (`vite dev` on Bun, port `PORT`) and the worker (Node, restarting when its files change). Ctrl-C stops both.
+1. Checks the settings web and worker need, and stops with the reason when one is missing or malformed.
+2. Checks that Postgres answers at `DATABASE_URL`. Only when it doesn't, and the host is this machine, it starts `docker-compose.dev.yml` with the user, password and port from `DATABASE_URL`. A server that already answers is never touched.
+3. Creates the database named in `DATABASE_URL` if it's missing.
+4. Runs the migrate step.
+5. Starts the web process (`vite dev` on Bun, port `PORT`) and the worker (Node, restarting when its files change). Ctrl-C stops both.
 
 Open `http://admin.localhost:3000/` for the admin. Every other hostname is a Site; names under `.localhost` reach your machine without DNS changes, so `http://shop.localhost:3000/` is a Site hostname (an unknown one, for now). Vite refuses hostnames outside `.localhost` in development.
 
@@ -75,11 +78,13 @@ Run every command from the repo root: Bun loads `.env` from the directory it run
 | `DATABASE_URL` | all | The Install's Postgres database. Tests derive their database names from it. |
 | `WEBCRAFT_ADMIN_HOST` | web, worker | The admin's hostname, without scheme or port (`admin.example.com`). Reserved: it never resolves to a Site. |
 | `PORT` | web | The web process's port (default 3000). |
+| `WEBCRAFT_SECRET_KEY` | web, worker, `rotate-key` | The Master key, at least 32 characters (`openssl rand -base64 32`). It encrypts every stored secret. Keep a copy outside the server. |
+| `WEBCRAFT_OLD_SECRET_KEY` | `rotate-key` | The Master key being replaced, only while `webcraft admin rotate-key` runs. |
 | `WEBCRAFT_DENYLIST` | denylist check | The denylist itself, one pattern per line. CI fills it from the `REFERENCE_DENYLIST` secret. |
 | `WEBCRAFT_DENYLIST_FILE` | denylist check | The path of a file holding the denylist, kept outside the repo. |
 | `CI` | denylist check | When set, a missing denylist fails the check instead of skipping it. |
 
-Web and worker refuse to start when a setting is missing or malformed, and when the database is behind (see "Migrations").
+Web and worker refuse to start when a setting is missing or malformed (a Master key that is missing or shorter than 32 characters prints the `openssl rand -base64 32` command), when the database is behind (see "Migrations"), and when `WEBCRAFT_SECRET_KEY` isn't the Install's current Master key (see "Secrets and the Master key").
 
 ## Databases
 
@@ -118,6 +123,55 @@ Jobs are defined in `packages/core/src/jobs/` with `defineJob({ name, payload, q
 - `run(payload, services)` gets the same `InstallServices` as the web process: use `services.clock`, `services.mailer`, `services.http` and `services.log`, never `Date.now()`, `fetch` or `console` directly.
 - Enqueue with `services.jobs.send(job, payload, { startAfter })`.
 
+## Secrets and the Master key
+
+Every secret (SMTP passwords, AI keys, CDN tokens, Webhook and CAPTCHA secrets) goes through `services.secrets` (`packages/core/src/secrets/`). Secrets are write-only: code gets a value only inside a callback, and people see only "set" and its last 4 characters.
+
+```ts
+const password = { owner: { kind: "site", workspaceId, siteId }, name: "smtp.password" } as const;
+
+await services.secrets.set(password, value);                      // stores or replaces it
+await services.secrets.useWith(password, (value) => smtp.login(user, value));
+await services.secrets.describe(password);                        // { set: true, lastFour: "…", updatedAt } or { set: false }
+await services.secrets.remove(password);
+```
+
+- **Owners**: a secret belongs to the Install (`{ kind: "install" }`: Install SMTP, shared AI keys), a Workspace (`{ kind: "workspace", workspaceId }`) or a Site (`{ kind: "site", workspaceId, siteId }`). A name is unique within its owner: 1 to 200 letters, digits and `.:_-`, such as `smtp.password` or `webhook:<id>:signing`.
+- **No read-back**: there is no function that returns a value. `useWith` refuses a callback that returns the value (or a string holding it), so fill the secret into the call inside the callback and return the call's result. Never log a value, put it in a job payload or send it to the browser. `describe` shows no characters of a secret shorter than 16 characters, so never more than a quarter of one shows.
+- **Errors**: `useWith` throws `SecretNotSetError` for a secret nobody set, and `useWith` and `describe` throw `SecretUnreadableError` for one that was changed outside WebCraft. Messages name the secret, never its value.
+- **Encryption**: AES-256-GCM, with a random 12-byte nonce per value, under a key derived with HKDF-SHA256 from the Master key and the secret's key version. The authenticated data binds each ciphertext to its owner and name, so a ciphertext copied into another row can't be decrypted there. Only Web Crypto is used, so the same code runs on Bun and Node.
+- **Key versions**: the table `master_key_versions` holds the fingerprint of every Master key the Install has had (never a key). The Install's first secret records its key as version 1; each rotation adds the next. Every secret stores the version it is encrypted under.
+- **Fingerprint**: `masterKey.fingerprint()` (a `MasterKey` comes from `loadMasterKey(env)` or `parseMasterKey(value, source)`) is a one-way value, 64 hexadecimal characters, safe to store and show. Backup manifests carry it, and restore compares it with the running key (ADR 0032).
+- **Start-up**: web and worker read the key with `loadMasterKey`, then open secrets with `openSecrets`, which refuses a key that isn't the Install's current one. An Install with no secrets yet accepts any key.
+
+### Rotating the Master key
+
+`webcraft admin rotate-key` decrypts every secret with the old key and encrypts it again under the new key as the next key version, in one transaction. If any secret can't be decrypted, nothing changes and the command lists it. The new key goes where web and worker will read it from afterwards, `WEBCRAFT_SECRET_KEY`; the key being replaced is passed once, in `WEBCRAFT_OLD_SECRET_KEY` or a file.
+
+1. Make the new key: `openssl rand -base64 32`. Store a copy outside the server.
+2. Stop web and worker.
+3. Put the new key in `WEBCRAFT_SECRET_KEY` in the Install's environment.
+4. Run the command in that environment, with the old key:
+
+   ```sh
+   WEBCRAFT_OLD_SECRET_KEY='<old key>' webcraft admin rotate-key
+   # or: webcraft admin rotate-key --old-key-file /run/secrets/old-master-key
+   ```
+
+   It prints how many secrets it re-encrypted, the new key version and the new key's fingerprint.
+5. Start web and worker. Then remove the old key from wherever you passed it; it opens nothing any more.
+
+Running the command again after it finished changes nothing. It refuses a new key the Install used before, and an old key that isn't the current one. Web or worker left running with the old key can no longer read or write secrets, and both refuse to start again until they have the new key, naming the key version they need.
+
+### When the Master key is lost
+
+Secrets can't be recovered without their Master key, and web and worker refuse to start with any other key while secrets exist. To start again with a new key, deleting every secret:
+
+1. Make a new key with `openssl rand -base64 32` and put it in `WEBCRAFT_SECRET_KEY`.
+2. `webcraft admin rotate-key --old-key-lost` lists the secrets that would be deleted and changes nothing.
+3. `webcraft admin rotate-key --old-key-lost --yes` deletes them and makes the new key the next key version. It refuses when `WEBCRAFT_SECRET_KEY` is still the current key.
+4. Start web and worker, and set the listed secrets again.
+
 ## Testing
 
 Tests live in `tests/`, grouped by area, and run with `bun test` from the repo root. They test at the spec's seams and check what a person, visitor or client would observe: HTTP responses, emails that went out, outgoing calls, job outcomes and later responses. They never import internal functions or read tables directly; refactoring without changing behaviour must not break a test.
@@ -126,6 +180,9 @@ Tests live in `tests/`, grouped by area, and run with `bun test` from the repo r
 
 | Part | What it does |
 | --- | --- |
+| `install.secrets` | The Install's secrets (`set`, `useWith`, `describe`, `remove`), encrypted under its Master key. |
+| `install.env` | The environment a real process needs to run as this Install: `DATABASE_URL`, `WEBCRAFT_ADMIN_HOST` and `WEBCRAFT_SECRET_KEY`. |
+| `install.restart({ masterKey })` | Starts the Install again with another Master key, running web's and worker's start-up check; rejects with the same error when they would refuse. |
 | `install.request(url, init)` | Sends a standard `Request` through the handler, in process. Always use a full URL: the hostname decides where it goes. `install.adminUrl("/healthz")` builds admin-host URLs (`https://admin.test/...`). |
 | `install.jobs.send(job, payload)` | Enqueues a job as the web process would. |
 | `install.drainJobs()` | Runs every job that is due by the test clock, including jobs those jobs enqueue, and returns `{ completed, failed }`. |
@@ -135,7 +192,7 @@ Tests live in `tests/`, grouped by area, and run with `bun test` from the repo r
 | `install.logs` | Every log entry the Install wrote. |
 | `install.close()` | Stops the Install and drops its database. |
 
-`createTestInstall({ database: "empty" })` gives an Install whose database nobody migrated, and `{ database: "unreachable" }` one whose database doesn't answer.
+`createTestInstall({ database: "empty" })` gives an Install whose database nobody migrated, and `{ database: "unreachable" }` one whose database doesn't answer. Every test Install starts with the Master key `TEST_MASTER_KEY` unless you pass `{ masterKey }`; tests never use the key in `.env`.
 
 A seam-1 test:
 
@@ -164,7 +221,7 @@ test("the sample job emails the status of a URL", async () => {
 });
 ```
 
-`tests/worker/sample-job.test.ts` uses every part of the harness; `tests/web/health.test.ts` shows the database modes. Tests in one file share their Install, so give each test its own data (its own Workspace, its own email address) or create an Install per test when they must not see each other. `tests/worker/node-worker.test.ts` starts the real worker with `node`, the way to check something runs on Node.
+`tests/worker/sample-job.test.ts` uses every part of the harness; `tests/web/health.test.ts` shows the database modes. Tests in one file share their Install, so give each test its own data (its own Workspace, its own email address) or create an Install per test when they must not see each other. `tests/worker/node-worker.test.ts` starts the real worker with `node`, the way to check something runs on Node; give it `install.env`. Start a real `bun` process (the CLI, the web entry) in an empty directory when a test leaves a setting out on purpose: Bun fills missing variables from the `.env` in the directory it starts in (see `tests/secrets/start-refusal.test.ts`).
 
 **Seam 2** (a browser, for accessibility and the editors) arrives with the admin screens.
 
@@ -174,6 +231,7 @@ test("the sample job emails the status of a URL", async () => {
 - **TypeScript**: strict, with explicit `.ts`/`.tsx` extensions on relative imports and only erasable syntax (no `enum`, `namespace` or parameter properties). That lets Node run shared code and the worker without a build step.
 - **Runtimes** (ADR 0006): `packages/*` and `apps/worker` use standard Web and Node APIs only; Biome rejects the `Bun` global and `bun:*` imports there, and their tsconfigs don't load Bun's types. `apps/server`, `apps/cli`, `tests` and `scripts` may use Bun.
 - **Edges go through ports**: time through `Clock`, email through `Mailer`, calls to other servers through `services.http`. Tests replace them with fakes; nothing else is faked.
+- **Secrets** go through `services.secrets` only: never in another table, a log line, a job payload or a response (see "Secrets and the Master key").
 - **Workspace data** goes through the Workspace-scoped data layer and the `can()` check once they exist (ADR 0007); no query without a Workspace.
 - **Errors**: Site visitors and unknown hostnames see plain, unbranded answers. Unexpected errors are logged and answered with a plain 500.
 - **Logs**: JSON lines through `Logger` (`services.log`), with fields rather than values pasted into the message.

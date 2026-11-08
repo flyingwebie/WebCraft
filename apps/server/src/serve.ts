@@ -3,6 +3,8 @@
 // It serves the bundle `vite build` made from src/server.ts on Bun.
 import { createLogger } from "@webcraft/core";
 
+import { loadWebSettings } from "./web-services.ts";
+
 type ServerEntry = { fetch(request: Request): Response | Promise<Response> };
 
 const log = createLogger({ fields: { process: "web" } });
@@ -10,7 +12,9 @@ const bundle = new URL("../dist/server/server.js", import.meta.url);
 
 let entry: ServerEntry;
 try {
-	// Loading the bundle starts the services; it fails on a missing setting or an old schema.
+	// A missing or malformed setting is reported before anything else is loaded.
+	loadWebSettings(process.env);
+	// Loading the bundle starts the services; it fails on an old schema too.
 	entry = (await import(bundle.href)).default;
 } catch (error) {
 	log.error("The web process could not start", { error });

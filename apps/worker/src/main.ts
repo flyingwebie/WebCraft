@@ -8,6 +8,8 @@ import {
 	fetchHttp,
 	type InstallServices,
 	loadInstallConfig,
+	loadMasterKey,
+	openSecrets,
 	systemClock,
 	workJobs,
 } from "@webcraft/core";
@@ -38,8 +40,10 @@ async function main(): Promise<void> {
 	process.once("SIGINT", stop);
 
 	const config = loadInstallConfig(process.env);
+	const masterKey = loadMasterKey(process.env);
 	running.database = openDatabase(config.databaseUrl, { applicationName: "webcraft-worker" });
 	await assertSchemaCurrent(running.database);
+	const secrets = await openSecrets({ database: running.database, masterKey, clock: systemClock });
 
 	const boss = createBoss(config.databaseUrl, { application_name: "webcraft-worker", instanceName: "worker" });
 	boss.on("error", (error) => log.error("The job queue reported an error", { error }));
@@ -52,6 +56,7 @@ async function main(): Promise<void> {
 		jobs: createJobQueue(boss),
 		// Until Install SMTP exists, emails are written to the log with a warning.
 		mailer: createLogMailer(log),
+		secrets,
 		http: fetchHttp,
 		clock: systemClock,
 		log,

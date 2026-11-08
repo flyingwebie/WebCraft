@@ -11,4 +11,5 @@ export { fetchHttp, type OutgoingHttp } from "./http.ts";
 export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
 export { createLogMailer, type Mailer, type OutgoingEmail } from "./mailer.ts";
+export * from "./secrets/index.ts";
 export type { InstallServices } from "./services.ts";

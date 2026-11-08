@@ -8,7 +8,7 @@ To run it locally and contribute, see [`docs/development.md`](docs/development.m
 
 ```sh
 bun install
-cp .env.example .env
+cp .env.example .env   # then set WEBCRAFT_SECRET_KEY: openssl rand -base64 32
 bun run dev
 ```
 
