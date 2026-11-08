@@ -17,6 +17,9 @@ const BUNDLE = join(ROOT, "apps/server/dist/server/server.js");
 /** Chromium sends every `*.localhost` name to this machine, so the admin needs no DNS. */
 const ADMIN_HOST = "admin.localhost";
 
+/** The domain Sites' Staging addresses sit under: a Site with the slug `bakery` is `bakery.sites.localhost`. */
+const SITES_DOMAIN = "sites.localhost";
+
 export type Theme = "light" | "dark";
 
 const PAGE_ERRORS = new WeakMap<Page, string[]>();
@@ -36,6 +39,8 @@ export type BrowserInstall = {
 	install: TestInstall;
 	/** A URL on the admin, such as `adminUrl("/setup")`. */
 	adminUrl(path: string): string;
+	/** A URL on a Site's Staging address, such as `siteUrl("bakery", "/blog/fresh-bread")`. */
+	siteUrl(siteSlug: string, path: string): string;
 	/** The setup token the web process printed in its log when it started. */
 	setupToken(): string;
 	/** Creates the Superadmin without the wizard (as `webcraft admin create-superadmin` does). */
@@ -102,6 +107,7 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 	return {
 		install,
 		adminUrl: (path) => new URL(path, origin).toString(),
+		siteUrl: (siteSlug, path) => new URL(path, `http://${siteSlug}.${SITES_DOMAIN}:${port}`).toString(),
 		setupToken() {
 			const token = logs.findLast((entry) => typeof entry.setupToken === "string")?.setupToken;
 			if (typeof token !== "string") throw new Error("The web process printed no setup token.");
@@ -175,6 +181,7 @@ function startWeb(install: TestInstall, port: number, logs: Record<string, unkno
 			PATH: process.env.PATH ?? "",
 			DATABASE_URL: install.databaseUrl,
 			WEBCRAFT_ADMIN_HOST: ADMIN_HOST,
+			WEBCRAFT_SITES_DOMAIN: SITES_DOMAIN,
 			WEBCRAFT_SECRET_KEY: TEST_MASTER_KEY,
 			PORT: String(port),
 		},

@@ -182,10 +182,7 @@ const outletCommand: TemplateCommand<OutletNode> = {
 };
 
 /** Every Template command there is. */
-export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
-	ifCommand as TemplateCommand,
-	outletCommand as TemplateCommand,
-];
+export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [ifCommand, outletCommand];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
 export const RESERVED_COMMANDS: ReadonlySet<string> = new Set([
