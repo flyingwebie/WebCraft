@@ -35,7 +35,7 @@
 		"test": "bun test",
 		"lint": "biome ci .",
 		"format": "biome check --write .",
-		"typecheck": "turbo run typecheck",
+		"typecheck": "turbo run typecheck && tsc -p tsconfig.json",
 		"db:migrate": "bun apps/cli/src/main.ts admin migrate",
 		"db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
 		"db:studio": "drizzle-kit studio --config packages/db/drizzle.config.ts",

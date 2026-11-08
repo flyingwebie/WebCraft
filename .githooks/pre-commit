@@ -1,0 +1,4 @@
+#!/bin/sh
+# Opt-in hook: `git config core.hooksPath .githooks`. Checks staged files against the
+# reference-material denylist (see docs/development.md).
+exec sh "$(git rev-parse --show-toplevel)/scripts/check-denylist.sh" --staged
