@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
-import { SetupClosedError, SetupStageError, SetupTokenInvalidError } from "@webcraft/core";
+import { EmailAlwaysSentError, SetupClosedError, SetupStageError, SetupTokenInvalidError } from "@webcraft/core";
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -30,6 +30,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EmailInUseError) {
 		return new ORPCError("EMAIL_IN_USE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof EmailAlwaysSentError) {
+		return new ORPCError("EMAIL_ALWAYS_SENT", {
+			status: 400,
+			message: error.message,
+			data: { types: error.types },
+			cause: error,
+		});
 	}
 	if (error instanceof InvalidCredentialsError) {
 		return new ORPCError("INVALID_CREDENTIALS", { status: 401, message: error.message, cause: error });

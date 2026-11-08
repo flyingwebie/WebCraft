@@ -42,6 +42,18 @@ for (const theme of THEMES) {
 			await page.locator("form button[type=submit]").click();
 			await page.getByRole("heading", { level: 1, name: /two-factor/i }).waitFor();
 			await expectAccessibleScreen(page, `two-factor step (${theme})`);
+
+			await page.getByRole("button", { name: "Continue" }).click();
+			await page.getByRole("heading", { level: 1, name: "Set up the Install email" }).waitFor();
+			await page.locator("#smtp-host").waitFor();
+			await expectAccessibleScreen(page, `Install email step (${theme})`);
+
+			await page.getByRole("button", { name: "Save and finish" }).click();
+			await page.locator("#smtp-host-error").waitFor();
+			await expectAccessibleScreen(page, `Install email step, refused (${theme})`);
+
+			await page.getByRole("button", { name: "Skip for now" }).click();
+			await page.waitForURL((url) => url.pathname === "/");
 		});
 
 		test("the link printed in the log opens the account step and leaves the token out of the address", async () => {

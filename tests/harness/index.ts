@@ -1,7 +1,9 @@
 import { createServer } from "node:net";
 import {
 	type AdminLanguageCode,
+	type Clock,
 	coreJobs,
+	coreSchedules,
 	createInstallServices,
 	createJobQueue,
 	createLogger,
@@ -14,6 +16,9 @@ import {
 	parseMasterKey,
 	runJob,
 	type Secrets,
+	type SendResult,
+	type SystemEmail,
+	type SystemEmailType,
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
 import { createWebHandler } from "@webcraft/server/handler";
@@ -28,7 +33,8 @@ import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 export { API_PATH, type TestBrowser } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
-export type { FakeMailer } from "./fake-mailer.ts";
+export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
+export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
 
 /** The admin host of every test Install. `.test` is reserved, so it can never be a real Site. */
 export const TEST_ADMIN_HOST = "admin.test";
@@ -116,10 +122,18 @@ export type TestInstall = {
 	signIn(account: Pick<TestAccount, "email" | "password">): Promise<TestBrowser>;
 	/** The job queue the Install uses, to enqueue a job the way the web process would. */
 	jobs: JobQueue;
-	/** Runs every job that is due by the test clock, including the jobs those jobs enqueue. */
+	/**
+	 * Runs every job that is due by the test clock, including the jobs those jobs enqueue, and the
+	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain.
+	 */
 	drainJobs(): Promise<DrainReport>;
 	/** The Install's secrets, encrypted under its Master key: set, use and describe them. */
 	readonly secrets: Secrets;
+	/**
+	 * Sends a System email the way WebCraft's features do (`services.email.send`): rendered for each
+	 * recipient, recorded in the Email log and queued; drain the jobs to send it.
+	 */
+	sendSystemEmail<Type extends SystemEmailType>(email: SystemEmail<Type>): Promise<SendResult[]>;
 	/** Every email the Install sent. */
 	mail: FakeMailer;
 	/** The Install's outgoing HTTP: prepare answers, read what was requested. */
@@ -194,6 +208,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		if (mode === "migrated") await started.setup.announce();
 		return started;
 	};
+	// Scheduled jobs come due by the test clock: the drain sends each one whose time came since then.
+	const schedulesCheckedAt = { time: clock.now() };
 	// The handler keeps this object; a restart swaps the services inside it.
 	const services: InstallServices = await start(env[MASTER_KEY_VARIABLE]);
 	const handle = createWebHandler({ services });
@@ -228,13 +244,15 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return printed?.setupToken as string | undefined;
 		},
 		jobs: services.jobs,
-		drainJobs: () => {
+		drainJobs: async () => {
 			if (!boss) throw new Error(`An Install with an ${mode} database has no job queue to drain.`);
+			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt);
 			return drainJobs(boss, services);
 		},
 		get secrets() {
 			return services.secrets;
 		},
+		sendSystemEmail: (email) => services.email.send(email),
 		mail,
 		http,
 		clock,
@@ -250,6 +268,19 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			await testDatabase?.drop();
 		},
 	};
+}
+
+/**
+ * Sends each scheduled job whose time came, by the test clock, since the last drain: once, however
+ * many times it came due (as the worker does after being down).
+ */
+async function sendDueSchedules(boss: PgBoss, jobs: JobQueue, clock: Clock, checkedAt: { time: Date }) {
+	const now = clock.now();
+	for (const schedule of coreSchedules) {
+		const [next] = boss.previewSchedule(schedule.cron, { from: checkedAt.time, count: 1, tz: "UTC" });
+		if (next && next.getTime() <= now.getTime()) await jobs.send(schedule.job, schedule.payload);
+	}
+	checkedAt.time = now;
 }
 
 /** Every round fetches each queue until a round finds nothing due; this stops a job loop. */

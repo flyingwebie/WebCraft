@@ -1,5 +1,5 @@
 import type { LinkProps } from "@tanstack/react-router";
-import { LayoutDashboardIcon, type LucideIcon, SettingsIcon } from "lucide-react";
+import { LayoutDashboardIcon, type LucideIcon, MailIcon, ScrollTextIcon, SettingsIcon } from "lucide-react";
 
 import type { MessageKey } from "../i18n.tsx";
 
@@ -39,7 +39,16 @@ const NAVIGATION: Record<AdminPlace["level"], LevelNavigation> = {
 			{
 				id: "install",
 				label: "shell.nav.installGroup",
-				items: [{ id: "overview", label: "shell.nav.overview", icon: LayoutDashboardIcon, to: "/" }],
+				items: [
+					{ id: "overview", label: "shell.nav.overview", icon: LayoutDashboardIcon, to: "/" },
+					{
+						id: "email-log",
+						label: "shell.nav.emailLog",
+						icon: ScrollTextIcon,
+						to: "/email-log",
+						visibleTo: superadminOnly,
+					},
+				],
 			},
 			{
 				id: "install-settings",
@@ -50,6 +59,13 @@ const NAVIGATION: Record<AdminPlace["level"], LevelNavigation> = {
 						label: "shell.nav.general",
 						icon: SettingsIcon,
 						to: "/settings/general",
+						visibleTo: superadminOnly,
+					},
+					{
+						id: "email",
+						label: "shell.nav.email",
+						icon: MailIcon,
+						to: "/settings/email",
 						visibleTo: superadminOnly,
 					},
 				],

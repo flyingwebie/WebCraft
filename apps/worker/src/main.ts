@@ -1,6 +1,14 @@
 // The worker process (Node LTS, ADR 0006): works the job queue until it is told to stop.
 // Node runs this TypeScript directly, so every relative import names its `.ts` file.
-import { coreJobs, createLogger, type OpenedParts, openInstall, workJobs } from "@webcraft/core";
+import {
+	coreJobs,
+	coreSchedules,
+	createLogger,
+	type OpenedParts,
+	openInstall,
+	scheduleJobs,
+	workJobs,
+} from "@webcraft/core";
 
 /** How long a stopping worker waits for running jobs to finish. */
 const STOP_TIMEOUT_MS = 30_000;
@@ -28,7 +36,11 @@ async function main(): Promise<void> {
 
 	const { services, boss } = await openInstall({ env: process.env, processName: "worker", log, opened: running });
 	await workJobs(boss, coreJobs, services);
-	log.info("The worker is working the job queue", { jobs: coreJobs.map((job) => job.name) });
+	await scheduleJobs(boss, coreSchedules);
+	log.info("The worker is working the job queue", {
+		jobs: coreJobs.map((job) => job.name),
+		schedules: coreSchedules.map((schedule) => `${schedule.job.name} (${schedule.cron})`),
+	});
 }
 
 main().catch((error: unknown) => {

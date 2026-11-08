@@ -14,6 +14,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "INVALID_CREDENTIALS":
 		case "UNAUTHORIZED":
 		case "FORBIDDEN":
+		case "EMAIL_ALWAYS_SENT":
 			return `errors.${code}`;
 		case "PASSWORD_REFUSED":
 			return data?.problem === "too-long"

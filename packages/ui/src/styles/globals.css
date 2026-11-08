@@ -58,6 +58,9 @@
 	--color-warning: var(--warning);
 	--color-warning-foreground: var(--warning-foreground);
 	--color-warning-border: var(--warning-border);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
+	--color-success-border: var(--success-border);
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
@@ -106,6 +109,10 @@
 	--warning: oklch(0.973 0.071 103.193);
 	--warning-foreground: oklch(0.286 0.066 53.813);
 	--warning-border: oklch(0.905 0.182 98.111);
+	/* Results that went well, such as a test email the server took. */
+	--success: oklch(0.962 0.044 156.743);
+	--success-foreground: oklch(0.393 0.095 152.535);
+	--success-border: oklch(0.871 0.15 154.449);
 }
 
 :root.light {
@@ -144,6 +151,9 @@
 	--warning: oklch(0.286 0.066 53.813);
 	--warning-foreground: oklch(0.973 0.071 103.193);
 	--warning-border: oklch(0.476 0.114 61.907);
+	--success: oklch(0.266 0.065 152.934);
+	--success-foreground: oklch(0.925 0.084 155.995);
+	--success-border: oklch(0.448 0.119 151.328);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -178,6 +188,9 @@
 		--warning: oklch(0.286 0.066 53.813);
 		--warning-foreground: oklch(0.973 0.071 103.193);
 		--warning-border: oklch(0.476 0.114 61.907);
+		--success: oklch(0.266 0.065 152.934);
+		--success-foreground: oklch(0.925 0.084 155.995);
+		--success-border: oklch(0.448 0.119 151.328);
 	}
 }
 

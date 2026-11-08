@@ -17,12 +17,12 @@ afterEach(async () => {
 describe("the Master key banner", () => {
 	test("the Superadmin sees it until they confirm the key is stored outside the server", async () => {
 		const browser = await install.signIn(superadmin);
-		expect((await browser.api.shell.context()).banners).toEqual({ masterKey: true });
+		expect((await browser.api.shell.context()).banners.masterKey).toBe(true);
 
 		const status = await browser.api.install.masterKey.confirmStored();
 
 		expect(status).toMatchObject({ stored: true });
-		expect((await browser.api.shell.context()).banners).toEqual({ masterKey: false });
+		expect((await browser.api.shell.context()).banners.masterKey).toBe(false);
 	});
 
 	test("the confirmation is stored: other sessions and later sign-ins don't see the banner", async () => {
@@ -32,9 +32,9 @@ describe("the Master key banner", () => {
 		await laptop.api.install.masterKey.confirmStored();
 		await install.restart();
 
-		expect((await phone.api.shell.context()).banners).toEqual({ masterKey: false });
+		expect((await phone.api.shell.context()).banners.masterKey).toBe(false);
 		const later = await install.signIn(superadmin);
-		expect((await later.api.shell.context()).banners).toEqual({ masterKey: false });
+		expect((await later.api.shell.context()).banners.masterKey).toBe(false);
 	});
 
 	test("the confirmation is logged with who confirmed and the key's fingerprint, never the key", async () => {
@@ -58,13 +58,13 @@ describe("the Master key banner", () => {
 
 		// A new Master key signs everyone out: session cookies are signed with a key derived from it.
 		const again = await install.signIn(superadmin);
-		expect((await again.api.shell.context()).banners).toEqual({ masterKey: true });
+		expect((await again.api.shell.context()).banners.masterKey).toBe(true);
 	});
 
 	test("people who aren't signed in see no banner and can't confirm", async () => {
 		const browser = install.browser();
 
-		expect((await browser.api.shell.context()).banners).toEqual({ masterKey: false });
+		expect((await browser.api.shell.context()).banners.masterKey).toBe(false);
 		await expect(browser.api.install.masterKey.confirmStored()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 	});
 });

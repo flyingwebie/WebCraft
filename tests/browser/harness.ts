@@ -29,6 +29,11 @@ export function pageErrors(page: Page): readonly string[] {
 export const THEMES: readonly Theme[] = ["light", "dark"];
 
 export type BrowserInstall = {
+	/**
+	 * The test Install the web process serves, in this process: its Management API browsers, job
+	 * drain, fake mailer and clock (the web process itself sends with the real Mailer).
+	 */
+	install: TestInstall;
 	/** A URL on the admin, such as `adminUrl("/setup")`. */
 	adminUrl(path: string): string;
 	/** The setup token the web process printed in its log when it started. */
@@ -78,6 +83,7 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 	const started = browser;
 
 	return {
+		install,
 		adminUrl: (path) => new URL(path, origin).toString(),
 		setupToken() {
 			const token = logs.findLast((entry) => typeof entry.setupToken === "string")?.setupToken;

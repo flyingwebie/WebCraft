@@ -12,5 +12,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Page not found", path: "/no-such-page", as: "signed-out" },
 	{ name: "Install › Overview", path: "/", as: "superadmin" },
 	{ name: "Install settings › General", path: "/settings/general", as: "superadmin" },
+	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
+	{ name: "Install › Email log, empty", path: "/email-log", as: "superadmin" },
 	{ name: "Your account", path: "/account", as: "superadmin" },
 ];

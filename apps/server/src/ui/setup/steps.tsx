@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 
 import type { MessageKey } from "../i18n.tsx";
 import { AccountStep } from "./AccountStep.tsx";
+import { EmailStep } from "./EmailStep.tsx";
 import { TokenStep } from "./TokenStep.tsx";
 import { TwoFactorStep } from "./TwoFactorStep.tsx";
 
@@ -37,9 +38,9 @@ export type WizardStep = {
 };
 
 /**
- * The setup wizard's steps, in order. The Install email step (Install SMTP) and the Modules step
- * (approving first-party Modules) go after `two-factor`, as `continue` steps: they run signed in as
- * the Superadmin, and the last step finishes setup.
+ * The setup wizard's steps, in order. The steps after the account are `continue` steps: they run
+ * signed in as the Superadmin, and the last one finishes setup. The Modules step (approving
+ * first-party Modules) goes after `email`.
  */
 export const WIZARD_STEPS: readonly WizardStep[] = [
 	{
@@ -63,5 +64,12 @@ export const WIZARD_STEPS: readonly WizardStep[] = [
 		hint: "setup.steps.twoFactor.hint",
 		stage: "continue",
 		Panel: TwoFactorStep,
+	},
+	{
+		id: "email",
+		title: "setup.steps.email.title",
+		hint: "setup.steps.email.hint",
+		stage: "continue",
+		Panel: EmailStep,
 	},
 ];

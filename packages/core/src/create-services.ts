@@ -1,5 +1,6 @@
 import { createAuth } from "@webcraft/auth";
 
+import { createEmail } from "./email/index.ts";
 import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
 import { createPeople } from "./people.ts";
@@ -35,13 +36,15 @@ export async function createInstallServices(
 		secret: await sessionSigningSecret(masterKey),
 		log,
 	});
+	const settings = createInstallSettings(database);
 	return {
 		...ports,
 		secrets,
 		auth,
 		people: createPeople({ database, clock }),
 		setup: createInstallSetup({ database, auth, config, clock, log }),
-		settings: createInstallSettings(database),
+		settings,
 		masterKey: createMasterKeyBackup({ database, clock, log, fingerprint: await masterKey.fingerprint() }),
+		email: createEmail({ ...ports, secrets, settings }),
 	};
 }

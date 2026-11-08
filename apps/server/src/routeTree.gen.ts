@@ -14,6 +14,8 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
+import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
+import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
 
 const AdminRoute = AdminRouteImport.update({
@@ -40,6 +42,16 @@ const AdminAccountRoute = AdminAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminEmailLogRoute = AdminEmailLogRouteImport.update({
+  id: '/email-log',
+  path: '/email-log',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSettingsEmailRoute = AdminSettingsEmailRouteImport.update({
+  id: '/settings/email',
+  path: '/settings/email',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   id: '/settings/general',
   path: '/settings/general',
@@ -51,13 +63,17 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/account': typeof AdminAccountRoute
+  '/email-log': typeof AdminEmailLogRoute
+  '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
 }
 export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/account': typeof AdminAccountRoute
+  '/email-log': typeof AdminEmailLogRoute
   '/': typeof AdminIndexRoute
+  '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
 }
 export interface FileRoutesById {
@@ -66,21 +82,39 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/_admin/account': typeof AdminAccountRoute
+  '/_admin/email-log': typeof AdminEmailLogRoute
   '/_admin/': typeof AdminIndexRoute
+  '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/setup' | '/sign-in' | '/account' | '/settings/general'
+  fullPaths:
+    | '/'
+    | '/setup'
+    | '/sign-in'
+    | '/account'
+    | '/email-log'
+    | '/settings/email'
+    | '/settings/general'
   fileRoutesByTo: FileRoutesByTo
-  to: '/setup' | '/sign-in' | '/account' | '/' | '/settings/general'
+  to:
+    | '/setup'
+    | '/sign-in'
+    | '/account'
+    | '/email-log'
+    | '/'
+    | '/settings/email'
+    | '/settings/general'
   id:
     | '__root__'
     | '/_admin'
     | '/setup'
     | '/sign-in'
     | '/_admin/account'
+    | '/_admin/email-log'
     | '/_admin/'
+    | '/_admin/settings/email'
     | '/_admin/settings/general'
   fileRoutesById: FileRoutesById
 }
@@ -127,6 +161,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAccountRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/email-log': {
+      id: '/_admin/email-log'
+      path: '/email-log'
+      fullPath: '/email-log'
+      preLoaderRoute: typeof AdminEmailLogRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/settings/email': {
+      id: '/_admin/settings/email'
+      path: '/settings/email'
+      fullPath: '/settings/email'
+      preLoaderRoute: typeof AdminSettingsEmailRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/settings/general': {
       id: '/_admin/settings/general'
       path: '/settings/general'
@@ -139,13 +187,17 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminAccountRoute: typeof AdminAccountRoute
+  AdminEmailLogRoute: typeof AdminEmailLogRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAccountRoute: AdminAccountRoute,
+  AdminEmailLogRoute: AdminEmailLogRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminSettingsEmailRoute: AdminSettingsEmailRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
 }
 

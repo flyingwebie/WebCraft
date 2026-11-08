@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { superadminOnly } from "../context.ts";
 import { adminLanguage } from "../inputs.ts";
+import { emailBranding, emailLog, smtp } from "./email.ts";
 
 /** The Install itself, for the Superadmin. */
 export const install = {
@@ -31,4 +32,10 @@ export const install = {
 			fingerprint: context.services.masterKey.fingerprint,
 		})),
 	},
+	/** The Install SMTP. */
+	smtp,
+	/** Install branding of System emails. */
+	emailBranding,
+	/** The Email log. */
+	emailLog,
 };

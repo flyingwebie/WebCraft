@@ -1,4 +1,4 @@
-import { ADMIN_THEMES } from "@webcraft/core";
+import { ADMIN_THEMES, SYSTEM_EMAIL_TYPE_IDS } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
@@ -18,4 +18,18 @@ export const me = {
 		.handler(async ({ context, input }) => ({
 			person: personView(await context.services.people.updatePreferences(context.person.id, input)),
 		})),
+
+	/** The person's email switches: work and alert emails can be turned off; security emails always go. */
+	emails: {
+		/** Every System email type, by category, with whether the person gets it. */
+		get: signedIn.handler(async ({ context }) => ({
+			emails: await context.services.email.preferences.read(context.person.id),
+		})),
+		/** Sets exactly which work and alert emails the person turned off; every other type is on. */
+		update: signedIn
+			.input(z.object({ turnedOff: z.array(z.enum(SYSTEM_EMAIL_TYPE_IDS)).max(100) }))
+			.handler(async ({ context, input }) => ({
+				emails: await context.services.email.preferences.update(context.person.id, input.turnedOff),
+			})),
+	},
 };
