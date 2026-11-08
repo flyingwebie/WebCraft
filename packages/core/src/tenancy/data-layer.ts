@@ -199,16 +199,18 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 
 		async workspace(access, workspaceId, permission) {
 			const workspace = UUID.test(workspaceId) ? await findWorkspace(db, workspaceId) : undefined;
-			const resource: Resource = { level: "workspace", workspaceId };
-			if (!workspace || !can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
+			if (!workspace) throw new WorkspaceNotFoundError();
+			const resource: Resource = { level: "workspace", workspaceId: workspace.id };
+			if (!can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
 			check(access.actor, permission, resource);
 			return workspaceScope(db, access, workspace);
 		},
 
 		async site(access, siteId, permission) {
 			const site = UUID.test(siteId) ? await findSite(db, siteId) : undefined;
-			const resource: Resource = site ? { level: "site", workspaceId: site.workspaceId, siteId } : INSTALL;
-			if (!site || !can(access.actor, "site.view", resource)) throw new SiteNotFoundError();
+			if (!site) throw new SiteNotFoundError();
+			const resource: Resource = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			if (!can(access.actor, "site.view", resource)) throw new SiteNotFoundError();
 			check(access.actor, permission, resource);
 			const workspace = await findWorkspace(db, site.workspaceId);
 			if (!workspace) throw new SiteNotFoundError();

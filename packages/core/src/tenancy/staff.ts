@@ -327,7 +327,8 @@ export function createStaffServices(options: StaffOptions): { staff: StaffServic
 				if (!found) throw new InviteInvalidError();
 				// Two people opening the same link at once: the second waits here, then finds it gone.
 				const [invite] = await tx.select().from(invites).where(eq(invites.id, found.id)).for("update");
-				if (!invite) throw new InviteInvalidError();
+				// Only Staff invites exist so far; Member invites will be accepted into a Membership instead.
+				if (!invite || !ASSIGNED_ROLES.includes(invite.role)) throw new InviteInvalidError();
 				const assigned = invite.allWorkspaces
 					? []
 					: (
