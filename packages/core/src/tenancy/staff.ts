@@ -4,8 +4,9 @@ import { installRoles, invites, inviteWorkspaces, people, staffWorkspaces, works
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 
 import type { Email } from "../email/index.ts";
-import type { Reach } from "../permissions/can.ts";
-import { ROLES, STAFF_ROLE } from "../permissions/roles.ts";
+import { isUuid } from "../ids.ts";
+import { personIdOf, type Reach } from "../permissions/can.ts";
+import { ASSIGNED_ROLES, STAFF_ROLE } from "../permissions/roles.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import type { InstallScope } from "./data-layer.ts";
 import { WorkspaceNotFoundError } from "./errors.ts";
@@ -60,13 +61,6 @@ export type StaffService = {
 type StaffOptions = {
 	email: Email;
 };
-
-/** The roles that reach Workspaces by assignment. */
-const ASSIGNED_ROLES = Object.entries(ROLES)
-	.filter(([, role]) => role.reach === "assigned-workspaces")
-	.map(([key]) => key);
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Executor = Database["db"] | Transaction;
 
@@ -123,7 +117,7 @@ export function createStaff(options: StaffOptions): StaffService {
 	const assertWorkspacesExist = async (executor: Executor, reach: Reach) => {
 		if (reach === "all" || reach.length === 0) return;
 		const ids = [...new Set(reach)];
-		if (!ids.every((id) => UUID.test(id))) throw new WorkspaceNotFoundError();
+		if (!ids.every((id) => isUuid(id))) throw new WorkspaceNotFoundError();
 		const found = await executor.select({ id: workspaces.id }).from(workspaces).where(inArray(workspaces.id, ids));
 		if (found.length !== ids.length) throw new WorkspaceNotFoundError();
 	};
@@ -189,7 +183,7 @@ export function createStaff(options: StaffOptions): StaffService {
 						tokenHash: await hashToken(token),
 						role: STAFF_ROLE,
 						allWorkspaces: input.workspaces === "all",
-						invitedBy: personOf(scope),
+						invitedBy: personIdOf(scope.access.actor),
 						createdAt: now,
 						expiresAt: new Date(now.getTime() + INVITE_LIFETIME_MS),
 					})
@@ -221,7 +215,7 @@ export function createStaff(options: StaffOptions): StaffService {
 		},
 
 		async revokeInvite(scope, inviteId) {
-			if (!UUID.test(inviteId)) throw new InviteInvalidError();
+			if (!isUuid(inviteId)) throw new InviteInvalidError();
 			await scope.transaction(async (tx) => {
 				const [removed] = await tx.db
 					.delete(invites)
@@ -233,7 +227,7 @@ export function createStaff(options: StaffOptions): StaffService {
 		},
 
 		async setWorkspaces(scope, personId, reach) {
-			if (!UUID.test(personId)) throw new StaffNotFoundError();
+			if (!isUuid(personId)) throw new StaffNotFoundError();
 			await scope.transaction(async (tx) => {
 				const [role] = await tx.db
 					.select({ role: installRoles.role })
@@ -259,9 +253,4 @@ export function createStaff(options: StaffOptions): StaffService {
 	};
 
 	return staff;
-}
-
-function personOf(scope: InstallScope): string | null {
-	const { actor } = scope.access;
-	return actor.kind === "person" ? actor.personId : null;
 }

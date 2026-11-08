@@ -32,6 +32,7 @@ import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
+import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/staff")({
@@ -186,6 +187,7 @@ function RevokeInviteButton({ invite }: { invite: { id: string; email: string } 
 /** "Invite Staff": an email address and the Workspaces they'll reach. */
 function InviteStaffSheet({ workspaces }: { workspaces: WorkspaceOption[] }) {
 	const t = useT();
+	const runSensitive = useSensitiveAction();
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [email, setEmail] = useState("");
@@ -205,7 +207,7 @@ function InviteStaffSheet({ workspaces }: { workspaces: WorkspaceOption[] }) {
 		setError(null);
 		try {
 			const api = await getApi();
-			const { invite } = await api.staff.invite({ email, workspaces: fromAccess(access) });
+			const { invite } = await runSensitive(() => api.staff.invite({ email, workspaces: fromAccess(access) }));
 			toast.success(t("staff.sheet.sent", { email: invite.email }));
 			setOpen(false);
 			reset();
@@ -267,6 +269,7 @@ function ChangeWorkspacesSheet({
 	workspaces: WorkspaceOption[];
 }) {
 	const t = useT();
+	const runSensitive = useSensitiveAction();
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [access, setAccess] = useState<Access>(() => toAccess(person.workspaces));
@@ -279,7 +282,7 @@ function ChangeWorkspacesSheet({
 		setError(null);
 		try {
 			const api = await getApi();
-			await api.staff.setWorkspaces({ personId: person.id, workspaces: fromAccess(access) });
+			await runSensitive(() => api.staff.setWorkspaces({ personId: person.id, workspaces: fromAccess(access) }));
 			toast.success(t("staff.sheet.saved"));
 			setOpen(false);
 			await router.invalidate();

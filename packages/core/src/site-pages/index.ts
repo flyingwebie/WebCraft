@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
-import { directionOf, type ElementTree, type RenderValue, renderPage } from "@webcraft/renderer";
+import { directionOf, type ElementTree, renderPage, type TemplateValue } from "@webcraft/renderer";
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
@@ -19,6 +19,7 @@ import {
 	type UrlPattern,
 } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
+import { listClasses } from "../design-system/classes.ts";
 import type { DataLayer, Site, VisitorScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname } from "./addresses.ts";
 
@@ -135,15 +136,15 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 	const authorName = entry.authorId ? await nameOf(scope, entry.authorId) : null;
 	// Visitors see the published version: nothing here tells them about the Draft, so its status
 	// is "published" and it was last updated when it was last published.
-	const builtIns: Record<string, RenderValue> = {
+	const builtIns: Record<string, TemplateValue> = {
 		title: published.title,
 		slug: published.slug,
 		status: "published",
 		author: authorName,
-		createdAt: day(entry.createdAt),
-		updatedAt: day(entry.lastPublishedAt),
-		publishedAt: day(entry.publishedAt),
-		lastPublishedAt: day(entry.lastPublishedAt),
+		createdAt: entry.createdAt,
+		updatedAt: entry.lastPublishedAt,
+		publishedAt: entry.publishedAt,
+		lastPublishedAt: entry.lastPublishedAt,
 	};
 	const site = publishedGlobals(await scope.first(globals), languages);
 	const root = entryParts(builtIns, postType.fields, published.fields, {
@@ -155,11 +156,13 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 		),
 		site: globalsParts(site.fields, site.values),
 	});
+	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
 	return renderPage({
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		title: published.title,
 		template,
 		values: (path) => resolvePath(root, path),
+		className: (classId) => classNames.get(classId),
 	});
 }
 
@@ -183,10 +186,10 @@ async function relatedEntries(
 				title: values.title,
 				slug: values.slug,
 				url: values.slug ? pathFor(postType.urlPattern, values.slug) : null,
-				createdAt: day(row.createdAt),
-				updatedAt: day(row.lastPublishedAt),
-				publishedAt: day(row.publishedAt),
-				lastPublishedAt: day(row.lastPublishedAt),
+				createdAt: row.createdAt,
+				updatedAt: row.lastPublishedAt,
+				publishedAt: row.publishedAt,
+				lastPublishedAt: row.lastPublishedAt,
 			},
 		});
 	}
@@ -196,9 +199,4 @@ async function relatedEntries(
 async function nameOf(scope: VisitorScope, personId: string): Promise<string | null> {
 	const [row] = await scope.db.select({ name: people.name }).from(people).where(eq(people.id, personId));
 	return row?.name ?? null;
-}
-
-/** A date as visitors read it until Template markup's date formatter: `2026-03-02`. */
-function day(date: Date | null): string | null {
-	return date ? date.toISOString().slice(0, 10) : null;
 }

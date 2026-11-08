@@ -117,6 +117,9 @@ export const SUPERADMIN_ROLE = "superadmin" satisfies RoleKey;
 /** The role key of Staff. */
 export const STAFF_ROLE = "staff" satisfies RoleKey;
 
+/** The roles that reach Workspaces by assignment (Staff), rather than through a Membership. */
+export const ASSIGNED_ROLES: readonly string[] = ROLE_KEYS.filter((key) => ROLES[key].reach === "assigned-workspaces");
+
 /** The Workspace roles a Membership can hold. */
 export const WORKSPACE_ROLES = ["owner", "editor", "author"] as const satisfies readonly RoleKey[];
 

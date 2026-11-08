@@ -1,3 +1,5 @@
+import { EXPRESSION_KEYWORDS } from "@webcraft/renderer";
+
 import type { ContentProblem } from "./errors.ts";
 import {
 	type DefineContext,
@@ -21,7 +23,7 @@ export {
 	type Json,
 	type LinkValue,
 	MAX_ROWS,
-	RICH_TEXT_MAX_LENGTH,
+	RICH_TEXT_VALUE_MAX_LENGTH,
 	type SelectOption,
 	TEXT_VALUE_MAX_LENGTH,
 } from "./field-types.ts";
@@ -44,17 +46,32 @@ export const BUILT_IN_FIELDS = [
 export type BuiltInField = (typeof BUILT_IN_FIELDS)[number];
 
 /**
- * Names a Post Type's Field can't take: the built-in Fields, and the names Template markup reads values
- * from (`site.x` Globals, `props.x` Props, `item.x` Loop items).
+ * Names a Post Type's Field can't take: the built-in Fields, the names Template markup reads values
+ * from (`site.x` Globals, `props.x` Props, `item.x` Loop items) and the words Conditions' tests use
+ * (`and`, `or`, `not`, `true`, `false`).
  */
 export const RESERVED_FIELD_KEYS: ReadonlySet<string> = new Set(
-	[...BUILT_IN_FIELDS, "id", "site", "props", "item", "loop", "entry", "language", "url", "type", "fields"].map((key) =>
-		key.toLowerCase(),
-	),
+	[
+		...BUILT_IN_FIELDS,
+		...EXPRESSION_KEYWORDS,
+		"id",
+		"site",
+		"props",
+		"item",
+		"loop",
+		"entry",
+		"language",
+		"url",
+		"type",
+		"fields",
+	].map((key) => key.toLowerCase()),
 );
 
-/** Names a Field inside a Group or Repeater can't take: a Repeater row's `id`. */
-const RESERVED_NESTED_KEYS: ReadonlySet<string> = new Set(["id"]);
+/**
+ * Names a Field inside a Group or Repeater can't take: a Repeater row's `id`, and the words
+ * Conditions' tests use, which a path can't end in.
+ */
+const RESERVED_NESTED_KEYS: ReadonlySet<string> = new Set(["id", ...EXPRESSION_KEYWORDS]);
 
 /** A Field key: starts with a lower-case letter, then letters, digits and underscores; at most 64. */
 const FIELD_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;

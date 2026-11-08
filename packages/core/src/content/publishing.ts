@@ -102,7 +102,7 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 
 async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
 	const row = await lockTemplate(scope, templateId);
-	// The Post Type, the Globals or what Relationships point at may have lost a Field the Draft reads.
+	// The Post Type, the Globals, what Relationships point at or the Classes may have changed since.
 	const tree = await checkEntryTemplate(scope, row.postTypeId ?? "", row.draft);
 	const now = scope.now();
 	await scope.update(

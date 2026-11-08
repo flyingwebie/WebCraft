@@ -19,6 +19,7 @@ import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
 import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
+import { Route as AdminSettingsSecurityRouteImport } from './routes/_admin/settings.security'
 import { Route as AdminSitesSiteIdRouteImport } from './routes/_admin/sites.$siteId'
 import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/workspaces.index'
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
@@ -75,6 +76,11 @@ const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   path: '/settings/general',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsSecurityRoute = AdminSettingsSecurityRouteImport.update({
+  id: '/settings/security',
+  path: '/settings/security',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSitesSiteIdRoute = AdminSitesSiteIdRouteImport.update({
   id: '/sites/$siteId',
   path: '/sites/$siteId',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/staff': typeof AdminStaffRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/settings/security': typeof AdminSettingsSecurityRoute
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/workspaces/': typeof AdminWorkspacesIndexRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/': typeof AdminIndexRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/settings/security': typeof AdminSettingsSecurityRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/_admin/': typeof AdminIndexRoute
   '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/_admin/settings/security': typeof AdminSettingsSecurityRoute
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
@@ -172,6 +181,7 @@ export interface FileRouteTypes {
     | '/staff'
     | '/settings/email'
     | '/settings/general'
+    | '/settings/security'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/workspaces/'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings/email'
     | '/settings/general'
+    | '/settings/security'
     | '/workspaces'
     | '/workspaces/$workspaceId/members'
     | '/sites/$siteId'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/_admin/'
     | '/_admin/settings/email'
     | '/_admin/settings/general'
+    | '/_admin/settings/security'
     | '/_admin/sites/$siteId'
     | '/_admin/workspaces/$workspaceId'
     | '/_admin/workspaces/'
@@ -292,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsGeneralRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/settings/security': {
+      id: '/_admin/settings/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AdminSettingsSecurityRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/sites/$siteId': {
       id: '/_admin/sites/$siteId'
       path: '/sites/$siteId'
@@ -372,6 +391,7 @@ interface AdminRouteChildren {
   AdminIndexRoute: typeof AdminIndexRoute
   AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsSecurityRoute: typeof AdminSettingsSecurityRoute
   AdminSitesSiteIdRoute: typeof AdminSitesSiteIdRouteWithChildren
   AdminWorkspacesWorkspaceIdRoute: typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   AdminWorkspacesIndexRoute: typeof AdminWorkspacesIndexRoute
@@ -384,6 +404,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminIndexRoute: AdminIndexRoute,
   AdminSettingsEmailRoute: AdminSettingsEmailRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsSecurityRoute: AdminSettingsSecurityRoute,
   AdminSitesSiteIdRoute: AdminSitesSiteIdRouteWithChildren,
   AdminWorkspacesWorkspaceIdRoute: AdminWorkspacesWorkspaceIdRouteWithChildren,
   AdminWorkspacesIndexRoute: AdminWorkspacesIndexRoute,

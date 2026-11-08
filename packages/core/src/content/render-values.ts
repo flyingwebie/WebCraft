@@ -1,4 +1,4 @@
-import type { RenderValue } from "@webcraft/renderer";
+import { richText, type TemplateValue } from "@webcraft/renderer";
 
 import type { FieldDefinition, Json, LinkValue } from "./field-types.ts";
 import { BUILT_IN_FIELDS } from "./fields.ts";
@@ -20,17 +20,17 @@ import { BUILT_IN_FIELDS } from "./fields.ts";
  */
 
 /** A value with named parts, and what it shows on its own. */
-export type Parts = { readonly text: RenderValue; part(name: string): Resolved | undefined };
+export type Parts = { readonly text: TemplateValue; part(name: string): Resolved | undefined };
 
 /** A value on its way to the renderer, before a path picks a part of it. */
-export type Resolved = RenderValue | Parts | readonly Resolved[];
+export type Resolved = TemplateValue | Parts | readonly Resolved[];
 
 function isParts(value: Resolved | undefined): value is Parts {
 	return typeof value === "object" && value !== null && !Array.isArray(value) && "part" in value;
 }
 
 /** The value a path names from `root`, or undefined when it names nothing. */
-export function resolvePath(root: Parts, path: string): RenderValue {
+export function resolvePath(root: Parts, path: string): TemplateValue {
 	let current: Resolved | undefined = root;
 	for (const name of path.split(".")) {
 		current = step(current, name);
@@ -48,15 +48,15 @@ function step(value: Resolved | undefined, name: string): Resolved | undefined {
 	return isParts(value) ? value.part(name) : undefined;
 }
 
-function finish(value: Resolved): RenderValue {
+function finish(value: Resolved): TemplateValue {
 	if (Array.isArray(value)) return (value as readonly Resolved[]).map(finish);
-	return isParts(value) ? value.text : (value as RenderValue);
+	return isParts(value) ? value.text : (value as TemplateValue);
 }
 
 /** A published Entry a Relationship points at, ready to be read one level deep. */
 export type RelatedEntry = {
 	/** Its built-in values: `title`, `slug`, `url`, dates. */
-	builtIns: Readonly<Record<string, RenderValue>>;
+	builtIns: Readonly<Record<string, TemplateValue>>;
 	fields: readonly FieldDefinition[];
 	/** Its published Field values in the page's language, as `readFields` gives them. */
 	values: Readonly<Record<string, Json>>;
@@ -72,7 +72,7 @@ export type ValueSources = {
 
 /** The names an Entry's own values are read from: its built-in Fields, its Fields and `site`. */
 export function entryParts(
-	builtIns: Readonly<Record<string, RenderValue>>,
+	builtIns: Readonly<Record<string, TemplateValue>>,
 	fields: readonly FieldDefinition[],
 	values: Readonly<Record<string, Json>>,
 	sources: ValueSources,
@@ -98,7 +98,7 @@ function fieldParts(
 	fields: readonly FieldDefinition[],
 	values: Readonly<Record<string, Json>>,
 	sources: ValueSources | null,
-	text: RenderValue,
+	text: TemplateValue,
 ): Parts {
 	return {
 		text,
@@ -116,7 +116,7 @@ function fieldValue(field: FieldDefinition, value: Json, sources: ValueSources |
 		case "repeater":
 			return (Array.isArray(value) ? value : []).map((row) => fieldParts(field.fields, record(row), sources, null));
 		case "richText":
-			return typeof value === "string" ? { kind: "richText", html: value } : null;
+			return typeof value === "string" ? richText(value) : null;
 		case "select": {
 			const option = (choice: Json): Parts | null => {
 				const found = field.options.find((candidate) => candidate.value === choice);
@@ -150,7 +150,7 @@ function fieldValue(field: FieldDefinition, value: Json, sources: ValueSources |
 			// Media Fields render once the Media library (#73) gives them Media.
 			return null;
 		default:
-			return value as RenderValue;
+			return value as TemplateValue;
 	}
 }
 

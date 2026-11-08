@@ -1,92 +1,27 @@
-import { cleanRichText, richTextToText } from "./rich-text.ts";
-import { type Attribute, type ElementTree, type TreeNode, VOID_ELEMENTS } from "./tree.ts";
-import { safeUrl } from "./urls.ts";
+import { commandForNode } from "./commands.ts";
+import { escapeAttribute, escapeText, safeAttributeValue } from "./escape.ts";
+import { applyFormat } from "./formatters.ts";
+import { cleanRichText } from "./rich-text.ts";
+import { type Attribute, type ElementTree, type TreeNode, type ValueNode, VOID_ELEMENTS } from "./tree.ts";
+import { isList, isRichText, joinList, type TemplateValue, textOf, type ValueReader } from "./values.ts";
 
-export { safeUrl } from "./urls.ts";
-
-/** Rich text: HTML, cleaned again where it renders (see `cleanRichText`). */
-export type RichText = { readonly kind: "richText"; readonly html: string };
-
-/**
- * A value a binding names, as core resolves it: text, a number, true/false, rich text, or a list of
- * values (a multi-select's labels, a Repeater's or Relationship's values). `null` or `undefined`
- * renders as nothing. Every value is escaped for where it lands: a reader never returns HTML except
- * as rich text, which is cleaned again here.
- */
-export type RenderValue = string | number | boolean | null | undefined | RichText | readonly RenderValue[];
-
-/** Reads the value a binding names. */
-export type ValueReader = (path: string) => RenderValue;
-
-function isRichText(value: RenderValue): value is RichText {
-	return (
-		typeof value === "object" && value !== null && !Array.isArray(value) && (value as RichText).kind === "richText"
-	);
-}
-
-/**
- * A value as text, for attributes: numbers as written, true/false as `true` or `false`, rich text
- * without its tags, and a list as its values joined with commas.
- */
-export function valueText(value: RenderValue): string {
-	if (value === null || value === undefined) return "";
-	if (Array.isArray(value)) {
-		return (value as readonly RenderValue[])
-			.map(valueText)
-			.filter((text) => text !== "")
-			.join(", ");
-	}
-	if (isRichText(value)) return richTextToText(value.html);
-	return String(value);
-}
-
-/** A value in a text position: escaped text, or cleaned rich text. */
-function valueHtml(value: RenderValue): string {
-	if (Array.isArray(value)) {
-		return (value as readonly RenderValue[])
-			.map(valueHtml)
-			.filter((html) => html !== "")
-			.join(", ");
-	}
-	if (isRichText(value)) return cleanRichText(value.html);
-	return escapeText(valueText(value));
-}
-
-/** Escapes text for an HTML text position. */
-export function escapeText(text: string): string {
-	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-/** Escapes text for a double-quoted attribute value. */
-export function escapeAttribute(text: string): string {
-	return escapeText(text).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-}
-
-/** Attributes holding one URL, checked with `safeUrl`. */
-const URL_ATTRIBUTES: ReadonlySet<string> = new Set(["href", "src", "cite", "poster", "action", "background"]);
-
-/** Attributes holding a list of image candidates, `url [descriptor]`, separated by commas. */
-const SRCSET_ATTRIBUTES: ReadonlySet<string> = new Set(["srcset", "imagesrcset"]);
-
-function safeSrcset(srcset: string): string {
-	return srcset
-		.split(",")
-		.map((candidate) => {
-			const [url = "", ...descriptor] = candidate.trim().split(/\s+/);
-			return [safeUrl(url), ...descriptor].join(" ");
-		})
-		.join(", ");
-}
+export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
 /** Options for rendering a tree. */
 export type RenderOptions = {
 	/** Reads the value a binding names. */
 	values: ValueReader;
+	/** The page's language, a BCP 47 tag such as `en`, for formatters; English when absent. */
+	language?: string;
 	/** The class name of a Class id; Class references it doesn't know are left out. */
 	className?: (classId: string) => string | undefined;
 };
 
-/** Renders a tree's nodes as HTML: every value escaped for where it lands, every URL checked. */
+/**
+ * Renders a tree's nodes as HTML. Every value is escaped for where it lands (text, an attribute, a
+ * URL), rich text is cleaned against its allowlist, comments are left out, and Conditions render
+ * the branch whose test passes.
+ */
 export function renderTree(tree: ElementTree, options: RenderOptions): string {
 	return renderNodes(tree.nodes, options);
 }
@@ -101,8 +36,10 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 	switch (node.type) {
 		case "text":
 			return escapeText(node.text);
+		case "comment":
+			return "";
 		case "value":
-			return valueHtml(options.values(node.path));
+			return valueHtml(node, options.values(node.path), options);
 		case "element": {
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
@@ -114,12 +51,28 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 			return `<${node.tag}${attributes}>${children}</${node.tag}>`;
 		}
 	}
+	const command = commandForNode(node.type);
+	if (!command) return "";
+	return command.render(node, { read: options.values, nodes: (children) => renderNodes(children, options) });
+}
+
+/** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */
+function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions): string {
+	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options)));
+	if (!node.format && isRichText(value)) return cleanRichText(value.html);
+	return escapeText(valueText(node, value, options));
+}
+
+/** A value as text, through its formatter when it has one (each of a list's values through it). */
+function valueText(node: Pick<ValueNode, "format">, value: TemplateValue, options: RenderOptions): string {
+	if (isList(value)) return joinList(value.map((item) => valueText(node, item, options)));
+	return node.format ? applyFormat(value, node.format, options.language ?? "en") : textOf(value);
 }
 
 function renderAttribute(attribute: Attribute, options: RenderOptions): string {
 	let value = "";
-	for (const part of attribute.value) value += part.type === "text" ? part.text : valueText(options.values(part.path));
-	if (URL_ATTRIBUTES.has(attribute.name)) value = safeUrl(value);
-	if (SRCSET_ATTRIBUTES.has(attribute.name)) value = safeSrcset(value);
-	return ` ${attribute.name}="${escapeAttribute(value)}"`;
+	for (const part of attribute.value) {
+		value += part.type === "text" ? part.text : valueText(part, options.values(part.path), options);
+	}
+	return ` ${attribute.name}="${escapeAttribute(safeAttributeValue(attribute.name, value))}"`;
 }

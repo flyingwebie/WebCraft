@@ -13,8 +13,9 @@ import {
 import { and, asc, eq, gt, inArray, isNotNull, or } from "drizzle-orm";
 
 import type { Email } from "../email/index.ts";
-import { can, holdsAccess, type MemberAccess, type Reach } from "../permissions/can.ts";
-import { isWorkspaceRole, ROLES, WORKSPACE_ROLES, type WorkspaceRole } from "../permissions/roles.ts";
+import { isUuid } from "../ids.ts";
+import { can, holdsAccess, type MemberAccess, personIdOf, type Reach } from "../permissions/can.ts";
+import { ASSIGNED_ROLES, isWorkspaceRole, WORKSPACE_ROLES, type WorkspaceRole } from "../permissions/roles.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import type { WorkspaceScope } from "./data-layer.ts";
 import { SiteNotFoundError } from "./errors.ts";
@@ -126,13 +127,6 @@ export type MembersService = {
 	remove(scope: WorkspaceScope, personId: string): Promise<void>;
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** The roles that reach Workspaces by assignment (Staff). */
-const ASSIGNED_ROLES = Object.entries(ROLES)
-	.filter(([, role]) => role.reach === "assigned-workspaces")
-	.map(([key]) => key);
-
 /** A Site of the Workspace, and whether the person looking can see it. */
 type KnownSite = SiteRef & { visible: boolean };
 
@@ -152,7 +146,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 		if (reach === "all") return "all";
 		const ids = [...new Set(reach)];
 		if (ids.length === 0) return [];
-		if (!ids.every((id) => UUID.test(id))) throw new SiteNotFoundError();
+		if (!ids.every((id) => isUuid(id))) throw new SiteNotFoundError();
 		const found = await scope.select(sites, inArray(sites.id, ids));
 		if (found.length !== ids.length || !ids.every((id) => canSee(scope, id))) throw new SiteNotFoundError();
 		return ids;
@@ -177,7 +171,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 
 	/** A pending invite of the scope's Workspace that still works. */
 	const pendingInvite = async (scope: WorkspaceScope, inviteId: string) => {
-		if (!UUID.test(inviteId)) throw new InviteInvalidError();
+		if (!isUuid(inviteId)) throw new InviteInvalidError();
 		const invite = await scope.first(invites, and(eq(invites.id, inviteId), gt(invites.expiresAt, scope.now())));
 		if (!invite) throw new InviteInvalidError();
 		return invite;
@@ -239,7 +233,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 
 	/** The scope's Membership of a person, or `MemberNotFoundError`. */
 	const membershipOf = async (scope: WorkspaceScope, personId: string) => {
-		if (!UUID.test(personId)) throw new MemberNotFoundError();
+		if (!isUuid(personId)) throw new MemberNotFoundError();
 		const membership = await scope.first(memberships, eq(memberships.personId, personId));
 		if (!membership) throw new MemberNotFoundError();
 		return membership;
@@ -362,7 +356,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				throw new AlreadyMemberError();
 			}
 
-			const inviter = personOf(scope);
+			const inviter = personIdOf(scope.access.actor);
 			const token = newToken();
 			const invite = await scope.transaction(async (tx) => {
 				// One pending invite per address and Workspace: a new one replaces the earlier one and its link.
@@ -411,7 +405,8 @@ export function createMembers({ database, email }: { database: Database; email: 
 				await tx.audit("member.resendInvite", { email: invite.email });
 				return updated;
 			});
-			const inviterName = (await personName(invite.invitedBy)) ?? (await personName(personOf(scope))) ?? "WebCraft";
+			const inviterName =
+				(await personName(invite.invitedBy)) ?? (await personName(personIdOf(scope.access.actor))) ?? "WebCraft";
 			await sendInvite(scope, { id: invite.id, email: invite.email, role }, inviterName, token);
 			return inviteView(scope, resent);
 		},
@@ -439,7 +434,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				for (const siteId of to.sites === "all" ? [] : to.sites) {
 					await tx.insert(membershipSites, { membershipId: membership.id, siteId });
 				}
-				const [person] = await db.select({ email: people.email }).from(people).where(eq(people.id, personId));
+				const [person] = await tx.db.select({ email: people.email }).from(people).where(eq(people.id, personId));
 				const about = { memberId: personId, email: person?.email ?? null };
 				if (from.role !== to.role) await tx.audit("member.changeRole", { ...about, from: from.role, to: to.role });
 				if (!sameReach(from.sites, to.sites)) {
@@ -468,7 +463,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				const access = await membershipAccess(tx, membership);
 				assertHolds(tx, access, "manage");
 				await tx.delete(memberships, eq(memberships.id, membership.id));
-				const [person] = await db.select({ email: people.email }).from(people).where(eq(people.id, personId));
+				const [person] = await tx.db.select({ email: people.email }).from(people).where(eq(people.id, personId));
 				await tx.audit("member.remove", {
 					memberId: personId,
 					email: person?.email ?? null,
@@ -497,9 +492,4 @@ function siteAccess(reach: Reach, known: readonly KnownSite[]): SiteAccess {
 function sameReach(a: Reach, b: Reach): boolean {
 	if (a === "all" || b === "all") return a === b;
 	return a.length === b.length && a.every((id) => b.includes(id));
-}
-
-function personOf(scope: WorkspaceScope): string | null {
-	const { actor } = scope.access;
-	return actor.kind === "person" ? actor.personId : null;
 }

@@ -205,8 +205,10 @@ function JoinForm({ invite, token }: { invite: Invite; token: string }) {
 			const api = await getApi();
 			if (!signedInAsInvited) await api.session.signIn({ email: invite.email, password });
 			const { workspaceId } = await api.invites.join({ token });
-			// Every navigation reloads the shell context, so the admin knows who signed in.
-			await router.navigate({ to: "/workspaces/$workspaceId", params: { workspaceId } });
+			// Every navigation reloads the shell context, so the admin knows who signed in. A Staff invite
+			// has no Workspace: Staff start at the Install's overview.
+			if (workspaceId) await router.navigate({ to: "/workspaces/$workspaceId", params: { workspaceId } });
+			else await router.navigate({ to: "/" });
 		} catch (failure) {
 			setError(errorMessage(failure));
 			setBusy(false);

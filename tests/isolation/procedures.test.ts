@@ -155,6 +155,16 @@ describe("Templates", () => {
 			tree: tree(element("h2", [value("title")])),
 		}),
 	);
+	isolation.refuses("templates.getEntryTemplateMarkup", async (api, target) =>
+		api.templates.getEntryTemplateMarkup({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveEntryTemplateMarkup", async (api, target) =>
+		api.templates.saveEntryTemplateMarkup({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			markup: "<h2>{{ title }}</h2>",
+		}),
+	);
 	isolation.refuses("templates.publish", async (api, target) =>
 		api.templates.publish({ siteId: target.siteId, templateId: (await contentIn(target)).templateId }),
 	);

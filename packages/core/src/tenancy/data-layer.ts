@@ -5,7 +5,8 @@ import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import { type AuditDetails, type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
-import { type Actor, can, INSTALL, type Resource } from "../permissions/can.ts";
+import { isUuid } from "../ids.ts";
+import { type Actor, can, INSTALL, personIdOf, type Resource } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SecretDescription, SecretOwner, Secrets } from "../secrets/index.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "./errors.ts";
@@ -37,8 +38,13 @@ export type DataLayer = {
 	visitors(site: Site): VisitorScope;
 };
 
-/** Who is acting and how they came in: the permission check and the Audit log both need it. */
-export type Access = { actor: Actor; via: AuditVia };
+/**
+ * Who is acting and how they came in: the permission check and the Audit log both need it.
+ * `identityCheckedAt` is when a person last proved who they are in the admin session the call came
+ * with (null: not since signing in long ago); it is absent for anything that isn't an admin session,
+ * which can never take a Sensitive action.
+ */
+export type Access = { actor: Actor; via: AuditVia; identityCheckedAt?: Date | null };
 
 /** A Workspace, as the data layer hands it out. */
 export type Workspace = { id: string; name: string; createdAt: Date };
@@ -235,7 +241,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 		},
 
 		async workspace(access, workspaceId, permission) {
-			const workspace = UUID.test(workspaceId) ? await findWorkspace(db, workspaceId) : undefined;
+			const workspace = isUuid(workspaceId) ? await findWorkspace(db, workspaceId) : undefined;
 			if (!workspace) throw new WorkspaceNotFoundError();
 			const resource: Resource = { level: "workspace", workspaceId: workspace.id };
 			if (!can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
@@ -244,7 +250,7 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 		},
 
 		async site(access, siteId, permission) {
-			const site = UUID.test(siteId) ? await findSite(db, siteId) : undefined;
+			const site = isUuid(siteId) ? await findSite(db, siteId) : undefined;
 			if (!site) throw new SiteNotFoundError();
 			const resource: Resource = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
 			if (!can(access.actor, "site.view", resource)) throw new SiteNotFoundError();
@@ -263,18 +269,8 @@ export function createDataLayer({ database, clock, secrets }: DataLayerOptions):
 	};
 }
 
-/** Any UUID: ids that can't be one are simply not found, rather than a database error. */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function check(actor: Actor, permission: Permission, resource: Resource): void {
 	if (!can(actor, permission, resource)) throw new PermissionDeniedError(permission);
-}
-
-function personIdOf(actor: Actor): string | null {
-	switch (actor.kind) {
-		case "person":
-			return actor.personId;
-	}
 }
 
 async function findWorkspace(executor: Executor, workspaceId: string): Promise<Workspace | undefined> {

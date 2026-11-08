@@ -29,7 +29,13 @@
 		"STAFF_MEMBERSHIP": "This address belongs to the agency's Staff, who never hold a Membership.",
 		"ACCESS_NOT_HELD_GRANT": "You can't give more access than you hold, in role or in Sites.",
 		"ACCESS_NOT_HELD_MANAGE": "This Member has access you don't hold, so you can't change or remove them.",
-		"INVITE_OTHER_ACCOUNT": "This invite was sent to another email address. Sign in with that address to accept it."
+		"INVITE_OTHER_ACCOUNT": "This invite was sent to another email address. Sign in with that address to accept it.",
+		"ACCOUNT_LOCKED": "This account is locked for up to 15 minutes after too many wrong passwords. Try again later.",
+		"TOO_MANY_REQUESTS": "Too many attempts. Wait a minute, then try again.",
+		"IDENTITY_CHECK_REQUIRED": "Confirm it's you to continue.",
+		"IDENTITY_CHECK_CANCELLED": "Nothing was changed: confirm it's you to continue.",
+		"SENSITIVE_ACTION_REFUSED": "Only a person signed in to the admin can do this.",
+		"SESSION_NOT_FOUND": "That session has already ended."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -142,6 +148,7 @@
 			"installSettingsGroup": "Install settings",
 			"overview": "Overview",
 			"general": "General",
+			"security": "Security",
 			"emailLog": "Email log",
 			"email": "Email (SMTP)",
 			"workspaces": "Workspaces",
@@ -196,6 +203,15 @@
 		"save": "Save",
 		"saved": "Saved."
 	},
+	"securitySettings": {
+		"pageTitle": "Security",
+		"heading": "Security",
+		"intro": "How the Install protects people's accounts.",
+		"leakedPasswordCheck": "Check new passwords against lists of leaked passwords",
+		"leakedPasswordCheckHelp": "Only the first 5 characters of a password's SHA-1 hash leave the server, so the password itself is never sent. When the lookup can't be reached, the password is accepted. Switch the check off for an Install that is always offline.",
+		"save": "Save",
+		"saved": "Saved."
+	},
 	"account": {
 		"pageTitle": "Your account",
 		"heading": "Your account",
@@ -217,6 +233,34 @@
 			"save": "Save",
 			"saved": "Saved."
 		},
+		"password": {
+			"heading": "Password",
+			"intro": "Changing your password signs you out of every other session.",
+			"newPassword": "New password",
+			"newPasswordHelp": "At least 12 characters. Passwords found in lists of leaked passwords are refused.",
+			"repeat": "Repeat the new password",
+			"mismatch": "The passwords don't match.",
+			"save": "Change password",
+			"saved": "Password changed. Your other sessions were signed out."
+		},
+		"sessions": {
+			"heading": "Sessions",
+			"intro": "The browsers signed in to your account. Sign out any you don't recognise.",
+			"browser": "Browser",
+			"network": "Network",
+			"lastUsed": "Last used",
+			"actions": "Actions",
+			"deviceBoth": "{browser} on {os}",
+			"deviceOs": "A browser on {os}",
+			"deviceUnknown": "Unknown browser",
+			"networkUnknown": "Unknown",
+			"current": "This browser",
+			"signOut": "Sign out",
+			"signOutLabel": "Sign out {device}, last used {lastUsed}",
+			"signedOut": "Signed out.",
+			"signOutOthers": "Sign out of every other session",
+			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}"
+		},
 		"twoFactor": {
 			"heading": "Two-factor authentication",
 			"status": "Not set up",
@@ -231,6 +275,14 @@
 			"save": "Save",
 			"saved": "Saved."
 		}
+	},
+	"identityCheck": {
+		"title": "Confirm it's you",
+		"body": "This change needs your password. In this browser you won't be asked again for 10 minutes.",
+		"password": "Password",
+		"wrongPassword": "That password is wrong.",
+		"confirm": "Confirm",
+		"cancel": "Cancel"
 	},
 	"notFound": {
 		"pageTitle": "Page not found",

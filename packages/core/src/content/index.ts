@@ -45,7 +45,7 @@ export {
 	MAX_FIELD_DEPTH,
 	MAX_FIELDS,
 	MAX_ROWS,
-	RICH_TEXT_MAX_LENGTH,
+	RICH_TEXT_VALUE_MAX_LENGTH,
 	type SelectOption,
 	TEXT_VALUE_MAX_LENGTH,
 } from "./fields.ts";
@@ -70,9 +70,13 @@ export { type Published, type PublishItem, publish, publishPermission } from "./
 export type { LinkBack } from "./relationships.ts";
 export {
 	getEntryTemplate,
+	getEntryTemplateMarkup,
+	type SavedTemplateMarkup,
 	saveEntryTemplate,
+	saveEntryTemplateMarkup,
 	type Template,
 	type TemplateKind,
+	type TemplateMarkup,
 	type TemplateStatus,
 } from "./templates.ts";
 export type { LanguageValue, Writer } from "./values.ts";

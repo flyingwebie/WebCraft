@@ -299,7 +299,7 @@ describe("values", () => {
 		});
 
 		expect(entry.draft.fields.intro).toBe(
-			'<p>Hello <em>there</em></p>bad <a href="/menu">menu</a>plain <b>bold</b><ul><li>one</li><li>two</li></ul>',
+			'<p>Hello <em>there</em></p><a href="#">bad</a> <a href="/menu">menu</a>plain <b>bold</b><ul><li>one</li><li>two</li></ul>',
 		);
 	});
 

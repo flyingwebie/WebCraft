@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
 
@@ -32,6 +32,11 @@ export const installSettings = pgTable(
 		emailLogoUrl: text("email_logo_url"),
 		emailAccentColour: text("email_accent_colour"),
 		emailFooter: text("email_footer"),
+		/**
+		 * Whether new passwords are checked against leaked-password lists (a partial-hash lookup). On
+		 * unless the Superadmin switches it off, such as for an Install that is always offline.
+		 */
+		leakedPasswordCheck: boolean("leaked_password_check").notNull().default(true),
 	},
 	(table) => [check("install_settings_single_row", sql`${table.id} = 1`)],
 );

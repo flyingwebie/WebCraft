@@ -3,6 +3,7 @@
 // It serves the bundle `vite build` made from src/server.ts on Bun.
 import { createLogger } from "@webcraft/core";
 
+import { setConnectionAddress } from "./client-address.ts";
 import { checkWebSettings } from "./web-services.ts";
 
 type ServerEntry = { fetch(request: Request): Response | Promise<Response> };
@@ -24,7 +25,10 @@ try {
 
 const server = Bun.serve({
 	port: Number(process.env.PORT ?? 3000),
-	fetch: (request) => entry.fetch(request),
+	fetch: (request, bun) => {
+		setConnectionAddress(request, bun.requestIP(request)?.address);
+		return entry.fetch(request);
+	},
 });
 log.info("The web process is listening", { port: server.port });
 

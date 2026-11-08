@@ -1,4 +1,4 @@
-import { cleanRichText, richTextToText, safeUrl } from "@webcraft/renderer";
+import { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, safeUrl } from "@webcraft/renderer";
 
 import type { ContentProblem } from "./errors.ts";
 
@@ -193,9 +193,9 @@ export type FieldTypeSpec<Field extends FieldDefinition = FieldDefinition> = {
 	value?: Field extends LeafField ? ValueSpec<Field> : never;
 };
 
-/** The longest text value, and the longest rich text (as HTML), in characters. */
+/** The longest text value, and the longest rich text (as cleaned HTML), in characters. */
 export const TEXT_VALUE_MAX_LENGTH = 2_000;
-export const RICH_TEXT_MAX_LENGTH = 50_000;
+export const RICH_TEXT_VALUE_MAX_LENGTH = RICH_TEXT_MAX_LENGTH;
 /** The most choices of a select Field, and the most Entries a Relationship points at. */
 export const MAX_OPTIONS = 200;
 export const MAX_LINKED_ENTRIES = 200;
@@ -250,19 +250,25 @@ const richText: FieldTypeSpec<RichTextField> = {
 	translation: "default-on",
 	requirable: true,
 	settings(input, report) {
-		return { maxLength: whole(input.maxLength, "maxLength", report, { min: 1, max: RICH_TEXT_MAX_LENGTH }) };
+		return { maxLength: whole(input.maxLength, "maxLength", report, { min: 1, max: RICH_TEXT_VALUE_MAX_LENGTH }) };
 	},
 	value: {
 		empty: () => null,
 		parse(input, _field, fail) {
 			if (typeof input !== "string") return fail("Rich text is HTML text.");
-			if (input.length > RICH_TEXT_MAX_LENGTH) return fail(`Rich text has at most ${RICH_TEXT_MAX_LENGTH} characters.`);
+			if (input.length > RICH_TEXT_VALUE_MAX_LENGTH * 2) {
+				return fail(`A rich text value has at most ${RICH_TEXT_VALUE_MAX_LENGTH} characters.`);
+			}
+			// Cleaned against the rich text allowlist (ADR 0017); empty when no text is left.
 			const html = cleanRichText(input);
-			return richTextToText(html) === "" ? null : html;
+			if (html.length > RICH_TEXT_VALUE_MAX_LENGTH) {
+				return fail(`A rich text value has at most ${RICH_TEXT_VALUE_MAX_LENGTH} characters.`);
+			}
+			return richTextToText(html).trim() === "" ? null : html;
 		},
 		read: (stored) => (typeof stored === "string" ? stored : null),
 		rules(value, field) {
-			const length = richTextToText(String(value)).length;
+			const length = richTextToText(String(value)).trim().length;
 			return field.maxLength !== null && length > field.maxLength
 				? [{ rule: "maxLength", message: `At most ${field.maxLength} characters of text.` }]
 				: [];

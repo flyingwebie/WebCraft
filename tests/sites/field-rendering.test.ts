@@ -255,3 +255,67 @@ describe("names a Template may read", () => {
 		}
 	});
 });
+
+describe("written as Template markup", () => {
+	/** Publishes `markup` as the Products Entry template, then a published Product with `fields`, and answers its page. */
+	async function renderMarkup(markup: string, fields: Record<string, unknown>): Promise<string> {
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: productsId, markup });
+		await staff.api.templates.publish({ siteId, templateId: saved.template.id });
+		const slug = `product-${++pages}`;
+		const { entry } = await editor.api.entries.create({ siteId, postTypeId: productsId, title: "Loaf", slug, fields });
+		await editor.api.entries.publish({ siteId, entryId: entry.id });
+		const html = await (await install.request(`https://bakery.sites.test/products/${slug}`)).text();
+		return html.slice(html.indexOf("<main>") + 6, html.indexOf("</main>"));
+	}
+
+	test("paths, formatters (on each of a list's values) and Conditions read Field values", async () => {
+		await staff.api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] });
+		await editor.api.globals.saveDraft({ siteId, fields: { phone: "01 234 5678" } });
+		await editor.api.globals.publish({ siteId });
+		const bread = await category("Breads");
+
+		const main = await renderMarkup(
+			[
+				"<p>{{ price | number: 2 }} · {{ bakedOn | date: long }} · {{ team.since | number }}</p>",
+				'<a href="{{ category.url }}">{{ category.title | truncate: 4 }}</a>',
+				"<p>{{ address.city }}, {{ site.phone }}</p>",
+				"{{@if vegan}}<p>Vegan</p>{{@else}}<p>Not vegan</p>{{/if}}",
+				"{{@if allergens}}<p>Contains {{ allergens }}</p>{{/if}}",
+				'{{@if size.value == "lg"}}<p>Big</p>{{/if}}',
+			].join(""),
+			{
+				price: 4.5,
+				bakedOn: "2026-03-02",
+				team: [
+					{ name: "Ada", since: 2019 },
+					{ name: "Bea", since: 2021 },
+				],
+				category: bread,
+				address: { city: "Cork" },
+				vegan: false,
+				allergens: [],
+				size: "lg",
+			},
+		);
+
+		expect(main).toBe(
+			"<p>4.50 · March 2, 2026 · 2,019, 2,021</p>" +
+				'<a href="/shop/breads">Brea…</a>' +
+				"<p>Cork, 01 234 5678</p><p>Not vegan</p><p>Big</p>",
+		);
+	});
+
+	test("a path no Field has is refused with its line and column", async () => {
+		const refusal = await staff.api.templates
+			.saveEntryTemplateMarkup({ siteId, postTypeId: productsId, markup: "<p>\n  {{ address.zip }}</p>" })
+			.then(
+				() => undefined,
+				(error: unknown) => error,
+			);
+
+		expect(refusal).toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: { problems: [{ line: 2, column: expect.any(Number), message: expect.stringContaining("address.zip") }] },
+		});
+	});
+});

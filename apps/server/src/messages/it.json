@@ -29,7 +29,13 @@
 		"STAFF_MEMBERSHIP": "Questo indirizzo appartiene allo Staff dell'agenzia, che non ha mai una Membership.",
 		"ACCESS_NOT_HELD_GRANT": "Non puoi concedere più accesso di quello che hai, né come ruolo né come Site.",
 		"ACCESS_NOT_HELD_MANAGE": "Questo Membro ha un accesso che tu non hai, quindi non puoi modificarlo o rimuoverlo.",
-		"INVITE_OTHER_ACCOUNT": "Questo invito è stato inviato a un altro indirizzo email. Accedi con quell'indirizzo per accettarlo."
+		"INVITE_OTHER_ACCOUNT": "Questo invito è stato inviato a un altro indirizzo email. Accedi con quell'indirizzo per accettarlo.",
+		"ACCOUNT_LOCKED": "Questo account è bloccato per un massimo di 15 minuti dopo troppe password sbagliate. Riprova più tardi.",
+		"TOO_MANY_REQUESTS": "Troppi tentativi. Aspetta un minuto, poi riprova.",
+		"IDENTITY_CHECK_REQUIRED": "Conferma che sei tu per continuare.",
+		"IDENTITY_CHECK_CANCELLED": "Non è cambiato nulla: conferma che sei tu per continuare.",
+		"SENSITIVE_ACTION_REFUSED": "Solo una persona che ha effettuato l'accesso all'admin può farlo.",
+		"SESSION_NOT_FOUND": "Questa sessione è già terminata."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -142,6 +148,7 @@
 			"installSettingsGroup": "Impostazioni dell'Install",
 			"overview": "Panoramica",
 			"general": "Generali",
+			"security": "Sicurezza",
 			"emailLog": "Email log",
 			"email": "Email (SMTP)",
 			"workspaces": "Workspace",
@@ -196,6 +203,15 @@
 		"save": "Salva",
 		"saved": "Salvato."
 	},
+	"securitySettings": {
+		"pageTitle": "Sicurezza",
+		"heading": "Sicurezza",
+		"intro": "Come l'Install protegge gli account delle persone.",
+		"leakedPasswordCheck": "Controlla le nuove password negli elenchi di password trapelate",
+		"leakedPasswordCheckHelp": "Dal server escono solo i primi 5 caratteri dell'hash SHA-1 della password, quindi la password non viene mai inviata. Se il servizio non è raggiungibile, la password viene accettata. Disattiva il controllo per un'Install sempre offline.",
+		"save": "Salva",
+		"saved": "Salvato."
+	},
 	"account": {
 		"pageTitle": "Il tuo account",
 		"heading": "Il tuo account",
@@ -217,6 +233,34 @@
 			"save": "Salva",
 			"saved": "Salvato."
 		},
+		"password": {
+			"heading": "Password",
+			"intro": "Cambiare la password ti disconnette da tutte le altre sessioni.",
+			"newPassword": "Nuova password",
+			"newPasswordHelp": "Almeno 12 caratteri. Le password presenti negli elenchi di password trapelate vengono rifiutate.",
+			"repeat": "Ripeti la nuova password",
+			"mismatch": "Le password non coincidono.",
+			"save": "Cambia password",
+			"saved": "Password cambiata. Le altre sessioni sono state disconnesse."
+		},
+		"sessions": {
+			"heading": "Sessioni",
+			"intro": "I browser con cui hai effettuato l'accesso al tuo account. Disconnetti quelli che non riconosci.",
+			"browser": "Browser",
+			"network": "Rete",
+			"lastUsed": "Ultimo utilizzo",
+			"actions": "Azioni",
+			"deviceBoth": "{browser} su {os}",
+			"deviceOs": "Un browser su {os}",
+			"deviceUnknown": "Browser sconosciuto",
+			"networkUnknown": "Sconosciuta",
+			"current": "Questo browser",
+			"signOut": "Disconnetti",
+			"signOutLabel": "Disconnetti {device}, usato l'ultima volta {lastUsed}",
+			"signedOut": "Disconnesso.",
+			"signOutOthers": "Disconnetti tutte le altre sessioni",
+			"signedOutOthers": "{count, plural, one {# altra sessione è stata disconnessa.} other {# altre sessioni sono state disconnesse.}}"
+		},
 		"twoFactor": {
 			"heading": "Autenticazione a due fattori",
 			"status": "Non configurata",
@@ -231,6 +275,14 @@
 			"save": "Salva",
 			"saved": "Salvato."
 		}
+	},
+	"identityCheck": {
+		"title": "Conferma che sei tu",
+		"body": "Questa modifica richiede la tua password. In questo browser non ti verrà chiesta di nuovo per 10 minuti.",
+		"password": "Password",
+		"wrongPassword": "La password non è corretta.",
+		"confirm": "Conferma",
+		"cancel": "Annulla"
 	},
 	"notFound": {
 		"pageTitle": "Pagina non trovata",

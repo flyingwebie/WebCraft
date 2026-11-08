@@ -24,6 +24,12 @@ export function errorMessage(error: unknown): MessageKey {
 		case "ALREADY_MEMBER":
 		case "STAFF_MEMBERSHIP":
 		case "INVITE_OTHER_ACCOUNT":
+		case "ACCOUNT_LOCKED":
+		case "TOO_MANY_REQUESTS":
+		case "IDENTITY_CHECK_REQUIRED":
+		case "IDENTITY_CHECK_CANCELLED":
+		case "SENSITIVE_ACTION_REFUSED":
+		case "SESSION_NOT_FOUND":
 			return `errors.${code}`;
 		case "ACCESS_NOT_HELD":
 			return data?.problem === "manage" ? "errors.ACCESS_NOT_HELD_MANAGE" : "errors.ACCESS_NOT_HELD_GRANT";

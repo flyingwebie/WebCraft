@@ -338,6 +338,9 @@ describe("Member invite links", () => {
 		expect(second).not.toBe(first);
 		await expect(install.browser().api.invites.get({ token: first })).rejects.toMatchObject({ code: "INVITE_INVALID" });
 		expect((await install.browser().api.invites.get({ token: second })).email).toBe("resend@acmeltd.example");
+		// Inviting is a Sensitive action: the shared sessions confirm again after the clock moved.
+		await admin.api.session.confirmIdentity({ password: TEST_PASSWORD });
+		await staff.browser.api.session.confirmIdentity({ password: TEST_PASSWORD });
 	});
 
 	test("a revoked invite's link stops working", async () => {

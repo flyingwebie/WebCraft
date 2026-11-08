@@ -1,5 +1,11 @@
 import { ORPCError } from "@orpc/server";
-import { EmailInUseError, InvalidCredentialsError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
+import {
+	AccountLockedError,
+	EmailInUseError,
+	InvalidCredentialsError,
+	InvalidEmailError,
+	PasswordRefusedError,
+} from "@webcraft/auth";
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
@@ -12,6 +18,7 @@ import {
 	EntrySlugTakenError,
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
+	IdentityCheckRequiredError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	MemberNotFoundError,
@@ -19,6 +26,9 @@ import {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	RateLimitedError,
+	SensitiveActionRefusedError,
+	SessionNotFoundError,
 	SetupClosedError,
 	SetupStageError,
 	SetupTokenInvalidError,
@@ -30,7 +40,7 @@ import {
 	TemplateNotFoundError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
-import { ElementTreeInvalidError } from "@webcraft/renderer";
+import { ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -144,8 +154,19 @@ export function toApiError(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (error instanceof TemplateMarkupInvalidError) {
+		return new ORPCError("TEMPLATE_MARKUP_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof SessionNotFoundError) {
+		return new ORPCError("SESSION_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof InviteInvalidError) {
 		return new ORPCError("INVITE_INVALID", { status: 404, message: error.message, cause: error });
@@ -178,6 +199,22 @@ export function toApiError(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (error instanceof IdentityCheckRequiredError) {
+		return new ORPCError("IDENTITY_CHECK_REQUIRED", {
+			status: 403,
+			message: error.message,
+			data: { action: error.action },
+			cause: error,
+		});
+	}
+	if (error instanceof SensitiveActionRefusedError) {
+		return new ORPCError("SENSITIVE_ACTION_REFUSED", {
+			status: 403,
+			message: error.message,
+			data: { action: error.action },
+			cause: error,
+		});
+	}
 	if (error instanceof SetupTokenInvalidError) {
 		return new ORPCError("SETUP_TOKEN_INVALID", { status: 403, message: error.message, cause: error });
 	}
@@ -206,6 +243,22 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { types: error.types },
+			cause: error,
+		});
+	}
+	if (error instanceof RateLimitedError) {
+		return new ORPCError("TOO_MANY_REQUESTS", {
+			status: 429,
+			message: error.message,
+			data: { retryAfterSeconds: error.retryAfterSeconds },
+			cause: error,
+		});
+	}
+	if (error instanceof AccountLockedError) {
+		return new ORPCError("ACCOUNT_LOCKED", {
+			status: 423,
+			message: error.message,
+			data: { retryAfterSeconds: error.retryAfterSeconds },
 			cause: error,
 		});
 	}
