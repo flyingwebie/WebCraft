@@ -1,1 +1,8 @@
-env = false
+# Bun settings for the whole repo. Bun loads `.env` from the directory it runs in,
+# so run scripts and tests from the repo root.
+
+[test]
+# Drops the test databases this run created, once every test file has finished.
+preload = ["./tests/harness/preload.ts"]
+# Creating and migrating a test database can take a few seconds on a busy server.
+timeout = 30000

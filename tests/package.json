@@ -1,0 +1,24 @@
+{
+	"name": "@webcraft/tests",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "Seam-1 tests and the shared test harness: a fresh Install per test file, driven with standard Requests.",
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/core": "workspace:*",
+		"@webcraft/db": "workspace:*",
+		"@webcraft/server": "workspace:*",
+		"pg": "catalog:",
+		"pg-boss": "catalog:"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"@types/pg": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

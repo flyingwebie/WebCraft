@@ -1,26 +1,6 @@
-import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
-import type { Database } from "@webcraft/db";
-import * as schema from "@webcraft/db/schema/auth";
-import { betterAuth } from "better-auth";
-import { tanstackStartCookies } from "better-auth/tanstack-start";
-
-export type AuthConfig = {
-  BETTER_AUTH_URL: string;
-  BETTER_AUTH_SECRET: string;
-};
-
-export function createAuth(env: AuthConfig, database: Database) {
-  return betterAuth({
-    database: drizzleAdapter(database, {
-      provider: "pg",
-      schema,
-    }),
-    trustedOrigins: [env.BETTER_AUTH_URL],
-    emailAndPassword: { enabled: true },
-    secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
-    plugins: [tanstackStartCookies()],
-  });
-}
-
-export type Session = ReturnType<typeof createAuth>["$Infer"]["Session"];
+/**
+ * Auth: WebCraft's own sign-in interface, with Better Auth (version pinned) behind it, so the rest
+ * of WebCraft never imports Better Auth directly. It adds per-Site permissions, lockout, the Audit
+ * log, 2FA enforcement, Impersonation and recent identity checks. Built by the sign-in tickets.
+ */
+export {};

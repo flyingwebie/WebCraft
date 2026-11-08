@@ -1,0 +1,37 @@
+{
+	"name": "@webcraft/server",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The web process (Bun): routes every request by hostname to the admin or to a Site.",
+	"type": "module",
+	"exports": {
+		"./handler": "./src/handler.ts"
+	},
+	"scripts": {
+		"dev": "bun --bun vite dev",
+		"build": "bun --bun vite build",
+		"start": "bun src/serve.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@tailwindcss/vite": "^4.3.3",
+		"@tanstack/react-router": "^1.170.44",
+		"@tanstack/react-start": "^1.169.1",
+		"@webcraft/core": "workspace:*",
+		"@webcraft/db": "workspace:*",
+		"@webcraft/ui": "workspace:*",
+		"react": "^19.3.0",
+		"react-dom": "^19.3.0",
+		"tailwindcss": "catalog:"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"@vitejs/plugin-react": "^6.1.2",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:",
+		"vite": "^8.3.4"
+	}
+}

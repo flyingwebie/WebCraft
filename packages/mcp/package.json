@@ -1,0 +1,19 @@
+{
+	"name": "@webcraft/mcp",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The MCP server, generated from the public Management API procedures.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

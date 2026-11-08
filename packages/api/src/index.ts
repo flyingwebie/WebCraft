@@ -1,20 +1,16 @@
-import { ORPCError, os } from "@orpc/server";
+import { os } from "@orpc/server";
 
-import type { Context } from "./context";
+/**
+ * The Management API: oRPC procedures with Zod schemas. The admin host serves the public ones under
+ * `/api/v1` (with an OpenAPI spec); the MCP server and the CLI are generated from them (ADR 0030).
+ * Every procedure checks `can()` before it reads or changes anything.
+ */
 
-export const o = os.$context<Context>();
+/** What every procedure receives. It grows with the actor (person, token, grant) and services. */
+export type ApiContext = Record<string, never>;
 
-export const publicProcedure = o;
+/** The builder every procedure starts from. */
+export const procedure = os.$context<ApiContext>();
 
-const requireAuth = o.middleware(async ({ context, next }) => {
-  if (!context.session?.user) {
-    throw new ORPCError("UNAUTHORIZED");
-  }
-  return next({
-    context: {
-      session: context.session,
-    },
-  });
-});
-
-export const protectedProcedure = publicProcedure.use(requireAuth);
+/** Every procedure, by name. Empty until the first procedures arrive. */
+export const apiRouter = {};

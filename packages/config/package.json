@@ -1,5 +1,7 @@
 {
-  "name": "@webcraft/config",
-  "version": "0.0.0",
-  "private": true
+	"name": "@webcraft/config",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "Shared TypeScript settings for every WebCraft workspace."
 }

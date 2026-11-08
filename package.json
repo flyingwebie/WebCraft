@@ -1,55 +1,57 @@
 {
-  "name": "webcraft",
-  "private": true,
-  "workspaces": {
-    "packages": [
-      "apps/*",
-      "packages/*"
-    ],
-    "catalog": {
-      "zod": "^4.5.4",
-      "typescript": "^6.0.3",
-      "varlock": "1.23.0",
-      "next-themes": "^0.4.6",
-      "sonner": "^2.0.8",
-      "tailwindcss": "^4.3.3",
-      "@orpc/server": "^1.15.6",
-      "@orpc/client": "^1.15.6",
-      "@orpc/openapi": "^1.15.6",
-      "@orpc/zod": "^1.15.6",
-      "better-auth": "1.7.12",
-      "drizzle-orm": "1.0.0-rc.5"
-    }
-  },
-  "type": "module",
-  "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "check-types": "turbo run check-types",
-    "dev:web": "turbo run dev -F web --",
-    "db:push": "turbo run db:push -F @webcraft/db --",
-    "db:studio": "turbo run db:studio -F @webcraft/db --",
-    "db:generate": "turbo run db:generate -F @webcraft/db --",
-    "db:migrate": "turbo run db:migrate -F @webcraft/db --",
-    "db:start": "turbo run db:start -F @webcraft/db --",
-    "db:watch": "turbo run db:watch -F @webcraft/db --",
-    "db:stop": "turbo run db:stop -F @webcraft/db --",
-    "db:down": "turbo run db:down -F @webcraft/db --",
-    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/",
-    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/",
-    "auth:generate": "cd apps/web && bun run auth:generate",
-    "check": "biome check --write ."
-  },
-  "dependencies": {
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.6.2",
-    "@types/node": "^26.4.1",
-    "@webcraft/config": "workspace:*",
-    "turbo": "^2.11.7",
-    "typescript": "catalog:",
-    "varlock": "catalog:"
-  },
-  "packageManager": "bun@1.4.2"
+	"name": "webcraft",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"type": "module",
+	"workspaces": {
+		"packages": [
+			"apps/*",
+			"packages/*",
+			"tests"
+		],
+		"catalog": {
+			"zod": "^4.5.4",
+			"typescript": "^6.0.3",
+			"@types/node": "^26.4.1",
+			"@types/bun": "^1.4.3",
+			"@orpc/server": "^1.15.6",
+			"@orpc/client": "^1.15.6",
+			"better-auth": "1.7.12",
+			"drizzle-orm": "1.0.0-rc.5",
+			"drizzle-kit": "1.0.0-rc.5",
+			"pg": "^8.23.0",
+			"@types/pg": "^8.23.1",
+			"pg-boss": "^12.38.1",
+			"tailwindcss": "^4.3.3",
+			"next-themes": "^0.4.6",
+			"sonner": "^2.0.8"
+		}
+	},
+	"scripts": {
+		"dev": "bun scripts/dev.ts",
+		"build": "turbo run build",
+		"start": "bun apps/server/src/serve.ts",
+		"start:worker": "node apps/worker/src/main.ts",
+		"test": "bun test",
+		"lint": "biome ci .",
+		"format": "biome check --write .",
+		"typecheck": "turbo run typecheck",
+		"db:migrate": "bun apps/cli/src/main.ts admin migrate",
+		"db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
+		"db:studio": "drizzle-kit studio --config packages/db/drizzle.config.ts",
+		"check:licences": "bun scripts/check-licences.ts",
+		"check:denylist": "sh scripts/check-denylist.sh"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.6.2",
+		"@types/bun": "catalog:",
+		"@types/node": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"drizzle-kit": "catalog:",
+		"pg": "catalog:",
+		"@types/pg": "catalog:",
+		"turbo": "^2.11.7",
+		"typescript": "catalog:"
+	},
+	"packageManager": "bun@1.4.2"
 }
