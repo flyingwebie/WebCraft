@@ -33,7 +33,7 @@ import {
 	type UndoRefusal,
 } from "./errors.ts";
 import { deleteFile, openFile, ownFile } from "./files.ts";
-import type { ItemProblem } from "./items.ts";
+import type { ImportLeftover, ItemProblem } from "./items.ts";
 import {
 	countOutcome,
 	decide,
@@ -122,6 +122,8 @@ export type ImportRunReport = ImportRunSummary & {
 	skipped: ImportChange[];
 	/** How many files it fetched into the Media library. */
 	files: number;
+	/** Its Import leftovers, for a source that has them (none in a CSV file). */
+	leftovers: ImportLeftover[];
 	failure: { reason: string } | null;
 	undoneAt: Date | null;
 	undoneBy: PersonRef;
@@ -438,6 +440,7 @@ export async function runReport(scope: SiteScope, runId: string): Promise<Import
 		updated: await changes("updated"),
 		skipped: await changes("skipped"),
 		files,
+		leftovers: [],
 		failure: (run.failure as { reason: string } | null) ?? null,
 		undoneAt: run.undoneAt,
 		undoneBy: run.undoneBy && undoneBy ? { id: run.undoneBy, name: undoneBy } : null,

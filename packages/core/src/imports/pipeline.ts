@@ -24,8 +24,8 @@ import {
 } from "../media/index.ts";
 import type { MediaLibrary } from "../media/library.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { type CsvMapping, matchKey, setAt } from "./csv-source.ts";
-import type { EntryItem, ItemProblem } from "./items.ts";
+import { matchKey, setAt } from "./csv-source.ts";
+import type { EntryItem, ItemDestination, ItemProblem } from "./items.ts";
 
 type ItemRow = typeof importItems.$inferSelect;
 
@@ -36,7 +36,8 @@ type EntryState = { hash: string; updatedAt: Date };
 export type PipelineContext = {
 	scope: SiteScope;
 	importId: string | null;
-	mapping: CsvMapping;
+	/** Where the source's items go. */
+	mapping: ItemDestination;
 	/** Existing Entries of the Post Type by their matching value (from their Drafts). */
 	index: Map<string, string[]>;
 	/** The Import's items by Source id, and by Entry. */
@@ -65,7 +66,7 @@ export type Decision =
 export async function pipelineContext(
 	scope: SiteScope,
 	importId: string | null,
-	mapping: CsvMapping,
+	mapping: ItemDestination,
 ): Promise<PipelineContext> {
 	const index = new Map<string, string[]>();
 	const path = matchPath(mapping.match.to);

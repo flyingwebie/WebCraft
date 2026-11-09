@@ -24,14 +24,13 @@ import {
 	type TextReading,
 	type ValueSpec,
 } from "../content/field-types.ts";
-import type { Languages } from "../content/field-values.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
 import { getPostType, type PostType } from "../content/post-types.ts";
 import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "../content/url-patterns.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { CSV_LIMITS, type CsvRecord } from "./csv.ts";
 import { ImportInvalidError, type ImportSettingProblem } from "./errors.ts";
-import type { EntryItem, ItemProblem } from "./items.ts";
+import type { EntryItem, ItemDestination, ItemProblem } from "./items.ts";
 
 /** Where a column goes: the title, the slug or a Field (`fields.price`, `fields.address.city`); null skips it. */
 const target = z.string().trim().min(1).max(300);
@@ -57,9 +56,7 @@ export type CsvTarget =
 	| { kind: "field"; to: string; path: string[]; field: LeafField };
 
 /** A CSV Import's settings checked against the Site: what a run needs to read rows. */
-export type CsvMapping = {
-	postType: PostType;
-	languages: Languages;
+export type CsvMapping = ItemDestination & {
 	/** Where each mapped column goes, by its name in lower case. */
 	columns: Map<string, CsvTarget>;
 	match: CsvTarget;

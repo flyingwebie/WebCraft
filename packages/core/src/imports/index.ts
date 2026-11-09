@@ -39,6 +39,7 @@ export {
 	type UndoRefusal,
 } from "./errors.ts";
 export { csvTooLarge, IMPORT_FILE_LIFETIME_MS, type ImportFile } from "./files.ts";
+export type { EntryItem, ImportLeftover, ItemDestination, ItemFind, ItemProblem } from "./items.ts";
 export { importsPurge, importsPurgeSchedule } from "./purge.ts";
 export {
 	IMPORT_REPORT_LIFETIME_MS,

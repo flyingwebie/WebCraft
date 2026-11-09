@@ -4,6 +4,15 @@
  * add). A source reads its own format; from here on every source's items are written the same way.
  */
 import type { Json, LeafField } from "../content/field-types.ts";
+import type { Languages } from "../content/field-values.ts";
+import type { PostType } from "../content/post-types.ts";
+
+/**
+ * Where a source's Entry items go: one Post Type, values in one of the Site's languages, matched to
+ * existing Entries by one value (`title`, `slug` or `fields.<key>`). A source works this out from its
+ * own settings (the CSV source from its mapping).
+ */
+export type ItemDestination = { postType: PostType; languages: Languages; match: { to: string } };
 
 /**
  * A problem with an item, at its column (a CSV column; null for the whole item) with its rule and
@@ -42,3 +51,10 @@ export type EntryItem = {
 	finds: ItemFind[];
 	problems: ItemProblem[];
 };
+
+/**
+ * A piece of source content no Block type matches (a shortcode, page-builder markup), kept as plain
+ * text in the Entry and listed in the Import report for someone to fix. CSV files have none; the
+ * WordPress import (#112) records them.
+ */
+export type ImportLeftover = { row: number; entryId: string | null; title: string | null; text: string };
