@@ -16,7 +16,7 @@ export const imports = {
 	 * separator, or `IMPORT_FILE_REFUSED` with `data.reason`. The file is private (never in the Media
 	 * library, never served) and is deleted once a run took it and ended, or after a day.
 	 */
-	uploadCsv: signedIn.input(z.object({ siteId: id, file: z.instanceof(File) })).handler(async ({ context, input }) => {
+	uploadCsv: signedIn.input(z.object({ siteId: id, file: z.file() })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "import.run");
 		if (input.file.size > CSV_LIMITS.maxBytes) throw csvTooLarge();
 		const data = new Uint8Array(await input.file.arrayBuffer());

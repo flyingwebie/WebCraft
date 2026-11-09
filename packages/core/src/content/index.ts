@@ -171,6 +171,7 @@ export {
 	type SiteDraft,
 	siteDrafts,
 } from "./publish-all.ts";
+export { type PublishPreview, publishPreview } from "./publish-preview.ts";
 export {
 	type PathChange,
 	type Published,

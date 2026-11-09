@@ -47,7 +47,8 @@ export function createAdminApi(
 	};
 	return async (request, { clientAddress }) => {
 		const handler = handlerFor();
-		const body = await bodyWithinLimit(services, request);
+		const procedurePath = new URL(request.url).pathname.slice(ADMIN_API_PREFIX.length + 1).replaceAll("/", ".");
+		const body = await bodyWithinLimit(services, request, procedurePath);
 		if (body instanceof Response) return body;
 		const { matched, response } = await handler.handle(body.request, {
 			prefix: ADMIN_API_PREFIX,
@@ -64,25 +65,29 @@ export function createAdminApi(
 /** Room a multipart body needs beside its file: boundaries, part headers and the other fields. */
 const MULTIPART_ALLOWANCE = 64 * 1024;
 
-type LimitedBody = { request: Request; overflowed(): boolean; tooLarge(): Response };
+export type LimitedBody = { request: Request; overflowed(): boolean; tooLarge(): Response };
 
 /** The procedures whose uploads aren't Media, with the largest file each takes and how it refuses a larger one. */
 const OWN_UPLOAD_LIMITS: Record<string, { maxFileBytes: number; refusal: () => Error }> = {
-	[`${ADMIN_API_PREFIX}/imports/uploadCsv`]: { maxFileBytes: CSV_LIMITS.maxBytes, refusal: csvTooLarge },
+	"imports.uploadCsv": { maxFileBytes: CSV_LIMITS.maxBytes, refusal: csvTooLarge },
 };
 
 /**
  * Keeps an upload (a multipart body, the only kind that carries files) to the largest file the
- * procedure takes (the Install's largest Media file, unless it has its own limit), before it is read
- * into memory: a body that says it is larger is refused at once, and one that doesn't say stops
- * being read once it passes the limit.
+ * procedure at `procedurePath` (dotted) takes (the Install's largest Media file, unless it has its
+ * own limit), before it is read into memory: a body that says it is larger is refused at once, and
+ * one that doesn't say stops being read once it passes the limit.
  */
-async function bodyWithinLimit(services: InstallServices, request: Request): Promise<LimitedBody | Response> {
+export async function bodyWithinLimit(
+	services: InstallServices,
+	request: Request,
+	procedurePath: string,
+): Promise<LimitedBody | Response> {
 	const multipart = request.headers.get("content-type")?.toLowerCase().startsWith("multipart/") ?? false;
 	if (!multipart || request.body === null) {
 		return { request, overflowed: () => false, tooLarge: () => tooLarge(new MediaTooLargeError(0)) };
 	}
-	const own = OWN_UPLOAD_LIMITS[new URL(request.url).pathname];
+	const own = Object.hasOwn(OWN_UPLOAD_LIMITS, procedurePath) ? OWN_UPLOAD_LIMITS[procedurePath] : undefined;
 	const maxFileBytes = own?.maxFileBytes ?? (await services.settings.media()).maxFileBytes;
 	const refusal = own?.refusal ?? (() => new MediaTooLargeError(maxFileBytes));
 	const limit = maxFileBytes + MULTIPART_ALLOWANCE;

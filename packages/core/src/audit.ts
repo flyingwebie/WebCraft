@@ -10,15 +10,16 @@ type Executor = Database["db"] | Transaction;
  * - `command`: a server command, `webcraft admin <name>`.
  * - `module`: a Module acting by itself (its id): in a background job, an event or a Site route.
  * - `editMode`: Edit mode, on a Site's own domain.
+ * - `token`: an API token (its name), through the Management API at `/api/v1`.
  *
- * Later ways in add their kinds here: an API token (its name), an AI client (its name), and
- * Impersonation ("<Staff> as <Member>").
+ * Later ways in add their kinds here: an AI client (its name), and Impersonation ("<Staff> as <Member>").
  */
 export type AuditVia =
 	| { kind: "admin" }
 	| { kind: "command"; name: string }
 	| { kind: "module"; name: string }
-	| { kind: "editMode" };
+	| { kind: "editMode" }
+	| { kind: "token"; name: string };
 
 /** Something changed, as the Audit log keeps it. Values are plain JSON; never put a secret's value here. */
 export type AuditDetails = Record<string, unknown>;
@@ -60,7 +61,7 @@ export async function recordAudit(executor: Executor, at: Date, entry: NewAuditE
 		occurredAt: at,
 		personId: entry.personId,
 		via: via.kind,
-		viaName: via.kind === "command" || via.kind === "module" ? via.name : null,
+		viaName: via.kind === "command" || via.kind === "module" || via.kind === "token" ? via.name : null,
 		workspaceId: entry.workspaceId,
 		siteId: entry.siteId,
 		action: entry.action,
@@ -84,7 +85,7 @@ export async function listAuditEntries(executor: Executor, options: { limit: num
 }
 
 function viaOf(kind: string, name: string | null): AuditVia {
-	if (kind === "command" || kind === "module") return { kind, name: name ?? "" };
+	if (kind === "command" || kind === "module" || kind === "token") return { kind, name: name ?? "" };
 	if (kind === "editMode") return { kind: "editMode" };
 	return { kind: "admin" };
 }

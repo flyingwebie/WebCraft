@@ -1,12 +1,14 @@
 import {
 	CONSENT_CATEGORIES,
 	CSP_MODES,
+	LibraryNotFoundError,
 	OUTSIDE_SCRIPT_NAME_MAX_LENGTH,
 	OUTSIDE_SCRIPT_PLACEMENTS,
 	SNIPPET_MAX_LENGTH,
 } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedForApiClients } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 import { languageOf } from "./modules.ts";
@@ -166,9 +168,23 @@ export const libraries = {
 		}),
 
 	/** Removes a Library from the Site's pages; its file is still served for 30 days. */
-	remove: signedIn.input(z.object({ siteId: id, libraryId: id })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-		await context.services.siteScripts.libraries.remove(site, input.libraryId);
-		return { removed: true };
-	}),
+	remove: signedIn
+		.input(z.object({ siteId: id, libraryId: id, confirmation: confirmationInput }))
+		.use(
+			confirmedForApiClients({
+				action: "library.remove",
+				permission: () => "structure.edit",
+				describe: async (site, input, services) => {
+					const found = (await services.siteScripts.libraries.list(site)).find((each) => each.id === input.libraryId);
+					if (!found) throw new LibraryNotFoundError();
+					const { name, version, src } = found;
+					return { target: found.id, preview: { library: { id: found.id, name, version, src } } };
+				},
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			await context.services.siteScripts.libraries.remove(site, input.libraryId);
+			return { removed: true };
+		}),
 };

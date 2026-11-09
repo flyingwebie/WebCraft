@@ -128,6 +128,31 @@ export function createInstallSmtp({ database, secrets, clock, log }: Options): I
 }
 
 /** Checks and tidies SMTP settings: trims them and checks the addresses. */
+/**
+ * A test email without a typed password would be sent with the stored one, which goes only to the
+ * server it was saved for: anyone who may send a test could otherwise name their own server and be
+ * sent a password nobody can read.
+ */
+export class SmtpPasswordNeededError extends Error {
+	override name = "SmtpPasswordNeededError";
+	constructor() {
+		super("Type the password to test another server: the stored one is only sent to the server it was saved for.");
+	}
+}
+
+type SmtpServer = { host: string; port: number; security: string; username: string | null };
+
+/** Whether a server is the one a stored password was saved for: the same host, port, security and user name. */
+export function sameSmtpServer(stored: SmtpServer, given: SmtpServer): boolean {
+	const user = (server: SmtpServer) => server.username?.trim() || null;
+	return (
+		stored.host.trim().toLowerCase() === given.host.trim().toLowerCase() &&
+		stored.port === given.port &&
+		stored.security === given.security &&
+		user(stored) === user(given)
+	);
+}
+
 export function checkSettings(settings: SmtpSettings): SmtpSettings {
 	const fromAddress = normaliseEmail(settings.fromAddress);
 	assertValidEmail(fromAddress);

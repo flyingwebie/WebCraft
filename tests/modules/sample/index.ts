@@ -80,6 +80,7 @@ export const sample = defineModule({
 		notes: {
 			list: procedure({
 				permission: "notes.view",
+				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
 					const rows = await context.data.select(notes, undefined, { orderBy: [desc(notes.createdAt)] });

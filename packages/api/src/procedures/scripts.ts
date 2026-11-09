@@ -1,6 +1,7 @@
 import { publishPermission, SCRIPT_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { basedOn, id } from "../inputs.ts";
 
@@ -32,11 +33,14 @@ export const scripts = {
 		}),
 
 	/** Publishes a script's Draft: visitors run it from the next page they load, and the Site's page cache is cleared. */
-	publish: signedIn.input(z.object({ siteId: id, scriptId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "script", id: input.scriptId } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		const published = await context.services.publishing.publish(site, item);
-		const script = await context.services.scripts.byId(site, input.scriptId);
-		return { published, script };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, scriptId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish((input) => ({ kind: "script", id: input.scriptId })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "script", id: input.scriptId } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			const published = await context.services.publishing.publish(site, item);
+			const script = await context.services.scripts.byId(site, input.scriptId);
+			return { published, script };
+		}),
 };

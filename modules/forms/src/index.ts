@@ -189,6 +189,7 @@ export const forms = defineModule({
 			 */
 			list: procedure({
 				permission: "submissions.view",
+				kind: "read",
 				input: filters.extend({
 					limit: z.number().int().min(1).max(LIST_LIMIT).default(50),
 					offset: z.number().int().min(0).max(1_000_000).default(0),
@@ -219,6 +220,7 @@ export const forms = defineModule({
 			/** One Submission, with its delivery log: each email and Webhook call sent for it. */
 			get: procedure({
 				permission: "submissions.view",
+				kind: "read",
 				input: z.object({ id: z.uuid() }),
 				async run(input, context) {
 					const row = await found(context, input.id);
@@ -333,6 +335,7 @@ export const forms = defineModule({
 			 */
 			export: procedure({
 				permission: "submissions.view",
+				kind: "read",
 				input: filters.extend({ formId: z.uuid() }),
 				async run(input, context) {
 					const rows = await context.data.select(submissions, filtered(input), {
@@ -361,6 +364,7 @@ export const forms = defineModule({
 			/** How long a Form keeps its Submissions: 30, 90 or 365 days, or null for forever. */
 			get: procedure({
 				permission: "submissions.view",
+				kind: "read",
 				input: z.object({ formId: z.uuid() }),
 				async run(input, context) {
 					return { keepDays: await keepDaysOf(context, input.formId) };

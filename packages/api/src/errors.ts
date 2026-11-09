@@ -12,6 +12,7 @@ import {
 	AiProviderError,
 	AlreadyMemberError,
 	AltTextUnavailableError,
+	ApiTokenNotFoundError,
 	ArchiveUnavailableError,
 	CaptchaInvalidError,
 	ClassInUseError,
@@ -106,6 +107,7 @@ import {
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
+	SmtpPasswordNeededError,
 	SnippetInvalidError,
 	StaffMembershipError,
 	StaffNotFoundError,
@@ -744,6 +746,9 @@ export function toApiError(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (error instanceof ApiTokenNotFoundError) {
+		return new ORPCError("API_TOKEN_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
 	if (error instanceof SensitiveActionRefusedError) {
 		return new ORPCError("SENSITIVE_ACTION_REFUSED", {
 			status: 403,
@@ -771,6 +776,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof InvalidEmailError) {
 		return new ORPCError("EMAIL_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof SmtpPasswordNeededError) {
+		return new ORPCError("SMTP_PASSWORD_NEEDED", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof EmailInUseError) {
 		return new ORPCError("EMAIL_IN_USE", { status: 409, message: error.message, cause: error });

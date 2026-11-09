@@ -171,6 +171,23 @@ describe("Send test email", () => {
 		expect(install.mail.sent[0]?.smtp.password).toBe("the stored password 5678");
 	});
 
+	test("the stored password goes only to the server it was saved for: another needs its password typed", async () => {
+		const browser = await install.signIn(superadmin);
+		await browser.api.install.smtp.update({ ...SMTP, password: "the stored password 5678" });
+
+		for (const settings of [
+			{ ...SMTP, host: "smtp.elsewhere.example" },
+			{ ...SMTP, port: 2525 },
+			{ ...SMTP, username: "someone-else" },
+		]) {
+			await expect(browser.api.install.smtp.sendTest({ to: "ops@agency.example", settings })).rejects.toMatchObject({
+				code: "SMTP_PASSWORD_NEEDED",
+				status: 400,
+			});
+		}
+		expect(install.mail.attempts).toEqual([]);
+	});
+
 	test("a test the server refuses answers its reply, and doesn't count towards Failing", async () => {
 		const browser = await install.signIn(superadmin);
 		await browser.api.install.smtp.update({ ...SMTP, password: "the stored password 5678" });

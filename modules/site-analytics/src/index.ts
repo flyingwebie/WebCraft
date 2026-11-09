@@ -90,6 +90,7 @@ export const siteAnalytics = defineModule({
 			/** A range's totals: page views, visitors, visits and events. */
 			totals: procedure({
 				permission: "analytics.view",
+				kind: "read",
 				input: range,
 				async run(input, context) {
 					return { totals: await totals(context, checked(input, periodOf(input))) };
@@ -98,6 +99,7 @@ export const siteAnalytics = defineModule({
 			/** A range's totals by hour or by day. */
 			series: procedure({
 				permission: "analytics.view",
+				kind: "read",
 				input: range.extend({ interval: z.enum(["hour", "day"]) }),
 				async run(input, context) {
 					return { points: await series(context, checked(input, input.interval), input.interval) };
@@ -106,6 +108,7 @@ export const siteAnalytics = defineModule({
 			/** A range's measures by the values of one dimension, the biggest first. */
 			breakdown: procedure({
 				permission: "analytics.view",
+				kind: "read",
 				input: range.extend({ dimension: dimensionSchema, limit: z.number().int().min(1).max(1000).default(10) }),
 				async run(input, context) {
 					return {
@@ -116,6 +119,7 @@ export const siteAnalytics = defineModule({
 			/** How far back the raw events reach, and how far rollups are built. */
 			coverage: procedure({
 				permission: "analytics.view",
+				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
 					return coverage(context);
@@ -126,6 +130,7 @@ export const siteAnalytics = defineModule({
 			/** The Site's analytics settings. */
 			get: procedure({
 				permission: "structure.edit",
+				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
 					const row = await context.data.first(settings);

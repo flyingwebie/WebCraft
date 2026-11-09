@@ -1,7 +1,7 @@
 import { isEditPath, STAGING_PASSWORD_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
-import { onSite, sensitive, signedIn } from "../context.ts";
+import { inAdminSession, onSite, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 
 /** A path on a Site: one leading `/`, no query, fragment, backslash or space. */
@@ -19,10 +19,12 @@ export const staging = {
 	 * browser see the Staging address for at most 8 hours, tied to this admin session (signing out
 	 * ends it). Needs `site.view`; `STAGING_UNAVAILABLE` on an Install without a sites domain.
 	 */
-	open: signedIn.input(z.object({ siteId: id, path: sitePath.default("/") })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, "site.view");
-		return await context.services.staging.openLink(site, { adminSessionId: context.session.id, path: input.path });
-	}),
+	open: inAdminSession
+		.input(z.object({ siteId: id, path: sitePath.default("/") }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "site.view");
+			return await context.services.staging.openLink(site, { adminSessionId: context.session.id, path: input.path });
+		}),
 
 	/**
 	 * The Site's Staging address (`url`, null without a sites domain) and whether it has a staging

@@ -76,7 +76,7 @@ export const media = {
 	 * anyone can see them (`status: "processing"` until then); other files are served at once.
 	 */
 	upload: signedIn
-		.input(z.object({ siteId: id, file: z.instanceof(File), folderId: id.nullable().optional() }))
+		.input(z.object({ siteId: id, file: z.file(), folderId: id.nullable().optional() }))
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
 			const { maxFileBytes } = await context.services.settings.media();
@@ -136,17 +136,15 @@ export const media = {
 	 * image is cleaned by the worker first (`replacing` until then; the current file is served
 	 * meanwhile). The file it replaced is still served for 30 days, for pages loaded before.
 	 */
-	replace: signedIn
-		.input(z.object({ siteId: id, mediaId: id, file: z.instanceof(File) }))
-		.handler(async ({ context, input }) => {
-			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
-			const { maxFileBytes } = await context.services.settings.media();
-			if (input.file.size > maxFileBytes) throw new MediaTooLargeError(maxFileBytes);
-			const data = new Uint8Array(await input.file.arrayBuffer());
-			return {
-				media: await context.services.media.replace(site, input.mediaId, { fileName: input.file.name, data }),
-			};
-		}),
+	replace: signedIn.input(z.object({ siteId: id, mediaId: id, file: z.file() })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "media.upload");
+		const { maxFileBytes } = await context.services.settings.media();
+		if (input.file.size > maxFileBytes) throw new MediaTooLargeError(maxFileBytes);
+		const data = new Uint8Array(await input.file.arrayBuffer());
+		return {
+			media: await context.services.media.replace(site, input.mediaId, { fileName: input.file.name, data }),
+		};
+	}),
 
 	/** Every place the file is used on the Site: Entries, the Globals, Templates, Components, Loops, the Design system. */
 	usage: signedIn.input(z.object({ siteId: id, mediaId: id })).handler(async ({ context, input }) => {

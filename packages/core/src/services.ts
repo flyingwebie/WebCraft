@@ -3,6 +3,7 @@ import type { Database } from "@webcraft/db";
 
 import type { Account } from "./account.ts";
 import type { AiProviders } from "./ai.ts";
+import type { ApiTokens } from "./api-tokens.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Backups } from "./backups/service.ts";
 import type { Builder } from "./builder/index.ts";
@@ -40,6 +41,7 @@ import type {
 	PublishAllPreview,
 	Published,
 	PublishItem,
+	PublishPreview,
 	SaveBase,
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
@@ -141,6 +143,8 @@ export type InstallServices = InstallPorts & {
 	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */
 	people: People;
+	/** API tokens: people's credentials for the Management API at `/api/v1`, and their limits. */
+	apiTokens: ApiTokens;
 	/** The setup wizard and its token. */
 	setup: InstallSetup;
 	/** Install settings › General. */
@@ -419,6 +423,11 @@ export type InstallServices = InstallPorts & {
 			items: readonly PublishItem[],
 			confirmation?: string,
 		): Promise<PublishAllPreview | PublishAllDone>;
+		/**
+		 * What publishing one item would do now, publishing nothing: API clients are shown it and
+		 * confirm it before they publish (spec › Management API).
+		 */
+		preview(scope: SiteScope, item: PublishItem): Promise<PublishPreview>;
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;

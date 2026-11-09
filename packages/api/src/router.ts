@@ -1,5 +1,6 @@
 import type { RouterClient } from "@orpc/server";
 
+import { apiTokens } from "./procedures/api-tokens.ts";
 import { audit } from "./procedures/audit.ts";
 import { builder } from "./procedures/builder.ts";
 import { components } from "./procedures/components.ts";
@@ -37,14 +38,15 @@ import { webhooks } from "./procedures/webhooks.ts";
 import { workspaces } from "./procedures/workspaces.ts";
 
 /**
- * Every procedure, by name. The admin calls them all; the public ones will also be served under
- * `/api/v1` with an OpenAPI spec. Every procedure here so far is internal to the admin.
+ * Every procedure, by name. The admin calls them all at `/api/rpc`; the public ones (`PROCEDURES`
+ * in `catalogue.ts` says which) are also served to API tokens at `/api/v1`, with an OpenAPI document.
  */
 export const apiRouter = {
 	setup,
 	session,
 	shell,
 	me,
+	apiTokens,
 	install,
 	workspaces,
 	sites,

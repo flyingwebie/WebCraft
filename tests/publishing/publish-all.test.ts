@@ -8,6 +8,7 @@
 // the confirmation. Publishing one item on its own still works as before.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -509,6 +510,35 @@ describe("publishing them all", () => {
 		const old = await install.request(`${site.live}/blog/rye`);
 		expect(old.status).toBe(301);
 		expect(old.headers.get("location")).toBe("/blog/rye-loaf");
+	});
+});
+
+describe("through an API token", () => {
+	test("a script lists the Drafts and publishes them in the same two calls; a read-only token only lists them", async () => {
+		const site = await newSite();
+		const { siteId } = site;
+		const { entry } = await staff.api.entries.create({ siteId, postTypeId: site.postTypeId, title: "Spring menu" });
+		const publisher = await createApiToken(staff, { workspaceId, name: "Publisher" });
+		const reader = await createApiToken(staff, { workspaceId, name: "Reader", readOnly: true });
+		const script = tokenClient(install, publisher.secret);
+		const readOnly = tokenClient(install, reader.secret);
+		const items = [{ kind: "entry" as const, id: entry.id }];
+
+		const listed = await readOnly.api.publishing.drafts({ siteId });
+		expect(listed.drafts.map((draft) => draft.name)).toEqual(["Spring menu"]);
+		await expect(readOnly.api.publishing.publishAll({ siteId, items })).rejects.toMatchObject({
+			code: "TOKEN_READ_ONLY",
+			status: 403,
+		});
+
+		const first = await script.api.publishing.publishAll({ siteId, items });
+		expect(first.published).toBe(false);
+		expect((await staff.api.publishing.drafts({ siteId })).count).toBe(1);
+		const done = await script.api.publishing.publishAll({ siteId, items, confirmation: confirmationOf(first) });
+
+		expect(done.published).toBe(true);
+		expect((await staff.api.publishing.drafts({ siteId })).count).toBe(0);
+		expect((await install.request(`${site.live}/blog/spring-menu`)).status).toBe(200);
 	});
 });
 

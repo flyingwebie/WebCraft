@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ApiClient } from "@webcraft/api";
 import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
 
+import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { sample } from "../modules/sample/index.ts";
 
@@ -52,6 +53,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
 	"siteSmtp.change": (api, { siteId }) => api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
 	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
+	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 };
 
 let install: TestInstall;
@@ -117,6 +119,40 @@ describe("each Sensitive action", () => {
 			);
 			expect({ action, refusal }).toEqual({ action, refusal: "FORBIDDEN" });
 		}
+	});
+
+	test("no API token takes a Sensitive action: refused where /api/v1 serves its procedure, unserved elsewhere", async () => {
+		const browser = await install.signIn(superadmin);
+		const answers: Record<string, string> = {};
+		for (const action of ALL_SENSITIVE_ACTIONS) {
+			// A token of the Superadmin's own for each, so no count of requests a minute gets in the way.
+			const { secret } = await createApiToken(browser, {
+				workspaceId: fixture.workspaceId,
+				name: `Sensitive ${action}`,
+			});
+			answers[action] = await SENSITIVE_ACTION_CALLS[action](tokenClient(install, secret).api, fixture).then(
+				() => "allowed",
+				(error: { code: string }) => error.code,
+			);
+		}
+
+		const refused = [
+			"member.invite",
+			"member.changeAccess",
+			"member.remove",
+			"webhook.change",
+			"formCaptcha.change",
+			"siteSmtp.change",
+			"stagingPassword.change",
+		];
+		expect(answers).toEqual(
+			Object.fromEntries(
+				ALL_SENSITIVE_ACTIONS.map((action) => [
+					action,
+					refused.includes(action) ? "SENSITIVE_ACTION_REFUSED" : "NOT_FOUND",
+				]),
+			),
+		);
 	});
 
 	test("every Sensitive action has a row here", () => {

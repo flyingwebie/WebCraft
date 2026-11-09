@@ -21,6 +21,7 @@ const FORM_TIME_LABEL = "webcraft form time trap";
 const VISITOR_ID_LABEL = "webcraft visitor daily ids hmac-sha256 key";
 const RATE_LIMIT_LABEL = "webcraft rate limit keys hmac-sha256 key";
 const STAGING_PASSWORD_LABEL = "webcraft staging password access";
+const API_TOKEN_LABEL = "webcraft api tokens hmac-sha256 key";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -199,6 +200,21 @@ export async function visitorIdKey(masterKey: MasterKey): Promise<CryptoKey> {
 export async function rateLimitKey(masterKey: MasterKey): Promise<CryptoKey> {
 	return crypto.subtle.deriveKey(
 		hkdf(RATE_LIMIT_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key API tokens are kept under (HMAC-SHA256): only a keyed hash of each token is stored, and a
+ * request finds its token by hashing what it carries. Derived from the Master key, so a new Master
+ * key ends every API token, as it signs everyone out.
+ */
+export async function apiTokenKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(API_TOKEN_LABEL),
 		await stateOf(masterKey).base,
 		{ name: "HMAC", hash: "SHA-256", length: 256 },
 		false,

@@ -1,4 +1,4 @@
-import { ADMIN_API_PREFIX, createAdminApi } from "@webcraft/api";
+import { ADMIN_API_PREFIX, createAdminApi, createPublicApi, PUBLIC_API_PREFIX } from "@webcraft/api";
 import {
 	type InstallServices,
 	mediaPolicy,
@@ -17,12 +17,13 @@ import { healthz, readyz } from "./health.ts";
 
 /**
  * Everything served on the admin host. The web process answers its own paths first (`/healthz`,
- * `/readyz`, Caddy's ask at `/caddy/ask`, the Management API at `/api/rpc`, Media previews at
- * `/api/media/…`, the builder's canvas at `/api/builder/canvas`, and later `/api/v1`, `/mcp` and
- * OAuth); the admin app renders the rest.
+ * `/readyz`, Caddy's ask at `/caddy/ask`, the Management API at `/api/rpc` for the admin's pages
+ * and at `/api/v1` for API tokens, Media previews at `/api/media/…`, the builder's canvas at
+ * `/api/builder/canvas`, and later `/mcp` and OAuth); the admin app renders the rest.
  */
 export function createAdminSide(services: InstallServices, adminApp?: Handler): Handler {
 	const adminApi = createAdminApi(services);
+	const publicApi = createPublicApi(services);
 	return async (request) => {
 		const { pathname } = new URL(request.url);
 		switch (pathname) {
@@ -43,6 +44,11 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 				return json(403, { code: "FORBIDDEN", message: "Requests to the admin must come from the admin's own pages." });
 			}
 			return (await adminApi(request, { clientAddress: clientAddress(request, services.config) })) ?? notFound();
+		}
+		if (pathname === PUBLIC_API_PREFIX || pathname.startsWith(`${PUBLIC_API_PREFIX}/`)) {
+			// API tokens only, in the Authorization header: cookies are never read here, so another
+			// site's page can't act with a signed-in person's session.
+			return (await publicApi(request, { clientAddress: clientAddress(request, services.config) })) ?? notFound();
 		}
 		if (pathname.startsWith(MEDIA_PREVIEW_PREFIX)) {
 			return readOnly(request, () => mediaPreview(services, request, pathname.slice(MEDIA_PREVIEW_PREFIX.length)));

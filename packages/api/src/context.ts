@@ -2,6 +2,7 @@ import { ORPCError, os } from "@orpc/server";
 import type { Session } from "@webcraft/auth";
 import {
 	type Access,
+	type ApiTokenUse,
 	type AuditVia,
 	assertSensitiveActionAllowed,
 	type InstallServices,
@@ -13,7 +14,7 @@ import {
 
 import { toApiError } from "./errors.ts";
 
-/** What every procedure receives. It grows with the actor kinds (API tokens, OAuth grants). */
+/** What every procedure receives. It grows with the actor kinds (OAuth grants later). */
 export type ApiContext = {
 	services: InstallServices;
 	/** The request's headers: cookies, origin, language. */
@@ -22,8 +23,13 @@ export type ApiContext = {
 	clientAddress: string | null;
 	/** Headers the answer will carry, such as the `Set-Cookie` that starts or ends a session. */
 	resHeaders?: Headers;
-	/** How the call came in, for the Audit log: `admin` at `/api/rpc`. */
+	/** How the call came in, for the Audit log: `admin` at `/api/rpc`, `token` at `/api/v1`. */
 	via: AuditVia;
+	/**
+	 * The API token a call at `/api/v1` came with, already checked (`services.apiTokens.use`): the
+	 * call acts as its person within its limits, and never reads a session cookie.
+	 */
+	token?: ApiTokenUse;
 };
 
 const base = os.$context<ApiContext>();
@@ -68,6 +74,7 @@ export const authEndpoint = procedure.use(rateLimited("auth"));
  * signed out). An ended session's cookie is cleared in the answer.
  */
 export const withPerson = base.middleware(async ({ context, next }) => {
+	if (context.token) return next({ context: { person: context.token.person as Person | null, session: null } });
 	const { session, setCookie } = await context.services.auth.session(context);
 	setCookies(context, setCookie);
 	const person: Person | null = session ? await context.services.people.get(session.personId) : null;
@@ -75,17 +82,29 @@ export const withPerson = base.middleware(async ({ context, next }) => {
 });
 
 /**
- * Procedures for signed-in people: refuses everyone else with `UNAUTHORIZED`. Gives the procedure
- * `context.access`, the person as `can()` sees them and how they came in, which opens the data layer:
+ * Procedures for signed-in people, in the admin or through an API token: refuses everyone else with
+ * `UNAUTHORIZED`. Gives the procedure `context.access`, the person (or their token) as `can()` sees
+ * them and how they came in, which opens the data layer:
  *
  *     const workspace = await context.services.data.workspace(context.access, input.workspaceId, "site.create");
+ *
+ * `context.session` is the admin session, null for a token: procedures that need one (a person's
+ * own sessions, confirming who they are) start from `inAdminSession` instead.
  */
 export const signedIn = procedure.use(withPerson).use(async ({ context, next }) => {
-	const { person, session } = context;
+	const { person, session, token } = context;
+	if (token && person) return next({ context: { person, session: null as Session | null, access: token.access } });
 	if (!person || !session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
 	const actor = await context.services.actors.person(person.id);
 	const access: Access = { actor, via: context.via, identityCheckedAt: session.identityCheckedAt };
-	return next({ context: { person, session: session satisfies Session, access } });
+	return next({ context: { person, session: session as Session | null, access } });
+});
+
+/** Procedures for a person in an admin session (never an API token): `context.session` is theirs. */
+export const inAdminSession = signedIn.use(({ context, next }) => {
+	const { session } = context;
+	if (!session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in to the admin first." });
+	return next({ context: { session } });
 });
 
 /**
@@ -137,8 +156,21 @@ export function onSite(permission: Permission) {
  *     invite: onInstall("staff.manage").use(sensitive("staff.invite")).input(…).handler(…)
  */
 export function sensitive(action: SensitiveAction) {
-	return base.$context<ApiContext & { access: Access }>().middleware(({ context, next }) => {
+	const middleware = base.$context<ApiContext & { access: Access }>().middleware(({ context, next }) => {
 		assertSensitiveActionAllowed(context.access, action, context.services.clock.now());
 		return next();
 	});
+	// The Management API's document marks a procedure carrying it as Sensitive (`sensitiveActionOf`).
+	return Object.assign(middleware, { [SENSITIVE_ACTION]: action });
+}
+
+const SENSITIVE_ACTION = Symbol("the Sensitive action a middleware checks");
+
+/** The Sensitive action a procedure's middleware checks (`sensitive(…)`), or null when it takes none. */
+export function sensitiveActionOf(middlewares: readonly unknown[]): SensitiveAction | null {
+	for (const middleware of middlewares) {
+		const action = (middleware as { [SENSITIVE_ACTION]?: SensitiveAction })[SENSITIVE_ACTION];
+		if (action) return action;
+	}
+	return null;
 }

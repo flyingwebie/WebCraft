@@ -32,6 +32,9 @@ export class RateLimitedError extends Error {
 	}
 }
 
+/** Where a key stands after one more request: `within` the limit or not, what is left, and when the window ends. */
+export type RateLimitTally = { within: boolean; limit: number; remaining: number; resetsAt: Date };
+
 export type RateLimits = {
 	/**
 	 * Counts one request against a limit for one subject, such as a client address (null: one the
@@ -45,6 +48,12 @@ export type RateLimits = {
 	 * beyond it count too.
 	 */
 	count(key: string, rule: RateLimitRule): Promise<boolean>;
+	/**
+	 * Counts one request under `key` like `count`, and answers where the key stands: whether this
+	 * request is within the limit, how many more the window allows and when it ends (for `RateLimit`
+	 * and `Retry-After` headers). API tokens' limits use it.
+	 */
+	tally(key: string, rule: RateLimitRule): Promise<RateLimitTally>;
 	/** Deletes the counters whose window ended; answers how many. */
 	purge(): Promise<number>;
 };
@@ -93,6 +102,17 @@ export function createRateLimits({
 		async count(key, rule) {
 			const counter = await counted(key, rule);
 			return !counter || counter.hits <= rule.limit;
+		},
+
+		async tally(key, rule) {
+			const counter = await counted(key, rule);
+			const hits = counter?.hits ?? 1;
+			return {
+				within: hits <= rule.limit,
+				limit: rule.limit,
+				remaining: Math.max(0, rule.limit - hits),
+				resetsAt: counter?.windowEndsAt ?? new Date(clock.now().getTime() + rule.windowMs),
+			};
 		},
 
 		async hit(name, subject) {

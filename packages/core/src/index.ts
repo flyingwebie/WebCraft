@@ -23,6 +23,23 @@ export {
 	WORKSPACE_AI_KEY,
 } from "./ai.ts";
 export {
+	API_TOKEN_LIFETIMES,
+	API_TOKEN_LIMITS,
+	API_TOKEN_PREFIX,
+	type ApiAccess,
+	ApiTokenInvalidError,
+	type ApiTokenLifetime,
+	ApiTokenNotFoundError,
+	type ApiTokenOffer,
+	type ApiTokenProblem,
+	type ApiTokens,
+	type ApiTokenUse,
+	type ApiTokenView,
+	DEFAULT_API_TOKEN_LIFETIME,
+	isApiClient,
+	type NewApiToken,
+} from "./api-tokens.ts";
+export {
 	type AuditDetails,
 	type AuditEntry,
 	type AuditVia,
@@ -72,10 +89,13 @@ export {
 	type TrustedProxies,
 } from "./config.ts";
 export {
+	askConfirmation,
 	CONFIRMATION_LIFETIME_MS,
 	type Confirmation,
 	ConfirmationInvalidError,
 	type ConfirmationProblem,
+	type ConfirmationRequest,
+	useConfirmation,
 } from "./confirmations.ts";
 export * from "./consent/index.ts";
 export * from "./content/index.ts";
@@ -173,6 +193,7 @@ export {
 	permissionsOn,
 	type Reach,
 	type Resource,
+	type TokenActor,
 	workspacesReached,
 } from "./permissions/can.ts";
 export {
@@ -208,6 +229,7 @@ export {
 	type RateLimitName,
 	type RateLimitRule,
 	type RateLimits,
+	type RateLimitTally,
 } from "./rate-limits.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";
