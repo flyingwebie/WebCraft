@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { useAfterRender } from "../../ui/after-render.ts";
 import { getApi } from "../../ui/api.ts";
 import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { ControlsTab } from "../../ui/filters/ControlsTab.tsx";
@@ -68,6 +69,7 @@ function FilterPage() {
 	const [selected, setSelected] = useState<string | null>(query.control ?? saved?.controls[0]?.id ?? null);
 	const [phoneWidth, setPhoneWidth] = useState<number | null>(null);
 	const summary = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const changed = saved !== null && version !== null && JSON.stringify(version) !== JSON.stringify(saved);
 
 	useEffect(() => {
@@ -88,7 +90,7 @@ function FilterPage() {
 		const found = problemsOf(error);
 		if (found.length > 0) {
 			setProblems(found);
-			requestAnimationFrame(() => summary.current?.focus());
+			afterRender(() => summary.current?.focus());
 		} else toast.error(t(errorMessage(error)));
 	};
 

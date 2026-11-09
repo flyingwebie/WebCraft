@@ -10,6 +10,7 @@ import {
 import { ArrowDownIcon, ArrowUpIcon, EllipsisIcon, InfoIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { type KeyboardEvent, useRef, useState } from "react";
 
+import { useAfterRender } from "../after-render.ts";
 import { Announcer, DragHandle, useDragOrder } from "../content/reorder.tsx";
 import { useT } from "../i18n.tsx";
 import { ControlSettings } from "./ControlSettings.tsx";
@@ -57,6 +58,7 @@ export function ControlsTab({
 	const controls = version.controls;
 	const [said, setSaid] = useState("");
 	const list = useRef<HTMLOListElement>(null);
+	const afterRender = useAfterRender();
 	const current = controls.findIndex((control) => control.id === selected);
 	const nameOf = (control: FilterControl) => controlName(t, control);
 
@@ -68,7 +70,7 @@ export function ControlsTab({
 		onSelect(control.id);
 		setSaid(t("filters.controls.moved", { name: nameOf(control), place: to + 1, count: controls.length }));
 		if (focus) {
-			requestAnimationFrame(() =>
+			afterRender(() =>
 				list.current?.querySelector<HTMLButtonElement>(`[data-control="${CSS.escape(control.id)}"]`)?.focus(),
 			);
 		}
