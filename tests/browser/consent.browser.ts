@@ -281,6 +281,35 @@ describe("without JavaScript", () => {
 	});
 });
 
+describe("forged answers", () => {
+	test("on an Opt-in Site, a page script calling webcraft.consent.set() answers nothing and releases nothing", async () => {
+		const slug = await consentSite("optIn", "bar");
+		const page = await install.newPage("light");
+		const recorded: string[] = [];
+		page.on("request", (request) => {
+			if (request.method() === "POST" && new URL(request.url()).pathname === "/_wc/consent")
+				recorded.push(request.url());
+		});
+		await open(page, slug);
+
+		await page.evaluate(() =>
+			(
+				window as unknown as { webcraft: { consent: { set(choices: Record<string, boolean>): void } } }
+			).webcraft.consent.set({ analytics: true, marketing: true, media: true }),
+		);
+		await page.waitForTimeout(300);
+
+		expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+		expect(
+			await page.evaluate(
+				() => (window as unknown as { webcraft: { consent: { answered: boolean } } }).webcraft.consent.answered,
+			),
+		).toBe(false);
+		expect(recorded).toEqual([]);
+		expect(await page.getByRole("region", { name: "Privacy choices" }).isVisible()).toBe(true);
+	});
+});
+
 describe("an outside consent service", () => {
 	/** A page of an outside-service Site, with `before` run first, as a service's own script would. */
 	async function withService(before: () => void): Promise<Page> {
