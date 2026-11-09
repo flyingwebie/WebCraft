@@ -12,7 +12,15 @@ import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { siteOwners, siteStaff } from "../tenancy/site-owners.ts";
 import { createInstallBranding, type InstallBranding } from "./branding.ts";
 import { createEmailLog, type EmailLog } from "./email-log.ts";
-import { createInstallSmtp, INSTALL_SMTP_PASSWORD, type InstallSmtp, type SmtpHealth } from "./install-smtp.ts";
+import {
+	checkSettings,
+	createInstallSmtp,
+	INSTALL_SMTP_PASSWORD,
+	type InstallSmtp,
+	type SmtpHealth,
+	SmtpPasswordNeededError,
+	sameSmtpServer,
+} from "./install-smtp.ts";
 import type { Mailer } from "./mailer.ts";
 import { attemptDelivery, type EmailAttempt, siteSmtpPassword } from "./outbox.ts";
 import { createEmailPreferences, type EmailPreferences } from "./preferences.ts";
@@ -125,7 +133,16 @@ export function createEmail(options: EmailOptions): Email {
 	const installSmtp = createInstallSmtp(options);
 	return {
 		send: sender.send,
-		sendTest: sender.sendTest,
+		async sendTest(test) {
+			// The stored password goes only to the server it was saved for (`SmtpPasswordNeededError`).
+			if (test.password === undefined) {
+				const stored = await installSmtp.read();
+				if (stored?.password.set && !sameSmtpServer(stored, checkSettings(test.smtp))) {
+					throw new SmtpPasswordNeededError();
+				}
+			}
+			return sender.sendTest(test);
+		},
 		installSmtp,
 		branding,
 		emailLog: createEmailLog(options),
@@ -139,6 +156,11 @@ export function createEmail(options: EmailOptions): Email {
 				const fromName = checked.fromName ?? scope.site.name;
 				const typed = test.settings.server?.password ?? undefined;
 				if (checked.server) {
+					// The stored password goes only to the server it was saved for (`SmtpPasswordNeededError`).
+					if (typed === undefined) {
+						const stored = (await readSiteSmtp(scope)).server;
+						if (stored?.password.set && !sameSmtpServer(stored, checked.server)) throw new SmtpPasswordNeededError();
+					}
 					return sender.sendTest({
 						to: test.to,
 						language: test.language,
@@ -222,6 +244,7 @@ export {
 	type InstallSmtpSettings,
 	SMTP_SECURITY,
 	type SmtpHealth,
+	SmtpPasswordNeededError,
 	type SmtpSettings,
 } from "./install-smtp.ts";
 export { emailLogPurge, emailLogPurgeSchedule } from "./jobs.ts";

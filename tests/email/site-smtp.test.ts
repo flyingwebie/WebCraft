@@ -164,7 +164,7 @@ describe("Send test email", () => {
 			to: "davide@agency.example",
 			fromName: "Acme Bakery orders",
 			replyTo: "orders@acmebakery.example",
-			server: { ...SERVER, host: "smtp2.acmebakery.example" },
+			server: SERVER,
 		});
 
 		expect(result).toEqual({ status: "sent", response: FAKE_SMTP_RESPONSE });
@@ -173,8 +173,37 @@ describe("Send test email", () => {
 			to: "davide@agency.example",
 			from: { name: "Acme Bakery orders", address: SERVER.fromAddress },
 			replyTo: "orders@acmebakery.example",
-			smtp: { host: "smtp2.acmebakery.example", port: 587, password: "the stored site password" },
+			smtp: { host: SERVER.host, port: 587, password: "the stored site password" },
 		});
+	});
+
+	test("the stored password goes only to the server it was saved for: another needs its password typed", async () => {
+		await staff.api.siteSmtp.update({
+			siteId,
+			fromName: null,
+			replyTo: null,
+			server: { ...SERVER, password: "the stored site password" },
+		});
+
+		for (const server of [
+			{ ...SERVER, host: "smtp.elsewhere.example" },
+			{ ...SERVER, username: "someone-else@acmebakery.example" },
+		]) {
+			await expect(
+				staff.api.siteSmtp.sendTest({ siteId, to: "davide@agency.example", fromName: null, replyTo: null, server }),
+			).rejects.toMatchObject({ code: "SMTP_PASSWORD_NEEDED", status: 400 });
+		}
+		expect(install.mail.attempts).toEqual([]);
+
+		const typed = await staff.api.siteSmtp.sendTest({
+			siteId,
+			to: "davide@agency.example",
+			fromName: null,
+			replyTo: null,
+			server: { ...SERVER, host: "smtp.elsewhere.example", password: "its own password" },
+		});
+		expect(typed.status).toBe("sent");
+		expect(install.mail.sent[0]?.smtp).toMatchObject({ host: "smtp.elsewhere.example", password: "its own password" });
 	});
 
 	test("without a server of its own, the test goes through the Install SMTP under the Site's name", async () => {

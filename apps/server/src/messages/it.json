@@ -126,6 +126,7 @@
 		"IMPORT_RUN_NOT_FOUND": "Quell'esecuzione non esiste, oppure il suo resoconto è stato eliminato.",
 		"IMPORT_INVALID": "Le impostazioni dell'Importazione non corrispondono al Tipo di contenuto.",
 		"IMPORT_POST_TYPE_FIXED": "Questa Importazione ha già portato dei contenuti, quindi mantiene il suo Tipo di contenuto: annulla le sue esecuzioni oppure avvia una nuova Importazione.",
+		"SMTP_PASSWORD_NEEDED": "Inserisci la password per provare un altro server: quella salvata viene inviata solo al server per cui è stata salvata.",
 		"IMPORT_RUNNING": "Un'esecuzione di questa Importazione non è ancora terminata: attendila oppure interrompila.",
 		"IMPORT_UNDO_REFUSED": "Questa esecuzione non può essere annullata.",
 		"API_TOKEN_NOT_FOUND": "Tra i tuoi token API non ce n'è uno così."

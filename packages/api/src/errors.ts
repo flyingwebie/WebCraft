@@ -105,6 +105,7 @@ import {
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
+	SmtpPasswordNeededError,
 	SnippetInvalidError,
 	StaffMembershipError,
 	StaffNotFoundError,
@@ -771,6 +772,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof InvalidEmailError) {
 		return new ORPCError("EMAIL_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof SmtpPasswordNeededError) {
+		return new ORPCError("SMTP_PASSWORD_NEEDED", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof EmailInUseError) {
 		return new ORPCError("EMAIL_IN_USE", { status: 409, message: error.message, cause: error });

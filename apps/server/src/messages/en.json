@@ -126,6 +126,7 @@
 		"IMPORT_RUN_NOT_FOUND": "That Import run doesn't exist, or its report was purged.",
 		"IMPORT_INVALID": "The Import's settings don't fit the Post Type.",
 		"IMPORT_POST_TYPE_FIXED": "This Import brought Entries in, so it keeps its Post Type: undo its runs, or start a new Import.",
+		"SMTP_PASSWORD_NEEDED": "Type the password to test another server: the saved one is only sent to the server it was saved for.",
 		"IMPORT_RUNNING": "A run of this Import hasn't ended yet: wait for it, or stop it.",
 		"IMPORT_UNDO_REFUSED": "This run can't be undone.",
 		"API_TOKEN_NOT_FOUND": "There is no such API token among yours."
