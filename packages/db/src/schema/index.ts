@@ -9,6 +9,7 @@ export * from "./design-system.ts";
 export * from "./domains.ts";
 export * from "./edit-mode.ts";
 export * from "./email.ts";
+export * from "./filters.ts";
 export * from "./forms.ts";
 export * from "./imports.ts";
 export * from "./install.ts";

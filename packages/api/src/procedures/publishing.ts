@@ -9,6 +9,7 @@ const publishItem = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("template"), id }),
 	z.object({ kind: z.literal("component"), id }),
 	z.object({ kind: z.literal("loop"), id }),
+	z.object({ kind: z.literal("filter"), id }),
 	z.object({ kind: z.literal("script"), id }),
 	z.object({ kind: z.literal("form"), id }),
 	z.object({ kind: z.literal("formEmails"), id }),

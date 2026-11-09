@@ -20,7 +20,7 @@
  * text, so printing it as Template markup and reading that back gives the same tree. A change that
  * old trees can't be read as bumps `ELEMENT_TREE_VERSION`.
  */
-import { type CommandNode, commandForNode } from "./commands.ts";
+import { type CommandNode, commandForNode, filtersWithoutTheirLoop, filterWithoutLoopMessage } from "./commands.ts";
 import {
 	boundaryProblem,
 	type ComponentCatalogue,
@@ -107,6 +107,13 @@ export type SearchNode = { type: "search" };
  * nothing placed. It renders the Form's published version where Forms run on the Site.
  */
 export type FormNode = { type: "form"; form: string };
+
+/**
+ * A Filter placed here (`{{@filter <name> for="<loop>"}}`): the Site's Filter, by id, and the query
+ * Loop it narrows, by name, which the same tree must show (`{{@loop <loop>}}`). It renders the
+ * Filter's controls as a plain GET form on the page (GLOSSARY.md › Filter).
+ */
+export type FilterNode = { type: "filter"; filter: string; loop: string };
 
 /**
  * A Loop (`{{@loop source as alias}} … {{@empty}} … {{/loop}}`): `children` render once per item,
@@ -576,6 +583,11 @@ export type ParseTreeOptions = {
 	 * Component can't name a Site's Form).
 	 */
 	forms?: Pick<FormCatalogue, "byId">;
+	/**
+	 * The Filters the tree may place (`{{@filter}}`), by id. Every Filter is refused when absent (a
+	 * Module's Component can't name a Site's Filter).
+	 */
+	filters?: Pick<FilterCatalogue, "byId">;
 	/** Makes an id for an element that has none; random by default. */
 	newId?: () => string;
 };
@@ -587,6 +599,15 @@ export type FormFound = { id: string; key: string } | { refused: string } | unde
 export type FormCatalogue = {
 	keyed(key: string): FormFound;
 	byId(id: string): FormFound;
+};
+
+/** A Filter found: its id, name and the Loop it narrows, why it can't be placed here, or undefined when there is none. */
+export type FilterFound = { id: string; name: string; loop: string } | { refused: string } | undefined;
+
+/** The Filters a tree may place, by name (Template markup) and by id (stored trees). */
+export type FilterCatalogue = {
+	named(name: string): FilterFound;
+	byId(id: string): FilterFound;
 };
 
 /** A check of a whole tree: reports `problem(node, message)` for a node, `problem(undefined, …)` for the tree. */
@@ -879,6 +900,18 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 					}
 					return found.id;
 				},
+				filter: (filterId, here) => {
+					if (typeof filterId !== "string") {
+						problem(here, "A placed Filter names its Filter by id.");
+						return undefined;
+					}
+					const found = options.filters?.byId(filterId);
+					if (!found || "refused" in found) {
+						problem(here, found?.refused ?? `There is no Filter with the id ${filterId} on this Site.`);
+						return undefined;
+					}
+					return { id: found.id, loop: found.loop };
+				},
 			});
 		}
 		problem(at, "A node is an element, text, a value, a comment, a Template command or a Placement.");
@@ -998,6 +1031,9 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 	}
 	if (problems.length === 0) {
 		options.checkTree?.(tree.nodes, (node, message) => problem((node && where.get(node)) || "nodes", message));
+		for (const filter of filtersWithoutTheirLoop(tree.nodes)) {
+			problem(where.get(filter) || "nodes", filterWithoutLoopMessage(filter));
+		}
 	}
 	if (problems.length > 0) throw new ElementTreeInvalidError(problems);
 	return tree;

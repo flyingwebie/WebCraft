@@ -188,7 +188,13 @@ type TemplateTarget =
 function rulesFor(target: TemplateTarget, components: SiteComponents, loops: LoopCatalogue) {
 	if (target.kind === "search") {
 		const rules = searchTemplateRules(target.globalFields);
-		return { ...rules, components, forms: components.forms, loops: withSearchLoop(loops, target.postTypes) };
+		return {
+			...rules,
+			components,
+			forms: components.forms,
+			filters: components.filters,
+			loops: withSearchLoop(loops, target.postTypes),
+		};
 	}
 	const rules =
 		target.kind === "entry"
@@ -196,7 +202,7 @@ function rulesFor(target: TemplateTarget, components: SiteComponents, loops: Loo
 			: target.kind === "archive"
 				? archiveTemplateRules(target.globalFields)
 				: siteTemplateRules(target.globalFields);
-	return { ...rules, components, forms: components.forms, loops };
+	return { ...rules, components, forms: components.forms, filters: components.filters, loops };
 }
 
 function whereFor(target: TemplateTarget): SQL {
@@ -569,6 +575,7 @@ function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: S
 		className: catalogue.nameOf,
 		componentName: components.nameOf,
 		formKey: components.forms.keyOf,
+		filterName: components.filters.nameOf,
 	});
 }
 

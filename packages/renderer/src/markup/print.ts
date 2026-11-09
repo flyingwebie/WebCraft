@@ -31,6 +31,8 @@ export type PrintMarkupOptions = {
 	componentName?: (componentId: string) => string | undefined;
 	/** The key of the Form with this id (`{{@form <key>}}`). */
 	formKey?: (formId: string) => string | undefined;
+	/** The name of the Filter with this id (`{{@filter <name> for="…"}}`). */
+	filterName?: (filterId: string) => string | undefined;
 	/**
 	 * A one-off style an element has that isn't a Class yet (canonical declarations, `color: red;`),
 	 * printed as its inline `style`, which reading the markup turns into a generated Class: the visual
@@ -103,7 +105,10 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 	}
 	const command = commandForNode(node.type);
 	if (!command) return "";
-	const sections = command.toMarkup(node, { formKey: (formId) => options.formKey?.(formId) });
+	const sections = command.toMarkup(node, {
+		formKey: (formId) => options.formKey?.(formId),
+		filterName: (filterId) => options.filterName?.(filterId),
+	});
 	let markup = "";
 	for (const section of sections) {
 		markup += `{{@${section.keyword}${section.argument ? ` ${section.argument}` : ""}}}`;

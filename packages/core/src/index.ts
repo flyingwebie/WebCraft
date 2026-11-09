@@ -126,6 +126,7 @@ export {
 	type SavedRegion,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
+export * from "./filters/index.ts";
 export * from "./forms/index.ts";
 export {
 	createGuardedFetch,

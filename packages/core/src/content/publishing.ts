@@ -7,6 +7,7 @@ import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem, lockDesignSystem } from "../design-system/design-systems.ts";
 import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
 import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-system/stylesheet.ts";
+import { publishFilter } from "../filters/filters.ts";
 import { publishFormDraft, publishFormEmails } from "../forms/forms.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
@@ -63,6 +64,7 @@ export type PublishItem =
 	| { kind: "template"; id: string }
 	| { kind: "component"; id: string }
 	| { kind: "loop"; id: string }
+	| { kind: "filter"; id: string }
 	| { kind: "script"; id: string }
 	| { kind: "form"; id: string }
 	/** A Form's emails (Content): its Notifications and Auto-reply. */
@@ -189,6 +191,8 @@ async function publishItem(scope: SiteScope, item: PublishItem, sources: Compone
 			return publishComponent(scope, item.id, sources);
 		case "loop":
 			return publishLoop(scope, item.id);
+		case "filter":
+			return publishFilter(scope, item.id);
 		case "globals":
 			return publishGlobals(scope);
 		case "consentBanner":

@@ -3,6 +3,7 @@ import {
 	consentBanners,
 	designSystems,
 	entries,
+	filters,
 	forms,
 	globals,
 	loops,
@@ -11,6 +12,7 @@ import {
 } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
+import { FilterNotFoundError } from "../filters/errors.ts";
 import { FormNotFoundError } from "../forms/errors.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -82,6 +84,13 @@ export async function publishPreview(scope: SiteScope, item: PublishItem): Promi
 			const row = byId(
 				isUuid(item.id) ? await scope.first(loops, eq(loops.id, item.id)) : undefined,
 				() => new LoopNotFoundError(),
+			);
+			return versions(row.draft, row.published, row.name);
+		}
+		case "filter": {
+			const row = byId(
+				isUuid(item.id) ? await scope.first(filters, eq(filters.id, item.id)) : undefined,
+				() => new FilterNotFoundError(),
 			);
 			return versions(row.draft, row.published, row.name);
 		}

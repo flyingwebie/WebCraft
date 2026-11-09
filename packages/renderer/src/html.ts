@@ -13,6 +13,7 @@ import {
 	type Attribute,
 	type ElementNode,
 	type ElementTree,
+	type FilterNode,
 	type LoopNode,
 	type TreeNode,
 	type ValueNode,
@@ -85,6 +86,15 @@ export type RenderOptions = {
 	held?: HoldEmbed;
 	/** What `{{@consentSettings}}` shows: the "Cookie settings" button. Nothing when absent. */
 	consentSettings?: () => string;
+	/** What `{{@filter <name> for="…"}}` shows: the Filter, rendered. Nothing when absent. */
+	filter?: (node: FilterNode) => string;
+	/**
+	 * Whether a Loop of the Site is narrowed by a Filter on the page: its items and its pagination are
+	 * then marked as regions (`filterRegion`), which the Filter's script swaps in place. Shared by the
+	 * page's templates with `regions`, which numbers each region of a name in the order it renders.
+	 */
+	filtered?: (loop: string) => boolean;
+	regions?: Map<string, number>;
 	/**
 	 * What a Placement shows: its Component's (published) tree, and what that tree's bindings read
 	 * given the Placement's Prop values (`props.x`, read through `outer` where a value is passed on
@@ -233,10 +243,28 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		languageSwitcher: () => options.languageSwitcher?.() ?? "",
 		form: (formId) => options.form?.(formId) ?? "",
 		search: () => options.search?.() ?? "",
-		loop: (loop) => renderLoop(loop, options, state),
-		pagination: (name) => paginationHtml(options.loop?.(name), options),
+		loop: (loop) => filterRegion(`loop ${loop.source}`, loop.source, renderLoop(loop, options, state), options),
+		pagination: (name) =>
+			filterRegion(`pagination ${name}`, name, paginationHtml(options.loop?.(name), options), options),
 		consentSettings: () => options.consentSettings?.() ?? "",
+		filter: (filter) => options.filter?.(filter) ?? "",
 	});
+}
+
+/** The comment that starts a region of a page a Filter's script swaps; `/` and the same name end it. */
+export const FILTER_REGION_MARK = "wc-region";
+
+/**
+ * Marks what a filtered Loop shows (`loop <name>`) or its pagination (`pagination <name>`) as a region
+ * of the page with comments, numbered in render order (`<!--wc-region loop products 1-->` …
+ * `<!--/wc-region loop products 1-->`). Comments may sit anywhere (inside a list or a table), and only
+ * WebCraft writes them on pages: Staff's comments are never rendered and every value is escaped.
+ */
+function filterRegion(name: string, loop: string, html: string, options: RenderOptions): string {
+	if (loop.includes(".") || !options.filtered?.(loop) || !options.regions) return html;
+	const n = (options.regions.get(name) ?? 0) + 1;
+	options.regions.set(name, n);
+	return `<!--${FILTER_REGION_MARK} ${name} ${n}-->${html}<!--/${FILTER_REGION_MARK} ${name} ${n}-->`;
 }
 
 /**
@@ -267,6 +295,7 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 				// A Form shows once where it is placed, never once per item: markup can't place one in a
 				// Loop's items, and one a Component brings there renders nothing.
 				form: undefined,
+				filter: undefined,
 			},
 			inner,
 		);

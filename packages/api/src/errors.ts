@@ -41,6 +41,9 @@ import {
 	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	FilterInvalidError,
+	FilterNameTakenError,
+	FilterNotFoundError,
 	FormInUseError,
 	FormInvalidError,
 	FormKeyTakenError,
@@ -201,6 +204,25 @@ export function toApiError(error: unknown): unknown {
 			status: 409,
 			message: error.message,
 			data: { usedIn: error.usedIn },
+			cause: error,
+		});
+	}
+	if (error instanceof FilterNotFoundError) {
+		return new ORPCError("FILTER_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof FilterInvalidError) {
+		return new ORPCError("FILTER_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof FilterNameTakenError) {
+		return new ORPCError("FILTER_NAME_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { name: error.filterName },
 			cause: error,
 		});
 	}
