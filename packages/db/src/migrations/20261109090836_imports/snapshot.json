@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "d4638356-8718-4b3c-a497-f28012043d71",
+  "id": "b664266d-47bc-4b09-995b-11dce40869b7",
   "prevIds": [
     "3ed33893-0d8b-4229-8f72-bdd5a65d07af"
   ],
@@ -1469,6 +1469,22 @@
         "schema": "public",
         "table": "import_run_problems",
         "name": "position",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "ordinal",
         "type": "integer",
         "typeSchema": null,
         "notNull": true,

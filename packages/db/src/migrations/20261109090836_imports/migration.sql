@@ -53,6 +53,7 @@ CREATE TABLE "import_run_problems" (
 	"site_id" uuid NOT NULL,
 	"run_id" uuid NOT NULL,
 	"position" integer NOT NULL,
+	"ordinal" integer NOT NULL,
 	"column" text,
 	"rule" text NOT NULL,
 	"params" jsonb

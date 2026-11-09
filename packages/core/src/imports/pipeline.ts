@@ -364,10 +364,11 @@ export async function fetchFile(
 
 /** Records an item's problems in the run's report. */
 export async function recordProblems(scope: SiteScope, runId: string, item: EntryItem): Promise<void> {
-	for (const problem of item.problems) {
+	for (const [ordinal, problem] of item.problems.entries()) {
 		await scope.insert(importRunProblems, {
 			runId,
 			position: item.position,
+			ordinal,
 			column: problem.column,
 			rule: problem.rule,
 			params: problem.params ?? null,

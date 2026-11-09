@@ -396,7 +396,7 @@ export async function runReport(scope: SiteScope, runId: string): Promise<Import
 	const postTypeId = settings.success ? settings.data.postTypeId : null;
 	const postType = postTypeId ? await scope.first(postTypes, eq(postTypes.id, postTypeId)) : undefined;
 	const problems = await scope.select(importRunProblems, eq(importRunProblems.runId, run.id), {
-		orderBy: [asc(importRunProblems.position), asc(importRunProblems.id)],
+		orderBy: [asc(importRunProblems.position), asc(importRunProblems.ordinal)],
 		limit: REPORT_LIST_LIMIT,
 	});
 	const problemsTotal = await scope.count(importRunProblems, eq(importRunProblems.runId, run.id));

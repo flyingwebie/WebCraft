@@ -239,6 +239,8 @@ export const importRunProblems = pgTable(
 		siteId: uuid("site_id").notNull(),
 		runId: uuid("run_id").notNull(),
 		position: integer("position").notNull(),
+		/** Its place among the item's problems, in the order they were found. */
+		ordinal: integer("ordinal").notNull(),
 		column: text("column"),
 		rule: text("rule").notNull(),
 		/** What fills in the rule's wording, such as the row it repeats or why a file wasn't fetched. */
