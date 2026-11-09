@@ -250,6 +250,11 @@ describe("Languages", () => {
 		await admin.api.languages.add({ siteId: target.siteId, code: "fr" }).catch(() => undefined);
 		return api.languages.setDefault({ siteId: target.siteId, code: "fr" });
 	});
+	isolation.refuses("languages.remove", async (api, target) => {
+		const admin = await install.superadmin();
+		await admin.api.languages.add({ siteId: target.siteId, code: "de" }).catch(() => undefined);
+		return api.languages.remove({ siteId: target.siteId, code: "de" });
+	});
 	isolation.refuses("languages.setBrowserRedirect", (api, { siteId }) =>
 		api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: true }),
 	);

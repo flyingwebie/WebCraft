@@ -1,4 +1,11 @@
-import { entries, globals, siteLanguages as siteLanguageRows, sites } from "@webcraft/db/schema";
+import {
+	entries,
+	globals,
+	publishedSlugs,
+	siteLanguages as siteLanguageRows,
+	sites,
+	specialPages,
+} from "@webcraft/db/schema";
 import { directionOf } from "@webcraft/renderer";
 import { and, eq, isNotNull, max } from "drizzle-orm";
 
@@ -26,6 +33,7 @@ import { lockSitePaths } from "./pages.ts";
 import { listPostTypes } from "./post-types.ts";
 import type { PathChange } from "./publishing.ts";
 import { type EntryVersion, ownValue, storedVersion } from "./values.ts";
+import { publishedVisibleIn } from "./visibility.ts";
 
 /**
  * Changing a Site's languages (Structure: open the Site with `structure.edit`). Like every Site
@@ -313,4 +321,53 @@ async function defaultLanguagePathChanges(scope: SiteScope, from: string, to: st
 		}
 	}
 	return changes;
+}
+
+/** What removing a language would do, shown before it is confirmed: how many published pages it has. */
+export type LanguageRemovalPreview = { code: string; pages: number };
+
+/** Removing a language: before it is confirmed, what it would do; after, the Site's languages. */
+export type LanguageRemoval =
+	| { removed: false; preview: LanguageRemovalPreview; confirmation: Confirmation }
+	| { removed: true; settings: SiteLanguages };
+
+/**
+ * Removes a language from the Site, in two steps: without a confirmation it removes nothing and
+ * answers how many published pages it has, with a confirmation id; with it, its pages (and its 404
+ * page) go at once. Values written in the language are kept in the content store, so adding the
+ * language again brings them back. The Default language can't be removed (`LanguageInvalidError`):
+ * make another one the Default language first.
+ */
+export async function removeLanguage(scope: SiteScope, code: string, confirmation?: string): Promise<LanguageRemoval> {
+	return scope.transaction(async (tx) => {
+		// Its prefix stops being a set of paths the Site answers.
+		await lockSitePaths(tx);
+		const current = await siteLanguages(tx);
+		const language = current.languages.find((candidate) => candidate.code === canonicalLanguage(code));
+		if (!language) throw new LanguageNotFoundError();
+		if (language.default) {
+			throw new LanguageInvalidError([
+				{ at: "code", message: "The Default language can't be removed: make another one the Default language first." },
+			]);
+		}
+		const languages = { language: language.code, defaultLanguage: current.defaultLanguage };
+		const shown = new Set(
+			(await tx.select(entries, and(isNotNull(entries.published), publishedVisibleIn(languages)))).map(
+				(entry) => entry.id,
+			),
+		);
+		const rows = await tx.select(publishedSlugs, eq(publishedSlugs.language, language.code));
+		const pages = rows.filter((row) => shown.has(row.entryId)).length;
+		const request = { action: "language.remove", target: language.code, preview: { code: language.code, pages } };
+		if (confirmation === undefined) {
+			return { removed: false, preview: request.preview, confirmation: await askConfirmation(tx, request) };
+		}
+		await useConfirmation(tx, confirmation, request);
+		await tx.delete(publishedSlugs, eq(publishedSlugs.language, language.code));
+		await tx.delete(specialPages, eq(specialPages.language, language.code));
+		await tx.delete(siteLanguageRows, eq(siteLanguageRows.code, language.code));
+		await clearPageCache(tx);
+		await tx.audit("language.remove", { code: language.code, pages });
+		return { removed: true, settings: await siteLanguages(tx) };
+	});
 }

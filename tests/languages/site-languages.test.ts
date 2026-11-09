@@ -140,3 +140,67 @@ describe("a Site's languages", () => {
 		]);
 	});
 });
+
+describe("removing a language", () => {
+	test("takes two steps; then its pages are gone, and its values come back if it is added again", async () => {
+		const siteId = await newSite();
+		await staff.api.languages.add({ siteId, code: "fr" });
+		const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
+		const template = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: postType.id,
+			markup: "<h1>{{ title }}</h1>",
+		});
+		await staff.api.templates.publish({ siteId, templateId: template.template.id });
+		const { entry } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
+		await staff.api.entries.saveDraft({
+			siteId,
+			entryId: entry.id,
+			language: "fr",
+			title: "Pain frais",
+			slug: "pain-frais",
+		});
+		await staff.api.entries.publish({ siteId, entryId: entry.id });
+		const origin = `https://languages-${sites}.sites.test`;
+		const french = () => install.request(`${origin}/fr/blog/pain-frais`);
+
+		const asked = await staff.api.languages.remove({ siteId, code: "fr" });
+		expect(asked).toEqual({
+			removed: false,
+			preview: { code: "fr", pages: 1 },
+			confirmation: { id: expect.any(String), expiresAt: expect.any(Date) },
+		});
+		expect((await french()).status).toBe(200);
+		if (asked.removed) throw new Error("It should ask first.");
+
+		const done = await staff.api.languages.remove({ siteId, code: "fr", confirmation: asked.confirmation.id });
+
+		expect(done).toEqual({ removed: true, settings: expect.objectContaining({ languages: [english] }) });
+		expect((await french()).status).toBe(404);
+		await expect(staff.api.entries.get({ siteId, entryId: entry.id, language: "fr" })).rejects.toMatchObject({
+			code: "ENTRY_INVALID",
+		});
+		const [logged] = (await admin.api.audit.list({ limit: 1 })).entries;
+		expect(logged).toMatchObject({ action: "language.remove", details: { code: "fr", pages: 1 } });
+
+		await staff.api.languages.add({ siteId, code: "fr" });
+		expect((await french()).status).toBe(200);
+		expect((await staff.api.entries.get({ siteId, entryId: entry.id, language: "fr" })).entry.draft.title).toBe(
+			"Pain frais",
+		);
+	});
+
+	test("the Default language can't be removed, and only Staff remove languages", async () => {
+		const siteId = await newSite();
+		await staff.api.languages.add({ siteId, code: "fr" });
+
+		await expect(staff.api.languages.remove({ siteId, code: "en" })).rejects.toMatchObject({
+			code: "LANGUAGE_INVALID",
+			data: { problems: [{ at: "code" }] },
+		});
+		await expect(owner.api.languages.remove({ siteId, code: "fr" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(staff.api.languages.remove({ siteId, code: "de" })).rejects.toMatchObject({
+			code: "LANGUAGE_NOT_FOUND",
+		});
+	});
+});

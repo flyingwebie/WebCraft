@@ -56,6 +56,19 @@ export const languages = {
 		}),
 
 	/**
+	 * Removes a language, in two steps. The first call removes nothing: it answers how many published
+	 * pages the language has (`preview.pages`) and a `confirmation` id, valid for 5 minutes; calling
+	 * again with it removes the language, and its pages are gone at once. Values written in it are kept,
+	 * so adding it again brings them back. The Default language can't be removed.
+	 */
+	remove: signedIn
+		.input(z.object({ siteId: id, code, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return await context.services.languages.remove(site, input.code, input.confirmation);
+		}),
+
+	/**
 	 * Turns the browser-language redirect on or off: when on, a visitor's first request to the home
 	 * page goes on to the home page in the language their browser prefers. Off by default.
 	 */

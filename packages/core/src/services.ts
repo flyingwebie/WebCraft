@@ -14,6 +14,7 @@ import type {
 	Globals,
 	GlobalsChange,
 	LanguageChange,
+	LanguageRemoval,
 	NewEntry,
 	NewLanguage,
 	NewPostType,
@@ -189,6 +190,11 @@ export type InstallServices = InstallPorts & {
 		 * what would change and a confirmation id; with it, it goes ahead.
 		 */
 		setDefault(scope: SiteScope, code: string, confirmation?: string): Promise<DefaultLanguageChange>;
+		/**
+		 * Removes a language, in two steps: without `confirmation` it answers how many published pages
+		 * it has and a confirmation id; with it, it goes ahead. Its values are kept.
+		 */
+		remove(scope: SiteScope, code: string, confirmation?: string): Promise<LanguageRemoval>;
 		/** Turns the browser-language redirect on the home page on or off. */
 		setBrowserRedirect(scope: SiteScope, on: boolean): Promise<SiteLanguages>;
 	};

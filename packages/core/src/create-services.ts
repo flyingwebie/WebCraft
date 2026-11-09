@@ -19,6 +19,7 @@ import {
 	listEntries,
 	listPostTypes,
 	publish,
+	removeLanguage,
 	saveDraft,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
@@ -177,6 +178,7 @@ export async function createInstallServices(
 			add: (scope, input) => addLanguage({ config }, scope, input),
 			update: (scope, code, change) => updateLanguage({ config }, scope, code, change),
 			setDefault: setDefaultLanguage,
+			remove: removeLanguage,
 			setBrowserRedirect: setBrowserLanguageRedirect,
 		},
 		pages: {
