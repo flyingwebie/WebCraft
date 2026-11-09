@@ -534,12 +534,25 @@ async function viewOf(
 				break;
 		}
 	}
+	const chips = filter.controls.find((page) => page.control.type === "chips")?.control;
 	return {
 		name: filter.name,
 		action: place.path,
 		mode: filter.version.mode,
+		layout: filter.version.layout,
+		phone: filter.version.phone,
 		label: text(filter.version.label, words.filters),
 		applyLabel: text(filter.version.applyLabel, words.apply),
+		drawer: {
+			close: words.close,
+			reset: text(chips?.type === "chips" ? chips.resetLabel : null, words.reset),
+			resetHref: href([]),
+			show: words.show.replace(
+				"{results}",
+				total === 0 ? countText(0, language, countControl?.type === "count" ? countControl : null, "other") : counted,
+			),
+		},
+		chosen: words.chosen,
 		keep: others,
 		controls: views,
 		announce: counted,
@@ -574,10 +587,17 @@ async function countsOf(
 }
 
 /** How many items the Loop lists, in the count control's words (or WebCraft's) in the page's language. */
-function countText(total: number, language: string, control: Extract<FilterControl, { type: "count" }> | null): string {
+function countText(
+	total: number,
+	language: string,
+	control: Extract<FilterControl, { type: "count" }> | null,
+	/** `other` words the number even when it is 0 ("Show 0 products"), instead of the no-results words. */
+	form?: "other",
+): string {
 	const words = filterWords(language);
 	const pick = (value: FilterText | null | undefined, fallback: string) =>
 		(value ? filterTextIn(value, language) : fallback).replaceAll("{count}", String(total));
+	if (form === "other") return pick(control?.other, words.other);
 	if (total === 0) return pick(control?.none, words.none);
 	const one = new Intl.PluralRules(language).select(total) === "one";
 	return one ? pick(control?.one, words.one.replace("1", "{count}")) : pick(control?.other, words.other);

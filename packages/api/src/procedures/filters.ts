@@ -25,6 +25,8 @@ const words = z.union([
  */
 const version = {
 	mode: z.string().max(10).optional(),
+	layout: z.string().max(10).optional(),
+	phone: z.string().max(10).optional(),
 	label: words.optional(),
 	applyLabel: words.optional(),
 	controls: z

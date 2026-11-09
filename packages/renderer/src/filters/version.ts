@@ -25,6 +25,16 @@ export type FilterVersion = {
 	 * and the page loads again either way.
 	 */
 	mode: FilterMode;
+	/**
+	 * How its controls are laid out (its layout preset): stacked beside the results (`sidebar`), one row
+	 * of dropdown buttons above them (`topbar`), or behind a "Filters" button opening a drawer (`drawer`).
+	 */
+	layout: FilterLayout;
+	/**
+	 * What it becomes on phones (below the Design system's smallest breakpoint): a drawer (`drawer`), or
+	 * the same layout as on wider screens (`same`). A drawer applies choices with its "Show" button only.
+	 */
+	phone: FilterPhoneLayout;
 	/** What the Filter is called for screen readers (its form's name); WebCraft's word ("Filters") when null. */
 	label: FilterText | null;
 	/** The Apply button's words; WebCraft's ("Apply") when null. */
@@ -35,6 +45,14 @@ export type FilterVersion = {
 
 export const FILTER_MODES = ["live", "submit"] as const;
 export type FilterMode = (typeof FILTER_MODES)[number];
+
+/** A Filter's layout presets, as the builder's Layout tab offers them. */
+export const FILTER_LAYOUTS = ["sidebar", "topbar", "drawer"] as const;
+export type FilterLayout = (typeof FILTER_LAYOUTS)[number];
+
+/** What a Filter becomes on phones: a drawer, or its layout as on wider screens. */
+export const FILTER_PHONE_LAYOUTS = ["drawer", "same"] as const;
+export type FilterPhoneLayout = (typeof FILTER_PHONE_LAYOUTS)[number];
 
 /** The eight kinds of Filter control, as the builder's "Add control" menu lists them. */
 export const FILTER_CONTROL_TYPES = [
@@ -221,7 +239,7 @@ export const FILTER_LIMITS = {
 	labelLength: 200,
 } as const;
 
-/** A new Filter's version: Live, no controls yet. */
+/** A new Filter's version: Live, a sidebar that turns into a drawer on phones, no controls yet. */
 export function newFilterVersion(): FilterVersion {
-	return { mode: "live", label: null, applyLabel: null, controls: [] };
+	return { mode: "live", layout: "sidebar", phone: "drawer", label: null, applyLabel: null, controls: [] };
 }

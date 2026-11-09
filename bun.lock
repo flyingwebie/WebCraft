@@ -226,7 +226,7 @@
     },
     "packages/module-sdk": {
       "name": "@webcraft/module-sdk",
-      "version": "1.7.0",
+      "version": "1.8.0",
       "dependencies": {
         "drizzle-orm": "catalog:",
         "zod": "catalog:",

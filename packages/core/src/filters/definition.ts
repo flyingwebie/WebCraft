@@ -3,12 +3,16 @@ import {
 	FILTER_CONTROL_TYPES,
 	FILTER_EMPTY_OPTIONS,
 	FILTER_KEY,
+	FILTER_LAYOUTS,
 	FILTER_LIMITS,
 	FILTER_MODES,
 	FILTER_OPTION_ORDERS,
+	FILTER_PHONE_LAYOUTS,
 	type FilterControl,
 	type FilterControlType,
+	type FilterLayout,
 	type FilterOptionSource,
+	type FilterPhoneLayout,
 	type FilterText,
 	type FilterVersion,
 	newFilterVersion,
@@ -31,7 +35,14 @@ import { readText } from "../forms/definition.ts";
  */
 
 /** A Filter's Draft change: the parts given replace those of the Draft. */
-export type FilterVersionInput = { mode?: unknown; label?: unknown; applyLabel?: unknown; controls?: unknown };
+export type FilterVersionInput = {
+	mode?: unknown;
+	layout?: unknown;
+	phone?: unknown;
+	label?: unknown;
+	applyLabel?: unknown;
+	controls?: unknown;
+};
 
 /** What a Filter's controls are checked against: the Post Types its Loop lists, and the Site's. */
 export type FilterContext = { query: LoopQuery; postTypes: readonly PostType[] };
@@ -44,6 +55,10 @@ export function storedFilterVersion(stored: unknown): FilterVersion {
 	const raw = (stored ?? {}) as Partial<FilterVersion>;
 	return {
 		mode: raw.mode === "submit" ? "submit" : fresh.mode,
+		layout: (FILTER_LAYOUTS as readonly unknown[]).includes(raw.layout) ? (raw.layout as FilterLayout) : fresh.layout,
+		phone: (FILTER_PHONE_LAYOUTS as readonly unknown[]).includes(raw.phone)
+			? (raw.phone as FilterPhoneLayout)
+			: fresh.phone,
 		label: raw.label ?? null,
 		applyLabel: raw.applyLabel ?? null,
 		controls: Array.isArray(raw.controls) ? raw.controls : [],
@@ -67,10 +82,22 @@ export function readFilterVersion(
 		if ((FILTER_MODES as readonly unknown[]).includes(input.mode)) mode = input.mode as FilterVersion["mode"];
 		else report("mode", "A Filter updates as controls change (live) or when Apply is pressed (submit).");
 	}
+	let layout = current.layout;
+	if (input.layout !== undefined) {
+		if ((FILTER_LAYOUTS as readonly unknown[]).includes(input.layout)) layout = input.layout as FilterLayout;
+		else report("layout", "A Filter is laid out as a sidebar, a top bar (topbar) or a drawer.");
+	}
+	let phone = current.phone;
+	if (input.phone !== undefined) {
+		if ((FILTER_PHONE_LAYOUTS as readonly unknown[]).includes(input.phone)) phone = input.phone as FilterPhoneLayout;
+		else report("phone", "On phones a Filter becomes a drawer, or keeps its layout (same).");
+	}
 	const words = (value: unknown, at: string, fallback: FilterText | null) =>
 		value === undefined ? fallback : readWords(value, at, report);
 	return {
 		mode,
+		layout,
+		phone,
 		label: words(input.label, "label", current.label),
 		applyLabel: words(input.applyLabel, "applyLabel", current.applyLabel),
 		controls: input.controls === undefined ? current.controls : readControls(input.controls, context, report),

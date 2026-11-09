@@ -21,6 +21,12 @@ export type FilterWords = {
 	one: string;
 	other: string;
 	none: string;
+	/** The drawer's button applying its choices: `{results}` is how many items they list ("14 products"). */
+	show: string;
+	/** The drawer's Close button's name. */
+	close: string;
+	/** What follows how many choices a button's controls hold ("2 chosen"). */
+	chosen: string;
 };
 
 const WORDS: Readonly<Record<string, FilterWords>> = {
@@ -40,6 +46,9 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		one: "1 result",
 		other: "{count} results",
 		none: "No results",
+		show: "Show {results}",
+		close: "Close",
+		chosen: "chosen",
 	},
 	it: {
 		filters: "Filtri",
@@ -57,6 +66,9 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		one: "1 risultato",
 		other: "{count} risultati",
 		none: "Nessun risultato",
+		show: "Mostra {results}",
+		close: "Chiudi",
+		chosen: "scelti",
 	},
 	fr: {
 		filters: "Filtres",
@@ -74,6 +86,9 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		one: "1 résultat",
 		other: "{count} résultats",
 		none: "Aucun résultat",
+		show: "Afficher {results}",
+		close: "Fermer",
+		chosen: "choisis",
 	},
 	de: {
 		filters: "Filter",
@@ -91,6 +106,9 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		one: "1 Ergebnis",
 		other: "{count} Ergebnisse",
 		none: "Keine Ergebnisse",
+		show: "{results} anzeigen",
+		close: "Schließen",
+		chosen: "ausgewählt",
 	},
 	es: {
 		filters: "Filtros",
@@ -108,6 +126,9 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		one: "1 resultado",
 		other: "{count} resultados",
 		none: "Ningún resultado",
+		show: "Mostrar {results}",
+		close: "Cerrar",
+		chosen: "elegidos",
 	},
 	pt: {
 		filters: "Filtros",
@@ -125,6 +146,9 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		one: "1 resultado",
 		other: "{count} resultados",
 		none: "Nenhum resultado",
+		show: "Mostrar {results}",
+		close: "Fechar",
+		chosen: "escolhidos",
 	},
 	nl: {
 		filters: "Filters",
@@ -142,6 +166,9 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		one: "1 resultaat",
 		other: "{count} resultaten",
 		none: "Geen resultaten",
+		show: "{results} tonen",
+		close: "Sluiten",
+		chosen: "gekozen",
 	},
 };
 
