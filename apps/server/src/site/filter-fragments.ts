@@ -2,7 +2,7 @@ import { FILTER_HOOKS, FILTER_REGION_MARK } from "@webcraft/renderer";
 
 /**
  * The parts of a rendered page a Filter's script swaps in place (GLOSSARY.md › Filter): its title,
- * each Filter's form by its id, and each region of its filtered Loops (`<!--wc-region loop products 1-->`
+ * each Filter's form and each control shown on its own by its id, and each region of its filtered Loops (`<!--wc-region loop products 1-->`
  * … `<!--/wc-region loop products 1-->`) by name. Only WebCraft writes forms with these classes and
  * comments on a page (Staff's comments are never rendered, every value is escaped, and a Filter's
  * form holds no other form), so reading them from the HTML finds exactly what the renderer wrote.
@@ -15,9 +15,15 @@ export type PageParts = {
 
 export function pageParts(html: string): PageParts {
 	const title = decodeText(/<title>([\s\S]*?)<\/title>/.exec(html)?.[1] ?? "");
+	// Each Filter's form, and each of its controls shown on its own (a part ends with its marking comment).
 	const filters = [
-		...html.matchAll(new RegExp(`<form class="${FILTER_HOOKS.form}" id="([^"]+)"[\\s\\S]*?</form>`, "g")),
-	].map(([part = "", id = ""]) => ({ id, html: part }));
+		...html.matchAll(
+			new RegExp(
+				`<form class="${FILTER_HOOKS.form}" id="([^"]+)"[\\s\\S]*?</form>|<div class="${FILTER_HOOKS.part}" id="([^"]+)"[\\s\\S]*?<!--/${FILTER_HOOKS.part}--></div>`,
+				"g",
+			),
+		),
+	].map(([part = "", form, apart]) => ({ id: form ?? apart ?? "", html: part }));
 	const regions: PageParts["regions"] = [];
 	const start = new RegExp(`<!--${FILTER_REGION_MARK} ([^>]*?)-->`, "g");
 	for (const match of html.matchAll(start)) {

@@ -15,6 +15,7 @@ import {
 	filterWords,
 	isStateControl,
 	renderFilter,
+	renderFilterPart,
 	type TreeNode,
 } from "@webcraft/renderer";
 import { and, inArray, isNotNull, or, type SQL } from "drizzle-orm";
@@ -111,7 +112,8 @@ export async function pageFilters(
 	place: FilterPlace,
 	postTypes: readonly PostType[],
 ): Promise<PageFilters> {
-	const ids = [...new Set(trees.flatMap((tree) => (tree ? filterNodesIn(tree.nodes) : [])).map((node) => node.filter))];
+	const nodes = trees.flatMap((tree) => (tree ? filterNodesIn(tree.nodes) : []));
+	const ids = [...new Set(nodes.map((node) => node.filter))];
 	if (ids.length === 0) return NO_FILTERS_ON_PAGE;
 	const rows = await scope.select(filterRows, inArray(filterRows.id, ids));
 	const loopRows = await scope.select(
@@ -173,10 +175,20 @@ export async function pageFilters(
 			const shown = new Map<string, number>();
 			return (node) => {
 				const view = views.get(node.filter);
-				if (!view) return "";
-				const occurrence = (shown.get(node.filter) ?? 0) + 1;
-				shown.set(node.filter, occurrence);
-				return renderFilter(view, occurrence);
+				const filter = read.find((each) => each.id === node.filter);
+				if (!view || !filter) return "";
+				const indexOf = (control: string) => filter.controls.findIndex((page) => page.control.id === control);
+				// Controls shown on their own: the Filter's form leaves them out, and their fields belong to it.
+				const placed = nodes.filter((each) => each.filter === node.filter);
+				const apart = new Set(placed.flatMap((each) => (each.control === undefined ? [] : [indexOf(each.control)])));
+				const key = node.control === undefined ? node.filter : `${node.filter}#${node.control}`;
+				const occurrence = (shown.get(key) ?? 0) + 1;
+				shown.set(key, occurrence);
+				if (node.control === undefined) return renderFilter(view, occurrence, apart);
+				const index = indexOf(node.control);
+				if (index < 0) return "";
+				const form = placed.some((each) => each.control === undefined) ? `wc-filter-${view.name}` : null;
+				return renderFilterPart(view, index, occurrence, form);
 			};
 		},
 	};
@@ -554,6 +566,7 @@ async function viewOf(
 		},
 		chosen: words.chosen,
 		keep: others,
+		choices: mine,
 		controls: views,
 		announce: counted,
 	};

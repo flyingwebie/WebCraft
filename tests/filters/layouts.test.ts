@@ -166,3 +166,113 @@ describe("on the Site", () => {
 		expect(html).not.toContain("wc-filter-pop");
 	});
 });
+
+describe("a control placed on its own", () => {
+	let shop: Shop;
+
+	/** The shop's controls with ids that say what they are, as the Filter builder gives them. */
+	const named = async () => {
+		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });
+		const ids = ["search", "category", "baker", "vegan", "price", "baked", "sort", "chips", "count"];
+		await publishFilter(shop, {
+			controls: filter.draft.controls.map((control, index) => ({ ...control, id: ids[index] })),
+		});
+	};
+
+	/** Publishes the shop's Archive template as `markup`. */
+	const archive = async (markup: string) => {
+		const { template } = await shop.staff.api.templates.saveArchiveTemplateMarkup({
+			siteId: shop.siteId,
+			postTypeId: shop.productsId,
+			markup,
+		});
+		await shop.staff.api.templates.publish({ siteId: shop.siteId, templateId: template.id });
+	};
+
+	const LOOP = "<ul>{{@loop products as p}}<li>{{ p.title }}</li>{{@empty}}<li>None</li>{{/loop}}</ul>";
+
+	/** The Filter's own form on a page. */
+	const formIn = (html: string) => /<form class="wc-filter" id="wc-filter-shop"[\s\S]*?<\/form>/.exec(html)?.[0] ?? "";
+
+	beforeAll(async () => {
+		shop = await buildShop(install, "parts");
+		await named();
+	});
+
+	test('{{@filter <name> for="<loop>" control="<id>"}} saves and prints back; it names one of its controls', async () => {
+		const markup = `<header>{{@filter shop for="products" control="search"}}</header><aside>{{@filter shop for="products"}}</aside>${LOOP}`;
+		const { template, markup: printed } = await shop.staff.api.templates.saveArchiveTemplateMarkup({
+			siteId: shop.siteId,
+			postTypeId: shop.productsId,
+			markup,
+		});
+		expect(printed.replaceAll(/ data-wc-id="[^"]*"/g, "")).toBe(markup);
+		expect(template.draft.nodes[0]).toMatchObject({
+			children: [{ type: "filter", filter: shop.filterId, loop: "products", control: "search" }],
+		});
+
+		await expect(
+			shop.staff.api.templates.saveArchiveTemplateMarkup({
+				siteId: shop.siteId,
+				postTypeId: shop.productsId,
+				markup: `{{@filter shop for="products" control="colour"}}${LOOP}`,
+			}),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: {
+				problems: [
+					{
+						column: 40,
+						message:
+							"The Filter shop has no control colour: its controls are search, category, baker, vegan, price, baked, sort, chips, count.",
+					},
+				],
+			},
+		});
+	});
+
+	test("beside the Filter's form, it belongs to that form, which leaves it out", async () => {
+		await archive(
+			`<header>{{@filter shop for="products" control="search"}}</header><aside>{{@filter shop for="products"}}</aside><div>{{@filter shop for="products" control="count"}}</div>${LOOP}`,
+		);
+		const { html } = await visit(shop, "/shop?q=bun");
+
+		expect(html).toContain(
+			'<header><div class="wc-filter-part" id="wc-filter-shop-1-part" data-wc-filter="shop"><div class="wc-filter-control" id="wc-filter-shop-1-control" data-wc-control="search"><label for="wc-filter-shop-1">Search the shop</label><input type="search" id="wc-filter-shop-1" name="q" form="wc-filter-shop" value="bun" placeholder="Search the shop" maxlength="200" enterkeyhint="search"></div><!--/wc-filter-part--></div></header>',
+		);
+		expect(html).toContain(
+			'<div><div class="wc-filter-part" id="wc-filter-shop-9-part" data-wc-filter="shop"><p class="wc-filter-count" id="wc-filter-shop-9-control" data-wc-control="count">1 product</p><!--/wc-filter-part--></div></div>',
+		);
+		const form = formIn(html);
+		expect(form).toContain('data-wc-control="checkboxes"');
+		expect(form).not.toContain('data-wc-control="search"');
+		expect(form).not.toContain('data-wc-control="count"');
+		expect(listed(html)).toEqual(["Cinnamon bun"]);
+	});
+
+	test("without the Filter's form, it is a form of its own sending the page's other choices on", async () => {
+		await archive(`<header>{{@filter shop for="products" control="search"}}</header>${LOOP}`);
+		const { html } = await visit(shop, "/shop?category=bread");
+
+		const own = /<form class="wc-filter" id="wc-filter-shop-1-part"[\s\S]*?<\/form>/.exec(html)?.[0] ?? "";
+		expect(own).toStartWith(
+			'<form class="wc-filter" id="wc-filter-shop-1-part" method="get" action="/shop" aria-label="Filters" data-wc-filter="shop" data-wc-mode="live" data-wc-layout="sidebar" data-wc-phone="drawer" data-wc-announce="3 products"><input type="hidden" name="category" value="bread"><div class="wc-filter-control" id="wc-filter-shop-1-control" data-wc-control="search">',
+		);
+		expect(own).toContain('<input type="search" id="wc-filter-shop-1" name="q" placeholder=');
+		expect(own).toEndWith('<button class="wc-filter-apply" type="submit">Apply</button></form>');
+		expect(listed(html)).toEqual(["Country sourdough", "Rosemary focaccia", "Rye & caraway"]);
+	});
+
+	test("the Filter script swaps it with the Filter's form", async () => {
+		await archive(
+			`<header>{{@filter shop for="products" control="search"}}</header><aside>{{@filter shop for="products"}}</aside>${LOOP}`,
+		);
+		const response = await install.request(new Request(`${shop.origin}/_wc/filter/shop?q=bun`));
+		const parts = (await response.json()) as { filters: { id: string; html: string }[] };
+
+		expect(parts.filters.map((part) => part.id)).toEqual(["wc-filter-shop-1-part", "wc-filter-shop"]);
+		expect(parts.filters[0]?.html).toStartWith('<div class="wc-filter-part" id="wc-filter-shop-1-part"');
+		expect(parts.filters[0]?.html).toEndWith("<!--/wc-filter-part--></div>");
+		expect(parts.filters[0]?.html).toContain('value="bun"');
+	});
+});

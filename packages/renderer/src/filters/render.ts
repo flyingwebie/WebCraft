@@ -32,6 +32,8 @@ export type FilterView = {
 	chosen: string;
 	/** The other Filters' choices on the page, kept as hidden fields so sending this one keeps them. */
 	keep: readonly (readonly [name: string, value: string])[];
+	/** This Filter's own choices, by key: a control shown on its own as a form sends the others on. */
+	choices: readonly (readonly [name: string, value: string])[];
 	controls: readonly FilterControlView[];
 	/** What screen readers hear once the Loop is updated: how many items it lists. */
 	announce: string;
@@ -119,6 +121,8 @@ export const FILTER_HOOKS = {
 	drawerReset: "wc-filter-drawer-reset",
 	close: "wc-filter-close",
 	show: "wc-filter-show",
+	/** A control shown on its own elsewhere on the page. */
+	part: "wc-filter-part",
 } as const;
 
 /**
@@ -141,7 +145,7 @@ export const RANGE_PARTS = { min: ".min", max: ".max" } as const;
  * `command="show-modal"`, so no script is needed where browsers have it), applied with its own "Show"
  * button. With the drawer for phones only, wider screens show the dialog's content in place.
  */
-export function renderFilter(view: FilterView, occurrence: number): string {
+export function renderFilter(view: FilterView, occurrence: number, leaveOut?: ReadonlySet<number>): string {
 	const base = `wc-filter-${view.name}${occurrence > 1 ? `-${occurrence}` : ""}`;
 	const id = (...parts: (string | number)[]) => escapeAttribute([base, ...parts].join("-"));
 	const drawer = view.layout === "drawer" || view.phone === "drawer";
@@ -149,6 +153,7 @@ export function renderFilter(view: FilterView, occurrence: number): string {
 	const held: string[] = [];
 	let chosen = 0;
 	view.controls.forEach((control, index) => {
+		if (leaveOut?.has(index)) return;
 		const at = (...rest: (string | number)[]) => id(index + 1, ...rest);
 		let html = controlHtml(control, at);
 		const grouped = GROUPED.has(control.type);
@@ -159,14 +164,41 @@ export function renderFilter(view: FilterView, occurrence: number): string {
 			chosen += chosenIn(control);
 		} else parts.push(html);
 	});
-	const keep = view.keep.map(
+	const shown = parts.map((part) => (part === DRAWER_PLACE ? drawerHtml(view, id, held, chosen) : part));
+	return formHtml(view, id(), view.keep, shown.join(""));
+}
+
+/**
+ * One control of a Filter shown on its own (`{{@filter <name> for="<loop>" control="<id>"}}`), the
+ * control at `index` of the view, its ids those it has in the Filter's form. Beside the Filter's form
+ * (`form`, its id), its fields belong to that form (the `form` attribute), which leaves the control
+ * out. Without it, a control with fields is a form of its own, sending the page's other choices on.
+ * `occurrence` numbers this control's places on the page.
+ */
+export function renderFilterPart(view: FilterView, index: number, occurrence: number, form: string | null): string {
+	const control = view.controls[index];
+	if (!control) return "";
+	const base = `wc-filter-${view.name}${occurrence > 1 ? `-part${occurrence}` : ""}`;
+	const at = (...rest: (string | number)[]) => escapeAttribute([base, index + 1, ...rest].join("-"));
+	const fields = control.type !== "chips" && control.type !== "count";
+	if (form !== null || !fields) {
+		const html = controlHtml(control, at, fields && form !== null ? form : undefined);
+		return `<div class="${FILTER_HOOKS.part}" id="${at("part")}" data-wc-filter="${escapeAttribute(view.name)}">${html}<!--/${FILTER_HOOKS.part}--></div>`;
+	}
+	// The Filter's other choices go on with this form, beside the other Filters' on the page.
+	const others = view.choices.filter(([name]) => name !== control.name);
+	return formHtml(view, at("part"), [...others, ...view.keep], controlHtml(control, at));
+}
+
+/** A Filter's form around its controls: hidden fields keeping other choices, then an Apply button. */
+function formHtml(view: FilterView, id: string, keep: FilterView["keep"], controls: string): string {
+	const hidden = keep.map(
 		([name, value]) => `<input type="hidden" name="${escapeAttribute(name)}" value="${escapeAttribute(value)}">`,
 	);
-	const shown = parts.map((part) => (part === DRAWER_PLACE ? drawerHtml(view, id, held, chosen) : part));
 	return [
-		`<form class="${FILTER_HOOKS.form}" id="${id()}" method="get" action="${escapeAttribute(safeUrl(view.action))}" aria-label="${escapeAttribute(view.label)}" data-wc-filter="${escapeAttribute(view.name)}" data-wc-mode="${view.mode}" data-wc-layout="${view.layout}" data-wc-phone="${view.phone}" data-wc-announce="${escapeAttribute(view.announce)}">`,
-		...keep,
-		...shown,
+		`<form class="${FILTER_HOOKS.form}" id="${id}" method="get" action="${escapeAttribute(safeUrl(view.action))}" aria-label="${escapeAttribute(view.label)}" data-wc-filter="${escapeAttribute(view.name)}" data-wc-mode="${view.mode}" data-wc-layout="${view.layout}" data-wc-phone="${view.phone}" data-wc-announce="${escapeAttribute(view.announce)}">`,
+		...hidden,
+		controls,
 		`<button class="${FILTER_HOOKS.apply}" type="submit">${escapeText(view.applyLabel)}</button>`,
 		"</form>",
 	].join("");
@@ -233,17 +265,19 @@ function drawerHtml(
 	].join("");
 }
 
-function controlHtml(control: FilterControlView, id: (...parts: (string | number)[]) => string): string {
+function controlHtml(control: FilterControlView, id: (...parts: (string | number)[]) => string, form?: string): string {
 	const name = "name" in control ? escapeAttribute(control.name) : "";
+	// A control shown apart from its Filter's form names that form, so its fields are sent with it.
+	const owner = form ? ` form="${escapeAttribute(form)}"` : "";
 	switch (control.type) {
 		case "search": {
 			const value = control.value ? ` value="${escapeAttribute(control.value)}"` : "";
 			const placeholder = control.placeholder ? ` placeholder="${escapeAttribute(control.placeholder)}"` : "";
-			return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="search"><label for="${id()}">${escapeText(control.label)}</label><input type="search" id="${id()}" name="${name}"${value}${placeholder} maxlength="200" enterkeyhint="search"></div>`;
+			return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="search"><label for="${id()}">${escapeText(control.label)}</label><input type="search" id="${id()}" name="${name}"${owner}${value}${placeholder} maxlength="200" enterkeyhint="search"></div>`;
 		}
 		case "checkboxes": {
 			const items = control.options.map((option, index) => {
-				const field = `<input type="checkbox" id="${id(index + 1)}" name="${name}" value="${escapeAttribute(option.value)}"${option.checked ? " checked" : ""}${option.disabled ? " disabled" : ""}>`;
+				const field = `<input type="checkbox" id="${id(index + 1)}" name="${name}"${owner} value="${escapeAttribute(option.value)}"${option.checked ? " checked" : ""}${option.disabled ? " disabled" : ""}>`;
 				return `<li>${field}<label for="${id(index + 1)}">${optionLabel(option)}</label></li>`;
 			});
 			const first = items.slice(0, control.showFirst);
@@ -266,24 +300,24 @@ function controlHtml(control: FilterControlView, id: (...parts: (string | number
 							`<option value="${escapeAttribute(option.value)}"${option.checked ? " selected" : ""}${option.disabled ? " disabled" : ""}>${escapeText(option.count === null ? option.label : `${option.label} (${option.count})`)}</option>`,
 					),
 				];
-				return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="choice"><label for="${id()}">${escapeText(control.label)}</label><select id="${id()}" name="${name}">${options.join("")}</select></div>`;
+				return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="choice"><label for="${id()}">${escapeText(control.label)}</label><select id="${id()}" name="${name}"${owner}>${options.join("")}</select></div>`;
 			}
 			const items = [
-				`<li><input type="radio" id="${id(0)}" name="${name}" value=""${none ? " checked" : ""}><label for="${id(0)}">${escapeText(control.allLabel)}</label></li>`,
+				`<li><input type="radio" id="${id(0)}" name="${name}"${owner} value=""${none ? " checked" : ""}><label for="${id(0)}">${escapeText(control.allLabel)}</label></li>`,
 				...control.options.map(
 					(option, index) =>
-						`<li><input type="radio" id="${id(index + 1)}" name="${name}" value="${escapeAttribute(option.value)}"${option.checked ? " checked" : ""}${option.disabled ? " disabled" : ""}><label for="${id(index + 1)}">${optionLabel(option)}</label></li>`,
+						`<li><input type="radio" id="${id(index + 1)}" name="${name}"${owner} value="${escapeAttribute(option.value)}"${option.checked ? " checked" : ""}${option.disabled ? " disabled" : ""}><label for="${id(index + 1)}">${optionLabel(option)}</label></li>`,
 				),
 			];
 			return `<fieldset class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="choice"><legend>${escapeText(control.label)}</legend><ul class="${FILTER_HOOKS.options}">${items.join("")}</ul></fieldset>`;
 		}
 		case "toggle":
-			return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="toggle"><input type="checkbox" role="switch" id="${id()}" name="${name}" value="1"${control.checked ? " checked" : ""}><label for="${id()}">${escapeText(control.label)}</label></div>`;
+			return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="toggle"><input type="checkbox" role="switch" id="${id()}" name="${name}"${owner} value="1"${control.checked ? " checked" : ""}><label for="${id()}">${escapeText(control.label)}</label></div>`;
 		case "range": {
 			const type = control.kind === "date" ? "date" : "number";
 			const step = control.kind === "number" ? ' step="any" inputmode="decimal"' : "";
 			const box = (part: "min" | "max", label: string, value: string) =>
-				`<label for="${id(part)}">${escapeText(label)}</label><input type="${type}" id="${id(part)}" name="${name}${RANGE_PARTS[part]}"${value ? ` value="${escapeAttribute(value)}"` : ""}${step}>`;
+				`<label for="${id(part)}">${escapeText(label)}</label><input type="${type}" id="${id(part)}" name="${name}${RANGE_PARTS[part]}"${owner}${value ? ` value="${escapeAttribute(value)}"` : ""}${step}>`;
 			return `<fieldset class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="range"><legend>${escapeText(control.label)}</legend>${box("min", control.minLabel, control.min)}${box("max", control.maxLabel, control.max)}</fieldset>`;
 		}
 		case "sort": {
@@ -295,7 +329,7 @@ function controlHtml(control: FilterControlView, id: (...parts: (string | number
 						`<option value="${escapeAttribute(option.value)}"${option.selected ? " selected" : ""}>${escapeText(option.label)}</option>`,
 				),
 			];
-			return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="sort"><label for="${id()}">${escapeText(control.label)}</label><select id="${id()}" name="${name}">${options.join("")}</select></div>`;
+			return `<div class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="sort"><label for="${id()}">${escapeText(control.label)}</label><select id="${id()}" name="${name}"${owner}>${options.join("")}</select></div>`;
 		}
 		case "chips": {
 			if (control.chips.length === 0)

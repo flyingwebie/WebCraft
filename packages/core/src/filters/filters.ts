@@ -242,8 +242,9 @@ export async function siteFilters(
 	};
 	const found = (row: FilterRow | undefined) => {
 		if (!row) return undefined;
-		if (!versionOf(row)) return { refused: `The Filter ${row.name} isn't published yet: publish it first.` };
-		return { id: row.id, name: row.name, loop: row.loop };
+		const version = versionOf(row);
+		if (!version) return { refused: `The Filter ${row.name} isn't published yet: publish it first.` };
+		return { id: row.id, name: row.name, loop: row.loop, controls: version.controls.map((control) => control.id) };
 	};
 	return {
 		named: (name) => found(byName.get(name)),
