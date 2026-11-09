@@ -1,5 +1,6 @@
 import { globals } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { restoredVersion } from "./entries.ts";
@@ -108,6 +109,7 @@ export async function setGlobalFields(scope: SiteScope, inputs: readonly FieldIn
 				draft: { values: { ...draft.values, ...defaults } },
 				updatedAt: tx.now(),
 				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
 			},
 			eq(globals.id, row.id),
 		);
@@ -139,7 +141,12 @@ export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange):
 		if (problems.length > 0) throw new GlobalsInvalidError(problems);
 		const [saved] = await tx.update(
 			globals,
-			{ draft: { values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			{
+				draft: { values },
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
+			},
 			eq(globals.id, row.id),
 		);
 		return toGlobals(tx, saved ?? row, languages);
@@ -160,7 +167,12 @@ export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string
 		if (sameJson(restored, draft)) return toGlobals(tx, row, languages);
 		const [saved] = await tx.update(
 			globals,
-			{ draft: restored, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			{
+				draft: restored,
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
+			},
 			eq(globals.id, row.id),
 		);
 		return toGlobals(tx, saved ?? row, languages);

@@ -172,7 +172,7 @@ describe("approving a client", () => {
 		const admin = await install.superadmin();
 		const { body } = await registerClient(install);
 		const { challenge } = await pkcePair();
-		for (const more of [{ code_challenge: "" }, { code_challenge_method: "plain" }]) {
+		for (const more of [{ code_challenge: "" }, { code_challenge_method: "plain" }] as Record<string, string>[]) {
 			const { check } = await admin.api.oauth.check({
 				parameters: authorizationParameters(install, String(body.client_id), challenge, more),
 			});

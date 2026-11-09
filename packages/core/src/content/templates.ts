@@ -14,6 +14,7 @@ import {
 	SEARCH_QUERY_VALUE,
 } from "@webcraft/renderer";
 import { and, eq, isNull, type SQL } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
@@ -576,7 +577,8 @@ function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: S
 async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draft: ElementTree): Promise<Template> {
 	const now = scope.now();
 	const updatedBy = personIdOf(scope.access.actor);
-	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy }, whereFor(target));
+	const updatedVia = clientNameOf(scope.access.via);
+	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy, updatedVia }, whereFor(target));
 	return toTemplate(
 		updated ??
 			(await scope.insert(templates, {
@@ -586,6 +588,7 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 				createdAt: now,
 				updatedAt: now,
 				updatedBy,
+				updatedVia,
 			})),
 	);
 }

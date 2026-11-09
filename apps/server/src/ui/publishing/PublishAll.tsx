@@ -261,7 +261,11 @@ function DraftRow({
 		draft.changes.length > 0
 			? t("publishAll.changes", { list: draft.changes.map((change) => changeLabel(t, draft, change)).join(", ") })
 			: null,
-		draft.changedBy?.name ?? null,
+		draft.changedBy
+			? draft.changedBy.via
+				? t("publishAll.changedVia", { person: draft.changedBy.name, client: draft.changedBy.via })
+				: draft.changedBy.name
+			: null,
 		formatUtc(draft.changedAt),
 	].filter((part): part is string => part !== null);
 	return (

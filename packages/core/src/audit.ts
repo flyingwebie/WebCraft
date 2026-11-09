@@ -24,6 +24,14 @@ export type AuditVia =
 	| { kind: "token"; name: string }
 	| { kind: "aiClient"; name: string };
 
+/**
+ * The API client or AI client an action came through (its name), or null when the person acted
+ * themself (in the admin, in Edit mode). History shows it as "<person> via <client>".
+ */
+export function clientNameOf(via: AuditVia): string | null {
+	return via.kind === "token" || via.kind === "aiClient" ? via.name : null;
+}
+
 /** Something changed, as the Audit log keeps it. Values are plain JSON; never put a secret's value here. */
 export type AuditDetails = Record<string, unknown>;
 

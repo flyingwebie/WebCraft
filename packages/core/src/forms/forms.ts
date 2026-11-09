@@ -9,6 +9,7 @@ import {
 	formsPlacedIn,
 } from "@webcraft/renderer";
 import { and, asc, eq } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { storedComponentVersion } from "../content/component-versions.ts";
 import { lockComponents } from "../content/components.ts";
@@ -125,6 +126,7 @@ export async function createForm(
 				createdAt: now,
 				updatedAt: now,
 				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
 			});
 			await tx.audit("form.create", { formId: row.id, key, name });
 			return toForm(row);
@@ -163,7 +165,12 @@ export async function saveFormDraft(scope: SiteScope, formId: string, input: For
 		if (problems.length > 0) throw new FormInvalidError(problems);
 		const [updated] = await tx.update(
 			forms,
-			{ draft: version, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			{
+				draft: version,
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
+			},
 			eq(forms.id, row.id),
 		);
 		if (!updated) throw new FormNotFoundError();
@@ -195,6 +202,7 @@ export async function saveFormEmails(scope: SiteScope, formId: string, input: Fo
 				updatedAt: tx.now(),
 				emailsUpdatedAt: tx.now(),
 				emailsUpdatedBy: personIdOf(tx.access.actor),
+				emailsUpdatedVia: clientNameOf(tx.access.via),
 			},
 			eq(forms.id, row.id),
 		);

@@ -159,6 +159,9 @@ export function createProcedureCaller(services: InstallServices): (call: Procedu
 		}
 		const refused = clientRefusal(client.client, procedure);
 		if (refused) return refusal(refused.status, refused.code, refused.message, refused.data);
+		const readsSubmissions =
+			procedure.access === "read" && procedure.toolsets !== "always" && procedure.toolsets.includes("submissions");
+		const input = readsSubmissions ? await jsonInput(request) : null;
 		const body = await bodyWithinLimit(services, request, path.join("."));
 		if (body instanceof Response) return body;
 		const { matched, response } = await handlerFor(adminRouter(services)).handle(body.request, {
@@ -167,9 +170,44 @@ export function createProcedureCaller(services: InstallServices): (call: Procedu
 		});
 		if (!matched) return refusal(404, "NOT_FOUND", "There is no such public procedure.", undefined);
 		if (body.overflowed()) return body.tooLarge();
+		if (readsSubmissions && response.ok) await recordSubmissionsRead(services, client, path.join("."), input ?? {});
 		response.headers.set("cache-control", "no-store");
 		return response;
 	};
+}
+
+/** A JSON request's input, read from a copy so the request can still be read; empty for anything else. */
+async function jsonInput(request: Request): Promise<Record<string, unknown>> {
+	if (!request.headers.get("content-type")?.toLowerCase().includes("json")) return {};
+	try {
+		const input: unknown = await request.clone().json();
+		return typeof input === "object" && input !== null && !Array.isArray(input)
+			? (input as Record<string, unknown>)
+			: {};
+	} catch {
+		return {};
+	}
+}
+
+/**
+ * Records an API client's read of Submissions (what visitors typed into Forms) in the Audit log as
+ * `submissions.read`, in the Site (or Workspace) it read: which procedure, and what it asked for.
+ */
+async function recordSubmissionsRead(
+	services: InstallServices,
+	client: ApiClientUse,
+	procedure: string,
+	input: Record<string, unknown>,
+): Promise<void> {
+	const { siteId, workspaceId, ...asked } = input;
+	const details = { procedure, input: asked };
+	if (typeof siteId === "string") {
+		const site = await services.data.site(client.access, siteId, "site.view");
+		await site.audit("submissions.read", details);
+	} else if (typeof workspaceId === "string") {
+		const workspace = await services.data.workspace(client.access, workspaceId, "workspace.view");
+		await workspace.audit("submissions.read", details);
+	}
 }
 
 /**

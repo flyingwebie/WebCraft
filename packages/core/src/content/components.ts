@@ -13,6 +13,7 @@
  * `ComponentVersion`; Allowed components and Page layouts (#75) and Components in a Body (#79) place
  * Components with the same Placement node and render them through `placementRenderer`.
  */
+
 import { components, entries, globals, templates } from "@webcraft/db/schema";
 import {
 	type ComponentCatalogue,
@@ -32,6 +33,7 @@ import {
 	refuseSiteTemplateCommands,
 } from "@webcraft/renderer";
 import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -186,6 +188,7 @@ export async function createComponent(
 				createdAt: now,
 				updatedAt: now,
 				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
 			});
 			await tx.audit("component.create", { componentId: row.id, name });
 			return toComponent(row);
@@ -446,7 +449,12 @@ async function nextProps(
 async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentVersion): Promise<Component> {
 	const [updated] = await scope.update(
 		components,
-		{ draft, updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor) },
+		{
+			draft,
+			updatedAt: scope.now(),
+			updatedBy: personIdOf(scope.access.actor),
+			updatedVia: clientNameOf(scope.access.via),
+		},
 		eq(components.id, row.id),
 	);
 	if (!updated) throw new ComponentNotFoundError();

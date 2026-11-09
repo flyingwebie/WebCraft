@@ -66,8 +66,12 @@ export type SiteDraft = {
 	 * Empty for the rest, and for anything never published.
 	 */
 	changes: { key: string; label: string | null }[];
-	/** Who changed the Draft last; null when nobody did (an Import, a Module) or they are gone. */
-	changedBy: { id: string; name: string } | null;
+	/**
+	 * Who changed the Draft last, and the API client or AI client they changed it through (`via`, its
+	 * name; null in the admin or Edit mode): "<person> via <client>". Null when nobody did (an Import,
+	 * a Module) or they are gone.
+	 */
+	changedBy: { id: string; name: string; via: string | null } | null;
 	changedAt: Date;
 	/** Whether the person may publish it: Structure needs `structure.edit`, Content `entry.publish`. */
 	canPublish: boolean;
@@ -140,9 +144,14 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	const drafts: Omit<SiteDraft, "changedBy" | "canPublish">[] = [];
 	const writers: (string | null)[] = [];
-	const add = (draft: Omit<SiteDraft, "changedBy" | "canPublish">, writer: string | null) => {
+	const vias: (string | null)[] = [];
+	const add = (
+		draft: Omit<SiteDraft, "changedBy" | "canPublish">,
+		writer: { updatedBy: string | null; updatedVia: string | null },
+	) => {
 		drafts.push(draft);
-		writers.push(writer);
+		writers.push(writer.updatedBy);
+		vias.push(writer.updatedVia);
 	};
 	const postTypeOf = (id: string | null) => {
 		const found = postTypes.find((postType) => postType.id === id);
@@ -179,7 +188,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 				path: paths.get(row.id) ?? null,
 				version: draftVersion(row.draft),
 			},
-			row.updatedBy,
+			row,
 		);
 	}
 	const globalsRow = await scope.first(globals);
@@ -203,7 +212,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 				path: null,
 				version: draftVersion(globalsRow.draft),
 			},
-			globalsRow.updatedBy,
+			globalsRow,
 		);
 	}
 	// A Form's emails (its Notifications and Auto-reply) are Content of their own, beside the Form.
@@ -235,7 +244,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 				path: null,
 				version: draftVersion(row.emailsDraft),
 			},
-			row.emailsUpdatedBy,
+			{ updatedBy: row.emailsUpdatedBy, updatedVia: row.emailsUpdatedVia },
 		);
 	}
 	const banner = await scope.first(consentBanners);
@@ -259,7 +268,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 				path: null,
 				version: draftVersion(banner.draft),
 			},
-			banner.updatedBy,
+			banner,
 		);
 	}
 
@@ -284,7 +293,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 					path: null,
 					version: draftVersion(designSystem.draft),
 				},
-				designSystem.updatedBy,
+				designSystem,
 			);
 		}
 	}
@@ -294,19 +303,19 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 		{ orderBy: [components.name] },
 	);
 	for (const row of changedComponents) {
-		add(structure({ kind: "component", id: row.id }, row, row.name), row.updatedBy);
+		add(structure({ kind: "component", id: row.id }, row, row.name), row);
 	}
 	const changedLoops = await scope.select(loops, sql`${loops.draft} is distinct from ${loops.published}`, {
 		orderBy: [loops.name],
 	});
 	for (const row of changedLoops) {
-		add(structure({ kind: "loop", id: row.id }, row, row.name), row.updatedBy);
+		add(structure({ kind: "loop", id: row.id }, row, row.name), row);
 	}
 	const changedForms = await scope.select(forms, sql`${forms.draft} is distinct from ${forms.published}`, {
 		orderBy: [forms.name],
 	});
 	for (const row of changedForms) {
-		add(structure({ kind: "form", id: row.id }, row, row.name), row.updatedBy);
+		add(structure({ kind: "form", id: row.id }, row, row.name), row);
 	}
 	const changedTemplates = (
 		await scope.select(templates, sql`${templates.draft} is distinct from ${templates.published}`)
@@ -322,7 +331,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 				postType: postTypeOf(row.postTypeId),
 				templateKind: row.kind,
 			},
-			row.updatedBy,
+			row,
 		);
 	}
 	const changedScripts = await scope.select(
@@ -345,7 +354,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 				),
 				scriptKind: kind,
 			},
-			row.updatedBy,
+			row,
 		);
 	}
 
@@ -355,7 +364,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 		const name = writer ? names.get(writer) : undefined;
 		return {
 			...draft,
-			changedBy: writer && name !== undefined ? { id: writer, name } : null,
+			changedBy: writer && name !== undefined ? { id: writer, name, via: vias[index] ?? null } : null,
 			canPublish: can(scope.access.actor, publishPermission(draft.item), resource),
 		};
 	});

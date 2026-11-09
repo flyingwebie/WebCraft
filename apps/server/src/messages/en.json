@@ -950,6 +950,7 @@
 		"editInSafeModeHelp": "With none of the Site's own scripts running"
 	},
 	"publishAll": {
+		"changedVia": "{person} via {client}",
 		"button": "Publish all",
 		"changesCounted": "{count, plural, one {change} other {changes}}",
 		"title": "Publish all changes",
