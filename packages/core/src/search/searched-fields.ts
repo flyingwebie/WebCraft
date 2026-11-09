@@ -1,3 +1,4 @@
+// The admin reads this file in the browser (`@webcraft/core/search-fields`): it imports types only.
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 

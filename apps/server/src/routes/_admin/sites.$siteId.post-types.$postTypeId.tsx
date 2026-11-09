@@ -5,15 +5,16 @@ import { z } from "zod";
 
 import { getApi } from "../../ui/api.ts";
 import { DataTab } from "../../ui/content/DataTab.tsx";
+import { SearchSettings } from "../../ui/content/SearchSettings.tsx";
 import { StructureEditor } from "../../ui/content/StructureEditor.tsx";
 import { errorCode } from "../../ui/errors.ts";
 import { useT } from "../../ui/i18n.tsx";
 import { Tabs } from "../../ui/Tabs.tsx";
 
-/** Which tab is open: the Fields, or the Data tab of the Post Type's Entry template. */
-const search = z.object({ tab: z.enum(["fields", "data"]).optional().catch(undefined) });
+/** Which tab is open: the Fields, the Data tab of the Post Type's Entry template, or its Site search settings. */
+const search = z.object({ tab: z.enum(["fields", "data", "search"]).optional().catch(undefined) });
 
-/** One Post Type's settings and Fields (Structure), and the Data tab of its Entry template. */
+/** One Post Type's settings and Fields (Structure), the Data tab of its Entry template, and its Site search settings. */
 export const Route = createFileRoute("/_admin/sites/$siteId/post-types/$postTypeId")({
 	validateSearch: search,
 	loader: async ({ context, params }) => {
@@ -69,8 +70,24 @@ function PostTypePage() {
 			}}
 		/>
 	);
+	const searchTab = {
+		id: "search",
+		label: t("postTypes.tabs.search"),
+		panel: <SearchSettings key={postType.id} postType={postType} siteId={siteId} />,
+	};
 	// Pages are arranged with a Page layout, so they have no Entry template to read the Data of.
-	if (postType.builtIn === "page") return editor(false);
+	const tabs =
+		postType.builtIn === "page"
+			? [{ id: "fields", label: t("postTypes.tabs.fields"), panel: editor(true) }, searchTab]
+			: [
+					{ id: "fields", label: t("postTypes.tabs.fields"), panel: editor(true) },
+					{
+						id: "data",
+						label: t("postTypes.tabs.data"),
+						panel: <DataTab load={load} languages={place.languages} intro="data.entryTemplateIntro" />,
+					},
+					searchTab,
+				];
 	return (
 		<div className="grid min-w-0 content-start gap-6">
 			<div className="flex flex-wrap items-center gap-3">
@@ -85,18 +102,11 @@ function PostTypePage() {
 					void navigate({
 						to: "/sites/$siteId/post-types/$postTypeId",
 						params: { siteId, postTypeId: postType.id },
-						search: { tab: id === "data" ? "data" : undefined },
+						search: { tab: id === "data" || id === "search" ? id : undefined },
 						replace: true,
 					})
 				}
-				tabs={[
-					{ id: "fields", label: t("postTypes.tabs.fields"), panel: editor(true) },
-					{
-						id: "data",
-						label: t("postTypes.tabs.data"),
-						panel: <DataTab load={load} languages={place.languages} intro="data.entryTemplateIntro" />,
-					},
-				]}
+				tabs={tabs}
 			/>
 		</div>
 	);
