@@ -10,7 +10,9 @@ import type { DomainProblem } from "./domains.ts";
  * verified) and whether it has a valid certificate (the Domain check).
  *
  * **What the Install calls.** Every request goes through the guarded fetcher: only `GET
- * http://<domain>/_webcraft/verify/<token>`, no redirects followed, a small answer, a short timeout,
+ * http://<domain>/_webcraft/verify/<token>`, and once more over HTTPS when that is the one redirect it
+ * answers (`https://<domain>/_webcraft/verify/<token>`, as Railway's edge and Coolify's proxy answer
+ * plain HTTP); no other redirect is followed. A small answer, a short timeout,
  * and only to public addresses, or to the Install's own addresses (`WEBCRAFT_PUBLIC_ADDRESSES` and the
  * admin host's): a Site domain must point at the Install, which may sit on a private network or, in
  * development, on this machine. A domain resolving to any other internal address is never called, and
@@ -94,21 +96,22 @@ export async function checkReaches(ports: CheckPorts, domain: { id: string; name
 	}
 	const pointsHere = own.length === 0 || addresses.some((address) => ownSet.has(canonicalAddress(address)));
 	const token = await ports.signer.token(domain);
-	const fetch = createGuardedFetch({ http: ports.http, dns: ports.dns });
+	const guarded = createGuardedFetch({ http: ports.http, dns: ports.dns });
+	const fetch = (url: string) =>
+		guarded(new Request(url, { headers: { accept: "text/plain" } }), {
+			allowedHosts: [domain.name],
+			installAddresses: own,
+			maxRedirects: 0,
+			maxBytes: MAX_ANSWER_BYTES,
+			timeoutMs: ANSWER_TIMEOUT_MS,
+		});
 	let answer: string;
 	try {
-		const response = await fetch(
-			new Request(`${verifyOrigin(ports.config, domain.name)}${VERIFY_PATH}${token}`, {
-				headers: { accept: "text/plain" },
-			}),
-			{
-				allowedHosts: [domain.name],
-				installAddresses: own,
-				maxRedirects: 0,
-				maxBytes: MAX_ANSWER_BYTES,
-				timeoutMs: ANSWER_TIMEOUT_MS,
-			},
-		);
+		const url = `${verifyOrigin(ports.config, domain.name)}${VERIFY_PATH}${token}`;
+		let response = await fetch(url);
+		// A platform's proxy may answer plain HTTP only with the same address over HTTPS.
+		const upgraded = `https://${domain.name}${VERIFY_PATH}${token}`;
+		if (isRedirect(response.status) && locationOf(response, url) === upgraded) response = await fetch(upgraded);
 		answer = response.status === 200 ? (await response.text()).trim() : "";
 	} catch (error) {
 		if (!(error instanceof GuardedFetchError)) throw error;
@@ -118,6 +121,21 @@ export async function checkReaches(ports: CheckPorts, domain: { id: string; name
 	}
 	if (sameText(answer, await ports.signer.answer(domain.name, token))) return { problem: null, addresses };
 	return { problem: pointsHere ? "response" : "dns", addresses };
+}
+
+function isRedirect(status: number): boolean {
+	return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+/** Where a redirect sends the request, as a full address; null when it says nowhere readable. */
+function locationOf(response: Response, from: string): string | null {
+	const location = response.headers.get("location");
+	if (!location) return null;
+	try {
+		return new URL(location, from).href;
+	} catch {
+		return null;
+	}
 }
 
 /** What the certificate check found, and when the certificate runs out. */
