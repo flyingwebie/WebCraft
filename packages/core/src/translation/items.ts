@@ -10,7 +10,7 @@ import { writeGlobalsTranslations } from "../content/globals.ts";
 import { getPostType, listPostTypes } from "../content/post-types.ts";
 import { readValue, storedVersion } from "../content/values.ts";
 import { hiddenLanguagesIn } from "../content/visibility.ts";
-import { formEmailsVersions, writeFormEmailsTranslations } from "../forms/forms.ts";
+import { type FormEmailsVersions, formEmailsVersions, writeFormEmailsTranslations } from "../forms/forms.ts";
 import { isUuid } from "../ids.ts";
 import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
 import { entryFields, type StoredLeaf, textField, type Unit, unitsOf } from "./units.ts";
@@ -135,29 +135,16 @@ export async function readItem(
 	if (ref.kind === "globals") {
 		const row = await scope.first(globals);
 		if (!row) return null;
-		const fields = storedFields(row.fields);
-		return {
+		return globalsSnapshot(
 			ref,
-			title: "Globals",
-			postTypeId: null,
-			draft: storedVersion(row.draft).values,
-			published: row.published ? storedVersion(row.published).values : null,
-			units: (values) => unitsOf(values, fields),
-			hiddenLanguages: [],
-		};
+			storedVersion(row.draft).values,
+			row.published ? storedVersion(row.published).values : null,
+			storedFields(row.fields),
+		);
 	}
 	const row = isUuid(ref.id) ? await scope.first(forms, eq(forms.id, ref.id)) : undefined;
 	if (!row || row.emailsDraft === null) return null;
-	const versions = formEmailsVersions(row);
-	return {
-		ref,
-		title: versions.name,
-		postTypeId: null,
-		draft: emailValues(versions.draft, versions.aiTranslations, defaultLanguage),
-		published: versions.published ? emailValues(versions.published, versions.aiTranslations, defaultLanguage) : null,
-		units: (values) => unitsOf(values, FORM_EMAIL_FIELDS),
-		hiddenLanguages: [],
-	};
+	return formEmailsSnapshot(ref, formEmailsVersions(row), defaultLanguage);
 }
 
 /**
@@ -195,15 +182,7 @@ export async function writeItem(
 	}
 	if (ref.kind === "globals") {
 		return writeGlobalsTranslations(scope, async ({ draft, published, fields }) => {
-			const result = await change({
-				ref,
-				title: "Globals",
-				postTypeId: null,
-				draft: draft.values,
-				published: published?.values ?? null,
-				units: (values) => unitsOf(values, fields),
-				hiddenLanguages: [],
-			});
+			const result = await change(globalsSnapshot(ref, draft.values, published?.values ?? null, fields));
 			if (!result) return null;
 			return {
 				...(result.draft ? { draft: { values: result.draft } } : {}),
@@ -212,15 +191,7 @@ export async function writeItem(
 		});
 	}
 	return writeFormEmailsTranslations(scope, ref.id, async (versions) => {
-		const result = await change({
-			ref,
-			title: versions.name,
-			postTypeId: null,
-			draft: emailValues(versions.draft, versions.aiTranslations, defaultLanguage),
-			published: versions.published ? emailValues(versions.published, versions.aiTranslations, defaultLanguage) : null,
-			units: (values) => unitsOf(values, FORM_EMAIL_FIELDS),
-			hiddenLanguages: [],
-		});
+		const result = await change(formEmailsSnapshot(ref, versions, defaultLanguage));
 		if (!result) return null;
 		const marks: Marks = structuredClone(versions.aiTranslations);
 		return {
@@ -231,6 +202,37 @@ export async function writeItem(
 			aiTranslations: marks,
 		};
 	});
+}
+
+/** The Globals as AI translation sees them: their two versions' values, split by their Fields. */
+function globalsSnapshot(
+	ref: ItemRef,
+	draft: StoredValues,
+	published: StoredValues | null,
+	fields: readonly FieldDefinition[],
+): ItemSnapshot {
+	return {
+		ref,
+		title: "Globals",
+		postTypeId: null,
+		draft,
+		published,
+		units: (values) => unitsOf(values, fields),
+		hiddenLanguages: [],
+	};
+}
+
+/** A Form's emails as AI translation sees them: each text a value, in every language it has. */
+function formEmailsSnapshot(ref: ItemRef, versions: FormEmailsVersions, defaultLanguage: string): ItemSnapshot {
+	return {
+		ref,
+		title: versions.name,
+		postTypeId: null,
+		draft: emailValues(versions.draft, versions.aiTranslations, defaultLanguage),
+		published: versions.published ? emailValues(versions.published, versions.aiTranslations, defaultLanguage) : null,
+		units: (values) => unitsOf(values, FORM_EMAIL_FIELDS),
+		hiddenLanguages: [],
+	};
 }
 
 /** Every item of the Site AI translation could translate: its Entries, its Globals and its Forms' emails. */
