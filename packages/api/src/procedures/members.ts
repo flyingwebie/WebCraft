@@ -44,6 +44,42 @@ export const members = {
 		return { ok: true as const };
 	}),
 
+	/**
+	 * Two-factor authentication in the Workspace: whether its Members must use it, and which second
+	 * factors each Member has (for the Members screen).
+	 */
+	twoFactor: signedIn.input(z.object({ workspaceId: id })).handler(async ({ context, input }) => {
+		const workspace = await context.services.data.workspace(context.access, input.workspaceId, "member.manage");
+		return context.services.twoFactor.workspaceStatus(workspace);
+	}),
+
+	/**
+	 * Requires two-factor authentication of the Workspace's Members, or stops requiring it (Owners and
+	 * Staff). Members without it are sent to add it right after signing in; Staff follow the Install's
+	 * own switch. Switching it on needs your own first.
+	 */
+	requireTwoFactor: signedIn
+		.input(z.object({ workspaceId: id, required: z.boolean() }))
+		.use(onWorkspace("twoFactor.require"))
+		.use(sensitive("twoFactorRequirement.change"))
+		.handler(({ context, input }) =>
+			context.services.twoFactor.setWorkspaceRequirement(context.workspace, input.required),
+		),
+
+	/**
+	 * Resets a Member's two-factor authentication when they lost it (Staff and the Superadmin): their
+	 * authenticator app, passkeys and backup codes go, every session of theirs ends, and they are
+	 * emailed. They sign in with their password and set it up again.
+	 */
+	resetTwoFactor: signedIn
+		.input(z.object({ workspaceId: id, personId: id }))
+		.use(onWorkspace("twoFactor.reset"))
+		.use(sensitive("twoFactor.reset"))
+		.handler(async ({ context, input }) => {
+			await context.services.twoFactor.resetMember(context.workspace, input.personId);
+			return { ok: true as const };
+		}),
+
 	/** Changes a Member's role and Sites; it takes effect on their next request. */
 	changeAccess: signedIn
 		.input(z.object({ workspaceId: id, personId: id, role: workspaceRole, sites: memberSites }))

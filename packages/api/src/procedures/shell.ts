@@ -10,7 +10,7 @@ export const shell = {
 	 * the Admin language and theme pages are shown in, the setup stage, the Install's name, and which
 	 * banners to show (all for people who manage the Install): the Master key one, the notice that the
 	 * Install SMTP is Failing, the notice that the last Backup failed, and "Update available" with the
-	 * newest release.
+	 * newest release; and where the person stands with two-factor authentication.
 	 */
 	context: procedure.use(withPerson).handler(async ({ context }) => {
 		const { services, person } = context;
@@ -19,6 +19,7 @@ export const shell = {
 		const actor = person ? await services.actors.person(person.id) : null;
 		const workspaces = actor ? await services.workspaces.list({ actor, via: context.via }) : [];
 		const managesInstall = actor ? can(actor, "install.manage", INSTALL) : false;
+		const twoFactor = person ? await services.twoFactor.status(person.id) : null;
 		const [masterKeyBanner, smtpFailing, backupFailing, update] = managesInstall
 			? await Promise.all([
 					services.masterKey.status().then((status) => !status.stored),
@@ -45,6 +46,18 @@ export const shell = {
 			theme: person?.adminTheme ?? "system",
 			install: { name: settings.name, defaultAdminLanguage: settings.defaultAdminLanguage },
 			banners: { masterKey: masterKeyBanner, smtpFailing, backupFailing, update },
+			/**
+			 * The person's two-factor authentication: `mustSetUp` sends them to add it before anything
+			 * else; `reminder` shows the reminder to add it.
+			 */
+			twoFactor: twoFactor
+				? {
+						on: twoFactor.on,
+						required: twoFactor.required,
+						mustSetUp: twoFactor.required && !twoFactor.on,
+						reminder: twoFactor.reminder,
+					}
+				: null,
 		};
 	}),
 };

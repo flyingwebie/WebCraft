@@ -99,7 +99,7 @@ describe("adding a passkey", () => {
 
 		const { options } = await browser.api.me.twoFactor.passkeyOptions();
 		expect(options.excludeCredentials).toEqual([
-			{ id: device.credentialIds[0], type: "public-key", transports: ["internal", "hybrid"] },
+			{ id: device.credentialIds[0] ?? "", type: "public-key", transports: ["internal", "hybrid"] },
 		]);
 		await expect(device.create(options)).rejects.toThrow("InvalidStateError");
 
@@ -191,7 +191,7 @@ describe("signing in with a passkey", () => {
 		});
 		const { options } = await browser.api.session.passkeyOptions();
 		expect(options.allowCredentials).toEqual([
-			{ id: device.credentialIds[0], type: "public-key", transports: ["internal", "hybrid"] },
+			{ id: device.credentialIds[0] ?? "", type: "public-key", transports: ["internal", "hybrid"] },
 		]);
 
 		await expect(
@@ -272,7 +272,7 @@ describe("confirming who you are with a passkey or an authenticator app", () => 
 
 		const { options } = await browser.api.session.identityPasskeyOptions();
 		expect(options.allowCredentials).toEqual([
-			{ id: device.credentialIds[0], type: "public-key", transports: ["internal", "hybrid"] },
+			{ id: device.credentialIds[0] ?? "", type: "public-key", transports: ["internal", "hybrid"] },
 		]);
 		await browser.api.session.confirmIdentity({ passkey: await device.get(options) });
 

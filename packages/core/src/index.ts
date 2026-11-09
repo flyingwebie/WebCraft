@@ -145,6 +145,7 @@ export {
 	type OpenInstallOptions,
 	openInstall,
 	openInstallForCommand,
+	openInstallForCommandSendingJobs,
 } from "./install.ts";
 export {
 	INSTALL_NAME_MAX_LENGTH,

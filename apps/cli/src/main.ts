@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // The `webcraft` command line. For now it has the server commands `admin migrate`, `backup`,
-// `restore`, `check-update`, `rotate-key` and `create-superadmin`; the generated remote commands,
+// `restore`, `check-update`, `rotate-key`, `create-superadmin` and `reset-2fa`; the generated remote commands,
 // `login` and the other server commands arrive with the CLI ticket.
 import { readFile } from "node:fs/promises";
 import { EmailInUseError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
@@ -35,6 +35,7 @@ import {
 
 import { backupCommand, checkUpdateCommand, migrateCommand, type RestoreOptions, restoreCommand } from "./backups.ts";
 import { createSuperadmin, parseCreateSuperadminOptions } from "./create-superadmin.ts";
+import { resetTwoFactor } from "./reset-two-factor.ts";
 
 const USAGE = `Usage: webcraft <command>
 
@@ -67,6 +68,11 @@ Server commands (run on the server, with the Install's environment):
                      Create the Superadmin of a fresh Install without the setup wizard, which then
                      closes. The password is asked twice on a terminal, or read from the first line
                      of standard input; it is never taken from the command line.
+  admin reset-2fa <email>
+                     Reset a person's two-factor authentication, such as a Superadmin who lost
+                     theirs: their authenticator app, passkeys and backup codes are removed, they
+                     are signed out everywhere and emailed, and they sign in with their password
+                     and set it up again. Recorded in the Audit log as done by the command.
 
 Options:
   -h, --help         Show this help.
@@ -116,6 +122,9 @@ async function main(args: string[]): Promise<number> {
 	if (group === "admin" && command === "rotate-key") {
 		const options = parseRotateKeyOptions(rest);
 		if (options) return rotateKey(options);
+	}
+	if (group === "admin" && command === "reset-2fa" && rest.length === 1 && !rest[0]?.startsWith("-")) {
+		return resetTwoFactor(rest[0] ?? "");
 	}
 	if (group === "admin" && command === "create-superadmin") {
 		const options = parseCreateSuperadminOptions(rest);

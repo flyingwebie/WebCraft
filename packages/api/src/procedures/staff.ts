@@ -35,4 +35,16 @@ export const staff = {
 			await context.services.staff.setWorkspaces(context.install, input.personId, input.workspaces);
 			return { ok: true as const };
 		}),
+
+	/**
+	 * Resets a Staff member's two-factor authentication when they lost it: their authenticator app,
+	 * passkeys and backup codes go, every session of theirs ends, and they are emailed.
+	 */
+	resetTwoFactor: onInstall("staff.manage")
+		.use(sensitive("twoFactor.reset"))
+		.input(z.object({ personId: id }))
+		.handler(async ({ context, input }) => {
+			await context.services.twoFactor.resetStaff(context.install, input.personId);
+			return { ok: true as const };
+		}),
 };

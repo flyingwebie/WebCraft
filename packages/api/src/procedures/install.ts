@@ -93,6 +93,16 @@ export const install = {
 			.handler(({ context, input }) =>
 				context.services.settings.setLeakedPasswordCheck(context.install, input.leakedPasswordCheck),
 			),
+		/**
+		 * Requires two-factor authentication of everyone on the Install, or stops requiring it. People
+		 * without it are sent to add it right after signing in. Switching it on needs your own first.
+		 */
+		requireTwoFactor: onInstall("install.manage")
+			.use(sensitive("twoFactorRequirement.change"))
+			.input(z.object({ required: z.boolean() }))
+			.handler(({ context, input }) =>
+				context.services.twoFactor.setInstallRequirement(context.install, input.required),
+			),
 	},
 	/** Install settings › Storage: where Media is stored, local disk or an S3-compatible bucket. */
 	storage: {

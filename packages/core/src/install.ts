@@ -120,6 +120,52 @@ export async function openInstallForCommand(options: {
 	}
 }
 
+/**
+ * Opens an Install's services for a server command that sends jobs, such as a System email (the
+ * worker sends it), with the same checks as `openInstallForCommand`. The job queue only sends, as
+ * the web process's does. Call `close` when done.
+ */
+export async function openInstallForCommandSendingJobs(options: {
+	env: Environment;
+	log: Logger;
+}): Promise<{ services: InstallServices; close(): Promise<void> }> {
+	const { env, log } = options;
+	const config = loadInstallConfig(env);
+	const masterKey = loadMasterKey(env);
+	const database = openDatabase(config.databaseUrl, { maxConnections: 2, applicationName: "webcraft-cli" });
+	let boss: PgBoss | undefined;
+	try {
+		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
+		boss = createBoss(config.databaseUrl, {
+			...JOB_QUEUE_OPTIONS.web,
+			application_name: "webcraft-cli",
+			instanceName: "cli",
+		});
+		boss.on("error", (error) => log.error("The job queue reported an error", { error }));
+		const services = await createInstallServices(
+			{
+				...realPorts(config, database, log, unpinnedHttp),
+				jobs: createJobQueue(boss),
+				images: imagesOnlyInWorker,
+			},
+			masterKey,
+		);
+		await boss.start();
+		const started = boss;
+		return {
+			services,
+			async close() {
+				await started.stop({ graceful: true });
+				await database.close();
+			},
+		};
+	} catch (error) {
+		await boss?.stop({ graceful: false }).catch(() => {});
+		await database.close();
+		throw error;
+	}
+}
+
 /** Outgoing HTTP that can't pin a call to an address, for processes that never make such a call. */
 const unpinnedHttp: OutgoingHttp = (request, call) => {
 	if (call?.connectTo !== undefined) throw new Error("This process can't connect a call to a checked address.");

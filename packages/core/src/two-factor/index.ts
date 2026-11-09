@@ -1,11 +1,12 @@
-import type {
-	Auth,
-	PasskeyCreationOptions,
-	PasskeySummary,
-	RegistrationCredential,
-	SecondFactorMethod,
-	SecondFactorSummary,
-	Session,
+import {
+	type Auth,
+	type PasskeyCreationOptions,
+	type PasskeySummary,
+	type RegistrationCredential,
+	type SecondFactorMethod,
+	type SecondFactorSummary,
+	type Session,
+	TwoFactorOffError,
 } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
 import {
@@ -187,12 +188,20 @@ export function createTwoFactor({
 		if ((await status(personId)).required) throw new TwoFactorRequiredError();
 	};
 
+	/** Requiring it of others starts with having it yourself: a switch would otherwise lock its own setter in setup. */
+	const assertOwnFirst = async (access: Access, required: boolean) => {
+		if (required && !(await auth.hasSecondFactor(actingPerson(access.actor)))) throw new TwoFactorOffError();
+	};
+
 	const reset = async (
 		personId: string,
 		record: (tx: Transaction, details: AuditDetails) => Promise<void>,
 		resetBy: string | null,
 	) => {
-		await auth.resetSecondFactors(personId, (tx, change) => record(tx, { personId, ...change }));
+		const [person] = await db.select({ email: people.email }).from(people).where(eq(people.id, personId));
+		await auth.resetSecondFactors(personId, (tx, change) =>
+			record(tx, { personId, email: person?.email ?? null, ...change }),
+		);
 		await email.send({
 			type: "two-factor-reset",
 			to: [{ personId }],
@@ -299,6 +308,7 @@ export function createTwoFactor({
 		},
 
 		async setInstallRequirement(scope, required) {
+			await assertOwnFirst(scope.access, required);
 			await scope.transaction(async (tx) => {
 				const [before] = await tx.db
 					.select({ required: installSettings.requireTwoFactor })
@@ -311,6 +321,7 @@ export function createTwoFactor({
 		},
 
 		async setWorkspaceRequirement(scope, required) {
+			await assertOwnFirst(scope.access, required);
 			await scope.transaction(async (tx) => {
 				const [before] = await tx.db
 					.select({ required: workspaces.requireTwoFactor })
@@ -411,7 +422,7 @@ export function createTwoFactor({
 						workspaceId: null,
 						siteId: null,
 						action: "twoFactor.reset",
-						details: { ...details, email: person.email },
+						details,
 					}),
 				null,
 			);

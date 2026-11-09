@@ -264,7 +264,7 @@ async function coseKey(credential: StoredCredential): Promise<Uint8Array> {
 }
 
 /** Signs as an authenticator does: ECDSA signatures in ASN.1 DER, the others as they are. */
-async function sign(algorithm: PasskeyAlgorithm, key: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+async function sign(algorithm: PasskeyAlgorithm, key: CryptoKey, data: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
 	switch (algorithm) {
 		case "ES256":
 			return derSignature(new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, data)));
@@ -329,7 +329,7 @@ function uint32(value: number): Uint8Array {
 	return new Uint8Array([(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255]);
 }
 
-function concat(...parts: Uint8Array[]): Uint8Array {
+function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
 	const out = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
 	let offset = 0;
 	for (const part of parts) {

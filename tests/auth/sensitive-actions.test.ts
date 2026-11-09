@@ -47,6 +47,11 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 		api.members.remove({ workspaceId, personId: removedMemberId }),
 	"masterKey.confirmStored": (api) => api.install.masterKey.confirmStored(),
 	"password.change": (api) => api.me.changePassword({ newPassword: TEST_PASSWORD }),
+	"twoFactor.change": (api) => api.me.twoFactor.startAuthenticator(),
+	"twoFactor.reset": (api, { workspaceId, changedMemberId }) =>
+		api.members.resetTwoFactor({ workspaceId, personId: changedMemberId }),
+	// Switching it off: switching it on needs the Superadmin's own second factor first.
+	"twoFactorRequirement.change": (api) => api.install.security.requireTwoFactor({ required: false }),
 	"leakedPasswordCheck.change": (api) => api.install.security.update({ leakedPasswordCheck: true }),
 	"storage.change": (api) => api.install.storage.update({ kind: "disk" }),
 	"backups.change": (api) => api.install.backups.update({ scheduled: true, target: { kind: "folder" } }),

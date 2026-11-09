@@ -38,6 +38,8 @@ describe("the role table", () => {
 				"site.create",
 				"member.invite",
 				"member.manage",
+				"twoFactor.require",
+				"twoFactor.reset",
 				"module.manage",
 				"quota.manage",
 				"aiKey.manage",
@@ -67,7 +69,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("staff: everything in their Workspaces, including Structure, new Sites, Modules and storage quotas; nothing on the Install", async () => {
+	test("staff: everything in their Workspaces, including Structure, new Sites, Modules, storage quotas and Members' two-factor resets; nothing on the Install", async () => {
 		const { browser } = await install.createStaff({ workspaces: [workspaceId] });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -78,6 +80,8 @@ describe("the role table", () => {
 				"site.create",
 				"member.invite",
 				"member.manage",
+				"twoFactor.require",
+				"twoFactor.reset",
 				"module.manage",
 				"quota.manage",
 				"aiKey.manage",
@@ -107,7 +111,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("owner: manages Members, the AI key and the staging password, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, sees Dashboards, but never changes Structure, builds Dashboards or creates Sites", async () => {
+	test("owner: manages Members (and requires two-factor authentication of them), the AI key and the staging password, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, sees Dashboards, but never changes Structure, builds Dashboards or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -117,6 +121,7 @@ describe("the role table", () => {
 				"workspace.view",
 				"member.invite",
 				"member.manage",
+				"twoFactor.require",
 				"aiKey.manage",
 				"aiUsage.view",
 				"protectedTerms.edit",
