@@ -65,6 +65,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		}
 		const host = await services.sitePages.resolveHost(hostname);
 		if (!host) return notFound();
+		// A Redirect domain sends every request on to the same path on the Primary domain (ADR 0015).
+		if (host.address === "redirect") return domainRedirect(host, url);
 		const editing = await editModeEndpoint(services, request, host);
 		if (editing) return editing;
 		if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
@@ -98,6 +100,23 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 }
 
 /**
+ * A Redirect domain's answer: 301 to the same path and query on the Primary domain, or the plain 404
+ * while the Site has no verified Primary domain to send visitors to.
+ */
+function domainRedirect(host: SiteHost, url: URL): Response {
+	if (!host.redirectTo) return notFound();
+	return new Response(null, {
+		status: 301,
+		headers: { location: `${host.redirectTo}${url.pathname}${url.search}`, "cache-control": PAGE_CACHE_CONTROL },
+	});
+}
+
+/** Where a redirect goes, with the request's query when it keeps it (a page that moved to another address). */
+function withQuery(answer: { location: string; keepQuery?: boolean }, url: URL): string {
+	return answer.keepQuery ? `${answer.location}${url.search}` : answer.location;
+}
+
+/**
  * A domain verification request, `/_webcraft/verify/<token>` (ADR 0015): on one of the Install's
  * domains, with that domain's own token, the answer only this Install makes for it; anything else is
  * the plain 404. Never kept by anyone, as a new token's answer must come from the Install itself.
@@ -116,12 +135,13 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 	const { pathname } = new URL(request.url);
 	const segments = pathSegments(pathname);
 	if (!segments) return notFoundPage(services, host, pathname);
-	const key = canonicalPath(segments);
+	// The same path is another page on each of the Site's addresses (its language, its links).
+	const key = `${host.origin}${canonicalPath(segments)}`;
 	const cached = cache.get(host.site.id, host.cacheGeneration, key);
 	if (cached) return pageResponse(request, host, cached, "HIT");
 	const answer = await services.sitePages.render(host, pathname);
 	if (!answer) return notFoundPage(services, host, pathname);
-	if (answer.kind === "redirect") return redirect(host, answer.location);
+	if (answer.kind === "redirect") return redirect(host, withQuery(answer, new URL(request.url)));
 	const page = { html: answer.html, etag: await etagOf(answer.html) };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
 	return pageResponse(request, host, page, "MISS");
