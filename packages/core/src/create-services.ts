@@ -192,6 +192,13 @@ export async function createInstallServices(
 		],
 		onAccountLocked: reportAccountLock({ database, clock, email }),
 	});
+	const twoFactor = createTwoFactor({
+		database,
+		auth,
+		clock,
+		email,
+		issuer: async () => (await settings.read()).name ?? "WebCraft",
+	});
 	const guardedFetch = createGuardedFetch({ http: ports.http, dns: ports.dns });
 	const webhooks = createWebhooks({
 		config,
@@ -300,13 +307,7 @@ export async function createInstallServices(
 		secrets: installSecrets,
 		auth,
 		account: createAccount({ database, auth, clock }),
-		twoFactor: createTwoFactor({
-			database,
-			auth,
-			clock,
-			email,
-			issuer: async () => (await settings.read()).name ?? "WebCraft",
-		}),
+		twoFactor,
 		rateLimits,
 		people,
 		aiKeys,
@@ -448,6 +449,7 @@ export async function createInstallServices(
 			data,
 			actors,
 			signingKey: await editModeSigningKey(masterKey),
+			mustSetUpTwoFactor: twoFactor.mustSetUp,
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
 		staging: createStaging({
@@ -458,6 +460,7 @@ export async function createInstallServices(
 			data,
 			actors,
 			passwordKey: await stagingPasswordKey(masterKey),
+			mustSetUpTwoFactor: twoFactor.mustSetUp,
 		}),
 		codeMode: createCodeMode({ data, sources: componentSources, pages: sitePages }),
 		builder: createBuilder({ sources: componentSources }),

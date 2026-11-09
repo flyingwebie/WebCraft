@@ -4,9 +4,10 @@
 // there, tied to their admin session. Everyone else gets a page asking them to sign in, never the Site.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { openStaging, stagingVisitor } from "../harness/staging.ts";
+import { addAuthenticator, confirmIfAsked } from "../harness/two-factor.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -233,6 +234,26 @@ describe("the Staging cookie", () => {
 		});
 
 		await expectSignInPage(await reviewer.page("/about"));
+	});
+
+	test("ends when the person must set up two-factor authentication first", async () => {
+		const { siteId } = await newSite();
+		const member = await install.createMember({ workspaceId, role: "editor", sites: [siteId] });
+		const reviewer = await openStaging(install, member.browser, siteId);
+		expect((await reviewer.page("/about")).status).toBe(200);
+		await addAuthenticator(install, staff);
+
+		await confirmIfAsked(staff, TEST_PASSWORD, () =>
+			staff.api.members.requireTwoFactor({ workspaceId, required: true }),
+		);
+
+		try {
+			await expectSignInPage(await reviewer.page("/about"));
+		} finally {
+			await confirmIfAsked(staff, TEST_PASSWORD, () =>
+				staff.api.members.requireTwoFactor({ workspaceId, required: false }),
+			);
+		}
 	});
 
 	test("lasts 8 hours at most", async () => {

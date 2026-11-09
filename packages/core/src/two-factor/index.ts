@@ -73,8 +73,13 @@ export type WorkspaceTwoFactor = {
 export type TwoFactor = {
 	status(personId: string): Promise<TwoFactorStatus>;
 	/**
+	 * Whether the person must use two-factor authentication and has none yet. One query, made on
+	 * every admin request, and on every Edit mode and Staging address request from an admin session.
+	 */
+	mustSetUp(personId: string): Promise<boolean>;
+	/**
 	 * Refuses everything but setting up two-factor authentication (`TwoFactorSetupRequiredError`)
-	 * for a person who must use it and has none. One query, made on every admin request.
+	 * for a person who must use it and has none.
 	 */
 	assertSetUpWhenRequired(personId: string): Promise<void>;
 	/** The person's second factors, as Your account shows them. */
@@ -182,6 +187,21 @@ export function createTwoFactor({
 		};
 	};
 
+	const mustSetUp = async (personId: string): Promise<boolean> => {
+		const result = await db.execute<{ must: boolean }>(sql`
+			select (
+				(coalesce((select ${installSettings.requireTwoFactor} from ${installSettings} where ${installSettings.id} = 1), false)
+					or exists (
+						select 1 from ${memberships} join ${workspaces} on ${workspaces.id} = ${memberships.workspaceId}
+						where ${memberships.personId} = ${personId} and ${workspaces.requireTwoFactor}
+					))
+				and not exists (select 1 from ${authenticators} where ${authenticators.personId} = ${personId})
+				and not exists (select 1 from ${passkeys} where ${passkeys.personId} = ${personId})
+			) as must
+		`);
+		return result.rows[0]?.must === true;
+	};
+
 	/** Refuses to remove a person's last second factor while they must use one. */
 	const assertMayRemoveLast = async (personId: string, remainingAfter: number) => {
 		if (remainingAfter > 0) return;
@@ -216,19 +236,10 @@ export function createTwoFactor({
 	return {
 		status,
 
+		mustSetUp,
+
 		async assertSetUpWhenRequired(personId) {
-			const result = await db.execute<{ must: boolean }>(sql`
-				select (
-					(coalesce((select ${installSettings.requireTwoFactor} from ${installSettings} where ${installSettings.id} = 1), false)
-						or exists (
-							select 1 from ${memberships} join ${workspaces} on ${workspaces.id} = ${memberships.workspaceId}
-							where ${memberships.personId} = ${personId} and ${workspaces.requireTwoFactor}
-						))
-					and not exists (select 1 from ${authenticators} where ${authenticators.personId} = ${personId})
-					and not exists (select 1 from ${passkeys} where ${passkeys.personId} = ${personId})
-				) as must
-			`);
-			if (result.rows[0]?.must) throw new TwoFactorSetupRequiredError();
+			if (await mustSetUp(personId)) throw new TwoFactorSetupRequiredError();
 		},
 
 		factors: (personId) => auth.secondFactors(personId),

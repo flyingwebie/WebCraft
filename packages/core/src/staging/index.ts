@@ -119,6 +119,11 @@ export function createStaging(options: {
 	auth: Pick<Auth, "activeSession">;
 	data: DataLayer;
 	actors: { person(personId: string): Promise<PersonActor> };
+	/**
+	 * Whether the person must set up two-factor authentication before anything else: their admin
+	 * session then reaches nothing here either.
+	 */
+	mustSetUpTwoFactor(personId: string): Promise<boolean>;
 	/** Signs what the staging password lets in (HMAC-SHA256), derived from the Master key. */
 	passwordKey: CryptoKey;
 }): Staging {
@@ -206,6 +211,7 @@ export function createStaging(options: {
 			if (!link) return null;
 			const adminSession = await auth.activeSession(link.adminSessionId);
 			if (adminSession?.personId !== link.personId) return null;
+			if (await options.mustSetUpTwoFactor(link.personId)) return null;
 			if (!(await seesSite(link.personId, host.site))) return null;
 			const cookie = newToken();
 			const expiresAt = new Date(now.getTime() + STAGING_SESSION_LIFETIME_MS);
@@ -237,6 +243,7 @@ export function createStaging(options: {
 			if (row.expiresAt.getTime() <= clock.now().getTime()) return ended();
 			const adminSession = await auth.activeSession(row.adminSessionId);
 			if (adminSession?.personId !== row.personId) return ended();
+			if (await options.mustSetUpTwoFactor(row.personId)) return ended();
 			if (!(await seesSite(row.personId, host.site))) return ended();
 			return true;
 		},
