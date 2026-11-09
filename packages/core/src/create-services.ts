@@ -28,6 +28,15 @@ import {
 	setSpecialPage,
 	updatePostType,
 } from "./content/index.ts";
+import {
+	createClass,
+	deleteClass,
+	exportDesignTokens,
+	getDesignSystem,
+	importDesignTokens,
+	saveDesignSystemDraft,
+	updateClass,
+} from "./design-system/drafts.ts";
 import { createEmail } from "./email/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
 import { createInstallSettings } from "./install-settings.ts";
@@ -159,6 +168,15 @@ export async function createInstallServices(
 			settings: getSpecialPages,
 			setHomePage: (scope, pageId) => setSpecialPage(scope, "home", pageId),
 			setNotFoundPage: (scope, pageId) => setSpecialPage(scope, "notFound", pageId),
+		},
+		designSystem: {
+			get: getDesignSystem,
+			saveDraft: saveDesignSystemDraft,
+			createClass,
+			updateClass,
+			deleteClass,
+			exportTokens: exportDesignTokens,
+			importTokens: importDesignTokens,
 		},
 		publishing: { publish },
 		sitePages: createSitePages({ database, config, data, storage }),

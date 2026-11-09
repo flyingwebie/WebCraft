@@ -9,6 +9,8 @@ import {
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
+	ClassInUseError,
+	ClassNotFoundError,
 	ConfirmationInvalidError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
@@ -55,10 +57,12 @@ import {
 	StaffNotFoundError,
 	StorageUnreachableError,
 	TemplateNotFoundError,
+	TokenInUseError,
+	TokensFileInvalidError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
 import { ModuleError } from "@webcraft/module-sdk";
-import { ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
+import { DesignSystemInvalidError, ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -199,6 +203,41 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof TemplateMarkupInvalidError) {
 		return new ORPCError("TEMPLATE_MARKUP_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof DesignSystemInvalidError) {
+		return new ORPCError("DESIGN_SYSTEM_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof ClassNotFoundError) {
+		return new ORPCError("CLASS_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ClassInUseError) {
+		return new ORPCError("CLASS_IN_USE", {
+			status: 409,
+			message: error.message,
+			data: { classId: error.classId, usedBy: error.usedBy },
+			cause: error,
+		});
+	}
+	if (error instanceof TokenInUseError) {
+		return new ORPCError("TOKEN_IN_USE", {
+			status: 409,
+			message: error.message,
+			data: { tokenId: error.tokenId, usedBy: error.usedBy },
+			cause: error,
+		});
+	}
+	if (error instanceof TokensFileInvalidError) {
+		return new ORPCError("TOKENS_FILE_INVALID", {
 			status: 400,
 			message: error.message,
 			data: { problems: error.problems },

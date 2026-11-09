@@ -25,6 +25,8 @@ export type RenderOptions = {
 	className?: (classId: string) => string | undefined;
 	/** What `{{@outlet}}` shows: the page's content, already rendered. Nothing when absent. */
 	outlet?: () => string;
+	/** What `{{@themeToggle}}` shows. Nothing when absent. */
+	themeToggle?: () => string;
 	/**
 	 * Attributes WebCraft adds to an element, written after the element's own (such as the id of
 	 * the page's <main>, which the skip link points at); their values are escaped.
@@ -86,6 +88,7 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 		read: options.values,
 		nodes: (children) => renderNodes(children, options),
 		outlet: () => options.outlet?.() ?? "",
+		themeToggle: () => options.themeToggle?.() ?? "",
 	});
 }
 

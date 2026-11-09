@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { stylesheetIn } from "../harness/site-styles.ts";
 import { element, type TestTree, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -75,6 +76,8 @@ describe("semantic HTML", () => {
 				'<meta charset="utf-8">',
 				'<meta name="viewport" content="width=device-width, initial-scale=1">',
 				"<title>Daily bread · Acme &lt;Bakery&gt; &amp; Co</title>",
+				// The Site's stylesheet, named by the hash of what it holds.
+				`<link rel="stylesheet" href="${stylesheetIn(html)}">`,
 				"</head>",
 				"<body>",
 				'<a class="wc-skip-link" href="#wc-main">Skip to main content</a>',
