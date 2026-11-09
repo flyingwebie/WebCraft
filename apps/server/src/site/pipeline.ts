@@ -26,9 +26,11 @@ import {
 	VERIFY_PATH,
 } from "@webcraft/core";
 
-import { clientAddress, recordVisitorAddress } from "../client-address.ts";
+import { FILTER_FRAGMENTS_PATH } from "@webcraft/renderer";
+
+import { clientAddress, recordVisitorAddress, sameClient } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
-import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
+import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
 import {
 	clearEditCookie,
@@ -40,6 +42,7 @@ import {
 	pageEditing,
 	safeModeOf,
 } from "./edit-mode.ts";
+import { pageParts } from "./filter-fragments.ts";
 import { formPost, isFormPath, sentPage, withFormTokens } from "./forms.ts";
 import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
@@ -158,36 +161,92 @@ async function siteAnswer(
 		}
 		const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
 		if (chosen) return chosen;
-		const segments = pathSegments(url.pathname);
-		// Paths the Install keeps: each feature answers its own; until then, a plain 404.
-		if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
-		const edit = await editSessionOf(services, request, host);
-		// Which page of a paginated Loop: `?page=2`; anything else that isn't a page number is no page.
-		// (`?page=1` goes on to the page itself, keeping its search and Filters' choices: see `render`.)
-		const number = pageNumberIn(url.searchParams);
-		if (number === undefined) return notFoundPage(services, host, url.pathname);
-		if (edit.session) {
-			return editModePage(
-				services,
-				host,
-				edit.session,
-				url.pathname,
-				await codeModeOf(services, request, edit.session),
-				safeModeOf(request),
-				number,
-				url.searchParams,
-			);
+		// The parts of a page a Filter's script swaps in place (GLOSSARY.md › Filter).
+		if (url.pathname === FILTER_FRAGMENTS_PATH || url.pathname.startsWith(`${FILTER_FRAGMENTS_PATH}/`)) {
+			return filterFragments(services, cache, request, host);
 		}
-		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
-		if (redirected) return redirected;
-		const page = showsDrafts(host)
-			? await draftPage(services, request, host, number)
-			: await visitorPage(services, cache, request, host, number);
-		return edit.stale ? withEditCookieCleared(request, page) : page;
+		return pageAnswer(services, cache, request, host);
 	});
 }
 
 /**
+ * The page at a request's path, as visitors, the people reviewing the Staging address or a person in
+ * Edit mode see it. `fragment` says the page is asked for its parts by a Filter's script: a path with
+ * no page then tells the 404 log nothing.
+ */
+async function pageAnswer(
+	services: InstallServices,
+	cache: PageCache,
+	request: Request,
+	host: SiteHost,
+	fragment = false,
+): Promise<Response> {
+	const url = new URL(request.url);
+	const segments = pathSegments(url.pathname);
+	// Paths the Install keeps: each feature answers its own; until then, a plain 404.
+	if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
+	const edit = await editSessionOf(services, request, host);
+	// Which page of a paginated Loop: `?page=2`; anything else that isn't a page number is no page.
+	// (`?page=1` goes on to the page itself, keeping its search and Filters' choices: see `render`.)
+	const number = pageNumberIn(url.searchParams);
+	if (number === undefined) return notFoundPage(services, host, url.pathname);
+	if (edit.session) {
+		return editModePage(
+			services,
+			host,
+			edit.session,
+			url.pathname,
+			await codeModeOf(services, request, edit.session),
+			safeModeOf(request),
+			number,
+			url.searchParams,
+		);
+	}
+	if (!fragment) {
+		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
+		if (redirected) return redirected;
+	}
+	const page = showsDrafts(host)
+		? await draftPage(services, request, host, number)
+		: await visitorPage(services, cache, request, host, number, fragment);
+	return edit.stale ? withEditCookieCleared(request, page) : page;
+}
+
+/**
+ * What a Filter's script swaps in place: `/_wc/filter/<page path>?<choices>` answers the page at that
+ * path with those choices, exactly as a request for it would (from the page cache, on the Staging
+ * address, in Edit mode), as JSON: its address in normal form (`url`, where a plain form's fields went
+ * on to), its title, each Filter's form by id, and each region of its filtered Loops (their items and
+ * pagination) by name, as the server rendered and escaped them. Anything but a page is a plain 404,
+ * and the script then loads the page instead.
+ */
+async function filterFragments(
+	services: InstallServices,
+	cache: PageCache,
+	request: Request,
+	host: SiteHost,
+): Promise<Response> {
+	const url = new URL(request.url);
+	let target = new URL(`${url.pathname.slice(FILTER_FRAGMENTS_PATH.length) || "/"}${url.search}`, url.origin);
+	const headers = { "cache-control": "no-store", "x-robots-tag": "noindex", ...addressHeaders(host) };
+	// A plain form's fields go on to their normal address once; a page's first page once more.
+	for (let hop = 0; hop < 3; hop++) {
+		const inner = new Request(target, { headers: request.headers });
+		sameClient(request, inner);
+		const response = await pageAnswer(services, cache, inner, host, true);
+		const location = response.headers.get("location");
+		if (response.status >= 300 && response.status < 400 && location) {
+			const next = new URL(location, target);
+			if (next.origin !== target.origin) break;
+			target = next;
+			continue;
+		}
+		if (response.status !== 200 || !response.headers.get("content-type")?.startsWith("text/html")) break;
+		const parts = pageParts(await response.text());
+		return json(200, { url: `${target.pathname}${target.search}`, ...parts }, headers);
+	}
+	return plainText(404, "Not Found", headers);
+} /**
  * Adds the security headers every answer on a Site's domain carries (ADR 0023): `nosniff`, a strict
  * referrer policy, no framing by other sites, and, on answers that bring no policy of their own (a
  * page brings the Site's, Edit mode its own, a Media file one its viewer can open with), the fixed
@@ -245,6 +304,7 @@ async function visitorPage(
 	request: Request,
 	host: SiteHost,
 	number: number,
+	fragment = false,
 ) {
 	const url = new URL(request.url);
 	const { pathname } = url;
@@ -286,7 +346,7 @@ async function visitorPage(
 	});
 	if (!answer) {
 		// A path with no page: the Site's 404 log hears of it (a page past a paginated Loop's last isn't one).
-		if (number === 1) noteMiss(services, request, host);
+		if (number === 1 && !fragment) noteMiss(services, request, host);
 		return notFoundPage(services, host, pathname);
 	}
 	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url), answer.temporary);

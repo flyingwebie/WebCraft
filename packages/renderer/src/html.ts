@@ -245,7 +245,12 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		search: () => options.search?.() ?? "",
 		loop: (loop) => filterRegion(`loop ${loop.source}`, loop.source, renderLoop(loop, options, state), options),
 		pagination: (name) =>
-			filterRegion(`pagination ${name}`, name, paginationHtml(options.loop?.(name), options), options),
+			filterRegion(
+				`pagination ${name}`,
+				name,
+				paginationHtml(options.loop?.(name), options, options.filtered?.(name)),
+				options,
+			),
 		consentSettings: () => options.consentSettings?.() ?? "",
 		filter: (filter) => options.filter?.(filter) ?? "",
 	});
@@ -355,12 +360,14 @@ function itemReader(alias: string, item: LoopItem, index: number, count: number,
  * language, holding the previous page, the first and last pages and those near the current one (a gap
  * between them shown as …), and the next page. The current page is marked `aria-current="page"`.
  */
-function paginationHtml(run: LoopRun | undefined, options: RenderOptions): string {
+function paginationHtml(run: LoopRun | undefined, options: RenderOptions, filtered = false): string {
 	const pages = run?.pages;
 	if (!pages || pages.count < 2) return "";
 	const words = { ...ENGLISH_PAGINATION, ...options.words };
+	// A filtered Loop's pages are swapped in place by the Filter script.
+	const mark = filtered ? " data-wc-filter-link" : "";
 	const link = (page: number, text: string, extra: string) =>
-		`<li><a href="${escapeAttribute(safeUrl(pages.href(page)))}"${extra}>${escapeText(text)}</a></li>`;
+		`<li><a${mark} href="${escapeAttribute(safeUrl(pages.href(page)))}"${extra}>${escapeText(text)}</a></li>`;
 	const shown = [...new Set([1, pages.current - 1, pages.current, pages.current + 1, pages.count])]
 		.filter((page) => page >= 1 && page <= pages.count)
 		.sort((a, b) => a - b);
