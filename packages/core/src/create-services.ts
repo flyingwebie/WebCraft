@@ -51,6 +51,7 @@ import {
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
+import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
@@ -194,6 +195,7 @@ export async function createInstallServices(
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
+		domains: createDomains({ config }),
 		languages: {
 			get: siteLanguages,
 			add: (scope, input) => addLanguage({ config }, scope, input),

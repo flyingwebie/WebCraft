@@ -17,6 +17,10 @@ import {
 	ComponentNameTakenError,
 	ComponentNotFoundError,
 	ConfirmationInvalidError,
+	DomainChangeRefusedError,
+	DomainInvalidError,
+	DomainNotFoundError,
+	DomainTakenError,
 	EditFieldInvalidError,
 	EditModeUnavailableError,
 	EditPathInvalidError,
@@ -239,6 +243,33 @@ export function toApiError(error: unknown): unknown {
 			status: 409,
 			message: error.message,
 			data: { field: error.field },
+			cause: error,
+		});
+	}
+	if (error instanceof DomainInvalidError) {
+		return new ORPCError("DOMAIN_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof DomainTakenError) {
+		return new ORPCError("DOMAIN_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { name: error.domain },
+			cause: error,
+		});
+	}
+	if (error instanceof DomainNotFoundError) {
+		return new ORPCError("DOMAIN_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof DomainChangeRefusedError) {
+		return new ORPCError("DOMAIN_CHANGE_REFUSED", {
+			status: 409,
+			message: error.message,
+			data: { problem: error.problem },
 			cause: error,
 		});
 	}

@@ -24,6 +24,8 @@ export { type Clock, systemClock } from "./clock.ts";
 export {
 	adminOriginFor,
 	ConfigError,
+	EDGES,
+	type Edge,
 	type Environment,
 	type InstallConfig,
 	isDevelopmentHostname,
@@ -41,6 +43,7 @@ export { isWebCraftCookie, WEBCRAFT_COOKIE_PREFIX } from "./cookies.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./design-system/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
+export * from "./domains/index.ts";
 export {
 	EDIT_LINK_LIFETIME_MS,
 	EDIT_MODE_PATH,

@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { isAbsolute, resolve } from "node:path";
 
 import { normaliseHostname } from "./hostnames.ts";
@@ -27,7 +28,24 @@ export type InstallConfig = {
 	 * worker must both see the same folder: on a server, a mounted volume.
 	 */
 	storageDir: string;
+	/**
+	 * What answers HTTPS for the Install (`WEBCRAFT_EDGE`, ADR 0015): `caddy` on a VPS (Caddy issues
+	 * certificates on demand, asking the Install first), or the platform's own proxy on `coolify` and
+	 * `railway`, where Staff also add each domain in the platform's panel.
+	 */
+	edge: Edge;
+	/**
+	 * The Install's public IP addresses (`WEBCRAFT_PUBLIC_ADDRESSES`), IPv4 or IPv6: where a Site's
+	 * domains point their A and AAAA records. Empty when not set: the admin then offers only a CNAME
+	 * record to the admin host.
+	 */
+	publicAddresses: readonly string[];
 };
+
+/** What answers HTTPS for an Install: Caddy on a VPS, or the platform's proxy (ADR 0015). */
+export const EDGES = ["caddy", "coolify", "railway"] as const;
+
+export type Edge = (typeof EDGES)[number];
 
 export type Environment = Record<string, string | undefined>;
 
@@ -45,6 +63,8 @@ export function loadInstallConfig(env: Environment): InstallConfig {
 		adminOrigin: adminOriginFor(adminHost, env.PORT),
 		sitesDomain: loadSitesDomain(env),
 		storageDir: loadStorageDir(env),
+		edge: loadEdge(env),
+		publicAddresses: loadPublicAddresses(env),
 	};
 }
 
@@ -123,4 +143,31 @@ function loadSitesDomain(env: Environment): string | null {
 		);
 	}
 	return domain;
+}
+
+/** Reads `WEBCRAFT_EDGE`: `caddy` unless set. */
+function loadEdge(env: Environment): Edge {
+	const value = env.WEBCRAFT_EDGE?.trim().toLowerCase();
+	if (!value) return "caddy";
+	if (!(EDGES as readonly string[]).includes(value)) {
+		throw new ConfigError(`WEBCRAFT_EDGE must be one of ${EDGES.join(", ")} (got "${env.WEBCRAFT_EDGE}").`);
+	}
+	return value as Edge;
+}
+
+/** Reads `WEBCRAFT_PUBLIC_ADDRESSES`: IP addresses separated by commas, optional. */
+function loadPublicAddresses(env: Environment): string[] {
+	const value = env.WEBCRAFT_PUBLIC_ADDRESSES?.trim();
+	if (!value) return [];
+	const addresses = value
+		.split(",")
+		.map((address) => address.trim().toLowerCase())
+		.filter(Boolean);
+	const wrong = addresses.find((address) => isIP(address) === 0);
+	if (wrong !== undefined) {
+		throw new ConfigError(
+			`WEBCRAFT_PUBLIC_ADDRESSES must be IP addresses separated by commas, such as 203.0.113.10,2001:db8::10 (got "${wrong}").`,
+		);
+	}
+	return [...new Set(addresses)];
 }

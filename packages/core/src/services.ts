@@ -37,6 +37,7 @@ import type {
 } from "./content/index.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
 import type { Dns } from "./dns.ts";
+import type { Domains } from "./domains/index.ts";
 import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
@@ -188,6 +189,8 @@ export type InstallServices = InstallPorts & {
 	 * A Site's languages (Structure): the Default language and the others, their names, directions and
 	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.
 	 */
+	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
+	domains: Domains;
 	languages: {
 		get(scope: SiteScope): Promise<SiteLanguages>;
 		add(scope: SiteScope, input: NewLanguage): Promise<SiteLanguages>;
