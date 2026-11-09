@@ -1,10 +1,13 @@
 import type { Database } from "@webcraft/db";
+import { siteDomains, sites } from "@webcraft/db/schema";
+import { and, eq, isNotNull } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
 import type { Dns } from "../dns.ts";
 import type { OutgoingHttp } from "../http.ts";
 import type { Logger } from "../log.ts";
+import { slugOfStagingHostname } from "../site-pages/addresses.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import type { TlsProbe } from "../tls.ts";
 import { type CheckPorts, createVerificationSigner } from "./checks.ts";
@@ -69,6 +72,11 @@ export type Domains = {
 	 * domains' tokens, or null (a plain 404).
 	 */
 	verificationAnswer(hostname: string, token: string): Promise<string | null>;
+	/**
+	 * Whether a certificate may be issued for a hostname (Caddy's ask, ADR 0015): the admin host, the
+	 * Staging address of a Site, or a verified domain. Reads at most one row, and writes nothing.
+	 */
+	approvesCertificate(hostname: string): Promise<boolean>;
 	/** For the worker: claims the verification checks that are due across the Install. */
 	claimDueVerifications(): Promise<DueDomain[]>;
 	/** For the worker: one claimed verification check. */
@@ -113,6 +121,19 @@ export function createDomains(options: DomainsOptions): Domains {
 			return domainView(deps, row);
 		},
 		verificationAnswer: (hostname, token) => verificationAnswer(database, signer, hostname, token),
+		async approvesCertificate(hostname) {
+			if (hostname === config.adminHost) return true;
+			const slug = slugOfStagingHostname(config, hostname);
+			if (slug) {
+				const [site] = await database.db.select({ id: sites.id }).from(sites).where(eq(sites.slug, slug));
+				return site !== undefined;
+			}
+			const [domain] = await database.db
+				.select({ id: siteDomains.id })
+				.from(siteDomains)
+				.where(and(eq(siteDomains.name, hostname), isNotNull(siteDomains.verifiedAt)));
+			return domain !== undefined;
+		},
 		claimDueVerifications: () => claimDueVerifications(database, clock.now()),
 		async verifyQueued(siteId, domainId) {
 			const scope = await data.background(siteId);
