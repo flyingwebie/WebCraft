@@ -8,6 +8,7 @@ export * from "./domains.ts";
 export * from "./edit-mode.ts";
 export * from "./email.ts";
 export * from "./forms.ts";
+export * from "./imports.ts";
 export * from "./install.ts";
 export * from "./languages.ts";
 export * from "./media.ts";

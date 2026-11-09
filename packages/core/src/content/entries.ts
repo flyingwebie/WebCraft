@@ -246,23 +246,103 @@ export async function deleteEntry(scope: SiteScope, entryId: string, confirmatio
 		}
 		await useConfirmation(tx, confirmation, request);
 
-		const byId = new Map(allPostTypes.map((postType) => [postType.id, postType]));
-		for (const linked of linking) {
-			const source = await lockEntry(tx, linked.entryId);
-			const postType = byId.get(source.postTypeId);
-			if (!postType) continue;
-			await changeDraft(tx, source, postType, { unlink: row.id }, { language: defaultLanguage, defaultLanguage });
-			if (source.published !== null) {
-				const published = { values: withoutLinksTo(storedVersion(source.published).values, postType.fields, row.id) };
-				await tx.update(entries, { published }, eq(entries.id, source.id));
-				await saveLinks(tx, source.id, "published", linksIn(published.values, postType.fields));
-			}
-		}
-		await tx.delete(entries, eq(entries.id, row.id));
+		await unlinkAndDelete(tx, row.id, linking, allPostTypes, defaultLanguage);
 		await clearPageCache(tx);
 		const title = readValue(storedVersion(row.draft), { key: "title", language: defaultLanguage, defaultLanguage });
 		await tx.audit("entry.delete", { entryId: row.id, postTypeId: row.postTypeId, title, links });
 		return { deleted: true, links };
+	});
+}
+
+/**
+ * Deletes Entries of the scope's Site at once, without asking (open the Site with `entry.delete`; the
+ * caller confirmed, as Undo of an Import run does), removing the links other Entries make to them
+ * from their Drafts and published versions, as `deleteEntry` does. Answers the Entries another Entry
+ * outside them must point at (through a required Relationship), deleting nothing then.
+ */
+export async function removeEntries(scope: SiteScope, ids: readonly string[]): Promise<LinkingBlock[]> {
+	return scope.transaction(async (tx) => {
+		const allPostTypes = await listPostTypes(tx);
+		const { defaultLanguage } = await siteLanguages(tx);
+		const removing = new Set(ids);
+		const plans: { id: string; linking: Awaited<ReturnType<typeof linkingEntries>> }[] = [];
+		const blocked: LinkingBlock[] = [];
+		for (const id of ids) {
+			const row = await lockEntry(tx, id).catch((error: unknown) => {
+				if (error instanceof EntryNotFoundError) return null;
+				throw error;
+			});
+			if (!row) continue;
+			const linking = (await linkingEntries(tx, row.id, allPostTypes, defaultLanguage)).filter(
+				(entry) => !removing.has(entry.entryId),
+			);
+			for (const entry of linking.filter((candidate) => candidate.required)) {
+				blocked.push({ entryId: row.id, by: { entryId: entry.entryId, title: entry.title } });
+			}
+			plans.push({ id: row.id, linking });
+		}
+		if (blocked.length > 0) return blocked;
+		for (const plan of plans) await unlinkAndDelete(tx, plan.id, plan.linking, allPostTypes, defaultLanguage);
+		return [];
+	});
+}
+
+/** An Entry that can't be removed: another Entry must point at it. */
+export type LinkingBlock = { entryId: string; by: { entryId: string; title: string } };
+
+/**
+ * What `removeEntries` would refuse, worked out without changing anything: the Entries another Entry
+ * outside `ids` must point at (through a required Relationship). Empty when they can all go.
+ */
+export async function removalBlocks(scope: SiteScope, ids: readonly string[]): Promise<LinkingBlock[]> {
+	if (ids.length === 0) return [];
+	const allPostTypes = await listPostTypes(scope);
+	const { defaultLanguage } = await siteLanguages(scope);
+	const removing = new Set(ids);
+	const blocked: LinkingBlock[] = [];
+	for (const id of ids) {
+		for (const entry of await linkingEntries(scope, id, allPostTypes, defaultLanguage)) {
+			if (entry.required && !removing.has(entry.entryId)) {
+				blocked.push({ entryId: id, by: { entryId: entry.entryId, title: entry.title } });
+			}
+		}
+	}
+	return blocked;
+}
+
+/** Removes the links `linking` Entries make to an Entry, then the Entry. */
+async function unlinkAndDelete(
+	tx: SiteScope,
+	entryId: string,
+	linking: readonly { entryId: string }[],
+	allPostTypes: readonly PostType[],
+	defaultLanguage: string,
+): Promise<void> {
+	const byId = new Map(allPostTypes.map((postType) => [postType.id, postType]));
+	for (const linked of linking) {
+		const source = await lockEntry(tx, linked.entryId);
+		const postType = byId.get(source.postTypeId);
+		if (!postType) continue;
+		await changeDraft(tx, source, postType, { unlink: entryId }, { language: defaultLanguage, defaultLanguage });
+		if (source.published !== null) {
+			const published = { values: withoutLinksTo(storedVersion(source.published).values, postType.fields, entryId) };
+			await tx.update(entries, { published }, eq(entries.id, source.id));
+			await saveLinks(tx, source.id, "published", linksIn(published.values, postType.fields));
+		}
+	}
+	await tx.delete(entries, eq(entries.id, entryId));
+}
+
+/**
+ * Puts an Entry's Draft back to a version kept earlier, exactly as it was, who wrote each value
+ * included (open the Site with `entry.edit`): Undo of an Import run gives back the Drafts it updated.
+ */
+export async function replaceDraft(scope: SiteScope, entryId: string, version: unknown): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const languages = await entryLanguages(tx);
+		const row = await lockEntry(tx, entryId);
+		const postType = await getPostType(tx, row.postTypeId);
+		await changeDraft(tx, row, postType, { replace: storedVersion(version) }, languages);
 	});
 }
 
@@ -288,12 +368,14 @@ export async function undoDraftChanges(
 
 /**
  * How a Draft changes: a change people make (with the Fields' defaults first, for a new Entry),
- * removing the links to an Entry being deleted, or putting values back as they are published.
+ * removing the links to an Entry being deleted, putting values back as they are published, or
+ * putting back a version kept earlier (Undo of an Import run).
  */
 type DraftEdit =
 	| { change: DraftChange; withDefaults?: boolean }
 	| { unlink: string }
-	| { restore: readonly string[] | "all" };
+	| { restore: readonly string[] | "all" }
+	| { replace: EntryVersion };
 
 /**
  * The one place an Entry's Draft is written. Checks a change against the Post Type, refuses values
@@ -318,6 +400,9 @@ async function changeDraft(
 		if (sameJson(version, before)) return row;
 	} else if ("restore" in edit) {
 		version = restoredVersion(before, storedVersion(row.published), edit.restore);
+		if (sameJson(version, before)) return row;
+	} else if ("replace" in edit) {
+		version = edit.replace;
 		if (sameJson(version, before)) return row;
 	} else {
 		const { change } = edit;

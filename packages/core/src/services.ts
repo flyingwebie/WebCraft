@@ -55,6 +55,7 @@ import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { Forms } from "./forms/index.ts";
 import type { OutgoingHttp } from "./http.ts";
+import type { Imports } from "./imports/index.ts";
 import type { InstallSettings } from "./install-settings.ts";
 import type { JobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
@@ -443,6 +444,8 @@ export type InstallServices = InstallPorts & {
 	storage: InstallStorage;
 	/** Each Site's Media library: uploads, texts and folders. */
 	media: MediaLibrary;
+	/** Each Site's Imports: CSV files (and later other sources) brought in as Drafts, run in the background. */
+	imports: Imports;
 	/**
 	 * The Module host: the Modules this Install loads, their approvals and switches, and running
 	 * them (their procedures, Site routes, events and jobs) within what they declared.

@@ -77,6 +77,14 @@ export function errorMessage(error: unknown): MessageKey {
 		case "CAPTCHA_INVALID":
 		case "LIBRARY_NOT_FOUND":
 		case "OUTSIDE_SCRIPT_NOT_FOUND":
+		case "IMPORT_FILE_REFUSED":
+		case "IMPORT_FILE_NOT_FOUND":
+		case "IMPORT_NOT_FOUND":
+		case "IMPORT_RUN_NOT_FOUND":
+		case "IMPORT_INVALID":
+		case "IMPORT_POST_TYPE_FIXED":
+		case "IMPORT_RUNNING":
+		case "IMPORT_UNDO_REFUSED":
 			return `errors.${code}`;
 		case "DOMAIN_INVALID":
 			return (data as { reason?: unknown } | undefined)?.reason === "install"

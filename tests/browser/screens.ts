@@ -46,6 +46,8 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Members (Owner)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/members`, as: "owner" },
 	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
 	{ name: "Site › Media", path: ({ siteId }) => `/sites/${siteId}/media`, as: "staff" },
+	{ name: "Site › Imports, none yet (Staff)", path: ({ siteId }) => `/sites/${siteId}/imports`, as: "staff" },
+	{ name: "Site › Imports, none yet (Owner)", path: ({ siteId }) => `/sites/${siteId}/imports`, as: "owner" },
 	{
 		name: "Site › Media, a file's details",
 		path: ({ siteId, mediaId }) => `/sites/${siteId}/media?file=${mediaId}`,
