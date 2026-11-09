@@ -343,7 +343,7 @@ describe("languages", () => {
 			`${site.origin}/de/blog/fresh-bread`,
 		]);
 		expect(own.map((url) => url.loc)).toEqual([`${french}/blog/pain-frais`]);
-		const alternates = [
+		const alternates: [string, string][] = [
 			["en", `${site.origin}/blog/fresh-bread`],
 			["fr", `${french}/blog/pain-frais`],
 			["de", `${site.origin}/de/blog/fresh-bread`],

@@ -3,6 +3,8 @@ import { globals, seoSettings } from "@webcraft/db/schema";
 import type { ContentProblem } from "../content/errors.ts";
 import { storedFields } from "../content/fields.ts";
 import { clearPageCache } from "../content/page-cache.ts";
+import { type AiCrawlerSetting, DEFAULT_AI_CRAWLER_SETTING, isAiCrawlerSetting } from "../discovery/ai-crawlers.ts";
+import { readRobotsLines } from "../discovery/robots.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { isSocialImageOf } from "./entry-seo.ts";
@@ -33,14 +35,19 @@ export const ORGANIZATION_GLOBALS = ["telephone", "email", "address"] as const;
 /**
  * A Site's SEO settings (Structure, Staff only, applied at once like other Site settings, ADR 0014):
  * the name titles and structured data give the Site (null for its own name), the separator title
- * patterns put between their parts, the social image of every page without one of its own, and its
- * organisation.
+ * patterns put between their parts, the social image of every page without one of its own, its
+ * organisation, and Staff's own robots.txt lines. Beside them, the AI crawler setting (spec story
+ * 119), which Owners change too (`aiCrawlers.manage`, `setAiCrawlers`).
  */
 export type SiteSeoSettings = {
 	siteName: string | null;
 	separator: string;
 	defaultImage: string | null;
 	organization: SeoOrganization;
+	/** What the Site's robots.txt says to AI crawlers (`discovery/ai-crawlers.ts`). */
+	aiCrawlers: AiCrawlerSetting;
+	/** Staff's own robots.txt lines (`readRobotsLines`), after WebCraft's groups; "" for none. */
+	robotsLines: string;
 };
 
 /** A change to a Site's SEO settings: each given replaces that setting (the organisation part by part). */
@@ -49,6 +56,7 @@ export type SiteSeoChange = {
 	separator?: string;
 	defaultImage?: string | null;
 	organization?: Partial<Record<keyof SeoOrganization, unknown>>;
+	robotsLines?: string;
 };
 
 /** The most characters of a Site's name for titles and of an organisation's name. */
@@ -84,6 +92,8 @@ export function defaultSeoSettings(): SiteSeoSettings {
 			email: null,
 			address: null,
 		},
+		aiCrawlers: DEFAULT_AI_CRAWLER_SETTING,
+		robotsLines: "",
 	};
 }
 
@@ -112,6 +122,8 @@ function settingsOf(row: typeof seoSettings.$inferSelect): SiteSeoSettings {
 			email: text(stored.email) ?? defaults.organization.email,
 			address: text(stored.address) ?? defaults.organization.address,
 		},
+		aiCrawlers: isAiCrawlerSetting(row.aiCrawlers) ? row.aiCrawlers : defaults.aiCrawlers,
+		robotsLines: row.robotsLines,
 	};
 }
 
@@ -153,6 +165,11 @@ export async function updateSiteSeoSettings(scope: SiteScope, change: SiteSeoCha
 		if (change.organization !== undefined) {
 			await changeOrganization(tx, next.organization, change.organization, problems);
 		}
+		if (change.robotsLines !== undefined) {
+			const read = readRobotsLines(change.robotsLines);
+			if ("problem" in read) problems.push({ at: "robotsLines", ...read.problem });
+			else next.robotsLines = read.lines;
+		}
 		if (problems.length > 0) throw new SeoSettingsInvalidError(problems);
 
 		const now = tx.now();
@@ -161,6 +178,7 @@ export async function updateSiteSeoSettings(scope: SiteScope, change: SiteSeoCha
 			separator: next.separator,
 			defaultImage: next.defaultImage,
 			organization: next.organization,
+			robotsLines: next.robotsLines,
 			updatedAt: now,
 		};
 		const [row] = await tx.update(seoSettings, values);
@@ -170,6 +188,24 @@ export async function updateSiteSeoSettings(scope: SiteScope, change: SiteSeoCha
 			changed: Object.keys(change).filter((key) => change[key as keyof SiteSeoChange] !== undefined),
 		});
 		return next;
+	});
+}
+
+/**
+ * Changes what the Site's robots.txt says to AI crawlers (spec story 119; open the Site with
+ * `aiCrawlers.manage`: Staff and Owners). It applies at once: the Site's page cache is cleared (its
+ * robots.txt is kept there) and the change is logged as `aiCrawlers.change` with what it was and is.
+ */
+export async function setAiCrawlers(scope: SiteScope, setting: AiCrawlerSetting): Promise<SiteSeoSettings> {
+	return scope.transaction(async (tx) => {
+		const current = await siteSeoSettings(tx);
+		if (current.aiCrawlers === setting) return current;
+		const now = tx.now();
+		const [row] = await tx.update(seoSettings, { aiCrawlers: setting, updatedAt: now });
+		if (!row) await tx.insert(seoSettings, { aiCrawlers: setting, createdAt: now, updatedAt: now });
+		await clearPageCache(tx);
+		await tx.audit("aiCrawlers.change", { from: current.aiCrawlers, to: setting });
+		return { ...current, aiCrawlers: setting };
 	});
 }
 

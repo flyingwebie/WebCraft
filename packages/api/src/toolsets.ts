@@ -138,6 +138,7 @@ export const TOOL_PLACES = {
 	"consentBanner.record": place(["siteSettings"], "site.view"),
 	"seoSettings.get": place(["content", "siteSettings"], "site.view"),
 	"seoSettings.update": place(["siteSettings"], "structure.edit"),
+	"seoSettings.setAiCrawlers": place(["siteSettings"], "aiCrawlers.manage"),
 	"designSystem.get": place(["structure"], "structure.edit"),
 	"designSystem.saveDraft": place(["structure"], "structure.edit"),
 	"designSystem.createClass": place(["structure"], "structure.edit"),

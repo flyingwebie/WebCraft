@@ -2313,7 +2313,11 @@
 			"seoOrganizationKind": "L'organizzazione è una Organization o una LocalBusiness.",
 			"seoOrganizationName": "Il nome dell'organizzazione ha al massimo {max} caratteri.",
 			"seoSameAs": "Indica fino a {max} indirizzi https di profili altrove.",
-			"seoGlobal": "Scegli un Globale di testo, testo formattato o email, non {global}."
+			"seoGlobal": "Scegli un Globale di testo, testo formattato o email, non {global}.",
+			"robotsLine": "La riga {line} non è una riga di robots.txt che WebCraft accetta: User-agent, Allow o Disallow con un percorso che inizia con / o *, Crawl-delay con i secondi, Sitemap con un indirizzo https, o un commento #.",
+			"robotsRuleWithoutAgent": "La riga {line} è una regola senza una riga User-agent prima.",
+			"robotsAiCrawler": "La riga {line} nomina un crawler IA: scegli cosa possono leggere i crawler IA con l'impostazione dei crawler IA.",
+			"robotsLinesLength": "Scrivi al massimo {lines} righe e {characters} caratteri."
 		},
 		"requiredToPublish": "(necessario per pubblicare)",
 		"shared": "Condiviso",

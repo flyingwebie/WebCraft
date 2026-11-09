@@ -12,9 +12,10 @@
  * robots.txt keeps every crawler out): it shows Drafts to the people reviewing a Site, never to
  * search engines.
  */
+
+import { siteSeoSettings } from "../seo/site-settings.ts";
 import type { SiteHost } from "../site-pages/index.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
-import { DEFAULT_AI_CRAWLER_SETTING } from "./ai-crawlers.ts";
 import { type Listing, listing } from "./listed.ts";
 import { robotsText } from "./robots.ts";
 import { createPartStarts, SITEMAP_PATH, type SitemapLimits, sitemapIndex, sitemapPart } from "./sitemaps.ts";
@@ -29,7 +30,7 @@ export {
 	isAiCrawler,
 	isAiCrawlerSetting,
 } from "./ai-crawlers.ts";
-export { ROBOTS_PATH, STAGING_ROBOTS } from "./robots.ts";
+export { ROBOTS_LINES_MAX, ROBOTS_PATH, readRobotsLines, STAGING_ROBOTS } from "./robots.ts";
 export { SITEMAP_LIMITS, SITEMAP_PATH, SITEMAPS_FOLDER, type SitemapLimits } from "./sitemaps.ts";
 
 /** A Site's discovery files on one of its domains, for the Site pipeline (see the module's comment). */
@@ -49,9 +50,10 @@ export function createDiscovery(options: { data: DataLayer }): Discovery {
 		listing(data.visitors(host.site), host, async () => new Set());
 	return {
 		async robots(host) {
+			const settings = await siteSeoSettings(data.visitors(host.site));
 			return robotsText({
-				aiCrawlers: DEFAULT_AI_CRAWLER_SETTING,
-				lines: "",
+				aiCrawlers: settings.aiCrawlers,
+				lines: settings.robotsLines,
 				sitemap: `${host.origin}${SITEMAP_PATH}`,
 			});
 		},

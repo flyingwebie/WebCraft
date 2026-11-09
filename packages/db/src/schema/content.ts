@@ -67,6 +67,11 @@ export const postTypes = pgTable(
 		 * own switch comes first). Revisions saved before stay until the usual retention removes them.
 		 */
 		revisions: boolean("revisions").notNull().default(true),
+		/**
+		 * Whether its Entries (and its Archive page) are listed in the Site's sitemaps and llms.txt (spec
+		 * story 117): on unless Staff leave it out. Its pages are still indexable; they just aren't listed.
+		 */
+		sitemap: boolean("sitemap").notNull().default(true),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

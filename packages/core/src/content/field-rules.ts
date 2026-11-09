@@ -203,6 +203,11 @@ export const SETTING_RULES = [
 	"seoOrganizationName",
 	"seoSameAs",
 	"seoGlobal",
+	// Staff's own robots.txt lines
+	"robotsLine",
+	"robotsRuleWithoutAgent",
+	"robotsAiCrawler",
+	"robotsLinesLength",
 ] as const;
 
 export type SettingRule = (typeof SETTING_RULES)[number];

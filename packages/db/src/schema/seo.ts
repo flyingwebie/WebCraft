@@ -4,8 +4,9 @@ import { sites } from "./tenancy.ts";
 
 /**
  * A Site's SEO settings (Structure, Staff only, applied at once like other Site settings): what every
- * page's title, social image and structured data fall back to. A Site table, made the first time the
- * Site changes them (until then WebCraft's defaults apply).
+ * page's title, social image and structured data fall back to, and what its robots.txt says (the AI
+ * crawler setting, which Owners change too, and Staff's own lines). A Site table, made the first time
+ * the Site changes them (until then WebCraft's defaults apply).
  */
 export const seoSettings = pgTable(
 	"seo_settings",
@@ -25,6 +26,13 @@ export const seoSettings = pgTable(
 		 * the Globals its telephone, email and address come from. `{}` for the defaults.
 		 */
 		organization: jsonb("organization").notNull().default({}),
+		/**
+		 * What the Site's robots.txt says to AI crawlers (spec story 119): `allowAll`, `allowSearch` (AI
+		 * search in, training out) or `blockAll`. Staff and Owners change it.
+		 */
+		aiCrawlers: text("ai_crawlers").notNull().default("allowAll"),
+		/** Staff's own robots.txt lines, checked when saved, written after WebCraft's own groups; "" for none. */
+		robotsLines: text("robots_lines").notNull().default(""),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
