@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUuid } from "../ids.ts";
 import { actingPerson } from "../permissions/can.ts";
+import { type EntrySeo, type EntrySeoChange, readEntrySeo, writeEntrySeo } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { bodyChecksOf, type EntryCheck } from "./body-checks.ts";
 import { publishedAddresses } from "./entry-paths.ts";
@@ -68,6 +69,8 @@ export type EntryValues = {
 	hiddenLanguages: string[];
 	/** Every Field of the Post Type, by key, as its type gives it (see the Field types). */
 	fields: Record<string, Json>;
+	/** Its SEO fields (see `seo/entry-seo.ts`): Translatable, except noindex. */
+	seo: EntrySeo;
 };
 
 /** An Entry with its built-in Fields, its Draft and its published version, in one language. */
@@ -128,6 +131,11 @@ export type DraftChange = {
 	 * list of rows (rows keep their `id`; rows left out are removed).
 	 */
 	fields?: Record<string, unknown>;
+	/**
+	 * Its SEO fields (`title`, `description`, `canonical`, `image`, `noindex`): only those given change;
+	 * null or "" clears one. noindex is one value for every language.
+	 */
+	seo?: EntrySeoChange;
 };
 
 export type NewEntry = DraftChange & { postTypeId: string; title: string };
@@ -369,6 +377,10 @@ async function changeDraft(
 				"refuse",
 			);
 		}
+		if (change.seo !== undefined) {
+			const context: WriteContext = { ...languages, by, problems, references: [], newRowId: randomRowId };
+			version = { values: await writeEntrySeo(scope, version.values, change.seo, context) };
+		}
 		if (problems.length > 0) throw new EntryInvalidError(problems);
 		if (isPagePostType(postType)) {
 			// A Page's slug is unique among the Pages under its parent, so a move checks it too.
@@ -587,6 +599,7 @@ export function entryValues(
 		parentId: parentIn(version, languages.defaultLanguage),
 		hiddenLanguages: hiddenLanguagesIn(version, languages.defaultLanguage),
 		fields: readFields(version.values, fields, languages),
+		seo: readEntrySeo(version.values, languages),
 	};
 }
 

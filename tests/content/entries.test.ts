@@ -66,6 +66,7 @@ describe("creating an Entry", () => {
 				parentId: null,
 				hiddenLanguages: [],
 				fields: { summary: "Feed it daily.", sku: null },
+				seo: { title: null, description: null, canonical: null, image: null, noindex: false },
 			},
 			published: null,
 			path: null,

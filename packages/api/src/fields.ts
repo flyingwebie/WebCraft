@@ -56,3 +56,16 @@ export const fieldValues = z.record(z.string().max(100), z.unknown());
 
 /** A language tag, such as `en`; the Site decides which it has. */
 export const language = z.string().min(2).max(35);
+
+/**
+ * A change to an Entry's SEO fields: only those given change, null or "" clears one. The server checks
+ * each (a canonical URL is an http or https address or a Site path; the social image an image of the
+ * Site's Media library) and answers a wrong one at its path (`seo.canonical`).
+ */
+export const seoFields = z.object({
+	title: z.string().max(4_000).nullable().optional(),
+	description: z.string().max(4_000).nullable().optional(),
+	canonical: z.string().max(4_000).nullable().optional(),
+	image: z.string().max(100).nullable().optional(),
+	noindex: z.boolean().nullable().optional(),
+});
