@@ -268,7 +268,14 @@ export type TestInstall = {
 	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain. Give
 	 * `only` to run just the jobs with those names (`media.process`), leaving the rest queued.
 	 */
-	drainJobs(options?: { only?: readonly string[] }): Promise<DrainReport>;
+	drainJobs(options?: {
+		only?: readonly string[];
+		/**
+		 * How many jobs of a queue one fetch takes (100 unless given). With 1, two drains running
+		 * together share a queue's jobs as two workers do.
+		 */
+		batchSize?: number;
+	}): Promise<DrainReport>;
 	/**
 	 * Every secret of the Install, encrypted under its Master key: set, use and describe them, for
 	 * the Install, a Workspace or a Site (`{ owner: { kind: "site", workspaceId, siteId }, name }`).
@@ -611,7 +618,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			// The 404 log's misses wait in the web process for a few seconds; the drain hands them over first.
 			await services.modules.flushMisses();
 			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt);
-			return drainJobs(boss, services, drainOptions.only);
+			return drainJobs(boss, services, drainOptions.only, drainOptions.batchSize);
 		},
 		get secrets() {
 			return secrets;
@@ -748,13 +755,18 @@ async function sendDueSchedules(boss: PgBoss, jobs: JobQueue, clock: Clock, chec
 /** Every round fetches each queue until a round finds nothing due; this stops a job loop. */
 const MAX_DRAIN_ROUNDS = 100;
 
-async function drainJobs(boss: PgBoss, services: InstallServices, only?: readonly string[]): Promise<DrainReport> {
+async function drainJobs(
+	boss: PgBoss,
+	services: InstallServices,
+	only?: readonly string[],
+	batchSize = 100,
+): Promise<DrainReport> {
 	const report: DrainReport = { completed: [], failed: [] };
 	const jobs = only ? coreJobs.filter((job) => only.includes(job.name)) : coreJobs;
 	for (let round = 0; round < MAX_DRAIN_ROUNDS; round++) {
 		let ran = 0;
 		for (const job of jobs) {
-			for (const item of await boss.fetch(job.name, { batchSize: 100 })) {
+			for (const item of await boss.fetch(job.name, { batchSize })) {
 				ran++;
 				try {
 					await runJob(job, item.data, services);

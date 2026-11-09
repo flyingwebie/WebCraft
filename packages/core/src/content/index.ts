@@ -187,6 +187,7 @@ export type {
 	ScheduleAction,
 	ScheduleKind,
 } from "./scheduled-items.ts";
+export { scheduledPublishesDue, scheduledPublishesDueSchedule } from "./scheduled-jobs.ts";
 export {
 	cancelScheduled,
 	getScheduled,

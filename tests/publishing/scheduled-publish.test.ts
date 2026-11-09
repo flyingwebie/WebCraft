@@ -5,6 +5,7 @@
 // The worker looks every minute; a run that can't publish everything publishes nothing and emails the
 // person who scheduled it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { scheduledPublishesDue } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
@@ -565,5 +566,123 @@ describe("a Scheduled publish that can't go through", () => {
 			data: { scheduleId: first.scheduled.id },
 		});
 		expect((await auditOf(site.siteId)).map((entry) => entry.action)).toContain("scheduledPublish.create");
+	});
+});
+
+describe("the worker", () => {
+	test("two workers looking at once publish a Scheduled publish once", async () => {
+		const site = await newSite();
+		const url = "https://hooks.agency.example/once";
+		install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
+		install.http.respond("POST", url, { status: 204 });
+		await staff.api.webhooks.add({ siteId: site.siteId, url, events: ["publish"] });
+		const { entry } = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Once",
+		});
+		await site.editor.api.publishing.schedule({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			at: inMinutes(3),
+		});
+		await install.clock.advance(3 * MINUTE);
+
+		// Each worker runs the minute's look; the drains share the queue's jobs as two workers do.
+		await install.jobs.send(scheduledPublishesDue, {});
+		await install.jobs.send(scheduledPublishesDue, {});
+		const [one, two] = await Promise.all([
+			install.drainJobs({ only: ["publishing.scheduled-due"], batchSize: 1 }),
+			install.drainJobs({ only: ["publishing.scheduled-due"], batchSize: 1 }),
+		]);
+		expect([...one.failed, ...two.failed]).toEqual([]);
+		expect(one.completed.length + two.completed.length).toBeGreaterThanOrEqual(2);
+		await install.drainJobs();
+
+		expect(await visit(site.live, "/blog/once")).toEqual({ status: 200, heading: "Once" });
+		const actions = (await auditOf(site.siteId)).map((each) => each.action);
+		expect(actions.filter((action) => action === "entry.publish")).toHaveLength(1);
+		expect(actions.filter((action) => action === "scheduledPublish.run")).toHaveLength(1);
+		const history = await site.editor.api.history.list({ siteId: site.siteId, item: { kind: "entry", id: entry.id } });
+		expect(history.copies.filter((copy) => copy.type === "revision")).toHaveLength(1);
+		expect(install.http.requests.filter((request) => request.url === url)).toHaveLength(1);
+	});
+
+	test("publishes on behalf of the person who scheduled it: the Audit log, the Revision and the Webhook say so", async () => {
+		const site = await newSite();
+		const url = "https://hooks.agency.example/behalf";
+		install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
+		install.http.respond("POST", url, { status: 204 });
+		await staff.api.webhooks.add({ siteId: site.siteId, url, events: ["publish"] });
+		const { entry } = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "On behalf",
+		});
+		const { scheduled } = await site.editor.api.publishing.schedule({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			at: inMinutes(1),
+		});
+		const editorId = scheduled.createdBy?.id;
+
+		await waitMinutes(1);
+		await install.drainJobs();
+		const entries = await auditOf(site.siteId);
+		expect(entries.find((each) => each.action === "entry.publish")).toMatchObject({
+			personId: editorId,
+			via: { kind: "scheduledPublish" },
+			details: { entryId: entry.id, path: "/blog/on-behalf" },
+		});
+		expect(entries.find((each) => each.action === "scheduledPublish.run")).toMatchObject({
+			personId: editorId,
+			via: { kind: "scheduledPublish" },
+			details: { scheduleId: scheduled.id, late: false, count: 1 },
+		});
+		const { copies } = await site.editor.api.history.list({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+		});
+		expect(copies[0]).toMatchObject({
+			type: "revision",
+			by: { person: { id: editorId, name: "Eve Editor" }, via: { kind: "scheduledPublish" } },
+		});
+		const delivery = install.http.requests.find((request) => request.url === url);
+		expect(JSON.parse(delivery?.body ?? "{}")).toMatchObject({
+			type: "publish",
+			data: {
+				item: { kind: "entry", id: entry.id },
+				by: { id: editorId, name: "Eve Editor" },
+				via: "scheduledPublish",
+			},
+		});
+	});
+
+	test("a Scheduled publish missed while the worker was down runs when it is back, and says it was late", async () => {
+		const site = await newSite();
+		const { entry } = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Late",
+		});
+		const { scheduled } = await site.editor.api.publishing.schedule({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			at: inMinutes(10),
+		});
+		// The worker is down: nothing runs while the clock passes the time.
+		await install.clock.advance(50 * MINUTE);
+		expect((await install.request(`${site.live}/blog/late`)).status).toBe(404);
+
+		await install.drainJobs();
+		expect(await visit(site.live, "/blog/late")).toEqual({ status: 200, heading: "Late" });
+		expect((await auditOf(site.siteId)).find((each) => each.action === "scheduledPublish.run")).toMatchObject({
+			details: { scheduleId: scheduled.id, late: true, lateByMinutes: 40 },
+		});
+		expect(
+			install.logs.some(
+				(line) => line.level === "warn" && line.msg.includes("ran late") && line.scheduleId === scheduled.id,
+			),
+		).toBe(true);
 	});
 });
