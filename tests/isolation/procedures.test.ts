@@ -257,6 +257,13 @@ describe("Scripts", () => {
 	);
 });
 
+describe("SEO", () => {
+	isolation.refuses("seoSettings.get", (api, { siteId }) => api.seoSettings.get({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("seoSettings.update", (api, { siteId }) => api.seoSettings.update({ siteId, separator: "|" }));
+});
+
 describe("Site script safety", () => {
 	isolation.refuses("consentBanner.get", (api, { siteId }) => api.consentBanner.get({ siteId }), {
 		as: ["staff", "author"],

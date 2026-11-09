@@ -13,6 +13,25 @@ const searchedFields = z
 	.array(z.object({ field: z.string().max(300), weight: z.enum(SEARCH_WEIGHTS) }))
 	.max(SEARCHED_FIELDS_MAX * 2);
 
+/**
+ * A Post Type's SEO settings: its title pattern (`{title} {separator} {site}`, with `{postType}` too),
+ * the Fields its Entries' description and social image fall back to (by path; null for none), and its
+ * Schema type with each property mapped to a source (`title`, `author`, `publishedAt`,
+ * `seo.description`, `seo.image` or a Field's path). Each part given replaces that part; a Schema type
+ * given without `properties` takes WebCraft's guesses.
+ */
+const seo = z.object({
+	titlePattern: z.string().max(1_000).optional(),
+	descriptionField: z.string().max(300).nullable().optional(),
+	imageField: z.string().max(300).nullable().optional(),
+	schema: z
+		.object({
+			type: z.string().max(50).optional(),
+			properties: z.record(z.string().max(100), z.string().max(300).nullable()).optional(),
+		})
+		.optional(),
+});
+
 /** Post Types: the kinds of Entry a Site holds, with a URL pattern and Fields. Structure: Staff change them. */
 export const postTypes = {
 	/** The Post Types of a Site. Everyone who can see the Site sees them, to write Entries. */
@@ -38,6 +57,7 @@ export const postTypes = {
 				fields: fields.optional(),
 				searchable: z.boolean().optional(),
 				searchedFields: searchedFields.optional(),
+				seo: seo.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -64,6 +84,7 @@ export const postTypes = {
 				fields: fields.optional(),
 				searchable: z.boolean().optional(),
 				searchedFields: searchedFields.optional(),
+				seo: seo.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {

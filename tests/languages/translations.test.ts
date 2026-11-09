@@ -119,6 +119,7 @@ describe("values per language", () => {
 				price: 4,
 				team: [{ id: "baker", name: "Aoife", role: "Boulangère" }],
 			},
+			seo: { title: null, description: null, canonical: null, image: null, noindex: false },
 		});
 		const english = (await editor.api.entries.get({ siteId: site.siteId, entryId })).entry;
 		expect(english.draft).toMatchObject({

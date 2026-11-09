@@ -22,6 +22,7 @@ import { entryParts, type Parts, resolvePath, valuesParts } from "../content/ren
 import { storedVersion } from "../content/values.ts";
 import { publishedVisibleIn } from "../content/visibility.ts";
 import { searchSnippets, textQuery } from "../search/snippets.ts";
+import { publishedIndexable } from "../seo/entry-seo.ts";
 import { namesOf, type ReadScope, relatedEntries } from "./related.ts";
 
 /**
@@ -83,8 +84,11 @@ export function searchLoopQuery(postTypes: readonly string[]): LoopQuery {
 	};
 }
 
-/** What narrows a Loop's query on a page, besides its own filters: a search box's query (ADR 0021). */
-export type Narrowing = { search?: string };
+/**
+ * What narrows a Loop's query on a page, besides its own filters: a search box's query (ADR 0021),
+ * and for Site search, only Entries search engines may index (not noindex).
+ */
+export type Narrowing = { search?: string; indexableOnly?: boolean };
 
 /** What a page's Loops show. */
 export type PageLoops = {
@@ -158,9 +162,7 @@ export async function pageLoops(
 				postTypes,
 				paginates,
 				result.values,
-				{
-					search: query,
-				},
+				{ search: query, indexableOnly: true },
 			);
 			if (paginates && run.pages) result.pagination = { current: run.pages.current, count: run.pages.count };
 			result.runs.set(name, run);
@@ -289,6 +291,7 @@ export async function queryRows(
 		sqlOf.visible(),
 		query.excludeCurrent && place.current ? ne(entries.id, place.current) : undefined,
 		sqlOf.filters(query),
+		narrowing.indexableOnly ? publishedIndexable(place.languages) : undefined,
 	);
 	const select = { entry: entries, total: sql<number>`count(*) over ()`.mapWith(Number) };
 	if (narrowing.search !== undefined) {

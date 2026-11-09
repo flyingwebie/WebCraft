@@ -16,6 +16,7 @@ import { isUniqueViolation } from "../db-errors.ts";
 import { setLanguageDomain } from "../domains/domains.ts";
 import { domainName, isInstallName } from "../domains/names.ts";
 import { markSearchIndexStale } from "../search/index-version.ts";
+import { SEO_GROUP } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { publishedAddresses } from "./entry-paths.ts";
 import { type ContentProblem, LanguageInvalidError, LanguageNotFoundError, LanguageTakenError } from "./errors.ts";
@@ -266,7 +267,10 @@ export async function setDefaultLanguage(
 		}
 		await useConfirmation(tx, confirmation, request);
 
-		const fieldsOf = new Map((await listPostTypes(tx)).map((postType) => [postType.id, postType.fields]));
+		// Every Entry keeps its SEO fields beside its Post Type's Fields: noindex is a shared value too.
+		const fieldsOf = new Map(
+			(await listPostTypes(tx)).map((postType) => [postType.id, [...postType.fields, SEO_GROUP]]),
+		);
 		const move = (version: unknown, fields: readonly FieldDefinition[]): EntryVersion => {
 			const values = moveSharedValues(storedVersion(version).values, fields, from, to);
 			for (const key of SHARED_BUILT_INS) {
@@ -275,7 +279,7 @@ export async function setDefaultLanguage(
 			return { values };
 		};
 		for (const row of rows) {
-			const fields = fieldsOf.get(row.postTypeId) ?? [];
+			const fields = fieldsOf.get(row.postTypeId) ?? [SEO_GROUP];
 			await tx.update(
 				entries,
 				{ draft: move(row.draft, fields), published: row.published === null ? null : move(row.published, fields) },

@@ -2,7 +2,7 @@ import { ENTRY_TITLE_MAX_LENGTH, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
-import { fieldValues, language } from "../fields.ts";
+import { fieldValues, language, seoFields } from "../fields.ts";
 import { id } from "../inputs.ts";
 
 /** Entries: Content. Members and Staff write them; Editors, Owners and Staff publish them. */
@@ -38,6 +38,8 @@ export const entries = {
 				parentId: id.nullable().optional(),
 				hiddenLanguages: z.array(language).max(100).optional(),
 				fields: fieldValues.optional(),
+				/** Its SEO fields: the SEO title, description, canonical URL and social image, and noindex. */
+				seo: seoFields.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -66,6 +68,11 @@ export const entries = {
 				/** Every language the Entry is hidden in: it has no page there once published. */
 				hiddenLanguages: z.array(language).max(100).optional(),
 				fields: fieldValues.optional(),
+				/**
+				 * Changes to its SEO fields, in the language (noindex is one value for every language): only
+				 * those given change; null or "" clears one.
+				 */
+				seo: seoFields.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {

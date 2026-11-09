@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { withoutStructuredData } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
@@ -230,7 +231,7 @@ describe("a page in Edit mode", () => {
 		expect(bodyOf(html)).toContain("<header><p>Baked daily</p></header>");
 		expect(html).not.toContain("data-wc-");
 		expect(html).not.toContain("webcraft-edit");
-		expect(html).not.toContain("<script");
+		expect(withoutStructuredData(html)).not.toContain("<script");
 
 		// And a visitor's page kept in the page cache never reaches Edit mode.
 		expect((await install.request(`${site.origin}/blog/fresh-bread`)).headers.get("x-cache")).toBe("HIT");

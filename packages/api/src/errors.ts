@@ -96,6 +96,7 @@ import {
 	RateLimitedError,
 	ScriptNotFoundError,
 	SensitiveActionRefusedError,
+	SeoSettingsInvalidError,
 	SessionNotFoundError,
 	SetupClosedError,
 	SetupStageError,
@@ -226,6 +227,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ConsentBannerInvalidError) {
 		return new ORPCError("CONSENT_BANNER_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof SeoSettingsInvalidError) {
+		return new ORPCError("SEO_SETTINGS_INVALID", {
 			status: 400,
 			message: error.message,
 			data: { problems: error.problems },
