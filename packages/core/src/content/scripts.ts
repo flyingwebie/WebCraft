@@ -7,15 +7,16 @@
  * Pages never carry them inline (ADR 0023): each version is a file named by the hash of its text, the
  * published ones at `/_wc/js/<hash>.js` on the Site's domain for visitors (and in Edit mode, where the
  * Site's own scripts run, ADR 0022), the Drafts at `/_webcraft/edit/js/<hash>.js` for Staff in Code
- * mode only. Libraries, outside scripts and Safe mode join with #99.
+ * mode only. A file a publish replaces is still served for 30 days, for pages loaded before it.
  */
 import { entries, scripts } from "@webcraft/db/schema";
-import { contentHash, SCRIPT_PATH } from "@webcraft/renderer";
+import { contentHash, type PageScript, SCRIPT_PATH } from "@webcraft/renderer";
 import { and, eq, isNull, type SQL } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { CODE_MODE_SCRIPT_PATH } from "../edit-mode/paths.ts";
 import { isUuid } from "../ids.ts";
+import { retireScriptFiles } from "../site-scripts/retired.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { DraftChangedError, EntryNotFoundError, ScriptNotFoundError } from "./errors.ts";
 import type { SaveBase } from "./json.ts";
@@ -134,6 +135,10 @@ export async function publishScriptDraft(
 ): Promise<{ id: string; publishedAt: Date }> {
 	const row = await lockScript(scope, scriptId);
 	const now = scope.now();
+	// Pages loaded before this publish still ask for the file it replaces: it is served for 30 days.
+	if (row.published !== null && row.publishedHash && row.publishedHash !== row.draftHash) {
+		await retireScriptFiles(scope, [{ hash: row.publishedHash, code: row.published }]);
+	}
 	await scope.update(
 		scripts,
 		{ published: row.draft, publishedHash: row.draftHash, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
@@ -152,13 +157,16 @@ export async function pageScripts(
 	scope: Pick<VisitorScope, "first">,
 	entryId: string | null,
 	version: "published" | "draft",
-): Promise<string[]> {
+): Promise<PageScript[]> {
 	const found = [await scope.first(scripts, whereFor(null))];
 	if (entryId !== null) found.push(await scope.first(scripts, whereFor(entryId)));
-	return found.flatMap((row) => {
+	return found.flatMap((row): PageScript[] => {
 		if (!row) return [];
-		if (version === "draft") return row.draft.trim() ? [`${CODE_MODE_SCRIPT_PATH}${row.draftHash}.js`] : [];
-		return row.published?.trim() ? [`${SCRIPT_PATH}${row.publishedHash}.js`] : [];
+		const kind = row.kind === "page" ? "page" : "site";
+		if (version === "draft") {
+			return row.draft.trim() ? [{ kind, src: `${CODE_MODE_SCRIPT_PATH}${row.draftHash}.js` }] : [];
+		}
+		return row.published?.trim() ? [{ kind, src: `${SCRIPT_PATH}${row.publishedHash}.js` }] : [];
 	});
 }
 

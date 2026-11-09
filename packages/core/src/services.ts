@@ -56,6 +56,7 @@ import type { RateLimits } from "./rate-limits.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { SitePages } from "./site-pages/index.ts";
+import type { SiteScripts } from "./site-scripts/index.ts";
 import type {
 	Access,
 	DataLayer,
@@ -315,6 +316,11 @@ export type InstallServices = InstallPorts & {
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
+	/**
+	 * Site script safety (ADRs 0022, 0023): each Site's Content Security Policy and allowed hosts, its
+	 * outside scripts and its Libraries. Open the Site with `structure.edit`.
+	 */
+	siteScripts: SiteScripts;
 	/**
 	 * Edit mode (ADR 0022): "Edit on site" links, and the Edit mode sessions they start on a Site's
 	 * own domain, each checked again with every request.

@@ -11,6 +11,10 @@ export type EditingBarConfig = { styles: string };
  * dark editing bar (page switcher, Draft status, Edit and Preview, device widths, language,
  * Publish menu), makes the tagged regions editable in place (a floating toolbar for rich text),
  * saves every change to the Draft as people type, and announces saves in a live region.
+ *
+ * Because it runs first, it also hears when one of the Site's own scripts (a Library, the Site script
+ * or the page's script) throws or doesn't load, and says so, with a way into Safe mode (ADR 0022) and,
+ * for Staff, to the script in Code mode. In Safe mode the page runs none of them, and the bar says so.
  */
 export function editingBar(config: EditingBarConfig): void {
 	type Words = { [key: string]: string | Words };
@@ -37,6 +41,8 @@ export function editingBar(config: EditingBarConfig): void {
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string };
 	type Problem = { at: string; message: string; rule?: string };
 	type Popup = { trigger: HTMLButtonElement; panel: HTMLElement; focus(): void; render?(): void };
+	/** One of the Site's own scripts that threw, or didn't load (`line` null). */
+	type Failure = { kind: "site" | "page" | "library"; name: string; message: string; line: number | null };
 
 	const win = window;
 	const doc = document;
@@ -53,6 +59,27 @@ export function editingBar(config: EditingBarConfig): void {
 	const PREVIEW_KEY = "webcraft-edit-preview";
 	/** Whether the page was rendered for Code mode (ADR 0016): its own script then runs its panels. */
 	const coding = doc.querySelector('meta[name="webcraft-code-mode"]')?.getAttribute("content") === "on";
+	/** Whether the page is in Safe mode (ADR 0022): it runs none of the Site's own scripts. */
+	const safe = doc.querySelector('meta[name="webcraft-safe-mode"]')?.getAttribute("content") === "on";
+	/** Which script Code mode's JS panel opens at after the reload a notice asks for: `site` or `page`. */
+	const CODE_SCRIPT_KEY = "webcraft-code-script";
+	const ErrorEventType = win.ErrorEvent;
+	const ScriptElement = win.HTMLScriptElement;
+	/** The Site's own scripts that failed on this page, in the order they did. */
+	const failures: Failure[] = [];
+	let showFailures: (() => void) | null = null;
+	let failuresDismissed = false;
+	// Heard from now on, before any of the Site's scripts runs: one that throws or doesn't load.
+	win.addEventListener(
+		"error",
+		(event) => {
+			const failure = failureOf(event);
+			if (!failure) return;
+			failures.push(failure);
+			showFailures?.();
+		},
+		true,
+	);
 	/** Lucide-style icons (24 × 24, stroked), by name. */
 	const ICONS: Record<string, string[]> = {
 		edit: [
@@ -87,6 +114,11 @@ export function editingBar(config: EditingBarConfig): void {
 		admin: ["M15 3h6v6", "M10 14 21 3", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"],
 		end: ["M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", "m16 17 5-5-5-5", "M21 12H9"],
 		saved: ["M20 6 9 17l-5-5"],
+		alert: ["m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3", "M12 9v4", "M12 17h.01"],
+		close: ["M18 6 6 18", "m6 6 12 12"],
+		shield: [
+			"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+		],
 	};
 
 	let state: State | null = null;
@@ -144,6 +176,35 @@ export function editingBar(config: EditingBarConfig): void {
 		} catch {
 			return { ok: false, code: "generic" };
 		}
+	}
+
+	/**
+	 * Which of the Site's own scripts an error event is about: a script tagged on the page as the Site
+	 * script, the page's script or a Library that threw (an `ErrorEvent` from its file) or didn't load
+	 * (an error on its element). Null for anything else, such as errors of WebCraft's own files.
+	 */
+	function failureOf(event: Event): Failure | null {
+		let script: HTMLScriptElement | null = null;
+		let message = "";
+		let line: number | null = null;
+		if (event instanceof ErrorEventType) {
+			if (!event.filename) return null;
+			for (const candidate of doc.querySelectorAll<HTMLScriptElement>(
+				"script[data-wc-script], script[data-wc-library]",
+			)) {
+				if (candidate.src === event.filename) script = candidate;
+			}
+			message = String(event.message ?? "").slice(0, 300);
+			line = event.lineno || 0;
+		} else if (event.target instanceof ScriptElement) {
+			script = event.target;
+		}
+		if (!script) return null;
+		const tagged = script.getAttribute("data-wc-script");
+		const library = script.getAttribute("data-wc-library");
+		if (tagged === "site" || tagged === "page") return { kind: tagged, name: "", message, line };
+		if (library !== null) return { kind: "library", name: library, message, line };
+		return null;
 	}
 
 	async function start(): Promise<void> {
@@ -243,6 +304,9 @@ export function editingBar(config: EditingBarConfig): void {
 		chip = el("span", { class: "chip" });
 		savedNote = el("span", { class: "saved optional" });
 		const name = el("span", { class: "site optional" }, s.site.name);
+		const safeChip = safe
+			? el("span", { class: "chip safe", title: word("safeModeOn") }, icon("shield"), word("safeModeLabel"))
+			: null;
 
 		pageButton = button(
 			{ class: "control pages", "aria-haspopup": "menu", "aria-expanded": "false" },
@@ -422,6 +486,12 @@ export function editingBar(config: EditingBarConfig): void {
 					await call("end", {});
 					win.location.reload();
 				});
+				const safeItem = button(
+					{ role: "menuitem", tabindex: "-1", class: "menu-row" },
+					icon("shield"),
+					word(safe ? "safeModeStop" : "safeModeStart"),
+				);
+				safeItem.addEventListener("click", () => void switchSafe(!safe));
 				accountMenu.replaceChildren(
 					el(
 						"a",
@@ -429,6 +499,7 @@ export function editingBar(config: EditingBarConfig): void {
 						icon("admin"),
 						word("openAdmin"),
 					),
+					safeItem,
 					endItem,
 				);
 			},
@@ -452,15 +523,20 @@ export function editingBar(config: EditingBarConfig): void {
 				pageButton,
 				pagesMenu,
 				chip,
+				...(safeChip ? [safeChip] : []),
 				savedNote,
 			),
 			el("div", { class: "middle" }, modes, devices),
 			el("div", { class: "end" }, language, languageMenu, publishButton, publishPanel, account, accountMenu),
 		);
+		// A Site script that failed while the page loaded is shown at once; later ones as they come.
+		const notice = el("div", { class: "notice", role: "alert", hidden: "" });
+		showFailures = () => renderFailures(notice);
 		const section = el(
 			"section",
 			{ class: "edit-mode", "aria-label": word("label") },
 			bar,
+			notice,
 			live,
 			tag,
 			problem,
@@ -496,6 +572,84 @@ export function editingBar(config: EditingBarConfig): void {
 			if (top < below) win.scrollBy({ top: top - below, behavior: "instant" });
 		});
 		renderStatus();
+		renderFailures(notice);
+	}
+
+	/**
+	 * The notice under the bar when one of the Site's own scripts failed: which one and its message,
+	 * with Safe mode a click away (outside it), and for Staff the script itself in Code mode.
+	 */
+	function renderFailures(notice: HTMLElement): void {
+		const first = failures[0];
+		if (!first || failuresDismissed) {
+			notice.hidden = true;
+			return;
+		}
+		const what =
+			first.kind === "library"
+				? word("libraryFailed", { name: first.name })
+				: word(first.kind === "site" ? "siteScriptFailed" : "pageScriptFailed");
+		const detail =
+			first.line === null
+				? word("scriptNotLoaded")
+				: first.line > 0
+					? word("scriptErrorAt", { message: first.message, line: first.line })
+					: first.message;
+		const actions: HTMLElement[] = [];
+		if (!safe) {
+			const safeButton = button({ class: "primary small" }, icon("shield"), word("openSafeMode"));
+			safeButton.addEventListener("click", () => void switchSafe(true));
+			actions.push(safeButton);
+		}
+		if ((state?.canCode || coding) && first.kind !== "library") {
+			const codeButton = button({ class: "secondary small" }, icon("code"), word("openScript"));
+			const kind = first.kind;
+			codeButton.addEventListener("click", () => void openScript(kind));
+			actions.push(codeButton);
+		}
+		const dismiss = button({ class: "icon-button", "aria-label": word("dismissNotice") }, icon("close"));
+		dismiss.addEventListener("click", () => {
+			failuresDismissed = true;
+			notice.hidden = true;
+			pageButton.focus();
+		});
+		notice.replaceChildren(
+			el(
+				"div",
+				{ class: "notice-text" },
+				icon("alert"),
+				el(
+					"p",
+					{},
+					el("strong", {}, what),
+					" ",
+					detail,
+					failures.length > 1 ? ` ${word("moreFailed", { count: failures.length - 1 })}` : "",
+				),
+			),
+			el("div", { class: "notice-actions" }, ...actions, dismiss),
+		);
+		notice.hidden = false;
+	}
+
+	/** Turns Safe mode on or off for this browser, then shows the page again. */
+	async function switchSafe(on: boolean): Promise<void> {
+		const answer = await call(on ? "safe/start" : "safe/stop", {});
+		if (answer.ok) win.location.reload();
+	}
+
+	/** Opens the failed script in Code mode's JS panel: Code mode on, the panel told which script. */
+	async function openScript(kind: "site" | "page"): Promise<void> {
+		if (!coding) {
+			const answer = await call("code/start", {});
+			if (!answer.ok) return;
+		}
+		try {
+			win.sessionStorage.setItem(CODE_SCRIPT_KEY, kind);
+		} catch {
+			// Code mode still opens; the JS panel shows the page's script.
+		}
+		win.location.reload();
 	}
 
 	function buildHint(): HTMLElement | null {

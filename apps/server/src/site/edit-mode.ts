@@ -6,6 +6,7 @@ import {
 	CODE_MODE_STYLESHEET_PATH,
 	EDIT_MODE_PATH,
 	type EditSession,
+	editModePolicy,
 	type InstallServices,
 	isAdminLanguage,
 	type PageEditing,
@@ -134,6 +135,22 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.saveScript(scope, host, parse(codeSaveScript, body)));
 	},
+	/**
+	 * Turns Safe mode on for this browser (ADR 0022): its pages in Edit mode run none of the Site's own
+	 * scripts (its Libraries, Site script and page scripts), so a broken one can't lock anyone out.
+	 */
+	"safe/start": async (services, session, _body, request) => {
+		const response = json(200, { safe: true });
+		const maxAge = Math.max(0, Math.floor((session.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
+		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, SAFE_COOKIE, "on", maxAge));
+		return response;
+	},
+	/** Turns Safe mode off for this browser: its pages run the Site's own scripts again. */
+	"safe/stop": async (_services, _session, _body, request) => {
+		const response = json(200, { safe: false });
+		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, SAFE_COOKIE, "", 0));
+		return response;
+	},
 	/** Turns Code mode off for this browser: its pages are Content editing's again. */
 	"code/stop": async (_services, _session, _body, request) => {
 		const response = json(200, { code: false });
@@ -166,6 +183,7 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		await services.editMode.end(session);
 		const response = json(200, { ended: true });
 		response.headers.append("set-cookie", clearEditCookie(request));
+		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, SAFE_COOKIE, "", 0));
 		return response;
 	},
 };
@@ -345,50 +363,43 @@ export async function editSessionOf(
 }
 
 /**
- * The policy pages in Edit mode are sent with (ADRs 0022, 0023): scripts and stylesheets only from
- * the Site's own domain, so no outside script runs with the person's edit session; the page can't be
- * framed by another site, nor post forms or change its base address.
+ * Headers on every page in Edit mode: never kept by anyone, never indexed, never framed, under Edit
+ * mode's strict policy (ADRs 0022, 0023: scripts and stylesheets only from the Site's own domain, so
+ * no outside script runs with the person's edit session). A page's own answer gives the policy with
+ * the Site's allowed hosts, which the Site's own scripts may call.
  */
-const EDIT_MODE_POLICY = [
-	"default-src 'self'",
-	"script-src 'self'",
-	"style-src 'self'",
-	"img-src 'self' data: https:",
-	"media-src 'self' https:",
-	"font-src 'self'",
-	"connect-src 'self'",
-	"frame-src https:",
-	"object-src 'none'",
-	"base-uri 'none'",
-	"form-action 'self'",
-	"frame-ancestors 'none'",
-].join("; ");
-
-/** Headers on every page in Edit mode: never kept by anyone, never indexed, under the strict policy. */
 export const EDIT_MODE_PAGE_HEADERS: Readonly<Record<string, string>> = {
 	"cache-control": "no-store",
 	"x-robots-tag": "noindex, nofollow",
 	"referrer-policy": "same-origin",
 	"x-content-type-options": "nosniff",
-	"content-security-policy": EDIT_MODE_POLICY,
+	"x-frame-options": "DENY",
+	"content-security-policy": editModePolicy(),
 };
+
+/** The cookie that says a browser wants Safe mode: `webcraft.safe`, for the rest of the Edit mode session. */
+const SAFE_COOKIE = "safe";
+
+/** Whether the request asks for Safe mode (ADR 0022): its pages in Edit mode run none of the Site's own scripts. */
+export function safeModeOf(request: Request): boolean {
+	return cookieValue(request, siteCookieName(new URL(request.url).hostname, SAFE_COOKIE)) === "on";
+}
 
 /**
  * What a page needs to render for Edit mode: the person's scope, and WebCraft's files in <head>. With
  * `code` (the Site opened with `structure.edit`), the page is rendered for Code mode, which loads its
- * own script after the editing bar's.
+ * own script after the editing bar's. With `safe`, it runs none of the Site's own scripts (Safe mode).
  */
-export async function pageEditing(session: EditSession, code?: SiteScope | null): Promise<PageEditing> {
+export async function pageEditing(session: EditSession, code?: SiteScope | null, safe = false): Promise<PageEditing> {
 	const files = await editBarAssets();
+	const safeMeta: [string, string][] = safe ? [["webcraft-safe-mode", "on"]] : [];
 	if (code) {
 		return {
 			scope: code,
 			code: true,
+			safe,
 			head: {
-				meta: [
-					["webcraft-edit-token", session.headerToken],
-					["webcraft-code-mode", "on"],
-				],
+				meta: [["webcraft-edit-token", session.headerToken], ["webcraft-code-mode", "on"], ...safeMeta],
 				scripts: [files.script.path, files.codeScript.path],
 				stylesheets: [files.pageStyles.path],
 			},
@@ -396,8 +407,9 @@ export async function pageEditing(session: EditSession, code?: SiteScope | null)
 	}
 	return {
 		scope: session.scope,
+		safe,
 		head: {
-			meta: [["webcraft-edit-token", session.headerToken]],
+			meta: [["webcraft-edit-token", session.headerToken], ...safeMeta],
 			scripts: [files.script.path],
 			stylesheets: [files.pageStyles.path],
 		},
@@ -460,11 +472,11 @@ async function codeModeStylesheet(services: InstallServices, request: Request, h
 	});
 }
 
-/** A page in Edit mode, as HTML with Edit mode's headers. */
-export function editModeHtml(status: number, html: string): Response {
+/** A page in Edit mode, as HTML with Edit mode's headers (and the page's own policy, when given). */
+export function editModeHtml(status: number, html: string, headers: Record<string, string> = {}): Response {
 	return new Response(html, {
 		status,
-		headers: { "content-type": "text/html; charset=utf-8", ...EDIT_MODE_PAGE_HEADERS },
+		headers: { "content-type": "text/html; charset=utf-8", ...EDIT_MODE_PAGE_HEADERS, ...headers },
 	});
 }
 
@@ -491,6 +503,7 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 		});
 	}
 	const entered = token ? await services.editMode.enter(host, token) : null;
+	const safe = new URL(request.url).searchParams.get("safe") === "1";
 	if (!entered) {
 		return plainText(
 			403,
@@ -500,15 +513,15 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 	}
 	const hostname = new URL(request.url).hostname;
 	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
-	return new Response(null, {
+	const answer = new Response(null, {
 		status: 303,
-		headers: {
-			location: entered.path,
-			"cache-control": "no-store",
-			"set-cookie": editCookie(hostname, entered.cookie, maxAge),
-			...headers,
-		},
+		headers: { location: entered.path, "cache-control": "no-store", ...headers },
 	});
+	answer.headers.append("set-cookie", editCookie(hostname, entered.cookie, maxAge));
+	// A link opened from "Edit in Safe mode" starts Safe mode; any other link ends it.
+	if (safe) answer.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "on", maxAge));
+	else if (safeModeOf(request)) answer.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "", 0));
+	return answer;
 }
 
 /**

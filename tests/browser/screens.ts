@@ -65,6 +65,12 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Modules (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/modules`, as: "staff" },
 	{ name: "Site › Modules (Staff)", path: ({ siteId }) => `/sites/${siteId}/modules`, as: "staff" },
 	{ name: "Site › Languages (Staff)", path: ({ siteId }) => `/sites/${siteId}/languages`, as: "staff" },
+	{ name: "Site › Libraries, none yet (Staff)", path: ({ siteId }) => `/sites/${siteId}/libraries`, as: "staff" },
+	{
+		name: "Site › Outside scripts, none yet (Staff)",
+		path: ({ siteId }) => `/sites/${siteId}/outside-scripts`,
+		as: "staff",
+	},
 	{
 		name: "Site › Domains & Staging (Staff), no domain yet",
 		path: ({ siteId }) => `/sites/${siteId}/domains`,

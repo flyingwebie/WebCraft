@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -119,7 +120,7 @@ describe("a page in Edit mode", () => {
 	test("shows the Drafts of its Entry and of the Globals, its editable regions tagged with what they hold", async () => {
 		const response = await editing.page("/blog/fresh-bread");
 		expect(response.status).toBe(200);
-		const body = bodyOf(await response.text());
+		const body = bodyOf(await expectSafePage(response, "editMode"));
 		const entry = `entry:${site.entryId}`;
 		const id = '="[A-Za-z0-9_-]+"';
 
@@ -209,7 +210,7 @@ describe("a page in Edit mode", () => {
 	});
 
 	test("carries no script but WebCraft's own, and nothing inline", async () => {
-		const html = await (await editing.page("/blog/fresh-bread")).text();
+		const html = await expectSafePage(await editing.page("/blog/fresh-bread"), "editMode");
 
 		expect(html.match(/<script\b[^>]*>/g)).toEqual([
 			expect.stringMatching(/^<script src="\/_webcraft\/edit\/assets\//),
@@ -221,7 +222,7 @@ describe("a page in Edit mode", () => {
 		await editing.page("/blog/fresh-bread");
 
 		const response = await install.request(`${site.origin}/blog/fresh-bread`);
-		const html = await response.text();
+		const html = await expectSafePage(response.clone());
 
 		expect(response.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate");
 		expect(bodyOf(html)).toContain("<h1>Fresh bread</h1>");

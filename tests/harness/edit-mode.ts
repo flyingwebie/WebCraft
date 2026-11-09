@@ -36,15 +36,17 @@ export function headerTokenIn(html: string): string | undefined {
 
 /**
  * Opens a Site in Edit mode for the person whose admin browser this is: asks for a link with
- * "Edit on site" and follows it in a new browser on the Site's domain.
+ * "Edit on site" (or "Edit in Safe mode", with `safeMode`) and follows it in a new browser on the
+ * Site's domain.
  */
 export async function openEditMode(
 	install: TestInstall,
 	admin: TestBrowser,
 	siteId: string,
 	path = "/",
+	options: { safeMode?: boolean } = {},
 ): Promise<EditModeBrowser> {
-	const { url } = await admin.api.editMode.open({ siteId, path });
+	const { url } = await admin.api.editMode.open({ siteId, path, safeMode: options.safeMode });
 	const origin = new URL(url).origin;
 	const browser = install.browser({ origin });
 	const entered = await browser.request(url);

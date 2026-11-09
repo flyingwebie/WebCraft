@@ -191,6 +191,7 @@ export {
 	stagingHostname,
 	stagingUrl,
 } from "./site-pages/index.ts";
+export * from "./site-scripts/index.ts";
 export type {
 	Access,
 	BackgroundScope,

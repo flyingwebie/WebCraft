@@ -60,11 +60,14 @@ async function bakery() {
 	};
 }
 
-/** The scripts a page's <head> loads, as `[src, attributes]`. */
+/**
+ * The scripts a page's <head> loads, as their address and ` defer` when deferred. In Edit mode the
+ * Site's own scripts also say which they are (`data-wc-script`), which is left out here.
+ */
 function scriptsIn(html: string): string[] {
-	return [...headOf(html).matchAll(/<script src="([^"]+)"( defer)?><\/script>/g)].map(
-		(match) => `${match[1]}${match[2] ?? ""}`,
-	);
+	return [
+		...headOf(html).matchAll(/<script src="([^"]+)"( defer)?(?: data-wc-script="(?:site|page)")?><\/script>/g),
+	].map((match) => `${match[1]}${match[2] ?? ""}`);
 }
 
 async function refusal(response: Response, status: number): Promise<Refusal> {

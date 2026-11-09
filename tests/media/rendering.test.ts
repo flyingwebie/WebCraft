@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 import { element, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -29,7 +30,7 @@ async function uploadImage(name: string, width: number, height: number, alt?: st
 async function mainOf(path: string): Promise<string> {
 	const response = await install.request(onSite(path));
 	expect(response.status).toBe(200);
-	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
+	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await expectSafePage(response))?.[1] ?? "";
 }
 
 /** The <picture> WebCraft writes for a Media image, as the API describes its files. */

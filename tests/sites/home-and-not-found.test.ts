@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -47,7 +48,10 @@ async function createPage(site: TestSite, title: string, publish = true): Promis
 /** The status and the page's title at `path`. */
 async function visit(site: TestSite, path: string): Promise<{ status: number; title: string; html: string }> {
 	const response = await install.request(`${site.origin}${path}`);
-	const html = await response.text();
+	// Redirects carry no page; every page (the 404 page too) is held to the Site's policy.
+	const html = response.headers.get("content-type")?.startsWith("text/html")
+		? await expectSafePage(response)
+		: await response.text();
 	return { status: response.status, title: /<title>(.*)<\/title>/.exec(html)?.[1] ?? "", html };
 }
 
@@ -113,7 +117,7 @@ describe("the 404 page", () => {
 
 		expect(response.status).toBe(404);
 		expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-		const html = await response.text();
+		const html = await expectSafePage(response);
 		expect(html).toContain("<title>Page not found · Acme Bakery</title>");
 		expect(/<body>\n([\s\S]*)\n<\/body>/.exec(html)?.[1]).toBe(
 			[
