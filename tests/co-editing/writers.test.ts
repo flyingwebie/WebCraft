@@ -77,7 +77,7 @@ describe("publishing a Draft someone edits live", () => {
 			);
 			expect(editor.messages.find((message) => message.type === "published")).toEqual({
 				type: "published",
-				by: { name: "Eve Editor", via: null },
+				by: { personId: site.editorId, name: "Eve Editor", via: null },
 			});
 		}
 		ada.close();

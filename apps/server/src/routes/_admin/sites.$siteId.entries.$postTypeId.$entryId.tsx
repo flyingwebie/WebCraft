@@ -6,7 +6,6 @@ import { EntryEditor } from "../../ui/content/EntryEditor.tsx";
 import { loadMedia, loadRelationshipTargets } from "../../ui/content/loaders.ts";
 import { errorCode } from "../../ui/errors.ts";
 import { HISTORY_CARD_COPIES } from "../../ui/history/HistoryCard.tsx";
-import { useLeaveOnClose } from "../../ui/history/leave.ts";
 import { pageTitleOf } from "../../ui/i18n.tsx";
 
 /** Which language the editor shows; the Site's Default language when none is given. */
@@ -61,13 +60,11 @@ function EntryPage() {
 	const { postType } = parent.useLoaderData();
 	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
-	// Closing the editor keeps the Draft as a Checkpoint when it changed.
-	useLeaveOnClose(siteId, { kind: "entry", id: entry.id });
 	if (place.level !== "site") return null;
 	return (
 		<EntryEditor
-			// A confirmed or AI-translated value changes the Draft from outside: the editor starts again from it.
-			key={`${entry.id}:${entry.language}:${String(entry.updatedAt)}`}
+			// The Draft is shared: changes made elsewhere (a confirmed or AI-translated value) arrive live.
+			key={`${entry.id}:${entry.language}`}
 			siteId={siteId}
 			postType={postType}
 			entry={entry}

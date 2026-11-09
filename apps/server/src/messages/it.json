@@ -4981,5 +4981,30 @@
 		"outOfRange": "Usa un numero intero da {min} a {max}.",
 		"save": "Salva",
 		"saved": "Salvato."
+	},
+	"coEditing": {
+		"someone": "Qualcuno",
+		"via": "{name} tramite {client}",
+		"viaTranslation": "{name} tramite la traduzione con IA",
+		"alsoHere": "Stanno modificando anche",
+		"isHere": "{name} è qui",
+		"published": "Pubblicato",
+		"publishedBy": "Pubblicato da {name}",
+		"status": {
+			"connecting": "Connessione…",
+			"saving": "Salvataggio…",
+			"saved": "Tutte le modifiche salvate",
+			"offline": "Offline: le modifiche restano qui e partono al ritorno della connessione",
+			"readOnly": "Sola lettura finché la connessione non torna",
+			"viewOnly": "Puoi vedere questa bozza",
+			"ended": "La modifica è terminata"
+		},
+		"banner": {
+			"offline": "Sei offline. Continua pure: le tue modifiche restano qui e si uniscono a quelle degli altri quando la connessione torna. Dopo 5 minuti senza connessione, la bozza diventa di sola lettura.",
+			"readOnly": "Nessuna connessione da 5 minuti: la bozza è di sola lettura finché la connessione non torna. Le modifiche fatte prima restano e verranno inviate allora.",
+			"viewOnly": "Puoi vedere questa bozza mentre gli altri la modificano, ma non modificarla.",
+			"ended": "La modifica è terminata: sei uscito o non hai più accesso. Ricarica la pagina per continuare."
+		},
+		"refused": "Questa modifica non è stata salvata: {reason}"
 	}
 }

@@ -238,7 +238,7 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			const live = byItem.get(keyOf(notice.s, { kind: notice.k, id: notice.i ?? "" } as HistoryItem));
 			const same = live && (itemIdOf(live.item) ?? null) === notice.i ? live : undefined;
 			if (!same) return;
-			const by = notice.p ? { name: await nameOf(notice.p), via: clientOf(notice.v) } : null;
+			const by = notice.p ? { personId: notice.p, name: await nameOf(notice.p), via: clientOf(notice.v) } : null;
 			for (const connection of same.connections) send(connection, { type: "published", by });
 		}
 	};

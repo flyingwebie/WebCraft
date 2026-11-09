@@ -99,6 +99,8 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 	let ended = false;
 	let closedForGood = false;
 	let resetting = false;
+	/** Whether the copy has had the server's document yet: before that, nothing can be changed in it. */
+	let synced = false;
 	/** Whether the reset under way follows a refusal (the refused change is dropped) or a document made again. */
 	let afterRefusal = false;
 	/** Whether changes made offline went to the server (as `state`) and aren't saved yet. */
@@ -127,10 +129,10 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 
 	const settled = (): DraftStatus => {
 		if (ended) return "ended";
-		if (!transport || !welcomed)
+		if (!transport || !welcomed || !synced)
 			return offlineSince !== null && now() - offlineSince >= offlineLimit
 				? "readOnly"
-				: transport
+				: transport || !synced
 					? "connecting"
 					: "offline";
 		if (!mayEdit) return "readOnly";
@@ -181,6 +183,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 		sentThrough = seq;
 		savedThrough = seq;
 		stateUnsaved = false;
+		synced = true;
 		confirmed = readDocument(doc);
 		options.onChange?.(confirmed, "remote");
 		if (keepUnsaved && base !== null) {
@@ -255,8 +258,10 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 					return;
 				}
 				Y.applyUpdate(doc, frame.data, FROM_SERVER);
+				synced = true;
 				if (confirmed === null || unsent.length === 0) confirmed = readDocument(doc);
 				options.onChange?.(readDocument(doc), "remote");
+				setStatus(settled());
 				return;
 			case "changed":
 				Y.applyUpdate(doc, frame.data, FROM_SERVER);
@@ -296,7 +301,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 	return {
 		draft: () => readDocument(doc),
 		change(next) {
-			if (ended || closedForGood || !mayEdit || settled() === "readOnly" || resetting) return false;
+			if (ended || closedForGood || !mayEdit || !synced || settled() === "readOnly" || resetting) return false;
 			const value = typeof next === "function" ? next(readDocument(doc)) : next;
 			changeDocument(doc, value);
 			options.onChange?.(readDocument(doc), "local");

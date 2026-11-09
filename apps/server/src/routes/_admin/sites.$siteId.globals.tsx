@@ -5,7 +5,6 @@ import { getApi } from "../../ui/api.ts";
 import { GlobalsEditor } from "../../ui/content/GlobalsEditor.tsx";
 import { loadMedia } from "../../ui/content/loaders.ts";
 import { HISTORY_CARD_COPIES } from "../../ui/history/HistoryCard.tsx";
-import { useLeaveOnClose } from "../../ui/history/leave.ts";
 import { pageTitle } from "../../ui/i18n.tsx";
 
 /** Which language the editor shows; the Site's Default language when none is given. */
@@ -33,8 +32,6 @@ function GlobalsPage() {
 	const { globals, media, history } = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
-	// Closing the editor keeps the Draft as a Checkpoint when it changed.
-	useLeaveOnClose(siteId, { kind: "globals" });
 	if (place.level !== "site") return null;
 	return (
 		<GlobalsEditor

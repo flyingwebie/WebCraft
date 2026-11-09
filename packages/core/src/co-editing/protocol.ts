@@ -88,7 +88,7 @@ export type ServerMessage =
 			message: string;
 			data?: unknown;
 	  }
-	| { type: "published"; by: { name: string; via: string | null } | null }
+	| { type: "published"; by: { personId: string; name: string; via: string | null } | null }
 	| {
 			/** The session ended (signed out, access lost) or the connection broke a limit: the server closes it. */
 			type: "ended";
