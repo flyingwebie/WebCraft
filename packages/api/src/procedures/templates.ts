@@ -125,6 +125,41 @@ export const templates = {
 		}),
 
 	/**
+	 * The Site's Search results template (ADR 0021), or null while it has none and its search results
+	 * page shows the built-in one. It lists the hits for the visitor's query through the Loop `search`.
+	 */
+	getSearchTemplate: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { template: await context.services.templates.searchTemplate(site) };
+	}),
+
+	/**
+	 * Saves the Draft of the Search results template as an element tree, creating it the first time.
+	 * It reads the Globals, the Loops of the Site, the Loop `search` (its hits, each with its `snippet`)
+	 * and `search.query`; no Entry's values.
+	 */
+	saveSearchTemplate: signedIn
+		.input(z.object({ siteId: id, tree: z.unknown() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { template: await context.services.templates.saveSearchTemplate(site, input.tree) };
+		}),
+
+	/** The Search results template as Template markup, Draft and published; both null while the Site has none. */
+	getSearchTemplateMarkup: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return context.services.templates.searchTemplateMarkup(site);
+	}),
+
+	/** Saves the Draft of the Search results template from Template markup, as `saveEntryTemplateMarkup` does. */
+	saveSearchTemplateMarkup: signedIn
+		.input(z.object({ siteId: id, markup: z.string().max(TEMPLATE_MARKUP_MAX_LENGTH), basedOn }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.templates.saveSearchTemplateMarkup(site, input.markup, { basedOn: input.basedOn });
+		}),
+
+	/**
 	 * Publishes a Template's Draft: every page it renders changes at once, and the Site's page cache is
 	 * cleared. An Archive template takes its address (`PATH_TAKEN` where a Page or URL pattern has it).
 	 */

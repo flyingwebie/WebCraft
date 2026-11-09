@@ -192,6 +192,16 @@ describe("Templates", () => {
 	isolation.refuses("templates.saveSiteTemplateMarkup", (api, { siteId }) =>
 		api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" }),
 	);
+	isolation.refuses("templates.getSearchTemplate", (api, { siteId }) => api.templates.getSearchTemplate({ siteId }));
+	isolation.refuses("templates.saveSearchTemplate", (api, { siteId }) =>
+		api.templates.saveSearchTemplate({ siteId, tree: { version: 1, nodes: [] } }),
+	);
+	isolation.refuses("templates.getSearchTemplateMarkup", (api, { siteId }) =>
+		api.templates.getSearchTemplateMarkup({ siteId }),
+	);
+	isolation.refuses("templates.saveSearchTemplateMarkup", (api, { siteId }) =>
+		api.templates.saveSearchTemplateMarkup({ siteId, markup: "<p>Search</p>" }),
+	);
 	isolation.refuses("templates.getArchiveTemplate", async (api, target) =>
 		api.templates.getArchiveTemplate({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
 	);

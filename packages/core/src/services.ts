@@ -227,6 +227,15 @@ export type InstallServices = InstallPorts & {
 			markup: string,
 			base?: SaveBase,
 		): Promise<SavedTemplateMarkup>;
+		/** The Site's Search results template (ADR 0021), or null while it has none (the built-in one shows). */
+		searchTemplate(scope: SiteScope): Promise<Template | null>;
+		saveSearchTemplate(scope: SiteScope, tree: unknown): Promise<Template>;
+		/** The Search results template as Template markup (its Draft and published version), or null while it has none. */
+		searchTemplateMarkup(
+			scope: SiteScope,
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/** Saves the Search results template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
+		saveSearchTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 	};
 	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
 	domains: Domains;

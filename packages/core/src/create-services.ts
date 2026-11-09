@@ -23,6 +23,8 @@ import {
 	getLoop,
 	getPostType,
 	getScript,
+	getSearchTemplate,
+	getSearchTemplateMarkup,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	getSpecialPages,
@@ -44,6 +46,8 @@ import {
 	saveLoopDraft,
 	saveLoopItems,
 	saveScriptDraft,
+	saveSearchTemplate,
+	saveSearchTemplateMarkup,
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
 	scriptById,
@@ -230,6 +234,11 @@ export async function createInstallServices(
 			archiveTemplateMarkup: (scope, postTypeId) => getArchiveTemplateMarkup(scope, postTypeId, componentSources),
 			saveArchiveTemplateMarkup: (scope, postTypeId, markup, base) =>
 				saveArchiveTemplateMarkup(scope, postTypeId, markup, componentSources, base),
+			searchTemplate: getSearchTemplate,
+			saveSearchTemplate: (scope, tree) => saveSearchTemplate(scope, tree, componentSources),
+			searchTemplateMarkup: (scope) => getSearchTemplateMarkup(scope, componentSources),
+			saveSearchTemplateMarkup: (scope, markup, base) =>
+				saveSearchTemplateMarkup(scope, markup, componentSources, base),
 		},
 		components: {
 			list: (scope) => listComponents(scope, componentSources),

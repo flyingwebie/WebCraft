@@ -110,6 +110,20 @@ describe("a placed Form", () => {
 	});
 });
 
+describe("the Search element", () => {
+	test("prints as {{@search}}, and saving the markup gives the same tree", async () => {
+		const tree: TestTree = {
+			version: 1,
+			nodes: [el("top", "header", [el("box", "div", [{ type: "search" }])]), { type: "search" }],
+		};
+
+		const { tree: stored, markup, again } = await roundTrip(tree);
+
+		expect(markup).toBe('<header data-wc-id="top"><div data-wc-id="box">{{@search}}</div></header>{{@search}}');
+		expect(again.template.draft).toEqual(stored);
+	});
+});
+
 describe("every element setting", () => {
 	test("prints as this markup, and saving the markup gives the same tree", async () => {
 		const tree = {
@@ -513,8 +527,8 @@ describe("generated trees", () => {
 			children: [...before, value(source === "notes" ? `${alias}.line` : `${alias}.title`), ...after],
 			empty,
 		}));
-	// The Language switcher and pagination render a <nav>, and a Form a <form>, so they go where one
-	// can: here, at the top level (a Form never in a Loop's items).
+	// The Language switcher and pagination render a <nav>, and a Form and the Search element a <form>,
+	// so they go where one can: here, at the top level (a Form never in a Loop's items).
 	const form = fc.constantFrom(0, 1).map((index) => ({ type: "form", form: formIds[index] }));
 	const nodes = fc.array(
 		fc.oneof(
@@ -523,6 +537,7 @@ describe("generated trees", () => {
 			fc.constant({ type: "languageSwitcher" }),
 			fc.constant({ type: "pagination", loop: "latest-posts" }),
 			form,
+			fc.constant({ type: "search" }),
 		),
 		{ maxLength: 4 },
 	);
