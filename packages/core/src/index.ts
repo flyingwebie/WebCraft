@@ -22,8 +22,22 @@ export {
 } from "./audit.ts";
 export { type Clock, systemClock } from "./clock.ts";
 export {
+	type CodeMode,
+	type CodePreviewPage,
+	type CodeScript,
+	type CodeScripts,
+	type CodeSourceKind,
+	CodeSourceNotFoundError,
+	type MarkupChange,
+	type OpenedSource,
+	type SavedMarkup,
+	type Suggestions,
+} from "./code-mode/index.ts";
+export {
 	adminOriginFor,
 	ConfigError,
+	EDGES,
+	type Edge,
 	type Environment,
 	type InstallConfig,
 	isDevelopmentHostname,
@@ -41,7 +55,10 @@ export { isWebCraftCookie, WEBCRAFT_COOKIE_PREFIX } from "./cookies.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./design-system/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
+export * from "./domains/index.ts";
 export {
+	CODE_MODE_SCRIPT_PATH,
+	CODE_MODE_STYLESHEET_PATH,
 	EDIT_LINK_LIFETIME_MS,
 	EDIT_MODE_PATH,
 	EDIT_SESSION_LIFETIME_MS,
@@ -235,3 +252,4 @@ export {
 	type WorkspaceRef,
 } from "./tenancy/staff.ts";
 export { WORKSPACE_NAME_MAX_LENGTH, type WorkspaceSummary } from "./tenancy/workspaces.ts";
+export { systemTls, type TlsCertificate, type TlsProbe } from "./tls.ts";

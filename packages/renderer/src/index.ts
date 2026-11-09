@@ -102,7 +102,13 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
-export { type PaginationWords, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
+export {
+	CODE_ATTRIBUTE,
+	type PaginationWords,
+	type PlacementRenderer,
+	type RenderOptions,
+	renderTree,
+} from "./html.ts";
 export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
 export {
 	DEFAULT_ITEM_NAME,
@@ -154,6 +160,7 @@ export {
 	type CommentNode,
 	type ConditionBranch,
 	type ConditionNode,
+	childListsOf,
 	ELEMENT_TREE_VERSION,
 	type ElementNode,
 	type ElementTree,

@@ -12,6 +12,7 @@ export {
 	type ComponentStatus,
 	type ComponentUsage,
 	type ComponentVersion,
+	componentVersion,
 	createComponent,
 	deleteComponent,
 	getComponent,
@@ -21,6 +22,7 @@ export {
 	type ModuleComponent,
 	type NewComponent,
 	NO_MODULE_COMPONENTS,
+	readComponentMarkup,
 	renameComponent,
 	type SavedComponentMarkup,
 	saveComponentDraft,
@@ -51,6 +53,7 @@ export {
 	ComponentNotFoundError,
 	type ComponentUse,
 	type ContentProblem,
+	DraftChangedError,
 	EntryIncompleteError,
 	EntryInvalidError,
 	EntryLinkedError,
@@ -74,6 +77,7 @@ export {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	ScriptNotFoundError,
 	TemplateNotFoundError,
 } from "./errors.ts";
 export {
@@ -104,6 +108,7 @@ export {
 	setGlobalFields,
 	undoGlobalsChanges,
 } from "./globals.ts";
+export { draftVersion, type SaveBase } from "./json.ts";
 export {
 	canonicalLanguage,
 	languageName,
@@ -158,6 +163,14 @@ export {
 export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
 export type { LinkBack } from "./relationships.ts";
 export {
+	getScript,
+	SCRIPT_MAX_LENGTH,
+	type Script,
+	type ScriptKind,
+	saveScriptDraft,
+	scriptById,
+} from "./scripts.ts";
+export {
 	addLanguage,
 	type DefaultLanguageChange,
 	type DefaultLanguagePreview,
@@ -185,6 +198,7 @@ export {
 	getEntryTemplateMarkup,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
+	readTemplateMarkup,
 	type SavedTemplateMarkup,
 	saveArchiveTemplate,
 	saveArchiveTemplateMarkup,
@@ -195,6 +209,7 @@ export {
 	type Template,
 	type TemplateKind,
 	type TemplateMarkup,
+	type TemplateMarkupTarget,
 	type TemplateStatus,
 } from "./templates.ts";
 export type { LanguageValue, Writer } from "./values.ts";

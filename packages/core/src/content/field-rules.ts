@@ -88,6 +88,9 @@ export const MAX_LINKED_ENTRIES = 200;
 /** The most rows a Repeater holds. */
 export const MAX_ROWS = 500;
 
+/** How deep Pages nest: a Page's path has at most this many parts. */
+export const MAX_PAGE_DEPTH = 10;
+
 /** The longest `pattern` setting (a regular expression in RE2 syntax), in characters. */
 export const PATTERN_MAX_LENGTH = 200;
 
@@ -116,3 +119,70 @@ export const VALUE_RULES = [
 ] as const;
 
 export type ValueRule = (typeof VALUE_RULES)[number];
+
+/**
+ * Why a Post Type's, a Field's or the Globals' settings were refused, as their `problems` name it
+ * (`rule`, with `params` to fill in), for the admin to word in each Admin language. The English
+ * `message` beside it stays for API clients.
+ */
+export const SETTING_RULES = [
+	// The list of Fields
+	"fieldCount",
+	"keyFormat",
+	"keyReserved",
+	"keyTwice",
+	"labelLength",
+	"helpLength",
+	"typeUnknown",
+	"typeChanged",
+	"bodyNested",
+	"bodyTwice",
+	"bodyOnPage",
+	"bodyInLoop",
+	"bodyNotHere",
+	"requiredNever",
+	"translatableShared",
+	"translatableInner",
+	"fieldsDepth",
+	"fieldsEmpty",
+	"defaultNone",
+	"defaultInvalid",
+	// One type's settings
+	"wholeNumber",
+	"number",
+	"boolean",
+	"lengthOrder",
+	"numberOrder",
+	"dateMode",
+	"dateFormat",
+	"dateOrder",
+	"optionsCount",
+	"optionValueFormat",
+	"optionValueTwice",
+	"optionLabelLength",
+	"minNotMultiple",
+	"maxNotMultiple",
+	"countsOrder",
+	"rowsOrder",
+	"patternLength",
+	"patternInvalid",
+	"blocksOffList",
+	"blockUnknown",
+	"blockAlwaysOn",
+	"relationshipInGlobals",
+	"relationshipInLoop",
+	"relationshipInModuleComponent",
+	"postTypesCount",
+	"postTypeUnknown",
+	// The Post Type itself
+	"postTypeKeyFormat",
+	"postTypeNameLength",
+	"pageUrlPattern",
+	"urlPatternFormat",
+	"urlPatternParts",
+] as const;
+
+export type SettingRule = (typeof SETTING_RULES)[number];
+
+/** What fills in a setting problem's wording, such as the key or the largest number allowed. */
+export type SettingParams = Readonly<Record<string, string | number>>;

@@ -2,6 +2,7 @@ import { globals, templates } from "@webcraft/db/schema";
 import {
 	type ComponentCatalogue,
 	checkSiteTemplate,
+	type DesignSystem,
 	type ElementTree,
 	type LoopCatalogue,
 	type MarkupNotice,
@@ -25,10 +26,10 @@ import {
 	type SiteComponents,
 	siteComponents,
 } from "./components.ts";
-import { PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.ts";
+import { DraftChangedError, PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.ts";
 import type { FieldDefinition } from "./field-types.ts";
 import { storedFields } from "./fields.ts";
-import { sameJson } from "./json.ts";
+import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
@@ -63,8 +64,11 @@ export type Template = {
 
 type TemplateRow = typeof templates.$inferSelect;
 
-/** A Template's Draft saved from Template markup: the Template, its markup as printed now, and notices. */
-export type SavedTemplateMarkup = { template: Template; markup: string; notices: MarkupNotice[] };
+/**
+ * A Template's Draft saved from Template markup: the Template, its markup as printed now, the Draft's
+ * version (which the next save names as `basedOn`), and notices.
+ */
+export type SavedTemplateMarkup = { template: Template; markup: string; version: string; notices: MarkupNotice[] };
 
 /** A Template's Draft and published version as Template markup. */
 export type TemplateMarkup = { draft: string; published: string | null };
@@ -216,8 +220,9 @@ export async function saveArchiveTemplateMarkup(
 	postTypeId: string,
 	markup: string,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	base: SaveBase = {},
 ): Promise<SavedTemplateMarkup> {
-	return saveTemplateMarkup(scope, await archiveTemplateTarget(scope, postTypeId), markup, sources);
+	return saveTemplateMarkup(scope, await archiveTemplateTarget(scope, postTypeId), markup, sources, base);
 }
 
 /** A Post Type's Archive template, or null while it has none. */
@@ -232,7 +237,7 @@ export async function getArchiveTemplateMarkup(
 	scope: SiteScope,
 	postTypeId: string,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
-): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
+): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }> {
 	return templateMarkup(scope, await getArchiveTemplate(scope, postTypeId), sources);
 }
 
@@ -295,8 +300,9 @@ export async function saveEntryTemplateMarkup(
 	postTypeId: string,
 	markup: string,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	base: SaveBase = {},
 ): Promise<SavedTemplateMarkup> {
-	return saveTemplateMarkup(scope, await entryTemplateTarget(scope, postTypeId), markup, sources);
+	return saveTemplateMarkup(scope, await entryTemplateTarget(scope, postTypeId), markup, sources, base);
 }
 
 /** Saves the Draft of the Site template from Template markup, as `saveEntryTemplateMarkup` does. */
@@ -304,8 +310,9 @@ export async function saveSiteTemplateMarkup(
 	scope: SiteScope,
 	markup: string,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	base: SaveBase = {},
 ): Promise<SavedTemplateMarkup> {
-	return saveTemplateMarkup(scope, await siteTemplateTarget(scope), markup, sources);
+	return saveTemplateMarkup(scope, await siteTemplateTarget(scope), markup, sources, base);
 }
 
 async function saveTemplateMarkup(
@@ -313,11 +320,17 @@ async function saveTemplateMarkup(
 	target: TemplateTarget,
 	markup: string,
 	sources: ComponentSources,
+	base: SaveBase,
 ): Promise<SavedTemplateMarkup> {
 	return retryOnRace(() =>
 		scope.transaction(async (tx) => {
-			// The Components it places can't be deleted while it is saved.
+			// The Components it places can't be deleted while it is saved; Template saves take turns.
 			await lockComponents(tx);
+			if (base.basedOn !== undefined) {
+				const current = await tx.first(templates, whereFor(target));
+				const version = current ? draftVersion(current.draft) : null;
+				if (version !== base.basedOn) throw new DraftChangedError(version);
+			}
 			const catalogue = classCatalogue(await draftDesignSystem(tx));
 			const components = await siteComponents(tx, "draft", sources);
 			const { tree, notices } = parseTemplateMarkup(markup, {
@@ -327,9 +340,40 @@ async function saveTemplateMarkup(
 			});
 			await saveCreatedClasses(tx, catalogue);
 			const template = await writeTemplateDraft(tx, target, tree);
-			return { template, markup: printMarkup(template.draft, catalogue, components), notices };
+			return {
+				template,
+				markup: printMarkup(template.draft, catalogue, components),
+				version: draftVersion(template.draft),
+				notices,
+			};
 		}),
 	);
+}
+
+/** Which Template markup is read for: see `readTemplateMarkup`. */
+export type TemplateMarkupTarget = { kind: "entry"; postTypeId: string } | { kind: "site" };
+
+/**
+ * Reads Template markup as saving the Template's Draft would, without saving anything: the tree,
+ * notices, and the Design system's Draft with the generated Classes its inline styles would add.
+ * Code mode previews unsaved markup with it. Throws `TemplateMarkupInvalidError` as saving does.
+ */
+export async function readTemplateMarkup(
+	scope: SiteScope,
+	target: TemplateMarkupTarget,
+	markup: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<{ tree: ElementTree; notices: MarkupNotice[]; designSystem: DesignSystem }> {
+	const rules =
+		target.kind === "entry" ? await entryTemplateTarget(scope, target.postTypeId) : await siteTemplateTarget(scope);
+	const designSystem = await draftDesignSystem(scope);
+	const catalogue = classCatalogue(designSystem);
+	const { tree, notices } = parseTemplateMarkup(markup, {
+		...rulesFor(rules, await siteComponents(scope, "draft", sources), await loopCatalogue(scope, "draft")),
+		classNamed: catalogue.named,
+		classForStyle: catalogue.forStyle,
+	});
+	return { tree, notices, designSystem: { ...designSystem, classes: [...designSystem.classes, ...catalogue.created] } };
 }
 
 /** A Post Type's Entry template as Template markup, or null while it has none. */
@@ -337,7 +381,7 @@ export async function getEntryTemplateMarkup(
 	scope: SiteScope,
 	postTypeId: string,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
-): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
+): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }> {
 	return templateMarkup(scope, await getEntryTemplate(scope, postTypeId), sources);
 }
 
@@ -345,7 +389,7 @@ export async function getEntryTemplateMarkup(
 export async function getSiteTemplateMarkup(
 	scope: SiteScope,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
-): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
+): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }> {
 	return templateMarkup(scope, await getSiteTemplate(scope), sources);
 }
 
@@ -353,12 +397,13 @@ async function templateMarkup(
 	scope: SiteScope,
 	template: Template | null,
 	sources: ComponentSources,
-): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
-	if (!template) return { template: null, markup: null };
+): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }> {
+	if (!template) return { template: null, markup: null, version: null };
 	const catalogue = classCatalogue(await draftDesignSystem(scope));
 	const components = await siteComponents(scope, "draft", sources);
 	return {
 		template,
+		version: draftVersion(template.draft),
 		markup: {
 			draft: printMarkup(template.draft, catalogue, components),
 			published: template.published ? printMarkup(template.published, catalogue, components) : null,

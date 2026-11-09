@@ -22,9 +22,10 @@ import {
 	VIDEO_SCRIPT,
 } from "@webcraft/renderer";
 import { eq, isNotNull, lt } from "drizzle-orm";
-
 import { storedComponentVersion } from "../content/component-versions.ts";
+import { CODE_MODE_STYLESHEET_PATH } from "../edit-mode/paths.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { draftDesignSystem } from "./design-systems.ts";
 
 /** Where every Site serves its stylesheets: `/_wc/css/<hash>.css`. */
 export const STYLESHEET_PATH = "/_wc/css/";
@@ -82,6 +83,38 @@ export async function siteStyles(scope: Reader): Promise<SiteStyles> {
 		designSystem,
 		className: designSystemNames(designSystem).nameOf,
 		stylesheet: { hash, css, href: `${STYLESHEET_PATH}${hash}.css` },
+	};
+}
+
+/**
+ * The Drafts of the Site's element trees: its Templates' and its own Components' (a Module's hold no
+ * Classes), as Code mode shows them.
+ */
+export async function draftTrees(scope: Pick<VisitorScope, "select">): Promise<ElementTree[]> {
+	const rows = await scope.select(templates);
+	const placed = await scope.select(components);
+	return [
+		...rows.map((row) => row.draft as ElementTree),
+		...placed.map((row) => storedComponentVersion(row.draft).tree),
+	];
+}
+
+/**
+ * The Site's styling as Code mode shows it (ADR 0016): the Design system's Draft, with the Classes
+ * and token utilities the Drafts of its trees use. Its stylesheet is served only to Staff in Code
+ * mode, at `/_webcraft/edit/css/<hash>.css`. A preview gives the Draft and trees it shows instead.
+ */
+export async function draftStyles(
+	scope: Pick<VisitorScope, "select" | "first">,
+	preview: { designSystem?: DesignSystem; trees?: readonly ElementTree[] } = {},
+): Promise<SiteStyles> {
+	const designSystem = preview.designSystem ?? (await draftDesignSystem(scope));
+	const css = compileStylesheet(designSystem, { classIds: classIdsIn(preview.trees ?? (await draftTrees(scope))) });
+	const hash = contentHash(css);
+	return {
+		designSystem,
+		className: designSystemNames(designSystem).nameOf,
+		stylesheet: { hash, css, href: `${CODE_MODE_STYLESHEET_PATH}${hash}.css` },
 	};
 }
 

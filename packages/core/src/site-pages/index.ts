@@ -1,5 +1,5 @@
 import type { Database } from "@webcraft/db";
-import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
+import { entries, globals, people, publishedSlugs, siteDomains, sites, templates } from "@webcraft/db/schema";
 import {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
@@ -40,6 +40,7 @@ import {
 	languageOfPath,
 	languagePath,
 	preferredLanguage,
+	prefixOf,
 	type SiteLanguage,
 	type SiteLanguages,
 	siteLanguages,
@@ -55,11 +56,13 @@ import {
 	type RelatedEntry,
 	resolvePath,
 } from "../content/render-values.ts";
+import { pageScripts, scriptFile } from "../content/scripts.ts";
 import { specialPageId } from "../content/special-pages.ts";
 import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
-import { type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
+import { draftStyles, type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
+import { domainOrigin, placeOf, type SiteAddresses, verifiedDomains } from "../domains/addresses.ts";
 import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
@@ -75,15 +78,26 @@ export { reservedSlugs, stagingHostname, stagingUrl } from "./addresses.ts";
 /** A Site found by the hostname a request came in on. */
 export type SiteHost = {
 	site: Site;
-	/** How the hostname reaches the Site: its Staging address. Primary and Redirect domains join it. */
-	address: "staging";
+	/**
+	 * How the hostname reaches the Site: its Staging address, its verified Primary domain, one of its
+	 * verified Redirect domains (which sends every request on to the Primary domain), or a language's
+	 * verified domain (which serves that language, `language`, without a prefix).
+	 */
+	address: "staging" | "primary" | "redirect" | "language";
+	/** On a language's domain, the language it serves; null everywhere else. */
+	language: string | null;
+	/** On a Redirect domain, the Primary domain's origin it sends visitors to; null while the Site has none verified. */
+	redirectTo: string | null;
 	/** The Site's Default language. */
 	defaultLanguage: string;
-	/**
-	 * Where the hostname's pages are, such as `https://bakery.sites.example.com`: what absolute
-	 * addresses on the page (`hreflang` alternates) start with.
-	 */
+	/** Where the hostname's pages are, such as `https://bakery.sites.example.com`. */
 	origin: string;
+	/**
+	 * Where the Site's pages are, as pages on this hostname link to them: on the Staging address, every
+	 * language on the Staging address itself, under its prefix; on the Site's domains, on its Primary
+	 * domain and each language's own (see `SiteAddresses`).
+	 */
+	addresses: SiteAddresses;
 	/** Whether the Site sends a first visit to the home page on to the browser's language (ADR 0010). */
 	browserLanguageRedirect: boolean;
 	/**
@@ -105,14 +119,15 @@ export type SitePage = { html: string; expiresAt: Date | null };
 
 /**
  * What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to
- * `/`; a page number on a page whose Loops don't paginate goes to the page itself).
+ * `/`; a language's path goes to its own domain, `keepQuery` then keeping the request's query; a page
+ * number on a page whose Loops don't paginate goes to the page itself).
  */
 export type SiteAnswer =
 	| ({ kind: "page" } & SitePage & {
 				/** The pages of the Loop that paginates on the page, when one does. */
 				pagination: { current: number; count: number } | null;
 			})
-	| { kind: "redirect"; location: string };
+	| { kind: "redirect"; location: string; keepQuery?: boolean };
 
 /** What a page shows from the content store: see `SitePages.pageContent`. */
 export type PageContent = {
@@ -126,13 +141,40 @@ export type PageContent = {
 	readsGlobals: boolean;
 	/** Whether the path has no page, so the 404 page shows there. */
 	notFound: boolean;
+	/**
+	 * The Post Type whose Entry template renders the page's content; null when no Template does (a
+	 * Page, arranged with its Page layout, or the 404 page).
+	 */
+	templatePostTypeId: string | null;
 };
 
 /**
  * A page rendered for Edit mode rather than for visitors: the Site opened for the person editing,
- * and what WebCraft adds to `<head>` (its header token, its own scripts and stylesheets).
+ * and what WebCraft adds to `<head>` (its header token, its own scripts and stylesheets). With
+ * `code`, the page is rendered for Code mode (ADR 0016): it shows the Drafts of the Site's Structure
+ * (its Templates, the Components they place, the Design system), every element tagged with where it
+ * comes from. Open `scope` with `structure.edit` for it.
  */
-export type PageEditing = { scope: SiteScope; head: Omit<EditModePage, "region"> };
+export type PageEditing = {
+	scope: SiteScope;
+	head: Omit<EditModePage, "region" | "code">;
+	code?: boolean;
+	/** In Code mode, unsaved changes to show in place of the Drafts, as Staff type them. */
+	preview?: CodePreview;
+};
+
+/**
+ * Unsaved changes Code mode previews (ADR 0016): one Template's or Component's tree read from the
+ * markup being typed, in place of its Draft, and the styles the page shows with (the Design system's
+ * Draft with what the changes would add to it).
+ */
+export type CodePreview = {
+	source?:
+		| { kind: "siteTemplate"; tree: ElementTree }
+		| { kind: "entryTemplate"; tree: ElementTree }
+		| { kind: "component"; id: string; version: ComponentVersion };
+	styles: SiteStyles;
+};
 
 /**
  * The Site side of the content store, for the web process's Site request pipeline: which Site a
@@ -183,6 +225,8 @@ export type SitePages = {
 	 * one, or one a publish replaced lately. Null for any other name.
 	 */
 	stylesheet(host: SiteHost, name: string): Promise<string | null>;
+	/** A published script of the Site (its Site script, a page script) by the name it is served under (`/_wc/js/<name>`). */
+	script(host: SiteHost, name: string): Promise<string | null>;
 };
 
 /** How many Sites' styles a web process keeps built at most. */
@@ -219,39 +263,64 @@ export function createSitePages(options: {
 		});
 		return styles;
 	};
+	/** The styles a page is shown with: the published ones (built once per generation), or the Drafts' in Code mode. */
+	const viewStyles = async (view: View): Promise<SiteStyles> => {
+		if (view.structure !== "draft") return stylesOf(view.host);
+		return view.editing?.preview?.styles ?? draftStyles(view.scope);
+	};
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
-			if (!slug) return null;
-			const [row] = await database.db.select().from(sites).where(eq(sites.slug, slug));
-			if (!row) return null;
-			return {
-				site: { id: row.id, workspaceId: row.workspaceId, name: row.name, slug: row.slug, createdAt: row.createdAt },
-				address: "staging",
-				defaultLanguage: row.defaultLanguage,
-				origin: stagingUrl(config, row.slug) ?? `https://${hostname}`,
-				browserLanguageRedirect: row.browserLanguageRedirect,
-				cacheGeneration: row.pageCacheGeneration,
+			if (slug) {
+				const [row] = await database.db.select().from(sites).where(eq(sites.slug, slug));
+				if (!row) return null;
+				const origin = stagingUrl(config, row.slug) ?? `https://${hostname}`;
+				// The Staging address shows every language under its prefix, on itself.
+				const addresses = { main: origin, languages: {} };
+				return hostOf(row, { address: "staging", language: null, redirectTo: null, origin, addresses });
+			}
+			// A domain serves its Site only once verified (ADR 0015).
+			const [found] = await database.db
+				.select({ domain: siteDomains, site: sites })
+				.from(siteDomains)
+				.innerJoin(sites, and(eq(sites.id, siteDomains.siteId), eq(sites.workspaceId, siteDomains.workspaceId)))
+				.where(and(eq(siteDomains.name, hostname), isNotNull(siteDomains.verifiedAt)));
+			if (!found) return null;
+			const { domain, site } = found;
+			const origin = domainOrigin(config, hostname);
+			const verified = await verifiedDomains(database.db, site);
+			const primary = verified.primary && domainOrigin(config, verified.primary);
+			const addresses: SiteAddresses = {
+				main: primary ?? stagingUrl(config, site.slug) ?? origin,
+				languages: Object.fromEntries(verified.languages.map((own) => [own.language, domainOrigin(config, own.name)])),
 			};
+			const address = domain.role === "primary" || domain.role === "redirect" ? domain.role : "language";
+			return hostOf(site, {
+				address,
+				language: address === "language" ? domain.language : null,
+				redirectTo: address === "redirect" ? primary : null,
+				origin,
+				addresses,
+			});
 		},
 
 		async render(host, pathname, editing, page = 1) {
 			const view = viewFor(data, host, editing, sources);
-			const archive = await locateArchive(view.scope, pathname);
+			const archive = await locateArchive(view.scope, host, pathname, editing !== undefined);
 			if (archive) {
-				const rendered = await renderArchivePage(view, host, await stylesOf(host), archive, page);
+				const rendered = await renderArchivePage(view, host, await viewStyles(view), archive, page);
 				if (page > 1 && !rendered.pagination) return { kind: "redirect", location: archive.path };
 				if (rendered.pagination && page > rendered.pagination.count) return null;
 				return { kind: "page", ...rendered };
 			}
-			const located = await locate(view.scope, pathname);
+			const located = await locate(view.scope, host, pathname, editing !== undefined);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
 			const extras = await languageExtras(view.scope, host, located, located.found);
 			const path = canonicalPath(pathSegments(pathname) ?? []);
 			// Loops paginate on Pages; on an Entry's page they show their first page.
 			const paginates = isPagePostType(located.found.postType);
-			const rendered = await renderEntryPage(view, host, await stylesOf(host), located, extras, {
+			const rendered = await renderEntryPage(view, host, await viewStyles(view), located, extras, {
 				page: paginates ? page : null,
 				path,
 			});
@@ -262,7 +331,7 @@ export function createSitePages(options: {
 
 		async pageContent(host, pathname) {
 			const scope = data.visitors(host.site);
-			const archive = await locateArchive(scope, pathname);
+			const archive = await locateArchive(scope, host, pathname, true);
 			if (archive) {
 				const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
 				const placed = await placedComponents(scope, [siteTemplate, archive.content], sources);
@@ -278,10 +347,12 @@ export function createSitePages(options: {
 					})),
 					readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
 					notFound: false,
+					// Code mode opens Entry templates and the Site template so far; an Archive page's Template is a later step.
+					templatePostTypeId: null,
 				};
 			}
-			const located = await locate(scope, pathname);
-			const place = located?.kind === "found" ? located : await notFoundPlace(scope, pathname);
+			const located = await locate(scope, host, pathname, true);
+			const place = located?.kind === "found" ? located : await notFoundPlace(scope, host, pathname);
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
 			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
 			const content = found?.content ?? builtInNotFoundPage(place.language.code).content;
@@ -300,13 +371,14 @@ export function createSitePages(options: {
 				})),
 				readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
 				notFound: located === null,
+				templatePostTypeId: found && !isPagePostType(found.postType) ? found.postType.id : null,
 			};
 		},
 
 		async notFound(host, pathname, editing) {
 			const view = viewFor(data, host, editing, sources);
-			const place = await notFoundPlace(view.scope, pathname);
-			const styles = await stylesOf(host);
+			const place = await notFoundPlace(view.scope, host, pathname);
+			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
 			const path = canonicalPath(pathSegments(pathname) ?? []);
 			if (place.found) {
@@ -338,7 +410,12 @@ export function createSitePages(options: {
 				shown.map((candidate) => candidate.code),
 			);
 			if (!language || language === site.defaultLanguage) return null;
-			return { language, location: languagePath({ language, defaultLanguage: site.defaultLanguage }, "/") };
+			const place = placeOf(
+				host.addresses,
+				{ language, defaultLanguage: site.defaultLanguage },
+				languagePath({ language, defaultLanguage: site.defaultLanguage }, "/"),
+			);
+			return { language, location: place.origin === host.origin ? place.path : `${place.origin}${place.path}` };
 		},
 
 		languageChoice(host, pathname) {
@@ -352,6 +429,25 @@ export function createSitePages(options: {
 		async stylesheet(host, name) {
 			return stylesheetFile(data.visitors(host.site), await stylesOf(host), name);
 		},
+
+		script(host, name) {
+			return scriptFile(data.visitors(host.site), name, "published");
+		},
+	};
+}
+
+/** A Site found by a hostname, with how the hostname reaches it. */
+function hostOf(
+	row: typeof sites.$inferSelect,
+	how: Pick<SiteHost, "address" | "language" | "redirectTo" | "origin" | "addresses">,
+): SiteHost {
+	return {
+		site: { id: row.id, workspaceId: row.workspaceId, name: row.name, slug: row.slug, createdAt: row.createdAt },
+		...how,
+		defaultLanguage: row.defaultLanguage,
+		// Only where `/` is the Default language's home page: never on a language's own domain.
+		browserLanguageRedirect: how.address !== "language" && row.browserLanguageRedirect,
+		cacheGeneration: row.pageCacheGeneration,
 	};
 }
 
@@ -373,19 +469,63 @@ type Place = { site: SiteLanguages; language: SiteLanguage; languages: Languages
 type Located = Place & { kind: "found"; found: FoundEntry };
 
 /**
- * What a path finds on the Site, as visitors find it: in the language its prefix names (the Default
- * language without one), the published Entry a Post Type's URL pattern finds there, else the
- * published Page at that path (the home page at the language's root, its own path redirecting
- * there); null when there is none.
+ * What a path is on the hostname it came in on (ADR 0010): a path in one of the Site's languages, or
+ * an address that moved to another of the Site's addresses.
+ *
+ * - On the Staging address (and in Edit mode), every language is under its prefix, as `languageOfPath`
+ *   reads it.
+ * - On the Primary domain the same, except that a language with a verified domain of its own lives
+ *   there: its prefix moves to that domain, without the prefix.
+ * - On a language's own domain, every path is in that language, without a prefix; a path starting
+ *   with a language's prefix (its own included) moves to where that language's path is.
+ */
+type PathOnHost = ({ kind: "path" } & ReturnType<typeof languageOfPath>) | { kind: "moved"; location: string };
+
+function pathOnHost(site: SiteLanguages, host: SiteHost, segments: readonly string[], editing: boolean): PathOnHost {
+	const { defaultLanguage } = site;
+	if (host.address === "language" && host.language) {
+		const [first, ...rest] = segments;
+		const named =
+			first === undefined ? undefined : site.languages.find((language) => prefixOf(language.code) === first);
+		if (!named) return { kind: "path", languages: { language: host.language, defaultLanguage }, rest: segments };
+		const languages = { language: named.code, defaultLanguage };
+		const place = placeOf(host.addresses, languages, languagePath(languages, canonicalPath(rest)));
+		return { kind: "moved", location: `${place.origin}${place.path}` };
+	}
+	const read = languageOfPath(site, segments);
+	const own = host.addresses.languages[read.languages.language];
+	if (host.address === "primary" && !editing && own && read.languages.language !== defaultLanguage) {
+		return { kind: "moved", location: `${own}${canonicalPath(read.rest)}` };
+	}
+	return { kind: "path", ...read };
+}
+
+/**
+ * The path of a language's page on this hostname: without a prefix on the language's own domain,
+ * under its prefix everywhere else.
+ */
+function hostPath(host: SiteHost, languages: Languages, path: string): string {
+	return host.address === "language" && host.language === languages.language ? path : languagePath(languages, path);
+}
+
+/**
+ * What a path finds on the Site, as visitors find it: in the language the hostname and the path name
+ * (`pathOnHost`), the published Entry a Post Type's URL pattern finds there, else the published Page
+ * at that path (the home page at the language's root, its own path redirecting there); null when
+ * there is none. `editing`: Edit mode keeps every language on the hostname it is on.
  */
 async function locate(
 	scope: ReadScope,
+	host: SiteHost,
 	pathname: string,
-): Promise<Located | { kind: "redirect"; location: string } | null> {
+	editing: boolean,
+): Promise<Located | { kind: "redirect"; location: string; keepQuery?: boolean } | null> {
 	const segments = pathSegments(pathname);
 	if (!segments || isReservedPath(segments)) return null;
 	const site = await siteLanguages(scope);
-	const { languages, rest, unprefixed } = languageOfPath(site, segments);
+	const onHost = pathOnHost(site, host, segments, editing);
+	if (onHost.kind === "moved") return { kind: "redirect", location: onHost.location, keepQuery: true };
+	const { languages, rest, unprefixed } = onHost;
 	const place = { site, languages, language: languageNamed(site, languages.language) };
 	const postTypes = await listPostTypes(scope);
 	const home = await homePageId(scope);
@@ -399,7 +539,7 @@ async function locate(
 	if (!found || !isVisibleIn(storedVersion(found.entry.published), languages)) {
 		return unprefixed ? { kind: "redirect", location: canonicalPath(unprefixed) } : null;
 	}
-	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: languagePath(languages, "/") };
+	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: hostPath(host, languages, "/") };
 	return { kind: "found", found, ...place };
 }
 
@@ -413,16 +553,23 @@ type LocatedArchive = Place & {
 };
 
 /**
- * The published Archive template whose address a path is, in the language its prefix names (the
- * Default language without one); undefined when there is none. Its address is fixed parts only, more
- * specific than any URL pattern, and no Page can be published there.
+ * The published Archive template whose address a path is, in the language the hostname and the path
+ * name (`pathOnHost`); undefined when there is none, or when the path moved to another of the Site's
+ * addresses (`locate` answers that). Its address is fixed parts only, more specific than any URL
+ * pattern, and no Page can be published there.
  */
-async function locateArchive(scope: ReadScope, pathname: string): Promise<LocatedArchive | undefined> {
+async function locateArchive(
+	scope: ReadScope,
+	host: SiteHost,
+	pathname: string,
+	editing: boolean,
+): Promise<LocatedArchive | undefined> {
 	const segments = pathSegments(pathname);
 	if (!segments || segments.length === 0 || isReservedPath(segments)) return undefined;
 	const site = await siteLanguages(scope);
-	const { languages, rest } = languageOfPath(site, segments);
-	if (rest.length === 0) return undefined;
+	const onHost = pathOnHost(site, host, segments, editing);
+	if (onHost.kind === "moved" || onHost.rest.length === 0) return undefined;
+	const { languages, rest } = onHost;
 	const archive = archiveAt(await publishedArchives(scope, await listPostTypes(scope)), rest);
 	if (!archive) return undefined;
 	const row = await scope.first(
@@ -437,11 +584,11 @@ async function locateArchive(scope: ReadScope, pathname: string): Promise<Locate
 		postType: archive.postType,
 		content: row.published as ElementTree,
 		parts: archive.parts,
-		path: languagePath(languages, pathText(archive.parts)),
+		path: hostPath(host, languages, pathText(archive.parts)),
 	};
 }
 
-/** An Archive page's address in each of the Site's languages: it is shown in all of them. */
+/** An Archive page's address in each of the Site's languages (it is shown in all of them), under each one's prefix. */
 function archivePlaces(archive: LocatedArchive): { language: SiteLanguage; path: string }[] {
 	return archive.site.languages.map((language) => ({
 		language,
@@ -455,7 +602,8 @@ function archivePlaces(archive: LocatedArchive): { language: SiteLanguage; path:
 /**
  * An Archive page: its Archive template in the Site template, titled with its Post Type's name (and
  * the page's number past the first), with `hreflang` alternates to the same page in every language
- * and the Language switcher's links to the Archive page there. Its Loops paginate.
+ * (each at its own address, on this hostname or another of the Site's domains) and the Language
+ * switcher's links to the Archive page there. Its Loops paginate.
  */
 async function renderArchivePage(
 	view: View,
@@ -468,12 +616,18 @@ async function renderArchivePage(
 	const languageLinks: LanguageLink[] = [];
 	if (archive.site.languages.length > 1) {
 		for (const { language, path } of archivePlaces(archive)) {
-			alternates.push({ hreflang: language.code, href: `${host.origin}${pageHref(path, page)}` });
+			const there = placeOf(
+				host.addresses,
+				{ language: language.code, defaultLanguage: archive.site.defaultLanguage },
+				path,
+			);
+			const href = `${there.origin}${there.path}`;
+			alternates.push({ hreflang: language.code, href: `${there.origin}${pageHref(there.path, page)}` });
 			languageLinks.push({
 				code: language.code,
 				name: language.name,
 				direction: language.direction,
-				href: languageChoiceHref(path),
+				href: there.origin === host.origin ? languageChoiceHref(there.path) : href,
 				current: language.code === archive.language.code,
 			});
 		}
@@ -513,12 +667,15 @@ async function languageExtras(
 	const extras: LanguageExtras = { alternates: [], languageLinks: [] };
 	if (site.languages.length < 2) return extras;
 	for (const { language, path, shown } of await languagePlaces(scope, place, found)) {
-		if (shown) extras.alternates.push({ hreflang: language.code, href: `${host.origin}${path}` });
+		// Each language at its own address: on this hostname, or on another of the Site's domains.
+		const there = placeOf(host.addresses, { language: language.code, defaultLanguage: site.defaultLanguage }, path);
+		const href = `${there.origin}${there.path}`;
+		if (shown) extras.alternates.push({ hreflang: language.code, href });
 		extras.languageLinks.push({
 			code: language.code,
 			name: language.name,
 			direction: language.direction,
-			href: languageChoiceHref(path),
+			href: there.origin === host.origin ? languageChoiceHref(there.path) : href,
 			current: language.code === place.languages.language,
 		});
 	}
@@ -573,16 +730,26 @@ async function languageChoice(data: DataLayer, host: SiteHost, pathname: string)
 	const segments = pathSegments(target);
 	if (!segments || isReservedPath(segments) || segments.some((segment) => segment.includes("/"))) return undefined;
 	const site = await siteLanguages(data.visitors(host.site));
-	return { language: languageOfPath(site, segments).languages.language, location: canonicalPath(segments) };
+	const onHost = pathOnHost(site, host, segments, false);
+	if (onHost.kind === "moved") return undefined;
+	return { language: onHost.languages.language, location: canonicalPath(segments) };
 }
 
 /**
  * The 404 page for a path: in the path's language (the Default language when it names none), the
  * Page Staff chose for that language or else for the Site, once published; no Page for the built-in one.
  */
-async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place & { found?: FoundEntry }> {
+async function notFoundPlace(
+	scope: ReadScope,
+	host: SiteHost,
+	pathname: string,
+): Promise<Place & { found?: FoundEntry }> {
 	const site = await siteLanguages(scope);
-	const { languages } = languageOfPath(site, pathSegments(pathname) ?? []);
+	const onHost = pathOnHost(site, host, pathSegments(pathname) ?? [], true);
+	const languages =
+		onHost.kind === "path"
+			? onHost.languages
+			: { language: site.defaultLanguage, defaultLanguage: site.defaultLanguage };
 	const code = languages.language;
 	const place = { site, languages, language: languageNamed(site, code) };
 	// The language's own 404 page, else the Site's; each once published and shown in the language.
@@ -601,12 +768,17 @@ async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place 
 type ReadScope = ScopeToRead;
 
 /**
- * How a page is being viewed: by visitors (the published version of its Content) or in Edit mode
- * (the Drafts, with editable regions tagged).
+ * How a page is being viewed: by visitors (the published version of its Content and Structure), in
+ * Edit mode (the Drafts of its Content through the published Structure, with editable regions
+ * tagged) or in Code mode (the Drafts of both, every element tagged).
  */
 type View = {
+	host: SiteHost;
 	scope: ReadScope;
+	/** Which version of the page's Content shows: its Entry's and the Globals'. */
 	version: "published" | "draft";
+	/** Which version of the Site's Structure shows: its Templates', Components' and Design system's. */
+	structure: "published" | "draft";
 	editing?: PageEditing;
 	/** Where the Components of the Modules running on the Site come from. */
 	sources: ComponentSources;
@@ -614,8 +786,15 @@ type View = {
 
 function viewFor(data: DataLayer, host: SiteHost, editing: PageEditing | undefined, sources: ComponentSources): View {
 	return editing
-		? { scope: editing.scope, version: "draft", editing, sources }
-		: { scope: data.visitors(host.site), version: "published", sources };
+		? {
+				host,
+				scope: editing.scope,
+				version: "draft",
+				structure: editing.code ? "draft" : "published",
+				editing,
+				sources,
+			}
+		: { host, scope: data.visitors(host.site), version: "published", structure: "published", sources };
 }
 
 /**
@@ -661,7 +840,10 @@ type FoundEntry = {
 	/** Every Post Type of the Site, for what Relationships point at. */
 	postTypes: readonly PostType[];
 	entry: typeof entries.$inferSelect;
+	/** What the content renders through, as published: its Entry template, a Page's layout. */
 	content: ElementTree;
+	/** The same in its Draft, as Code mode shows it. */
+	contentDraft: ElementTree;
 };
 
 /**
@@ -700,7 +882,13 @@ async function findPublishedEntry(
 			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id), isNotNull(templates.published)),
 		);
 		if (!template) return undefined;
-		return { postType, postTypes, entry, content: template.published as ElementTree };
+		return {
+			postType,
+			postTypes,
+			entry,
+			content: template.published as ElementTree,
+			contentDraft: template.draft as ElementTree,
+		};
 	}
 	return undefined;
 }
@@ -728,7 +916,7 @@ async function publishedPage(
 	const pages = postTypes.find(isPagePostType);
 	const entry = await scope.first(entries, and(eq(entries.id, pageId), isNotNull(entries.published)));
 	if (!pages || entry?.postTypeId !== pages.id) return undefined;
-	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT };
+	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT, contentDraft: EMPTY_PAGE_LAYOUT };
 }
 
 async function renderEntryPage(
@@ -741,7 +929,14 @@ async function renderEntryPage(
 ): Promise<RenderedPage> {
 	const { scope } = view;
 	const { found, languages } = located;
-	const { postType, entry, content } = found;
+	const { postType, entry } = found;
+	const previewed = view.editing?.preview?.source;
+	const content =
+		view.structure === "published"
+			? found.content
+			: previewed?.kind === "entryTemplate"
+				? previewed.tree
+				: found.contentDraft;
 	const draft = view.version === "draft";
 	const version = storedVersion(draft ? entry.draft : entry.published);
 	const published = entryValues(version, postType.fields, languages);
@@ -819,9 +1014,18 @@ async function renderSitePage(
 		name: host.site.name,
 	});
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
-	const siteTemplate = await publishedSiteTemplate(scope);
-	const placed = await pageComponents(scope, [page.content, siteTemplate], view.sources, site, languages);
-	// Loops show published Entries through their published versions, in Edit mode too.
+	const previewed = editing?.preview?.source;
+	const siteTemplate =
+		view.structure === "published"
+			? await publishedSiteTemplate(scope)
+			: previewed?.kind === "siteTemplate"
+				? previewed.tree
+				: await draftSiteTemplate(scope);
+	const placed = await pageComponents(scope, [page.content, siteTemplate], view.sources, site, languages, {
+		which: view.structure,
+		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
+	});
+	// Loops show published Entries through their published versions, in Edit mode and Code mode too.
 	const loops = await pageLoops(
 		scope,
 		[page.content, siteTemplate, ...placed.trees],
@@ -854,9 +1058,11 @@ async function renderSitePage(
 		className: styles.className,
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
+		scripts: await pageScripts(scope, options.entry?.id ?? null, view.structure),
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields)),
+			code: view.structure === "draft",
 		},
 		component: placed.render,
 		loop: loops.run,
@@ -868,14 +1074,17 @@ async function renderSitePage(
 /**
  * The published Components the trees place, directly or through other Components, that can show on
  * the Site (a Component that isn't published, or a Module's that doesn't run there, shows nothing).
- * Components are Structure: even in Edit mode, pages show their published versions.
+ * Components are Structure: in Edit mode, pages show their published versions; Code mode shows their
+ * Drafts (`which`).
  */
 async function placedComponents(
 	scope: ReadScope,
 	trees: readonly (ElementTree | undefined)[],
 	sources: ComponentSources,
+	which: "published" | "draft" = "published",
+	replace?: { id: string; version: ComponentVersion },
 ): Promise<{ catalogue: SiteComponents; used: Map<string, ComponentVersion> }> {
-	const catalogue = await siteComponents(scope, "published", sources);
+	const catalogue = await siteComponents(scope, which, sources, { replace });
 	const used = new Map<string, ComponentVersion>();
 	const visit = (tree: ElementTree) => {
 		for (const placement of placementsIn(tree.nodes)) {
@@ -901,8 +1110,9 @@ async function pageComponents(
 	sources: ComponentSources,
 	site: Parts,
 	languages: { language: string; defaultLanguage: string },
+	shown: { which: "published" | "draft"; replace?: { id: string; version: ComponentVersion } },
 ): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
-	const { catalogue, used } = await placedComponents(scope, trees, sources);
+	const { catalogue, used } = await placedComponents(scope, trees, sources, shown.which, shown.replace);
 	const shownTrees = [...used.values()].map((version) => version.tree);
 	const related = await relatedOfProps(scope, [...trees, ...shownTrees], catalogue, languages);
 	return {
@@ -945,6 +1155,12 @@ async function relatedOfProps(
 		related.set(id, { ...entry, postTypeKey: keys.get(entry.postTypeId) ?? "" });
 	}
 	return related;
+}
+
+/** The Site template's Draft, as Code mode shows it, or undefined while the Site has none (the built-in one shows). */
+async function draftSiteTemplate(scope: ReadScope): Promise<ElementTree | undefined> {
+	const row = await scope.first(templates, and(eq(templates.kind, "site"), isNull(templates.postTypeId)));
+	return (row?.draft as ElementTree | undefined) ?? undefined;
 }
 
 /** The Site template visitors see, or undefined while none is published (pages get the built-in one). */

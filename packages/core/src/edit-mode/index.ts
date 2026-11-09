@@ -6,6 +6,7 @@ import { and, eq, gt, isNull, lte, type SQL } from "drizzle-orm";
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import { domainOrigin, verifiedDomains } from "../domains/addresses.ts";
 import { type PersonActor, personIdOf } from "../permissions/can.ts";
 import { stagingUrl } from "../site-pages/addresses.ts";
 import type { PageContent, SiteHost } from "../site-pages/index.ts";
@@ -14,12 +15,12 @@ import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
 import { discardChanges, type PageDeps, type PageState, pageState, publishPage, undoChange } from "./page.ts";
-import { isEditPath } from "./paths.ts";
+import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 import { type RegionChange, type SavedRegion, saveRegion } from "./regions.ts";
 
 export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
 export type { PageChange, PageState } from "./page.ts";
-export { isEditPath } from "./paths.ts";
+export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 export type { EditItem, RegionChange, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */
@@ -27,9 +28,6 @@ export const EDIT_LINK_LIFETIME_MS = 60 * 1000;
 
 /** How long an Edit mode session (its cookie on the Site's domain) lasts at most. */
 export const EDIT_SESSION_LIFETIME_MS = 8 * 60 * 60 * 1000;
-
-/** Where Edit mode answers on every Site's domain: a path the Install keeps (`/_…`). */
-export const EDIT_MODE_PATH = "/_webcraft/edit/";
 
 /** How actions taken in Edit mode come in, for the Audit log. */
 export const EDIT_MODE_VIA: AuditVia = { kind: "editMode" };
@@ -144,7 +142,9 @@ export function createEditMode(options: {
 	return {
 		async openLink(scope, input) {
 			if (!isEditPath(input.path)) throw new EditPathInvalidError();
-			const address = stagingUrl(config, scope.site.slug);
+			// The Site's Primary domain once verified (the edit cookie then lives there), else its Staging address.
+			const { primary } = await verifiedDomains(scope.db, scope.site);
+			const address = primary ? domainOrigin(config, primary) : stagingUrl(config, scope.site.slug);
 			if (!address) throw new EditModeUnavailableError();
 			const personId = personIdOf(scope.access.actor);
 			if (!personId) throw new PermissionDeniedError("entry.edit");

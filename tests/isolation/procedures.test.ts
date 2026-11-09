@@ -212,6 +212,29 @@ describe("Templates", () => {
 	);
 });
 
+describe("Scripts", () => {
+	/** The Site script of a target's Site, made once by the Superadmin. */
+	const siteScripts = new Map<string, Promise<string>>();
+	const siteScriptIn = (target: IsolationTarget) => {
+		let made = siteScripts.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				return (await api.scripts.saveDraft({ siteId: target.siteId, entryId: null, code: "1;" })).script.id;
+			})();
+			siteScripts.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses("scripts.get", (api, { siteId }) => api.scripts.get({ siteId, entryId: null }));
+	isolation.refuses("scripts.saveDraft", async (api, target) =>
+		api.scripts.saveDraft({ siteId: target.siteId, entryId: (await contentIn(target)).entryId, code: "1;" }),
+	);
+	isolation.refuses("scripts.publish", async (api, target) =>
+		api.scripts.publish({ siteId: target.siteId, scriptId: await siteScriptIn(target) }),
+	);
+});
+
 describe("Components", () => {
 	/** A name no other call has used. */
 	let names = 0;
@@ -352,6 +375,32 @@ describe("Languages", () => {
 	});
 	isolation.refuses("languages.setBrowserRedirect", (api, { siteId }) =>
 		api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: true }),
+	);
+});
+
+/** The Primary domain of a target's Site (waiting for DNS), added by the Superadmin when it has none. */
+async function domainIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { domains } = await api.domains.list({ siteId: target.siteId });
+	const primary = domains.find((domain) => domain.role === "primary");
+	if (primary) return primary.id;
+	const added = await api.domains.add({ siteId: target.siteId, name: `${newSlug()}.example` });
+	return added.domains[0]?.id ?? "";
+}
+
+describe("Domains", () => {
+	isolation.refuses("domains.list", (api, { siteId }) => api.domains.list({ siteId }), { as: ["staff", "owner"] });
+	isolation.refuses("domains.add", (api, { siteId }) => api.domains.add({ siteId, name: `${newSlug()}.example` }));
+	isolation.refuses("domains.check", async (api, target) =>
+		api.domains.check({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+	// Without a confirmation it only answers what removing would do.
+	isolation.refuses("domains.remove", async (api, target) =>
+		api.domains.remove({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+	// Making the Primary domain the Primary domain again changes nothing, but must still be allowed.
+	isolation.refuses("domains.makePrimary", async (api, target) =>
+		api.domains.makePrimary({ siteId: target.siteId, domainId: await domainIn(target) }),
 	);
 });
 

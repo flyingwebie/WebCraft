@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { audit } from "./procedures/audit.ts";
 import { components } from "./procedures/components.ts";
 import { designSystem } from "./procedures/design-system.ts";
+import { domains } from "./procedures/domains.ts";
 import { editMode } from "./procedures/edit-mode.ts";
 import { entries } from "./procedures/entries.ts";
 import { globals } from "./procedures/globals.ts";
@@ -16,6 +17,7 @@ import { members } from "./procedures/members.ts";
 import { modules } from "./procedures/modules.ts";
 import { pages } from "./procedures/pages.ts";
 import { postTypes } from "./procedures/post-types.ts";
+import { scripts } from "./procedures/scripts.ts";
 import { session } from "./procedures/session.ts";
 import { setup } from "./procedures/setup.ts";
 import { shell } from "./procedures/shell.ts";
@@ -40,9 +42,11 @@ export const apiRouter = {
 	entries,
 	globals,
 	languages,
+	domains,
 	templates,
 	components,
 	loops,
+	scripts,
 	designSystem,
 	media,
 	pages,

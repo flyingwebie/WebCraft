@@ -12,7 +12,8 @@ import { and, eq, isNotNull, max } from "drizzle-orm";
 import type { InstallConfig } from "../config.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
-import { normaliseHostname } from "../hostnames.ts";
+import { setLanguageDomain } from "../domains/domains.ts";
+import { domainName, isInstallName } from "../domains/names.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { publishedAddresses } from "./entry-paths.ts";
 import { type ContentProblem, LanguageInvalidError, LanguageNotFoundError, LanguageTakenError } from "./errors.ts";
@@ -92,6 +93,8 @@ export async function addLanguage(deps: LanguageDeps, scope: SiteScope, input: N
 				position: (last?.position ?? 0) + 1,
 				createdAt: tx.now(),
 			});
+			// The language's domain joins the Site's domain list, where it is verified like any other.
+			if (domain !== null && !(await setLanguageDomain(tx, code, domain))) throw new LanguageTakenError("domain");
 			await publishSlugsIn(tx, code, current.defaultLanguage);
 			await clearPageCache(tx);
 			await tx.audit("language.add", { code, name, direction, domain });
@@ -134,6 +137,9 @@ export async function updateLanguage(
 				// The Default language of a Site made by an earlier version may have no row yet.
 				await tx.insert(siteLanguageRows, { code: language.code, ...next, position: 0, createdAt: tx.now() });
 			}
+			if (changed.includes("domain") && !(await setLanguageDomain(tx, language.code, next.domain))) {
+				throw new LanguageTakenError("domain");
+			}
 			await clearPageCache(tx);
 			await tx.audit("language.update", { code: language.code, changed });
 			return siteLanguages(tx);
@@ -149,22 +155,18 @@ function checkName(input: string, problems: ContentProblem[]): string {
 	return name;
 }
 
-/** A domain name: labels of letters, digits and dashes, at least two of them. */
-const DOMAIN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-
 /**
- * A language's own domain, in lower case. Never the admin's hostname, nor a name under the sites
- * domain, where Staging addresses are.
+ * A language's own domain, in lower case and its ASCII form (`domainName`). Never the admin's
+ * hostname, nor a name under the sites domain, where Staging addresses are.
  */
 function checkDomain(deps: LanguageDeps, input: string, problems: ContentProblem[]): string {
-	const domain = normaliseHostname(input);
-	const { adminHost, sitesDomain } = deps.config;
-	if (!DOMAIN.test(domain)) {
+	const domain = domainName(input);
+	if (!domain) {
 		problems.push({ at: "domain", message: "A domain is a name such as bakery.fr or fr.bakery.com." });
-	} else if (domain === adminHost || (sitesDomain && (domain === sitesDomain || domain.endsWith(`.${sitesDomain}`)))) {
+	} else if (isInstallName(deps.config, domain)) {
 		problems.push({ at: "domain", message: "This domain is the Install's own: choose another one." });
 	}
-	return domain;
+	return domain ?? input;
 }
 
 /** Runs a save, turning a domain another language has into `LanguageTakenError`. */

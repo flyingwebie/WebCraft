@@ -15,6 +15,7 @@ import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
 import { moduleSchemas } from "./modules/schemas.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
+import { systemTls } from "./tls.ts";
 
 /** The two long-running processes of an Install (ADR 0006). */
 export type InstallProcess = "web" | "worker";
@@ -102,5 +103,14 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 
 /** The real adapters every process uses; only the job queue differs between them. */
 function realPorts(config: InstallConfig, database: Database, log: Logger): Omit<InstallPorts, "jobs" | "images"> {
-	return { config, database, mailer: createSmtpMailer(), http: fetchHttp, dns: systemDns, clock: systemClock, log };
+	return {
+		config,
+		database,
+		mailer: createSmtpMailer(),
+		http: fetchHttp,
+		dns: systemDns,
+		tls: systemTls,
+		clock: systemClock,
+		log,
+	};
 }

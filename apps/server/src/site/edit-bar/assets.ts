@@ -1,3 +1,5 @@
+import { type CodeModeConfig, codeMode } from "../code-mode/code.ts";
+import { CODE_STYLES } from "../code-mode/styles.ts";
 import { type EditingBarConfig, editingBar } from "./bar.ts";
 import { BAR_STYLES, PAGE_STYLES } from "./styles.ts";
 
@@ -14,6 +16,10 @@ export type EditBarAssets = {
 	pageStyles: EditAsset;
 	/** The stylesheet inside the editing bar's shadow root. */
 	barStyles: EditAsset;
+	/** Code mode's script (ADR 0016), loaded only on pages in Code mode. */
+	codeScript: EditAsset;
+	/** The stylesheet inside Code mode's shadow root. */
+	codeStyles: EditAsset;
 	/** Every file by its name. */
 	byName: ReadonlyMap<string, EditAsset>;
 };
@@ -35,11 +41,17 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const config: EditingBarConfig = { styles: barStyles.path };
 	const source = `(${editingBar.toString()})(${JSON.stringify(config)});\n`;
 	const script = await asset("bar", "js", source, "text/javascript; charset=utf-8");
+	const codeStyles = await asset("code", "css", CODE_STYLES, "text/css; charset=utf-8");
+	const codeConfig: CodeModeConfig = { styles: codeStyles.path };
+	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)});\n`;
+	const codeScript = await asset("code", "js", codeSource, "text/javascript; charset=utf-8");
 	return {
 		script,
 		pageStyles,
 		barStyles,
-		byName: new Map([script, pageStyles, barStyles].map((file) => [file.name, file])),
+		codeScript,
+		codeStyles,
+		byName: new Map([script, pageStyles, barStyles, codeScript, codeStyles].map((file) => [file.name, file])),
 	};
 }
 

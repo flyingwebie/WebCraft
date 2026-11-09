@@ -14,7 +14,12 @@ export type GlobalsView = Awaited<ReturnType<ApiClient["globals"]["get"]>>["glob
 export type LoopView = Awaited<ReturnType<ApiClient["loops"]["get"]>>["loop"];
 
 /** What keeps a Draft from being published (or a value from being saved), where it is. */
-export type Problem = { at: string; message: string; rule?: string };
+export type Problem = {
+	at: string;
+	message: string;
+	rule?: string;
+	params?: Readonly<Record<string, string | number>>;
+};
 
 export type { FieldDefinition, Json };
 

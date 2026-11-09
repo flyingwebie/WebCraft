@@ -27,6 +27,7 @@ import { useT } from "../i18n.tsx";
 import { initials } from "../shell/context.ts";
 import { languageName, StatusBadge } from "./DraftParts.tsx";
 import type { EntryView } from "./model.ts";
+import { pageTree, parentSlugs, type TreePage } from "./page-tree.ts";
 
 /** The statuses the list filters by. */
 export const ENTRY_STATUSES = ["published", "draft", "changed"] as const;
@@ -70,7 +71,7 @@ export function EntriesList({
 				entry.draft.title.toLocaleLowerCase().includes(query) ||
 				entry.draft.slug.toLocaleLowerCase().includes(query)),
 	);
-	const rows = isPage && !filtering ? pageTree(shown) : shown.map((entry) => ({ entry, depth: 0 }));
+	const rows = isPage && !filtering ? entryTree(shown) : shown.map((entry) => ({ entry, depth: 0 }));
 	const counts = Object.fromEntries(
 		ENTRY_STATUSES.map((status) => [status, entries.filter((entry) => entry.status === status).length]),
 	) as Record<EntryStatusFilter, number>;
@@ -274,41 +275,22 @@ function Toolbar({
 	);
 }
 
-/** Pages in tree order: each followed by the Pages under it, siblings by title, with their depth. */
-function pageTree(entries: readonly EntryView[]): { entry: EntryView; depth: number }[] {
-	const known = new Set(entries.map((entry) => entry.id));
-	const children = new Map<string | null, EntryView[]>();
-	for (const entry of entries) {
-		const parent = entry.draft.parentId && known.has(entry.draft.parentId) ? entry.draft.parentId : null;
-		const list = children.get(parent) ?? [];
-		list.push(entry);
-		children.set(parent, list);
-	}
-	const ordered: { entry: EntryView; depth: number }[] = [];
-	const seen = new Set<string>();
-	const visit = (parent: string | null, depth: number) => {
-		const list = [...(children.get(parent) ?? [])].sort((a, b) => a.draft.title.localeCompare(b.draft.title));
-		for (const entry of list) {
-			if (seen.has(entry.id)) continue;
-			seen.add(entry.id);
-			ordered.push({ entry, depth });
-			visit(entry.id, depth + 1);
-		}
-	};
-	visit(null, 0);
-	return ordered;
+/** Pages as a tree in order, with their depth. */
+function entryTree(entries: readonly EntryView[]): { entry: EntryView; depth: number }[] {
+	return pageTree(entries.map((entry) => ({ ...treePageOf(entry), entry }))).map(({ page, depth }) => ({
+		entry: page.entry,
+		depth,
+	}));
+}
+
+function treePageOf(entry: EntryView): TreePage {
+	return { id: entry.id, title: entry.draft.title, slug: entry.draft.slug, parentId: entry.draft.parentId };
 }
 
 /** A Page's address as its Draft puts it: its parents' slugs, then its own. */
 function draftPath(entries: readonly EntryView[], entry: EntryView): string {
-	const byId = new Map(entries.map((each) => [each.id, each]));
-	const parts = [entry.draft.slug];
-	let parent = entry.draft.parentId ? byId.get(entry.draft.parentId) : undefined;
-	for (let depth = 0; parent && depth < 12; depth++) {
-		parts.unshift(parent.draft.slug);
-		parent = parent.draft.parentId ? byId.get(parent.draft.parentId) : undefined;
-	}
-	return entry.path ?? `/${parts.join("/")}`;
+	const slugs = [...parentSlugs(entries.map(treePageOf), entry.draft.parentId), entry.draft.slug];
+	return entry.path ?? `/${slugs.join("/")}`;
 }
 
 /** Creates an Entry from its title (and, for a Page, its parent), then opens it in the editor. */
@@ -402,7 +384,7 @@ function NewEntryDialog({
 										className="w-full"
 									>
 										<NativeSelectOption value="">{t("entries.editor.topLevel")}</NativeSelectOption>
-										{pageTree(pages).map(({ entry, depth }) => (
+										{entryTree(pages).map(({ entry, depth }) => (
 											<NativeSelectOption key={entry.id} value={entry.id}>
 												{`${"— ".repeat(depth)}${entry.draft.title || t("content.relationship.untitled")}`}
 											</NativeSelectOption>

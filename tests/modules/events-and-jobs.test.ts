@@ -131,7 +131,8 @@ describe("events", () => {
 
 		install.http.respond("POST", SAMPLE_HOOK, { status: 204 });
 		await install.clock.advance(5 * MINUTE);
-		const retried = await install.drainJobs();
+		// Only the Module's events: moving the clock also brings scheduled jobs (domain checks) due.
+		const retried = await install.drainJobs({ only: ["modules.event"] });
 		expect(retried.completed.map((job) => job.name)).toEqual(["modules.event"]);
 	});
 

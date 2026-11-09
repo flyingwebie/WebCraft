@@ -243,7 +243,7 @@ export async function importDesignTokens(scope: SiteScope, file: unknown): Promi
 }
 
 /** Every Class of the Draft as it is: by id and name, its CSS left out so it stays. */
-function keepClasses(draft: DesignSystem): ClassInput[] {
+export function keepClasses(draft: DesignSystem): ClassInput[] {
 	return draft.classes.map((each) => ({ id: each.id, name: each.name }));
 }
 
@@ -253,8 +253,11 @@ function classIn(view: DesignSystemView, classId: string): EditableClass {
 	return found;
 }
 
-/** Changes the Draft under its lock: works the change out from the Draft, checks it and saves it. */
-async function changeDraft(
+/**
+ * Changes the Draft under its lock: works the change out from the Draft, checks it and saves it.
+ * `changeFor` may refuse the change by throwing, such as when the Draft changed since a save's base.
+ */
+export async function changeDraft(
 	scope: SiteScope,
 	changeFor: (draft: DesignSystem) => DesignSystemChange,
 ): Promise<DesignSystemView> {
@@ -267,6 +270,17 @@ async function changeDraft(
 		await writeDraft(tx, locked, next);
 		return viewOf({ ...locked.row, draft: next, updatedAt: tx.now() });
 	});
+}
+
+/**
+ * A Draft with a change applied, saving nothing: what Code mode previews while Staff type CSS. Throws
+ * `DesignSystemInvalidError` as saving the change would.
+ */
+export function withChange(current: DesignSystem, change: DesignSystemChange): DesignSystem {
+	const next = applyChange(current, change);
+	const problems = designSystemProblems(next);
+	if (problems.length > 0) throw new DesignSystemInvalidError(problems);
+	return next;
 }
 
 /**

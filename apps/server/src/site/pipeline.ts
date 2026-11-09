@@ -9,14 +9,17 @@ import {
 	pathSegments,
 	SCRIPT_PATH,
 	type SiteHost,
+	type SiteScope,
 	STYLESHEET_PATH,
 	siteScript,
+	VERIFY_PATH,
 } from "@webcraft/core";
 
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import {
 	clearEditCookie,
+	codeModeOf,
 	EDIT_MODE_PAGE_HEADERS,
 	editModeEndpoint,
 	editModeHtml,
@@ -58,8 +61,15 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 	const cache = options.pageCache ?? createPageCache();
 	return async (request) => {
 		const url = new URL(request.url);
-		const host = await services.sitePages.resolveHost(normaliseHostname(url.hostname));
+		const hostname = normaliseHostname(url.hostname);
+		// Domain verification comes first: a domain waiting for DNS belongs to no Site yet.
+		if (url.pathname.startsWith(VERIFY_PATH)) {
+			return readOnly(request, () => verification(services, hostname, url.pathname.slice(VERIFY_PATH.length)));
+		}
+		const host = await services.sitePages.resolveHost(hostname);
 		if (!host) return notFound();
+		// A Redirect domain sends every request on to the same path on the Primary domain (ADR 0015).
+		if (host.address === "redirect") return domainRedirect(host, url);
 		const editing = await editModeEndpoint(services, request, host);
 		if (editing) return editing;
 		if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
@@ -76,7 +86,9 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			if (url.pathname.startsWith(STYLESHEET_PATH)) {
 				return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));
 			}
-			if (url.pathname.startsWith(SCRIPT_PATH)) return script(request, host, url.pathname.slice(SCRIPT_PATH.length));
+			if (url.pathname.startsWith(SCRIPT_PATH)) {
+				return script(services, request, host, url.pathname.slice(SCRIPT_PATH.length));
+			}
 			const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
 			if (chosen) return chosen;
 			const segments = pathSegments(url.pathname);
@@ -88,7 +100,16 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			if (number === 1 && url.searchParams.has(PAGE_PARAMETER)) {
 				return redirect(host, canonicalPath(segments ?? []));
 			}
-			if (edit.session) return editModePage(services, host, edit.session, url.pathname, number);
+			if (edit.session) {
+				return editModePage(
+					services,
+					host,
+					edit.session,
+					url.pathname,
+					await codeModeOf(services, request, edit.session),
+					number,
+				);
+			}
 			const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
 			if (redirected) return redirected;
 			const page = await visitorPage(services, cache, request, host);
@@ -115,6 +136,33 @@ function pageNumber(url: URL): number | undefined {
 }
 
 /**
+ * A Redirect domain's answer: 301 to the same path and query on the Primary domain, or the plain 404
+ * while the Site has no verified Primary domain to send visitors to.
+ */
+function domainRedirect(host: SiteHost, url: URL): Response {
+	if (!host.redirectTo) return notFound();
+	return new Response(null, {
+		status: 301,
+		headers: { location: `${host.redirectTo}${url.pathname}${url.search}`, "cache-control": PAGE_CACHE_CONTROL },
+	});
+}
+
+/** Where a redirect goes, with the request's query when it keeps it (a page that moved to another address). */
+function withQuery(answer: { location: string; keepQuery?: boolean }, url: URL): string {
+	return answer.keepQuery ? `${answer.location}${url.search}` : answer.location;
+}
+
+/**
+ * A domain verification request, `/_webcraft/verify/<token>` (ADR 0015): on one of the Install's
+ * domains, with that domain's own token, the answer only this Install makes for it; anything else is
+ * the plain 404. Never kept by anyone, as a new token's answer must come from the Install itself.
+ */
+async function verification(services: InstallServices, hostname: string, token: string): Promise<Response> {
+	const answer = await services.domains.verificationAnswer(hostname, token);
+	return answer === null ? plainText(404, "Not Found") : plainText(200, answer);
+}
+
+/**
  * The page visitors get at the URL, from the page cache, rendering and keeping it on a miss. Pages
  * are kept by normalised URL: one form of the path, and of the query parameters only the page of a
  * paginated Loop (`?page=2`, each page its own entry; Filters will allow theirs, sorted). A page
@@ -126,13 +174,15 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 	const segments = pathSegments(pathname);
 	if (!segments) return notFoundPage(services, host, pathname);
 	const number = pageNumber(url) ?? 1;
-	const key = number > 1 ? `${canonicalPath(segments)}?${PAGE_PARAMETER}=${number}` : canonicalPath(segments);
-	const now = services.clock.now();
-	const cached = cache.get(host.site.id, host.cacheGeneration, key, now);
+	// The same path is another page on each of the Site's addresses (its language, its links), and
+	// each page of a paginated Loop another page.
+	const path = canonicalPath(segments);
+	const key = `${host.origin}${number > 1 ? `${path}?${PAGE_PARAMETER}=${number}` : path}`;
+	const cached = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
 	if (cached) return pageResponse(request, host, cached, "HIT");
 	const answer = await services.sitePages.render(host, pathname, undefined, number);
 	if (!answer) return notFoundPage(services, host, pathname);
-	if (answer.kind === "redirect") return redirect(host, answer.location);
+	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
 	const page = { html: answer.html, etag: await etagOf(answer.html), expiresAt: answer.expiresAt?.getTime() ?? null };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
 	return pageResponse(request, host, page, "MISS");
@@ -140,16 +190,19 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 
 /**
  * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
- * with the Drafts of its Content and its editable regions tagged. It never touches the page cache.
+ * with the Drafts of its Content and its editable regions tagged; in Code mode (`code`, the Site
+ * opened with `structure.edit`), with the Drafts of the Structure too, every element tagged. It never
+ * touches the page cache.
  */
 async function editModePage(
 	services: InstallServices,
 	host: SiteHost,
 	session: EditSession,
 	pathname: string,
+	code: SiteScope | null,
 	page: number,
 ): Promise<Response> {
-	const editing = await pageEditing(session);
+	const editing = await pageEditing(session, code);
 	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing, page) : null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
@@ -203,11 +256,13 @@ async function stylesheet(
 }
 
 /**
- * A script WebCraft's own page parts need (the theme toggle's), `/_wc/js/<hash>.js`: never inline,
- * so the Site's Content Security Policy can allow only its own files (ADR 0023).
+ * A script a page runs, `/_wc/js/<hash>.js`: one WebCraft's own page parts need (the theme
+ * toggle's), or the Site's published Site script or a page script. Never inline, so the Site's
+ * Content Security Policy can allow only its own files (ADR 0023); named by its hash, so it may be
+ * kept for a year.
  */
-function script(request: Request, host: SiteHost, name: string): Response {
-	const text = siteScript(name);
+async function script(services: InstallServices, request: Request, host: SiteHost, name: string): Promise<Response> {
+	const text = siteScript(name) ?? (await services.sitePages.script(host, name));
 	if (text === null) return plainText(404, "Not Found", addressHeaders(host));
 	return immutableFile(request, host, text, "text/javascript; charset=utf-8", `"${name.slice(0, -".js".length)}"`);
 }

@@ -2,12 +2,16 @@
  * One reason something was refused, and where: `urlPattern`, `parentId`, `fields[2].key`, or a value's path such
  * as `fields.team[1].name`. A value that breaks one of its Field's rules says which (`required`,
  * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
- * `postTypes`, `media`: `VALUE_RULES`), so the admin can word it in the person's language.
+ * `postTypes`, `media`: `VALUE_RULES`), and a refused setting of a Post Type, a Field or the Globals
+ * says why (`SETTING_RULES`, with `params` to fill in), so the admin can word it in the person's
+ * language. `message` is the English wording API clients read.
  */
 export type ContentProblem = {
 	at: string;
 	message: string;
 	rule?: string;
+	/** What fills in the wording of a setting's `rule`, such as the key or the largest number allowed. */
+	params?: Readonly<Record<string, string | number>>;
 	/** The language of the value it is about, when it isn't the Default language's (or a shared) value. */
 	language?: string;
 };
@@ -33,6 +37,28 @@ export class PageNotFoundError extends Error {
 	override name = "PageNotFoundError";
 	constructor() {
 		super("There is no such Page on this Site.");
+	}
+}
+
+/**
+ * A save named the version of the Draft it was based on, and the Draft has changed since: someone else
+ * saved it meanwhile. Nothing was saved; `version` is the Draft's version now (null while there is
+ * none), so the person can reload it, or save again over that version to overwrite it.
+ */
+export class DraftChangedError extends Error {
+	override name = "DraftChangedError";
+	readonly version: string | null;
+	constructor(version: string | null) {
+		super("Someone saved this Draft since you opened it: reload it, or overwrite it.");
+		this.version = version;
+	}
+}
+
+/** There is no such script on the Site: no Site script or page script with that id. */
+export class ScriptNotFoundError extends Error {
+	override name = "ScriptNotFoundError";
+	constructor() {
+		super("There is no such script on this Site.");
 	}
 }
 

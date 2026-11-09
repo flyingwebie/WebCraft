@@ -2,13 +2,17 @@ import { ORPCError } from "@orpc/server";
 import { toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
+	CODE_MODE_SCRIPT_PATH,
+	CODE_MODE_STYLESHEET_PATH,
 	EDIT_MODE_PATH,
 	type EditSession,
 	type InstallServices,
 	isAdminLanguage,
 	type PageEditing,
 	RateLimitedError,
+	SCRIPT_MAX_LENGTH,
 	type SiteHost,
+	type SiteScope,
 } from "@webcraft/core";
 import { z } from "zod";
 
@@ -37,6 +41,18 @@ export async function editModeEndpoint(
 		return enter(services, request, host, url.searchParams.get("token") ?? "");
 	}
 	if (rest.startsWith(EDIT_API_PREFIX)) return editRequest(services, request, host, rest.slice(EDIT_API_PREFIX.length));
+	if (url.pathname.startsWith(CODE_MODE_STYLESHEET_PATH)) {
+		if (request.method !== "GET" && request.method !== "HEAD") {
+			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
+		}
+		return codeModeStylesheet(services, request, host);
+	}
+	if (url.pathname.startsWith(CODE_MODE_SCRIPT_PATH)) {
+		if (request.method !== "GET" && request.method !== "HEAD") {
+			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
+		}
+		return codeModeScript(services, request, host, url.pathname.slice(CODE_MODE_SCRIPT_PATH.length));
+	}
 	if (url.pathname.startsWith(EDIT_ASSETS_PATH)) {
 		if (request.method !== "GET" && request.method !== "HEAD") {
 			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
@@ -57,6 +73,73 @@ export const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
 
 /** What an edit request may do, by action: each gets the session and the request's JSON body. */
 const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
+	/**
+	 * Turns Code mode on for this browser (ADR 0016): its pages then show the Drafts of the Site's
+	 * Structure, every element tagged. Only for someone who may change the Structure (`structure.edit`).
+	 */
+	"code/start": async (services, session, _body, request) => {
+		await services.codeMode.access(session);
+		const response = json(200, { code: true });
+		const maxAge = Math.max(0, Math.floor((session.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
+		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "on", maxAge));
+		return response;
+	},
+	/**
+	 * Opens what an element comes from (by the reference the page tags it with): its Template or
+	 * Component as Template markup, for Code mode's HTML panel.
+	 */
+	"code/open": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.open(scope, host, parse(codeSource, body)));
+	},
+	/**
+	 * The page as Code mode shows it with unsaved markup in place of its source's Draft, rendered by
+	 * the server through the same parser as saving; nothing is saved.
+	 */
+	"code/preview": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		const input = parse(codePreview, body);
+		return json(200, await services.codeMode.preview(host, await pageEditing(session, scope), input));
+	},
+	/** Saves markup to its Template's or Component's Draft, based on the version it was opened at. */
+	"code/save": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.save(scope, host, parse(codeSave, body)));
+	},
+	/** What the CSS panel shows for an element: its Classes, the breakpoints, the Site CSS and the tokens. */
+	"code/css": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.css(scope, host, parse(codeSource, body)));
+	},
+	/** Saves a piece of a Class, or the Site CSS, to the Design system's Draft, based on the version it was opened at. */
+	"code/saveCss": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.saveCss(scope, parse(codeSaveCss, body)));
+	},
+	/** Makes a Class of the Design system's Draft from a name the HTML panel doesn't know. */
+	"code/createClass": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.createClass(scope, parse(codeClassName, body).name));
+	},
+	/** The page's scripts for the JS panel: the Site script and the page's own, with their Drafts' files. */
+	"code/scripts": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.scripts(scope, host, parse(pagePath, body).path));
+	},
+	/**
+	 * Saves the Site script's or the page's script's Draft, based on the version it was opened at. It
+	 * runs on the page only when Staff press Run, which loads the file this answers, or load the page.
+	 */
+	"code/saveScript": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.saveScript(scope, host, parse(codeSaveScript, body)));
+	},
+	/** Turns Code mode off for this browser: its pages are Content editing's again. */
+	"code/stop": async (_services, _session, _body, request) => {
+		const response = json(200, { code: false });
+		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "", 0));
+		return response;
+	},
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
 	/**
@@ -96,6 +179,58 @@ type EditAction = (
 ) => Promise<Response>;
 
 const pagePath = z.object({ path: z.string().max(2000) });
+
+/** A reference to what an element comes from, as pages in Code mode tag it (`data-wc-code`); null for the page's content. */
+const codeRef = z.string().max(1000).nullable();
+
+const codeSource = z.object({ path: z.string().max(2000), ref: codeRef });
+
+/** The longest Template markup Code mode sends, in characters, as the Management API takes it. */
+const MARKUP_MAX_LENGTH = 2_000_000;
+
+/** A Draft's version as reading it answered, or null when there was none. */
+const draftVersion = z
+	.string()
+	.regex(/^[0-9a-f]{16}$/)
+	.nullable();
+
+/** The longest CSS Code mode sends, in characters, as the Design system takes it. */
+const CSS_MAX_LENGTH = 200_000;
+
+/** The id of a Class or a breakpoint token. */
+const designId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+/** Which CSS a save or preview changes: one piece of a Class (its styles, own CSS, or a breakpoint's styles), or the Site CSS. */
+const cssTarget = z.union([
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("styles") }),
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("css") }),
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("breakpoint"), breakpointId: designId }),
+	z.object({ kind: z.literal("site") }),
+]);
+
+const codePreview = z.object({
+	path: z.string().max(2000),
+	markup: z.object({ ref: z.string().max(1000), text: z.string().max(MARKUP_MAX_LENGTH) }).optional(),
+	css: z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH) }).optional(),
+});
+
+const codeSaveCss = z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH), version: draftVersion });
+
+const codeClassName = z.object({ name: z.string().max(200) });
+
+const codeSaveScript = z.object({
+	path: z.string().max(2000),
+	kind: z.enum(["site", "page"]),
+	code: z.string().max(SCRIPT_MAX_LENGTH),
+	version: draftVersion,
+});
+
+const codeSave = z.object({
+	path: z.string().max(2000),
+	ref: z.string().max(1000),
+	markup: z.string().max(MARKUP_MAX_LENGTH),
+	version: draftVersion,
+});
 
 const pageChange = z.object({ path: z.string().max(2000), item: z.string().max(100), key: z.string().max(200) });
 
@@ -238,9 +373,27 @@ export const EDIT_MODE_PAGE_HEADERS: Readonly<Record<string, string>> = {
 	"content-security-policy": EDIT_MODE_POLICY,
 };
 
-/** What a page needs to render for Edit mode: the person's scope, and WebCraft's files in <head>. */
-export async function pageEditing(session: EditSession): Promise<PageEditing> {
+/**
+ * What a page needs to render for Edit mode: the person's scope, and WebCraft's files in <head>. With
+ * `code` (the Site opened with `structure.edit`), the page is rendered for Code mode, which loads its
+ * own script after the editing bar's.
+ */
+export async function pageEditing(session: EditSession, code?: SiteScope | null): Promise<PageEditing> {
 	const files = await editBarAssets();
+	if (code) {
+		return {
+			scope: code,
+			code: true,
+			head: {
+				meta: [
+					["webcraft-edit-token", session.headerToken],
+					["webcraft-code-mode", "on"],
+				],
+				scripts: [files.script.path, files.codeScript.path],
+				stylesheets: [files.pageStyles.path],
+			},
+		};
+	}
 	return {
 		scope: session.scope,
 		head: {
@@ -249,6 +402,62 @@ export async function pageEditing(session: EditSession): Promise<PageEditing> {
 			stylesheets: [files.pageStyles.path],
 		},
 	};
+}
+
+/**
+ * The Site opened for Code mode when the request asks for it (its Code mode cookie) and the person
+ * may change the Site's Structure; null otherwise, and the page is Content editing's.
+ */
+export async function codeModeOf(
+	services: InstallServices,
+	request: Request,
+	session: EditSession,
+): Promise<SiteScope | null> {
+	if (cookieValue(request, siteCookieName(new URL(request.url).hostname, "code")) !== "on") return null;
+	return services.codeMode.openIfAllowed(session);
+}
+
+/**
+ * The Draft of one of the Site's scripts, as a page in Code mode runs it: only for Staff in Code mode,
+ * never kept by anyone. A plain 404 for everyone else, and for any other name.
+ */
+async function codeModeScript(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	name: string,
+): Promise<Response> {
+	const edit = await editSessionOf(services, request, host);
+	const scope = edit.session && (await services.codeMode.openIfAllowed(edit.session));
+	const code = scope ? await services.codeMode.draftScript(scope, name) : null;
+	if (code === null) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
+	return new Response(request.method === "HEAD" ? null : code, {
+		headers: {
+			"content-type": "text/javascript; charset=utf-8",
+			"cache-control": "no-store",
+			"x-content-type-options": "nosniff",
+			"x-robots-tag": "noindex",
+		},
+	});
+}
+
+/**
+ * The stylesheet a page in Code mode links, built from the Design system's Draft and the Drafts of
+ * the Site's trees: only for Staff in Code mode, never kept by anyone. A plain 404 for everyone else.
+ */
+async function codeModeStylesheet(services: InstallServices, request: Request, host: SiteHost): Promise<Response> {
+	const edit = await editSessionOf(services, request, host);
+	const scope = edit.session && (await services.codeMode.openIfAllowed(edit.session));
+	if (!scope) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
+	const css = await services.codeMode.stylesheet(scope);
+	return new Response(request.method === "HEAD" ? null : css, {
+		headers: {
+			"content-type": "text/css; charset=utf-8",
+			"cache-control": "no-store",
+			"x-content-type-options": "nosniff",
+			"x-robots-tag": "noindex",
+		},
+	});
 }
 
 /** A page in Edit mode, as HTML with Edit mode's headers. */

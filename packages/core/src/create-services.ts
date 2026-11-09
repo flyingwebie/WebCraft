@@ -3,6 +3,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
+import { createCodeMode } from "./code-mode/index.ts";
 import {
 	addLanguage,
 	createComponent,
@@ -21,6 +22,7 @@ import {
 	getGlobals,
 	getLoop,
 	getPostType,
+	getScript,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	getSpecialPages,
@@ -41,8 +43,10 @@ import {
 	saveGlobalsDraft,
 	saveLoopDraft,
 	saveLoopItems,
+	saveScriptDraft,
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
+	scriptById,
 	setBrowserLanguageRedirect,
 	setDefaultLanguage,
 	setGlobalFields,
@@ -60,6 +64,7 @@ import {
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
+import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
@@ -72,7 +77,12 @@ import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
-import { editModeSigningKey, type MasterKey, sessionSigningSecret } from "./secrets/master-key.ts";
+import {
+	domainVerificationKey,
+	editModeSigningKey,
+	type MasterKey,
+	sessionSigningSecret,
+} from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
@@ -193,17 +203,17 @@ export async function createInstallServices(
 			entryTemplate: getEntryTemplate,
 			saveEntryTemplate: (scope, postTypeId, tree) => saveEntryTemplate(scope, postTypeId, tree, componentSources),
 			entryTemplateMarkup: (scope, postTypeId) => getEntryTemplateMarkup(scope, postTypeId, componentSources),
-			saveEntryTemplateMarkup: (scope, postTypeId, markup) =>
-				saveEntryTemplateMarkup(scope, postTypeId, markup, componentSources),
+			saveEntryTemplateMarkup: (scope, postTypeId, markup, base) =>
+				saveEntryTemplateMarkup(scope, postTypeId, markup, componentSources, base),
 			siteTemplate: getSiteTemplate,
 			saveSiteTemplate: (scope, tree) => saveSiteTemplate(scope, tree, componentSources),
 			siteTemplateMarkup: (scope) => getSiteTemplateMarkup(scope, componentSources),
-			saveSiteTemplateMarkup: (scope, markup) => saveSiteTemplateMarkup(scope, markup, componentSources),
+			saveSiteTemplateMarkup: (scope, markup, base) => saveSiteTemplateMarkup(scope, markup, componentSources, base),
 			archiveTemplate: getArchiveTemplate,
 			saveArchiveTemplate: (scope, postTypeId, tree) => saveArchiveTemplate(scope, postTypeId, tree, componentSources),
 			archiveTemplateMarkup: (scope, postTypeId) => getArchiveTemplateMarkup(scope, postTypeId, componentSources),
-			saveArchiveTemplateMarkup: (scope, postTypeId, markup) =>
-				saveArchiveTemplateMarkup(scope, postTypeId, markup, componentSources),
+			saveArchiveTemplateMarkup: (scope, postTypeId, markup, base) =>
+				saveArchiveTemplateMarkup(scope, postTypeId, markup, componentSources, base),
 		},
 		components: {
 			list: (scope) => listComponents(scope, componentSources),
@@ -211,7 +221,8 @@ export async function createInstallServices(
 			create: (scope, input) => createComponent(scope, input, componentSources),
 			saveDraft: (scope, componentId, change) => saveComponentDraft(scope, componentId, change, componentSources),
 			markup: (scope, componentId) => getComponentMarkup(scope, componentId, componentSources),
-			saveMarkup: (scope, componentId, input) => saveComponentMarkup(scope, componentId, input, componentSources),
+			saveMarkup: (scope, componentId, input, base) =>
+				saveComponentMarkup(scope, componentId, input, componentSources, base),
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
@@ -223,6 +234,19 @@ export async function createInstallServices(
 			saveItems: saveLoopItems,
 			data: loopData,
 		},
+		domains: createDomains({
+			config,
+			database,
+			data,
+			http: ports.http,
+			dns: ports.dns,
+			tls: ports.tls,
+			clock,
+			log,
+			email,
+			verificationKey: await domainVerificationKey(masterKey),
+		}),
+		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
 		languages: {
 			get: siteLanguages,
 			add: (scope, input) => addLanguage({ config }, scope, input),
@@ -257,6 +281,7 @@ export async function createInstallServices(
 			signingKey: await editModeSigningKey(masterKey),
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
+		codeMode: createCodeMode({ data, sources: componentSources, pages: sitePages }),
 		memberships,
 		members: createMembers({ database, email }),
 		staff: createStaff({ email }),

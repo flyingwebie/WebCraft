@@ -2,6 +2,7 @@
 // Structure: Staff (and the Superadmin) change them; Members read them to write Entries.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { BUILT_IN_FIELDS } from "@webcraft/core";
+import { SETTING_RULES } from "@webcraft/core/field-rules";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { element, tree, value } from "../harness/trees.ts";
@@ -112,6 +113,58 @@ describe("creating a Post Type", () => {
 });
 
 describe("refused Post Types", () => {
+	test("every refused setting says why with a code and what fills in its wording, so the admin can word it", async () => {
+		const refusal = await staff.api.postTypes
+			.create({
+				siteId,
+				name: "",
+				key: "Bad Key",
+				urlPattern: "/blog",
+				fields: [
+					{ key: "summary", label: "Summary", type: "text", minLength: 9, maxLength: 3 },
+					{ key: "summary", label: "", type: "text", pattern: "(?=a)" },
+					{ key: "title", label: "Title", type: "text" },
+					{ key: "kind", label: "Kind", type: "select", options: [] },
+					{ key: "rating", label: "Rating", type: "number", min: 5, max: 1 },
+					{ key: "author", label: "Author", type: "relationship", postTypes: ["nobody"] },
+					{ key: "notes", label: "Notes", type: "repeater", fields: [] },
+					{ key: "flag", label: "Flag", type: "boolean", required: true },
+				],
+			})
+			.catch((error: unknown) => error);
+
+		const problems = (refusal as { data: { problems: { at: string; rule?: string; params?: unknown }[] } }).data
+			.problems;
+		expect(problems.filter((problem) => !SETTING_RULES.includes(problem.rule as never))).toEqual([]);
+		expect(problems).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ at: "name", rule: "postTypeNameLength", params: { max: 100 } }),
+				expect.objectContaining({ at: "key", rule: "postTypeKeyFormat" }),
+				expect.objectContaining({ at: "urlPattern", rule: "urlPatternFormat", params: { slug: "{slug}" } }),
+				expect.objectContaining({ at: "fields[0].maxLength", rule: "lengthOrder" }),
+				expect.objectContaining({
+					at: "fields[1].key",
+					rule: "keyTwice",
+					params: { key: "summary", kind: "field" },
+				}),
+				expect.objectContaining({ at: "fields[1].label", rule: "labelLength" }),
+				expect.objectContaining({ at: "fields[1].pattern", rule: "patternInvalid" }),
+				expect.objectContaining({ at: "fields[2].key", rule: "keyReserved", params: { key: "title" } }),
+				expect.objectContaining({ at: "fields[3].options", rule: "optionsCount" }),
+				expect.objectContaining({ at: "fields[4].max", rule: "numberOrder" }),
+				expect.objectContaining({
+					at: "fields[5].postTypes[0]",
+					rule: "postTypeUnknown",
+					params: { key: "nobody" },
+				}),
+				expect.objectContaining({ at: "fields[6].fields", rule: "fieldsEmpty", params: { kind: "repeater" } }),
+				expect.objectContaining({ at: "fields[7].required", rule: "requiredNever" }),
+			]),
+		);
+		// API clients keep reading the English wording.
+		expect(problems.every((problem) => typeof (problem as { message?: unknown }).message === "string")).toBe(true);
+	});
+
 	test("URL patterns need fixed parts and exactly one {slug}", async () => {
 		const refused = [
 			"blog/{slug}",

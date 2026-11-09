@@ -4,6 +4,7 @@ import type { Database } from "@webcraft/db";
 import type { Account } from "./account.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
+import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
 import type {
 	Component,
@@ -32,8 +33,10 @@ import type {
 	PostTypeChange,
 	Published,
 	PublishItem,
+	SaveBase,
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
+	Script,
 	SiteLanguages,
 	SpecialPages,
 	Template,
@@ -41,6 +44,7 @@ import type {
 } from "./content/index.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
 import type { Dns } from "./dns.ts";
+import type { Domains } from "./domains/index.ts";
 import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
@@ -71,6 +75,7 @@ import type { MembersService } from "./tenancy/members.ts";
 import type { MembershipsService } from "./tenancy/memberships.ts";
 import type { StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
+import type { TlsProbe } from "./tls.ts";
 
 /**
  * The edges of a running Install: real adapters in the processes, fakes in tests. Everything else
@@ -84,6 +89,8 @@ export type InstallPorts = {
 	http: OutgoingHttp;
 	/** DNS, for the guarded fetcher's address checks. */
 	dns: Dns;
+	/** TLS, for the Domain check's look at each domain's certificate. */
+	tls: TlsProbe;
 	clock: Clock;
 	log: Logger;
 	/**
@@ -182,16 +189,26 @@ export type InstallServices = InstallPorts & {
 		entryTemplateMarkup(
 			scope: SiteScope,
 			postTypeId: string,
-		): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
-		/** Saves an Entry template's Draft from Template markup; inline styles become generated Classes. */
-		saveEntryTemplateMarkup(scope: SiteScope, postTypeId: string, markup: string): Promise<SavedTemplateMarkup>;
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/**
+		 * Saves an Entry template's Draft from Template markup; inline styles become generated Classes.
+		 * With `basedOn`, refused when the Draft changed since that version (`DraftChangedError`).
+		 */
+		saveEntryTemplateMarkup(
+			scope: SiteScope,
+			postTypeId: string,
+			markup: string,
+			base?: SaveBase,
+		): Promise<SavedTemplateMarkup>;
 		/** The Site template, or null while the Site has none (its pages show the built-in one). */
 		siteTemplate(scope: SiteScope): Promise<Template | null>;
 		saveSiteTemplate(scope: SiteScope, tree: unknown): Promise<Template>;
 		/** The Site template as Template markup (its Draft and published version), or null while it has none. */
-		siteTemplateMarkup(scope: SiteScope): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
-		/** Saves the Site template's Draft from Template markup; inline styles become generated Classes. */
-		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
+		siteTemplateMarkup(
+			scope: SiteScope,
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/** Saves the Site template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
+		saveSiteTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 		/** A Post Type's Archive template, or null while it has none. */
 		archiveTemplate(scope: SiteScope, postTypeId: string): Promise<Template | null>;
 		saveArchiveTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template>;
@@ -199,10 +216,17 @@ export type InstallServices = InstallPorts & {
 		archiveTemplateMarkup(
 			scope: SiteScope,
 			postTypeId: string,
-		): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
-		/** Saves an Archive template's Draft from Template markup; inline styles become generated Classes. */
-		saveArchiveTemplateMarkup(scope: SiteScope, postTypeId: string, markup: string): Promise<SavedTemplateMarkup>;
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/** Saves an Archive template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
+		saveArchiveTemplateMarkup(
+			scope: SiteScope,
+			postTypeId: string,
+			markup: string,
+			base?: SaveBase,
+		): Promise<SavedTemplateMarkup>;
 	};
+	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
+	domains: Domains;
 	/**
 	 * A Site's languages (Structure): the Default language and the others, their names, directions and
 	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.
@@ -239,12 +263,16 @@ export type InstallServices = InstallPorts & {
 		markup(
 			scope: SiteScope,
 			componentId: string,
-		): Promise<{ component: Component; markup: ComponentMarkup; usage: ComponentUsage }>;
-		/** Saves its Draft from Template markup (and new Props, when given); inline styles become generated Classes. */
+		): Promise<{ component: Component; markup: ComponentMarkup; version: string; usage: ComponentUsage }>;
+		/**
+		 * Saves its Draft from Template markup (and new Props, when given); inline styles become
+		 * generated Classes. With `basedOn`, refused when the Draft changed since that version.
+		 */
 		saveMarkup(
 			scope: SiteScope,
 			componentId: string,
 			input: { markup: string; props?: FieldInput[] },
+			base?: SaveBase,
 		): Promise<SavedComponentMarkup>;
 		/** Renames it: Template markup writes the new name everywhere at once. */
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
@@ -267,6 +295,17 @@ export type InstallServices = InstallPorts & {
 		saveItems(scope: SiteScope, loopId: string, change: LoopItemsChange): Promise<Loop>;
 		/** Its Data tab: its first item from the Drafts, as JSON, with the bindings that read it. */
 		data(scope: SiteScope, loopId: string, language?: string): Promise<DataSample>;
+	};
+	/**
+	 * The Site script and page scripts (ADR 0016): Structure with a Draft, published through
+	 * `publishing.publish` with `{ kind: "script" }`. Open the Site with `structure.edit`.
+	 */
+	scripts: {
+		/** The Site script (`entryId` null) or an Entry's page script; null while there is none. */
+		get(scope: SiteScope, entryId: string | null): Promise<Script | null>;
+		byId(scope: SiteScope, scriptId: string): Promise<Script>;
+		/** Saves its Draft, making it the first time; with `basedOn`, refused when it changed since. */
+		saveDraft(scope: SiteScope, entryId: string | null, code: string, base?: SaveBase): Promise<Script>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing
@@ -322,6 +361,11 @@ export type InstallServices = InstallPorts & {
 	 * own domain, each checked again with every request.
 	 */
 	editMode: EditMode;
+	/**
+	 * Code mode (ADR 0016): Staff in Edit mode edit the Template markup, CSS and scripts of what they
+	 * select on the page, saved to the Drafts. Open its Site with `codeMode.access(session)`.
+	 */
+	codeMode: CodeMode;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
 	/** Members of a Workspace: inviting them, their role and Sites, removing them, pending invites. */

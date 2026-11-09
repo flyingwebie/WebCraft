@@ -208,6 +208,50 @@ export const components = pgTable(
 );
 
 /**
+ * Scripts Staff write in Code mode (ADR 0016): the Site script (`kind = 'site'`, one per Site, on
+ * every page) and page scripts (`kind = 'page'`, one per Entry, on its page only). Structure with a
+ * Draft and a published version, as text. Pages never carry them inline (ADR 0023): each version is
+ * a file named by the hash of its text, `draft_hash` and `published_hash` (16 hexadecimal digits of
+ * its SHA-256), served from the Site's own domain.
+ */
+export const scripts = pgTable(
+	"scripts",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** `site` or `page`. */
+		kind: text("kind").notNull(),
+		/** The Entry whose page a page script runs on; null for the Site script. */
+		entryId: uuid("entry_id"),
+		draft: text("draft").notNull(),
+		draftHash: text("draft_hash").notNull(),
+		/** What visitors run; null until the first publish. */
+		published: text("published"),
+		publishedHash: text("published_hash"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		publishedAt: timestamp("published_at", { withTimezone: true }),
+		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
+	},
+	(table) => [
+		foreignKey({
+			name: "scripts_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "scripts_entry_fkey",
+			columns: [table.siteId, table.entryId],
+			foreignColumns: [entries.siteId, entries.id],
+		}).onDelete("cascade"),
+		unique("scripts_site_id_kind_entry_id_unique").on(table.siteId, table.kind, table.entryId).nullsNotDistinct(),
+		index("scripts_site_id_published_hash_idx").on(table.siteId, table.publishedHash),
+		index("scripts_site_id_draft_hash_idx").on(table.siteId, table.draftHash),
+	],
+);
+
+/**
  * Loops: repeated parts of a Site, made by Staff (Structure) and placed in Templates and Components
  * by name (`{{@loop latest-posts as post}}`). Each version says where the items come from (a query
  * over Entries, or the Loop's own Loop items) and holds the Loop items' Fields and values:

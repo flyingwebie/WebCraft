@@ -95,6 +95,11 @@ export type TemplateCommand<Node extends CommandNode = CommandNode> = {
 	block: boolean;
 	/** The keywords of sections that may follow the opening one inside the block, such as `else`. */
 	branches: readonly string[];
+	/**
+	 * The markup Code mode's `{{@` menu inserts for it (ADR 0016), `$0` marking where the caret goes,
+	 * so every command in the registry is offered there by itself.
+	 */
+	snippet: string;
 	fromMarkup(sections: readonly MarkupSection[], tools: FromMarkupTools): Node | undefined;
 	toMarkup(node: Node): PrintedSection[];
 	check(input: Record<string, unknown>, at: string, tools: CheckTools): Node | undefined;
@@ -120,6 +125,7 @@ const ifCommand: TemplateCommand<ConditionNode> = {
 	nodeType: "condition",
 	block: true,
 	branches: ["else if", "else"],
+	snippet: "{{@if $0}}\n{{/if}}",
 
 	fromMarkup(sections, tools) {
 		const branches: ConditionBranch[] = [];
@@ -197,6 +203,7 @@ const outletCommand: TemplateCommand<OutletNode> = {
 	nodeType: "outlet",
 	block: false,
 	branches: [],
+	snippet: "{{@outlet}}",
 
 	fromMarkup(sections, tools) {
 		const [section] = sections;
@@ -238,6 +245,7 @@ const themeToggleCommand: TemplateCommand<ThemeToggleNode> = {
 	nodeType: "themeToggle",
 	block: false,
 	branches: [],
+	snippet: "{{@themeToggle}}",
 
 	fromMarkup(sections, tools) {
 		const [section] = sections;
@@ -326,6 +334,7 @@ const languageSwitcherCommand: TemplateCommand<LanguageSwitcherNode> = {
 	nodeType: "languageSwitcher",
 	block: false,
 	branches: [],
+	snippet: "{{@languageSwitcher}}",
 
 	fromMarkup(sections, tools) {
 		const [section] = sections;
@@ -372,6 +381,7 @@ const loopCommand: TemplateCommand<LoopNode> = {
 	nodeType: "loop",
 	block: true,
 	branches: ["empty"],
+	snippet: "{{@loop $0 as item}}\n{{@empty}}\n{{/loop}}",
 
 	bodyScope(section, around, problem) {
 		const read = readLoopArgument(section.argument);
@@ -455,6 +465,7 @@ const paginationCommand: TemplateCommand<PaginationNode> = {
 	nodeType: "pagination",
 	block: false,
 	branches: [],
+	snippet: "{{@pagination $0}}",
 
 	fromMarkup(sections, tools) {
 		const [section] = sections;

@@ -58,7 +58,15 @@ export function errorMessage(error: unknown): MessageKey {
 		case "LOOP_INCOMPLETE":
 		case "LOOP_NAME_TAKEN":
 		case "ARCHIVE_UNAVAILABLE":
+		case "DOMAIN_TAKEN":
+		case "DOMAIN_NOT_FOUND":
 			return `errors.${code}`;
+		case "DOMAIN_INVALID":
+			return (data as { reason?: unknown } | undefined)?.reason === "install"
+				? "errors.DOMAIN_INSTALL"
+				: "errors.DOMAIN_INVALID";
+		case "DOMAIN_CHANGE_REFUSED":
+			return data?.problem === "language" ? "errors.DOMAIN_IS_LANGUAGES" : "errors.DOMAIN_NOT_VERIFIED";
 		case "POST_TYPE_TAKEN":
 			return (data as { field?: unknown } | undefined)?.field === "key"
 				? "errors.POST_TYPE_TAKEN_KEY"

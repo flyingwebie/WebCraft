@@ -13,7 +13,8 @@ import { type MessageKey, useT } from "../i18n.tsx";
 import { FieldBuilder, type FieldOwner } from "./FieldBuilder.tsx";
 import type { SettingProblems } from "./FieldSettingsPanel.tsx";
 import { draftsOf, type FieldDraft, findDraft, inputsOf, locateProblem, walk } from "./field-drafts.ts";
-import type { FieldDefinition } from "./model.ts";
+import type { FieldDefinition, Problem } from "./model.ts";
+import { settingProblemText } from "./problems.ts";
 
 /** A Post Type's own settings, as the screen edits them. */
 type PostTypeSettings = { name: string; urlPattern: string };
@@ -127,11 +128,13 @@ export function StructureEditor({
 			await router.invalidate();
 		} catch (error) {
 			const code = errorCode(error);
-			const data = (error as { data?: { problems?: { at: string; message: string }[]; field?: string; path?: string } })
-				.data;
+			const data = (error as { data?: { problems?: Problem[]; field?: string; path?: string } }).data;
 			if ((code === "POST_TYPE_INVALID" || code === "GLOBALS_INVALID" || code === "LOOP_INVALID") && data?.problems) {
 				setLocated(
-					data.problems.map((problem) => ({ ...locateProblem(drafts, problem.at), message: problem.message })),
+					data.problems.map((problem) => ({
+						...locateProblem(drafts, problem.at),
+						message: settingProblemText(t, problem),
+					})),
 				);
 				setFailure("postTypes.notSaved");
 			} else if (code === "POST_TYPE_TAKEN") {
