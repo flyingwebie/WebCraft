@@ -215,15 +215,11 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			where: { workspaceId: string | null; siteId: string | null },
 		) => {
 			const at = clock.now();
-			await recordAudit(executor, at, {
-				personId: personIdOf(access.actor),
-				via: access.via,
-				...where,
-				action,
-				details,
-			});
+			const personId = personIdOf(access.actor);
+			await recordAudit(executor, at, { personId, via: access.via, ...where, action, details });
 			if (!afterAudit) return;
-			const announce = () => afterAudit({ action, ...where, at, details: details ?? {} }).catch(() => {});
+			const announce = () =>
+				afterAudit({ action, personId, via: access.via, ...where, at, details: details ?? {} }).catch(() => {});
 			if (afterCommit) afterCommit.push(announce);
 			else await announce();
 		};

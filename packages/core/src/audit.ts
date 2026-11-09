@@ -40,6 +40,9 @@ export type AuditEntry = Required<NewAuditEntry> & { id: string; at: Date };
 /** An Audit log entry a scope wrote, as the data layer announces it once it is saved. */
 export type RecordedAuditEntry = {
 	action: string;
+	/** Who acted; null when nobody did (a Module by itself). */
+	personId: string | null;
+	via: AuditVia;
 	workspaceId: string | null;
 	siteId: string | null;
 	at: Date;

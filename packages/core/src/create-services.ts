@@ -129,15 +129,28 @@ export async function createInstallServices(
 		],
 		onAccountLocked: reportAccountLock({ database, clock, email }),
 	});
-	// The Module host hears of every Audit log entry once its change is saved: Modules react to some.
-	const listeners: { afterAudit?: ModuleHost["afterAudit"] } = {};
+	// The Module host and Webhooks hear of every Audit log entry once its change is saved: Modules
+	// react to some, and a publish fires the Site's Webhooks.
+	const listeners: { afterAudit: ModuleHost["afterAudit"][] } = { afterAudit: [] };
 	const data = createDataLayer({
 		database,
 		clock,
 		secrets: store,
-		afterAudit: (entry) => listeners.afterAudit?.(entry) ?? Promise.resolve(),
+		afterAudit: async (entry) => {
+			for (const listener of listeners.afterAudit) await listener(entry);
+		},
 	});
 	const guardedFetch = createGuardedFetch({ http: ports.http, dns: ports.dns });
+	const webhooks = createWebhooks({
+		config,
+		database,
+		data,
+		secrets: store,
+		fetch: guardedFetch,
+		jobs: ports.jobs,
+		clock,
+		log,
+	});
 	const modules = createModuleHost({
 		database,
 		data,
@@ -148,7 +161,7 @@ export async function createInstallServices(
 		log,
 		modules: options.modules ?? FIRST_PARTY_MODULES,
 	});
-	listeners.afterAudit = modules.afterAudit;
+	listeners.afterAudit.push(modules.afterAudit, webhooks.afterAudit);
 	// The Components of Modules: placed on Sites where their Module runs.
 	const componentSources = modules.components;
 	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };
@@ -227,7 +240,7 @@ export async function createInstallServices(
 			email,
 			verificationKey: await domainVerificationKey(masterKey),
 		}),
-		webhooks: createWebhooks(),
+		webhooks,
 		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
 		languages: {
 			get: siteLanguages,
