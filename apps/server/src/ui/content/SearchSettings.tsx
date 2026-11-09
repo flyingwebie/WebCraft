@@ -7,6 +7,7 @@ import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native
 import { CircleAlertIcon } from "lucide-react";
 import { useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useAfterRender } from "../after-render.ts";
 
 import { getApi } from "../api.ts";
 import { errorCode, errorMessage } from "../errors.ts";
@@ -61,6 +62,7 @@ export function SearchSettings({ postType, siteId }: { postType: PostTypeView; s
 	const [problems, setProblems] = useState<string[] | null>(null);
 	const [busy, setBusy] = useState(false);
 	const summary = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 
 	const current = state(
 		searchable,
@@ -113,7 +115,7 @@ export function SearchSettings({ postType, siteId }: { postType: PostTypeView; s
 					? data.problems.map((problem) => settingProblemText(t, problem))
 					: [t(errorMessage(error))],
 			);
-			requestAnimationFrame(() => summary.current?.focus());
+			afterRender(() => summary.current?.focus());
 		} finally {
 			setBusy(false);
 		}

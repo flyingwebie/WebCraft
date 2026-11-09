@@ -8,6 +8,7 @@ import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native
 import { CircleAlertIcon, PlusIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useAfterRender } from "../after-render.ts";
 
 import { getApi } from "../api.ts";
 import { errorCode, errorMessage } from "../errors.ts";
@@ -60,6 +61,7 @@ export function LoopEditor({
 	const [publishError, setPublishError] = useState<MessageKey | null>(null);
 	const [publishing, setPublishing] = useState(false);
 	const alert = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const items = loop.draft.source === "items";
 
 	const publish = async () => {
@@ -77,7 +79,7 @@ export function LoopEditor({
 			setPublishError(errorMessage(error));
 			if (data?.problems) setPublishProblems(data.problems);
 			else if (data?.missing) setPublishProblems(data.missing.map((at) => ({ at, message: t("loops.items.missing") })));
-			requestAnimationFrame(() => alert.current?.focus());
+			afterRender(() => alert.current?.focus());
 		} finally {
 			setPublishing(false);
 		}
@@ -315,6 +317,7 @@ function QueryBuilder({
 	const [failure, setFailure] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
 	const summary = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const dirty = JSON.stringify(query) !== baseline;
 	const listed = postTypes.filter((postType) => query.postTypes.includes(postType.key));
 	const fields = queryFields(listed);
@@ -340,7 +343,7 @@ function QueryBuilder({
 			const data = (error as { data?: { problems?: Problem[] } }).data;
 			setProblems(errorCode(error) === "LOOP_INVALID" ? (data?.problems ?? []) : []);
 			setFailure(errorMessage(error));
-			requestAnimationFrame(() => summary.current?.focus());
+			afterRender(() => summary.current?.focus());
 		} finally {
 			setBusy(false);
 		}
