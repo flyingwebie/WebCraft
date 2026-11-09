@@ -33,6 +33,7 @@ import {
 	verifyOnce,
 } from "./verification.ts";
 
+export { domainOrigin, placeOf, type SiteAddresses, siteAddresses } from "./addresses.ts";
 export { VERIFY_PATH } from "./checks.ts";
 export {
 	type DnsRecord,
