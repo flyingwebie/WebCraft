@@ -37,6 +37,8 @@ export type SendOptions = {
 	contentType?: string;
 	/** The raw body, in place of the fields. */
 	body?: string;
+	/** More headers the browser sends, such as its cookies or `DNT`. */
+	headers?: Record<string, string>;
 };
 
 let visitors = 0;
@@ -68,6 +70,7 @@ export function formVisitor(install: TestInstall, address?: string): FormVisitor
 				options.fetchSite === undefined ? (origin === target.origin ? "same-origin" : "cross-site") : options.fetchSite;
 			if (fetchSite !== null) headers.set("sec-fetch-site", fetchSite);
 			headers.set("referer", page.url);
+			for (const [name, value] of Object.entries(options.headers ?? {})) headers.set(name, value);
 			const request = new Request(target, { method: "POST", headers, body: options.body ?? body.toString() });
 			return install.request(fromAddress(request, own));
 		},

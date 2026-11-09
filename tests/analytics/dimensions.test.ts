@@ -96,7 +96,8 @@ describe("page views and visits are counted by", () => {
 });
 
 describe("Form Submissions", () => {
-	test("are counted for Goals by Form, once kept and never as spam, with nothing the visitor typed", async () => {
+	/** A Site whose every page shows the Form `contact`; answers the Site and the Form's id. */
+	const siteWithForm = async () => {
 		const site = await newSite();
 		const { form } = await staff.api.forms.create({ siteId: site.siteId, name: "Contact", key: "contact" });
 		await staff.api.forms.saveDraft({
@@ -113,6 +114,27 @@ describe("Form Submissions", () => {
 			markup: "<main>{{@outlet}}{{@form contact}}</main>",
 		});
 		await staff.api.templates.publish({ siteId: site.siteId, templateId: saved.template.id });
+		return { ...site, formId: form.id };
+	};
+	/** Sends the Form on the home page at `origin`, from `address`, with `headers`; answers its status. */
+	const sendForm = async (origin: string, address: string, headers: Record<string, string> = {}) => {
+		const visitor = formVisitor(install, address);
+		const page = await visitor.open(`${origin}/`);
+		await install.clock.advance(5000);
+		return (await visitor.send(page, { email: `${address}@example.org` }, { headers })).status;
+	};
+	const formEvents = async (siteId: string) => {
+		expect((await install.drainJobs()).failed).toEqual([]);
+		const { rows } = await analyticsApi(staff).stats.breakdown({
+			siteId,
+			...dayOf(install.clock.now()),
+			dimension: "form",
+		});
+		return rows.reduce((total, row) => total + row.events, 0);
+	};
+
+	test("are counted for Goals by Form, once kept and never as spam, with nothing the visitor typed", async () => {
+		const site = await siteWithForm();
 		const visitor = formVisitor(install, "203.0.113.5");
 		const page = await visitor.open(`${site.origin}/`);
 		await install.clock.advance(5000);
@@ -128,8 +150,40 @@ describe("Form Submissions", () => {
 				dimension: "form",
 			})
 		).rows;
-		expect(rows).toEqual([{ value: form.id, pageviews: 0, visitors: 0, visits: 0, events: 1 }]);
+		expect(rows).toEqual([{ value: site.formId, pageviews: 0, visitors: 0, visits: 0, events: 1 }]);
 		expect(await install.tablesHolding("ada@example.org")).toEqual(["m_forms.submissions"]);
+	});
+
+	test("are counted only once the visitor accepted Analytics, and never with Do Not Track or Global Privacy Control", async () => {
+		const site = await siteWithForm();
+		await staff.api.consentBanner.setSettings({ siteId: site.siteId, mode: "optIn", layout: "bar" });
+		const accepted = analyticsVisitor(install, site.origin, { address: "203.0.113.21" });
+		await accepted.answer({ analytics: true });
+		const declined = analyticsVisitor(install, site.origin, { address: "203.0.113.22" });
+		await declined.answer({ analytics: false });
+		const cookieOf = (visitor: typeof accepted) =>
+			[...visitor.cookies].map(([name, value]) => `${name}=${value}`).join("; ");
+
+		expect(await sendForm(site.origin, "203.0.113.20")).toBe(303);
+		expect(await sendForm(site.origin, "203.0.113.22", { cookie: cookieOf(declined) })).toBe(303);
+		expect(await sendForm(site.origin, "203.0.113.21", { cookie: cookieOf(accepted), dnt: "1" })).toBe(303);
+		expect(await sendForm(site.origin, "203.0.113.21", { cookie: cookieOf(accepted), "sec-gpc": "1" })).toBe(303);
+		expect(await formEvents(site.siteId)).toBe(0);
+
+		expect(await sendForm(site.origin, "203.0.113.21", { cookie: cookieOf(accepted) })).toBe(303);
+		expect(await formEvents(site.siteId)).toBe(1);
+	});
+
+	test("are never counted from the Staging address or from someone signed in to the Install", async () => {
+		const site = await siteWithForm();
+		const signedIn = (await install.createStaff({ workspaces: [workspaceId] })).browser;
+
+		expect(await sendForm(site.staging, "203.0.113.31")).toBe(303);
+		expect(await sendForm(site.origin, signedIn.address ?? "")).toBe(303);
+		expect(await formEvents(site.siteId)).toBe(0);
+
+		expect(await sendForm(site.origin, "203.0.113.32")).toBe(303);
+		expect(await formEvents(site.siteId)).toBe(1);
 	});
 });
 

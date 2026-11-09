@@ -30,6 +30,12 @@ export type FormPost = {
 	clientAddress: string | null;
 	/** The address of the page the browser says it came from (`Referer`), for hidden fields. */
 	referer: string | null;
+	/** How the post reached the Site: on its Staging address, or on one of its domains. */
+	via: "staging" | "domain";
+	/** Whether the post carries an Edit mode session that still holds. */
+	editing: boolean;
+	/** The post itself, for what Modules hear of its sender (`FormSender`): its consent cookie and headers. */
+	request: Request;
 };
 
 /**
@@ -94,13 +100,14 @@ export async function receiveFormPost(
 	const version = storedFormVersion(row.published);
 	const receivedAt = clock.now();
 	const keep = (submission: Omit<FormSubmission, "formId" | "formKey" | "formName" | "receivedAt">) =>
-		modules.receiveSubmission(host.site, {
-			formId: row.id,
-			formKey: row.key,
-			formName: row.name,
-			receivedAt,
-			...submission,
-		});
+		modules.receiveSubmission(
+			host.site,
+			{ formId: row.id, formKey: row.key, formName: row.name, receivedAt, ...submission },
+			{
+				route: { site: host.site, via: post.via, clientAddress: post.clientAddress, editing: post.editing },
+				request: post.request,
+			},
+		);
 
 	if (post.fields === null) {
 		const { defaultLanguage } = await siteLanguages(scope);
