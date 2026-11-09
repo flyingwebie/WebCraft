@@ -11,6 +11,7 @@ import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
+import { storedComponentVersion } from "./component-versions.ts";
 import {
 	type ComponentSources,
 	checkPublishedPlacements,
@@ -20,7 +21,6 @@ import {
 	NO_MODULE_COMPONENTS,
 	readContext,
 	siteComponents,
-	storedVersion as storedComponentVersion,
 } from "./components.ts";
 import { entryValues, lockEntry, siteLanguages, versionFindings } from "./entries.ts";
 import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
@@ -249,9 +249,8 @@ async function pagePaths(
 	return { path: pathText(pathIn(tree, pageId) ?? []), changes };
 }
 
+/** Publishes a Template; `publish` has taken the Components' lock, so what it may place holds still. */
 async function publishTemplate(scope: SiteScope, templateId: string, sources: ComponentSources): Promise<Published> {
-	// Which Components it may place is read under the Components' lock, taken before any row lock.
-	await lockComponents(scope);
 	const row = await lockTemplate(scope, templateId);
 	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes,
 	// the published Components it places) may have changed since the Draft was saved.
@@ -270,10 +269,10 @@ async function publishTemplate(scope: SiteScope, templateId: string, sources: Co
 /**
  * Publishes a Component's Draft, its Props and tree together: every copy changes at once, wherever
  * it is placed. Checked again first, against the published versions of the Components it places
- * (each must be published) and what it reads (the Globals, the Post Types, the Classes).
+ * (each must be published) and what it reads (the Globals, the Post Types, the Classes). `publish`
+ * has taken the Components' lock.
  */
 async function publishComponent(scope: SiteScope, componentId: string, sources: ComponentSources): Promise<Published> {
-	await lockComponents(scope);
 	const row = await lockComponent(scope, componentId, sources);
 	const draft = storedComponentVersion(row.draft);
 	const catalogue = await siteComponents(scope, "published", sources, { self: row.id });

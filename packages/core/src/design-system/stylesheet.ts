@@ -22,6 +22,7 @@ import {
 } from "@webcraft/renderer";
 import { eq, isNotNull, lt } from "drizzle-orm";
 
+import { storedComponentVersion } from "../content/component-versions.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 
 /** Where every Site serves its stylesheets: `/_wc/css/<hash>.css`. */
@@ -58,10 +59,7 @@ export async function publishedTrees(scope: Pick<VisitorScope, "select">): Promi
 	const placed = await scope.select(components, isNotNull(components.published));
 	return [
 		...rows.map((row) => row.published as ElementTree),
-		...placed.flatMap((row) => {
-			const tree = (row.published as { tree?: ElementTree } | null)?.tree;
-			return tree ? [tree] : [];
-		}),
+		...placed.map((row) => storedComponentVersion(row.published).tree),
 	];
 }
 

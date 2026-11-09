@@ -37,6 +37,7 @@ import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
 import {
 	ComponentFromModuleError,
 	ComponentInUseError,
@@ -53,12 +54,7 @@ import { listPostTypes, type PostType } from "./post-types.ts";
 import { readPropText } from "./props.ts";
 import { componentKnownValues } from "./render-values.ts";
 
-/** One version of a Component: its Props and its element tree, published together. */
-export type ComponentVersion = {
-	/** The values each Placement fills in, declared with the Field types. */
-	props: FieldDefinition[];
-	tree: ElementTree;
-};
+export type { ComponentVersion } from "./component-versions.ts";
 
 /** Where a Component stands: never published, published as it is, or changed since. */
 export type ComponentStatus = "draft" | "published" | "changed";
@@ -152,8 +148,6 @@ export const RESERVED_PROP_KEYS: ReadonlySet<string> = new Set(
 
 type ComponentRow = typeof components.$inferSelect;
 
-const EMPTY_TREE: ElementTree = { version: 1, nodes: [] };
-
 // ---------------------------------------------------------------------------------------------------
 // Creating, reading and saving
 
@@ -171,7 +165,7 @@ export async function createComponent(
 	const props = await parseProps(scope, input.props ?? [], [], problems);
 	if (problems.length > 0) throw new ComponentInvalidError(problems);
 	checkNameFree(name, sources);
-	return naming(name, () =>
+	return naming(scope, name, () =>
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
 			await checkNameUnused(tx, name);
@@ -226,7 +220,7 @@ export async function saveComponentDraft(
 		const context = await readContext(tx);
 		const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
 		const { ids } = classCatalogue(await draftDesignSystem(tx));
-		const tree = parseElementTree(change.tree ?? storedVersion(row.draft).tree, {
+		const tree = parseElementTree(change.tree ?? storedComponentVersion(row.draft).tree, {
 			...componentTreeRules(props, context, catalogue),
 			classIds: ids,
 		});
@@ -298,7 +292,7 @@ export async function renameComponent(
 	const problems: ContentProblem[] = [];
 	const name = checkName(input, problems);
 	if (problems.length > 0) throw new ComponentInvalidError(problems);
-	return naming(name, () =>
+	return naming(scope, name, () =>
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
 			const row = await lockComponent(tx, componentId, sources);
@@ -345,10 +339,10 @@ async function nextProps(
 	row: ComponentRow,
 	inputs: readonly FieldInput[] | undefined,
 ): Promise<FieldDefinition[]> {
-	const draft = storedVersion(row.draft);
+	const draft = storedComponentVersion(row.draft);
 	if (inputs === undefined) return draft.props;
 	// A Prop keeps the type it has in the Draft or the published version.
-	const published = row.published === null ? [] : storedVersion(row.published).props;
+	const published = row.published === null ? [] : storedComponentVersion(row.published).props;
 	const existing = [...draft.props, ...published.filter((prop) => !draft.props.some((own) => own.key === prop.key))];
 	const problems: ContentProblem[] = [];
 	const props = await parseProps(scope, inputs, existing, problems);
@@ -436,12 +430,16 @@ async function checkNameUnused(scope: SiteScope, name: string): Promise<void> {
 	if (other) throw new ComponentNameTakenError(name, { kind: "component", id: other.id });
 }
 
-/** Runs a save, turning another Component's name into `ComponentNameTakenError`. */
-async function naming<Result>(name: string, save: () => Promise<Result>): Promise<Result> {
+/**
+ * Runs a save, turning another Component's name into `ComponentNameTakenError`. The save's
+ * transaction has rolled back by then, so the Component that took the name meanwhile can be read.
+ */
+async function naming<Result>(scope: SiteScope, name: string, save: () => Promise<Result>): Promise<Result> {
 	try {
 		return await save();
 	} catch (error) {
 		if (isUniqueViolation(error, "components_site_id_name_unique")) {
+			await checkNameUnused(scope, name);
 			throw new ComponentNameTakenError(name, { kind: "component", id: "" });
 		}
 		throw error;
@@ -584,8 +582,8 @@ export async function siteComponents(
 	const rows = await scope.select(components);
 	const versionOf = (row: ComponentRow): ComponentVersion | null => {
 		if (row.id === options.replace?.id) return options.replace.version;
-		if (which === "draft") return storedVersion(row.draft);
-		return row.published === null ? null : storedVersion(row.published);
+		if (which === "draft") return storedComponentVersion(row.draft);
+		return row.published === null ? null : storedComponentVersion(row.published);
 	};
 	const entries: CatalogueEntry[] = rows.map((row) => ({ id: row.id, name: row.name, version: versionOf(row) }));
 	const running = new Set((await sources.moduleComponentsAt(scope.site)).map((component) => component.id));
@@ -682,7 +680,11 @@ export async function checkPublishedPlacements(
 			})),
 		...(await scope.select(components))
 			.filter((row) => row.published !== null && row.id !== componentId)
-			.map((row) => ({ where: `the Component ${row.name}`, tree: storedVersion(row.published).tree, placedDepth: 1 })),
+			.map((row) => ({
+				where: `the Component ${row.name}`,
+				tree: storedComponentVersion(row.published).tree,
+				placedDepth: 1,
+			})),
 	];
 	const showsIt = (placed: string) => placed === componentId || catalogue.reaches(placed, componentId);
 	const problems: { at: string; message: string }[] = [];
@@ -735,8 +737,8 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 		})),
 		...componentRows.map((row) => ({
 			use: { kind: "component" as const, id: row.id, name: row.name, versions: [] },
-			draft: storedVersion(row.draft).tree,
-			published: row.published === null ? null : storedVersion(row.published).tree,
+			draft: storedComponentVersion(row.draft).tree,
+			published: row.published === null ? null : storedComponentVersion(row.published).tree,
 		})),
 	];
 	const directUses = new Map<string, ComponentUse[]>();
@@ -800,11 +802,6 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 // ---------------------------------------------------------------------------------------------------
 // Rows
 
-export function storedVersion(value: unknown): ComponentVersion {
-	const { props, tree } = (value ?? {}) as { props?: unknown; tree?: unknown };
-	return { props: storedFields(props), tree: (tree as ElementTree | undefined) ?? EMPTY_TREE };
-}
-
 export function toComponent(row: ComponentRow): Component {
 	return {
 		id: row.id,
@@ -812,8 +809,8 @@ export function toComponent(row: ComponentRow): Component {
 		name: row.name,
 		module: null,
 		status: row.published === null ? "draft" : sameJson(row.draft, row.published) ? "published" : "changed",
-		draft: storedVersion(row.draft),
-		published: row.published === null ? null : storedVersion(row.published),
+		draft: storedComponentVersion(row.draft),
+		published: row.published === null ? null : storedComponentVersion(row.published),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 		publishedAt: row.publishedAt,
