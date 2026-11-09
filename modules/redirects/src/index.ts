@@ -56,10 +56,10 @@ export const redirects = defineModule({
 
 	events: {
 		async "entry.published"(event, context) {
-			await followPathChanges(context, event.data.pathChanges, [event.data.path], "publish");
+			await followPathChanges(context, event.data.pathChanges, [event.data.path], "publish", event.occurredAt);
 		},
 		async "paths.changed"(event, context) {
-			await followPathChanges(context, event.data.pathChanges, [], event.data.reason);
+			await followPathChanges(context, event.data.pathChanges, [], event.data.reason, event.occurredAt);
 		},
 	},
 

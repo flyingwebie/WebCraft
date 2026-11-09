@@ -632,7 +632,7 @@ export function createSitePages(options: {
 			const target = await redirects(host.site, request, {
 				hasPage: async (path) =>
 					(await locateArchive(scope, asStaging, path, true)) !== undefined ||
-					(await locate(scope, asStaging, path, true)) !== null,
+					(await locate(scope, asStaging, path, true))?.kind === "found",
 				languageOf: (path) => languageOf(site, path),
 			});
 			const location = target && addressFrom(site, host, target.to);

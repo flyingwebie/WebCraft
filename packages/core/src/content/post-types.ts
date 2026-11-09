@@ -1,5 +1,5 @@
-import { postTypes } from "@webcraft/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { entries, postTypes } from "@webcraft/db/schema";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
 import { markSearchIndexStale } from "../search/index-version.ts";
@@ -12,6 +12,7 @@ import {
 } from "../search/searched-fields.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { checkPatternLeavesArchives } from "./archives.ts";
+import { publishedAddresses } from "./entry-paths.ts";
 import { type ContentProblem, PostTypeInvalidError, PostTypeNotFoundError, PostTypeTakenError } from "./errors.ts";
 import {
 	BUILT_IN_FIELDS,
@@ -23,8 +24,10 @@ import {
 	storedFields,
 } from "./fields.ts";
 import { checkPatternOutsidePrefixes } from "./language-paths.ts";
+import { siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { checkPatternLeavesPages, isPagePostType, lockSitePaths, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
+import type { PathChange } from "./publishing.ts";
 import { slugify } from "./slugs.ts";
 import { parseUrlPattern } from "./url-patterns.ts";
 
@@ -131,7 +134,8 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 
 /**
  * Changes a Post Type (open the Site with `structure.edit`). Post Types have no Draft, so a change
- * applies at once and clears the Site's page cache.
+ * applies at once and clears the Site's page cache. A new URL pattern moves every published Entry's
+ * address: `postType.update` then logs them as `pathChanges` (Redirect rules follow them).
  */
 export async function updatePostType(scope: SiteScope, postTypeId: string, change: PostTypeChange): Promise<PostType> {
 	const existing = toPostType(await findPostType(scope, postTypeId));
@@ -164,11 +168,13 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 
 	return saving(() =>
 		scope.transaction(async (tx) => {
+			let pathChanges: PathChange[] = [];
 			if (urlPattern !== existing.urlPattern) {
 				await lockSitePaths(tx);
 				await checkPatternLeavesArchives(tx, urlPattern, existing.id);
 				await checkPatternLeavesPages(tx, urlPattern);
 				await checkPatternOutsidePrefixes(tx, urlPattern, existing.id);
+				pathChanges = await urlPatternPathChanges(tx, existing, urlPattern);
 			}
 			const [row] = await tx.update(
 				postTypes,
@@ -189,10 +195,34 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 				postTypeId: existing.id,
 				key: existing.key,
 				changed: Object.keys(change).filter((setting) => change[setting as keyof PostTypeChange] !== undefined),
+				...(pathChanges.length > 0 ? { pathChanges } : {}),
 			});
 			return toPostType(row);
 		}),
 	);
+}
+
+/**
+ * Every published address a new URL pattern moves: each published Entry of the Post Type, in each of
+ * the Site's languages, from its path under the old pattern to its path under the new one.
+ */
+async function urlPatternPathChanges(scope: SiteScope, postType: PostType, urlPattern: string): Promise<PathChange[]> {
+	const site = await siteLanguages(scope);
+	const ids = (await scope.select(entries, and(eq(entries.postTypeId, postType.id), isNotNull(entries.published)))).map(
+		(row) => row.id,
+	);
+	const changes: PathChange[] = [];
+	for (const { code } of site.languages) {
+		const languages = { language: code, defaultLanguage: site.defaultLanguage };
+		const before = await publishedAddresses(scope, postType, ids, languages);
+		const after = await publishedAddresses(scope, { ...postType, urlPattern }, ids, languages);
+		for (const [entryId, address] of before) {
+			const next = after.get(entryId);
+			if (next && next.path !== address.path)
+				changes.push({ entryId, language: code, from: address.path, to: next.path });
+		}
+	}
+	return changes;
 }
 
 /** What defining a Post Type's Fields needs to know: the Post Types Relationships may point at. */

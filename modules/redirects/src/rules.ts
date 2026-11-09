@@ -1,4 +1,15 @@
-import { and, eq, inArray, like, type ModuleContext, ModuleError, or, type RedirectTarget } from "@webcraft/module-sdk";
+import {
+	and,
+	eq,
+	inArray,
+	like,
+	lt,
+	lte,
+	type ModuleContext,
+	ModuleError,
+	or,
+	type RedirectTarget,
+} from "@webcraft/module-sdk";
 
 import {
 	covers,
@@ -190,35 +201,37 @@ export async function removeRule(context: ModuleContext, ruleId: string): Promis
 export type PathChange = { entryId: string; language: string; from: string; to: string };
 
 /**
- * Follows published paths that changed (a new slug, a Page that moved with the Pages under it, a URL
- * pattern or the Default language that changed), so old links keep working:
+ * Follows published paths that changed at `at` (a new slug, a Page that moved with the Pages under
+ * it, a URL pattern or the Default language that changed), so old links keep working:
  *
  * - a rule sending visitors to an old path now sends them to the new one (A→B, then B→C, is A→C);
  *   a rule that would then send a path to itself goes, as its path has a page again;
  * - the old path gets a rule of the Module's own (301) to the new one, unless another page is now
- *   published there (a new path of the same change, or `live`), or a person's rule has the path;
- * - rules of the Module's own from a path that has a page again go: they would only step aside.
+ *   published there (a new path of the same change), or a person's rule has the path;
+ * - rules of the Module's own from a path that has a page again (`live`, the new paths) go: they
+ *   would only step aside.
  *
- * Rules the Module adds step aside wherever a page is published later (`whereNoPage`), so they
- * never hide one. One Audit log entry tells what changed.
+ * Events can arrive late and out of order, so each change is stamped with when it happened (`at`)
+ * and never undoes a rule changed after it. Rules the Module adds step aside wherever a page is
+ * published later (`whereNoPage`), so they never hide one. One Audit log entry tells what changed.
  */
 export async function followPathChanges(
 	context: ModuleContext,
 	changes: readonly PathChange[],
 	live: readonly string[],
 	reason: string,
+	at: Date,
 ): Promise<void> {
 	if (changes.length === 0 && live.length === 0) return;
 	await context.transaction(async (tx) => {
-		const now = tx.now();
 		const counts = { added: 0, changed: 0, removed: 0 };
 		const livePaths = new Set([...live, ...changes.map((change) => change.to)]);
 		for (const path of livePaths) {
 			counts.removed += await tx.data.delete(
 				rules,
-				and(eq(rules.fromPath, path), eq(rules.wildcard, false), eq(rules.automatic, true)),
+				and(eq(rules.fromPath, path), eq(rules.wildcard, false), eq(rules.automatic, true), lt(rules.updatedAt, at)),
 			);
-			await tx.data.delete(misses, eq(misses.path, path));
+			await tx.data.delete(misses, and(eq(misses.path, path), lt(misses.lastSeen, at)));
 		}
 		const seen = new Set<string>();
 		for (const change of changes) {
@@ -226,8 +239,8 @@ export async function followPathChanges(
 			seen.add(change.from);
 			const retargeted = await tx.data.update(
 				rules,
-				{ target: change.to, updatedAt: now },
-				eq(rules.target, change.from),
+				{ target: change.to, updatedAt: at },
+				and(eq(rules.target, change.from), lte(rules.updatedAt, at)),
 			);
 			counts.changed += retargeted.length;
 			counts.removed += await tx.data.delete(
@@ -236,11 +249,11 @@ export async function followPathChanges(
 			);
 			if (livePaths.has(change.from)) continue;
 			const own = await tx.data.first(rules, and(eq(rules.fromPath, change.from), eq(rules.wildcard, false)));
-			if (own && !own.automatic) continue;
+			if (own && (!own.automatic || own.updatedAt > at)) continue;
 			if (own) {
 				await tx.data.update(
 					rules,
-					{ target: change.to, status: 301, entryId: change.entryId, updatedAt: now },
+					{ target: change.to, status: 301, entryId: change.entryId, updatedAt: at },
 					eq(rules.id, own.id),
 				);
 				counts.changed++;
@@ -253,8 +266,8 @@ export async function followPathChanges(
 				status: 301,
 				automatic: true,
 				entryId: change.entryId,
-				createdAt: now,
-				updatedAt: now,
+				createdAt: at,
+				updatedAt: at,
 			});
 			await tx.data.delete(misses, eq(misses.path, change.from));
 			counts.added++;
