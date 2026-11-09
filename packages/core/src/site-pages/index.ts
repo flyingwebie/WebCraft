@@ -1,5 +1,5 @@
 import type { Database } from "@webcraft/db";
-import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
+import { entries, globals, people, publishedSlugs, siteDomains, sites, templates } from "@webcraft/db/schema";
 import {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
@@ -38,6 +38,7 @@ import {
 	languageOfPath,
 	languagePath,
 	preferredLanguage,
+	prefixOf,
 	type SiteLanguage,
 	type SiteLanguages,
 	siteLanguages,
@@ -60,6 +61,7 @@ import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts"
 import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
 import { draftStyles, type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
+import { domainOrigin, placeOf, type SiteAddresses, verifiedDomains } from "../domains/addresses.ts";
 import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
@@ -78,15 +80,26 @@ export { reservedSlugs, stagingHostname, stagingUrl } from "./addresses.ts";
 /** A Site found by the hostname a request came in on. */
 export type SiteHost = {
 	site: Site;
-	/** How the hostname reaches the Site: its Staging address. Primary and Redirect domains join it. */
-	address: "staging";
+	/**
+	 * How the hostname reaches the Site: its Staging address, its verified Primary domain, one of its
+	 * verified Redirect domains (which sends every request on to the Primary domain), or a language's
+	 * verified domain (which serves that language, `language`, without a prefix).
+	 */
+	address: "staging" | "primary" | "redirect" | "language";
+	/** On a language's domain, the language it serves; null everywhere else. */
+	language: string | null;
+	/** On a Redirect domain, the Primary domain's origin it sends visitors to; null while the Site has none verified. */
+	redirectTo: string | null;
 	/** The Site's Default language. */
 	defaultLanguage: string;
-	/**
-	 * Where the hostname's pages are, such as `https://bakery.sites.example.com`: what absolute
-	 * addresses on the page (`hreflang` alternates) start with.
-	 */
+	/** Where the hostname's pages are, such as `https://bakery.sites.example.com`. */
 	origin: string;
+	/**
+	 * Where the Site's pages are, as pages on this hostname link to them: on the Staging address, every
+	 * language on the Staging address itself, under its prefix; on the Site's domains, on its Primary
+	 * domain and each language's own (see `SiteAddresses`).
+	 */
+	addresses: SiteAddresses;
 	/** Whether the Site sends a first visit to the home page on to the browser's language (ADR 0010). */
 	browserLanguageRedirect: boolean;
 	/** How the Site's Content Security Policy applies (ADR 0023). */
@@ -108,8 +121,11 @@ export type LanguageChoice = { language: string; location: string };
  */
 export type SitePage = { html: string; headers: Record<string, string> };
 
-/** What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to `/`). */
-export type SiteAnswer = ({ kind: "page" } & SitePage) | { kind: "redirect"; location: string };
+/**
+ * What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to
+ * `/`; a language's path goes to its own domain, `keepQuery` then keeping the request's query).
+ */
+export type SiteAnswer = ({ kind: "page" } & SitePage) | { kind: "redirect"; location: string; keepQuery?: boolean };
 
 /** What a page shows from the content store: see `SitePages.pageContent`. */
 export type PageContent = {
@@ -264,23 +280,42 @@ export function createSitePages(options: {
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
-			if (!slug) return null;
-			const [row] = await database.db.select().from(sites).where(eq(sites.slug, slug));
-			if (!row) return null;
-			return {
-				site: { id: row.id, workspaceId: row.workspaceId, name: row.name, slug: row.slug, createdAt: row.createdAt },
-				address: "staging",
-				defaultLanguage: row.defaultLanguage,
-				origin: stagingUrl(config, row.slug) ?? `https://${hostname}`,
-				browserLanguageRedirect: row.browserLanguageRedirect,
-				cspMode: isCspMode(row.cspMode) ? row.cspMode : "strict",
-				cacheGeneration: row.pageCacheGeneration,
+			if (slug) {
+				const [row] = await database.db.select().from(sites).where(eq(sites.slug, slug));
+				if (!row) return null;
+				const origin = stagingUrl(config, row.slug) ?? `https://${hostname}`;
+				// The Staging address shows every language under its prefix, on itself.
+				const addresses = { main: origin, languages: {} };
+				return hostOf(row, { address: "staging", language: null, redirectTo: null, origin, addresses });
+			}
+			// A domain serves its Site only once verified (ADR 0015).
+			const [found] = await database.db
+				.select({ domain: siteDomains, site: sites })
+				.from(siteDomains)
+				.innerJoin(sites, and(eq(sites.id, siteDomains.siteId), eq(sites.workspaceId, siteDomains.workspaceId)))
+				.where(and(eq(siteDomains.name, hostname), isNotNull(siteDomains.verifiedAt)));
+			if (!found) return null;
+			const { domain, site } = found;
+			const origin = domainOrigin(config, hostname);
+			const verified = await verifiedDomains(database.db, site);
+			const primary = verified.primary && domainOrigin(config, verified.primary);
+			const addresses: SiteAddresses = {
+				main: primary ?? stagingUrl(config, site.slug) ?? origin,
+				languages: Object.fromEntries(verified.languages.map((own) => [own.language, domainOrigin(config, own.name)])),
 			};
+			const address = domain.role === "primary" || domain.role === "redirect" ? domain.role : "language";
+			return hostOf(site, {
+				address,
+				language: address === "language" ? domain.language : null,
+				redirectTo: address === "redirect" ? primary : null,
+				origin,
+				addresses,
+			});
 		},
 
 		async render(host, pathname, editing) {
 			const view = viewFor(data, host, editing, sources, moduleHosts);
-			const located = await locate(view.scope, pathname);
+			const located = await locate(view.scope, host, pathname, editing !== undefined);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
 			const extras = await languageExtras(view.scope, host, located, located.found);
@@ -289,8 +324,8 @@ export function createSitePages(options: {
 
 		async pageContent(host, pathname) {
 			const scope = data.visitors(host.site);
-			const located = await locate(scope, pathname);
-			const place = located?.kind === "found" ? located : await notFoundPlace(scope, pathname);
+			const located = await locate(scope, host, pathname, true);
+			const place = located?.kind === "found" ? located : await notFoundPlace(scope, host, pathname);
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
 			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
 			const content = found?.content ?? builtInNotFoundPage(place.language.code).content;
@@ -315,7 +350,7 @@ export function createSitePages(options: {
 
 		async notFound(host, pathname, editing) {
 			const view = viewFor(data, host, editing, sources, moduleHosts);
-			const place = await notFoundPlace(view.scope, pathname);
+			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
 			if (place.found) {
@@ -344,7 +379,12 @@ export function createSitePages(options: {
 				shown.map((candidate) => candidate.code),
 			);
 			if (!language || language === site.defaultLanguage) return null;
-			return { language, location: languagePath({ language, defaultLanguage: site.defaultLanguage }, "/") };
+			const place = placeOf(
+				host.addresses,
+				{ language, defaultLanguage: site.defaultLanguage },
+				languagePath({ language, defaultLanguage: site.defaultLanguage }, "/"),
+			);
+			return { language, location: place.origin === host.origin ? place.path : `${place.origin}${place.path}` };
 		},
 
 		languageChoice(host, pathname) {
@@ -374,6 +414,22 @@ export function createSitePages(options: {
 	};
 }
 
+/** A Site found by a hostname, with how the hostname reaches it. */
+function hostOf(
+	row: typeof sites.$inferSelect,
+	how: Pick<SiteHost, "address" | "language" | "redirectTo" | "origin" | "addresses">,
+): SiteHost {
+	return {
+		site: { id: row.id, workspaceId: row.workspaceId, name: row.name, slug: row.slug, createdAt: row.createdAt },
+		...how,
+		defaultLanguage: row.defaultLanguage,
+		// Only where `/` is the Default language's home page: never on a language's own domain.
+		browserLanguageRedirect: how.address !== "language" && row.browserLanguageRedirect,
+		cspMode: isCspMode(row.cspMode) ? row.cspMode : "strict",
+		cacheGeneration: row.pageCacheGeneration,
+	};
+}
+
 /**
  * Paths the Install keeps on every Site, outside Pages and Post Types: everything under a first part
  * starting with `_` (`/_webcraft/…`, `/_media/…`, `/_content/v1/…`, `/_wc/m/<module>/…`) and every
@@ -392,19 +448,63 @@ type Place = { site: SiteLanguages; language: SiteLanguage; languages: Languages
 type Located = Place & { kind: "found"; found: FoundEntry };
 
 /**
- * What a path finds on the Site, as visitors find it: in the language its prefix names (the Default
- * language without one), the published Entry a Post Type's URL pattern finds there, else the
- * published Page at that path (the home page at the language's root, its own path redirecting
- * there); null when there is none.
+ * What a path is on the hostname it came in on (ADR 0010): a path in one of the Site's languages, or
+ * an address that moved to another of the Site's addresses.
+ *
+ * - On the Staging address (and in Edit mode), every language is under its prefix, as `languageOfPath`
+ *   reads it.
+ * - On the Primary domain the same, except that a language with a verified domain of its own lives
+ *   there: its prefix moves to that domain, without the prefix.
+ * - On a language's own domain, every path is in that language, without a prefix; a path starting
+ *   with a language's prefix (its own included) moves to where that language's path is.
+ */
+type PathOnHost = ({ kind: "path" } & ReturnType<typeof languageOfPath>) | { kind: "moved"; location: string };
+
+function pathOnHost(site: SiteLanguages, host: SiteHost, segments: readonly string[], editing: boolean): PathOnHost {
+	const { defaultLanguage } = site;
+	if (host.address === "language" && host.language) {
+		const [first, ...rest] = segments;
+		const named =
+			first === undefined ? undefined : site.languages.find((language) => prefixOf(language.code) === first);
+		if (!named) return { kind: "path", languages: { language: host.language, defaultLanguage }, rest: segments };
+		const languages = { language: named.code, defaultLanguage };
+		const place = placeOf(host.addresses, languages, languagePath(languages, canonicalPath(rest)));
+		return { kind: "moved", location: `${place.origin}${place.path}` };
+	}
+	const read = languageOfPath(site, segments);
+	const own = host.addresses.languages[read.languages.language];
+	if (host.address === "primary" && !editing && own && read.languages.language !== defaultLanguage) {
+		return { kind: "moved", location: `${own}${canonicalPath(read.rest)}` };
+	}
+	return { kind: "path", ...read };
+}
+
+/**
+ * The path of a language's page on this hostname: without a prefix on the language's own domain,
+ * under its prefix everywhere else.
+ */
+function hostPath(host: SiteHost, languages: Languages, path: string): string {
+	return host.address === "language" && host.language === languages.language ? path : languagePath(languages, path);
+}
+
+/**
+ * What a path finds on the Site, as visitors find it: in the language the hostname and the path name
+ * (`pathOnHost`), the published Entry a Post Type's URL pattern finds there, else the published Page
+ * at that path (the home page at the language's root, its own path redirecting there); null when
+ * there is none. `editing`: Edit mode keeps every language on the hostname it is on.
  */
 async function locate(
 	scope: ReadScope,
+	host: SiteHost,
 	pathname: string,
-): Promise<Located | { kind: "redirect"; location: string } | null> {
+	editing: boolean,
+): Promise<Located | { kind: "redirect"; location: string; keepQuery?: boolean } | null> {
 	const segments = pathSegments(pathname);
 	if (!segments || isReservedPath(segments)) return null;
 	const site = await siteLanguages(scope);
-	const { languages, rest, unprefixed } = languageOfPath(site, segments);
+	const onHost = pathOnHost(site, host, segments, editing);
+	if (onHost.kind === "moved") return { kind: "redirect", location: onHost.location, keepQuery: true };
+	const { languages, rest, unprefixed } = onHost;
 	const place = { site, languages, language: languageNamed(site, languages.language) };
 	const postTypes = await listPostTypes(scope);
 	const home = await homePageId(scope);
@@ -418,7 +518,7 @@ async function locate(
 	if (!found || !isVisibleIn(storedVersion(found.entry.published), languages)) {
 		return unprefixed ? { kind: "redirect", location: canonicalPath(unprefixed) } : null;
 	}
-	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: languagePath(languages, "/") };
+	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: hostPath(host, languages, "/") };
 	return { kind: "found", found, ...place };
 }
 
@@ -444,12 +544,15 @@ async function languageExtras(
 	const extras: LanguageExtras = { alternates: [], languageLinks: [] };
 	if (site.languages.length < 2) return extras;
 	for (const { language, path, shown } of await languagePlaces(scope, place, found)) {
-		if (shown) extras.alternates.push({ hreflang: language.code, href: `${host.origin}${path}` });
+		// Each language at its own address: on this hostname, or on another of the Site's domains.
+		const there = placeOf(host.addresses, { language: language.code, defaultLanguage: site.defaultLanguage }, path);
+		const href = `${there.origin}${there.path}`;
+		if (shown) extras.alternates.push({ hreflang: language.code, href });
 		extras.languageLinks.push({
 			code: language.code,
 			name: language.name,
 			direction: language.direction,
-			href: languageChoiceHref(path),
+			href: there.origin === host.origin ? languageChoiceHref(there.path) : href,
 			current: language.code === place.languages.language,
 		});
 	}
@@ -504,16 +607,26 @@ async function languageChoice(data: DataLayer, host: SiteHost, pathname: string)
 	const segments = pathSegments(target);
 	if (!segments || isReservedPath(segments) || segments.some((segment) => segment.includes("/"))) return undefined;
 	const site = await siteLanguages(data.visitors(host.site));
-	return { language: languageOfPath(site, segments).languages.language, location: canonicalPath(segments) };
+	const onHost = pathOnHost(site, host, segments, false);
+	if (onHost.kind === "moved") return undefined;
+	return { language: onHost.languages.language, location: canonicalPath(segments) };
 }
 
 /**
  * The 404 page for a path: in the path's language (the Default language when it names none), the
  * Page Staff chose for that language or else for the Site, once published; no Page for the built-in one.
  */
-async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place & { found?: FoundEntry }> {
+async function notFoundPlace(
+	scope: ReadScope,
+	host: SiteHost,
+	pathname: string,
+): Promise<Place & { found?: FoundEntry }> {
 	const site = await siteLanguages(scope);
-	const { languages } = languageOfPath(site, pathSegments(pathname) ?? []);
+	const onHost = pathOnHost(site, host, pathSegments(pathname) ?? [], true);
+	const languages =
+		onHost.kind === "path"
+			? onHost.languages
+			: { language: site.defaultLanguage, defaultLanguage: site.defaultLanguage };
 	const code = languages.language;
 	const place = { site, languages, language: languageNamed(site, code) };
 	// The language's own 404 page, else the Site's; each once published and shown in the language.

@@ -16,6 +16,7 @@ const HKDF_SALT = new TextEncoder().encode("webcraft master key");
 const FINGERPRINT_LABEL = "webcraft master key fingerprint";
 const SESSION_SIGNING_LABEL = "webcraft session cookie signing";
 const EDIT_MODE_LABEL = "webcraft edit mode header token";
+const DOMAIN_VERIFICATION_LABEL = "webcraft domain verification";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -119,6 +120,21 @@ export async function sessionSigningSecret(masterKey: MasterKey): Promise<string
 export async function editModeSigningKey(masterKey: MasterKey): Promise<CryptoKey> {
 	return crypto.subtle.deriveKey(
 		hkdf(EDIT_MODE_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key domain verification signs with (HMAC-SHA256), derived from the Master key: each domain's
+ * token, and the answer `/_webcraft/verify/<token>` gives for it, which only this Install can make.
+ * Web and worker derive the same one, so neither stores tokens. Only the Install's start-up uses it.
+ */
+export async function domainVerificationKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(DOMAIN_VERIFICATION_LABEL),
 		await stateOf(masterKey).base,
 		{ name: "HMAC", hash: "SHA-256", length: 256 },
 		false,

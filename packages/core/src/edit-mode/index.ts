@@ -6,6 +6,7 @@ import { and, eq, gt, isNull, lte, type SQL } from "drizzle-orm";
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import { domainOrigin, verifiedDomains } from "../domains/addresses.ts";
 import { type PersonActor, personIdOf } from "../permissions/can.ts";
 import { stagingUrl } from "../site-pages/addresses.ts";
 import type { PageContent, SiteHost } from "../site-pages/index.ts";
@@ -142,7 +143,9 @@ export function createEditMode(options: {
 	return {
 		async openLink(scope, input) {
 			if (!isEditPath(input.path)) throw new EditPathInvalidError();
-			const address = stagingUrl(config, scope.site.slug);
+			// The Site's Primary domain once verified (the edit cookie then lives there), else its Staging address.
+			const { primary } = await verifiedDomains(scope.db, scope.site);
+			const address = primary ? domainOrigin(config, primary) : stagingUrl(config, scope.site.slug);
 			if (!address) throw new EditModeUnavailableError();
 			const personId = personIdOf(scope.access.actor);
 			if (!personId) throw new PermissionDeniedError("entry.edit");

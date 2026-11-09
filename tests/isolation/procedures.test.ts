@@ -375,6 +375,32 @@ describe("Languages", () => {
 	);
 });
 
+/** The Primary domain of a target's Site (waiting for DNS), added by the Superadmin when it has none. */
+async function domainIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { domains } = await api.domains.list({ siteId: target.siteId });
+	const primary = domains.find((domain) => domain.role === "primary");
+	if (primary) return primary.id;
+	const added = await api.domains.add({ siteId: target.siteId, name: `${newSlug()}.example` });
+	return added.domains[0]?.id ?? "";
+}
+
+describe("Domains", () => {
+	isolation.refuses("domains.list", (api, { siteId }) => api.domains.list({ siteId }), { as: ["staff", "owner"] });
+	isolation.refuses("domains.add", (api, { siteId }) => api.domains.add({ siteId, name: `${newSlug()}.example` }));
+	isolation.refuses("domains.check", async (api, target) =>
+		api.domains.check({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+	// Without a confirmation it only answers what removing would do.
+	isolation.refuses("domains.remove", async (api, target) =>
+		api.domains.remove({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+	// Making the Primary domain the Primary domain again changes nothing, but must still be allowed.
+	isolation.refuses("domains.makePrimary", async (api, target) =>
+		api.domains.makePrimary({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+});
+
 describe("Edit mode", () => {
 	isolation.refuses("editMode.open", (api, { siteId }) => api.editMode.open({ siteId, path: "/" }), {
 		as: ["staff", "author"],

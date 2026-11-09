@@ -3,6 +3,7 @@
 export * from "./audit.ts";
 export * from "./content.ts";
 export * from "./design-system.ts";
+export * from "./domains.ts";
 export * from "./edit-mode.ts";
 export * from "./email.ts";
 export * from "./install.ts";

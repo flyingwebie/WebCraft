@@ -10,12 +10,13 @@ import {
 import { clientAddress } from "../client-address.ts";
 import { mediaFileResponse } from "../media-response.ts";
 import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
+import { CADDY_ASK_PATH, caddyAsk } from "./caddy-ask.ts";
 import { healthz, readyz } from "./health.ts";
 
 /**
  * Everything served on the admin host. The web process answers its own paths first (`/healthz`,
- * `/readyz`, the Management API at `/api/rpc`, Media previews at `/api/media/…`, and later
- * `/api/v1`, `/mcp`, OAuth and the Caddy ask endpoint); the admin app renders the rest.
+ * `/readyz`, Caddy's ask at `/caddy/ask`, the Management API at `/api/rpc`, Media previews at
+ * `/api/media/…`, and later `/api/v1`, `/mcp` and OAuth); the admin app renders the rest.
  */
 export function createAdminSide(services: InstallServices, adminApp?: Handler): Handler {
 	const adminApi = createAdminApi(services);
@@ -26,6 +27,8 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 				return healthz(request);
 			case "/readyz":
 				return readyz(request, services);
+			case CADDY_ASK_PATH:
+				return caddyAsk(services, request);
 		}
 		if (pathname === ADMIN_API_PREFIX || pathname.startsWith(`${ADMIN_API_PREFIX}/`)) {
 			// Only POST: a link or a top-level navigation from another site (which carries the

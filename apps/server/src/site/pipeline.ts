@@ -15,6 +15,7 @@ import {
 	type SiteScope,
 	STYLESHEET_PATH,
 	siteScript,
+	VERIFY_PATH,
 } from "@webcraft/core";
 
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
@@ -67,7 +68,14 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 	const cache = options.pageCache ?? createPageCache();
 	return async (request) => {
 		const url = new URL(request.url);
-		const host = await services.sitePages.resolveHost(normaliseHostname(url.hostname));
+		const hostname = normaliseHostname(url.hostname);
+		// Domain verification comes first: a domain waiting for DNS belongs to no Site yet.
+		if (url.pathname.startsWith(VERIFY_PATH)) {
+			return withSecurityHeaders(
+				await readOnly(request, () => verification(services, hostname, url.pathname.slice(VERIFY_PATH.length))),
+			);
+		}
+		const host = await services.sitePages.resolveHost(hostname);
 		if (!host) return notFound();
 		return withSecurityHeaders(await siteAnswer(services, cache, request, host));
 	};
@@ -81,6 +89,8 @@ async function siteAnswer(
 	host: SiteHost,
 ): Promise<Response> {
 	const url = new URL(request.url);
+	// A Redirect domain sends every request on to the same path on the Primary domain (ADR 0015).
+	if (host.address === "redirect") return domainRedirect(host, url);
 	const editing = await editModeEndpoint(services, request, host);
 	if (editing) return editing;
 	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
@@ -142,6 +152,33 @@ function withSecurityHeaders(response: Response): Response {
 }
 
 /**
+ * A Redirect domain's answer: 301 to the same path and query on the Primary domain, or the plain 404
+ * while the Site has no verified Primary domain to send visitors to.
+ */
+function domainRedirect(host: SiteHost, url: URL): Response {
+	if (!host.redirectTo) return notFound();
+	return new Response(null, {
+		status: 301,
+		headers: { location: `${host.redirectTo}${url.pathname}${url.search}`, "cache-control": PAGE_CACHE_CONTROL },
+	});
+}
+
+/** Where a redirect goes, with the request's query when it keeps it (a page that moved to another address). */
+function withQuery(answer: { location: string; keepQuery?: boolean }, url: URL): string {
+	return answer.keepQuery ? `${answer.location}${url.search}` : answer.location;
+}
+
+/**
+ * A domain verification request, `/_webcraft/verify/<token>` (ADR 0015): on one of the Install's
+ * domains, with that domain's own token, the answer only this Install makes for it; anything else is
+ * the plain 404. Never kept by anyone, as a new token's answer must come from the Install itself.
+ */
+async function verification(services: InstallServices, hostname: string, token: string): Promise<Response> {
+	const answer = await services.domains.verificationAnswer(hostname, token);
+	return answer === null ? plainText(404, "Not Found") : plainText(200, answer);
+}
+
+/**
  * The page visitors get at the URL, from the page cache, rendering and keeping it on a miss. Pages
  * are kept by normalised URL: one form of the path, and no query parameters (no parameter changes a
  * page yet; Filters will allow theirs, sorted).
@@ -150,12 +187,13 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 	const { pathname } = new URL(request.url);
 	const segments = pathSegments(pathname);
 	if (!segments) return notFoundPage(services, host, pathname);
-	const key = canonicalPath(segments);
+	// The same path is another page on each of the Site's addresses (its language, its links).
+	const key = `${host.origin}${canonicalPath(segments)}`;
 	const cached = cache.get(host.site.id, host.cacheGeneration, key);
 	if (cached) return pageResponse(request, host, cached, "HIT");
 	const answer = await services.sitePages.render(host, pathname);
 	if (!answer) return notFoundPage(services, host, pathname);
-	if (answer.kind === "redirect") return redirect(host, answer.location);
+	if (answer.kind === "redirect") return redirect(host, withQuery(answer, new URL(request.url)));
 	const page = { html: answer.html, etag: await etagOf(answer.html), headers: answer.headers };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
 	return pageResponse(request, host, page, "MISS");

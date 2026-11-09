@@ -8,7 +8,13 @@ import { join } from "node:path";
 import type { Subprocess } from "bun";
 import { type Browser, type BrowserContext, type Cookie, chromium, type Page } from "playwright";
 
-import { createTestInstall, TEST_MASTER_KEY, type TestAccount, type TestInstall } from "../harness/index.ts";
+import {
+	createTestInstall,
+	TEST_INSTALL_ADDRESSES,
+	TEST_MASTER_KEY,
+	type TestAccount,
+	type TestInstall,
+} from "../harness/index.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
@@ -195,6 +201,8 @@ function startWeb(install: TestInstall, port: number, logs: Record<string, unkno
 			DATABASE_URL: install.databaseUrl,
 			WEBCRAFT_ADMIN_HOST: ADMIN_HOST,
 			WEBCRAFT_SITES_DOMAIN: SITES_DOMAIN,
+			// The addresses Site domains point at, as the Domains screen shows them (the test Install's own).
+			WEBCRAFT_PUBLIC_ADDRESSES: TEST_INSTALL_ADDRESSES.join(","),
 			WEBCRAFT_SECRET_KEY: TEST_MASTER_KEY,
 			// The test Install's own storage folder, where its Media files are.
 			WEBCRAFT_STORAGE_DIR: install.storageDir,

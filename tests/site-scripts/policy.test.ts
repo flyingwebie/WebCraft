@@ -310,6 +310,32 @@ describe("the Site's policy", () => {
 	});
 });
 
+describe("on the Site's own domains", () => {
+	test("the Primary domain's pages carry the Site's policy; a Redirect domain's answers the fixed headers", async () => {
+		const site = await newSite({ video: true });
+		await staff.api.csp.addHost({ siteId: site.siteId, host: "tags.example.com" });
+		for (const name of ["policy-bakery.example", "old-policy-bakery.example"]) {
+			await staff.api.domains.add({ siteId: site.siteId, name });
+			install.connectDomain(name);
+		}
+		await install.clock.advance(60_000);
+		expect((await install.drainJobs()).failed).toEqual([]);
+
+		const page = await install.request("https://policy-bakery.example/notes/first");
+		expect(page.status).toBe(200);
+		await expectSafePage(page.clone());
+		expect(policyOf(page).get("script-src")).toEqual(["'self'", "https://tags.example.com"]);
+		expect(policyOf(page).get("frame-src")).toContain("https://player.vimeo.com");
+		const missing = await install.request("https://policy-bakery.example/nothing-here");
+		expect(missing.status).toBe(404);
+		await expectSafePage(missing);
+
+		const redirected = await install.request("https://old-policy-bakery.example/notes/first");
+		expect(redirected.status).toBe(301);
+		expectSiteHeaders(redirected);
+	});
+});
+
 describe("the page checks every Site test uses", () => {
 	test("catch inline code, and not escaped text that looks like it", () => {
 		for (const html of [

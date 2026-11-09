@@ -71,6 +71,12 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 		path: ({ siteId }) => `/sites/${siteId}/outside-scripts`,
 		as: "staff",
 	},
+	{
+		name: "Site › Domains & Staging (Staff), no domain yet",
+		path: ({ siteId }) => `/sites/${siteId}/domains`,
+		as: "staff",
+	},
+	{ name: "Site › Domains & Staging (Owner)", path: ({ siteId }) => `/sites/${siteId}/domains`, as: "owner" },
 	{ name: "Site › a Module's page", path: ({ siteId }) => `/sites/${siteId}/m/sample/notes`, as: "owner" },
 	{ name: "Site › Post Types & Fields (Pages)", path: ({ siteId }) => `/sites/${siteId}/post-types`, as: "staff" },
 	{ name: "Site › Globals, none defined yet", path: ({ siteId }) => `/sites/${siteId}/globals`, as: "owner" },
