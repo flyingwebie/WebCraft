@@ -5,6 +5,7 @@ export {
 	JOB_QUEUE_SCHEMA_VERSION,
 	type JobQueueOptions,
 } from "./job-queue.ts";
+export { type Listener, type ListenOptions, listen } from "./listen.ts";
 export {
 	applyMigrationLevel,
 	assertSchemaCurrent,

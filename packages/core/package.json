@@ -18,7 +18,8 @@
 		"./cdns": "./src/cdns/registry.ts",
 		"./ai-models": "./src/ai/models.ts",
 		"./edit-paths": "./src/edit-mode/paths.ts",
-		"./staging-rules": "./src/staging/password-rules.ts"
+		"./staging-rules": "./src/staging/password-rules.ts",
+		"./draft-document": "./src/co-editing/browser.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"
@@ -28,9 +29,9 @@
 		"@webcraft/db": "workspace:*",
 		"@webcraft/module-forms": "workspace:*",
 		"@webcraft/module-redirects": "workspace:*",
-		"@webcraft/module-wordpress-import": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/module-site-analytics": "workspace:*",
+		"@webcraft/module-wordpress-import": "workspace:*",
 		"@webcraft/renderer": "workspace:*",
 		"aws4fetch": "1.0.20",
 		"drizzle-orm": "catalog:",
@@ -39,6 +40,7 @@
 		"pg-copy-streams": "7.0.0",
 		"re2js": "^2.9.1",
 		"semver": "^7.8.6",
+		"yjs": "^13.6.33",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

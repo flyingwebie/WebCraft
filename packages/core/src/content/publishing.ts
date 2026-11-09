@@ -1,6 +1,7 @@
 import { components, entries, publishedSlugs, templates } from "@webcraft/db/schema";
 import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
+import { announcePublished } from "../co-editing/store.ts";
 import { publishConsentText } from "../consent/text.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { classCatalogue } from "../design-system/classes.ts";
@@ -166,6 +167,8 @@ export async function publishItems(
 			}
 			// Each publish saves a Revision of what it published, unless Revisions are off.
 			await saveRevision(tx, item);
+			// The people editing it live see who published it, once the publish commits.
+			await announcePublished(tx, item);
 		}
 		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);

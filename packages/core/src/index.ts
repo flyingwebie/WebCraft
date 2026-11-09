@@ -133,6 +133,8 @@ export {
 	type GuardedFetchProblem,
 	isPublicAddress,
 } from "./guarded-fetch.ts";
+export * from "./co-editing/index.ts";
+export { isUuid } from "./ids.ts";
 export * from "./history/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
