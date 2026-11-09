@@ -1,6 +1,6 @@
 {
 	"name": "@webcraft/module-site-analytics",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
 	"description": "The Site analytics Module: WebCraft's own cookieless analytics, counting anonymous totals before consent and visitors and visits after Analytics consent, kept in the Install's own Postgres (ADRs 0019, 0020). It imports nothing from WebCraft but the Module SDK (ADR 0024).",

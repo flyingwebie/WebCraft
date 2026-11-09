@@ -70,6 +70,7 @@ import {
 	updateLanguage,
 	updatePostType,
 } from "./content/index.ts";
+import { createDashboards } from "./dashboards/index.ts";
 import {
 	createClass,
 	deleteClass,
@@ -365,6 +366,7 @@ export async function createInstallServices(
 		}),
 		cdns: createCdns({ database, clock, log, jobs: ports.jobs, fetch: guardedFetch }),
 		webhooks,
+		dashboards: createDashboards({ database, data, modules, clock }),
 		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
 		languages: {
 			get: siteLanguages,

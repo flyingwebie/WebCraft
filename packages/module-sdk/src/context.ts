@@ -1,4 +1,4 @@
-import type { GetColumnData, InferInsertModel, InferSelectModel, SQL } from "drizzle-orm";
+import type { GetColumnData, InferInsertModel, InferSelectModel, SQL, SQLWrapper } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import type { ConsentCategory, Label } from "./manifest.ts";
@@ -188,6 +188,15 @@ export type ModuleData = {
 		table: Table,
 		query: { where?: SQL; groupBy?: Groups; values: Values } & ModuleSelectOptions,
 	): Promise<AggregateRow<Groups, Values>[]>;
+	/**
+	 * The values of one of a table's columns in the rows matching `where`, limited to the place, as a
+	 * subquery for `inArray` and `notInArray` (SDK 1.8): Postgres reads them while it runs the query
+	 * that holds it, so a long list of ids never travels to the Module and back.
+	 *
+	 *     const converted = context.data.values(events, events.visitor, eq(events.type, "form"));
+	 *     await context.data.aggregate(events, { where: inArray(events.visitor, converted), values: { n: count() } });
+	 */
+	values<Table extends ModuleTable>(table: Table, column: AnyPgColumn, where?: SQL): SQLWrapper;
 };
 
 /** One answer row of `aggregate`: each group's column value and each aggregate's. */

@@ -30,8 +30,21 @@ export type ModuleEvents = {
 	 * A visitor sent one of the Site's Forms and its Submission was kept (never spam), SDK 1.4: which
 	 * Form, the path of the page it was sent from (null when the post didn't say), its language, and
 	 * what WebCraft knew of the sender then (`sender`). Nothing the visitor typed.
+	 *
+	 * `visitor` (SDK 1.8) is the sender's id for the day, the one a Site route's
+	 * `visitor.dailyId("analytics")` answers for the same browser, when the sender had accepted
+	 * Analytics on the Site's banner (null otherwise, and for a Submission taken out of spam later), so
+	 * analytics can link the Submission to the visit it ended. WebCraft never keeps it with the
+	 * Submission: it lives only as long as the day's ids do.
 	 */
-	"form.submitted": { formId: string; formKey: string; page: string | null; language: string; sender: FormSender };
+	"form.submitted": {
+		formId: string;
+		formKey: string;
+		page: string | null;
+		language: string;
+		sender: FormSender;
+		visitor: string | null;
+	};
 	/**
 	 * Published paths changed without a publish (SDK 1.5): Staff changed a Post Type's URL pattern
 	 * (`reason: "urlPattern"`, with its `postTypeId`), or the Site's Default language (`reason:

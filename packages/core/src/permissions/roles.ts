@@ -77,6 +77,16 @@ export const PERMISSIONS = {
 	 * whole Site (Translate now), which spends the Workspace's AI budget: Staff and Owners.
 	 */
 	"translation.manage": ["site"],
+	/**
+	 * Build Dashboards: a Site's, from the Widget catalog, and a Workspace's, adding up its Sites; make
+	 * Dashboard templates from them, and choose who else sees each (Staff).
+	 */
+	"dashboard.manage": ["workspace", "site"],
+	/**
+	 * See every Dashboard of a Site or Workspace and export its Widgets as CSV files (Staff and Owners).
+	 * Editors and Authors see the Dashboards Staff show to everyone who works on the Site, and only those.
+	 */
+	"dashboard.view": ["workspace", "site"],
 } as const satisfies Record<string, readonly Level[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -131,6 +141,8 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"media.manage",
 			"import.run",
 			"translation.manage",
+			"dashboard.manage",
+			"dashboard.view",
 		],
 	},
 	owner: {
@@ -153,6 +165,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"media.manage",
 			"import.run",
 			"translation.manage",
+			"dashboard.view",
 		],
 	},
 	editor: {

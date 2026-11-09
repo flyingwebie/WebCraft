@@ -6,6 +6,7 @@ import { audit } from "./procedures/audit.ts";
 import { builder } from "./procedures/builder.ts";
 import { components } from "./procedures/components.ts";
 import { consentBanner } from "./procedures/consent.ts";
+import { dashboards, dashboardTemplates } from "./procedures/dashboards.ts";
 import { designSystem } from "./procedures/design-system.ts";
 import { domains } from "./procedures/domains.ts";
 import { editMode } from "./procedures/edit-mode.ts";
@@ -86,6 +87,8 @@ export const apiRouter = {
 	invites,
 	audit,
 	modules,
+	dashboards,
+	dashboardTemplates,
 };
 
 export type ApiRouter = typeof apiRouter;

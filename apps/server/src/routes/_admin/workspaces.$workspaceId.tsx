@@ -17,12 +17,17 @@ export const Route = createFileRoute("/_admin/workspaces/$workspaceId")({
 				api.workspaces.get({ workspaceId: params.workspaceId }),
 				api.sites.list({ workspaceId: params.workspaceId }),
 			]);
+			const dashboards =
+				permissions.includes("dashboard.view") ||
+				permissions.includes("dashboard.manage") ||
+				(await api.dashboards.list({ workspaceId: params.workspaceId })).dashboards.length > 0;
 			const place: AdminPlace = {
 				level: "workspace",
 				workspace: { id: workspace.id, name: workspace.name },
 				sites: sites.map(({ id, name, slug }) => ({ id, name, slug })),
 				permissions,
 				modulePages,
+				dashboards,
 			};
 			return { place };
 		} catch (error) {

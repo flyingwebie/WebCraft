@@ -7,6 +7,7 @@ import {
 	type ImportedRule,
 	type ImportedRuleResult,
 	type ImportSource,
+	isModuleError,
 	type KeptSubmission,
 	type Label,
 	MODULE_EVENTS,
@@ -15,11 +16,15 @@ import {
 	type ModuleEventName,
 	type ModuleEvents,
 	ModuleRefusedError,
+	type ModuleWidget,
 	type PageMiss,
 	type RedirectRequest,
 	type RedirectTarget,
 	type SourceFile,
 	type SourceItem,
+	type WidgetData,
+	type WidgetOption,
+	type WidgetRequest,
 	wordsIn,
 } from "@webcraft/module-sdk";
 import { and, eq, getTableName, isNull } from "drizzle-orm";
@@ -280,6 +285,33 @@ export type ModuleHost = {
 	): Promise<ImportedRuleResult[] | null>;
 	/** Removes Redirect rules an Import run added (Undo); 0 when no Module keeping them runs there. */
 	removeImportedRules(site: { id: string; workspaceId: string }, rules: readonly AddedRule[]): Promise<number>;
+	/**
+	 * The Widget kinds Modules add to Dashboards (SDK 1.8): each runnable Site-level Module's, with its
+	 * id and name in `language`, whether or not it runs anywhere.
+	 */
+	widgetKinds(language: string): WidgetKind[];
+	/** Whether a Site-level Module runs on a Site (approved and switched on there). */
+	runsOn(site: { id: string; workspaceId: string }, moduleId: string): Promise<boolean>;
+	/**
+	 * Runs a Widget kind's query on a Site, as its Module acting by itself, once the caller checked
+	 * that the person may see the Dashboard. A refusal (`ModuleError`), a Module that doesn't run on
+	 * the Site, and a failure (written to the Module log) come back as the Widget's problem.
+	 */
+	runWidget(
+		site: { id: string; workspaceId: string },
+		moduleId: string,
+		kind: string,
+		request: WidgetRequest,
+	): Promise<WidgetAnswer>;
+	/** The options a Widget setting offers on a Site (worked out there for some, such as its Goals); none where the Module doesn't run. */
+	widgetOptions(
+		site: { id: string; workspaceId: string },
+		moduleId: string,
+		kind: string,
+		setting: string,
+	): Promise<readonly WidgetOption[]>;
+	/** The names of the Goals a Module's Widgets can be filtered by on a Site; none where it doesn't run. */
+	widgetGoals(site: { id: string; workspaceId: string }, moduleId: string): Promise<readonly string[]>;
 };
 
 /** An import source of a Module running on a Site (SDK 1.7), as the Source step offers it. */
@@ -305,6 +337,25 @@ export type RunningSource = ImportSourceView & {
 	 */
 	read(file: SourceFile): AsyncIterable<SourceItem>;
 };
+
+/** A Widget kind a Module adds, as Dashboards see it. */
+export type WidgetKind = {
+	moduleId: string;
+	module: string;
+	/** The Module's admin languages, the first its fallback: its Widgets' words come in them. */
+	languages: readonly string[];
+	widget: ModuleWidget;
+};
+
+/** What a Widget kind's query answered on one Site: its data, or the problem that kept it from counting. */
+export type WidgetAnswer = { data: WidgetData; problem: null } | { data: null; problem: WidgetProblem };
+
+/**
+ * Why a Widget shows nothing on a Site: its Module's own refusal (`code` its own, such as
+ * `GOAL_NOT_FOUND`), `MODULE_NOT_RUNNING` (switched off there, or waiting for approval),
+ * `WIDGET_UNKNOWN` (no Module of this build adds it) or `WIDGET_FAILED` (in the Module log).
+ */
+export type WidgetProblem = { code: string; message: string };
 
 /** How many Redirect rules the Site pipeline follows in one answer; a longer chain goes on in the next request. */
 export const MAX_REDIRECT_HOPS = 5;
@@ -660,7 +711,12 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	 * What a kept Submission sets off (never spam): its Notifications, Auto-reply and Webhooks, then
 	 * `form.submitted` for other Modules, with its sender when known. Never throws.
 	 */
-	const submissionKept = async (site: Site, submission: KeptSubmission, sender: FormSender | null) => {
+	const submissionKept = async (
+		site: Site,
+		submission: KeptSubmission,
+		sender: FormSender | null,
+		visitor: string | null = null,
+	) => {
 		await hostOptions.submissionActions?.kept(site, submission, { autoReply: true });
 		if (!sender) return;
 		await queueEvent("form.submitted", site.workspaceId, site.id, submission.receivedAt, {
@@ -669,6 +725,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			page: submission.page,
 			language: submission.language,
 			sender,
+			visitor,
 		} satisfies ModuleEvents["form.submitted"]);
 	};
 	options.submissions = {
@@ -1002,10 +1059,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
 			const scope = await openForModule(module, place);
 			if (!scope) throw new ModuleNotFoundError();
-			const submission: FormSubmission = {
-				...received,
-				sender: await formSenderOf(visitors.visitorOf(sender.route, sender.request), sender.request),
-			};
+			const visitor = visitors.visitorOf(sender.route, sender.request);
+			const submission: FormSubmission = { ...received, sender: await formSenderOf(visitor, sender.request) };
 			let kept: { id: string };
 			try {
 				kept = await receiver.receive(submission, moduleContext(module, scope, options));
@@ -1018,7 +1073,19 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				throw new ModuleFailedError();
 			}
 			// What follows a kept Submission (never spam) is queued afterwards, as background jobs.
-			if (submission.spam === null) await submissionKept(site, { ...submission, id: kept.id }, submission.sender);
+			if (submission.spam === null) {
+				// The sender's id for the day, only once they accepted Analytics on the Site's own banner
+				// (never with an outside consent service, which only the page can read), and only where
+				// analytics may count them at all: analytics links the Submission to their visit with it.
+				const { sender: known } = submission;
+				const countable =
+					known.via === "domain" &&
+					!known.signedIn &&
+					!known.doNotTrack &&
+					known.consent.accepted.includes("analytics");
+				const dailyId = countable ? await visitor.dailyId("analytics") : null;
+				await submissionKept(site, { ...submission, id: kept.id }, submission.sender, dailyId);
+			}
 			return { id: kept.id };
 		},
 
@@ -1237,6 +1304,80 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		setKeepMonths: (scope, moduleId, table, months) => partitions.setKeepMonths(scope, moduleId, table, months),
 		maintainPartitions: () => partitions.maintain(),
 		purgeSalts: () => visitors.purgeSalts(),
+
+		widgetKinds(language) {
+			return registry.all().flatMap((module) =>
+				module.runnable && module.level === "site"
+					? module.widgets.map((widget) => ({
+							moduleId: module.id,
+							module: words(module, module.manifest.name, language) || module.id,
+							languages: module.manifest.adminLanguages,
+							widget,
+						}))
+					: [],
+			);
+		},
+
+		async runsOn(site, moduleId) {
+			const module = registry.get(moduleId);
+			return module?.runnable === true && module.level === "site" && (await runsOnSite(site, module));
+		},
+
+		async runWidget(site, moduleId, kind, request) {
+			const module = registry.get(moduleId);
+			const widget = module?.runnable ? module.widgets.find((each) => each.kind === kind) : undefined;
+			if (!module?.runnable || !widget) {
+				return {
+					data: null,
+					problem: { code: "WIDGET_UNKNOWN", message: "No Module of this Install adds this Widget." },
+				};
+			}
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) {
+				return {
+					data: null,
+					problem: { code: "MODULE_NOT_RUNNING", message: "The Module that adds this Widget isn't on here." },
+				};
+			}
+			try {
+				const data = await widget.query(request, moduleContext(module, scope, options));
+				if (data?.shape !== widget.shape)
+					throw new TypeError(`It answered a ${String(data?.shape)}, not a ${widget.shape}.`);
+				return { data, problem: null };
+			} catch (error) {
+				if (isModuleError(error)) return { data: null, problem: { code: error.code, message: error.message } };
+				await writeLine(options, module, place, "error", `The Widget ${kind} failed.`, {
+					widget: kind,
+					error: describeError(error),
+				});
+				log.warn("A Module's Widget failed", { moduleId: module.id, widget: kind, error });
+				return {
+					data: null,
+					problem: { code: "WIDGET_FAILED", message: "This Widget couldn't count. The Module log says why." },
+				};
+			}
+		},
+
+		async widgetOptions(site, moduleId, kind, key) {
+			const module = registry.get(moduleId);
+			const setting = module?.runnable
+				? module.widgets.find((each) => each.kind === kind)?.settings?.find((each) => each.key === key)
+				: undefined;
+			if (!module?.runnable || !setting) return [];
+			if (typeof setting.options !== "function") return setting.options;
+			const scope = await openForModule(module, { level: "site", workspaceId: site.workspaceId, siteId: site.id });
+			if (!scope) return [];
+			return await setting.options(moduleContext(module, scope, options));
+		},
+
+		async widgetGoals(site, moduleId) {
+			const module = registry.get(moduleId);
+			if (!module?.runnable || !module.widgetGoals) return [];
+			const scope = await openForModule(module, { level: "site", workspaceId: site.workspaceId, siteId: site.id });
+			if (!scope) return [];
+			return await module.widgetGoals(moduleContext(module, scope, options));
+		},
 
 		async runJob(payload) {
 			const module = registry.get(payload.moduleId);

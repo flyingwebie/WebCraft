@@ -24,6 +24,8 @@ import {
 	sum,
 } from "@webcraft/module-sdk";
 
+import { type Filters, filtersWhere, isFiltered } from "./filters.ts";
+import { type Goal, goalWhere } from "./goals.ts";
 import { type Dimension, isGoalDimension, type Measures, plus, rawBreakdown, rawTotals, ZERO } from "./measures.ts";
 import { type Built, builtUntil, DAY_MS, HOUR_MS, lengthOf, type Period, startOf, within } from "./rollups.ts";
 import { events, rollups } from "./tables.ts";
@@ -45,7 +47,10 @@ function wholePeriods(period: Period, range: Range): Range {
 	return { from, to };
 }
 
-/** The part of a range its rollups cover, and the rest, from the raw events. */
+/**
+ * The part of a range its rollups cover, and the rest, from the raw events. A filtered count reads
+ * the raw events only (`built` null): rollups hold each dimension on its own.
+ */
 function split(period: Period, range: Range, built: Built | null) {
 	const until = built ? (period === "hour" ? built.hours : built.days) : range.from;
 	const middle = new Date(Math.min(Math.max(until.getTime(), range.from.getTime()), range.to.getTime()));
@@ -80,16 +85,24 @@ function measuresOf(row: { pageviews: unknown; visitors: unknown; visits: unknow
 	};
 }
 
-/** A range's totals. */
-export async function totals(context: ModuleContext, range: Range): Promise<Measures> {
+/** How far the rollups answer: not at all for a filtered count, which reads the raw events only. */
+async function rolledUntil(context: ModuleContext, filters: Filters | undefined): Promise<Built | null> {
+	return isFiltered(filters) ? null : await builtUntil(context);
+}
+
+/** A range's totals, filtered when filters are given. */
+export async function totals(context: ModuleContext, range: Range, filters?: Filters): Promise<Measures> {
 	const { period, ...whole } = granularity(range);
-	const { rolled, raw } = split(period, whole, await builtUntil(context));
+	const { rolled, raw } = split(period, whole, await rolledUntil(context, filters));
 	let found = ZERO;
 	if (!isEmpty(rolled)) {
 		const [row] = await context.data.aggregate(rollups, { where: rolledWhere(period, "total", rolled), values: SUMS });
 		if (row) found = plus(found, measuresOf(row));
 	}
-	if (!isEmpty(raw)) found = plus(found, await rawTotals(context, within(raw.from, raw.to)));
+	if (!isEmpty(raw)) {
+		const where = and(within(raw.from, raw.to), await filtersWhere(context, whole, filters));
+		found = plus(found, await rawTotals(context, where));
+	}
 	return found;
 }
 
@@ -98,9 +111,10 @@ export async function series(
 	context: ModuleContext,
 	range: Range,
 	period: Period,
+	filters?: Filters,
 ): Promise<({ start: Date } & Measures)[]> {
 	const whole = wholePeriods(period, range);
-	const { rolled, raw } = split(period, whole, await builtUntil(context));
+	const { rolled, raw } = split(period, whole, await rolledUntil(context, filters));
 	const found = new Map<number, Measures>();
 	const add = (start: Date, measures: Measures) =>
 		found.set(start.getTime(), plus(found.get(start.getTime()) ?? ZERO, measures));
@@ -114,7 +128,7 @@ export async function series(
 	}
 	if (!isEmpty(raw)) {
 		const column = period === "hour" ? events.hour : events.day;
-		const where = within(raw.from, raw.to);
+		const where = and(within(raw.from, raw.to), await filtersWhere(context, whole, filters));
 		const grouped = async (extra: SQL, measure: keyof Measures, value: SQL<number>) => {
 			const rows = await context.data.aggregate(events, {
 				where: and(where, extra),
@@ -145,9 +159,10 @@ export async function breakdown(
 	range: Range,
 	dimension: Dimension,
 	limit: number,
+	filters?: Filters,
 ): Promise<({ value: string } & Measures)[]> {
 	const { period, ...whole } = granularity(range);
-	const { rolled, raw } = split(period, whole, await builtUntil(context));
+	const { rolled, raw } = split(period, whole, await rolledUntil(context, filters));
 	const found = new Map<string, Measures>();
 	const add = (value: string, measures: Measures) => found.set(value, plus(found.get(value) ?? ZERO, measures));
 	if (!isEmpty(rolled)) {
@@ -159,7 +174,8 @@ export async function breakdown(
 		for (const row of rows) add(row.value, measuresOf(row));
 	}
 	if (!isEmpty(raw)) {
-		for (const [value, measures] of await rawBreakdown(context, within(raw.from, raw.to), dimension)) {
+		const where = and(within(raw.from, raw.to), await filtersWhere(context, whole, filters));
+		for (const [value, measures] of await rawBreakdown(context, where, dimension)) {
 			add(value, measures);
 		}
 	}
@@ -179,6 +195,43 @@ export async function coverage(
 ): Promise<{ rawEventsFrom: Date | null; rolledUp: { hours: Date; days: Date } | null }> {
 	const [row] = await context.data.aggregate(events, { values: { at: min(events.occurredAt) } });
 	return { rawEventsFrom: row?.at ? new Date(row.at) : null, rolledUp: await builtUntil(context) };
+}
+
+/** A Goal's counts in a range: each time it was reached, and the visitors who reached it. */
+export type GoalCounts = { conversions: number; visitors: number };
+
+/**
+ * Goals' counts in a range (raw events only, so as far back as they are kept), with the range's
+ * visitors who accepted Analytics, the whole a conversion rate is a share of. A range's visitors are
+ * its days' visitors added up, as everywhere: ids change every day.
+ */
+export async function goalCounts(
+	context: ModuleContext,
+	range: Range,
+	goals: readonly Goal[],
+	filters?: Filters,
+): Promise<{ goals: GoalCounts[]; visitors: number }> {
+	const { from, to } = granularity(range);
+	const where = and(within(from, to), await filtersWhere(context, { from, to }, filters));
+	const counted: GoalCounts[] = [];
+	for (const goal of goals) {
+		const [row] = await context.data.aggregate(events, {
+			where: and(where, goalWhere(goal.definition)),
+			values: { conversions: count(), visitors: countDistinct(events.visitor) },
+		});
+		counted.push({ conversions: Number(row?.conversions ?? 0), visitors: Number(row?.visitors ?? 0) });
+	}
+	const [all] = await context.data.aggregate(events, {
+		where: and(where, isNotNull(events.visitor)),
+		values: { visitors: countDistinct(events.visitor) },
+	});
+	return { goals: counted, visitors: Number(all?.visitors ?? 0) };
+}
+
+/** The range a question counts, widened to whole hours or days as `totals` widens it. */
+export function countedRange(range: Range): Range {
+	const { from, to } = granularity(range);
+	return { from, to };
 }
 
 /** Limits on what one question may ask. */

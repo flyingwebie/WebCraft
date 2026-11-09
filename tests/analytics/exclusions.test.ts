@@ -18,7 +18,7 @@ let domains = 0;
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 });

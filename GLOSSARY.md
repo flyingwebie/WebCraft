@@ -605,12 +605,16 @@ Something a visitor does on a Site that counts as a result: a Form Submission, a
 _Avoid_: Conversion (that is a Goal being reached), target, KPI
 
 **Funnel**:
-An ordered list of two to five Goals or page visits, showing how many visitors in one visit reach each step.
+An ordered list of two to five Goals or page visits, showing how many visitors reach each step in order within one day.
 _Avoid_: Journey, flow, path
 
 **Dashboard**:
 A grid of Widgets showing a Site's analytics, or all of a Workspace's Sites added together. Staff build dashboards; Owners view them.
 _Avoid_: Report (that is the scheduled PDF), board, overview
+
+**Dashboard template**:
+A Dashboard's Widgets and date range, kept to start new Dashboards from on other Sites. Its Widgets find each Site's Goals and Funnels by their names.
+_Avoid_: Preset, layout, theme
 
 **Widget**:
 One chart, table, number or note on a Dashboard, chosen from WebCraft's built-in set, with its own date range and filters.

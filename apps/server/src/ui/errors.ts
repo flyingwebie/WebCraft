@@ -7,6 +7,10 @@ import type { MessageKey } from "./i18n.tsx";
 export function errorMessage(error: unknown): MessageKey {
 	const { code, data } = (error ?? {}) as { code?: unknown; data?: { problem?: unknown } };
 	switch (code) {
+		case "DASHBOARD_NOT_FOUND":
+		case "WIDGET_NOT_FOUND":
+		case "DASHBOARD_TEMPLATE_NOT_FOUND":
+		case "DASHBOARD_INVALID":
 		case "SETUP_TOKEN_INVALID":
 		case "SETUP_CLOSED":
 		case "EMAIL_INVALID":

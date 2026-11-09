@@ -166,6 +166,8 @@ describe("the document", () => {
 			"modules.removeSiteData",
 			"modules.removeWorkspaceData",
 			"m.forms.submissions.delete",
+			"m.site-analytics.goals.delete",
+			"m.site-analytics.funnels.delete",
 		];
 		const confirmed = [...operations.values()]
 			.filter((operation) => operation["x-webcraft-confirmation"])

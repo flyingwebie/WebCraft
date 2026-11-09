@@ -14560,6 +14560,1337 @@
 				"x-webcraft-confirmation": true
 			}
 		},
+		"/dashboards/catalog": {
+			"post": {
+				"operationId": "dashboards.catalog",
+				"summary": "The Widget kinds a Dashboard here can show, with their filters and settings.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboards/options": {
+			"post": {
+				"operationId": "dashboards.options",
+				"summary": "What a Widget kind's setting offers here, such as the Site's Goals.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"kind": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"setting": {
+										"type": "string",
+										"maxLength": 40
+									}
+								},
+								"required": ["kind", "setting"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboards/list": {
+			"post": {
+				"operationId": "dashboards.list",
+				"summary": "Lists a Site's Dashboards, or a Workspace's, that the caller sees.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboards/get": {
+			"post": {
+				"operationId": "dashboards.get",
+				"summary": "One Dashboard and its Widgets, without their data.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboards/create": {
+			"post": {
+				"operationId": "dashboards.create",
+				"summary": "Creates a Dashboard, empty or from a Dashboard template.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"template": {
+										"type": "object",
+										"properties": {
+											"workspaceId": {
+												"type": "string",
+												"format": "uuid"
+											},
+											"templateId": {
+												"type": "string",
+												"format": "uuid"
+											}
+										},
+										"required": ["workspaceId", "templateId"]
+									}
+								},
+								"required": ["name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/update": {
+			"post": {
+				"operationId": "dashboards.update",
+				"summary": "Renames a Dashboard, or changes its range or who sees it.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"range": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"enum": [
+															"today",
+															"yesterday",
+															"last7Days",
+															"last30Days",
+															"last90Days",
+															"thisMonth",
+															"lastMonth",
+															"last12Months"
+														],
+														"type": "string"
+													}
+												},
+												"required": ["preset"],
+												"additionalProperties": false
+											},
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"const": "custom"
+													},
+													"from": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													},
+													"to": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													}
+												},
+												"required": ["preset", "from", "to"],
+												"additionalProperties": false
+											}
+										]
+									},
+									"sharedWithEveryone": {
+										"type": "boolean"
+									}
+								},
+								"required": ["dashboardId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/delete": {
+			"post": {
+				"operationId": "dashboards.delete",
+				"summary": "Deletes a Dashboard.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/saveAsTemplate": {
+			"post": {
+				"operationId": "dashboards.saveAsTemplate",
+				"summary": "Keeps a Dashboard's Widgets and range as a Dashboard template.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									}
+								},
+								"required": ["dashboardId", "name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/export": {
+			"post": {
+				"operationId": "dashboards.export",
+				"summary": "Every Widget of a Dashboard as one CSV file (recorded in the Audit log).",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"range": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"enum": [
+															"today",
+															"yesterday",
+															"last7Days",
+															"last30Days",
+															"last90Days",
+															"thisMonth",
+															"lastMonth",
+															"last12Months"
+														],
+														"type": "string"
+													}
+												},
+												"required": ["preset"],
+												"additionalProperties": false
+											},
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"const": "custom"
+													},
+													"from": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													},
+													"to": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													}
+												},
+												"required": ["preset", "from", "to"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["dashboardId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboards/widgets/add": {
+			"post": {
+				"operationId": "dashboards.widgets.add",
+				"summary": "Adds a Widget from the catalog to a Dashboard.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"kind": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"title": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 100
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"range": {
+										"anyOf": [
+											{
+												"anyOf": [
+													{
+														"type": "object",
+														"properties": {
+															"preset": {
+																"enum": [
+																	"today",
+																	"yesterday",
+																	"last7Days",
+																	"last30Days",
+																	"last90Days",
+																	"thisMonth",
+																	"lastMonth",
+																	"last12Months"
+																],
+																"type": "string"
+															}
+														},
+														"required": ["preset"],
+														"additionalProperties": false
+													},
+													{
+														"type": "object",
+														"properties": {
+															"preset": {
+																"const": "custom"
+															},
+															"from": {
+																"type": "string",
+																"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+															},
+															"to": {
+																"type": "string",
+																"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+															}
+														},
+														"required": ["preset", "from", "to"],
+														"additionalProperties": false
+													}
+												]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"filters": {
+										"type": "object",
+										"properties": {
+											"page": {
+												"type": "object",
+												"properties": {
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["path"]
+											},
+											"source": {
+												"type": "string",
+												"maxLength": 200
+											},
+											"country": {
+												"type": "string",
+												"pattern": "^(?:[A-Za-z]{2})?$"
+											},
+											"device": {
+												"enum": ["desktop", "mobile", "tablet"],
+												"type": "string"
+											},
+											"goal": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 100
+											}
+										},
+										"additionalProperties": false
+									},
+									"settings": {
+										"type": "object",
+										"propertyNames": {
+											"type": "string",
+											"maxLength": 40
+										},
+										"additionalProperties": {
+											"anyOf": [
+												{
+													"type": "string",
+													"maxLength": 2000
+												},
+												{
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												}
+											]
+										}
+									},
+									"rows": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									},
+									"x": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 11
+									},
+									"y": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 1000
+									},
+									"w": {
+										"type": "integer",
+										"minimum": 2,
+										"maximum": 12
+									},
+									"h": {
+										"type": "integer",
+										"minimum": 2,
+										"maximum": 12
+									}
+								},
+								"required": ["dashboardId", "kind"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/widgets/update": {
+			"post": {
+				"operationId": "dashboards.widgets.update",
+				"summary": "Changes a Widget's title, range, filters, settings or rows.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"title": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 100
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"range": {
+										"anyOf": [
+											{
+												"anyOf": [
+													{
+														"type": "object",
+														"properties": {
+															"preset": {
+																"enum": [
+																	"today",
+																	"yesterday",
+																	"last7Days",
+																	"last30Days",
+																	"last90Days",
+																	"thisMonth",
+																	"lastMonth",
+																	"last12Months"
+																],
+																"type": "string"
+															}
+														},
+														"required": ["preset"],
+														"additionalProperties": false
+													},
+													{
+														"type": "object",
+														"properties": {
+															"preset": {
+																"const": "custom"
+															},
+															"from": {
+																"type": "string",
+																"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+															},
+															"to": {
+																"type": "string",
+																"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+															}
+														},
+														"required": ["preset", "from", "to"],
+														"additionalProperties": false
+													}
+												]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"filters": {
+										"type": "object",
+										"properties": {
+											"page": {
+												"type": "object",
+												"properties": {
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["path"]
+											},
+											"source": {
+												"type": "string",
+												"maxLength": 200
+											},
+											"country": {
+												"type": "string",
+												"pattern": "^(?:[A-Za-z]{2})?$"
+											},
+											"device": {
+												"enum": ["desktop", "mobile", "tablet"],
+												"type": "string"
+											},
+											"goal": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 100
+											}
+										},
+										"additionalProperties": false
+									},
+									"settings": {
+										"type": "object",
+										"propertyNames": {
+											"type": "string",
+											"maxLength": 40
+										},
+										"additionalProperties": {
+											"anyOf": [
+												{
+													"type": "string",
+													"maxLength": 2000
+												},
+												{
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												}
+											]
+										}
+									},
+									"rows": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									}
+								},
+								"required": ["dashboardId", "widgetId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/widgets/move": {
+			"post": {
+				"operationId": "dashboards.widgets.move",
+				"summary": "Moves and resizes a Widget on its Dashboard's grid.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"x": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 11
+									},
+									"y": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 1000
+									},
+									"w": {
+										"type": "integer",
+										"minimum": 2,
+										"maximum": 12
+									},
+									"h": {
+										"type": "integer",
+										"minimum": 2,
+										"maximum": 12
+									}
+								},
+								"required": ["dashboardId", "widgetId", "x", "y", "w", "h"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/widgets/remove": {
+			"post": {
+				"operationId": "dashboards.widgets.remove",
+				"summary": "Takes a Widget off its Dashboard.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId", "widgetId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/dashboards/widgets/data": {
+			"post": {
+				"operationId": "dashboards.widgets.data",
+				"summary": "What a Widget shows now: its counts for its range, or why it shows nothing.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"range": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"enum": [
+															"today",
+															"yesterday",
+															"last7Days",
+															"last30Days",
+															"last90Days",
+															"thisMonth",
+															"lastMonth",
+															"last12Months"
+														],
+														"type": "string"
+													}
+												},
+												"required": ["preset"],
+												"additionalProperties": false
+											},
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"const": "custom"
+													},
+													"from": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													},
+													"to": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													}
+												},
+												"required": ["preset", "from", "to"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["dashboardId", "widgetId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboards/widgets/export": {
+			"post": {
+				"operationId": "dashboards.widgets.export",
+				"summary": "One Widget as a CSV file (recorded in the Audit log).",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"range": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"enum": [
+															"today",
+															"yesterday",
+															"last7Days",
+															"last30Days",
+															"last90Days",
+															"thisMonth",
+															"lastMonth",
+															"last12Months"
+														],
+														"type": "string"
+													}
+												},
+												"required": ["preset"],
+												"additionalProperties": false
+											},
+											{
+												"type": "object",
+												"properties": {
+													"preset": {
+														"const": "custom"
+													},
+													"from": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													},
+													"to": {
+														"type": "string",
+														"pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+													}
+												},
+												"required": ["preset", "from", "to"],
+												"additionalProperties": false
+											}
+										]
+									}
+								},
+								"required": ["dashboardId", "widgetId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboardTemplates/list": {
+			"post": {
+				"operationId": "dashboardTemplates.list",
+				"summary": "Lists the Dashboard templates of the Workspaces where the caller builds Dashboards.",
+				"tags": ["dashboardTemplates"],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/dashboardTemplates/delete": {
+			"post": {
+				"operationId": "dashboardTemplates.delete",
+				"summary": "Deletes a Dashboard template.",
+				"tags": ["dashboardTemplates"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"templateId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["workspaceId", "templateId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
 		"/m/forms/submissions/list": {
 			"post": {
 				"operationId": "m.forms.submissions.list",
@@ -15036,6 +16367,45 @@
 										"format": "date-time",
 										"x-native-type": "date"
 									},
+									"filters": {
+										"type": "object",
+										"properties": {
+											"page": {
+												"type": "object",
+												"properties": {
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["path"]
+											},
+											"source": {
+												"type": "string",
+												"maxLength": 200
+											},
+											"country": {
+												"type": "string",
+												"pattern": "^(?:[A-Za-z]{2})?$"
+											},
+											"device": {
+												"enum": ["desktop", "mobile", "tablet"],
+												"type": "string"
+											},
+											"goal": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 100
+											}
+										}
+									},
 									"siteId": {
 										"type": "string",
 										"format": "uuid"
@@ -15091,6 +16461,45 @@
 									"interval": {
 										"enum": ["hour", "day"],
 										"type": "string"
+									},
+									"filters": {
+										"type": "object",
+										"properties": {
+											"page": {
+												"type": "object",
+												"properties": {
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["path"]
+											},
+											"source": {
+												"type": "string",
+												"maxLength": 200
+											},
+											"country": {
+												"type": "string",
+												"pattern": "^(?:[A-Za-z]{2})?$"
+											},
+											"device": {
+												"enum": ["desktop", "mobile", "tablet"],
+												"type": "string"
+											},
+											"goal": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 100
+											}
+										}
 									},
 									"siteId": {
 										"type": "string",
@@ -15167,12 +16576,247 @@
 										"maximum": 1000,
 										"default": 10
 									},
+									"filters": {
+										"type": "object",
+										"properties": {
+											"page": {
+												"type": "object",
+												"properties": {
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["path"]
+											},
+											"source": {
+												"type": "string",
+												"maxLength": 200
+											},
+											"country": {
+												"type": "string",
+												"pattern": "^(?:[A-Za-z]{2})?$"
+											},
+											"device": {
+												"enum": ["desktop", "mobile", "tablet"],
+												"type": "string"
+											},
+											"goal": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 100
+											}
+										}
+									},
 									"siteId": {
 										"type": "string",
 										"format": "uuid"
 									}
 								},
 								"required": ["from", "to", "dimension", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/m/site-analytics/stats/goals": {
+			"post": {
+				"operationId": "m.site-analytics.stats.goals",
+				"summary": "Site analytics: stats.goals.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"from": {
+										"type": "string",
+										"format": "date-time",
+										"x-native-type": "date"
+									},
+									"to": {
+										"type": "string",
+										"format": "date-time",
+										"x-native-type": "date"
+									},
+									"goals": {
+										"type": "array",
+										"maxItems": 100,
+										"items": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 100
+										}
+									},
+									"filters": {
+										"type": "object",
+										"properties": {
+											"page": {
+												"type": "object",
+												"properties": {
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["path"]
+											},
+											"source": {
+												"type": "string",
+												"maxLength": 200
+											},
+											"country": {
+												"type": "string",
+												"pattern": "^(?:[A-Za-z]{2})?$"
+											},
+											"device": {
+												"enum": ["desktop", "mobile", "tablet"],
+												"type": "string"
+											},
+											"goal": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 100
+											}
+										}
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["from", "to", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/m/site-analytics/stats/funnel": {
+			"post": {
+				"operationId": "m.site-analytics.stats.funnel",
+				"summary": "Site analytics: stats.funnel.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"from": {
+										"type": "string",
+										"format": "date-time",
+										"x-native-type": "date"
+									},
+									"to": {
+										"type": "string",
+										"format": "date-time",
+										"x-native-type": "date"
+									},
+									"funnel": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"filters": {
+										"type": "object",
+										"properties": {
+											"page": {
+												"type": "object",
+												"properties": {
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["path"]
+											},
+											"source": {
+												"type": "string",
+												"maxLength": 200
+											},
+											"country": {
+												"type": "string",
+												"pattern": "^(?:[A-Za-z]{2})?$"
+											},
+											"device": {
+												"enum": ["desktop", "mobile", "tablet"],
+												"type": "string"
+											},
+											"goal": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 100
+											}
+										}
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["from", "to", "funnel", "siteId"]
 							}
 						}
 					}
@@ -15237,6 +16881,610 @@
 					}
 				},
 				"x-webcraft-access": "read"
+			}
+		},
+		"/m/site-analytics/goals/list": {
+			"post": {
+				"operationId": "m.site-analytics.goals.list",
+				"summary": "Site analytics: goals.list.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/m/site-analytics/goals/create": {
+			"post": {
+				"operationId": "m.site-analytics.goals.create",
+				"summary": "Site analytics: goals.create.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"definition": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "form"
+													},
+													"formId": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "formId"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "page"
+													},
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["kind", "path"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "link"
+													},
+													"link": {
+														"enum": ["outbound", "download", "tel", "mailto"],
+														"type": "string"
+													},
+													"target": {
+														"type": "string",
+														"maxLength": 1000,
+														"default": ""
+													}
+												},
+												"required": ["kind", "link"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "event"
+													},
+													"event": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 100
+													}
+												},
+												"required": ["kind", "event"]
+											}
+										]
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["name", "definition", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/m/site-analytics/goals/update": {
+			"post": {
+				"operationId": "m.site-analytics.goals.update",
+				"summary": "Site analytics: goals.update.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"goalId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"definition": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "form"
+													},
+													"formId": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "formId"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "page"
+													},
+													"path": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 1000,
+														"pattern": "^\\/.*"
+													},
+													"match": {
+														"enum": ["exact", "prefix"],
+														"type": "string",
+														"default": "exact"
+													}
+												},
+												"required": ["kind", "path"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "link"
+													},
+													"link": {
+														"enum": ["outbound", "download", "tel", "mailto"],
+														"type": "string"
+													},
+													"target": {
+														"type": "string",
+														"maxLength": 1000,
+														"default": ""
+													}
+												},
+												"required": ["kind", "link"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "event"
+													},
+													"event": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 100
+													}
+												},
+												"required": ["kind", "event"]
+											}
+										]
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["goalId", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/m/site-analytics/goals/delete": {
+			"post": {
+				"operationId": "m.site-analytics.goals.delete",
+				"summary": "Site analytics: goals.delete.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"goalId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["goalId", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-confirmation": true
+			}
+		},
+		"/m/site-analytics/funnels/list": {
+			"post": {
+				"operationId": "m.site-analytics.funnels.list",
+				"summary": "Site analytics: funnels.list.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/m/site-analytics/funnels/create": {
+			"post": {
+				"operationId": "m.site-analytics.funnels.create",
+				"summary": "Site analytics: funnels.create.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"steps": {
+										"type": "array",
+										"minItems": 2,
+										"maxItems": 5,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "goal"
+														},
+														"goalId": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "goalId"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "page"
+														},
+														"path": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 1000,
+															"pattern": "^\\/.*"
+														},
+														"match": {
+															"enum": ["exact", "prefix"],
+															"type": "string",
+															"default": "exact"
+														}
+													},
+													"required": ["kind", "path"]
+												}
+											]
+										}
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["name", "steps", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/m/site-analytics/funnels/update": {
+			"post": {
+				"operationId": "m.site-analytics.funnels.update",
+				"summary": "Site analytics: funnels.update.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"funnelId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"steps": {
+										"type": "array",
+										"minItems": 2,
+										"maxItems": 5,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "goal"
+														},
+														"goalId": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "goalId"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "page"
+														},
+														"path": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 1000,
+															"pattern": "^\\/.*"
+														},
+														"match": {
+															"enum": ["exact", "prefix"],
+															"type": "string",
+															"default": "exact"
+														}
+													},
+													"required": ["kind", "path"]
+												}
+											]
+										}
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["funnelId", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/m/site-analytics/funnels/delete": {
+			"post": {
+				"operationId": "m.site-analytics.funnels.delete",
+				"summary": "Site analytics: funnels.delete.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"funnelId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["funnelId", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-confirmation": true
 			}
 		},
 		"/m/site-analytics/settings/get": {

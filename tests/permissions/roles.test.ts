@@ -43,6 +43,8 @@ describe("the role table", () => {
 				"aiKey.manage",
 				"aiUsage.view",
 				"protectedTerms.edit",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 			site: [
 				"module.manage",
@@ -59,6 +61,8 @@ describe("the role table", () => {
 				"media.manage",
 				"import.run",
 				"translation.manage",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 		});
 	});
@@ -79,6 +83,8 @@ describe("the role table", () => {
 				"aiKey.manage",
 				"aiUsage.view",
 				"protectedTerms.edit",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 			site: [
 				"module.manage",
@@ -95,11 +101,13 @@ describe("the role table", () => {
 				"media.manage",
 				"import.run",
 				"translation.manage",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 		});
 	});
 
-	test("owner: manages Members, the AI key and the staging password, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, but never changes Structure or creates Sites", async () => {
+	test("owner: manages Members, the AI key and the staging password, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, sees Dashboards, but never changes Structure, builds Dashboards or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -112,6 +120,7 @@ describe("the role table", () => {
 				"aiKey.manage",
 				"aiUsage.view",
 				"protectedTerms.edit",
+				"dashboard.view",
 			],
 			site: [
 				"aiUsage.view",
@@ -126,6 +135,7 @@ describe("the role table", () => {
 				"media.manage",
 				"import.run",
 				"translation.manage",
+				"dashboard.view",
 			],
 		});
 	});
@@ -223,6 +233,7 @@ describe("each role against Workspace and Site scope", () => {
 			"media.manage",
 			"import.run",
 			"translation.manage",
+			"dashboard.view",
 		],
 		editor: [
 			"protectedTerms.edit",

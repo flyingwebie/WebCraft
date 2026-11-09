@@ -66,4 +66,42 @@ CREATE TABLE settings (
 );
 `,
 	},
+	{
+		name: "0002-goals-funnels-and-visit-sources",
+		sql: `
+ALTER TABLE events ADD COLUMN visit_source text;
+-- Before consent a page view stands alone: its visit's source is its own (null for a move within the Site).
+UPDATE events SET visit_source = source WHERE visit IS NULL;
+-- After consent every event of a visit carries the source of the visit's arrival.
+UPDATE events AS later SET visit_source = arrival.source
+	FROM events AS arrival
+	WHERE later.visit IS NOT NULL AND arrival.site_id = later.site_id AND arrival.visit = later.visit AND arrival.starts_visit;
+CREATE INDEX events_site_type_occurred_at_idx ON events (site_id, type, occurred_at);
+
+CREATE TABLE goals (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	workspace_id uuid NOT NULL,
+	site_id uuid NOT NULL,
+	name text NOT NULL,
+	kind text NOT NULL CHECK (kind IN ('form', 'page', 'link', 'event')),
+	definition jsonb NOT NULL,
+	created_at timestamp with time zone NOT NULL,
+	updated_at timestamp with time zone NOT NULL,
+	CONSTRAINT goals_site_fkey FOREIGN KEY (workspace_id, site_id) REFERENCES sites (workspace_id, id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX goals_site_name_idx ON goals (site_id, lower(name));
+
+CREATE TABLE funnels (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	workspace_id uuid NOT NULL,
+	site_id uuid NOT NULL,
+	name text NOT NULL,
+	steps jsonb NOT NULL,
+	created_at timestamp with time zone NOT NULL,
+	updated_at timestamp with time zone NOT NULL,
+	CONSTRAINT funnels_site_fkey FOREIGN KEY (workspace_id, site_id) REFERENCES sites (workspace_id, id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX funnels_site_name_idx ON funnels (site_id, lower(name));
+`,
+	},
 ];

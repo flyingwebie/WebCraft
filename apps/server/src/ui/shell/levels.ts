@@ -3,6 +3,7 @@ import type { Permission } from "@webcraft/core";
 import {
 	ArchiveIcon,
 	Building2Icon,
+	ChartColumnIcon,
 	ClipboardListIcon,
 	ComponentIcon,
 	CookieIcon,
@@ -73,6 +74,8 @@ export type AdminPlace =
 			sites: PlaceSite[];
 			permissions: readonly string[];
 			modulePages: readonly PlaceModulePage[];
+			/** Whether the person sees any Dashboard here, or builds them: the sidebar offers Dashboards then. */
+			dashboards: boolean;
 	  }
 	| {
 			level: "site";
@@ -90,6 +93,8 @@ export type AdminPlace =
 			modulePermissions: readonly string[];
 			/** How many of the Site's Drafts the person may publish: Publish all in the top bar says it. */
 			drafts: number;
+			/** Whether the person sees any Dashboard here, or builds them: the sidebar offers Dashboards then. */
+			dashboards: boolean;
 	  };
 
 export type NavItem = {
@@ -105,6 +110,8 @@ export type NavItem = {
 	requires?: Permission;
 	/** Active only on this very page, not on the pages below it (a level's home). */
 	exact?: boolean;
+	/** Shown only where the person sees a Dashboard, or builds them (`place.dashboards`). */
+	dashboards?: boolean;
 };
 
 export type NavGroup = {
@@ -209,6 +216,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 				items: [
 					{ id: "sites", label: "shell.nav.sites", icon: GlobeIcon, to: "/workspaces/$workspaceId", exact: true },
 					{
+						id: "workspace-dashboards",
+						label: "shell.nav.dashboards",
+						icon: ChartColumnIcon,
+						to: "/workspaces/$workspaceId/dashboards",
+						dashboards: true,
+					},
+					{
 						id: "members",
 						label: "shell.nav.members",
 						icon: UsersIcon,
@@ -252,6 +266,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: LayoutDashboardIcon,
 						to: "/sites/$siteId",
 						exact: true,
+					},
+					{
+						id: "site-dashboards",
+						label: "shell.nav.dashboards",
+						icon: ChartColumnIcon,
+						to: "/sites/$siteId/dashboards",
+						dashboards: true,
 					},
 					// The Site's Post Types come here (`postTypeItems`).
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
@@ -415,7 +436,9 @@ function formItems(forms: readonly PlaceForm[]): NavItem[] {
 
 /** The sidebar of a place, with only the groups and items the person may see, and no empty groups. */
 export function navigationFor(place: AdminPlace): LevelNavigation {
-	const visible = (entry: { requires?: Permission }) => !entry.requires || place.permissions.includes(entry.requires);
+	const visible = (entry: { requires?: Permission; dashboards?: boolean }) =>
+		(!entry.requires || place.permissions.includes(entry.requires)) &&
+		(!entry.dashboards || (place.level !== "install" && place.dashboards));
 	const level = NAVIGATION[place.level];
 	const groups =
 		place.level === "site"
@@ -424,11 +447,11 @@ export function navigationFor(place: AdminPlace): LevelNavigation {
 						? {
 								...group,
 								items: [
-									...group.items.slice(0, 1),
+									...group.items.slice(0, 2),
 									...postTypeItems(place.postTypes),
-									...group.items.slice(1, 2),
+									...group.items.slice(2, 3),
 									...formItems(place.forms),
-									...group.items.slice(2),
+									...group.items.slice(3),
 								],
 							}
 						: group,

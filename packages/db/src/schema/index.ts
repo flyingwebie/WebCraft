@@ -6,6 +6,7 @@ export * from "./audit.ts";
 export * from "./backups.ts";
 export * from "./consent.ts";
 export * from "./content.ts";
+export * from "./dashboards.ts";
 export * from "./design-system.ts";
 export * from "./domains.ts";
 export * from "./edit-mode.ts";
