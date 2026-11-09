@@ -52,6 +52,8 @@ export const SENSITIVE_ACTIONS = {
 	"stagingPassword.change": "changes a secret",
 	/** Creating an API token: a credential that acts as the person, outside the admin. */
 	"apiToken.create": "creates a credential",
+	/** Approving an AI client: its grant's tokens act as the person, outside the admin. */
+	"aiClient.approve": "creates a credential",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

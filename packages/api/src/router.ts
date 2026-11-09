@@ -21,6 +21,7 @@ import { me } from "./procedures/me.ts";
 import { media } from "./procedures/media.ts";
 import { members } from "./procedures/members.ts";
 import { modules } from "./procedures/modules.ts";
+import { aiClients, oauth } from "./procedures/oauth.ts";
 import { pages } from "./procedures/pages.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { publishing } from "./procedures/publishing.ts";
@@ -48,6 +49,8 @@ export const apiRouter = {
 	shell,
 	me,
 	apiTokens,
+	oauth,
+	aiClients,
 	install,
 	workspaces,
 	sites,

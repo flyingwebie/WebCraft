@@ -14,6 +14,7 @@ import { and, asc, eq, gt, inArray, isNotNull, or } from "drizzle-orm";
 import { revokeTokensOutOfReach } from "../api-tokens.ts";
 import type { Email } from "../email/index.ts";
 import { isUuid } from "../ids.ts";
+import { revokeGrantsOutOfReach } from "../oauth.ts";
 import { can, holdsAccess, type MemberAccess, personIdOf, type Reach } from "../permissions/can.ts";
 import { ASSIGNED_ROLES, isWorkspaceRole, WORKSPACE_ROLES, type WorkspaceRole } from "../permissions/roles.ts";
 import { hashToken, newToken } from "../tokens.ts";
@@ -440,8 +441,9 @@ export function createMembers({ database, email }: { database: Database; email: 
 				if (!sameReach(from.sites, to.sites)) {
 					await tx.audit("member.changeSites", { ...about, from: from.sites, to: to.sites });
 				}
-				// Their API tokens for Sites they no longer reach end with the change.
+				// Their API tokens and AI clients for Sites they no longer reach end with the change.
 				await revokeTokensOutOfReach(tx.db, personId, tx.now(), byScope(tx));
+				await revokeGrantsOutOfReach(tx.db, personId, tx.now(), byScope(tx));
 				return { membership, to };
 			});
 			const [person] = await db
@@ -472,8 +474,9 @@ export function createMembers({ database, email }: { database: Database; email: 
 					role: access.role,
 					sites: access.sites,
 				});
-				// Their API tokens for this Workspace end with the Membership.
+				// Their API tokens and AI clients for this Workspace end with the Membership.
 				await revokeTokensOutOfReach(tx.db, personId, tx.now(), byScope(tx));
+				await revokeGrantsOutOfReach(tx.db, personId, tx.now(), byScope(tx));
 			});
 		},
 	};

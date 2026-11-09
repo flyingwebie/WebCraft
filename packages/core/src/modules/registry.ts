@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-
 import {
 	type AdminPage,
 	type ComponentProp,
@@ -35,7 +34,6 @@ import { parseTemplateMarkup, TemplateMarkupInvalidError } from "@webcraft/rende
 import { getTableColumns, getTableName, isTable } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import semver from "semver";
-
 import {
 	isComponentName,
 	type ModuleComponent,
@@ -46,6 +44,7 @@ import type { ContentProblem } from "../content/errors.ts";
 import { type FieldInput, parseFields } from "../content/fields.ts";
 import type { AddedPermission } from "../permissions/can.ts";
 import { isPermission, type Level, PERMISSIONS, type Permission } from "../permissions/roles.ts";
+import { isToolset } from "../toolsets.ts";
 
 /**
  * The Modules this build of WebCraft loads, each checked against the rules of the SDK when it is
@@ -357,6 +356,9 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 				if (typeof entry.run !== "function") problem(`The procedure ${dotted} has no run function.`);
 				if (entry.kind !== undefined && entry.kind !== "read" && entry.kind !== "write") {
 					problem(`The procedure ${dotted} is neither a read nor a write.`);
+				}
+				if (entry.toolset !== undefined && !isToolset(entry.toolset)) {
+					problem(`The procedure ${dotted} names the Toolset ${String(entry.toolset)}, which WebCraft doesn't have.`);
 				}
 				procedures.set(dotted, entry);
 			} else if (entry && typeof entry === "object") {

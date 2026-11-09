@@ -156,9 +156,28 @@ export type ModuleProcedure<Input extends ProcedureInput = ProcedureInput, Outpu
 	 * token calls reads only, and writes count against a token's writes a minute.
 	 */
 	kind?: "read" | "write";
+	/**
+	 * The Toolset of WebCraft's it belongs to for API clients and AI clients (SDK 1.9), such as
+	 * `analytics`: a client calls it only with that Toolset switched on. Without one it belongs to
+	 * the Module's own Toolset. Procedures reading what visitors sent belong in `submissions`, which
+	 * nobody's client has unless they chose it.
+	 */
+	toolset?: ModuleToolset;
 	input: Input;
 	run(input: z.output<Input>, context: ProcedureContext): Promise<Output>;
 };
+
+/** WebCraft's Toolsets a Module procedure may belong to (SDK 1.9; see `ModuleProcedure.toolset`). */
+export type ModuleToolset =
+	| "content"
+	| "media"
+	| "structure"
+	| "forms"
+	| "publishing"
+	| "translation"
+	| "siteSettings"
+	| "analytics"
+	| "submissions";
 
 export type ModuleProcedures = { readonly [name: string]: ModuleProcedure | ModuleProcedures };
 

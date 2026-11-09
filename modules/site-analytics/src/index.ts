@@ -104,7 +104,7 @@ export const siteAnalytics = defineModule({
 			it: "Conta le visite di ogni Sito con il tracciamento di WebCraft, senza cookie, nel database di questa installazione: totali anonimi finché i visitatori non accettano le Statistiche, visitatori e visite quando lo fanno.",
 		},
 		version: "1.1.0",
-		sdk: "^1.8.0",
+		sdk: "^1.9.0",
 		level: "site",
 		// Sites ship no JavaScript by default: Staff switch it on where it is wanted.
 		onByDefault: false,
@@ -151,6 +151,7 @@ export const siteAnalytics = defineModule({
 			/** A range's totals: page views, visitors, visits and events. */
 			totals: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: range.extend({ filters }),
 				async run(input, context) {
@@ -160,6 +161,7 @@ export const siteAnalytics = defineModule({
 			/** A range's totals by hour or by day. */
 			series: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: range.extend({ interval: z.enum(["hour", "day"]), filters }),
 				async run(input, context) {
@@ -171,6 +173,7 @@ export const siteAnalytics = defineModule({
 			/** A range's measures by the values of one dimension, the biggest first. */
 			breakdown: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: range.extend({
 					dimension: dimensionSchema,
@@ -196,6 +199,7 @@ export const siteAnalytics = defineModule({
 			 */
 			goals: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: range.extend({ goals: z.array(nameSchema).max(MAX_GOALS).optional(), filters }),
 				async run(input, context) {
@@ -221,6 +225,7 @@ export const siteAnalytics = defineModule({
 			 */
 			funnel: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: range.extend({ funnel: nameSchema, filters }),
 				async run(input, context) {
@@ -240,6 +245,7 @@ export const siteAnalytics = defineModule({
 			/** How far back the raw events reach, and how far rollups are built. */
 			coverage: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
@@ -251,6 +257,7 @@ export const siteAnalytics = defineModule({
 			/** The Site's Goals, by name. */
 			list: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
@@ -260,6 +267,7 @@ export const siteAnalytics = defineModule({
 			/** Adds a Goal: its name (unique on the Site, whatever its case) and what it counts. Structure, Staff only. */
 			create: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				input: z.object({ name: nameSchema, definition: goalDefinitionSchema }),
 				async run(input, context) {
 					const existing = await listGoals(context);
@@ -286,6 +294,7 @@ export const siteAnalytics = defineModule({
 			/** Renames a Goal or changes what it counts. Widgets name Goals by name: they follow a new one only once chosen again. */
 			update: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				input: z.object({ goalId: z.uuid(), name: nameSchema.optional(), definition: goalDefinitionSchema.optional() }),
 				async run(input, context) {
 					const existing = await listGoals(context);
@@ -317,6 +326,7 @@ export const siteAnalytics = defineModule({
 			 */
 			delete: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				input: z.object({ goalId: z.uuid(), confirmation: z.string().max(100).optional() }),
 				async run(input, context) {
 					const goal = (await listGoals(context)).find((each) => each.id === input.goalId);
@@ -350,6 +360,7 @@ export const siteAnalytics = defineModule({
 			/** The Site's Funnels, by name, each step with its label (its Goal's name, or the page's path). */
 			list: procedure({
 				permission: "analytics.view",
+				toolset: "analytics",
 				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
@@ -359,6 +370,7 @@ export const siteAnalytics = defineModule({
 			/** Adds a Funnel: its name (unique on the Site) and two to five steps. Structure, Staff only. */
 			create: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				input: z.object({ name: nameSchema, steps: funnelStepsSchema }),
 				async run(input, context) {
 					const existing = await listFunnels(context);
@@ -384,6 +396,7 @@ export const siteAnalytics = defineModule({
 			/** Renames a Funnel or changes its steps. */
 			update: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				input: z.object({ funnelId: z.uuid(), name: nameSchema.optional(), steps: funnelStepsSchema.optional() }),
 				async run(input, context) {
 					const existing = await listFunnels(context);
@@ -410,6 +423,7 @@ export const siteAnalytics = defineModule({
 			/** Deletes a Funnel, in two steps, as Goals are deleted. */
 			delete: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				input: z.object({ funnelId: z.uuid(), confirmation: z.string().max(100).optional() }),
 				async run(input, context) {
 					const funnel = (await listFunnels(context)).find((each) => each.id === input.funnelId);
@@ -433,6 +447,7 @@ export const siteAnalytics = defineModule({
 			/** The Site's analytics settings. */
 			get: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
@@ -443,6 +458,7 @@ export const siteAnalytics = defineModule({
 			/** Changes the address ranges whose visits are left out (Staff, a Site setting). */
 			update: procedure({
 				permission: "structure.edit",
+				toolset: "analytics",
 				input: z.object({
 					excludedRanges: z
 						.array(z.string().trim().min(1).max(64))

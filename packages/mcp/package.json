@@ -15,5 +15,11 @@
 		"@types/node": "catalog:",
 		"@webcraft/config": "workspace:*",
 		"typescript": "catalog:"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/server": "2.4.0",
+		"@webcraft/api": "workspace:*",
+		"@webcraft/core": "workspace:*",
+		"@webcraft/renderer": "workspace:*"
 	}
 }

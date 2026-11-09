@@ -10,8 +10,8 @@ import type { ApiRouter } from "./router.ts";
  * Public procedures are served at `/api/v1/<path with slashes>` (`POST /api/v1/entries/publish`)
  * to API tokens, and listed in the OpenAPI document (`/api/v1/openapi.json`); the MCP server and
  * the CLI are generated from them (ADR 0030). Internal ones are the admin's own: the setup wizard,
- * signing in, the shell, a person's own account and API tokens, Install settings, Staff, invite
- * links, Edit mode and conveniences of the admin's screens. They answer at `/api/rpc` only.
+ * signing in, the shell, a person's own account, API tokens and AI clients (approving them
+ * included), Install settings, Staff, invite links, Edit mode and conveniences of the admin's screens. They answer at `/api/rpc` only.
  *
  * Reads and writes decide what a token may do: a read-only token calls reads only, and writes
  * count against a token's 30 writes a minute besides its 300 requests. A Sensitive action
@@ -41,6 +41,11 @@ export const PROCEDURES = {
 	"apiTokens.list": internal(),
 	"apiTokens.create": internal(),
 	"apiTokens.revoke": internal(),
+	"oauth.check": internal(),
+	"oauth.approve": internal(),
+	"oauth.deny": internal(),
+	"aiClients.list": internal(),
+	"aiClients.revoke": internal(),
 	"install.settings.get": internal(),
 	"install.settings.update": internal(),
 	"install.masterKey.status": internal(),
@@ -316,8 +321,8 @@ export function exposureOf(path: string): Exposure | null {
 	return Object.hasOwn(PROCEDURES, path) ? PROCEDURES[path as ProcedurePath] : null;
 }
 
-function internal(): Exposure {
-	return { access: "internal" };
+function internal() {
+	return { access: "internal" } as const satisfies Exposure;
 }
 
 function read(summary: string) {

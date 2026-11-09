@@ -46,7 +46,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": "always",
+				"x-webcraft-permissions": ["workspace.view"]
 			}
 		},
 		"/workspaces/get": {
@@ -88,7 +90,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": "always",
+				"x-webcraft-permissions": ["workspace.view"]
 			}
 		},
 		"/workspaces/storage": {
@@ -130,7 +134,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["workspace.view"]
 			}
 		},
 		"/workspaces/setQuota": {
@@ -184,7 +190,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["quota.manage"]
 			}
 		},
 		"/sites/list": {
@@ -226,7 +234,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": "always",
+				"x-webcraft-permissions": ["workspace.view"]
 			}
 		},
 		"/sites/get": {
@@ -268,7 +278,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": "always",
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/sites/create": {
@@ -319,7 +331,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["site.create"]
 			}
 		},
 		"/postTypes/list": {
@@ -361,7 +375,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/postTypes/get": {
@@ -407,7 +423,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/postTypes/create": {
@@ -867,7 +885,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/postTypes/update": {
@@ -1327,7 +1347,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/postTypes/data": {
@@ -1382,7 +1404,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/entries/list": {
@@ -1433,7 +1457,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/entries/get": {
@@ -1484,7 +1510,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/entries/create": {
@@ -1631,7 +1659,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.edit"]
 			}
 		},
 		"/entries/saveDraft": {
@@ -1777,7 +1807,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.edit"]
 			}
 		},
 		"/entries/delete": {
@@ -1828,6 +1860,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.delete"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -1879,6 +1913,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content", "publishing"],
+				"x-webcraft-permissions": ["entry.publish"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -1926,7 +1963,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/globals/setFields": {
@@ -2295,7 +2334,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/globals/saveDraft": {
@@ -2350,7 +2391,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.edit"]
 			}
 		},
 		"/globals/data": {
@@ -2397,7 +2440,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/globals/publish": {
@@ -2444,6 +2489,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content", "publishing"],
+				"x-webcraft-permissions": ["entry.publish"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -2486,7 +2534,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "translation", "siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/languages/add": {
@@ -2551,7 +2601,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["translation", "siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/languages/setDefault": {
@@ -2602,6 +2654,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["translation", "siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -2653,6 +2707,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["translation", "siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -2698,7 +2754,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["translation", "siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/languages/update": {
@@ -2763,7 +2821,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["translation", "siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/domains/list": {
@@ -2805,7 +2865,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/domains/setCdn": {
@@ -2858,7 +2920,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/domains/add": {
@@ -2908,7 +2972,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/domains/check": {
@@ -2954,7 +3020,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/domains/makePrimary": {
@@ -3000,7 +3068,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/domains/remove": {
@@ -3051,6 +3121,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -3093,7 +3165,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/webhooks/add": {
@@ -3157,6 +3231,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-sensitive": "webhook.change"
 			}
 		},
@@ -3221,6 +3297,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-sensitive": "webhook.change"
 			}
 		},
@@ -3272,6 +3350,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-sensitive": "webhook.change"
 			}
 		},
@@ -3323,6 +3403,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -3379,7 +3461,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/webhooks/setEnabled": {
@@ -3428,7 +3512,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/webhooks/test": {
@@ -3474,7 +3560,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/webhooks/redeliver": {
@@ -3524,7 +3612,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/siteSmtp/get": {
@@ -3566,7 +3656,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/siteSmtp/update": {
@@ -3687,6 +3779,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-sensitive": "siteSmtp.change"
 			}
 		},
@@ -3729,7 +3823,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getEntryTemplate": {
@@ -3775,7 +3871,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveEntryTemplate": {
@@ -3822,7 +3920,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getEntryTemplateMarkup": {
@@ -3868,7 +3968,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveEntryTemplateMarkup": {
@@ -3929,7 +4031,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getSiteTemplate": {
@@ -3971,7 +4075,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveSiteTemplate": {
@@ -4014,7 +4120,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getSiteTemplateMarkup": {
@@ -4056,7 +4164,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveSiteTemplateMarkup": {
@@ -4113,7 +4223,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getArchiveTemplate": {
@@ -4159,7 +4271,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveArchiveTemplate": {
@@ -4206,7 +4320,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getArchiveTemplateMarkup": {
@@ -4252,7 +4368,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveArchiveTemplateMarkup": {
@@ -4313,7 +4431,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getSearchTemplate": {
@@ -4355,7 +4475,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveSearchTemplate": {
@@ -4398,7 +4520,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/getSearchTemplateMarkup": {
@@ -4440,7 +4564,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/saveSearchTemplateMarkup": {
@@ -4497,7 +4623,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/templates/publish": {
@@ -4548,6 +4676,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure", "publishing"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -4590,7 +4721,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/components/get": {
@@ -4644,7 +4777,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/components/create": {
@@ -5017,7 +5152,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/components/saveDraft": {
@@ -5399,7 +5536,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/components/getMarkup": {
@@ -5453,7 +5592,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/components/saveMarkup": {
@@ -5849,7 +5990,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/components/publish": {
@@ -5908,6 +6051,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure", "publishing"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -5966,7 +6112,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/components/delete": {
@@ -6025,6 +6173,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -6067,7 +6217,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit", "formEmails.edit"]
 			}
 		},
 		"/forms/get": {
@@ -6113,7 +6265,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit", "formEmails.edit"]
 			}
 		},
 		"/forms/saveEmails": {
@@ -6170,7 +6324,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["formEmails.edit"]
 			}
 		},
 		"/forms/publishEmails": {
@@ -6221,6 +6377,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms", "publishing"],
+				"x-webcraft-permissions": ["formEmails.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -6271,7 +6430,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/forms/saveDraft": {
@@ -6330,7 +6491,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/forms/publish": {
@@ -6381,6 +6544,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms", "publishing"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -6435,7 +6601,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/forms/captcha/get": {
@@ -6477,7 +6645,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/forms/captcha/set": {
@@ -6538,6 +6708,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-sensitive": "formCaptcha.change"
 			}
 		},
@@ -6589,6 +6761,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -6631,7 +6805,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/loops/get": {
@@ -6682,7 +6858,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/loops/create": {
@@ -7098,7 +7276,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/loops/saveDraft": {
@@ -7514,7 +7694,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/loops/saveItems": {
@@ -7577,7 +7759,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["entry.edit"]
 			}
 		},
 		"/loops/data": {
@@ -7628,7 +7812,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/loops/publish": {
@@ -7679,6 +7865,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure", "publishing"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -7732,7 +7921,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/scripts/saveDraft": {
@@ -7800,7 +7991,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/scripts/publish": {
@@ -7851,6 +8044,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure", "publishing"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -7893,7 +8089,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/libraries/add": {
@@ -7980,7 +8178,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/libraries/checkUpdates": {
@@ -8022,7 +8222,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/libraries/update": {
@@ -8072,7 +8274,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/libraries/remove": {
@@ -8123,6 +8327,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -8165,7 +8371,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/outsideScripts/add": {
@@ -8249,7 +8457,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/outsideScripts/update": {
@@ -8337,7 +8547,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/outsideScripts/remove": {
@@ -8383,7 +8595,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/csp/get": {
@@ -8425,7 +8639,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/csp/setMode": {
@@ -8471,7 +8687,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/csp/addHost": {
@@ -8517,7 +8735,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/csp/removeHost": {
@@ -8563,7 +8783,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/consentBanner/get": {
@@ -8610,7 +8832,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/consentBanner/saveDraft": {
@@ -8665,7 +8889,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content", "siteSettings"],
+				"x-webcraft-permissions": ["entry.edit"]
 			}
 		},
 		"/consentBanner/publish": {
@@ -8712,6 +8938,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content", "siteSettings", "publishing"],
+				"x-webcraft-permissions": ["entry.publish"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -8762,7 +8991,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/consentBanner/record": {
@@ -8808,7 +9039,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/seoSettings/get": {
@@ -8850,7 +9083,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/seoSettings/update": {
@@ -8990,7 +9225,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/designSystem/get": {
@@ -9032,7 +9269,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/designSystem/saveDraft": {
@@ -9556,7 +9795,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/designSystem/createClass": {
@@ -9621,7 +9862,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/designSystem/updateClass": {
@@ -9690,7 +9933,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/designSystem/deleteClass": {
@@ -9741,6 +9986,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -9788,7 +10035,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/designSystem/importTokens": {
@@ -9837,7 +10086,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/designSystem/publish": {
@@ -9884,6 +10135,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure", "publishing"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -9963,7 +10217,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/media/overview": {
@@ -10005,7 +10261,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/media/get": {
@@ -10056,7 +10314,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/media/upload": {
@@ -10140,7 +10400,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.upload"]
 			}
 		},
 		"/media/update": {
@@ -10258,7 +10520,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.upload"]
 			}
 		},
 		"/media/importUrl": {
@@ -10316,7 +10580,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.upload"]
 			}
 		},
 		"/media/replace": {
@@ -10386,7 +10652,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.upload"]
 			}
 		},
 		"/media/usage": {
@@ -10432,7 +10700,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/media/delete": {
@@ -10483,6 +10753,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.upload"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -10529,7 +10801,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.upload"]
 			}
 		},
 		"/media/deleteForever": {
@@ -10580,6 +10854,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.upload"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -10627,6 +10903,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -10669,7 +10947,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/media/folders/create": {
@@ -10716,7 +10996,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"]
 			}
 		},
 		"/media/folders/rename": {
@@ -10767,7 +11049,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"]
 			}
 		},
 		"/media/folders/delete": {
@@ -10813,7 +11097,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"]
 			}
 		},
 		"/imports/uploadCsv": {
@@ -10875,7 +11161,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/preview": {
@@ -10986,7 +11274,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/sources": {
@@ -11028,7 +11318,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/startUpload": {
@@ -11089,7 +11381,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/uploadPart": {
@@ -11177,7 +11471,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/finishUpload": {
@@ -11227,7 +11523,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/file": {
@@ -11273,7 +11571,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/sample": {
@@ -11493,7 +11793,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/previewSource": {
@@ -11703,7 +12005,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/list": {
@@ -11745,7 +12049,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/get": {
@@ -11791,7 +12097,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/create": {
@@ -12053,7 +12361,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/update": {
@@ -12315,7 +12625,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/start": {
@@ -12365,7 +12677,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/stop": {
@@ -12411,7 +12725,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/report": {
@@ -12457,7 +12773,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"]
 			}
 		},
 		"/imports/undo": {
@@ -12508,6 +12826,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -12550,7 +12870,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/pages/setHomePage": {
@@ -12603,7 +12925,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/pages/setNotFoundPage": {
@@ -12661,7 +12985,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/pages/setSearchPage": {
@@ -12714,7 +13040,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/staging/get": {
@@ -12756,7 +13084,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/staging/setPassword": {
@@ -12810,6 +13140,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["staging.manage"],
 				"x-webcraft-sensitive": "stagingPassword.change"
 			}
 		},
@@ -12852,7 +13184,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["publishing"],
+				"x-webcraft-permissions": ["site.view"]
 			}
 		},
 		"/publishing/publishAll": {
@@ -13026,6 +13360,9 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["publishing"],
+				"x-webcraft-permissions": ["entry.publish", "structure.edit", "formEmails.edit"],
+				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -13068,7 +13405,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["member.manage"]
 			}
 		},
 		"/members/invite": {
@@ -13135,6 +13474,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["member.invite"],
 				"x-webcraft-sensitive": "member.invite"
 			}
 		},
@@ -13181,7 +13522,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["member.invite"]
 			}
 		},
 		"/members/revokeInvite": {
@@ -13227,7 +13570,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["member.invite"]
 			}
 		},
 		"/members/changeAccess": {
@@ -13294,6 +13639,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["member.manage"],
 				"x-webcraft-sensitive": "member.changeAccess"
 			}
 		},
@@ -13341,6 +13688,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["member.manage"],
 				"x-webcraft-sensitive": "member.remove"
 			}
 		},
@@ -13383,7 +13732,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["module.manage"]
 			}
 		},
 		"/modules/workspaceList": {
@@ -13425,7 +13776,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["module.manage"]
 			}
 		},
 		"/modules/setOnSite": {
@@ -13475,7 +13828,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["module.manage"]
 			}
 		},
 		"/modules/setOnWorkspace": {
@@ -13525,7 +13880,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["module.manage"]
 			}
 		},
 		"/modules/removeSiteData": {
@@ -13577,6 +13934,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["module.manage"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -13629,6 +13988,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["module.manage"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -13674,7 +14035,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site.view", "workspace.view"]
 			}
 		},
 		"/dashboards/options": {
@@ -13728,7 +14091,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site.view", "workspace.view"]
 			}
 		},
 		"/dashboards/list": {
@@ -13773,7 +14138,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site.view", "workspace.view"]
 			}
 		},
 		"/dashboards/get": {
@@ -13823,7 +14190,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site.view", "workspace.view"]
 			}
 		},
 		"/dashboards/create": {
@@ -13888,7 +14257,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/update": {
@@ -13988,7 +14359,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/delete": {
@@ -14038,7 +14411,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/saveAsTemplate": {
@@ -14093,7 +14468,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/export": {
@@ -14185,7 +14562,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site.view", "workspace.view"]
 			}
 		},
 		"/dashboards/widgets/add": {
@@ -14387,7 +14766,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/widgets/update": {
@@ -14569,7 +14950,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/widgets/move": {
@@ -14643,7 +15026,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/widgets/remove": {
@@ -14697,7 +15082,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboards/widgets/data": {
@@ -14793,7 +15180,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site.view", "workspace.view"]
 			}
 		},
 		"/dashboards/widgets/export": {
@@ -14889,7 +15278,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site.view", "workspace.view"]
 			}
 		},
 		"/dashboardTemplates/list": {
@@ -14914,7 +15305,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/dashboardTemplates/delete": {
@@ -14960,7 +15353,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
 		"/m/forms/submissions/list": {
@@ -15036,7 +15431,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["submissions"],
+				"x-webcraft-permissions": ["forms.submissions.view"]
 			}
 		},
 		"/m/forms/submissions/get": {
@@ -15082,7 +15479,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["submissions"],
+				"x-webcraft-permissions": ["forms.submissions.view"]
 			}
 		},
 		"/m/forms/submissions/setRead": {
@@ -15136,7 +15535,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["submissions"],
+				"x-webcraft-permissions": ["forms.submissions.view"]
 			}
 		},
 		"/m/forms/submissions/notSpam": {
@@ -15182,7 +15583,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["submissions"],
+				"x-webcraft-permissions": ["forms.submissions.manage"]
 			}
 		},
 		"/m/forms/submissions/delete": {
@@ -15238,6 +15641,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["submissions"],
+				"x-webcraft-permissions": ["forms.submissions.manage"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -15302,7 +15707,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["submissions"],
+				"x-webcraft-permissions": ["forms.submissions.view"]
 			}
 		},
 		"/m/forms/retention/get": {
@@ -15348,7 +15755,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["forms.submissions.view"]
 			}
 		},
 		"/m/forms/retention/set": {
@@ -15414,7 +15823,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["forms.submissions.manage"]
 			}
 		},
 		"/m/site-analytics/stats/totals": {
@@ -15505,7 +15916,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/stats/series": {
@@ -15600,7 +16013,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/stats/breakdown": {
@@ -15714,7 +16129,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/stats/goals": {
@@ -15814,7 +16231,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/stats/funnel": {
@@ -15910,7 +16329,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/stats/coverage": {
@@ -15952,7 +16373,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/goals/list": {
@@ -15994,7 +16417,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/goals/create": {
@@ -16110,7 +16535,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/site-analytics/goals/update": {
@@ -16230,7 +16657,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/site-analytics/goals/delete": {
@@ -16281,6 +16710,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -16323,7 +16754,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["site-analytics.analytics.view"]
 			}
 		},
 		"/m/site-analytics/funnels/create": {
@@ -16412,7 +16845,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/site-analytics/funnels/update": {
@@ -16505,7 +16940,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/site-analytics/funnels/delete": {
@@ -16556,6 +16993,8 @@
 					}
 				},
 				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
 		},
@@ -16598,7 +17037,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/site-analytics/settings/update": {
@@ -16649,7 +17090,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/redirects/rules/list": {
@@ -16697,7 +17140,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["redirects.manage"]
 			}
 		},
 		"/m/redirects/rules/add": {
@@ -16758,7 +17203,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["redirects.manage"]
 			}
 		},
 		"/m/redirects/rules/update": {
@@ -16822,7 +17269,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["redirects.manage"]
 			}
 		},
 		"/m/redirects/rules/remove": {
@@ -16868,7 +17317,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["redirects.manage"]
 			}
 		},
 		"/m/redirects/notFound/list": {
@@ -16920,7 +17371,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "read"
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["redirects.manage"]
 			}
 		},
 		"/m/redirects/notFound/ignore": {
@@ -16970,7 +17423,9 @@
 						}
 					}
 				},
-				"x-webcraft-access": "write"
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["redirects.manage"]
 			}
 		}
 	}

@@ -13,6 +13,7 @@ import type { Access, Executor, WorkspaceScope } from "./tenancy/data-layer.ts";
 import { SiteNotFoundError } from "./tenancy/errors.ts";
 import { visibleWorkspaces } from "./tenancy/workspaces.ts";
 import { newToken } from "./tokens.ts";
+import { chosenToolsets, defaultToolsets, type ToolsetKey } from "./toolsets.ts";
 
 /**
  * API tokens (spec › Management API): credentials people create in the admin (Your account › API
@@ -34,11 +35,12 @@ import { newToken } from "./tokens.ts";
  */
 
 /**
- * Whether a call comes from an API client (an API token; OAuth grants later) rather than a person in
- * the admin or Edit mode. API clients confirm publishing and other destructive changes in two steps.
+ * Whether a call comes from an API client (an API token, or an AI client through an OAuth grant)
+ * rather than a person in the admin or Edit mode. API clients confirm publishing and other
+ * destructive changes in two steps.
  */
 export function isApiClient(access: Access): boolean {
-	return access.actor.kind === "token";
+	return access.actor.kind === "token" || access.actor.kind === "grant";
 }
 
 /** What every API token starts with, so people (and secret scanners) recognise one. */
@@ -73,6 +75,8 @@ export type ApiTokenView = {
 	/** Every Site of the Workspace (`"all"`, later ones too) or the listed ones. */
 	sites: "all" | { id: string; name: string }[];
 	readOnly: boolean;
+	/** The Toolsets switched on: what the token may call (`TOOLSETS`, and Modules' own). */
+	toolsets: ToolsetKey[];
 	/** The token's last 4 characters. */
 	hint: string;
 	createdAt: Date;
@@ -93,16 +97,37 @@ export type NewApiToken = {
 	/** Every Site of the Workspace (later ones too), or at least one of its Sites. */
 	sites: "all" | readonly string[];
 	readOnly: boolean;
+	/** The Toolsets switched on; every one offered but Submissions unless chosen (`defaultToolsets`). */
+	toolsets?: readonly string[];
 	/** Days until it expires, or null for never. */
 	lifetimeDays: ApiTokenLifetime;
 };
 
-/** A request's token, found and checked: who acts, and how the Audit log names it. */
-export type ApiTokenUse = {
-	token: { id: string; name: string; readOnly: boolean };
+/**
+ * What an API client (an API token, or an AI client's OAuth grant) may do beyond its person's
+ * Permissions: only read, the Toolsets switched on, and whether it may publish.
+ */
+export type ApiClientLimits = {
+	kind: "token" | "grant";
+	/** The token's or grant's id. */
+	id: string;
+	/** The token's name, or the AI client's: how the Audit log names it. */
+	name: string;
+	readOnly: boolean;
+	toolsets: readonly ToolsetKey[];
+	/** Whether it may publish: an API token that isn't read-only may; an AI client only when its person said so. */
+	mayPublish: boolean;
+};
+
+/** A request's API client, found and checked: who acts, within what limits, and how the Audit log names it. */
+export type ApiClientUse = {
+	client: ApiClientLimits;
 	person: Person;
 	access: Access;
 };
+
+/** A request's token, found and checked. */
+export type ApiTokenUse = ApiClientUse;
 
 /** Why a request's token doesn't work. */
 export type ApiTokenProblem = "missing" | "unknown" | "expired" | "revoked" | "locked";
@@ -163,6 +188,8 @@ export type ApiTokens = {
 	 * `write` against `writes` too. Answers each count, so the caller refuses past either.
 	 */
 	count(tokenId: string, access: ApiAccess): Promise<{ requests: RateLimitTally; writes: RateLimitTally | null }>;
+	/** The Toolsets a person may switch on for a token or AI client on this Install. */
+	toolsets(): ToolsetKey[];
 };
 
 export function createApiTokens({
@@ -171,6 +198,7 @@ export function createApiTokens({
 	people: peopleService,
 	rateLimits,
 	keyHash,
+	toolsets,
 }: {
 	database: Database;
 	clock: Clock;
@@ -178,6 +206,8 @@ export function createApiTokens({
 	rateLimits: RateLimits;
 	/** The key tokens are hashed under (`apiTokenKey`). */
 	keyHash: CryptoKey;
+	/** The Toolsets this Install offers (`offeredToolsets`): WebCraft's own and its Modules'. */
+	toolsets: () => ToolsetKey[];
 }): ApiTokens {
 	const { db } = database;
 
@@ -202,6 +232,7 @@ export function createApiTokens({
 				workspace: { id: row.workspaceId, name: row.workspaceName },
 				sites: row.allSites ? "all" : (listed.get(row.id) ?? []),
 				readOnly: row.readOnly,
+				toolsets: row.toolsets as ToolsetKey[],
 				hint: row.hint,
 				createdAt: row.createdAt,
 				expiresAt: row.expiresAt,
@@ -284,6 +315,8 @@ export function createApiTokens({
 					if (!seen) throw new SiteNotFoundError();
 				}
 			}
+			const offered = toolsets();
+			const chosen = chosenToolsets(input.toolsets ?? defaultToolsets(offered), offered);
 			const secret = `${API_TOKEN_PREFIX}${newToken()}`;
 			const now = scope.now();
 			const expiresAt = input.lifetimeDays === null ? null : new Date(now.getTime() + input.lifetimeDays * DAY_MS);
@@ -295,6 +328,7 @@ export function createApiTokens({
 					hint: secret.slice(-4),
 					allSites: listed === null,
 					readOnly: input.readOnly,
+					toolsets: chosen,
 					createdAt: now,
 					expiresAt,
 				});
@@ -304,6 +338,7 @@ export function createApiTokens({
 					name,
 					sites: listed ?? "all",
 					readOnly: input.readOnly,
+					toolsets: chosen,
 					expiresAt: expiresAt?.toISOString() ?? null,
 				});
 				return row.id;
@@ -384,21 +419,42 @@ export function createApiTokens({
 				workspaceId: token.workspaceId,
 				sites: token.allSites ? "all" : (listed satisfies Reach),
 			};
-			return { token: { id: token.id, name: token.name, readOnly: token.readOnly }, person, access: { actor, via } };
+			const client: ApiClientLimits = {
+				kind: "token",
+				id: token.id,
+				name: token.name,
+				readOnly: token.readOnly,
+				toolsets: token.toolsets as ToolsetKey[],
+				mayPublish: !token.readOnly,
+			};
+			return { client, person, access: { actor, via } };
 		},
 
-		async count(tokenId, access) {
-			const requests = await rateLimits.tally(`api-token:${tokenId}:requests`, API_TOKEN_LIMITS.requests);
-			const writes =
-				access === "write" && requests.within
-					? await rateLimits.tally(`api-token:${tokenId}:writes`, API_TOKEN_LIMITS.writes)
-					: null;
-			return { requests, writes };
+		count(tokenId, access) {
+			return countClient(rateLimits, `api-token:${tokenId}`, access);
 		},
+
+		toolsets,
 	};
 }
 
 type TokenRow = typeof apiTokens.$inferSelect;
+
+/**
+ * Counts one request of an API client (`api-token:<id>`, `oauth-grant:<id>`) against its limits:
+ * every request against `requests`, and a `write` against `writes` too (`API_TOKEN_LIMITS`, the same
+ * for tokens and AI clients). Answers each count, so the caller refuses past either.
+ */
+export async function countClient(
+	rateLimits: RateLimits,
+	key: string,
+	access: ApiAccess,
+): Promise<{ requests: RateLimitTally; writes: RateLimitTally | null }> {
+	const requests = await rateLimits.tally(`${key}:requests`, API_TOKEN_LIMITS.requests);
+	const writes =
+		access === "write" && requests.within ? await rateLimits.tally(`${key}:writes`, API_TOKEN_LIMITS.writes) : null;
+	return { requests, writes };
+}
 
 /**
  * Revokes the person's working tokens whose Workspace (or every listed Site) they no longer reach,
@@ -451,8 +507,15 @@ async function listedSites(executor: Executor, tokenIds: readonly string[]) {
 	return byToken;
 }
 
-/** Whether `actor` (the person, as they are now) still reaches what the token was made for. */
-function reaches(actor: PersonActor, token: Pick<TokenRow, "workspaceId" | "allSites">, listed: readonly string[]) {
+/**
+ * Whether `actor` (the person, as they are now) still reaches what an API client (a token or an
+ * OAuth grant) was made for: its Workspace, and every Site or at least one of those it lists.
+ */
+export function reaches(
+	actor: PersonActor,
+	token: { workspaceId: string; allSites: boolean },
+	listed: readonly string[],
+): boolean {
 	if (!can(actor, "workspace.view", { level: "workspace", workspaceId: token.workspaceId })) return false;
 	if (token.allSites) return true;
 	return listed.some((siteId) => can(actor, "site.view", { level: "site", workspaceId: token.workspaceId, siteId }));

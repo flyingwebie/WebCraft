@@ -93,6 +93,7 @@ import { createInstallStorage } from "./media/install-storage.ts";
 import { createMediaLibrary } from "./media/library.ts";
 import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
 import { createModuleHost, type ModuleHost } from "./modules/host.ts";
+import { createOAuth } from "./oauth.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
@@ -103,6 +104,8 @@ import {
 	editModeSigningKey,
 	formTimeKey,
 	type MasterKey,
+	mcpRequestStateKey,
+	oauthKey,
 	rateLimitKey,
 	sessionSigningSecret,
 	stagingPasswordKey,
@@ -123,6 +126,7 @@ import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
 import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
+import { offeredToolsets } from "./toolsets.ts";
 import { createUpdates } from "./updates.ts";
 import { createWebhooks } from "./webhooks/index.ts";
 
@@ -214,7 +218,24 @@ export async function createInstallServices(
 	const componentSources = modules.components;
 	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };
 	const people = createPeople({ database, clock });
-	const apiTokens = createApiTokens({ database, clock, people, rateLimits, keyHash: await apiTokenKey(masterKey) });
+	const toolsets = () => offeredToolsets(modules.registry);
+	const apiTokens = createApiTokens({
+		database,
+		clock,
+		people,
+		rateLimits,
+		keyHash: await apiTokenKey(masterKey),
+		toolsets,
+	});
+	const oauth = createOAuth({
+		database,
+		clock,
+		people,
+		rateLimits,
+		keyHash: await oauthKey(masterKey),
+		issuer: config.adminOrigin,
+		toolsets,
+	});
 	const memberships = createMemberships({ database, clock });
 	const storage = createInstallStorage({
 		database,
@@ -261,6 +282,8 @@ export async function createInstallServices(
 		rateLimits,
 		people,
 		apiTokens,
+		oauth,
+		mcpRequestStateKey: await mcpRequestStateKey(masterKey),
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,
 		masterKey: createMasterKeyBackup({ database, clock, log, fingerprint: await masterKey.fingerprint() }),
