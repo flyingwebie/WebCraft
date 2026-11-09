@@ -1,8 +1,12 @@
 import type { ModuleSchema } from "@webcraft/db";
 import { moduleApprovals, moduleSwitches, people, sites, workspaces } from "@webcraft/db/schema";
 import {
+	type AddedRule,
 	type FormSender,
 	type FormSubmission,
+	type ImportedRule,
+	type ImportedRuleResult,
+	type ImportSource,
 	isModuleError,
 	type KeptSubmission,
 	type Label,
@@ -16,6 +20,8 @@ import {
 	type PageMiss,
 	type RedirectRequest,
 	type RedirectTarget,
+	type SourceFile,
+	type SourceItem,
 	type WidgetData,
 	type WidgetOption,
 	type WidgetRequest,
@@ -260,8 +266,27 @@ export type ModuleHost = {
 	flushMisses(): Promise<void>;
 	/** Runs a batch of misses (the `modules.notFound` job). */
 	runMisses(payload: QueuedMisses): Promise<void>;
+	/** The import sources of the Modules running on a Site (SDK 1.7), in `language`. */
+	importSourcesAt(site: { id: string; workspaceId: string }, language: string): Promise<ImportSourceView[]>;
+	/** One import source (`<module id>.<key>`) where its Module runs on the Site; null otherwise. */
+	importSource(site: { id: string; workspaceId: string }, sourceId: string): Promise<RunningSource | null>;
 	/**
-	 * The Widget kinds Modules add to Dashboards (SDK 1.7): each runnable Site-level Module's, with its
+	 * Whether a Module adding Redirect rules for Import runs runs on the Site (SDK 1.7): without one,
+	 * a run makes no Redirect rules.
+	 */
+	importRedirectsOn(site: { id: string; workspaceId: string }): Promise<boolean>;
+	/**
+	 * Adds an Import run's Redirect rules through the Module keeping them on the Site; null when none
+	 * that adds them runs there. A failure goes to the Module log and is thrown on.
+	 */
+	addImportedRules(
+		site: { id: string; workspaceId: string },
+		rules: readonly ImportedRule[],
+	): Promise<ImportedRuleResult[] | null>;
+	/** Removes Redirect rules an Import run added (Undo); 0 when no Module keeping them runs there. */
+	removeImportedRules(site: { id: string; workspaceId: string }, rules: readonly AddedRule[]): Promise<number>;
+	/**
+	 * The Widget kinds Modules add to Dashboards (SDK 1.8): each runnable Site-level Module's, with its
 	 * id and name in `language`, whether or not it runs anywhere.
 	 */
 	widgetKinds(language: string): WidgetKind[];
@@ -287,6 +312,30 @@ export type ModuleHost = {
 	): Promise<readonly WidgetOption[]>;
 	/** The names of the Goals a Module's Widgets can be filtered by on a Site; none where it doesn't run. */
 	widgetGoals(site: { id: string; workspaceId: string }, moduleId: string): Promise<readonly string[]>;
+};
+
+/** An import source of a Module running on a Site (SDK 1.7), as the Source step offers it. */
+export type ImportSourceView = {
+	/** `<module id>.<key>`, such as `wordpress-import.export`: an Import's `source`. */
+	id: string;
+	moduleId: string;
+	label: string;
+	description: string;
+	/** The Permission a person needs besides `import.run`. */
+	permission: string;
+	maxBytes: number;
+	extensions: readonly string[];
+};
+
+/** An import source of a Module running on a Site, ready to read a file. */
+export type RunningSource = ImportSourceView & {
+	/** The Permission as `can()` takes it. */
+	needs: AddedPermission | Permission;
+	/**
+	 * Reads a file into items, as the Module acting by itself on the Site. A `ModuleError` it throws
+	 * is its refusal of the file; anything else goes to the Module log before it is thrown on.
+	 */
+	read(file: SourceFile): AsyncIterable<SourceItem>;
 };
 
 /** A Widget kind a Module adds, as Dashboards see it. */
@@ -319,6 +368,9 @@ export const MISS_BATCH_SIZE = 500;
 
 /** How many distinct misses a web process holds at most; more, between two hand-overs, are dropped. */
 const MAX_HELD_MISSES = 5000;
+
+/** A Media library file as a Redirect rule's target (SDK 1.7): `media:<id>`. */
+const MEDIA_TARGET = /^media:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 /** A Site path a Redirect rule may send visitors to: `/…`, never `//…` (another host), no backslash or control character. */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
@@ -410,6 +462,16 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 
 	const words = (module: LoadedModule, label: Label | undefined, language: string) =>
 		label && module.manifest ? wordsIn(label, language, module.manifest.adminLanguages) : "";
+
+	const sourceView = (module: RunnableModule, source: ImportSource, language: string): ImportSourceView => ({
+		id: `${module.id}.${source.key}`,
+		moduleId: module.id,
+		label: words(module, source.label, language),
+		description: words(module, source.description, language),
+		permission: source.permission,
+		maxBytes: source.file.maxBytes,
+		extensions: source.file.extensions,
+	});
 
 	const find = (moduleId: string): LoadedModule => {
 		const module = registry.get(moduleId);
@@ -1068,6 +1130,13 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				const asked = hop === 0 ? request : { path, language: paths.languageOf(path) };
 				const target = await ask(asked);
 				if (!target) return result;
+				// A Media file goes to where it is served now; nowhere while visitors can't get it.
+				const media = typeof target.to === "string" ? MEDIA_TARGET.exec(target.to) : null;
+				if (media) {
+					const served = await paths.mediaPath(media[1] as string);
+					if (!served) return result;
+					target.to = served;
+				}
 				const to = checkedTarget(target.to);
 				const status: number = target.status;
 				if (to === null || (status !== 301 && status !== 302)) {
@@ -1103,6 +1172,77 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				path = to;
 			}
 			return result;
+		},
+
+		async importSourcesAt(site, language) {
+			const views: ImportSourceView[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.importSources.size === 0) continue;
+				if (!(await runsOnSite(site, module))) continue;
+				for (const source of module.importSources.values()) views.push(sourceView(module, source, language));
+			}
+			return views;
+		},
+
+		async importSource(site, sourceId) {
+			const dot = sourceId.indexOf(".");
+			const module = dot > 0 ? registry.get(sourceId.slice(0, dot)) : undefined;
+			const source = module?.runnable ? module.importSources.get(sourceId.slice(dot + 1)) : undefined;
+			if (!module?.runnable || !source || !(await runsOnSite(site, module))) return null;
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const language = module.manifest.adminLanguages[0] ?? "en";
+			return {
+				...sourceView(module, source, language),
+				needs: resolvePermission(module, source.permission),
+				async *read(file) {
+					const scope = await openForModule(module, place);
+					if (!scope) throw new ModuleNotFoundError();
+					try {
+						yield* source.read(file, moduleContext(module, scope, options));
+					} catch (error) {
+						if (!isModuleAnswer(error)) {
+							await writeLine(options, module, place, "error", `The import source ${source.key} failed.`, {
+								file: file.name,
+								error: describeError(error),
+							}).catch(() => {});
+						}
+						throw error;
+					}
+				},
+			};
+		},
+
+		async importRedirectsOn(site) {
+			const module = redirecting;
+			return Boolean(module?.redirects?.add) && module !== undefined && (await runsOnSite(site, module));
+		},
+
+		async addImportedRules(site, rules) {
+			const module = redirecting;
+			const add = module?.redirects?.add;
+			if (!module || !add || !(await runsOnSite(site, module))) return null;
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) return null;
+			try {
+				const results = await add(rules, moduleContext(module, scope, options));
+				return rules.map((_, index) => results[index] ?? { skipped: "invalid" });
+			} catch (error) {
+				await writeLine(options, module, place, "error", "Redirect rules for an Import couldn't be added.", {
+					error: describeError(error),
+				}).catch(() => {});
+				throw error;
+			}
+		},
+
+		async removeImportedRules(site, rules) {
+			const module = redirecting;
+			const remove = module?.redirects?.remove;
+			if (!module || !remove || rules.length === 0) return 0;
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) return 0;
+			return remove(rules, moduleContext(module, scope, options));
 		},
 
 		keepsNotFoundLog: logging !== undefined,

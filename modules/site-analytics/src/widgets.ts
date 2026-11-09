@@ -1,5 +1,5 @@
 /**
- * The Widgets Site analytics adds to Dashboards (SDK 1.7): the fixed catalog Staff build Dashboards
+ * The Widgets Site analytics adds to Dashboards (SDK 1.8): the fixed catalog Staff build Dashboards
  * from. Every one reads through the query interface (`query.ts`), so Dashboards count exactly as the
  * `stats` procedures do: unfiltered totals, series and tables from the rollups where they are built
  * (back forever), anything filtered, Goals and Funnels from the raw events (back as far as they are

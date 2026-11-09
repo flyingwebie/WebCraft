@@ -414,7 +414,7 @@ export async function createInstallServices(
 		email,
 		storage,
 		media,
-		imports: createImports({ storage, jobs: ports.jobs }),
+		imports: createImports({ storage, jobs: ports.jobs, modules }),
 		modules,
 		backups: createBackups({
 			config,

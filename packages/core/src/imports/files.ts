@@ -8,6 +8,7 @@ import { actingPerson } from "../permissions/can.ts";
 import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
 import { CSV_LIMITS, type CsvDetails, CsvRefusedError, readCsvDetails } from "./csv.ts";
 import { ImportFileNotFoundError } from "./errors.ts";
+import { partKey } from "./uploads.ts";
 
 /** How long an uploaded file waits for a run to take it before it is deleted. */
 export const IMPORT_FILE_LIFETIME_MS = 24 * 60 * 60_000;
@@ -91,10 +92,14 @@ export async function openFile(
 export async function deleteFile(
 	scope: Pick<SiteScope | BackgroundScope, "delete">,
 	storage: InstallStorage,
-	row: Pick<FileRow, "id" | "storage" | "key">,
+	row: Pick<FileRow, "id" | "storage" | "key" | "parts" | "partBytes">,
 ): Promise<void> {
 	const backend = await storage.holding(row.storage as StorageKind);
-	await backend.delete(row.key);
+	// A file uploaded in parts is kept as one object per part.
+	if (row.partBytes !== null) {
+		const parts = (row.parts as string[]).length;
+		for (let index = 0; index < parts; index++) await backend.delete(partKey(row, index));
+	} else await backend.delete(row.key);
 	await scope.delete(importFiles, eq(importFiles.id, row.id));
 }
 

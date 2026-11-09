@@ -16,6 +16,9 @@ export const MAX_TARGET_LENGTH = 2000;
 /** What a rule matches: one Site path, or (`wildcard`) that path and every path under it. */
 export type RuleFrom = { path: string; wildcard: boolean };
 
+/** A Media library file as a target: `media:<id>`. */
+export const MEDIA_TARGET = /^media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** The characters no path or address may hold: controls (a line break would end a header). */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
 const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -69,6 +72,11 @@ export function parseFrom(input: string): RuleFrom {
  */
 export function parseTarget(input: string, from: RuleFrom): string {
 	const typed = input.trim();
+	// A file of the Media library (an Import's rule for an old file address), sent to its address as it is then.
+	if (MEDIA_TARGET.test(typed)) {
+		if (from.wildcard) invalid("WILDCARD_INVALID", "A rule sending visitors to a Media file matches one path.");
+		return typed.toLowerCase();
+	}
 	if (typed === "" || CONTROL.test(typed) || typed.length > MAX_TARGET_LENGTH) {
 		invalid(
 			"TO_INVALID",

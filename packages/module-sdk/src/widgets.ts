@@ -2,7 +2,7 @@ import type { ModuleContext } from "./context.ts";
 import type { Label } from "./manifest.ts";
 
 /**
- * Dashboard Widgets a Module adds (SDK 1.7). A Dashboard is WebCraft's: a grid of Widgets showing a
+ * Dashboard Widgets a Module adds (SDK 1.8). A Dashboard is WebCraft's: a grid of Widgets showing a
  * Site's analytics (or a Workspace's Sites added together), built by Staff. A Module declares Widget
  * kinds; Staff add them from the catalog, each with its own date range, filters and settings, and
  * WebCraft asks the kind's `query` for its data on each Site, in one of a few shapes the admin draws

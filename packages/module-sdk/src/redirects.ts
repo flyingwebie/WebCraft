@@ -22,9 +22,11 @@ export type RedirectRequest = {
 /** Where a Redirect rule sends a request. */
 export type RedirectTarget = {
 	/**
-	 * A Site path (`/blog/daily-bread`), or an absolute `https://` address on another site; WebCraft
-	 * ignores anything else (and says so in the Module log). It keeps the request's query string,
-	 * adding the parameters the target doesn't set itself.
+	 * A Site path (`/blog/daily-bread`), an absolute `https://` address on another site, or (SDK 1.7)
+	 * `media:<id>`, a file of the Site's Media library, which WebCraft sends to the file's address as
+	 * it is then (no rule where the file isn't ready, or is in the Trash). WebCraft ignores anything
+	 * else (and says so in the Module log). It keeps the request's query string, adding the parameters
+	 * the target doesn't set itself.
 	 */
 	to: string;
 	/** 301 for a page that moved for good; 302 for one that is elsewhere for now. */
@@ -57,7 +59,29 @@ export type RedirectRules = {
 	tables: readonly ModuleTable[];
 	/** The rule for a request's Site path, or null when none sends it elsewhere. */
 	find(request: RedirectRequest, context: ModuleContext): Promise<RedirectTarget | null>;
+	/**
+	 * Adds the rules an Import run makes where paths changed (SDK 1.7): from where an item was on the
+	 * old site to its new path, or to its Media file (`media:<id>`). Each must step aside where a page
+	 * answers its path (as `whereNoPage`), so it never hides a live page, and none may replace a rule
+	 * the Site has at that path. Answers, in order, the id of each rule added, or why it wasn't:
+	 * `taken` (a rule has the path) or `invalid` (not a path a rule can have).
+	 */
+	add?(rules: readonly ImportedRule[], context: ModuleContext): Promise<ImportedRuleResult[]>;
+	/**
+	 * Removes rules `add` made, for Undo (SDK 1.7): each only while it is still as added (same path
+	 * and target); a rule someone changed since stays. Answers how many went.
+	 */
+	remove?(rules: readonly AddedRule[], context: ModuleContext): Promise<number>;
 };
+
+/** A Redirect rule an Import run asks for: from a Site path to a Site path or a Media file (`media:<id>`), a 301. */
+export type ImportedRule = { from: string; to: string };
+
+/** What `add` did with a rule: its id, or why it added none. */
+export type ImportedRuleResult = { ruleId: string } | { skipped: "taken" | "invalid" };
+
+/** A rule `add` made, as Undo asks to remove it. */
+export type AddedRule = { ruleId: string; from: string; to: string };
 
 /** Declares how a Module keeps Redirect rules. */
 export function redirectRules(rules: RedirectRules): RedirectRules {

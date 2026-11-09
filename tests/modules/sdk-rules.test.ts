@@ -1,6 +1,6 @@
 // What the Module SDK 1.4 adds, checked when the Install loads a Module: a Site route's limits, a
 // Site script that runs before consent, and tables kept in monthly partitions; SDK 1.6's procedure
-// kinds; and SDK 1.7's Dashboard Widgets. A definition that breaks a rule can't run; the Modules
+// kinds; and SDK 1.8's Dashboard Widgets. A definition that breaks a rule can't run; the Modules
 // screen says why.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
@@ -53,9 +53,9 @@ const counter = widget({
 	},
 });
 const withWidgets = (widgets: readonly ModuleWidget[], more: Partial<ModuleDefinition> = {}): ModuleDefinition =>
-	({ ...sample, manifest: { ...sample.manifest, sdk: "^1.7.0" }, widgets, ...more }) as ModuleDefinition;
+	({ ...sample, manifest: { ...sample.manifest, sdk: "^1.8.0" }, widgets, ...more }) as ModuleDefinition;
 
-describe("a Module's Widgets (SDK 1.7) can't run when", () => {
+describe("a Module's Widgets (SDK 1.8) can't run when", () => {
 	test("a Workspace-level Module adds them: a Widget counts one Site at a time", async () => {
 		await install.restart({ modules: [{ ...sampleBoard, widgets: [counter] } as ModuleDefinition] });
 		try {

@@ -7,7 +7,7 @@ import { sites, workspaces } from "./tenancy.ts";
 // Dashboards (#103, GLOSSARY.md): grids of Widgets showing a Site's analytics, or a Workspace's Sites
 // added together, built by Staff. Their Widgets (kind, place on the grid, range, filters, settings)
 // are kept as JSON with the Dashboard, read and written whole (`@webcraft/core` › dashboards), and the
-// data they show is worked out when someone looks, by the Modules that add them (SDK 1.7).
+// data they show is worked out when someone looks, by the Modules that add them (SDK 1.8).
 
 /** A Site's Dashboards (a Site table). */
 export const dashboards = pgTable(

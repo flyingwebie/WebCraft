@@ -190,7 +190,7 @@ export type ModuleData = {
 	): Promise<AggregateRow<Groups, Values>[]>;
 	/**
 	 * The values of one of a table's columns in the rows matching `where`, limited to the place, as a
-	 * subquery for `inArray` and `notInArray` (SDK 1.7): Postgres reads them while it runs the query
+	 * subquery for `inArray` and `notInArray` (SDK 1.8): Postgres reads them while it runs the query
 	 * that holds it, so a long list of ids never travels to the Module and back.
 	 *
 	 *     const converted = context.data.values(events, events.visitor, eq(events.type, "form"));

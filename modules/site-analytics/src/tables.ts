@@ -59,7 +59,7 @@ export const events = schema.table(
 		/** Whether it started its visit. */
 		startsVisit: boolean("starts_visit").notNull(),
 		/**
-		 * Where the visit it belongs to came from (SDK 1.7 widgets filter by it): the source of the
+		 * Where the visit it belongs to came from (SDK 1.8 Widgets filter by it): the source of the
 		 * visit's arrival, carried by every event of the visit; before consent, a page view's own
 		 * source (null for a move within the Site, whose visit is unknown).
 		 */

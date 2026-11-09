@@ -3,7 +3,7 @@
  * added together (`services.dashboards`). Staff build them (`dashboard.manage`); Staff and Owners see
  * them all (`dashboard.view`); everyone else who works on the Site (Editors, Authors) sees those Staff
  * show to everyone, and only those. Dashboards are WebCraft's; the Widgets on them come from the
- * catalog Modules add (SDK 1.7, `ModuleHost.widgetKinds`), plus WebCraft's own note. A Widget's data
+ * catalog Modules add (SDK 1.8, `ModuleHost.widgetKinds`), plus WebCraft's own note. A Widget's data
  * is worked out when someone looks: its Module's `query` on the Site (on each Site the person sees,
  * added up, for a Workspace Dashboard), for the Widget's own range or the Dashboard's.
  *

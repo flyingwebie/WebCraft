@@ -104,7 +104,7 @@ export const siteAnalytics = defineModule({
 			it: "Conta le visite di ogni Sito con il tracciamento di WebCraft, senza cookie, nel database di questa installazione: totali anonimi finché i visitatori non accettano le Statistiche, visitatori e visite quando lo fanno.",
 		},
 		version: "1.1.0",
-		sdk: "^1.7.0",
+		sdk: "^1.8.0",
 		level: "site",
 		// Sites ship no JavaScript by default: Staff switch it on where it is wanted.
 		onByDefault: false,
@@ -480,7 +480,7 @@ export const siteAnalytics = defineModule({
 		 * Staging address, from someone of the Install, or with Do Not Track or Global Privacy Control.
 		 * The Site's excluded address ranges can't apply: the event never holds the address.
 		 *
-		 * With the sender's id for the day (SDK 1.7), it joins the visit that sender had going on the Site
+		 * With the sender's id for the day (SDK 1.8), it joins the visit that sender had going on the Site
 		 * (an event in the last 30 minutes), with the visit's source, country and device, so Funnels and
 		 * filters count it; without one, it stands alone, counted by Form only.
 		 */

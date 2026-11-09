@@ -71,6 +71,7 @@ describe("the Modules screen", () => {
 				redirectRules: false,
 				notFoundLog: false,
 				schedules: [],
+				importSources: [],
 			},
 			partitions: [],
 		});

@@ -4,6 +4,7 @@ import type { z } from "zod";
 import type { ModuleComponent } from "./component.ts";
 import type { ModuleContext, ModuleTable, ProcedureContext, SiteRouteContext } from "./context.ts";
 import type { ModuleEvent, ModuleEventName } from "./events.ts";
+import type { ImportSource } from "./imports.ts";
 import type { Label, ModuleManifestInput } from "./manifest.ts";
 import type { NotFoundLog, RedirectRules } from "./redirects.ts";
 import type { ModuleSchedule, SubmissionReceiver } from "./submissions.ts";
@@ -92,12 +93,18 @@ export type ModuleDefinition = {
 	 */
 	notFoundLog?: NotFoundLog;
 	/**
+	 * The sources it imports content from (Site-level Modules only): how each reads its file into
+	 * items, which WebCraft's Import pipeline maps, previews and writes as Drafts. See `importSource`.
+	 * Added in SDK 1.7.
+	 */
+	importSources?: readonly ImportSource[];
+	/**
 	 * Kinds of Widget it adds to the catalog Staff build Dashboards from (Site-level Modules only), each
-	 * with its shape, the filters it takes, its settings and its `query` (see `widget`). Added in SDK 1.7.
+	 * with its shape, the filters it takes, its settings and its `query` (see `widget`). Added in SDK 1.8.
 	 */
 	widgets?: readonly ModuleWidget[];
 	/**
-	 * The names of a Site's Goals, which its Widgets' `goal` filter offers there (SDK 1.7): needed by a
+	 * The names of a Site's Goals, which its Widgets' `goal` filter offers there (SDK 1.8): needed by a
 	 * Module whose Widgets take that filter.
 	 */
 	widgetGoals?: (context: ModuleContext) => Promise<readonly string[]>;

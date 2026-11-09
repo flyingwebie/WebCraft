@@ -1,7 +1,11 @@
 import {
+	type AddedRule,
 	and,
 	eq,
+	type ImportedRule,
+	type ImportedRuleResult,
 	inArray,
+	isModuleError,
 	like,
 	lt,
 	lte,
@@ -279,5 +283,83 @@ export async function followPathChanges(
 		if (counts.added + counts.changed + counts.removed > 0) {
 			await tx.audit("rules.follow", { reason, ...counts });
 		}
+	});
+}
+
+/**
+ * Adds the rules an Import run asks for (SDK 1.7): from where an item was on the old site to its new
+ * path or its Media file. They are the Module's own (`automatic`), so they step aside where a page
+ * answers their path and never hide a live page; a path that already has a rule keeps it. One Audit
+ * log entry says how many were added.
+ */
+export async function addImportedRules(
+	context: ModuleContext,
+	asked: readonly ImportedRule[],
+): Promise<ImportedRuleResult[]> {
+	return context.transaction(async (tx) => {
+		const results: ImportedRuleResult[] = [];
+		const now = tx.now();
+		for (const rule of asked) {
+			let from: RuleFrom;
+			let target: string;
+			try {
+				from = parseFrom(rule.from);
+				target = parseTarget(rule.to, from);
+				if (from.wildcard || sitePathOf(target) === from.path) throw new ModuleError("TO_INVALID", "No rule.", 400);
+				await checkNoLoop(tx, from, target, null);
+			} catch (error) {
+				if (!isModuleError(error)) throw error;
+				results.push({ skipped: "invalid" });
+				continue;
+			}
+			const taken = await tx.data.first(rules, and(eq(rules.fromPath, from.path), eq(rules.wildcard, false)));
+			if (taken) {
+				results.push({ skipped: "taken" });
+				continue;
+			}
+			const row = await tx.data.insert(rules, {
+				fromPath: from.path,
+				wildcard: false,
+				target,
+				status: 301,
+				automatic: true,
+				entryId: null,
+				createdAt: now,
+				updatedAt: now,
+			});
+			await tx.data.delete(misses, eq(misses.path, from.path));
+			results.push({ ruleId: row.id });
+		}
+		const added = results.filter((result) => "ruleId" in result).length;
+		if (added > 0) await tx.audit("rules.import", { added });
+		return results;
+	});
+}
+
+/** Removes rules an Import run added (its Undo), each only while it is as the run left it. */
+export async function removeImportedRules(context: ModuleContext, added: readonly AddedRule[]): Promise<number> {
+	return context.transaction(async (tx) => {
+		let removed = 0;
+		for (const rule of added) {
+			let from: RuleFrom;
+			try {
+				from = parseFrom(rule.from);
+			} catch (error) {
+				if (isModuleError(error)) continue;
+				throw error;
+			}
+			removed += await tx.data.delete(
+				rules,
+				and(
+					eq(rules.id, rule.ruleId),
+					eq(rules.fromPath, from.path),
+					eq(rules.wildcard, false),
+					eq(rules.target, rule.to),
+					eq(rules.automatic, true),
+				),
+			);
+		}
+		if (removed > 0) await tx.audit("rules.undoImport", { removed });
+		return removed;
 	});
 }
