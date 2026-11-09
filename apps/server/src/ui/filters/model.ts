@@ -153,13 +153,18 @@ export function newControl(
 	}
 }
 
+/** The items of `list` with the one at `from` moved to `to`; a copy of `list`, unmoved, for an invalid move. */
+export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
+	if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return [...list];
+	const moved = [...list];
+	const [item] = moved.splice(from, 1);
+	if (item !== undefined) moved.splice(to, 0, item);
+	return moved;
+}
+
 /** The controls with the one at `from` moved to `to`. */
 export function moveControl(controls: readonly FilterControl[], from: number, to: number): FilterControl[] {
-	if (from === to || from < 0 || to < 0 || from >= controls.length || to >= controls.length) return [...controls];
-	const moved = [...controls];
-	const [control] = moved.splice(from, 1);
-	if (control) moved.splice(to, 0, control);
-	return moved;
+	return moveItem(controls, from, to);
 }
 
 /** Text with its value in `language` changed: the text as written in the Default language, else a translation. */
