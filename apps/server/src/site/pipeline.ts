@@ -147,6 +147,7 @@ async function siteAnswer(
 				await codeModeOf(services, request, edit.session),
 				safeModeOf(request),
 				number,
+				searchQueryIn(url.searchParams),
 			);
 		}
 		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
@@ -265,9 +266,12 @@ async function editModePage(
 	code: SiteScope | null,
 	safe: boolean,
 	page: number,
+	search: string,
 ): Promise<Response> {
 	const editing = await pageEditing(session, code, safe);
-	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing, { page }) : null;
+	const answer = pathSegments(pathname)
+		? await services.sitePages.render(host, pathname, editing, { page, search })
+		: null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
 	}

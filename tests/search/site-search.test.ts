@@ -4,6 +4,7 @@
 // It works without JavaScript, is never cached and never indexed by search engines.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 
@@ -300,6 +301,19 @@ describe("answers", () => {
 		const firstPage = await install.request(`${SITE}/search?q=sponge&page=1`);
 		expect(firstPage.status).toBe(301);
 		expect(firstPage.headers.get("location")).toBe("/search?q=sponge");
+	});
+});
+
+describe("in Edit mode", () => {
+	test("the search results page shows the hits for the query too", async () => {
+		const editing = await openEditMode(install, staff, siteId, "/search");
+
+		const response = await editing.page("/search?q=brioche");
+
+		expect(response.status).toBe(200);
+		const html = await expectSafePage(response, "editMode");
+		expect(hits(html)).toEqual([{ href: "/recipes/brioche", title: "Brioche" }]);
+		expect(html).toContain('name="q" value="brioche"');
 	});
 });
 
