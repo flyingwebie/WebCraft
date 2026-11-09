@@ -54,6 +54,7 @@ export type PageState = {
 	pages: { title: string; path: string }[];
 	/** The person in Edit mode, and the Admin language they chose (null: the Install's default). */
 	person: { name: string; adminLanguage: string | null };
+	site: { name: string };
 	/** The language the page is shown in. Switching languages comes with the Site's languages. */
 	language: { code: string };
 };
@@ -99,6 +100,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 		},
 		pages: await sitePages(scope),
 		person: { name: person?.name ?? "", adminLanguage: person?.adminLanguage ?? null },
+		site: { name: scope.site.name },
 		language: { code: host.defaultLanguage },
 	};
 }

@@ -20,6 +20,7 @@ import { useT } from "../i18n.tsx";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { ContextSwitcher } from "./ContextSwitcher.tsx";
 import type { ShellContext, SignedInPerson } from "./context.ts";
+import { EditOnSiteButton } from "./EditOnSiteButton.tsx";
 import { type AdminPlace, navigationFor, placeParams } from "./levels.ts";
 import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
 import { SmtpFailingBanner } from "./SmtpFailingBanner.tsx";
@@ -50,6 +51,9 @@ export function AdminShell({
 				<header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
 					<SidebarTrigger label={t("shell.toggleSidebar")} />
 					<Breadcrumbs place={place} />
+					{place.level === "site" && place.permissions.includes("entry.edit") ? (
+						<EditOnSiteButton siteId={place.site.id} className="ms-auto" />
+					) : null}
 				</header>
 				<main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
 					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
