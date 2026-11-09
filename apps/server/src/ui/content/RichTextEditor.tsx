@@ -136,8 +136,8 @@ export function RichTextEditor({
 
 	return (
 		<div
-			className="aria-invalid:border-destructive dark:bg-input/30 rounded-md border"
-			aria-invalid={invalid ? true : undefined}
+			className="data-[invalid=true]:border-destructive dark:bg-input/30 rounded-md border"
+			data-invalid={invalid ? true : undefined}
 		>
 			<div
 				role="toolbar"

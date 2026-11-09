@@ -116,9 +116,8 @@ export function FieldValue({
 }
 
 /** The parts every control shares: ids, problems, and the language its value is written in. */
-function useControl(field: FieldDefinition, path: string, context: ValueContext, within = false) {
+function useControl(field: FieldDefinition, path: string, context: ValueContext) {
 	const id = controlId(context.idPrefix, path);
-	const problems = within ? problemsWithin(context.problems, path) : problemsAt(context.problems, path);
 	const own = problemsAt(context.problems, path);
 	const describedBy = [field.help ? `${id}-help` : null, own.length > 0 ? `${id}-problems` : null]
 		.filter(Boolean)
@@ -127,7 +126,7 @@ function useControl(field: FieldDefinition, path: string, context: ValueContext,
 		id,
 		labelId: `${id}-label`,
 		describedBy: describedBy || undefined,
-		invalid: problems.length > 0,
+		invalid: own.length > 0,
 		own,
 		lang: field.translatable ? context.language : context.defaultLanguage,
 	};

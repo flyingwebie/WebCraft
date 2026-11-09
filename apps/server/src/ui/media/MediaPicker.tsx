@@ -56,8 +56,8 @@ export function MediaPicker({
 	const Icon = item ? KIND_ICONS[item.kind] : ImagesIcon;
 	return (
 		<div
-			className="aria-invalid:border-destructive flex flex-wrap items-center gap-4 rounded-lg border p-3"
-			aria-invalid={invalid ? true : undefined}
+			className="data-[invalid=true]:border-destructive flex flex-wrap items-center gap-4 rounded-lg border p-3"
+			data-invalid={invalid ? true : undefined}
 		>
 			{value ? (
 				<>

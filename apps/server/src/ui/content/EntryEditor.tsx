@@ -210,15 +210,14 @@ export function EntryEditor({
 					>
 						<CircleAlertIcon className="size-4 shrink-0" aria-hidden="true" />
 						<span className="flex-1">{t(saveError)}</span>
-						{errorKeyAsksReload(saveError) ? (
+						<Button type="button" size="sm" variant="outline" onClick={() => void autosave.flush()}>
+							{t("entries.editor.retry")}
+						</Button>
+						{saveError === "errors.CHANGED_MEANWHILE" ? (
 							<Button type="button" size="sm" variant="outline" onClick={() => window.location.reload()}>
 								{t("entries.editor.reload")}
 							</Button>
-						) : (
-							<Button type="button" size="sm" variant="outline" onClick={() => void autosave.flush()}>
-								{t("entries.editor.retry")}
-							</Button>
-						)}
+						) : null}
 					</div>
 				) : null}
 
@@ -416,11 +415,6 @@ export function EntryEditor({
 			</div>
 		</div>
 	);
-}
-
-/** Whether an error's words ask the person to reload (someone else changed it at the same moment). */
-function errorKeyAsksReload(key: MessageKey): boolean {
-	return key === "errors.CHANGED_MEANWHILE";
 }
 
 /** A built-in value's label, control, help and problems. */
