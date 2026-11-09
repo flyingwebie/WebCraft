@@ -1063,6 +1063,7 @@
 		"types": {
 			"text": "Testo",
 			"richText": "Testo formattato",
+			"body": "Corpo del testo",
 			"number": "Numero",
 			"boolean": "Vero o falso",
 			"date": "Data",
@@ -1103,6 +1104,7 @@
 		"types": {
 			"text": "Testo",
 			"richText": "Testo formattato",
+			"body": "Corpo del testo",
 			"number": "Numero",
 			"boolean": "Vero/falso",
 			"date": "Data e ora",
@@ -1147,6 +1149,8 @@
 			"url": "Al link serve un indirizzo.",
 			"postTypes": "Punta a un contenuto che questo campo non può più collegare. Rimuovilo o scegline un altro.",
 			"media": "Il file non è più nella libreria media. Scegline un altro.",
+			"blockType": "Questo tipo di blocco è disattivato per questo campo. Rimuovilo o trasformalo in un altro.",
+			"video": "Usa un indirizzo di YouTube o Vimeo.",
 			"slugShape": "Usa lettere minuscole e cifre unite da trattini, come menu-primavera.",
 			"parent": "Scegli un'altra pagina genitore: non questa pagina né una sotto di essa, al massimo 10 livelli di profondità.",
 			"linkAddress": "Usa un indirizzo http, https, mailto o tel, un percorso come /chi-siamo o un #ancora.",
@@ -1216,6 +1220,112 @@
 			"moved": "Riga {from} spostata al posto {to} di {count}.",
 			"removed": "Riga {row} rimossa.",
 			"added": "Riga {row} aggiunta."
+		}
+	},
+	"body": {
+		"block": "{type}, blocco {number}",
+		"actions": "{block}: azioni",
+		"turnInto": "Trasforma in",
+		"remove": "Rimuovi blocco",
+		"placeholder": "Scrivi, o digita / per i blocchi",
+		"added": "{type} aggiunto.",
+		"removed": "{type} rimosso.",
+		"moved": "Blocco spostato al posto {to} di {count}.",
+		"help": "Digita / in una riga vuota per altri blocchi. Inizia una riga con ## per un titolo, - o 1. per un elenco, > per una citazione, ``` per il codice o --- per un separatore. Maiusc+Invio va a capo; Alt+Maiusc con le frecce sposta un blocco.",
+		"toolbar": {
+			"label": "Formattazione e blocchi",
+			"heading": "Titolo",
+			"bold": "Grassetto",
+			"italic": "Corsivo",
+			"strike": "Barrato",
+			"code": "Codice in linea",
+			"link": "Link",
+			"image": "Immagine",
+			"add": "Aggiungi blocco"
+		},
+		"menu": {
+			"label": "Blocchi",
+			"placeholder": "Filtra i blocchi",
+			"none": "Nessun blocco corrisponde."
+		},
+		"choices": {
+			"paragraph": "Paragrafo",
+			"heading2": "Titolo 2",
+			"heading3": "Titolo 3",
+			"heading4": "Titolo 4",
+			"bulleted": "Elenco puntato",
+			"numbered": "Elenco numerato",
+			"quote": "Citazione",
+			"image": "Immagine",
+			"video": "Video",
+			"table": "Tabella",
+			"callout": "Riquadro",
+			"code": "Codice",
+			"divider": "Separatore",
+			"toggle": "Sezione a scomparsa"
+		},
+		"types": {
+			"paragraph": "Paragrafi",
+			"heading": "Titoli",
+			"list": "Elenchi",
+			"quote": "Citazioni",
+			"image": "Immagini",
+			"video": "Video",
+			"table": "Tabelle",
+			"callout": "Riquadri",
+			"code": "Codice",
+			"divider": "Separatori",
+			"toggle": "Sezioni a scomparsa"
+		},
+		"list": {
+			"item": "Voce {number}"
+		},
+		"image": {
+			"alt": "Testo alternativo: {alt}.",
+			"noAlt": "Nessun testo alternativo.",
+			"caption": "Didascalia: {caption}.",
+			"fromLibrary": "Il testo alternativo e la didascalia vengono dalla libreria Media."
+		},
+		"video": {
+			"address": "Indirizzo",
+			"addressHelp": "Un indirizzo di YouTube o Vimeo. I visitatori caricano il video solo quando lo avviano con un clic.",
+			"youtube": "Un video di YouTube. I visitatori lo caricano solo quando lo avviano con un clic.",
+			"vimeo": "Un video di Vimeo. I visitatori lo caricano solo quando lo avviano con un clic.",
+			"title": "Titolo",
+			"titleHelp": "Dice cosa mostra il video, per chi non può vederlo."
+		},
+		"table": {
+			"cell": "Riga {row}, colonna {column}",
+			"headerRow": "La prima riga è l'intestazione",
+			"addRow": "Aggiungi riga",
+			"addColumn": "Aggiungi colonna",
+			"removeRow": "Rimuovi l'ultima riga",
+			"removeColumn": "Rimuovi l'ultima colonna"
+		},
+		"callout": {
+			"tone": "{block}: tono",
+			"tones": {
+				"info": "Informazione",
+				"success": "Successo",
+				"warning": "Avviso",
+				"danger": "Pericolo"
+			}
+		},
+		"code": {
+			"code": "Codice",
+			"language": "Linguaggio"
+		},
+		"toggle": {
+			"summary": "{block}: riepilogo",
+			"text": "{block}: testo nascosto"
+		},
+		"checks": {
+			"warning": "Controllo:",
+			"skippedHeading": "Questo titolo salta un livello ({detail}). Chi usa un lettore di schermo si orienta con i livelli dei titoli.",
+			"missingAlt": "Questa immagine non ha testo alternativo. Aggiungilo nella libreria Media.",
+			"vagueLink": "Il testo del link “{detail}” non dice dove porta.",
+			"tableHeader": "Questa tabella non ha una riga di intestazione.",
+			"untitledVideo": "Questo video non ha un titolo per chi non può vederlo."
 		}
 	},
 	"entries": {
@@ -1404,7 +1514,9 @@
 			"translatableHelp": "Contiene un valore diverso per ogni lingua.",
 			"sharedAlways": "Una relazione è condivisa da tutte le lingue.",
 			"translatedInside": "I suoi campi sono traducibili uno per uno.",
-			"done": "Fatto"
+			"done": "Fatto",
+			"blocks": "Blocchi che si possono aggiungere",
+			"blocksHelp": "I paragrafi sono sempre attivi. Un blocco disattivato non si può aggiungere; un testo che lo contiene già non si può pubblicare finché non viene rimosso."
 		}
 	},
 	"globals": {

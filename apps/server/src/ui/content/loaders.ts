@@ -1,4 +1,5 @@
 import type { ApiClient } from "@webcraft/api";
+import { storedBlocks } from "@webcraft/renderer/body";
 
 import type { MediaItem } from "../media/preview.ts";
 import { type FieldDefinition, type FieldValues, groupValues, type Json, rowsOf } from "./model.ts";
@@ -41,11 +42,14 @@ export async function loadRelationshipTargets(
 	return Object.fromEntries(targets);
 }
 
-/** The ids of the files media Fields hold among these values. */
+/** The ids of the files media Fields (and Body fields' images) hold among these values. */
 function mediaIds(fields: readonly FieldDefinition[], values: FieldValues): string[] {
 	return fields.flatMap((field) => {
 		const value: Json = values[field.key] ?? null;
 		if (field.type === "media") return typeof value === "string" ? [value] : [];
+		if (field.type === "body") {
+			return storedBlocks(value).flatMap((block) => (block.type === "image" && block.media ? [block.media] : []));
+		}
 		if (field.type === "group") return mediaIds(field.fields, groupValues(value));
 		if (field.type === "repeater") return rowsOf(value).flatMap((row) => mediaIds(field.fields, row));
 		return [];

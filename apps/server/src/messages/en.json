@@ -1063,6 +1063,7 @@
 		"types": {
 			"text": "Text",
 			"richText": "Rich text",
+			"body": "Body",
 			"number": "Number",
 			"boolean": "True or false",
 			"date": "Date",
@@ -1103,6 +1104,7 @@
 		"types": {
 			"text": "Text",
 			"richText": "Rich text",
+			"body": "Body",
 			"number": "Number",
 			"boolean": "True/false",
 			"date": "Date and time",
@@ -1147,6 +1149,8 @@
 			"url": "The link needs an address.",
 			"postTypes": "Points at an Entry this Field can't link to any more. Remove it or choose another.",
 			"media": "The file is no longer in the Media library. Choose another one.",
+			"blockType": "This kind of Block is switched off for this Field. Remove it or turn it into another.",
+			"video": "Use a YouTube or Vimeo address.",
 			"slugShape": "Use lower-case letters and digits joined by dashes, such as spring-menu.",
 			"parent": "Choose another parent Page: not this Page or one under it, at most 10 levels deep.",
 			"linkAddress": "Use an http, https, mailto or tel address, a path such as /about, or an #anchor.",
@@ -1216,6 +1220,112 @@
 			"moved": "Row {from} moved to place {to} of {count}.",
 			"removed": "Row {row} removed.",
 			"added": "Row {row} added."
+		}
+	},
+	"body": {
+		"block": "{type}, block {number}",
+		"actions": "{block}: actions",
+		"turnInto": "Turn into",
+		"remove": "Remove Block",
+		"placeholder": "Write, or type / for Blocks",
+		"added": "{type} added.",
+		"removed": "{type} removed.",
+		"moved": "Block moved to place {to} of {count}.",
+		"help": "Type / in an empty line for more Blocks. Start a line with ## for a heading, - or 1. for a list, > for a quote, ``` for code or --- for a divider. Shift+Enter starts a new line; Alt+Shift with the arrow keys moves a Block.",
+		"toolbar": {
+			"label": "Formatting and Blocks",
+			"heading": "Heading",
+			"bold": "Bold",
+			"italic": "Italic",
+			"strike": "Strikethrough",
+			"code": "Inline code",
+			"link": "Link",
+			"image": "Image",
+			"add": "Add Block"
+		},
+		"menu": {
+			"label": "Blocks",
+			"placeholder": "Filter Blocks",
+			"none": "No Block matches."
+		},
+		"choices": {
+			"paragraph": "Paragraph",
+			"heading2": "Heading 2",
+			"heading3": "Heading 3",
+			"heading4": "Heading 4",
+			"bulleted": "Bulleted list",
+			"numbered": "Numbered list",
+			"quote": "Quote",
+			"image": "Image",
+			"video": "Video",
+			"table": "Table",
+			"callout": "Callout",
+			"code": "Code",
+			"divider": "Divider",
+			"toggle": "Toggle"
+		},
+		"types": {
+			"paragraph": "Paragraphs",
+			"heading": "Headings",
+			"list": "Lists",
+			"quote": "Quotes",
+			"image": "Images",
+			"video": "Videos",
+			"table": "Tables",
+			"callout": "Callouts",
+			"code": "Code",
+			"divider": "Dividers",
+			"toggle": "Toggles"
+		},
+		"list": {
+			"item": "Item {number}"
+		},
+		"image": {
+			"alt": "Alt text: {alt}.",
+			"noAlt": "No alt text.",
+			"caption": "Caption: {caption}.",
+			"fromLibrary": "Alt text and caption come from the Media library."
+		},
+		"video": {
+			"address": "Address",
+			"addressHelp": "A YouTube or Vimeo address. Visitors load the video only when they click to play it.",
+			"youtube": "A YouTube video. Visitors load it only when they click to play it.",
+			"vimeo": "A Vimeo video. Visitors load it only when they click to play it.",
+			"title": "Title",
+			"titleHelp": "Says what the video shows, for people who can't see it."
+		},
+		"table": {
+			"cell": "Row {row}, column {column}",
+			"headerRow": "The first row is the header",
+			"addRow": "Add row",
+			"addColumn": "Add column",
+			"removeRow": "Remove last row",
+			"removeColumn": "Remove last column"
+		},
+		"callout": {
+			"tone": "{block}: tone",
+			"tones": {
+				"info": "Info",
+				"success": "Success",
+				"warning": "Warning",
+				"danger": "Danger"
+			}
+		},
+		"code": {
+			"code": "Code",
+			"language": "Language"
+		},
+		"toggle": {
+			"summary": "{block}: summary",
+			"text": "{block}: hidden text"
+		},
+		"checks": {
+			"warning": "Check:",
+			"skippedHeading": "This heading skips a level ({detail}). People using screen readers find their way by heading levels.",
+			"missingAlt": "This image has no alt text. Add it in the Media library.",
+			"vagueLink": "The link text “{detail}” doesn't say where the link goes.",
+			"tableHeader": "This table has no header row.",
+			"untitledVideo": "This video has no title for people who can't see it."
 		}
 	},
 	"entries": {
@@ -1404,7 +1514,9 @@
 			"translatableHelp": "Holds a separate value per language.",
 			"sharedAlways": "A Relationship is shared by every language.",
 			"translatedInside": "Its Fields are translatable one by one.",
-			"done": "Done"
+			"done": "Done",
+			"blocks": "Blocks people can add",
+			"blocksHelp": "Paragraphs are always on. A Block switched off can't be added; a body that already has one can't be published until it is removed."
 		}
 	},
 	"globals": {

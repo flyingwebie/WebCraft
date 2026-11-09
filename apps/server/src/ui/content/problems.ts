@@ -40,6 +40,8 @@ export function problemText(t: Translate, problem: Problem, subject: ProblemSubj
 		case "url":
 		case "postTypes":
 		case "media":
+		case "blockType":
+		case "video":
 			return t(`content.problems.${rule}`);
 	}
 }
