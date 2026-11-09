@@ -20,6 +20,7 @@ import {
 	ShieldCheckIcon,
 	SlidersHorizontalIcon,
 	UsersIcon,
+	WebhookIcon,
 } from "lucide-react";
 
 import type { MessageKey } from "../i18n.tsx";
@@ -245,6 +246,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.languages",
 						icon: LanguagesIcon,
 						to: "/sites/$siteId/languages",
+						requires: "structure.edit",
+					},
+					{
+						id: "site-webhooks",
+						label: "shell.nav.webhooks",
+						icon: WebhookIcon,
+						to: "/sites/$siteId/webhooks",
 						requires: "structure.edit",
 					},
 					{

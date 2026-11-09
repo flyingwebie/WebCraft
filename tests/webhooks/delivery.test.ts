@@ -121,6 +121,27 @@ describe("publishing an Entry", () => {
 	});
 });
 
+describe("several Webhooks", () => {
+	test("each Webhook of the Site gets a delivery of its own; another Site's Webhooks get nothing", async () => {
+		const { siteId, entryId } = await siteWithEntry("two-hooks-bakery");
+		const { siteId: otherSiteId } = await siteWithEntry("other-bakery");
+		const urls = ["https://hooks.agency.example/one", "https://hooks.agency.example/two"];
+		const elsewhere = "https://hooks.agency.example/other-site";
+		for (const url of [...urls, elsewhere]) install.http.respond("POST", url, { status: 200 });
+		for (const url of urls) await staff.api.webhooks.add({ siteId, url, events: ["publish"] });
+		await staff.api.webhooks.add({ siteId: otherSiteId, url: elsewhere, events: ["publish"] });
+
+		await staff.api.entries.publish({ siteId, entryId });
+		await install.drainJobs();
+
+		const [one, two] = urls.map((url) => requestsTo(url));
+		expect(one).toHaveLength(1);
+		expect(two).toHaveLength(1);
+		expect(one?.[0]?.headers.get("webcraft-delivery")).not.toBe(two?.[0]?.headers.get("webcraft-delivery"));
+		expect(requestsTo(elsewhere)).toEqual([]);
+	});
+});
+
 describe("publishing other items", () => {
 	test("the Globals, Templates and the Design system fire `publish` too, naming what was published", async () => {
 		const { siteId, postTypeId } = await siteWithEntry("structure-bakery");
