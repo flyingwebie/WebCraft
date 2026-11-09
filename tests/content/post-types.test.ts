@@ -5,6 +5,7 @@ import { BUILT_IN_FIELDS } from "@webcraft/core";
 import { SETTING_RULES } from "@webcraft/core/field-rules";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -19,7 +20,9 @@ beforeAll(async () => {
 	admin = await install.superadmin();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	otherSiteId = (await install.createSite(workspaceId, { slug: "careers" })).id;
+	await goLive(install, otherSiteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 });
@@ -295,7 +298,7 @@ describe("changing a Post Type", () => {
 		await staff.api.templates.publish({ siteId, templateId: template.id });
 		const { entry } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Our oven" });
 		await staff.api.entries.publish({ siteId, entryId: entry.id });
-		expect((await install.request("https://bakery.sites.test/stories/our-oven")).status).toBe(200);
+		expect((await install.request("https://bakery.live.test/stories/our-oven")).status).toBe(200);
 
 		const { postType: changed } = await staff.api.postTypes.update({
 			siteId,
@@ -305,8 +308,8 @@ describe("changing a Post Type", () => {
 		});
 
 		expect(changed).toMatchObject({ key: postType.key, name: "Our stories", urlPattern: "/journal/{slug}" });
-		expect((await install.request("https://bakery.sites.test/stories/our-oven")).status).toBe(404);
-		const moved = await install.request("https://bakery.sites.test/journal/our-oven");
+		expect((await install.request("https://bakery.live.test/stories/our-oven")).status).toBe(404);
+		const moved = await install.request("https://bakery.live.test/journal/our-oven");
 		expect(moved.status).toBe(200);
 		expect(moved.headers.get("x-cache")).toBe("MISS");
 	});

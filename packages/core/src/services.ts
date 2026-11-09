@@ -37,6 +37,8 @@ import type {
 	NewPostType,
 	PostType,
 	PostTypeChange,
+	PublishAllDone,
+	PublishAllPreview,
 	Published,
 	PublishItem,
 	PublishPreview,
@@ -44,6 +46,7 @@ import type {
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
 	Script,
+	SiteDraft,
 	SiteLanguages,
 	SpecialPages,
 	Template,
@@ -75,6 +78,7 @@ import type { InstallSetup } from "./setup.ts";
 import type { DataSample } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
 import type { SiteScripts } from "./site-scripts/index.ts";
+import type { Staging } from "./staging/index.ts";
 import type {
 	Access,
 	DataLayer,
@@ -403,6 +407,23 @@ export type InstallServices = InstallPorts & {
 		 */
 		publish(scope: SiteScope, item: PublishItem): Promise<Published>;
 		/**
+		 * Every Draft of the Site (ADR 0014), Content then Structure, each with what changed, who changed
+		 * it last and whether the person may publish it. Open the Site with `site.view`.
+		 */
+		drafts(scope: SiteScope): Promise<SiteDraft[]>;
+		/** How many of the Site's Drafts the person may publish. Open the Site with `site.view`. */
+		count(scope: SiteScope): Promise<number>;
+		/**
+		 * Publish all, in two calls: the ticked items' preview and a confirmation id, then, with it,
+		 * publishing them all or none (see `publishAll` in `content/publish-all.ts`). Open the Site with
+		 * `site.view`; each item needs its own Permission.
+		 */
+		publishAll(
+			scope: SiteScope,
+			items: readonly PublishItem[],
+			confirmation?: string,
+		): Promise<PublishAllPreview | PublishAllDone>;
+		/**
 		 * What publishing one item would do now, publishing nothing: API clients are shown it and
 		 * confirm it before they publish (spec › Management API).
 		 */
@@ -429,6 +450,11 @@ export type InstallServices = InstallPorts & {
 	 * own domain, each checked again with every request.
 	 */
 	editMode: EditMode;
+	/**
+	 * The Staging address (ADR 0014): who may open it (people signed in to the admin who see the Site,
+	 * through a single-use link; anyone with the Site's staging password) and the password itself.
+	 */
+	staging: Staging;
 	/**
 	 * Code mode (ADR 0016): Staff in Edit mode edit the Template markup, CSS and scripts of what they
 	 * select on the page, saved to the Drafts. Open its Site with `codeMode.access(session)`.

@@ -7,7 +7,7 @@
 import { designSystems } from "@webcraft/db/schema";
 import { type DesignSystem, defaultDesignSystem, readDesignSystem } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
-
+import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 
 export type DesignSystemRow = typeof designSystems.$inferSelect;
@@ -48,5 +48,9 @@ export async function lockDesignSystem(scope: SiteScope): Promise<LockedDesignSy
 
 /** Saves a new Draft over a locked Design system. */
 export async function writeDraft(scope: SiteScope, locked: LockedDesignSystem, draft: DesignSystem): Promise<void> {
-	await scope.update(designSystems, { draft, updatedAt: scope.now() }, eq(designSystems.id, locked.row.id));
+	await scope.update(
+		designSystems,
+		{ draft, updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor) },
+		eq(designSystems.id, locked.row.id),
+	);
 }

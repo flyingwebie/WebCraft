@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -29,12 +30,13 @@ type TestSite = { siteId: string; pagesId: string; origin: string };
 async function newSite(languages: string[]): Promise<TestSite> {
 	const slug = `not-found-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	for (const code of languages) await staff.api.languages.add({ siteId, code });
 	const { postTypes } = await staff.api.postTypes.list({ siteId });
 	return {
 		siteId,
 		pagesId: postTypes.find((candidate) => candidate.builtIn === "page")?.id ?? "",
-		origin: `https://${slug}.sites.test`,
+		origin: `https://${slug}.live.test`,
 	};
 }
 

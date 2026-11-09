@@ -8,6 +8,7 @@ import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { canonicalIn, headOf, jsonLdNode, jsonLdNodes } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -32,11 +33,12 @@ type TestSite = { siteId: string; pagesId: string; origin: string };
 async function newSite(): Promise<TestSite> {
 	const slug = `seo-ld-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { postTypes } = await staff.api.postTypes.list({ siteId });
 	return {
 		siteId,
 		pagesId: postTypes.find((candidate) => candidate.builtIn === "page")?.id ?? "",
-		origin: `https://${slug}.sites.test`,
+		origin: `https://${slug}.live.test`,
 	};
 }
 

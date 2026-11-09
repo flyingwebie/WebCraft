@@ -108,6 +108,8 @@ export async function draftTrees(scope: Pick<VisitorScope, "select">): Promise<E
 export async function draftStyles(
 	scope: Pick<VisitorScope, "select" | "first">,
 	preview: { designSystem?: DesignSystem; trees?: readonly ElementTree[] } = {},
+	/** Where its file is served: Code mode's own path unless given (the Staging address serves it as the Site's). */
+	at: string = CODE_MODE_STYLESHEET_PATH,
 ): Promise<SiteStyles> {
 	const designSystem = preview.designSystem ?? (await draftDesignSystem(scope));
 	const css = compileStylesheet(designSystem, { classIds: classIdsIn(preview.trees ?? (await draftTrees(scope))) });
@@ -115,7 +117,7 @@ export async function draftStyles(
 	return {
 		designSystem,
 		className: designSystemNames(designSystem).nameOf,
-		stylesheet: { hash, css, href: `${CODE_MODE_STYLESHEET_PATH}${hash}.css` },
+		stylesheet: { hash, css, href: `${at}${hash}.css` },
 	};
 }
 

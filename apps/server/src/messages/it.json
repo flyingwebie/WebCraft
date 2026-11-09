@@ -129,6 +129,10 @@
 		"SMTP_PASSWORD_NEEDED": "Inserisci la password per provare un altro server: quella salvata viene inviata solo al server per cui è stata salvata.",
 		"IMPORT_RUNNING": "Un'esecuzione di questa Importazione non è ancora terminata: attendila oppure interrompila.",
 		"IMPORT_UNDO_REFUSED": "Questa esecuzione non può essere annullata.",
+		"STAGING_UNAVAILABLE": "Questa installazione non ha un dominio per i siti, quindi il sito non ha un indirizzo di staging.",
+		"STAGING_PASSWORD_INVALID": "Una password di staging ha da 8 a 200 caratteri, non solo spazi.",
+		"PUBLISH_ALL_INVALID": "Alcuni di questi elementi non hanno più una bozza da pubblicare. Riapri Pubblica tutto per vedere l'elenco aggiornato.",
+		"PUBLISH_ALL_REFUSED": "Non è stato pubblicato nulla: uno degli elementi non può ancora essere pubblicato.",
 		"API_TOKEN_NOT_FOUND": "Tra i tuoi token API non ce n'è uno così."
 	},
 	"roles": {
@@ -936,6 +940,67 @@
 		"editOptions": "Altri modi di aprire la modalità modifica",
 		"editInSafeMode": "Modifica in modalità sicura",
 		"editInSafeModeHelp": "Senza eseguire nessuno script del sito"
+	},
+	"publishAll": {
+		"button": "Pubblica tutto",
+		"changesCounted": "{count, plural, one {modifica} other {modifiche}}",
+		"title": "Pubblica tutte le modifiche",
+		"close": "Chiudi",
+		"loading": "Ricerca delle bozze del sito…",
+		"none": "È tutto pubblicato: questo sito non ha bozze.",
+		"intro": "{count, plural, one {# elemento è diverso} other {# elementi sono diversi}} tra l'indirizzo di staging e ciò che vedono i visitatori. Scegli cosa va online.",
+		"selected": "{selected} di {total} selezionati",
+		"content": "Contenuti",
+		"structure": "Struttura",
+		"staffOnly": "Solo Staff",
+		"new": "Nuovo",
+		"changed": "Modificato",
+		"view": "Vedi",
+		"viewLabel": "Vedi {name} sull'indirizzo di staging",
+		"untitled": "Senza titolo",
+		"changes": "Modificato: {list}",
+		"cacheNote": "La pubblicazione svuota la cache delle pagine di questo sito.",
+		"cancel": "Annulla",
+		"publish": "Pubblica {count, plural, one {# elemento} other {# elementi}}",
+		"published": "{count, plural, one {Pubblicato # elemento} other {Pubblicati # elementi}}.",
+		"refused": "Non è stato pubblicato nulla: {name} non può ancora essere pubblicato. {reason}",
+		"kinds": {
+			"entry": "Voce",
+			"siteTemplate": "Template del sito",
+			"entryTemplate": "Template della voce · {postType}",
+			"archiveTemplate": "Template dell'archivio · {postType}",
+			"searchTemplate": "Template dei risultati di ricerca",
+			"siteScript": "Script del sito",
+			"pageScript": "Script della pagina",
+			"component": "Componente",
+			"loop": "Loop",
+			"form": "Modulo",
+			"formEmails": "Email del modulo",
+			"globals": "Globali",
+			"consentBanner": "Banner del consenso",
+			"designSystem": "Design system"
+		},
+		"builtIns": {
+			"title": "Titolo",
+			"slug": "Indirizzo",
+			"parent": "Pagina superiore",
+			"seo": "SEO",
+			"hiddenLanguages": "Lingue in cui è mostrata"
+		},
+		"sections": {
+			"tokens": "Design token",
+			"classes": "Classi",
+			"baseStyles": "Stili di base",
+			"customCss": "CSS personalizzato",
+			"darkMode": "Modalità scura",
+			"notifications": "Notifiche",
+			"autoReply": "Risposta automatica"
+		}
+	},
+	"staging": {
+		"button": "Staging",
+		"pageTitle": "Indirizzo di staging",
+		"opening": "Apertura dell'indirizzo di staging…"
 	},
 	"media": {
 		"pageTitle": "Media",
@@ -1912,7 +1977,20 @@
 		"cdnSave": "Salva CDN",
 		"cdnSaved": "{name} è davanti a questo sito.",
 		"cdnRemoved": "Nessuna CDN è davanti a questo sito.",
-		"appliesAtOnce": "Le modifiche qui valgono subito: non fanno parte di Pubblica tutto."
+		"appliesAtOnce": "Le modifiche qui valgono subito: non fanno parte di Pubblica tutto.",
+		"stagingPassword": "Password di staging",
+		"stagingPasswordHelp": "Chi non ha un account e la inserisce vede l'indirizzo di staging per una settimana, o finché non cambia. Chi accede non ne ha mai bisogno.",
+		"stagingPasswordSet": "È impostata una password (ultima modifica {date}).",
+		"stagingPasswordNone": "Nessuna password: solo chi accede vede l'indirizzo di staging.",
+		"stagingPasswordLabel": "Password",
+		"stagingPasswordNew": "Nuova password",
+		"stagingPasswordRules": "Da 8 a 200 caratteri. Condividila con chi rivede il sito; una volta salvata non può più essere mostrata.",
+		"stagingPasswordGenerate": "Genera",
+		"stagingPasswordGenerated": "Nel campo c'è una nuova password: mostrala e copiala prima di salvare.",
+		"stagingPasswordSave": "Salva password",
+		"stagingPasswordRemove": "Rimuovi password",
+		"stagingPasswordSaved": "Password di staging salvata. Chi era entrato con la precedente deve inserire quella nuova.",
+		"stagingPasswordRemoved": "Password di staging rimossa: ora solo chi accede vede l'indirizzo di staging."
 	},
 	"webhooks": {
 		"pageTitle": "Webhook",

@@ -97,6 +97,8 @@ describe("the document", () => {
 			"audit.list",
 			"modules.approve",
 			"editMode.open",
+			"staging.open",
+			"publishing.count",
 		]) {
 			expect({ internal, listed: operations.has(internal) }).toEqual({ internal, listed: false });
 		}
@@ -123,6 +125,7 @@ describe("the document", () => {
 				["members.invite", "member.invite"],
 				["members.remove", "member.remove"],
 				["siteSmtp.update", "siteSmtp.change"],
+				["staging.setPassword", "stagingPassword.change"],
 				["webhooks.add", "webhook.change"],
 				["webhooks.changeSecret", "webhook.change"],
 				["webhooks.update", "webhook.change"],
@@ -132,7 +135,7 @@ describe("the document", () => {
 
 	test("marks every destructive procedure as taking a preview and a confirmation", () => {
 		// The spec's rule: publishing, emptying Trash, deleting Structure and changes reaching many
-		// items or past undoing take two steps (Publish all comes with its own ticket).
+		// items or past undoing take two steps.
 		const destructive = [
 			"entries.publish",
 			"globals.publish",
@@ -144,6 +147,7 @@ describe("the document", () => {
 			"scripts.publish",
 			"consentBanner.publish",
 			"designSystem.publish",
+			"publishing.publishAll",
 			"entries.delete",
 			"components.delete",
 			"forms.delete",

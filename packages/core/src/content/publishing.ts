@@ -118,24 +118,65 @@ export async function publish(
 	item: PublishItem,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<Published> {
-	const permission = publishPermission(item);
+	const [published] = await publishItems(scope, [item], sources);
+	return published as Published;
+}
+
+/**
+ * Publishes several items together, in the order given, all or none (Publish all, ADR 0014): one
+ * transaction, the locks every publish needs taken once, before any row lock and always in the same
+ * order (the Site's paths, then the Components, then the Design system), so no two publishes ever wait
+ * for each other in a circle; one page cache clear, and one replaced stylesheet kept; each item writes
+ * its own Audit log entry, as publishing it alone does. Each item needs its own Permission
+ * (`publishPermission`). `refusal`, when given, turns the reason an item can't be published into the
+ * error that stops them all (a failure of the database itself, such as two transactions at once, is
+ * never turned).
+ */
+export async function publishItems(
+	scope: SiteScope,
+	items: readonly PublishItem[],
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	refusal?: (item: PublishItem, error: unknown) => Error,
+): Promise<Published[]> {
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
-	if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
+	for (const permission of new Set(items.map(publishPermission))) {
+		if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
+	}
 	return scope.transaction(async (tx) => {
-		// Which Components are placed where is read under their lock, taken before any other.
-		if (item.kind === "template" || item.kind === "component") await lockComponents(tx);
+		// Where Entries and Archive templates are depends on the patterns and the Page tree: held first.
+		if (items.some((item) => item.kind === "entry" || item.kind === "template")) await lockSitePaths(tx);
+		// Which Components are placed where is read under their lock.
+		if (items.some((item) => item.kind === "template" || item.kind === "component")) await lockComponents(tx);
 		let stylesBefore: SiteStyles | undefined;
-		if (changesStyles(item)) {
+		if (items.some(changesStyles)) {
 			// Publishes that change the stylesheet take turns, so each reads the stylesheet the one
 			// before it left and keeps it for pages loaded in between.
 			await lockDesignSystem(tx);
 			stylesBefore = await siteStyles(tx);
 		}
-		const published = await publishItem(tx, item, sources);
+		const published: Published[] = [];
+		for (const item of items) {
+			try {
+				published.push(await publishItem(tx, item, sources));
+			} catch (error) {
+				throw refusal && !isDatabaseFailure(error) ? refusal(item, error) : error;
+			}
+		}
 		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);
 		return published;
 	});
+}
+
+/** Whether Postgres itself refused (an SQLSTATE code on the error or its causes), rather than a publish's own check. */
+function isDatabaseFailure(error: unknown): boolean {
+	let current: unknown = error;
+	for (let depth = 0; current && depth < 5; depth++) {
+		const code = (current as { code?: unknown }).code;
+		if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return true;
+		current = (current as { cause?: unknown }).cause;
+	}
+	return false;
 }
 
 async function publishItem(scope: SiteScope, item: PublishItem, sources: ComponentSources): Promise<Published> {

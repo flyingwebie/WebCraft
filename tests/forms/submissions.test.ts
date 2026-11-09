@@ -8,10 +8,11 @@ import forms from "@webcraft/module-forms";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 import { confirmed } from "../webhooks/support.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
-const PAGE = "https://bakery.sites.test/contact/form";
+const PAGE = "https://bakery.live.test/contact/form";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -82,7 +83,7 @@ async function newForm(name: string, key: string): Promise<{ formId: string; pag
 	await staff.api.templates.publish({ siteId, templateId: template.id });
 	const { entry } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: name, slug: "form" });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });
-	return { formId: form.id, page: `https://bakery.sites.test/${key}/form` };
+	return { formId: form.id, page: `https://bakery.live.test/${key}/form` };
 }
 
 beforeAll(async () => {
@@ -99,6 +100,7 @@ beforeAll(async () => {
 	});
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	const created = await install.createStaff({ workspaces: [workspaceId] });
 	staff = created.browser;
 	staffAccount = created.account;
@@ -183,7 +185,7 @@ describe("the inbox", () => {
 		const english = await visitor.open(form.page);
 		await install.clock.advance(5_000);
 		await visitor.send(english, { name: "Emma", email: "emma@example.ie", consent: "yes" });
-		const italian = await visitor.open(form.page.replace("bakery.sites.test/", "bakery.sites.test/it/"));
+		const italian = await visitor.open(form.page.replace("bakery.live.test/", "bakery.live.test/it/"));
 		await install.clock.advance(5_000);
 		await visitor.send(italian, { name: "Giorgia", email: "giorgia@example.it", consent: "yes" });
 

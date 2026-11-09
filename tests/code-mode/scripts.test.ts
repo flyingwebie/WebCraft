@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { answer, headOf, openCodeMode } from "../harness/code-mode.ts";
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -39,6 +40,7 @@ let sites = 0;
 async function bakery() {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const template = await staff.api.templates.saveEntryTemplateMarkup({
 		siteId,
@@ -54,7 +56,7 @@ async function bakery() {
 	}
 	return {
 		siteId,
-		origin: `https://${slug}.sites.test`,
+		origin: `https://${slug}.live.test`,
 		entryId: entries[0] as string,
 		otherEntryId: entries[1] as string,
 	};

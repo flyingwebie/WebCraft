@@ -7,6 +7,7 @@ import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { withoutStructuredData } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -35,6 +36,7 @@ type Bakery = { siteId: string; origin: string; entryId: string; postTypeId: str
 async function bakery(): Promise<Bakery> {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	await staff.api.globals.setFields({
 		siteId,
 		fields: [
@@ -89,7 +91,7 @@ async function bakery(): Promise<Bakery> {
 		},
 	});
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
-	return { siteId, origin: `https://${slug}.sites.test`, entryId: entry.id, postTypeId: postType.id };
+	return { siteId, origin: `https://${slug}.live.test`, entryId: entry.id, postTypeId: postType.id };
 }
 
 /** The <body> of a page's HTML. */

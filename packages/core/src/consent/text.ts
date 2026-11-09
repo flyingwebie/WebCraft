@@ -26,7 +26,7 @@ import { sameJson } from "../content/json.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
 import type { Published } from "../content/publishing.ts";
 import { storedVersion } from "../content/values.ts";
-import { actingPerson } from "../permissions/can.ts";
+import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ConsentBannerRow, lockBanner } from "./banner.ts";
 
@@ -150,7 +150,7 @@ export async function saveConsentTextDraft(scope: SiteScope, change: ConsentText
 		if (problems.length > 0) throw new ConsentBannerInvalidError(problems);
 		const [saved] = await tx.update(
 			consentBanners,
-			{ draft: { values }, updatedAt: tx.now() },
+			{ draft: { values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
 			eq(consentBanners.id, row.id),
 		);
 		return toText(saved ?? row, languages);
@@ -187,9 +187,12 @@ export async function publishConsentText(scope: SiteScope): Promise<Published> {
 export function publishedWords(
 	row: ConsentBannerRow | undefined,
 	languages: Languages,
+	/** Which version: the published words visitors see, or their Draft, as the Staging address shows it. */
+	which: "published" | "draft" = "published",
 ): { words: ConsentWords; privacyPolicy: { href: string; text: string } | null } {
 	const defaults = consentWords(languages.language);
-	const values = row?.published ? readFields(storedVersion(row.published).values, CONSENT_TEXT_FIELDS, languages) : {};
+	const stored = which === "draft" ? row?.draft : row?.published;
+	const values = stored ? readFields(storedVersion(stored).values, CONSENT_TEXT_FIELDS, languages) : {};
 	const words = { ...defaults };
 	for (const key of CONSENT_TEXT_KEYS) {
 		const value = values[key];

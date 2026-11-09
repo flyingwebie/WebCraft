@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -16,6 +17,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace()).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 });
 
@@ -149,7 +151,7 @@ describe("who uploads, and where the file goes", () => {
 		expect(kept.length).toBeGreaterThan(0);
 		for (const path of kept) {
 			const name = path.split("/").at(-1);
-			const response = await install.request(`https://bakery.sites.test/_media/${name}`);
+			const response = await install.request(`https://bakery.live.test/_media/${name}`);
 			expect(response.status).toBe(404);
 			expect(path).not.toContain("/media/");
 		}

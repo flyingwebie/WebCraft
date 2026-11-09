@@ -87,6 +87,10 @@ export function errorMessage(error: unknown): MessageKey {
 		case "IMPORT_POST_TYPE_FIXED":
 		case "IMPORT_RUNNING":
 		case "IMPORT_UNDO_REFUSED":
+		case "STAGING_UNAVAILABLE":
+		case "STAGING_PASSWORD_INVALID":
+		case "PUBLISH_ALL_INVALID":
+		case "PUBLISH_ALL_REFUSED":
 			return `errors.${code}`;
 		case "DOMAIN_INVALID":
 			return (data as { reason?: unknown } | undefined)?.reason === "install"

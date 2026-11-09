@@ -22,6 +22,7 @@ import { members } from "./procedures/members.ts";
 import { modules } from "./procedures/modules.ts";
 import { pages } from "./procedures/pages.ts";
 import { postTypes } from "./procedures/post-types.ts";
+import { publishing } from "./procedures/publishing.ts";
 import { scripts } from "./procedures/scripts.ts";
 import { seoSettings } from "./procedures/seo.ts";
 import { session } from "./procedures/session.ts";
@@ -31,6 +32,7 @@ import { csp, libraries, outsideScripts } from "./procedures/site-scripts.ts";
 import { siteSmtp } from "./procedures/site-smtp.ts";
 import { sites } from "./procedures/sites.ts";
 import { staff } from "./procedures/staff.ts";
+import { staging } from "./procedures/staging.ts";
 import { templates } from "./procedures/templates.ts";
 import { webhooks } from "./procedures/webhooks.ts";
 import { workspaces } from "./procedures/workspaces.ts";
@@ -71,6 +73,8 @@ export const apiRouter = {
 	imports,
 	pages,
 	editMode,
+	staging,
+	publishing,
 	members,
 	staff,
 	invites,

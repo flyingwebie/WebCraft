@@ -1,6 +1,6 @@
 import { globals } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
-import { actingPerson } from "../permissions/can.ts";
+import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { restoredVersion } from "./entries.ts";
 import { type ContentProblem, GlobalsIncompleteError, GlobalsInvalidError } from "./errors.ts";
@@ -103,7 +103,12 @@ export async function setGlobalFields(scope: SiteScope, inputs: readonly FieldIn
 		});
 		const [saved] = await tx.update(
 			globals,
-			{ fields, draft: { values: { ...draft.values, ...defaults } }, updatedAt: tx.now() },
+			{
+				fields,
+				draft: { values: { ...draft.values, ...defaults } },
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+			},
 			eq(globals.id, row.id),
 		);
 		await clearPageCache(tx);
@@ -132,7 +137,11 @@ export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange):
 			"The Globals",
 		);
 		if (problems.length > 0) throw new GlobalsInvalidError(problems);
-		const [saved] = await tx.update(globals, { draft: { values }, updatedAt: tx.now() }, eq(globals.id, row.id));
+		const [saved] = await tx.update(
+			globals,
+			{ draft: { values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(globals.id, row.id),
+		);
 		return toGlobals(tx, saved ?? row, languages);
 	});
 }
@@ -149,7 +158,11 @@ export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string
 		const draft = storedVersion(row.draft);
 		const restored = restoredVersion(draft, storedVersion(row.published), keys);
 		if (sameJson(restored, draft)) return toGlobals(tx, row, languages);
-		const [saved] = await tx.update(globals, { draft: restored, updatedAt: tx.now() }, eq(globals.id, row.id));
+		const [saved] = await tx.update(
+			globals,
+			{ draft: restored, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(globals.id, row.id),
+		);
 		return toGlobals(tx, saved ?? row, languages);
 	});
 }

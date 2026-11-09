@@ -11685,6 +11685,318 @@
 				"x-webcraft-access": "write"
 			}
 		},
+		"/staging/get": {
+			"post": {
+				"operationId": "staging.get",
+				"summary": "The Site's Staging address and whether it has a staging password (never the password).",
+				"tags": ["staging"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/staging/setPassword": {
+			"post": {
+				"operationId": "staging.setPassword",
+				"summary": "Sets or removes the Site's staging password (Sensitive: admin only).",
+				"tags": ["staging"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"password": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 800
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "password"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-sensitive": "stagingPassword.change"
+			}
+		},
+		"/publishing/drafts": {
+			"post": {
+				"operationId": "publishing.drafts",
+				"summary": "Every Draft of the Site: what changed, who changed it last, and whether the caller may publish it.",
+				"tags": ["publishing"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/publishing/publishAll": {
+			"post": {
+				"operationId": "publishing.publishAll",
+				"summary": "Publishes the chosen Drafts of the Site together, after a preview and a confirmation.",
+				"tags": ["publishing"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"items": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1000,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "entry"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "template"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "component"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "loop"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "script"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "form"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "formEmails"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "globals"
+														}
+													},
+													"required": ["kind"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "consentBanner"
+														}
+													},
+													"required": ["kind"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "designSystem"
+														}
+													},
+													"required": ["kind"]
+												}
+											]
+										}
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "items"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-confirmation": true
+			}
+		},
 		"/members/list": {
 			"post": {
 				"operationId": "members.list",

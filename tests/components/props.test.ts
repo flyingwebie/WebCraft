@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -15,6 +16,7 @@ beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-04-05T10:30:00Z") });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 });
@@ -60,7 +62,7 @@ async function rendered(
 		fields: options.values ?? {},
 	});
 	const { entry: published } = await editor.api.entries.publish({ siteId, entryId: entry.id });
-	const response = await install.request(`https://bakery.sites.test/${key}/${published.published?.slug}`);
+	const response = await install.request(`https://bakery.live.test/${key}/${published.published?.slug}`);
 	expect(response.status).toBe(200);
 	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
 }

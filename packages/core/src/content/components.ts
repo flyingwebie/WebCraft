@@ -39,6 +39,7 @@ import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { NO_FORMS, type SiteForms, siteForms } from "../forms/forms.ts";
 import { isUuid } from "../ids.ts";
+import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { publishedArchives } from "./archives.ts";
 import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
@@ -179,7 +180,13 @@ export async function createComponent(
 			await checkNameUnused(tx, name);
 			const now = tx.now();
 			const draft: ComponentVersion = { props, tree: EMPTY_TREE };
-			const row = await tx.insert(components, { name, draft, createdAt: now, updatedAt: now });
+			const row = await tx.insert(components, {
+				name,
+				draft,
+				createdAt: now,
+				updatedAt: now,
+				updatedBy: personIdOf(tx.access.actor),
+			});
 			await tx.audit("component.create", { componentId: row.id, name });
 			return toComponent(row);
 		}),
@@ -437,7 +444,11 @@ async function nextProps(
 }
 
 async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentVersion): Promise<Component> {
-	const [updated] = await scope.update(components, { draft, updatedAt: scope.now() }, eq(components.id, row.id));
+	const [updated] = await scope.update(
+		components,
+		{ draft, updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor) },
+		eq(components.id, row.id),
+	);
 	if (!updated) throw new ComponentNotFoundError();
 	return toComponent(updated);
 }

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { BUILT_IN_FIELDS } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -31,9 +32,10 @@ type TestSite = { siteId: string; pagesId: string; origin: string };
 async function newSite(): Promise<TestSite> {
 	const slug = `pages-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { postTypes } = await editor.api.postTypes.list({ siteId });
 	const pages = postTypes.find((postType) => postType.builtIn === "page");
-	return { siteId, pagesId: pages?.id ?? "", origin: `https://${slug}.sites.test` };
+	return { siteId, pagesId: pages?.id ?? "", origin: `https://${slug}.live.test` };
 }
 
 /** Creates a Page (under `parentId` when given) and publishes it; answers its id. */

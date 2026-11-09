@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -28,6 +29,7 @@ type TestSite = { siteId: string; postTypeId: string; origin: string };
 async function newSite(siteTemplate: string): Promise<TestSite> {
 	const slug = `globals-media-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	for (const code of ["fr", "de"]) await staff.api.languages.add({ siteId, code });
 	await staff.api.globals.setFields({
 		siteId,
@@ -47,7 +49,7 @@ async function newSite(siteTemplate: string): Promise<TestSite> {
 	await staff.api.templates.publish({ siteId, templateId: entryTemplate.template.id });
 	const { entry } = await editor.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
-	return { siteId, postTypeId: postType.id, origin: `https://${slug}.sites.test` };
+	return { siteId, postTypeId: postType.id, origin: `https://${slug}.live.test` };
 }
 
 async function footerAt(site: TestSite, path: string): Promise<string> {

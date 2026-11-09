@@ -6,12 +6,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
 let siteId: string;
 let recipesId: string;
-const SITE = "https://bakery.sites.test";
+const SITE = "https://bakery.live.test";
 /** Searches come from visitors of their own: each address may search 30 times a minute. */
 let visitors = 0;
 
@@ -19,6 +20,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	recipesId = (
 		await staff.api.postTypes.create({
@@ -132,6 +134,7 @@ describe("changing Searched fields", () => {
 		const others: string[] = [];
 		for (const slug of ["mill", "dairy"]) {
 			const otherId = (await install.createSite(workspaceId, { name: slug, slug })).id;
+			await goLive(install, otherId);
 			const { postType } = await admin.api.postTypes.create({
 				siteId: otherId,
 				name: "Notes",

@@ -22,6 +22,8 @@ beforeAll(async () => {
 	const { api } = await local.superadmin();
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	// Visitors see the Site on its domain; its Staging address is for the people reviewing it.
+	await install.goLive(siteId);
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" })).account;
 	const site = await api.templates.saveSiteTemplateMarkup({
 		siteId,
@@ -79,9 +81,9 @@ for (const theme of THEMES) {
 			test(name, async () => {
 				// The same answer, through the web handler in this process: the Site's strict policy, no inline code.
 				const local = install.install;
-				await expectSafePage(await local.request(`https://${slug}.${local.sitesDomain}${path}`));
+				await expectSafePage(await local.request(install.liveUrl(slug, path)));
 				const page = await install.newPage(theme);
-				await page.goto(install.siteUrl(slug, path));
+				await page.goto(install.liveUrl(slug, path));
 				await page.waitForLoadState("load");
 
 				await expectAccessibleScreen(page, `${name} (${theme})`);
@@ -93,7 +95,7 @@ for (const theme of THEMES) {
 describe("searching from the keyboard", () => {
 	test("type in the header's search box, press Enter, and land on the hits", async () => {
 		const page = await install.newPage("light");
-		await page.goto(install.siteUrl(slug, "/recipes/brioche"));
+		await page.goto(install.liveUrl(slug, "/recipes/brioche"));
 		await page.waitForLoadState("load");
 		// The skip link, the Site's name, then the search box.
 		for (let press = 0; press < 3; press++) await page.keyboard.press("Tab");

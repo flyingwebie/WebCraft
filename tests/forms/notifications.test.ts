@@ -9,6 +9,7 @@ import forms from "@webcraft/module-forms";
 import type { SentEmail } from "../harness/fake-mailer.ts";
 import { type FormVisitor, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { confirmed, receiverAccepts } from "../webhooks/support.ts";
 
 let install: TestInstall;
@@ -19,8 +20,8 @@ let ownerAccount: TestAccount;
 let siteId: string;
 let formId: string;
 
-const PAGE = "https://bakery.sites.test/visit/contact";
-const ITALIAN_PAGE = "https://bakery.sites.test/it/visit/contact";
+const PAGE = "https://bakery.live.test/visit/contact";
+const ITALIAN_PAGE = "https://bakery.live.test/it/visit/contact";
 
 const NOTIFICATIONS = [
 	{
@@ -88,6 +89,7 @@ beforeAll(async () => {
 	});
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	const createdStaff = await install.createStaff({ workspaces: [workspaceId] });
 	staff = createdStaff.browser;
 	staffAccount = createdStaff.account;

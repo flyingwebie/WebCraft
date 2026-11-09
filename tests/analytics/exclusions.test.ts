@@ -9,6 +9,7 @@ import { analyticsApi, analyticsVisitor, COLLECT_PATH, dayOf, liveSite } from ".
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
+import { givePassword, stagingVisitor } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -36,10 +37,19 @@ const totalsOf = async (siteId: string) =>
 	(await analyticsApi(staff).stats.totals({ siteId, ...dayOf(install.clock.now()) })).totals;
 
 describe("left out", () => {
-	test("visits on the Staging address", async () => {
+	test("visits on the Staging address: nobody it doesn't know gets that far, and nobody it lets in is counted", async () => {
 		const site = await newSite();
+		expect((await analyticsVisitor(install, site.staging).view("/")).status).toBe(403);
 
-		const sent = await analyticsVisitor(install, site.staging).view("/");
+		// Someone the Staging address lets in with its password, who isn't signed in.
+		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
+		await owner.api.staging.setPassword({ siteId: site.siteId, password: "a review password" });
+		const reviewer = stagingVisitor(install, new URL(site.staging).hostname.split(".")[0] ?? "");
+		await givePassword(reviewer, "a review password");
+		const visitor = analyticsVisitor(install, site.staging);
+		const name = "__Host-webcraft.staging-password";
+		visitor.cookies.set(name, reviewer.browser.cookies.get(name) ?? "");
+		const sent = await visitor.view("/");
 
 		expect(sent.status).toBe(204);
 		expect(sent.headers.get("x-robots-tag")).toBe("noindex");

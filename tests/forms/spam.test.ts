@@ -7,6 +7,7 @@ import type forms from "@webcraft/module-forms";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -15,7 +16,7 @@ let editorAccount: Parameters<TestInstall["signIn"]>[0];
 let siteId: string;
 let workspaceId: string;
 let formId: string;
-const PAGE = "https://bakery.sites.test/visit/contact";
+const PAGE = "https://bakery.live.test/visit/contact";
 const GOOD = { email: "ada@example.com" };
 
 async function folder(name: "inbox" | "spam") {
@@ -35,6 +36,7 @@ beforeAll(async () => {
 	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const member = await install.createMember({ workspaceId, role: "editor" });
 	editor = member.browser;

@@ -38,9 +38,10 @@ import {
 	type SiteComponents,
 	siteComponents,
 } from "../content/components.ts";
+import { draftAddresses, findDraftEntry, findDraftPage } from "../content/draft-paths.ts";
 import { editableField } from "../content/editable.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
-import { homePageId, publishedAddresses } from "../content/entry-paths.ts";
+import { homePageId, type PublishedAddress, publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { type Languages, linksIn } from "../content/field-values.ts";
 import { type BuiltInField, storedFields } from "../content/fields.ts";
@@ -71,7 +72,13 @@ import { specialPageId } from "../content/special-pages.ts";
 import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
-import { draftStyles, type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
+import {
+	draftStyles,
+	type SiteStyles,
+	STYLESHEET_PATH,
+	siteStyles,
+	stylesheetFile,
+} from "../design-system/stylesheet.ts";
 import { domainOrigin, placeOf, type SiteAddresses, siteAddresses, verifiedDomains } from "../domains/addresses.ts";
 import { type PageFormsOptions, pageForms, type ShownForm } from "../forms/page-forms.ts";
 import { uuidsIn } from "../ids.ts";
@@ -268,6 +275,8 @@ export type SitePages = {
 	resolveHost(hostname: string): Promise<SiteHost | null>;
 	/** Whether `pathname` is the Site's search results page, in any of its languages (ADR 0021). */
 	isSearchPage(host: SiteHost, pathname: string): Promise<boolean>;
+	/** The language a path on a hostname is in, with its direction (the Default language when it names none). */
+	languageAt(host: SiteHost, pathname: string): Promise<{ code: string; direction: "ltr" | "rtl" }>;
 	/**
 	 * What `pathname` answers on the Site: the published Entry a Post Type's URL pattern finds there,
 	 * else the published Page at that path (the home page at `/`); null when there is none. With
@@ -399,6 +408,8 @@ export function createSitePages(options: {
 	/** The styles a page is shown with: the published ones (built once per generation), or the Drafts' in Code mode. */
 	const viewStyles = async (view: View): Promise<SiteStyles> => {
 		if (view.structure !== "draft") return stylesOf(view.host);
+		// The Staging address serves its Drafts' stylesheet as the Site's own file; Code mode, as Edit mode's.
+		if (view.staging) return draftStyles(view.scope, {}, STYLESHEET_PATH);
 		return view.editing?.preview?.styles ?? draftStyles(view.scope);
 	};
 	const redirectAnswers = createRedirectAnswers();
@@ -452,11 +463,19 @@ export function createSitePages(options: {
 		},
 
 		async isSearchPage(host, pathname) {
-			const scope = data.visitors(host.site);
+			const drafts = showsDrafts(host);
+			const scope = drafts ? data.staging(host.site) : data.visitors(host.site);
 			const searchPageId = await specialPageId(scope, "search");
 			if (!searchPageId) return false;
-			const located = await locate(scope, host, pathname, false);
+			const located = await locate(scope, host, pathname, false, drafts ? "draft" : "published");
 			return located?.kind === "found" && located.found.entry.id === searchPageId;
+		},
+
+		async languageAt(host, pathname) {
+			const scope = data.visitors(host.site);
+			const site = await siteLanguages(scope);
+			const code = await languageOnHost(scope, host, pathname);
+			return { code, direction: languageNamed(site, code).direction };
 		},
 
 		async render(host, pathname, editing, options = {}) {
@@ -469,17 +488,17 @@ export function createSitePages(options: {
 				moduleHosts,
 				moduleScripts,
 			});
-			const archive = await locateArchive(view.scope, host, pathname, editing !== undefined);
+			const archive = await locateArchive(view.scope, host, pathname, editing !== undefined, view.structure);
 			if (archive) {
 				const rendered = await renderArchivePage(view, host, await viewStyles(view), archive, page);
 				if (page > 1 && !rendered.pagination) return { kind: "redirect", location: archive.path };
 				if (rendered.pagination && page > rendered.pagination.count) return null;
 				return { kind: "page", ...rendered };
 			}
-			const located = await locate(view.scope, host, pathname, editing !== undefined);
+			const located = await locate(view.scope, host, pathname, editing !== undefined, view.routing);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
-			const extras = await languageExtras(view.scope, host, located, located.found);
+			const extras = await languageExtras(view.scope, host, located, located.found, view.entries);
 			const path = canonicalPath(pathSegments(pathname) ?? []);
 			if ((await specialPageId(view.scope, "search")) === located.found.entry.id) {
 				// The Site's search results page: its Page shows the Search results template's hits.
@@ -508,7 +527,7 @@ export function createSitePages(options: {
 
 		async pageContent(host, pathname) {
 			const scope = data.visitors(host.site);
-			const archive = await locateArchive(scope, host, pathname, true);
+			const archive = await locateArchive(scope, host, pathname, true, "published");
 			if (archive) {
 				const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
 				const placed = await placedComponents(scope, [siteTemplate, archive.content], sources);
@@ -528,7 +547,7 @@ export function createSitePages(options: {
 					templatePostTypeId: null,
 				};
 			}
-			const located = await locate(scope, host, pathname, true);
+			const located = await locate(scope, host, pathname, true, "publishedThenDraft");
 			const place = located?.kind === "found" ? located : await notFoundPlace(scope, host, pathname);
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
 			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
@@ -560,9 +579,9 @@ export function createSitePages(options: {
 				moduleHosts,
 				moduleScripts,
 			});
-			const place = await notFoundPlace(view.scope, host, pathname);
+			const place = await notFoundPlace(view.scope, host, pathname, view.entries);
 			const styles = await viewStyles(view);
-			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
+			const { languageLinks } = await languageExtras(view.scope, host, place, undefined, view.entries);
 			const path = canonicalPath(pathSegments(pathname) ?? []);
 			if (place.found) {
 				const located = { ...place, found: place.found };
@@ -596,9 +615,9 @@ export function createSitePages(options: {
 				moduleHosts,
 				moduleScripts,
 			});
-			const place = await notFoundPlace(view.scope, host, pathname);
+			const place = await notFoundPlace(view.scope, host, pathname, view.entries);
 			const styles = await viewStyles(view);
-			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
+			const { languageLinks } = await languageExtras(view.scope, host, place, undefined, view.entries);
 			const title = formWords(place.language.code).problemTitle;
 			return renderSitePage(view, host, styles, place, {
 				page: {
@@ -647,6 +666,11 @@ export function createSitePages(options: {
 		},
 
 		async stylesheet(host, name) {
+			if (showsDrafts(host)) {
+				// The Staging address's pages link the stylesheet of the Design system's Draft and the Drafts' trees.
+				const drafts = await draftStyles(data.staging(host.site), {}, STYLESHEET_PATH);
+				if (name === `${drafts.stylesheet.hash}.css`) return drafts.stylesheet.css;
+			}
 			return stylesheetFile(data.visitors(host.site), await stylesOf(host), name);
 		},
 
@@ -656,6 +680,11 @@ export function createSitePages(options: {
 			const scope = data.visitors(host.site);
 			const published = await scriptFile(scope, name, "published");
 			if (published !== null) return published;
+			// The Staging address's pages run the Drafts of the Site script and page scripts.
+			if (showsDrafts(host)) {
+				const draft = await scriptFile(data.staging(host.site), name, "draft");
+				if (draft !== null) return draft;
+			}
 			const hash = /^([0-9a-f]{16})\.js$/.exec(name)?.[1];
 			if (!hash) return null;
 			return (await outsideScriptCode(scope, hash)) ?? (await retiredScript(scope, hash));
@@ -679,8 +708,8 @@ export function createSitePages(options: {
 			const asStaging: SiteHost = { ...host, address: "staging", language: null };
 			const target = await redirects(host.site, request, {
 				hasPage: async (path) =>
-					(await locateArchive(scope, asStaging, path, true)) !== undefined ||
-					(await locate(scope, asStaging, path, true))?.kind === "found",
+					(await locateArchive(scope, asStaging, path, true, "published")) !== undefined ||
+					(await locate(scope, asStaging, path, true, "published"))?.kind === "found",
 				languageOf: (path) => languageOf(site, path),
 			});
 			const location = target && addressFrom(site, host, target.to);
@@ -824,6 +853,7 @@ async function locate(
 	host: SiteHost,
 	pathname: string,
 	editing: boolean,
+	routing: Routing = "published",
 ): Promise<Located | { kind: "redirect"; location: string; keepQuery?: boolean } | null> {
 	const segments = pathSegments(pathname);
 	if (!segments || isReservedPath(segments)) return null;
@@ -835,17 +865,82 @@ async function locate(
 	const postTypes = await listPostTypes(scope);
 	const home = await homePageId(scope);
 	// Post Types' URL patterns own every path they match; Pages live outside them.
-	const found =
-		rest.length === 0
-			? home && (await publishedPage(scope, postTypes, home))
-			: ((await findPublishedEntry(scope, postTypes, rest, languages.language)) ??
-				(await findPage(scope, postTypes, rest, languages.language)));
+	const published =
+		routing === "draft"
+			? undefined
+			: rest.length === 0
+				? home && (await publishedPage(scope, postTypes, home))
+				: ((await findPublishedEntry(scope, postTypes, rest, languages.language)) ??
+					(await findPage(scope, postTypes, rest, languages.language)));
 	// An Entry hidden in the language has no page there.
-	if (!found || !isVisibleIn(storedVersion(found.entry.published), languages)) {
-		return unprefixed ? { kind: "redirect", location: canonicalPath(unprefixed) } : null;
+	let found = published && isVisibleIn(storedVersion(published.entry.published), languages) ? published : undefined;
+	// The Staging address finds Entries by their Drafts' addresses; Edit mode also reaches those never published.
+	if (!found && routing !== "published") {
+		found = await draftAt(scope, postTypes, rest, languages, home, routing === "draft" ? "draft" : "published");
 	}
+	if (!found) return unprefixed ? { kind: "redirect", location: canonicalPath(unprefixed) } : null;
 	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: hostPath(host, languages, "/") };
 	return { kind: "found", found, ...place };
+}
+
+/**
+ * The Entry whose Draft would be published at a path's parts in the language (`draft-paths.ts`): an
+ * Entry of the Post Type whose URL pattern matches, through its Entry template (its Draft with
+ * `templates: "draft"`, as the Staging address shows it; its published version otherwise), else the
+ * Page at that Draft path; at the root, the home page. Never published ones too; hidden ones in the
+ * language aren't.
+ */
+async function draftAt(
+	scope: ReadScope,
+	postTypes: readonly PostType[],
+	rest: readonly string[],
+	languages: Languages,
+	home: string | undefined,
+	which: "published" | "draft",
+): Promise<FoundEntry | undefined> {
+	if (rest.length === 0) return home ? draftPage(scope, postTypes, home, languages) : undefined;
+	for (const { postType, pattern } of candidatePatterns(postTypes)) {
+		const slug = slugIn(pattern, rest);
+		if (!slug) continue;
+		const entry = await findDraftEntry(scope, postType.id, slug, languages);
+		if (!entry) continue;
+		const template = await scope.first(
+			templates,
+			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id)),
+		);
+		const published = (template?.published as ElementTree | null | undefined) ?? undefined;
+		const draft = (template?.draft as ElementTree | undefined) ?? undefined;
+		if (!draft || (which === "published" && !published)) return undefined;
+		return { postType, postTypes, entry, content: published ?? draft, contentDraft: draft };
+	}
+	const pages = postTypes.find(isPagePostType);
+	const pageId = pages && (await findDraftPage(scope, pages.id, rest, languages));
+	return pageId ? draftPage(scope, postTypes, pageId, languages) : undefined;
+}
+
+/** A Page of the Site by id as its Draft would show it, published or not; undefined when it isn't one, or is hidden in the language. */
+async function draftPage(
+	scope: ReadScope,
+	postTypes: readonly PostType[],
+	pageId: string,
+	languages: Languages,
+): Promise<FoundEntry | undefined> {
+	const pages = postTypes.find(isPagePostType);
+	const entry = await scope.first(entries, eq(entries.id, pageId));
+	if (!pages || entry?.postTypeId !== pages.id || !isVisibleIn(storedVersion(entry.draft), languages)) return undefined;
+	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT, contentDraft: EMPTY_PAGE_LAYOUT };
+}
+
+/** Where Entries are, as a view lists them: at their published addresses, or on the Staging address at their Drafts'. */
+function addressesOf(
+	which: "published" | "draft",
+): (
+	scope: ReadScope,
+	postType: PostType,
+	ids: readonly string[],
+	languages: Languages,
+) => Promise<Map<string, PublishedAddress>> {
+	return which === "draft" ? draftAddresses : publishedAddresses;
 }
 
 /** An Archive page: the published Archive template at its Post Type's address, in the path's language. */
@@ -868,6 +963,7 @@ async function locateArchive(
 	host: SiteHost,
 	pathname: string,
 	editing: boolean,
+	which: "published" | "draft",
 ): Promise<LocatedArchive | undefined> {
 	const segments = pathSegments(pathname);
 	if (!segments || segments.length === 0 || isReservedPath(segments)) return undefined;
@@ -875,11 +971,16 @@ async function locateArchive(
 	const onHost = pathOnHost(site, host, segments, editing);
 	if (onHost.kind === "moved" || onHost.rest.length === 0) return undefined;
 	const { languages, rest } = onHost;
-	const archive = archiveAt(await publishedArchives(scope, await listPostTypes(scope)), rest);
+	// The Staging address shows Archive templates by their Drafts, published or not.
+	const archive = archiveAt(await publishedArchives(scope, await listPostTypes(scope), which), rest);
 	if (!archive) return undefined;
 	const row = await scope.first(
 		templates,
-		and(eq(templates.kind, "archive"), eq(templates.postTypeId, archive.postType.id), isNotNull(templates.published)),
+		and(
+			eq(templates.kind, "archive"),
+			eq(templates.postTypeId, archive.postType.id),
+			which === "published" ? isNotNull(templates.published) : undefined,
+		),
 	);
 	if (!row) return undefined;
 	return {
@@ -887,7 +988,7 @@ async function locateArchive(
 		languages,
 		language: languageNamed(site, languages.language),
 		postType: archive.postType,
-		content: row.published as ElementTree,
+		content: (which === "published" ? row.published : row.draft) as ElementTree,
 		parts: archive.parts,
 		path: hostPath(host, languages, pathText(archive.parts)),
 	};
@@ -978,11 +1079,12 @@ async function languageExtras(
 	host: SiteHost,
 	place: Place,
 	found: FoundEntry | undefined,
+	which: "published" | "draft" = "published",
 ): Promise<LanguageExtras> {
 	const { site } = place;
 	const extras: LanguageExtras = { alternates: [], languageLinks: [] };
 	if (site.languages.length < 2) return extras;
-	for (const { language, path, shown } of await languagePlaces(scope, place, found)) {
+	for (const { language, path, shown } of await languagePlaces(scope, place, found, which)) {
 		// Each language at its own address: on this hostname, or on another of the Site's domains.
 		const there = placeOf(host.addresses, { language: language.code, defaultLanguage: site.defaultLanguage }, path);
 		const href = `${there.origin}${there.path}`;
@@ -1009,15 +1111,17 @@ async function languagePlaces(
 	scope: ReadScope,
 	place: Place,
 	found: FoundEntry | undefined,
+	which: "published" | "draft" = "published",
 ): Promise<{ language: SiteLanguage; path: string; shown: boolean }[]> {
 	const { site } = place;
-	const published = found && storedVersion(found.entry.published);
+	const version =
+		found && (which === "draft" ? storedVersion(found.entry.draft) : storedVersion(found.entry.published));
 	const places: { language: SiteLanguage; path: string; shown: boolean }[] = [];
 	for (const language of site.languages) {
 		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
-		const visible = found && published && isVisibleIn(published, languages);
+		const visible = found && found.entry[which] !== null && version && isVisibleIn(version, languages);
 		const address = visible
-			? (await publishedAddresses(scope, found.postType, [found.entry.id], languages)).get(found.entry.id)
+			? (await addressesOf(which)(scope, found.postType, [found.entry.id], languages)).get(found.entry.id)
 			: undefined;
 		places.push({ language, path: address?.path ?? languagePath(languages, "/"), shown: address !== undefined });
 	}
@@ -1059,6 +1163,7 @@ async function notFoundPlace(
 	scope: ReadScope,
 	host: SiteHost,
 	pathname: string,
+	which: "published" | "draft" = "published",
 ): Promise<Place & { found?: FoundEntry }> {
 	const site = await siteLanguages(scope);
 	const onHost = pathOnHost(site, host, pathSegments(pathname) ?? [], true);
@@ -1071,8 +1176,15 @@ async function notFoundPlace(
 	// The language's own 404 page, else the Site's; each once published and shown in the language.
 	const postTypes = await listPostTypes(scope);
 	for (const chosen of [await specialPageId(scope, "notFound", code), await specialPageId(scope, "notFound")]) {
-		const page = chosen && (await publishedPage(scope, postTypes, chosen));
-		if (page && isVisibleIn(storedVersion(page.entry.published), languages)) return { ...place, found: page };
+		if (!chosen) continue;
+		// On the Staging address, the chosen Page as its Draft shows it, published or not.
+		const page =
+			which === "draft"
+				? await draftPage(scope, postTypes, chosen, languages)
+				: await publishedPage(scope, postTypes, chosen);
+		if (page && (which === "draft" || isVisibleIn(storedVersion(page.entry.published), languages))) {
+			return { ...place, found: page };
+		}
 	}
 	return place;
 }
@@ -1095,6 +1207,19 @@ type View = {
 	version: "published" | "draft";
 	/** Which version of the Site's Structure shows: its Templates', Components' and Design system's. */
 	structure: "published" | "draft";
+	/**
+	 * Which Entries the page lists and links to, and where they are: the published ones at their
+	 * published addresses, or on the Staging address every Entry's Draft at its Draft address (Loops,
+	 * Relationships, the page's own address and its languages').
+	 */
+	entries: "published" | "draft";
+	/** How a path finds its page: see `Routing`. */
+	routing: Routing;
+	/**
+	 * Whether the page is for the Staging address (ADR 0014): the Site with all its Drafts, never
+	 * indexed, and never the canonical address of a page.
+	 */
+	staging: boolean;
 	editing?: PageEditing;
 	/** Where the Components of the Modules running on the Site come from. */
 	sources: ComponentSources;
@@ -1142,16 +1267,59 @@ function viewFor(
 		moduleHosts: request.moduleHosts,
 		moduleScripts: request.moduleScripts,
 	};
-	return editing
-		? {
-				...common,
-				scope: editing.scope,
-				version: "draft",
-				structure: editing.code ? "draft" : "published",
-				editing,
-			}
-		: { ...common, scope: data.visitors(host.site), version: "published", structure: "published" };
+	if (editing) {
+		return {
+			...common,
+			scope: editing.scope,
+			version: "draft",
+			structure: editing.code ? "draft" : "published",
+			entries: "published",
+			routing: "publishedThenDraft",
+			staging: false,
+			editing,
+		};
+	}
+	// The Staging address shows the Site with all its Drafts: Content and Structure (ADR 0014).
+	if (showsDrafts(host)) {
+		return {
+			...common,
+			scope: data.staging(host.site),
+			version: "draft",
+			structure: "draft",
+			entries: "draft",
+			routing: "draft",
+			staging: true,
+		};
+	}
+	return {
+		...common,
+		scope: data.visitors(host.site),
+		version: "published",
+		structure: "published",
+		entries: "published",
+		routing: "published",
+		staging: false,
+	};
 }
+
+/**
+ * Whether a hostname shows the Site with all its Drafts: its Staging address does (ADR 0014), once the
+ * Site request pipeline let the request through its access check. Its answers are never indexed,
+ * never kept in the page cache, and left out of sitemaps; sitemaps, `robots.txt` and `llms.txt` (#92)
+ * answer with this rule.
+ */
+export function showsDrafts(host: Pick<SiteHost, "address">): boolean {
+	return host.address === "staging";
+}
+
+/**
+ * How a path finds its page: `published`, as visitors find it (published Entries at their published
+ * addresses); `draft`, as the Staging address shows the Site with all its Drafts (every Entry, never
+ * published ones too, at the address its Draft would be published at, through the Templates' Drafts);
+ * `publishedThenDraft`, as Edit mode does (the published page at the path, else an Entry whose Draft
+ * would be published there, so Pages never published yet can be edited in place).
+ */
+type Routing = "published" | "draft" | "publishedThenDraft";
 
 /**
  * Edit mode's tags: which bindings mark their element as an editable region. The page's content may
@@ -1316,6 +1484,7 @@ async function renderEntryPage(
 		found.postTypes,
 		linksIn(version.values, postType.fields).map((link) => link.targetId),
 		languages,
+		view.entries,
 	);
 	const root = entryParts(builtIns, postType.fields, published.fields, {
 		related,
@@ -1324,7 +1493,7 @@ async function renderEntryPage(
 	// Past a Page's first page, its title says which, and its alternates are that page in each language.
 	const page = where.page ?? 1;
 	const title = pagedTitle(published.title, page, located.language.code);
-	const address = (await publishedAddresses(scope, postType, [entry.id], languages)).get(entry.id);
+	const address = (await addressesOf(view.entries)(scope, postType, [entry.id], languages)).get(entry.id);
 	const seo = await entryPageSeo(scope, await seoSiteOf(view, host, located), seoPlace(located, extras.alternates), {
 		postType,
 		entryId: entry.id,
@@ -1530,11 +1699,12 @@ async function renderSitePage(
 		which: view.structure,
 		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
 	});
-	// Loops show published Entries through their published versions, in Edit mode and Code mode too.
+	// Loops show published Entries through their published versions, in Edit mode and Code mode too;
+	// the Staging address shows the Loops' Drafts over every Entry's Draft.
 	const loops = await pageLoops(
 		scope,
 		[page.content, siteTemplate, ...placed.trees],
-		{ ...options.loops, languages, version: "published" },
+		{ ...options.loops, languages, version: view.entries },
 		await listPostTypes(scope),
 	);
 	// The Media the page may show: `media:<id>` written in either template or a Component it places,
@@ -1576,10 +1746,12 @@ async function renderSitePage(
 		...page,
 		title: invalid ? `${formWords(language.code).errorPrefix} ${page.title}` : page.title,
 		// A page sent back with a Form's errors is one visitor's: never indexed.
-		seo:
+		seo: stagingSeo(
+			view,
 			page.seo && invalid
 				? { ...page.seo, title: `${formWords(language.code).errorPrefix} ${page.seo.title}`, noindex: true }
 				: page.seo,
+		),
 		site: { name: host.site.name, language: language.code, direction: language.direction },
 		siteTemplate,
 		siteValues: (path) => resolvePath(siteRoot, path),
@@ -1587,7 +1759,9 @@ async function renderSitePage(
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
 		libraries: ownScripts ? await pageLibraries(scope) : [],
-		scripts: ownScripts ? await pageScripts(scope, options.entry?.id ?? null, view.structure) : [],
+		scripts: ownScripts
+			? await pageScripts(scope, options.entry?.id ?? null, view.structure, view.staging ? SCRIPT_PATH : undefined)
+			: [],
 		outsideScripts: await pageOutsideScripts(scope),
 		// Like outside scripts, Modules' Site scripts never run in Edit mode.
 		moduleScripts: editing
@@ -1599,7 +1773,7 @@ async function renderSitePage(
 					beforeConsent: script.beforeConsent,
 				})),
 		// People editing are never asked for consent (ADR 0022).
-		consent: editing ? undefined : await pageConsent(scope, languages),
+		consent: editing ? undefined : await pageConsent(scope, languages, view.version),
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields)),
@@ -1617,6 +1791,17 @@ async function renderSitePage(
 		? { "content-security-policy": editModePolicy(hosts) }
 		: pagePolicyHeaders({ mode: host.cspMode, hosts, frames: rendered.frames });
 	return { html: rendered.html, headers, expiresAt, pagination: loops.pagination, forms: forms.shown };
+}
+
+/**
+ * A page's SEO on the Staging address (ADR 0014): never indexed, and never anyone's canonical address.
+ * While the Site has no domain its pages' canonical URLs would point at the Staging address itself,
+ * so they have none there; once it has a Primary domain they point there, as on the domain.
+ */
+function stagingSeo(view: View, seo: PageToRender["seo"]): PageToRender["seo"] {
+	if (!view.staging || !seo) return seo;
+	const own = seo.canonical?.startsWith(`${view.host.origin}/`) || seo.canonical === view.host.origin;
+	return { ...seo, noindex: true, canonical: own ? null : seo.canonical };
 }
 
 /**

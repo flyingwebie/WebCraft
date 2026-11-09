@@ -6,13 +6,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let siteId: string;
 let editor: TestBrowser;
 let postTypeId: string;
 
-const onSite = (path: string) => `https://studio.sites.test${path}`;
+const onSite = (path: string) => `https://studio.live.test${path}`;
 
 const SVG_NS = 'xmlns="http://www.w3.org/2000/svg"';
 const XLINK_NS = 'xmlns:xlink="http://www.w3.org/1999/xlink"';
@@ -46,6 +47,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace()).id;
 	siteId = (await install.createSite(workspaceId, { slug: "studio" })).id;
+	await goLive(install, siteId);
 	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	const { postType } = await staff.api.postTypes.create({

@@ -1,5 +1,6 @@
 import { foreignKey, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
+import { people } from "./people.ts";
 import { sites } from "./tenancy.ts";
 
 // Forms (`@webcraft/core` › forms): what visitors fill in on a Site. A Form is Structure with a Draft
@@ -34,8 +35,13 @@ export const forms = pgTable(
 		/** The emails a Submission sets off; null until they are first published. */
 		emailsPublished: jsonb("emails_published"),
 		emailsLastPublishedAt: timestamp("emails_last_published_at", { withTimezone: true }),
+		/** When the emails' Draft was last changed, and by whom: what Publish all says about them. */
+		emailsUpdatedAt: timestamp("emails_updated_at", { withTimezone: true }),
+		emailsUpdatedBy: uuid("emails_updated_by").references(() => people.id, { onDelete: "set null" }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
+		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},

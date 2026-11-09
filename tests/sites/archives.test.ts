@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -18,6 +19,7 @@ beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-04-01T09:00:00Z") });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	await staff.api.languages.add({ siteId, code: "fr" });
 	recipesId = (
@@ -48,7 +50,7 @@ afterAll(async () => {
 	await install.close();
 });
 
-const get = (path: string) => install.request(`https://bakery.sites.test${path}`, { redirect: "manual" });
+const get = (path: string) => install.request(`https://bakery.live.test${path}`, { redirect: "manual" });
 
 async function mainOf(response: Response): Promise<string> {
 	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
@@ -69,9 +71,9 @@ describe("an Archive template", () => {
 		expect(response.status).toBe(200);
 		const html = await response.text();
 		expect(html).toContain("<title>Recipes · Acme Bakery</title>");
-		expect(html).toContain('<link rel="alternate" hreflang="en" href="https://bakery.sites.test/recipes">');
-		expect(html).toContain('<link rel="alternate" hreflang="fr" href="https://bakery.sites.test/fr/recipes">');
-		expect(html).toContain('<link rel="alternate" hreflang="x-default" href="https://bakery.sites.test/recipes">');
+		expect(html).toContain('<link rel="alternate" hreflang="en" href="https://bakery.live.test/recipes">');
+		expect(html).toContain('<link rel="alternate" hreflang="fr" href="https://bakery.live.test/fr/recipes">');
+		expect(html).toContain('<link rel="alternate" hreflang="x-default" href="https://bakery.live.test/recipes">');
 		expect(html).toContain('href="/_wc/lang/fr/recipes"');
 		expect(await mainOf(await get("/recipes"))).toBe("<h1>Recipes</h1><p>Apple tart</p><p>Brioche</p>");
 		expect(await mainOf(await get("/fr/recipes"))).toBe("<h1>Recettes</h1><p>Apple tart</p><p>Brioche</p>");
@@ -128,7 +130,7 @@ describe("pagination", () => {
 		const secondHtml = await second.text();
 		expect(secondHtml).toContain("<title>Recipes · Page 2 · Acme Bakery</title>");
 		expect(secondHtml).toContain(
-			'<link rel="alternate" hreflang="fr" href="https://bakery.sites.test/fr/recipes?page=2">',
+			'<link rel="alternate" hreflang="fr" href="https://bakery.live.test/fr/recipes?page=2">',
 		);
 		expect(/<main[^>]*>([\s\S]*)<\/main>/.exec(secondHtml)?.[1]).toBe(
 			"<p>Crumble</p>" +
@@ -178,10 +180,8 @@ describe("pagination", () => {
 		expect(/<main[^>]*>([\s\S]*)<\/main>/.exec(paged)?.[1]).toContain("<p>Crumble</p>");
 		// Its title says which page it is, and its alternates are that page in each language, as an Archive's.
 		expect(paged).toContain("<title>About · Page 2 · Acme Bakery</title>");
-		expect(paged).toContain('<link rel="alternate" hreflang="fr" href="https://bakery.sites.test/fr/about?page=2">');
-		expect(paged).toContain(
-			'<link rel="alternate" hreflang="x-default" href="https://bakery.sites.test/about?page=2">',
-		);
+		expect(paged).toContain('<link rel="alternate" hreflang="fr" href="https://bakery.live.test/fr/about?page=2">');
+		expect(paged).toContain('<link rel="alternate" hreflang="x-default" href="https://bakery.live.test/about?page=2">');
 		const onEntry = await get("/recipes/brioche?page=2");
 		expect(onEntry.status).toBe(301);
 		expect(onEntry.headers.get("location")).toBe("/recipes/brioche");

@@ -44,6 +44,7 @@ describe("the role table", () => {
 			site: [
 				"module.manage",
 				"site.view",
+				"staging.manage",
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
@@ -73,6 +74,7 @@ describe("the role table", () => {
 			site: [
 				"module.manage",
 				"site.view",
+				"staging.manage",
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
@@ -85,7 +87,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("owner: manages Members, publishes and deletes Entries, changes Form emails, imports CSV files, but never changes Structure or creates Sites", async () => {
+	test("owner: manages Members and the staging password, publishes and deletes Entries, changes Form emails, imports CSV files, but never changes Structure or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -93,6 +95,7 @@ describe("the role table", () => {
 			workspace: ["audit.view", "workspace.view", "member.invite", "member.manage"],
 			site: [
 				"site.view",
+				"staging.manage",
 				"entry.edit",
 				"entry.publish",
 				"formEmails.edit",
@@ -185,6 +188,7 @@ describe("each role against Workspace and Site scope", () => {
 	const onSite = {
 		owner: [
 			"site.view",
+			"staging.manage",
 			"entry.edit",
 			"entry.publish",
 			"formEmails.edit",

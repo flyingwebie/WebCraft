@@ -40,8 +40,10 @@ export const PERMISSIONS = {
 	"module.manage": ["workspace", "site"],
 	/** Set or remove a Workspace's Media storage quota (Staff: it keeps one client from filling the server). */
 	"quota.manage": ["workspace"],
-	/** See a Site and open it in the admin. */
+	/** See a Site and open it in the admin, and on its Staging address. */
 	"site.view": ["site"],
+	/** Set or remove the Site's staging password, which lets people without an account see its Staging address. */
+	"staging.manage": ["site"],
 	/** Change a Site's Structure: Post Types, Fields, Templates, Components, the Design system, settings. */
 	"structure.edit": ["site"],
 	/** Edit Content and save Drafts. */
@@ -105,6 +107,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"module.manage",
 			"quota.manage",
 			"site.view",
+			"staging.manage",
 			"structure.edit",
 			"entry.edit",
 			"entry.publish",
@@ -123,6 +126,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"member.invite",
 			"member.manage",
 			"site.view",
+			"staging.manage",
 			"entry.edit",
 			"entry.publish",
 			"formEmails.edit",

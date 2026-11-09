@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -30,6 +31,7 @@ type TestSite = { siteId: string; postTypeId: string; origin: string };
 async function newSite(languages: string[]): Promise<TestSite> {
 	const slug = `switcher-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	for (const code of languages) await staff.api.languages.add({ siteId, code });
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const entryTemplate = await staff.api.templates.saveEntryTemplateMarkup({
@@ -43,7 +45,7 @@ async function newSite(languages: string[]): Promise<TestSite> {
 		markup: "<header>{{@languageSwitcher}}</header><main>{{@outlet}}</main>",
 	});
 	await staff.api.templates.publish({ siteId, templateId: siteTemplate.template.id });
-	return { siteId, postTypeId: postType.id, origin: `https://${slug}.sites.test` };
+	return { siteId, postTypeId: postType.id, origin: `https://${slug}.live.test` };
 }
 
 async function publishedEntry(site: TestSite, title: string, change: { frenchSlug?: string; hidden?: string[] } = {}) {

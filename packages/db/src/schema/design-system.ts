@@ -1,5 +1,6 @@
 import { boolean, foreignKey, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
+import { people } from "./people.ts";
 import { sites } from "./tenancy.ts";
 
 // The Design system (ADR 0009): a Site's Design tokens, Classes, base styles and custom CSS. Site
@@ -26,6 +27,8 @@ export const designSystems = pgTable(
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		/** When the Draft was last saved. */
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
+		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},

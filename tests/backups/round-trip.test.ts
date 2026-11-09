@@ -19,9 +19,10 @@ import {
 	type TestInstall,
 } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 import { csvSettings, importCsv } from "../imports/support.ts";
 
-const SITE = "https://bakery.sites.test";
+const SITE = "https://bakery.live.test";
 
 let source: TestInstall;
 let restored: TestInstall;
@@ -45,6 +46,7 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
 	const workspaceId = (await source.createWorkspace("Acme Ltd")).id;
 	siteId = (await source.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(source, siteId);
 	const staffMember = await source.createStaff({ workspaces: [workspaceId] });
 	const staff = staffMember.browser;
 	staffAccount = staffMember.account;

@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -27,7 +28,9 @@ beforeAll(async () => {
 	admin = await install.superadmin();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	otherSiteId = (await install.createSite(workspaceId, { slug: "careers" })).id;
+	await goLive(install, otherSiteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	author = (await install.createMember({ workspaceId, role: "author" })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
@@ -228,7 +231,7 @@ describe("deleting an Entry", () => {
 		const draftOnly = await entryOf("blog", "Starter", { tags: [tag.id, kept.id] });
 		const live = await entryOf("blog", "Country loaf", { tags: [kept.id, tag.id] });
 		await editor.api.entries.publish({ siteId, entryId: live.id });
-		const page = async () => (await install.request("https://bakery.sites.test/blog/country-loaf")).text();
+		const page = async () => (await install.request("https://bakery.live.test/blog/country-loaf")).text();
 		expect(await page()).toContain("<p>Rustic, Sourdough</p>");
 
 		const asked = await editor.api.entries.delete({ siteId, entryId: tag.id });
@@ -264,7 +267,7 @@ describe("deleting an Entry", () => {
 		expect(asked).toMatchObject({ deleted: false, links: 0 });
 		await editor.api.entries.delete({ siteId, entryId: post.id, confirmation: asked.confirmation?.id });
 
-		expect((await install.request("https://bakery.sites.test/blog/brioche")).status).toBe(404);
+		expect((await install.request("https://bakery.live.test/blog/brioche")).status).toBe(404);
 		const [audit] = (await admin.api.audit.list({ limit: 1 })).entries;
 		expect(audit).toMatchObject({
 			action: "entry.delete",

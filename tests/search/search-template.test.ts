@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, searchElement, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -13,12 +14,13 @@ let staff: TestBrowser;
 let owner: TestBrowser;
 let siteId: string;
 let recipesId: string;
-const SITE = "https://bakery.sites.test";
+const SITE = "https://bakery.live.test";
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 	recipesId = (

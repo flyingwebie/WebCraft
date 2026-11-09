@@ -9,6 +9,7 @@ import { headOf } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 import { sample } from "./sample/index.ts";
 
 let install: TestInstall;
@@ -32,11 +33,12 @@ let sites = 0;
 async function newSite() {
 	const slug = `module-script-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery", slug });
+	await goLive(install, siteId);
 	const pages = (await staff.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.builtIn === "page");
 	const { entry } = await staff.api.entries.create({ siteId, postTypeId: pages?.id as string, title: "Home" });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });
 	await staff.api.pages.setHomePage({ siteId, pageId: entry.id });
-	return { siteId, url: (path: string) => `https://${slug}.sites.test${path}` };
+	return { siteId, url: (path: string) => `https://${slug}.live.test${path}` };
 }
 
 /** The Module's script on a page: where it is (held back in its category's <template>, or loaded), and its address. */

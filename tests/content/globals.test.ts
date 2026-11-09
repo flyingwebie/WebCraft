@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -19,6 +20,7 @@ beforeAll(async () => {
 	admin = await install.superadmin();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
@@ -220,7 +222,7 @@ describe("site.x in Templates", () => {
 			slug: "about",
 		});
 		await editor.api.entries.publish({ siteId, entryId: entry.id });
-		const page = async () => (await install.request("https://bakery.sites.test/about")).text();
+		const page = async () => (await install.request("https://bakery.live.test/about")).text();
 
 		expect(await page()).toContain(
 			'<footer><a href="tel:01 234 5678">01 234 5678</a><p>, Dublin</p><p>Monday</p><div><p>Fresh <em>every</em> day</p></div></footer>',

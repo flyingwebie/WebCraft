@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -35,6 +36,7 @@ type Bakery = { siteId: string; origin: string; entryId: string; otherId: string
 async function bakery(): Promise<Bakery> {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	await staff.api.globals.setFields({ siteId, fields: [{ key: "tagline", label: "Tagline", type: "text" }] });
 	await editor.api.globals.saveDraft({ siteId, fields: { tagline: "Baked daily" } });
 	await editor.api.globals.publish({ siteId });
@@ -76,7 +78,7 @@ async function bakery(): Promise<Bakery> {
 	const { entry: about } = await editor.api.entries.create({ siteId, postTypeId: pages.id, title: "About us" });
 	await editor.api.entries.publish({ siteId, entryId: about.id });
 	await staff.api.pages.setHomePage({ siteId, pageId: about.id });
-	return { siteId, origin: `https://${slug}.sites.test`, entryId, otherId, postTypeId: postType.id };
+	return { siteId, origin: `https://${slug}.live.test`, entryId, otherId, postTypeId: postType.id };
 }
 
 async function json(response: Response): Promise<Record<string, unknown>> {
@@ -260,10 +262,14 @@ describe("around the page", () => {
 
 		const state = await stateOf(editing, "/blog/fresh-bread");
 
-		expect(state.publishAll).toEqual({ url: `https://admin.test/sites/${site.siteId}`, otherDrafts: 1 });
+		// Publish all opens at once there, listing every Draft the person may publish.
+		expect(state.publishAll).toEqual({
+			url: `https://admin.test/sites/${site.siteId}?publishAll=1`,
+			otherDrafts: 1,
+		});
 	});
 
-	test("lists the Site's pages for the page switcher, the home page first", async () => {
+	test("lists the Site's pages for the page switcher, the home page first; one never published at its Draft's address", async () => {
 		const site = await bakery();
 		await editor.api.entries.create({ siteId: site.siteId, postTypeId: site.postTypeId, title: "Never published" });
 		const editing = await openEditMode(install, editor, site.siteId, "/");
@@ -274,8 +280,10 @@ describe("around the page", () => {
 		expect(state.pages).toEqual([
 			{ title: "About us", path: "/" },
 			{ title: "Fresh bread", path: "/blog/fresh-bread" },
+			{ title: "Never published", path: "/blog/never-published" },
 			{ title: "Scones", path: "/blog/scones" },
 		]);
+		expect((await editing.page("/blog/never-published")).status).toBe(200);
 	});
 
 	test("the 404 page has no Entry of its own; the Globals it shows are still the page's", async () => {

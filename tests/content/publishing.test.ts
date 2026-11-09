@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -18,6 +19,7 @@ beforeAll(async () => {
 	admin = await install.superadmin();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	roles = {
 		owner: await install.createMember({ workspaceId, role: "owner" }),
@@ -47,7 +49,7 @@ afterAll(async () => {
 	await install.close();
 });
 
-const page = (slug: string) => install.request(`https://bakery.sites.test/products/${slug}`);
+const page = (slug: string) => install.request(`https://bakery.live.test/products/${slug}`);
 
 describe("who publishes an Entry", () => {
 	test("Editors and Owners publish; the page is live at once", async () => {
@@ -149,10 +151,10 @@ describe("what can be published", () => {
 			tree: tree(element("h1", [value("title")])),
 		});
 
-		expect((await install.request("https://bakery.sites.test/events/open-day")).status).toBe(404);
+		expect((await install.request("https://bakery.live.test/events/open-day")).status).toBe(404);
 
 		await staff.api.templates.publish({ siteId, templateId: template.id });
-		expect((await install.request("https://bakery.sites.test/events/open-day")).status).toBe(200);
+		expect((await install.request("https://bakery.live.test/events/open-day")).status).toBe(200);
 	});
 
 	test("a Template that reads a Field its Post Type no longer has can't be published", async () => {

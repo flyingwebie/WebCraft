@@ -29,6 +29,8 @@ async function siteWithPost(siteSlug: string, darkMode: boolean): Promise<void> 
 	const { api } = await local.superadmin();
 	const workspaceId = (await local.createWorkspace(`Acme ${siteSlug}`)).id;
 	const siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: siteSlug })).id;
+	// Visitors see the Site on its domain; its Staging address is for the people reviewing it.
+	await install.goLive(siteId);
 	/** A published Component with required text Props and its markup. */
 	const component = async (name: string, props: { key: string; label: string }[], markup: string) => {
 		const made = await api.components.create({
@@ -102,7 +104,7 @@ for (const theme of THEMES) {
 		] as const) {
 			test(name, async () => {
 				const page = await install.newPage(theme);
-				await page.goto(install.siteUrl(siteSlug, path));
+				await page.goto(install.liveUrl(siteSlug, path));
 				await page.waitForLoadState("load");
 
 				await expectAccessibleScreen(page, `${name} (${theme})`);
@@ -114,7 +116,7 @@ for (const theme of THEMES) {
 describe("the Design system's page parts", () => {
 	test("the skip link stays out of sight until it has focus, then shows at the top of the page", async () => {
 		const page = await install.newPage("light");
-		await page.goto(install.siteUrl(slug, "/blog/fresh-bread"));
+		await page.goto(install.liveUrl(slug, "/blog/fresh-bread"));
 		const link = page.getByRole("link", { name: "Skip to main content" });
 
 		const hidden = await link.boundingBox();
@@ -129,7 +131,7 @@ describe("the Design system's page parts", () => {
 
 	test("the theme toggle switches the page's theme from the keyboard, and the choice is kept", async () => {
 		const page = await install.newPage("light");
-		await page.goto(install.siteUrl(darkSlug, "/blog/fresh-bread"));
+		await page.goto(install.liveUrl(darkSlug, "/blog/fresh-bread"));
 		const toggle = page.getByRole("button", { name: "Dark theme" });
 		// The colour people see: read after the next paint, once any change has been drawn.
 		const background = () =>
@@ -167,7 +169,7 @@ describe("the Design system's page parts", () => {
 
 	test("without dark mode, pages carry no script and no toggle", async () => {
 		const page = await install.newPage("dark");
-		await page.goto(install.siteUrl(slug, "/blog/fresh-bread"));
+		await page.goto(install.liveUrl(slug, "/blog/fresh-bread"));
 
 		// No script that runs: the page's structured data is a data block, never run.
 		expect(await page.locator('script:not([type="application/ld+json"])').count()).toBe(0);

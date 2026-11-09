@@ -111,9 +111,19 @@ export async function lockBanner(scope: SiteScope): Promise<ConsentBannerRow> {
  * What a visitor's page shows of the Site's banner, in the page's language (its published words,
  * WebCraft's own where nobody wrote one), or undefined with the mode None (nothing is asked).
  */
-export async function pageConsent(scope: BannerReader, languages: Languages): Promise<PageConsent | undefined> {
+export async function pageConsent(
+	scope: BannerReader,
+	languages: Languages,
+	/** Which version of its words: the published ones, or the Draft, as the Staging address shows them. */
+	which: "published" | "draft" = "published",
+): Promise<PageConsent | undefined> {
 	const row = await bannerRow(scope);
 	const settings = settingsOf(row);
 	if (settings.mode === "none") return undefined;
-	return { mode: settings.mode, layout: settings.layout, version: settings.version, ...publishedWords(row, languages) };
+	return {
+		mode: settings.mode,
+		layout: settings.layout,
+		version: settings.version,
+		...publishedWords(row, languages, which),
+	};
 }

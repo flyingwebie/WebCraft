@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 import { SAMPLE_HOOK, sample } from "./sample/index.ts";
 
 const MINUTE = 60_000;
@@ -36,6 +37,7 @@ const notes = (browser: TestBrowser) => moduleApi<typeof sample>(browser, "sampl
 /** A Site with a published Entry template, and a Draft Entry ready to publish. */
 async function siteWithEntry() {
 	const site = await install.createSite(workspaceId);
+	await goLive(install, site.id);
 	const { postType } = await staff.api.postTypes.create({
 		siteId: site.id,
 		name: "Posts",
@@ -118,7 +120,7 @@ describe("events", () => {
 
 		await staff.api.entries.publish({ siteId, entryId });
 
-		expect((await install.request(`https://${slug}.sites.test/posts/hello`)).status).toBe(200);
+		expect((await install.request(`https://${slug}.live.test/posts/hello`)).status).toBe(200);
 		const first = await install.drainJobs();
 		expect(first.failed.map((job) => job.name)).toEqual(["modules.event"]);
 		const admin = await install.superadmin();
@@ -170,6 +172,7 @@ describe("events", () => {
 describe("a Module's own jobs", () => {
 	test("run in the background, when they are due, in the place they were queued from", async () => {
 		const site = await install.createSite(workspaceId);
+		await goLive(install, site.id);
 		const { note } = await notes(staff).add({ siteId: site.id, body: "Remind me" });
 
 		await notes(staff).remind({ siteId: site.id, noteId: note.id, delaySeconds: 3600 });
@@ -188,6 +191,7 @@ describe("a Module's own jobs", () => {
 
 	test("queued in a change that was rolled back never run", async () => {
 		const site = await install.createSite(workspaceId);
+		await goLive(install, site.id);
 		const { note } = await notes(staff).add({ siteId: site.id, body: "Remind me, or not" });
 
 		await expect(
@@ -215,6 +219,7 @@ describe("outside calls", () => {
 
 	test("carry a secret in the address too, written so it can't change the address", async () => {
 		const site = await install.createSite(workspaceId);
+		await goLive(install, site.id);
 		const settings = moduleApi<typeof sample>(staff, "sample").settings;
 		await settings.setHookToken({ siteId: site.id, token: "a token/with?odd&chars#0123" });
 		install.http.respond("GET", /^https:\/\/hooks\.sample\.example\/check\//, { status: 204 });
@@ -230,6 +235,7 @@ describe("outside calls", () => {
 
 	test("that fail never hand the secret back to the Module, in the error or anything behind it", async () => {
 		const site = await install.createSite(workspaceId);
+		await goLive(install, site.id);
 		const settings = moduleApi<typeof sample>(staff, "sample").settings;
 		await settings.setHookToken({ siteId: site.id, token: "never-shown-token-0123456789" });
 		// The call fails the way an unreachable host does, with an error naming the address.
@@ -382,6 +388,7 @@ describe("outside calls", () => {
 describe("email", () => {
 	test("goes out through WebCraft's email, in the Module's words, recorded in the Email log", async () => {
 		const site = await install.createSite(workspaceId);
+		await goLive(install, site.id);
 		const { note } = await notes(staff).add({ siteId: site.id, body: "The van arrives at 9." });
 
 		const { results } = await notes(staff).share({ siteId: site.id, noteId: note.id, email: "driver@client.example" });
