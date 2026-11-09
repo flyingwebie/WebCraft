@@ -1,5 +1,5 @@
 import { siteLanguages as siteLanguageRows, sites } from "@webcraft/db/schema";
-import { directionOf } from "@webcraft/renderer";
+import { canonicalLanguage, directionOf } from "@webcraft/renderer";
 import { asc, eq } from "drizzle-orm";
 
 import type { SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
@@ -95,19 +95,7 @@ export function languageName(code: string): string {
 	}
 }
 
-/** A language tag WebCraft keeps: a language, with an optional script and region (`zh-Hant`, `pt-BR`, `es-419`). */
-const LANGUAGE_TAG = /^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|\d{3}))?$/;
-
-/** A BCP 47 tag in its canonical form (`PT-br` gives `pt-BR`), or undefined when it isn't one WebCraft keeps. */
-export function canonicalLanguage(input: string): string | undefined {
-	let canonical: string | undefined;
-	try {
-		[canonical] = Intl.getCanonicalLocales(input.trim());
-	} catch {
-		return undefined;
-	}
-	return canonical && LANGUAGE_TAG.test(canonical) ? canonical : undefined;
-}
+export { canonicalLanguage };
 
 /**
  * The Site language `language` names (the Default language when absent), with the Default language

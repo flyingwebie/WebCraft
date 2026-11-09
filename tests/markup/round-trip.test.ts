@@ -241,7 +241,17 @@ describe("generated trees", () => {
 		fc.record({ type: fc.constant("truncate"), length: fc.integer({ min: 1, max: 10_000 }) }),
 	);
 	const valueArb = fc.record({ path, format }).map(({ path: name, format: chosen }) => value(name, chosen));
-	const part = fc.oneof(textArb.map(text), valueArb);
+	// Fixed text with values in other languages.
+	const translatedArb = fc
+		.record({
+			text: textArb,
+			translations: fc.dictionary(fc.constantFrom("fr", "de", "pt-BR", "zh-Hant"), textArb.filter(Boolean), {
+				minKeys: 1,
+				maxKeys: 3,
+			}),
+		})
+		.map(({ text: written, translations }) => ({ type: "text", text: written, translations }) as const);
+	const part = fc.oneof(textArb.map(text), valueArb, translatedArb);
 	const attributes = fc.uniqueArray(
 		fc.record({
 			name: fc.constantFrom("title", "aria-label", "data-x", "href", "lang", "hidden", "alt", "data-long-name"),
@@ -285,6 +295,7 @@ describe("generated trees", () => {
 			{ depthSize: "small", withCrossShrink: true },
 			textArb.map(text),
 			valueArb,
+			translatedArb,
 			commentText.map((comment) => ({ type: "comment", text: comment })),
 			fc
 				.record({ tag: fc.constantFrom(...voids), attributes, classes: fc.subarray([0, 1, 2]) })

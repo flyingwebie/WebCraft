@@ -6,7 +6,7 @@
  * A tree is a list of nodes:
  * - an element: a stable `id`, an HTML `tag`, ordered `attributes`, Class references by id
  *   (`classes`, ADR 0009) and `children`;
- * - fixed text;
+ * - fixed text, as written and, optionally, in other languages (`translations`, see `languages.ts`);
  * - a value: a binding to the value at `path` (`title`, a Field key; later `site.x`, `props.x`,
  *   `item.x`), optionally through a formatter, read where the page renders and escaped for where it
  *   lands;
@@ -22,6 +22,7 @@
 import { type CommandNode, commandForNode } from "./commands.ts";
 import { checkExpression, type Expression, expressionPaths } from "./expressions.ts";
 import { checkFormat, type ValueFormat } from "./formatters.ts";
+import { canonicalLanguage, languageTagMessage, type Translations } from "./languages.ts";
 
 /** The version of the element tree format, stored in every tree. */
 export const ELEMENT_TREE_VERSION = 1;
@@ -45,7 +46,11 @@ export type ElementNode = {
 	children: TreeNode[];
 };
 
-export type TextNode = { type: "text"; text: string };
+/**
+ * Fixed text: the text as written and, optionally, its text in other languages by BCP 47 tag, which
+ * pages in those languages show instead.
+ */
+export type TextNode = { type: "text"; text: string; translations?: Translations };
 
 /** A binding: the value at `path`, such as `title` or a Field key, optionally through a formatter. */
 export type ValueNode = { type: "value"; path: string; format?: ValueFormat };
@@ -243,6 +248,11 @@ export function isValuePath(path: string): boolean {
 
 /** A UTF-16 surrogate without its pair: not a character, and not storable as JSON in Postgres. */
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/** Whether fixed text shows anything but whitespace, in any language. */
+export function hasText(node: TextNode): boolean {
+	return Boolean(node.text.trim()) || Object.values(node.translations ?? {}).some((text) => text.trim());
+}
 
 /** Why text can't be stored, or undefined. */
 export function textProblem(text: string): string | undefined {
@@ -490,13 +500,16 @@ export type TreeCheck = (
 /** The most problems one error reports; the first ones are enough to fix. */
 export const MAX_PROBLEMS = 20;
 
-/** Nodes in canonical form: text next to text joined, empty text dropped. */
+/**
+ * Nodes in canonical form: text next to text joined, empty text dropped. Text with values in other
+ * languages stays apart: each piece has its own.
+ */
 export function canonicalNodes<Node extends TreeNode | AttributePart>(nodes: readonly Node[]): Node[] {
 	const joined: Node[] = [];
 	for (const node of nodes) {
-		if (node.type === "text" && node.text === "") continue;
+		if (node.type === "text" && node.text === "" && !node.translations) continue;
 		const previous = joined.at(-1);
-		if (node.type === "text" && previous?.type === "text") {
+		if (node.type === "text" && !node.translations && previous?.type === "text" && !previous.translations) {
 			joined[joined.length - 1] = { type: "text", text: previous.text + node.text } as Node;
 		} else {
 			joined.push(node);
@@ -555,12 +568,40 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		return { type: "value", path, format: checked.format };
 	};
 
+	/** A text node's values in other languages: by canonical tag, empty ones dropped; none when there are none. */
+	const parseTranslations = (input: unknown, at: string): Translations | undefined => {
+		if (input === undefined || input === null) return undefined;
+		if (typeof input !== "object" || Array.isArray(input)) {
+			problem(at, "A text's other languages are its text in each, by language tag.");
+			return undefined;
+		}
+		const translations: Translations = {};
+		for (const [tag, text] of Object.entries(input as Record<string, unknown>)) {
+			const language = canonicalLanguage(tag);
+			if (!language) {
+				problem(at, languageTagMessage(tag));
+				continue;
+			}
+			if (Object.hasOwn(translations, language)) {
+				problem(at, `${language} is given twice.`);
+				continue;
+			}
+			const checked = parseText(text, `${at}.${language}`);
+			if (checked) translations[language] = checked;
+		}
+		return Object.keys(translations).length > 0 ? translations : undefined;
+	};
+
+	const parseTextNode = (raw: Record<string, unknown>, at: string): TextNode | undefined => {
+		const text = parseText(raw.text, `${at}.text`);
+		const translations = parseTranslations(raw.translations, `${at}.translations`);
+		if (text === undefined) return undefined;
+		return translations ? { type: "text", text, translations } : { type: "text", text };
+	};
+
 	const parsePart = (part: unknown, at: string): AttributePart | undefined => {
 		const raw = (part ?? {}) as Record<string, unknown>;
-		if (raw.type === "text") {
-			const text = parseText(raw.text, `${at}.text`);
-			return text === undefined ? undefined : { type: "text", text };
-		}
+		if (raw.type === "text") return parseTextNode(raw, at);
 		if (raw.type === "value") return parseValue(raw, at);
 		problem(at, "An attribute's value is made of text and values.");
 		return undefined;
@@ -647,9 +688,9 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		};
 		switch (raw.type) {
 			case "text": {
-				const text = parseText(raw.text, `${at}.text`);
-				if (text?.trim()) placement();
-				return text === undefined ? undefined : { type: "text", text };
+				const node = parseTextNode(raw, at);
+				if (node && hasText(node)) placement();
+				return node;
 			}
 			case "value":
 				placement();
