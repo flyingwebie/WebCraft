@@ -13,11 +13,12 @@ type Executor = Database["db"] | Transaction;
  * Workspaces, which is why it doesn't go through the Workspace data layer.
  */
 export async function loadPersonActor(executor: Executor, personId: string): Promise<PersonActor> {
-	const [roleRows, membershipRows, siteRows] = await Promise.all([
+	const roles = () =>
 		executor
 			.select({ role: installRoles.role, allWorkspaces: installRoles.allWorkspaces })
 			.from(installRoles)
-			.where(eq(installRoles.personId, personId)),
+			.where(eq(installRoles.personId, personId));
+	const memberRows = () =>
 		executor
 			.select({
 				id: memberships.id,
@@ -26,13 +27,17 @@ export async function loadPersonActor(executor: Executor, personId: string): Pro
 				allSites: memberships.allSites,
 			})
 			.from(memberships)
-			.where(eq(memberships.personId, personId)),
+			.where(eq(memberships.personId, personId));
+	const siteRowsOf = () =>
 		executor
 			.select({ membershipId: membershipSites.membershipId, siteId: membershipSites.siteId })
 			.from(membershipSites)
 			.innerJoin(memberships, eq(memberships.id, membershipSites.membershipId))
-			.where(eq(memberships.personId, personId)),
-	]);
+			.where(eq(memberships.personId, personId));
+	// On the pool the three run side by side; a transaction has one connection, which takes one at a time.
+	const [roleRows, membershipRows, siteRows] = isTransaction(executor)
+		? [await roles(), await memberRows(), await siteRowsOf()]
+		: await Promise.all([roles(), memberRows(), siteRowsOf()]);
 
 	let installRole: PersonActor["installRole"] = null;
 	const [role] = roleRows;
@@ -57,4 +62,9 @@ export async function loadPersonActor(executor: Executor, personId: string): Pro
 	}));
 
 	return { kind: "person", personId, installRole, memberships: membershipList };
+}
+
+/** Whether an executor is a transaction (one connection) rather than the pool. */
+function isTransaction(executor: Executor): boolean {
+	return "rollback" in executor;
 }

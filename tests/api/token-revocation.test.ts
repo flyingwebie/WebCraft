@@ -8,12 +8,17 @@ import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;
+/** What the database client warned about while these tests ran. */
+const warnings: string[] = [];
+const noteWarning = (warning: Error) => warnings.push(warning.message);
 
 beforeAll(async () => {
 	install = await createTestInstall();
+	process.on("warning", noteWarning);
 });
 
 afterAll(async () => {
+	process.off("warning", noteWarning);
 	await install.close();
 });
 
@@ -180,4 +185,9 @@ describe("checked live on every request", () => {
 		await install.clock.advance(15 * 60 * 1000);
 		await script.api.workspaces.get({ workspaceId: workspace.id });
 	});
+});
+
+test("revoking inside the change that took access asks the database one thing at a time", () => {
+	// A transaction holds one connection: two queries sent on it at once are refused by newer clients.
+	expect(warnings.filter((message) => message.includes("already executing a query"))).toEqual([]);
 });

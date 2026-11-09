@@ -7,10 +7,11 @@ import type { Clock } from "./clock.ts";
 import { isUuid } from "./ids.ts";
 import type { People, Person } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
-import { can, type PersonActor, type Reach, type TokenActor, workspacesReached } from "./permissions/can.ts";
+import { can, type PersonActor, type Reach, type TokenActor } from "./permissions/can.ts";
 import type { RateLimitRule, RateLimits, RateLimitTally } from "./rate-limits.ts";
 import type { Access, Executor, WorkspaceScope } from "./tenancy/data-layer.ts";
 import { SiteNotFoundError } from "./tenancy/errors.ts";
+import { visibleWorkspaces } from "./tenancy/workspaces.ts";
 import { newToken } from "./tokens.ts";
 
 /**
@@ -162,16 +163,6 @@ export type ApiTokens = {
 	 * `write` against `writes` too. Answers each count, so the caller refuses past either.
 	 */
 	count(tokenId: string, access: ApiAccess): Promise<{ requests: RateLimitTally; writes: RateLimitTally | null }>;
-	/**
-	 * Revokes the person's tokens whose Workspace (or every listed Site) they no longer reach, inside
-	 * the transaction of the change that took their access (a Membership removed, Staff Workspaces
-	 * changed). Logged as `apiToken.revoke` with `reason: "access"`, as `by` did it.
-	 */
-	revokeUnreachable(
-		executor: Executor,
-		personId: string,
-		by: { personId: string | null; via: AuditVia },
-	): Promise<number>;
 };
 
 export function createApiTokens({
@@ -249,16 +240,7 @@ export function createApiTokens({
 		},
 
 		async offer(actor) {
-			const reached = workspacesReached(actor);
-			if (reached !== "all" && reached.length === 0) return [];
-			const workspaceRows = await db
-				.select({ id: workspaces.id, name: workspaces.name })
-				.from(workspaces)
-				.where(reached === "all" ? undefined : inArray(workspaces.id, [...reached]))
-				.orderBy(asc(workspaces.name), asc(workspaces.createdAt));
-			const visible = workspaceRows.filter((row) =>
-				can(actor, "workspace.view", { level: "workspace", workspaceId: row.id }),
-			);
+			const visible = (await visibleWorkspaces(db, actor)).map(({ id, name }) => ({ id, name }));
 			if (visible.length === 0) return [];
 			const siteRows = await db
 				.select({ id: sites.id, name: sites.name, workspaceId: sites.workspaceId })
@@ -413,8 +395,6 @@ export function createApiTokens({
 					: null;
 			return { requests, writes };
 		},
-
-		revokeUnreachable: (executor, personId, by) => revokeTokensOutOfReach(executor, personId, clock.now(), by),
 	};
 }
 
