@@ -1,3 +1,5 @@
+import { ALLOWED_HOSTS_PER_SITE } from "./policy.ts";
+
 /** There is no outside script with that id on the Site. */
 export class OutsideScriptNotFoundError extends Error {
 	override name = "OutsideScriptNotFoundError";
@@ -61,5 +63,13 @@ export class LibraryRefusedError extends Error {
 	constructor(problem: LibraryProblem, options?: ErrorOptions) {
 		super(MESSAGES[problem], options);
 		this.problem = problem;
+	}
+}
+
+/** A Site holds as many allowed hosts as it may (Staff's and those its outside scripts need). */
+export class TooManyHostsError extends Error {
+	override name = "TooManyHostsError";
+	constructor() {
+		super(`A Site allows at most ${ALLOWED_HOSTS_PER_SITE} hosts.`);
 	}
 }

@@ -5,13 +5,16 @@
  */
 import { type GuardedFetch, GuardedFetchError } from "../guarded-fetch.ts";
 import { LibraryRefusedError } from "./errors.ts";
-import { gunzip, readTar } from "./tar.ts";
+import { ArchiveTooLargeError, gunzip, readTar } from "./tar.ts";
 
 /** The registry Libraries come from. */
 export const NPM_REGISTRY = "https://registry.npmjs.org";
 
 /** The largest package archive downloaded, in bytes. */
 const ARCHIVE_MAX_BYTES = 20 * 1024 * 1024;
+
+/** The most a package archive may unpack to: it is read in memory, so a small archive can't fill it. */
+export const LIBRARY_ARCHIVE_UNPACKED_MAX_BYTES = 64 * 1024 * 1024;
 
 /** The largest list of a package's versions read, in bytes. */
 const VERSIONS_MAX_BYTES = 20 * 1024 * 1024;
@@ -172,12 +175,13 @@ export async function packageFile(
 	await checkIntegrity(archive, version);
 	let files: { path: string; bytes: Uint8Array }[];
 	try {
-		files = readTar(await gunzip(archive)).map((entry) => ({
+		files = readTar(await gunzip(archive, LIBRARY_ARCHIVE_UNPACKED_MAX_BYTES)).map((entry) => ({
 			// Archives hold everything in one top folder (`package/`); paths are read without it.
 			path: entry.path.replace(/^[^/]*\//, ""),
 			bytes: entry.bytes,
 		}));
 	} catch (error) {
+		if (error instanceof ArchiveTooLargeError) throw new LibraryRefusedError("size", { cause: error });
 		throw new LibraryRefusedError("unreachable", { cause: error });
 	}
 	const byPath = new Map(files.map((entry) => [entry.path, entry.bytes]));

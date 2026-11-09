@@ -6,17 +6,19 @@
  * added to the Site's allowed hosts by themselves, and code a snippet holds is served from the Site
  * as a file named by its hash, never inline (ADR 0023).
  */
-import { allowedHosts, outsideScripts, sites } from "@webcraft/db/schema";
+import { allowedHosts, outsideScripts } from "@webcraft/db/schema";
 import { CONSENT_CATEGORIES, type ConsentCategory } from "@webcraft/module-sdk";
 import type { PageOutsideScript } from "@webcraft/renderer";
 import { SCRIPT_PATH } from "@webcraft/renderer";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 
 import { clearPageCache } from "../content/page-cache.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
-import { OutsideScriptNotFoundError } from "./errors.ts";
+import { OutsideScriptNotFoundError, TooManyHostsError } from "./errors.ts";
+import { ALLOWED_HOSTS_PER_SITE } from "./policy.ts";
 import { retireScriptFiles } from "./retired.ts";
+import { lockSite } from "./site-lock.ts";
 import { hostsOf, type OutsideScriptPart, outsideAddress, readSnippet, SnippetInvalidError } from "./snippets.ts";
 
 export { CONSENT_CATEGORIES, type ConsentCategory };
@@ -132,7 +134,7 @@ export async function addOutsideScript(scope: SiteScope, input: OutsideScriptInp
 	const name = nameOf(input);
 	const read = partsOf(input);
 	return scope.transaction(async (tx) => {
-		await lockOutsideScripts(tx);
+		await lockSite(tx);
 		if ((await tx.count(outsideScripts)) >= OUTSIDE_SCRIPTS_PER_SITE) {
 			throw new SnippetInvalidError([
 				{ line: 0, message: `A Site holds at most ${OUTSIDE_SCRIPTS_PER_SITE} outside scripts.` },
@@ -171,7 +173,7 @@ export async function updateOutsideScript(
 	const name = nameOf(input);
 	const read = partsOf(input);
 	return scope.transaction(async (tx) => {
-		await lockOutsideScripts(tx);
+		await lockSite(tx);
 		const current = await findRow(tx, outsideScriptId);
 		const [row] = await tx.update(
 			outsideScripts,
@@ -198,7 +200,7 @@ export async function updateOutsideScript(
 /** Removes an outside script; the hosts only it needed leave the allowed hosts with it. */
 export async function removeOutsideScript(scope: SiteScope, outsideScriptId: string): Promise<void> {
 	await scope.transaction(async (tx) => {
-		await lockOutsideScripts(tx);
+		await lockSite(tx);
 		const current = await findRow(tx, outsideScriptId);
 		await tx.delete(outsideScripts, eq(outsideScripts.id, current.id));
 		await retireCode(tx, stored(current), []);
@@ -220,13 +222,6 @@ async function findRow(scope: SiteScope, outsideScriptId: string): Promise<Row> 
  * Takes the Site's lock on its outside scripts and allowed hosts, so two changes at once take turns
  * (each reads the hosts the other left). The Site's own row is the lock.
  */
-async function lockOutsideScripts(scope: SiteScope): Promise<void> {
-	await scope.db
-		.select({ id: sites.id })
-		.from(sites)
-		.where(and(eq(sites.id, scope.site.id), eq(sites.workspaceId, scope.site.workspaceId)))
-		.for("update");
-}
 
 async function allowedSet(scope: SiteScope): Promise<Set<string>> {
 	return new Set((await scope.select(allowedHosts)).map((row) => row.host));
@@ -249,6 +244,8 @@ async function allowNewHosts(
 		await scope.insert(allowedHosts, { host, source: "auto", createdAt: scope.now() });
 	}
 	await pruneAutomaticHosts(scope);
+	// The hosts an outside script needs count against the Site's limit like those Staff add.
+	if ((await scope.count(allowedHosts)) > ALLOWED_HOSTS_PER_SITE) throw new TooManyHostsError();
 }
 
 /** Removes the automatic hosts no outside script needs any more; hosts Staff added stay. */
