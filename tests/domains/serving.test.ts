@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { openStaging } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -94,6 +95,12 @@ async function page(url: string): Promise<{ response: Response; html: string }> 
 	return { response, html: await response.text() };
 }
 
+/** A page of a Site's Staging address, as Staff reviewing it see it. */
+async function stagingPage(site: TestSite, path: string): Promise<{ response: Response; html: string }> {
+	const response = await (await openStaging(install, staff, site.siteId)).page(path);
+	return { response, html: await response.text() };
+}
+
 describe("the Primary domain", () => {
 	test("serves the Site once verified, and nothing before", async () => {
 		const site = await newSite();
@@ -117,7 +124,7 @@ describe("the Primary domain", () => {
 		const site = await newSite();
 		await connect(site.siteId, ["staged-bakery.example"]);
 
-		const staging = await page(`${site.staging}/blog/fresh-bread`);
+		const staging = await stagingPage(site, "/blog/fresh-bread");
 
 		expect(staging.response.status).toBe(200);
 		expect(staging.response.headers.get("x-robots-tag")).toBe("noindex");
@@ -184,8 +191,7 @@ describe("language domains", () => {
 		await connect(site.siteId, ["links-bakery.example"]);
 		await staff.api.languages.update({ siteId: site.siteId, code: "fr", domain: "links-bakery.fr" });
 		await verify(["links-bakery.fr"]);
-		// The Staging address first, so its pages are in the page cache when the domains ask.
-		const staging = await page(`${site.staging}/blog/fresh-bread`);
+		const staging = await stagingPage(site, "/blog/fresh-bread");
 
 		const expected = [
 			["en", "https://links-bakery.example/blog/fresh-bread"],

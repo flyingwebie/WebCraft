@@ -19,9 +19,10 @@ import {
 	type TestInstall,
 } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 import { csvSettings, importCsv } from "../imports/support.ts";
 
-const SITE = "https://bakery.sites.test";
+const SITE = "https://bakery.live.test";
 
 let source: TestInstall;
 let restored: TestInstall;
@@ -41,10 +42,11 @@ beforeAll(async () => {
 	source = await createTestInstall();
 	superadmin = await source.createSuperadmin();
 	const admin = await source.superadmin();
-	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
 	const workspaceId = (await source.createWorkspace("Acme Ltd")).id;
 	siteId = (await source.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(source, siteId);
 	const staffMember = await source.createStaff({ workspaces: [workspaceId] });
 	const staff = staffMember.browser;
 	staffAccount = staffMember.account;
@@ -124,7 +126,7 @@ describe("a Backup", () => {
 			files: { storage: "disk", bucket: null },
 		});
 		expect(manifest.sdk).toMatch(/^\d+\.\d+\.\d+$/);
-		expect(manifest.modules).toContainEqual({ id: "redirects", version: "1.0.0" });
+		expect(manifest.modules).toContainEqual({ id: "redirects", version: "1.1.0" });
 		expect(manifest.migrations.core.length).toBeGreaterThan(30);
 		expect(manifest.migrations.modules.redirects).toEqual(["0001-rules-and-misses"]);
 		expect(manifest.database.partitions).toContainEqual(

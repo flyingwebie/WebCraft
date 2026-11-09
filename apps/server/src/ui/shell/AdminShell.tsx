@@ -1,4 +1,4 @@
-import { Link, useMatches, useMatchRoute } from "@tanstack/react-router";
+import { Link, useMatches, useMatchRoute, useRouterState } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import {
 	Sidebar,
@@ -19,6 +19,7 @@ import { PuzzleIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useT } from "../i18n.tsx";
+import { PublishAllButton } from "../publishing/PublishAll.tsx";
 import { BackupFailingBanner } from "./BackupFailingBanner.tsx";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { ContextSwitcher } from "./ContextSwitcher.tsx";
@@ -27,13 +28,15 @@ import { EditOnSiteButton } from "./EditOnSiteButton.tsx";
 import { type AdminPlace, navigationFor, placeParams } from "./levels.ts";
 import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
 import { SmtpFailingBanner } from "./SmtpFailingBanner.tsx";
+import { StagingButton } from "./StagingButton.tsx";
 import { ThemeSwitch } from "./ThemeSwitch.tsx";
 import { UpdateBanner } from "./UpdateBanner.tsx";
 import { UserMenu } from "./UserMenu.tsx";
 
 /**
  * The admin shell: one sidebar (the context switcher, the current level's items, the person's menu
- * and the light/dark switch), a top bar with breadcrumbs, and the page. Banners show above the page.
+ * and the light/dark switch), a top bar with breadcrumbs (and on a Site's pages, Staging, Edit on
+ * site and Publish all with how many changes it holds), and the page. Banners show above the page.
  */
 export function AdminShell({
 	shell,
@@ -48,6 +51,13 @@ export function AdminShell({
 }) {
 	const t = useT();
 	const wide = useMatches().some((match) => match.staticData.wide);
+	// The editing bar links to Publish all with `?publishAll=1`: the list opens at once.
+	const publishAllAsked = useRouterState({
+		select: (state) => String((state.location.search as { publishAll?: unknown }).publishAll ?? "") === "1",
+	});
+	const mayPublish =
+		place.level === "site" &&
+		(place.permissions.includes("entry.publish") || place.permissions.includes("structure.edit"));
 	return (
 		<SidebarProvider>
 			<AdminSidebar shell={shell} person={person} place={place} />
@@ -55,8 +65,14 @@ export function AdminShell({
 				<header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
 					<SidebarTrigger label={t("shell.toggleSidebar")} />
 					<Breadcrumbs place={place} />
-					{place.level === "site" && place.permissions.includes("entry.edit") ? (
-						<EditOnSiteButton siteId={place.site.id} className="ms-auto" />
+					{place.level === "site" ? (
+						<div className="ms-auto flex items-center gap-2">
+							<StagingButton siteId={place.site.id} />
+							{place.permissions.includes("entry.edit") ? <EditOnSiteButton siteId={place.site.id} /> : null}
+							{mayPublish ? (
+								<PublishAllButton siteId={place.site.id} count={place.drafts} open={publishAllAsked} />
+							) : null}
+						</div>
 					) : null}
 				</header>
 				<main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">

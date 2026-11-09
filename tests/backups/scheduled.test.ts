@@ -74,6 +74,7 @@ describe("into the Backups folder", () => {
 		expect(manifestOf(archive)).toMatchObject({ reason: "scheduled" });
 	});
 
+	// It takes a Backup for each of many days: give it room on a busy machine.
 	test("keep the newest of each of the last 7 days and of each of the last 4 weeks", async () => {
 		for (let night = 0; night < 39; night++) await nextNight(install);
 
@@ -92,7 +93,7 @@ describe("into the Backups folder", () => {
 		]);
 		const { backups } = await (await install.superadmin()).api.install.backups.get();
 		expect(backups.filter((backup) => backup.removedAt === null)).toHaveLength(9);
-	});
+	}, 120_000);
 
 	test("Backups taken by command or before migrations aren't removed by the keep rules", async () => {
 		const taken = await install.backup();

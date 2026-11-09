@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { withoutStructuredData } from "../harness/seo.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -27,6 +28,7 @@ afterAll(async () => {
 async function newSite(siteTemplate = "<main>{{@outlet}}</main>") {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const site = await staff.api.templates.saveSiteTemplateMarkup({ siteId, markup: siteTemplate });
 	await staff.api.templates.publish({ siteId, templateId: site.template.id });
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
@@ -38,7 +40,7 @@ async function newSite(siteTemplate = "<main>{{@outlet}}</main>") {
 	await staff.api.templates.publish({ siteId, templateId: entry.template.id });
 	const { entry: post } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await staff.api.entries.publish({ siteId, entryId: post.id });
-	return { siteId, origin: `https://${slug}.sites.test`, url: `https://${slug}.sites.test/blog/fresh-bread` };
+	return { siteId, origin: `https://${slug}.live.test`, url: `https://${slug}.live.test/blog/fresh-bread` };
 }
 
 /** The relative luminance of `#rrggbb` (WCAG). */

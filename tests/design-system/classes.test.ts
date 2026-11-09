@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -26,12 +27,13 @@ afterAll(async () => {
 async function siteWith(markup: string) {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const saved = await staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: postType.id, markup });
 	await staff.api.templates.publish({ siteId, templateId: saved.template.id });
 	const { entry } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });
-	const url = `https://${slug}.sites.test/blog/fresh-bread`;
+	const url = `https://${slug}.live.test/blog/fresh-bread`;
 	const main = async () =>
 		/<main id="wc-main" tabindex="-1">([\s\S]*)<\/main>/.exec((await pageWithStyles(install, url)).html)?.[1];
 	return { siteId, postTypeId: postType.id, templateId: saved.template.id, url, main };
@@ -41,6 +43,7 @@ async function siteWith(markup: string) {
 async function siteWithCard() {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { class: card } = await staff.api.designSystem.createClass({
 		siteId,
 		name: "card",
@@ -60,7 +63,7 @@ async function siteWithCard() {
 		postTypeId: postType.id,
 		templateId: saved.template.id,
 		card,
-		url: `https://${slug}.sites.test/blog/fresh-bread`,
+		url: `https://${slug}.live.test/blog/fresh-bread`,
 	};
 }
 

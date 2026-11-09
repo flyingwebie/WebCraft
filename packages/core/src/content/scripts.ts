@@ -16,6 +16,7 @@ import { and, eq, isNull, type SQL } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { CODE_MODE_SCRIPT_PATH } from "../edit-mode/paths.ts";
 import { isUuid } from "../ids.ts";
+import { personIdOf } from "../permissions/can.ts";
 import { retireScriptFiles } from "../site-scripts/retired.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { DraftChangedError, EntryNotFoundError, ScriptNotFoundError } from "./errors.ts";
@@ -92,7 +93,12 @@ export async function saveScriptDraft(
 					if (version !== base.basedOn) throw new DraftChangedError(version);
 				}
 				const now = tx.now();
-				const draft = { draft: code, draftHash: contentHash(code), updatedAt: now };
+				const draft = {
+					draft: code,
+					draftHash: contentHash(code),
+					updatedAt: now,
+					updatedBy: personIdOf(tx.access.actor),
+				};
 				if (current) {
 					const [updated] = await tx.update(scripts, draft, eq(scripts.id, current.id));
 					return toScript(updated as ScriptRow);
@@ -157,6 +163,8 @@ export async function pageScripts(
 	scope: Pick<VisitorScope, "first">,
 	entryId: string | null,
 	version: "published" | "draft",
+	/** Where the Drafts' files are: Code mode's own path unless given (the Staging address serves them as the Site's). */
+	draftPath: string = CODE_MODE_SCRIPT_PATH,
 ): Promise<PageScript[]> {
 	const found = [await scope.first(scripts, whereFor(null))];
 	if (entryId !== null) found.push(await scope.first(scripts, whereFor(entryId)));
@@ -164,7 +172,7 @@ export async function pageScripts(
 		if (!row) return [];
 		const kind = row.kind === "page" ? "page" : "site";
 		if (version === "draft") {
-			return row.draft.trim() ? [{ kind, src: `${CODE_MODE_SCRIPT_PATH}${row.draftHash}.js` }] : [];
+			return row.draft.trim() ? [{ kind, src: `${draftPath}${row.draftHash}.js` }] : [];
 		}
 		return row.published?.trim() ? [{ kind, src: `${SCRIPT_PATH}${row.publishedHash}.js` }] : [];
 	});

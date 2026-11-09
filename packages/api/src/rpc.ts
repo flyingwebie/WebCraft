@@ -1,7 +1,14 @@
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ResponseHeadersPlugin } from "@orpc/server/plugins";
-import { CSV_LIMITS, csvTooLarge, type InstallServices, MediaTooLargeError } from "@webcraft/core";
+import {
+	CSV_LIMITS,
+	csvTooLarge,
+	IMPORT_PART_BYTES,
+	ImportUploadRefusedError,
+	type InstallServices,
+	MediaTooLargeError,
+} from "@webcraft/core";
 
 import type { ApiContext } from "./context.ts";
 import { toApiError } from "./errors.ts";
@@ -70,6 +77,14 @@ export type LimitedBody = { request: Request; overflowed(): boolean; tooLarge():
 /** The procedures whose uploads aren't Media, with the largest file each takes and how it refuses a larger one. */
 const OWN_UPLOAD_LIMITS: Record<string, { maxFileBytes: number; refusal: () => Error }> = {
 	"imports.uploadCsv": { maxFileBytes: CSV_LIMITS.maxBytes, refusal: csvTooLarge },
+	// A Module source's file comes in parts of at most IMPORT_PART_BYTES each, never in one body.
+	"imports.uploadPart": {
+		maxFileBytes: IMPORT_PART_BYTES,
+		refusal: () =>
+			new ImportUploadRefusedError("part", `A part has at most ${IMPORT_PART_BYTES} bytes.`, {
+				bytes: IMPORT_PART_BYTES,
+			}),
+	},
 };
 
 /**

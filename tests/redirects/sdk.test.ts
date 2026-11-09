@@ -15,6 +15,7 @@ import {
 } from "@webcraft/module-sdk";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 const manifest: Omit<ModuleManifestInput, "id"> = {
 	name: { en: "Test" },
@@ -114,13 +115,13 @@ describe("which Modules may keep them", () => {
 
 describe("a Module's rules that fail", () => {
 	let install: TestInstall;
-	const SITE = "https://failing.sites.test";
+	const SITE = "https://failing.live.test";
 	beforeAll(async () => {
 		install = await createTestInstall({ modules: [answering] });
 		const admin = await install.superadmin();
 		await admin.api.modules.approve({ moduleId: "answering-rules", version: "1.0.0" });
 		const workspaceId = (await install.createWorkspace()).id;
-		await install.createSite(workspaceId, { slug: "failing" });
+		await goLive(install, (await install.createSite(workspaceId, { slug: "failing" })).id);
 	});
 	afterAll(async () => {
 		await install.close();

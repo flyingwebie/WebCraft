@@ -12,6 +12,7 @@ import { headOf } from "../harness/code-mode.ts";
 import { fakeNpmPackage, integrityOf, NPM_HOST } from "../harness/fake-npm.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage, expectSiteHeaders, policyOf } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -51,6 +52,7 @@ let sites = 0;
 async function newSite() {
 	const slug = `libraries-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery", slug });
+	await goLive(install, siteId);
 	const pages = (await editor.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.builtIn === "page");
 	const { entry } = await editor.api.entries.create({
 		siteId,
@@ -62,7 +64,7 @@ async function newSite() {
 	await staff.api.pages.setHomePage({ siteId, pageId: entry.id });
 	const { script } = await staff.api.scripts.saveDraft({ siteId, entryId: null, code: "window.motionKit.start();" });
 	await staff.api.scripts.publish({ siteId, scriptId: script.id });
-	return { siteId, url: (path: string) => `https://${slug}.sites.test${path}` };
+	return { siteId, url: (path: string) => `https://${slug}.live.test${path}` };
 }
 
 /** The script tags of a page's <head>, in order. */

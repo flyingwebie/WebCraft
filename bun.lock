@@ -119,6 +119,17 @@
         "typescript": "catalog:",
       },
     },
+    "modules/wordpress-import": {
+      "name": "@webcraft/module-wordpress-import",
+      "version": "1.0.0",
+      "dependencies": {
+        "@webcraft/module-sdk": "workspace:*",
+        "saxes": "^6.0.0",
+      },
+      "devDependencies": {
+        "typescript": "catalog:",
+      },
+    },
     "packages/api": {
       "name": "@webcraft/api",
       "version": "0.0.0",
@@ -166,6 +177,7 @@
         "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
         "@webcraft/module-site-analytics": "workspace:*",
+        "@webcraft/module-wordpress-import": "workspace:*",
         "@webcraft/renderer": "workspace:*",
         "aws4fetch": "1.0.20",
         "drizzle-orm": "catalog:",
@@ -213,7 +225,7 @@
     },
     "packages/module-sdk": {
       "name": "@webcraft/module-sdk",
-      "version": "1.6.0",
+      "version": "1.7.0",
       "dependencies": {
         "drizzle-orm": "catalog:",
         "zod": "catalog:",
@@ -765,6 +777,8 @@
     "@webcraft/module-sdk": ["@webcraft/module-sdk@workspace:packages/module-sdk"],
 
     "@webcraft/module-site-analytics": ["@webcraft/module-site-analytics@workspace:modules/site-analytics"],
+
+    "@webcraft/module-wordpress-import": ["@webcraft/module-wordpress-import@workspace:modules/wordpress-import"],
 
     "@webcraft/renderer": ["@webcraft/renderer@workspace:packages/renderer"],
 

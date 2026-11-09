@@ -12,7 +12,9 @@ import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, outlet, text, tree, value } from "../harness/trees.ts";
+import { OLD_MILL, partsDigest, sendParts, WORDPRESS } from "../imports/wordpress.ts";
 
 import type { sampleBoard } from "../modules/sample/board.ts";
 import type { sample } from "../modules/sample/index.ts";
@@ -26,7 +28,8 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });
 });
 
 afterAll(async () => {
@@ -295,8 +298,8 @@ describe("Site script safety", () => {
 		let made = consentRecords.get(target.siteId);
 		if (!made) {
 			made = (async () => {
-				const { stagingUrl } = await (await install.superadmin()).api.sites.get({ siteId: target.siteId });
-				const origin = stagingUrl as string;
+				// A visitor's choice, on the Site's domain.
+				const origin = await goLive(install, target.siteId);
 				const answer = await install.request(`${origin}/_wc/consent`, {
 					method: "POST",
 					headers: { "content-type": "application/json", origin, "sec-fetch-site": "same-origin" },
@@ -500,8 +503,8 @@ describe("Forms", () => {
 				await api.templates.publish({ siteId, templateId: template.id });
 				const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Form", slug: "form" });
 				await api.entries.publish({ siteId, entryId: entry.id });
-				const { stagingUrl } = await api.sites.get({ siteId });
-				return { formId: form.id, page: `${stagingUrl}/${key}/form` };
+				const live = await goLive(install, siteId);
+				return { formId: form.id, page: `${live}/${key}/form` };
 			})();
 			formPages.set(target.siteId, made);
 		}
@@ -587,10 +590,10 @@ describe("Redirect rules and the 404 log", () => {
 	/** A path of a target's 404 log: a visitor's browser asked for it. */
 	async function missIn(target: IsolationTarget) {
 		const admin = await install.superadmin();
-		const { stagingUrl } = await admin.api.sites.get({ siteId: target.siteId });
+		const origin = await goLive(install, target.siteId);
 		const path = `/missing-${++paths}`;
 		const userAgent = "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/131.0";
-		await install.request(new Request(`${stagingUrl}${path}`, { headers: { "user-agent": userAgent } }));
+		await install.request(new Request(`${origin}${path}`, { headers: { "user-agent": userAgent } }));
 		await install.drainJobs();
 		const { misses } = await redirectsOf(admin.api).notFound.list({ siteId: target.siteId });
 		const miss = misses.find((each) => each.path === path);
@@ -967,6 +970,36 @@ describe("Edit mode", () => {
 	});
 });
 
+describe("the Staging address", () => {
+	isolation.refuses("staging.open", (api, { siteId }) => api.staging.open({ siteId, path: "/" }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("staging.get", (api, { siteId }) => api.staging.get({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("staging.setPassword", (api, { siteId }) => api.staging.setPassword({ siteId, password: null }), {
+		as: ["staff", "owner"],
+	});
+});
+
+describe("Publish all", () => {
+	isolation.refuses("publishing.drafts", (api, { siteId }) => api.publishing.drafts({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("publishing.count", (api, { siteId }) => api.publishing.count({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"publishing.publishAll",
+		async (api, target) => {
+			// A Draft of its own in the target's Site, made by the Superadmin.
+			const admin = await install.superadmin();
+			const { postTypeId } = await contentIn(target);
+			const { entry } = await admin.api.entries.create({ siteId: target.siteId, postTypeId, title: "Draft" });
+			return api.publishing.publishAll({ siteId: target.siteId, items: [{ kind: "entry", id: entry.id }] });
+		},
+		{ as: ["staff", "editor"] },
+	);
+});
+
 describe("Members", () => {
 	isolation.refuses("members.list", (api, { workspaceId }) => api.members.list({ workspaceId }), {
 		as: ["staff", "owner"],
@@ -1062,7 +1095,84 @@ async function csvFileIn(api: ApiClient, target: IsolationTarget): Promise<strin
 	}
 }
 
+/**
+ * A WordPress export file the caller uploaded (in parts) to the target's Site and the worker
+ * surveyed, with the mapping it suggests. Another Workspace's Site refuses the upload, so a made-up
+ * id stands in there.
+ */
+async function exportIn(api: ApiClient, target: IsolationTarget) {
+	try {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		const { file } = await api.imports.startUpload({
+			siteId: target.siteId,
+			source: WORDPRESS,
+			fileName: "export.xml",
+			size: bytes.length,
+			partBytes: 4096,
+		});
+		const hashes = await sendParts(api, target.siteId, file, bytes);
+		await api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: partsDigest(hashes) });
+		await install.drainJobs();
+		const { file: surveyed } = await api.imports.file({ siteId: target.siteId, fileId: file.id });
+		return { fileId: file.id, settings: surveyed.suggested ?? { language: null, types: [] } };
+	} catch {
+		return { fileId: crypto.randomUUID(), settings: { language: null, types: [] } };
+	}
+}
+
 describe("Imports", () => {
+	isolation.refuses("imports.sources", (api, { siteId }) => api.imports.sources({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses("imports.startUpload", (api, { siteId }) =>
+		api.imports.startUpload({ siteId, source: WORDPRESS, fileName: "export.xml", size: 100 }),
+	);
+	isolation.refuses("imports.uploadPart", async (api, target) => {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		let file: { id: string; partBytes: number } = { id: crypto.randomUUID(), partBytes: bytes.length };
+		try {
+			file = (
+				await api.imports.startUpload({
+					siteId: target.siteId,
+					source: WORDPRESS,
+					fileName: "export.xml",
+					size: bytes.length,
+				})
+			).file;
+		} catch {
+			// Another Workspace's Site: refused before the file is looked for.
+		}
+		return sendParts(api, target.siteId, file, bytes);
+	});
+	isolation.refuses("imports.finishUpload", async (api, target) => {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		let file: { id: string; partBytes: number } = { id: crypto.randomUUID(), partBytes: bytes.length };
+		try {
+			file = (
+				await api.imports.startUpload({
+					siteId: target.siteId,
+					source: WORDPRESS,
+					fileName: "export.xml",
+					size: bytes.length,
+				})
+			).file;
+			const hashes = await sendParts(api, target.siteId, file, bytes);
+			return api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: partsDigest(hashes) });
+		} catch {
+			return api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: "0".repeat(64) });
+		}
+	});
+	isolation.refuses("imports.file", async (api, target) =>
+		api.imports.file({ siteId: target.siteId, fileId: (await exportIn(api, target)).fileId }),
+	);
+	isolation.refuses("imports.sample", async (api, target) => {
+		const { fileId, settings } = await exportIn(api, target);
+		return api.imports.sample({ siteId: target.siteId, fileId, settings, type: "post", index: 0 });
+	});
+	isolation.refuses("imports.previewSource", async (api, target) => {
+		const { fileId, settings } = await exportIn(api, target);
+		return api.imports.previewSource({ siteId: target.siteId, fileId, settings });
+	});
 	isolation.refuses("imports.uploadCsv", (api, { siteId }) => api.imports.uploadCsv({ siteId, file: csvFile() }), {
 		as: ["staff", "editor"],
 	});

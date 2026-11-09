@@ -50,6 +50,11 @@ export const SENSITIVE_ACTIONS = {
 	 * secret, and where it is sent), and letting shared keys reach endpoints inside the Install's network.
 	 */
 	"aiKey.change": "changes a secret",
+	/**
+	 * A Site's staging password: a shared secret that lets people without an account see the Site's
+	 * Drafts on its Staging address.
+	 */
+	"stagingPassword.change": "changes a secret",
 	/** Creating an API token: a credential that acts as the person, outside the admin. */
 	"apiToken.create": "creates a credential",
 } as const satisfies Record<string, string>;

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -27,7 +28,8 @@ afterAll(async () => {
 async function newSite() {
 	const slug = `bakery-${++sites}`;
 	const id = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
-	return { siteId: id, url: `https://${slug}.sites.test/` };
+	await goLive(install, id);
+	return { siteId: id, url: `https://${slug}.live.test/` };
 }
 
 type Problem = { at: string; line?: number; column?: number; message: string };

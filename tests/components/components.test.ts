@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -15,6 +16,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 });
@@ -284,6 +286,7 @@ describe("where a Component is used", () => {
 
 	beforeAll(async () => {
 		site = (await install.createSite(workspaceId, { slug: "usage" })).id;
+		await goLive(install, site);
 		const { component } = await staff.api.components.create({ siteId: site, name: "Footnote" });
 		footnoteId = component.id;
 		await staff.api.components.saveMarkup({ siteId: site, componentId: footnoteId, markup: "<small>Note</small>" });
@@ -353,7 +356,7 @@ describe("where a Component is used", () => {
 
 		// recipes (2), stories (1) and the Page; drafts' Entry template isn't published, so they have no pages.
 		expect((await staff.api.components.get({ siteId: site, componentId: footnoteId })).usage.pages).toBe(4);
-		const page = await install.request("https://usage.sites.test/about");
+		const page = await install.request("https://usage.live.test/about");
 		expect(await page.text()).toContain("<footer><small>Note</small></footer>");
 	});
 

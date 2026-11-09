@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -28,6 +29,7 @@ type TestSite = { siteId: string; postTypeId: string; pagesId: string; origin: s
 async function newSite(languages: string[]): Promise<TestSite> {
 	const slug = `alternates-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	for (const code of languages) await staff.api.languages.add({ siteId, code });
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const saved = await staff.api.templates.saveEntryTemplateMarkup({
@@ -41,7 +43,7 @@ async function newSite(languages: string[]): Promise<TestSite> {
 		siteId,
 		postTypeId: postType.id,
 		pagesId: postTypes.find((candidate) => candidate.builtIn === "page")?.id ?? "",
-		origin: `https://${slug}.sites.test`,
+		origin: `https://${slug}.live.test`,
 	};
 }
 

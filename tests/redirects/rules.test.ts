@@ -7,21 +7,23 @@ import type redirects from "@webcraft/module-redirects";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
 let editor: TestBrowser;
 let siteId: string;
-const SITE = "https://bakery.sites.test";
+const SITE = "https://bakery.live.test";
 
 /** The Redirects Module's rule procedures, as `browser` calls them. */
 const rules = (browser: TestBrowser = editor) => moduleApi<typeof redirects>(browser, "redirects").rules;
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
@@ -52,7 +54,8 @@ describe("a Redirect rule", () => {
 		expect(moved.headers.get("location")).toBe("/blog/fresh-bread");
 		// Browsers check again each time, so a changed rule shows at once.
 		expect(moved.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate");
-		expect(moved.headers.get("x-robots-tag")).toBe("noindex");
+		// The Site's domain is for visitors and search engines alike: only its Staging address says noindex.
+		expect(moved.headers.get("x-robots-tag")).toBeNull();
 		expectSiteHeaders(moved);
 
 		// About is a published Page, yet the rule answers first.

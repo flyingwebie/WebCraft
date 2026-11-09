@@ -10,6 +10,7 @@ import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { withoutStructuredData } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -21,12 +22,13 @@ let topicsId: string;
 type MediaView = Awaited<ReturnType<TestBrowser["api"]["media"]["get"]>>["media"];
 
 /** A URL on the Site's Staging address. */
-const onSite = (path: string) => `https://bakery.sites.test${path}`;
+const onSite = (path: string) => `https://bakery.live.test${path}`;
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	// These tests are about the body itself: no Consent banner holds its videos back (tests/consent/).
@@ -395,6 +397,7 @@ describe("in Edit mode", () => {
 describe("in the Site's other languages", () => {
 	test("each language keeps its own Blocks, each naming the Block it translates; a language without falls back", async () => {
 		const french = (await install.createSite((await install.createWorkspace("Maison Ltd")).id, { slug: "maison" })).id;
+		await goLive(install, french);
 		const owner = await install.superadmin();
 		await owner.api.consentBanner.setSettings({ siteId: french, mode: "none", layout: "bar" });
 		await owner.api.languages.add({ siteId: french, code: "fr" });
@@ -457,7 +460,7 @@ describe("in the Site's other languages", () => {
 		await owner.api.entries.publish({ siteId: french, entryId: translated.id });
 		await owner.api.entries.publish({ siteId: french, entryId: untranslated.id });
 		const page = async (path: string) =>
-			mainOf(await (await install.request(`https://maison.sites.test${path}`)).text());
+			mainOf(await (await install.request(`https://maison.live.test${path}`)).text());
 		expect(await page("/fr/articles/translated")).toStartWith(
 			'<article><p>Pain frais.</p><figure class="wc-embed"><a href="https://vimeo.com/76979871" data-wc-embed="https://player.vimeo.com/video/76979871?autoplay=1&amp;dnt=1" data-wc-title="Vidéo">Lire la vidéo</a></figure>',
 		);

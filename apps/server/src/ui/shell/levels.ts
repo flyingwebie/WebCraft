@@ -88,6 +88,8 @@ export type AdminPlace =
 			languages: PlaceLanguages;
 			/** The Permissions Modules running on the Site add that the person holds (`forms.submissions.view`). */
 			modulePermissions: readonly string[];
+			/** How many of the Site's Drafts the person may publish: Publish all in the top bar says it. */
+			drafts: number;
 	  };
 
 export type NavItem = {

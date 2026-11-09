@@ -52,12 +52,15 @@ import {
 	HostInvalidError,
 	IdentityCheckRequiredError,
 	ImportFileNotFoundError,
+	ImportFileNotReadyError,
 	ImportInvalidError,
 	ImportNotFoundError,
 	ImportPostTypeFixedError,
 	ImportRunNotFoundError,
 	ImportRunningError,
+	ImportSourceNotFoundError,
 	ImportUndoRefusedError,
+	ImportUploadRefusedError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	LanguageInvalidError,
@@ -98,6 +101,8 @@ import {
 	PostTypeTakenError,
 	ProtectedTermInvalidError,
 	ProtectedTermNotFoundError,
+	PublishAllInvalidError,
+	PublishAllRefusedError,
 	RateLimitedError,
 	ScriptNotFoundError,
 	SensitiveActionRefusedError,
@@ -114,6 +119,8 @@ import {
 	SnippetInvalidError,
 	StaffMembershipError,
 	StaffNotFoundError,
+	StagingPasswordInvalidError,
+	StagingUnavailableError,
 	StorageUnreachableError,
 	TemplateNotFoundError,
 	TokenInUseError,
@@ -520,6 +527,25 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof ImportFileNotFoundError) {
 		return new ORPCError("IMPORT_FILE_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
+	if (error instanceof ImportFileNotReadyError) {
+		return new ORPCError("IMPORT_FILE_NOT_READY", {
+			status: 409,
+			message: error.message,
+			data: { status: error.status },
+			cause: error,
+		});
+	}
+	if (error instanceof ImportSourceNotFoundError) {
+		return new ORPCError("IMPORT_SOURCE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ImportUploadRefusedError) {
+		return new ORPCError("IMPORT_UPLOAD_REFUSED", {
+			status: error.reason === "size" && "maxBytes" in error.details ? 413 : error.reason === "status" ? 409 : 400,
+			message: error.message,
+			data: { reason: error.reason, ...error.details },
+			cause: error,
+		});
+	}
 	if (error instanceof ImportNotFoundError) {
 		return new ORPCError("IMPORT_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
@@ -853,6 +879,31 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EditFieldInvalidError) {
 		return new ORPCError("EDIT_FIELD_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof PublishAllInvalidError) {
+		return new ORPCError("PUBLISH_ALL_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { items: error.items },
+			cause: error,
+		});
+	}
+	if (error instanceof PublishAllRefusedError) {
+		// Why the item can't be published, as publishing it alone would say; nothing was published.
+		const reason = toApiError(error.cause);
+		if (!(reason instanceof ORPCError)) return reason;
+		return new ORPCError("PUBLISH_ALL_REFUSED", {
+			status: 409,
+			message: `${error.message} ${reason.message}`,
+			data: { item: error.item, name: error.itemName, code: reason.code, data: reason.data ?? null },
+			cause: error,
+		});
+	}
+	if (error instanceof StagingUnavailableError) {
+		return new ORPCError("STAGING_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof StagingPasswordInvalidError) {
+		return new ORPCError("STAGING_PASSWORD_INVALID", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof EditModeUnavailableError) {
 		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });

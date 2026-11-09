@@ -27,11 +27,13 @@ export {
 } from "./lockout.ts";
 export {
 	assertNewPasswordAllowed,
+	hashPassword,
 	MAX_PASSWORD_LENGTH,
 	MIN_PASSWORD_LENGTH,
 	type PasswordCheck,
 	type PasswordProblem,
 	PasswordRefusedError,
+	verifyPassword,
 } from "./passwords.ts";
 export {
 	assertValidEmail,

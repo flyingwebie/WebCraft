@@ -6,12 +6,14 @@ import type redirects from "@webcraft/module-redirects";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { openStaging, type StagingBrowser } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
 let editor: TestBrowser;
 let siteId: string;
-const STAGING = "https://village.sites.test";
+/** The Site's Staging address, opened by the Editor reviewing it. */
+let staging: StagingBrowser;
 const PRIMARY = "https://village-bakery.example";
 const FRENCH = "https://village-bakery.fr";
 
@@ -26,7 +28,7 @@ async function verify(names: string[]): Promise<void> {
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Village Bakery", slug: "village" })).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
@@ -37,6 +39,7 @@ beforeAll(async () => {
 	await verify(["village-bakery.example"]);
 	await staff.api.languages.update({ siteId, code: "fr", domain: "village-bakery.fr" });
 	await verify(["village-bakery.fr"]);
+	staging = await openStaging(install, editor, siteId);
 });
 
 afterAll(async () => {
@@ -46,8 +49,8 @@ afterAll(async () => {
 test("a rule on a language's prefix answers on its Staging address, on its own domain, and from the Primary domain", async () => {
 	await rules().add({ siteId, from: "/fr/ancien", to: "/fr/blog/pain-frais", status: 301 });
 
-	const staging = await install.request(`${STAGING}/fr/ancien`);
-	expect([staging.status, staging.headers.get("location")]).toEqual([301, "/fr/blog/pain-frais"]);
+	const onStaging = await staging.page("/fr/ancien");
+	expect([onStaging.status, onStaging.headers.get("location")]).toEqual([301, "/fr/blog/pain-frais"]);
 	const own = await install.request(`${FRENCH}/ancien`);
 	expect([own.status, own.headers.get("location")]).toEqual([301, "/blog/pain-frais"]);
 	// On the Primary domain the prefix belongs to the French domain: one hop goes there.
@@ -63,7 +66,7 @@ test("a rule's target goes where its language lives, seen from each hostname", a
 	await rules().add({ siteId, from: "/fr/vers-anglais", to: "/english", status: 301 });
 
 	expect((await install.request(`${PRIMARY}/old-french`)).headers.get("location")).toBe(`${FRENCH}/accueil`);
-	expect((await install.request(`${STAGING}/old-french`)).headers.get("location")).toBe("/fr/accueil");
+	expect((await staging.page("/old-french")).headers.get("location")).toBe("/fr/accueil");
 	expect((await install.request(`${PRIMARY}/de/alt`)).headers.get("location")).toBe("/de/neu");
 	expect((await install.request(`${FRENCH}/vers-anglais`)).headers.get("location")).toBe(`${PRIMARY}/english`);
 });

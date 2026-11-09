@@ -60,6 +60,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 			endpoint: null,
 			key: "sk-test-key-for-the-sensitive-action",
 		}),
+	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 };
 
@@ -117,6 +118,7 @@ describe("each Sensitive action", () => {
 			"member.remove",
 			"formCaptcha.change",
 			"webhook.change",
+			"stagingPassword.change",
 		] as const;
 		for (const action of actions) {
 			const refusal = await SENSITIVE_ACTION_CALLS[action](author.browser.api, fixture).then(
@@ -150,6 +152,7 @@ describe("each Sensitive action", () => {
 			"formCaptcha.change",
 			"siteSmtp.change",
 			"aiKey.change",
+			"stagingPassword.change",
 		];
 		expect(answers).toEqual(
 			Object.fromEntries(

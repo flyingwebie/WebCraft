@@ -92,6 +92,28 @@ describe("Automatic, around it", () => {
 		expect(JSON.stringify(install.logs)).not.toContain("Crusty sourdough");
 	});
 
+	test("Publish all sets it off for every item it publishes, as publishing each one does", async () => {
+		const site = await translatedSite(install, { de: "automatic" });
+		const first = await freshBread(site, "Fresh bread");
+		const second = await freshBread(site, "Rye loaf");
+		const items = [
+			{ kind: "entry" as const, id: first },
+			{ kind: "entry" as const, id: second },
+		];
+		const preview = await site.owner.api.publishing.publishAll({ siteId: site.siteId, items });
+		const confirmation = (preview as { confirmation?: { id: string } }).confirmation?.id;
+		await site.owner.api.publishing.publishAll({ siteId: site.siteId, items, confirmation });
+		expect((await install.drainJobs()).failed).toEqual([]);
+
+		for (const [entryId, title] of [
+			[first, "[de] Fresh bread"],
+			[second, "[de] Rye loaf"],
+		] as const) {
+			const { entry } = await site.owner.api.entries.get({ siteId: site.siteId, entryId, language: "de" });
+			expect(entry.published?.title).toBe(title);
+		}
+	});
+
 	test("an Entry hidden in a language is never translated into it", async () => {
 		const site = await translatedSite(install, { de: "automatic" });
 		const entryId = await freshBread(site);

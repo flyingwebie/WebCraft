@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUuid } from "../ids.ts";
-import { actingPerson } from "../permissions/can.ts";
+import { actingPerson, personIdOf } from "../permissions/can.ts";
 import { SEO_CHECK_MESSAGES, type SeoPreview, seoReports } from "../seo/checks.ts";
 import { type EntrySeo, type EntrySeoChange, readEntrySeo, writeEntrySeo } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -186,6 +186,7 @@ export async function createEntry(scope: SiteScope, input: NewEntry): Promise<En
 			draft: emptyVersion(),
 			createdAt: now,
 			updatedAt: now,
+			updatedBy: personIdOf(tx.access.actor),
 		});
 		const languages = await entryLanguages(tx, input.language);
 		const taken = isPagePostType(postType)
@@ -535,7 +536,11 @@ async function changeDraft(
 		}
 	}
 
-	const [saved] = await scope.update(entries, { draft: version, updatedAt: scope.now() }, eq(entries.id, row.id));
+	const [saved] = await scope.update(
+		entries,
+		{ draft: version, updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor) },
+		eq(entries.id, row.id),
+	);
 	if (!saved) throw new EntryNotFoundError();
 	await saveLinks(scope, row.id, "draft", linksIn(version.values, postType.fields));
 	return saved;

@@ -93,6 +93,10 @@ export function errorMessage(error: unknown): MessageKey {
 		case "TRANSLATION_NOT_FOUND":
 		case "PROTECTED_TERM_INVALID":
 		case "PROTECTED_TERM_NOT_FOUND":
+		case "STAGING_UNAVAILABLE":
+		case "STAGING_PASSWORD_INVALID":
+		case "PUBLISH_ALL_INVALID":
+		case "PUBLISH_ALL_REFUSED":
 			return `errors.${code}`;
 		case "AI_KEY_INVALID":
 			switch ((data as { field?: unknown } | undefined)?.field) {

@@ -40,9 +40,11 @@ export function createWorkspace(scope: InstallScope, input: { name: string }): P
  * The Workspaces the actor can see (`workspace.view`), by name. An Install-level list, so it reads
  * across Workspaces, but only those the actor reaches.
  */
-export async function listWorkspaces(database: Database, access: Access): Promise<WorkspaceSummary[]> {
-	const { db } = database;
-	const { actor } = access;
+/** The Workspaces an actor may see (`workspace.view`), by name. */
+export async function visibleWorkspaces(
+	db: Database["db"],
+	actor: Access["actor"],
+): Promise<{ id: string; name: string; createdAt: Date }[]> {
 	const reached = workspacesReached(actor);
 	if (reached !== "all" && reached.length === 0) return [];
 	const rows = await db
@@ -50,7 +52,13 @@ export async function listWorkspaces(database: Database, access: Access): Promis
 		.from(workspaces)
 		.where(reached === "all" ? undefined : inArray(workspaces.id, [...reached]))
 		.orderBy(asc(workspaces.name), asc(workspaces.createdAt));
-	const visible = rows.filter((row) => can(actor, "workspace.view", { level: "workspace", workspaceId: row.id }));
+	return rows.filter((row) => can(actor, "workspace.view", { level: "workspace", workspaceId: row.id }));
+}
+
+export async function listWorkspaces(database: Database, access: Access): Promise<WorkspaceSummary[]> {
+	const { db } = database;
+	const { actor } = access;
+	const visible = await visibleWorkspaces(db, actor);
 	if (visible.length === 0) return [];
 	const ids = visible.map((row) => row.id);
 

@@ -250,11 +250,36 @@ export {
 	type SiteHost,
 	type SitePage,
 	type SitePages,
+	showsDrafts,
 	stagingHostname,
 	stagingUrl,
 } from "./site-pages/index.ts";
 export { MAX_PAGE_NUMBER, PAGE_PARAMETER, pageHref, pageNumberIn } from "./site-pages/loops.ts";
 export * from "./site-scripts/index.ts";
+export {
+	type EnteredStaging,
+	type PasswordAccess,
+	STAGING_ENTER_PATH,
+	STAGING_LINK_LIFETIME_MS,
+	STAGING_PAGE_POLICY,
+	STAGING_PASSWORD_ACCESS_MS,
+	STAGING_PASSWORD_MAX_LENGTH,
+	STAGING_PASSWORD_MIN_LENGTH,
+	STAGING_PASSWORD_PATH,
+	STAGING_PASSWORD_RATE_LIMIT,
+	STAGING_PATH,
+	STAGING_SESSION_LIFETIME_MS,
+	STAGING_STYLESHEET,
+	type Staging,
+	type StagingLink,
+	type StagingPageOptions,
+	StagingPasswordInvalidError,
+	type StagingSettings,
+	StagingUnavailableError,
+	type StagingWords,
+	stagingPage,
+	stagingWords,
+} from "./staging/index.ts";
 export type {
 	Access,
 	BackgroundScope,

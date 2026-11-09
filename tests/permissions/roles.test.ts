@@ -49,6 +49,7 @@ describe("the role table", () => {
 				"aiUsage.view",
 				"protectedTerms.edit",
 				"site.view",
+				"staging.manage",
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
@@ -84,6 +85,7 @@ describe("the role table", () => {
 				"aiUsage.view",
 				"protectedTerms.edit",
 				"site.view",
+				"staging.manage",
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
@@ -97,7 +99,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("owner: manages Members and the AI key, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, but never changes Structure or creates Sites", async () => {
+	test("owner: manages Members, the AI key and the staging password, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, but never changes Structure or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -115,6 +117,7 @@ describe("the role table", () => {
 				"aiUsage.view",
 				"protectedTerms.edit",
 				"site.view",
+				"staging.manage",
 				"entry.edit",
 				"entry.publish",
 				"formEmails.edit",
@@ -211,6 +214,7 @@ describe("each role against Workspace and Site scope", () => {
 			"aiUsage.view",
 			"protectedTerms.edit",
 			"site.view",
+			"staging.manage",
 			"entry.edit",
 			"entry.publish",
 			"formEmails.edit",

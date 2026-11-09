@@ -15,6 +15,7 @@ import {
 	policyOf,
 	reportOnlyPolicyOf,
 } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 import { sample } from "../modules/sample/index.ts";
 
 let install: TestInstall;
@@ -42,6 +43,7 @@ let sites = 0;
 async function newSite(options: { video?: boolean } = {}) {
 	const slug = `policy-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery", slug });
+	await goLive(install, siteId);
 	const { postType } = await staff.api.postTypes.create({
 		siteId,
 		name: "Notes",
@@ -65,7 +67,7 @@ async function newSite(options: { video?: boolean } = {}) {
 		fields: { body },
 	});
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
-	return { siteId, slug, url: (path: string) => `https://${slug}.sites.test${path}` };
+	return { siteId, slug, url: (path: string) => `https://${slug}.live.test${path}` };
 }
 
 describe("the fixed security headers", () => {
@@ -109,7 +111,7 @@ describe("the fixed security headers", () => {
 	});
 
 	test("hostnames that are no Site's still get the unbranded 404", async () => {
-		const response = await install.request("https://nobody.sites.test/");
+		const response = await install.request("https://nobody.live.test/");
 		expect(response.status).toBe(404);
 		expect(await response.text()).toBe("Not Found");
 	});
@@ -314,19 +316,18 @@ describe("on the Site's own domains", () => {
 	test("the Primary domain's pages carry the Site's policy; a Redirect domain's answers the fixed headers", async () => {
 		const site = await newSite({ video: true });
 		await staff.api.csp.addHost({ siteId: site.siteId, host: "tags.example.com" });
-		for (const name of ["policy-bakery.example", "old-policy-bakery.example"]) {
-			await staff.api.domains.add({ siteId: site.siteId, name });
-			install.connectDomain(name);
-		}
+		// The Site's Primary domain is `<slug>.live.test`; a Redirect domain sends visitors there.
+		await staff.api.domains.add({ siteId: site.siteId, name: "old-policy-bakery.example" });
+		install.connectDomain("old-policy-bakery.example");
 		await install.clock.advance(60_000);
 		expect((await install.drainJobs()).failed).toEqual([]);
 
-		const page = await install.request("https://policy-bakery.example/notes/first");
+		const page = await install.request(site.url("/notes/first"));
 		expect(page.status).toBe(200);
 		await expectSafePage(page.clone());
 		expect(policyOf(page).get("script-src")).toEqual(["'self'", "https://tags.example.com"]);
 		expect(policyOf(page).get("frame-src")).toContain("https://player.vimeo.com");
-		const missing = await install.request("https://policy-bakery.example/nothing-here");
+		const missing = await install.request(site.url("/nothing-here"));
 		expect(missing.status).toBe(404);
 		await expectSafePage(missing);
 

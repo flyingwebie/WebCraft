@@ -9,6 +9,7 @@ import { headOf } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage, expectSiteHeaders, policyOf } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -32,6 +33,7 @@ let sites = 0;
 async function newSite() {
 	const slug = `outside-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery", slug });
+	await goLive(install, siteId);
 	const { entry } = await editor.api.entries.create({
 		siteId,
 		postTypeId: (await editor.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.builtIn === "page")
@@ -44,7 +46,7 @@ async function newSite() {
 	// These tests are about where outside scripts load: no Consent banner holds them back here
 	// (holding back is tests/consent/).
 	await staff.api.consentBanner.setSettings({ siteId, mode: "none", layout: "bar" });
-	return { siteId, url: (path: string) => `https://${slug}.sites.test${path}` };
+	return { siteId, url: (path: string) => `https://${slug}.live.test${path}` };
 }
 
 /** The script tags of some HTML, in order. */

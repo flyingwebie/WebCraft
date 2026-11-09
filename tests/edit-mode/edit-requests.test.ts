@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -31,6 +32,7 @@ type Bakery = { siteId: string; origin: string; entryId: string };
 async function bakery(): Promise<Bakery> {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	await staff.api.globals.setFields({ siteId, fields: [{ key: "tagline", label: "Tagline", type: "text" }] });
 	await editor.api.globals.saveDraft({ siteId, fields: { tagline: "Baked daily" } });
 	await editor.api.globals.publish({ siteId });
@@ -59,7 +61,7 @@ async function bakery(): Promise<Bakery> {
 		fields: { subtitle: "Out of the oven", intro: "<p>Baked at seven.</p>", address: { city: "Cork" } },
 	});
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
-	return { siteId, origin: `https://${slug}.sites.test`, entryId: entry.id };
+	return { siteId, origin: `https://${slug}.live.test`, entryId: entry.id };
 }
 
 async function json(response: Response): Promise<Record<string, unknown>> {

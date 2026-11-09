@@ -22,9 +22,11 @@ beforeAll(async () => {
 	await install.createSuperadmin();
 	const local = install.install;
 	const admin = await local.superadmin();
-	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	// Visitors are on the Site's domain; its Staging address is for the people reviewing it.
+	await install.goLive(siteId);
 	await admin.api.languages.add({ siteId, code: "fr" });
 	const member = await local.createMember({ workspaceId, role: "editor", name: "Giulia Romano" });
 	editor = member.account;
@@ -40,7 +42,7 @@ beforeAll(async () => {
 	// Visitors miss a few paths, one linked from another site, and a robots file people ignored.
 	const visit = (path: string, referer?: string) =>
 		local.request(
-			new Request(`https://bakery.sites.test${path}`, {
+			new Request(install.liveUrl("bakery", path), {
 				headers: { "user-agent": BROWSER, ...(referer ? { referer } : {}) },
 			}),
 		);

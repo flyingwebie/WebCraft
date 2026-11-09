@@ -98,6 +98,18 @@ export {
 export { isModuleError, ModuleError, type ModuleRefusal, ModuleRefusedError } from "./errors.ts";
 export { type FormSender, MODULE_EVENTS, type ModuleEvent, type ModuleEventName, type ModuleEvents } from "./events.ts";
 export {
+	IMPORT_FILE_MAX_BYTES,
+	type ImportSource,
+	importSource,
+	type SourceEntry,
+	type SourceFile,
+	type SourceFileRef,
+	type SourceItem,
+	type SourceMedia,
+	type SourceType,
+	type SourceValue,
+} from "./imports.ts";
+export {
 	CONSENT_CATEGORIES,
 	type ConsentCategory,
 	type Label,
@@ -113,6 +125,9 @@ export {
 	wordsIn,
 } from "./manifest.ts";
 export {
+	type AddedRule,
+	type ImportedRule,
+	type ImportedRuleResult,
 	type NotFoundLog,
 	notFoundLog,
 	type PageMiss,

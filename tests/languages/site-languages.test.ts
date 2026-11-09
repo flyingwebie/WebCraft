@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -24,7 +25,9 @@ afterAll(async () => {
 
 let sites = 0;
 async function newSite(): Promise<string> {
-	return (await install.createSite(workspaceId, { name: "Acme Bakery", slug: `languages-${++sites}` })).id;
+	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: `languages-${++sites}` })).id;
+	await goLive(install, siteId);
+	return siteId;
 }
 
 const english = { code: "en", name: "English", direction: "ltr", domain: null, prefix: null, default: true } as const;
@@ -161,7 +164,7 @@ describe("removing a language", () => {
 			slug: "pain-frais",
 		});
 		await staff.api.entries.publish({ siteId, entryId: entry.id });
-		const origin = `https://languages-${sites}.sites.test`;
+		const origin = `https://languages-${sites}.live.test`;
 		const french = () => install.request(`${origin}/fr/blog/pain-frais`);
 
 		const asked = await staff.api.languages.remove({ siteId, code: "fr" });

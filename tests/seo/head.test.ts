@@ -6,6 +6,7 @@ import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { canonicalIn, headOf, metaName, metaProperties, metaProperty, titleIn } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { openStaging, goLive as putLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -25,7 +26,8 @@ afterAll(async () => {
 
 let sites = 0;
 
-type TestSite = { siteId: string; postTypeId: string; pagesId: string; staging: string };
+/** A Site: on its Primary domain (`origin`), where visitors and search engines are, and its Staging address. */
+type TestSite = { siteId: string; postTypeId: string; pagesId: string; origin: string; staging: string };
 
 /** A Site with a blog Post Type (a cover image and a Body field) whose Entry template is published. */
 async function newSite(options: { languages?: string[] } = {}): Promise<TestSite> {
@@ -53,6 +55,7 @@ async function newSite(options: { languages?: string[] } = {}): Promise<TestSite
 		siteId,
 		postTypeId: postType.id,
 		pagesId: postTypes.find((candidate) => candidate.builtIn === "page")?.id ?? "",
+		origin: await putLive(install, siteId),
 		staging: `https://${slug}.sites.test`,
 	};
 }
@@ -82,11 +85,13 @@ async function uploadImage(siteId: string, options: { name?: string; alt?: strin
 }
 
 /** Adds a Primary domain to a Site, points it at the Install and lets the worker verify it. */
+/** Moves the Site to another Primary domain, `name`, verified as the Install verifies one. */
 async function goLive(siteId: string, name: string): Promise<string> {
-	await staff.api.domains.add({ siteId, name, withPartner: false });
+	const { domains } = await staff.api.domains.add({ siteId, name, withPartner: false });
 	install.connectDomain(name);
 	await install.clock.advance(60_000);
 	expect((await install.drainJobs()).failed).toEqual([]);
+	await staff.api.domains.makePrimary({ siteId, domainId: domains[0]?.id ?? "" });
 	return `https://${name}`;
 }
 
@@ -100,11 +105,11 @@ describe("title, description and canonical URL", () => {
 			seo: { title: "Fresh sourdough every morning · Acme", description: 'Our "best" loaves & rolls, <hot>.' },
 		});
 
-		const html = await page(`${site.staging}/blog/fresh-bread`);
+		const html = await page(`${site.origin}/blog/fresh-bread`);
 
 		expect(titleIn(html)).toBe("Fresh sourdough every morning · Acme");
 		expect(metaName(html, "description")).toBe('Our "best" loaves & rolls, <hot>.');
-		expect(canonicalIn(html)).toBe(`${site.staging}/blog/fresh-bread`);
+		expect(canonicalIn(html)).toBe(`${site.origin}/blog/fresh-bread`);
 		// Everything is escaped where it lands; nothing in <head> runs.
 		expect(headOf(html)).toContain('content="Our &quot;best&quot; loaves &amp; rolls, &lt;hot&gt;."');
 		expect(metaName(html, "robots")).toBeUndefined();
@@ -114,7 +119,7 @@ describe("title, description and canonical URL", () => {
 		const site = await newSite();
 		await publishedEntry(site, { title: "Rye loaves" });
 
-		expect(titleIn(await page(`${site.staging}/blog/rye-loaves`))).toBe("Rye loaves · Acme Bakery");
+		expect(titleIn(await page(`${site.origin}/blog/rye-loaves`))).toBe("Rye loaves · Acme Bakery");
 	});
 
 	test("without a description, it is the start of the body as plain text, cut at a word", async () => {
@@ -131,7 +136,7 @@ describe("title, description and canonical URL", () => {
 			},
 		});
 
-		const description = metaName(await page(`${site.staging}/blog/slow-rye`), "description") ?? "";
+		const description = metaName(await page(`${site.origin}/blog/slow-rye`), "description") ?? "";
 
 		expect(description.startsWith("Why slow? Our rye loaf is baked slowly in a stone oven")).toBe(true);
 		expect(description.endsWith("…")).toBe(true);
@@ -145,7 +150,7 @@ describe("title, description and canonical URL", () => {
 		const site = await newSite();
 		await publishedEntry(site, { title: "Plain" });
 
-		expect(metaName(await page(`${site.staging}/blog/plain`), "description")).toBeUndefined();
+		expect(metaName(await page(`${site.origin}/blog/plain`), "description")).toBeUndefined();
 	});
 
 	test("the canonical URL is on the Primary domain, even on the Staging address of a live Site", async () => {
@@ -160,7 +165,7 @@ describe("title, description and canonical URL", () => {
 			`${live}/fr/blog/croissants-au-beurre`,
 		);
 		// The Staging address stays out of search engines, and points them at the live page.
-		const staging = await install.request(`${site.staging}/blog/croissants`);
+		const staging = await (await openStaging(install, staff, site.siteId)).page("/blog/croissants");
 		expect(staging.headers.get("x-robots-tag")).toBe("noindex");
 		expect(canonicalIn(await staging.text())).toBe(`${live}/blog/croissants`);
 	});
@@ -179,7 +184,7 @@ describe("title, description and canonical URL", () => {
 		const site = await newSite();
 		await publishedEntry(site, { title: "Thank you", seo: { noindex: true } });
 
-		const html = await page(`${site.staging}/blog/thank-you`);
+		const html = await page(`${site.origin}/blog/thank-you`);
 
 		expect(metaName(html, "robots")).toBe("noindex");
 	});
@@ -188,7 +193,7 @@ describe("title, description and canonical URL", () => {
 		const site = await newSite();
 		await publishedEntry(site, { title: "Policy", seo: { description: "</script><script>alert(1)</script>" } });
 
-		await expectSafePage(await install.request(`${site.staging}/blog/policy`), "strict");
+		await expectSafePage(await install.request(`${site.origin}/blog/policy`), "strict");
 	});
 });
 
@@ -197,12 +202,12 @@ describe("Open Graph and social tags", () => {
 		const site = await newSite({ languages: ["pt-BR", "fr"] });
 		await publishedEntry(site, { title: "Pastries", seo: { description: "Flaky and buttery." } });
 
-		const html = await page(`${site.staging}/blog/pastries`);
+		const html = await page(`${site.origin}/blog/pastries`);
 
 		expect(metaProperty(html, "og:type")).toBe("website");
 		expect(metaProperty(html, "og:title")).toBe("Pastries");
 		expect(metaProperty(html, "og:description")).toBe("Flaky and buttery.");
-		expect(metaProperty(html, "og:url")).toBe(`${site.staging}/blog/pastries`);
+		expect(metaProperty(html, "og:url")).toBe(`${site.origin}/blog/pastries`);
 		expect(metaProperty(html, "og:site_name")).toBe("Acme Bakery");
 		expect(metaProperty(html, "og:locale")).toBe("en");
 		expect(metaProperties(html, "og:locale:alternate")).toEqual(["pt_BR", "fr"]);
@@ -214,10 +219,10 @@ describe("Open Graph and social tags", () => {
 		const image = await uploadImage(site.siteId, { alt: "A loaf on a board", width: 2000 });
 		await publishedEntry(site, { title: "Loaf", seo: { image: image.id } });
 
-		const html = await page(`${site.staging}/blog/loaf`);
+		const html = await page(`${site.origin}/blog/loaf`);
 
 		const shared = metaProperty(html, "og:image") ?? "";
-		expect(shared).toMatch(new RegExp(`^${site.staging}/_media/[0-9a-f]{16}-loaf-1280\\.webp$`));
+		expect(shared).toMatch(new RegExp(`^${site.origin}/_media/[0-9a-f]{16}-loaf-1280\\.webp$`));
 		expect(metaProperty(html, "og:image:type")).toBe("image/webp");
 		expect(metaProperty(html, "og:image:width")).toBe("1280");
 		expect(metaProperty(html, "og:image:height")).toBe("576");
@@ -243,8 +248,8 @@ describe("Open Graph and social tags", () => {
 		await publishedEntry(site, { title: "With cover", fields: { cover: cover.id } });
 		await publishedEntry(site, { title: "Without cover" });
 
-		expect(metaProperty(await page(`${site.staging}/blog/with-cover`), "og:image")).toContain("-cover-");
-		expect(metaProperty(await page(`${site.staging}/blog/without-cover`), "og:image")).toContain("-shopfront-");
+		expect(metaProperty(await page(`${site.origin}/blog/with-cover`), "og:image")).toContain("-cover-");
+		expect(metaProperty(await page(`${site.origin}/blog/without-cover`), "og:image")).toContain("-shopfront-");
 	});
 
 	test("an image still being processed, in the Trash or an SVG is never shared", async () => {
@@ -255,7 +260,7 @@ describe("Open Graph and social tags", () => {
 		if (asked.trashed) throw new Error("It should ask first.");
 		await editor.api.media.delete({ siteId: site.siteId, mediaId: image.id, confirmation: asked.confirmation.id });
 
-		const html = await page(`${site.staging}/blog/trashed`);
+		const html = await page(`${site.origin}/blog/trashed`);
 
 		expect(metaProperty(html, "og:image")).toBeUndefined();
 		expect(metaName(html, "twitter:card")).toBe("summary");
@@ -280,13 +285,13 @@ describe("other pages", () => {
 		});
 		await staff.api.templates.publish({ siteId: site.siteId, templateId: archive.template.id });
 
-		const first = await page(`${site.staging}/blog`);
-		const second = await page(`${site.staging}/blog?page=2`);
+		const first = await page(`${site.origin}/blog`);
+		const second = await page(`${site.origin}/blog?page=2`);
 
 		expect(titleIn(first)).toBe("Blog posts · Acme Bakery");
-		expect(canonicalIn(first)).toBe(`${site.staging}/blog`);
+		expect(canonicalIn(first)).toBe(`${site.origin}/blog`);
 		expect(titleIn(second)).toBe("Blog posts · Page 2 · Acme Bakery");
-		expect(canonicalIn(second)).toBe(`${site.staging}/blog?page=2`);
+		expect(canonicalIn(second)).toBe(`${site.origin}/blog?page=2`);
 	});
 
 	test("the home page is titled by the Page Post Type's pattern, at the Site's root", async () => {
@@ -300,16 +305,16 @@ describe("other pages", () => {
 		await editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
 		await staff.api.pages.setHomePage({ siteId: site.siteId, pageId: entry.id });
 
-		const html = await page(`${site.staging}/`);
+		const html = await page(`${site.origin}/`);
 
 		expect(titleIn(html)).toBe("Welcome · Acme Bakery");
-		expect(canonicalIn(html)).toBe(`${site.staging}/`);
+		expect(canonicalIn(html)).toBe(`${site.origin}/`);
 		expect(metaName(html, "description")).toBe("The bakery on Harbour Street.");
 	});
 
 	test("the 404 page has no canonical URL and is never indexed, and a chosen 404 Page is noindex at its own path too", async () => {
 		const site = await newSite();
-		const missing = await install.request(`${site.staging}/nowhere`);
+		const missing = await install.request(`${site.origin}/nowhere`);
 		expect(missing.status).toBe(404);
 		const builtIn = await missing.text();
 		expect(metaName(builtIn, "robots")).toBe("noindex");
@@ -323,10 +328,10 @@ describe("other pages", () => {
 		await editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
 		await staff.api.pages.setNotFoundPage({ siteId: site.siteId, pageId: entry.id });
 
-		const own = await install.request(`${site.staging}/lost`);
+		const own = await install.request(`${site.origin}/lost`);
 		expect(own.status).toBe(200);
 		expect(metaName(await own.text(), "robots")).toBe("noindex");
-		const chosen = await install.request(`${site.staging}/nowhere-else`);
+		const chosen = await install.request(`${site.origin}/nowhere-else`);
 		expect(chosen.status).toBe(404);
 		const html = await chosen.text();
 		expect(titleIn(html)).toBe("Lost? · Acme Bakery");

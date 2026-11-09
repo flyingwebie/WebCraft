@@ -11917,6 +11917,723 @@
 				"x-webcraft-access": "read"
 			}
 		},
+		"/imports/sources": {
+			"post": {
+				"operationId": "imports.sources",
+				"summary": "The import sources Modules add on the Site that the caller may import from.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/imports/startUpload": {
+			"post": {
+				"operationId": "imports.startUpload",
+				"summary": "Starts uploading a file for a Module's import source, in parts.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"source": {
+										"type": "string",
+										"pattern": "^(?:csv|[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[a-z]+(?:-[a-z]+)*)$"
+									},
+									"fileName": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 1000
+									},
+									"size": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 9007199254740991
+									},
+									"partBytes": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									}
+								},
+								"required": ["siteId", "source", "fileName", "size"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/imports/uploadPart": {
+			"post": {
+				"operationId": "imports.uploadPart",
+				"summary": "Sends one part of a file at its offset, with its SHA-256 (multipart form data).",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"fileId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"offset": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 9007199254740991
+									},
+									"sha256": {
+										"type": "string",
+										"pattern": "^[0-9a-fA-F]{64}$"
+									},
+									"part": {
+										"type": "string",
+										"contentMediaType": "*/*"
+									}
+								},
+								"required": ["siteId", "fileId", "offset", "sha256", "part"]
+							}
+						},
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"fileId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"offset": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 9007199254740991
+									},
+									"sha256": {
+										"type": "string",
+										"pattern": "^[0-9a-fA-F]{64}$"
+									},
+									"part": {
+										"type": "string",
+										"contentMediaType": "*/*"
+									}
+								},
+								"required": ["siteId", "fileId", "offset", "sha256", "part"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/imports/finishUpload": {
+			"post": {
+				"operationId": "imports.finishUpload",
+				"summary": "Finishes an upload in parts; the worker then surveys the file.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"fileId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"sha256": {
+										"type": "string",
+										"pattern": "^[0-9a-fA-F]{64}$"
+									}
+								},
+								"required": ["siteId", "fileId", "sha256"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/imports/file": {
+			"post": {
+				"operationId": "imports.file",
+				"summary": "A file uploaded for a Module's source: how much came, and what it holds once surveyed.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"fileId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "fileId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/imports/sample": {
+			"post": {
+				"operationId": "imports.sample",
+				"summary": "One of a surveyed file's first items, read with these settings, without writing anything.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"fileId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"settings": {
+										"type": "object",
+										"properties": {
+											"language": {
+												"anyOf": [
+													{
+														"type": "string",
+														"minLength": 2,
+														"maxLength": 35
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
+											"types": {
+												"type": "array",
+												"maxItems": 200,
+												"items": {
+													"type": "object",
+													"properties": {
+														"type": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 100
+														},
+														"to": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"postTypeId": {
+																			"type": "string",
+																			"format": "uuid"
+																		}
+																	},
+																	"required": ["postTypeId"]
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"newPostType": {
+																			"type": "object",
+																			"properties": {
+																				"name": {
+																					"type": "string",
+																					"minLength": 1,
+																					"maxLength": 100
+																				}
+																			},
+																			"required": ["name"]
+																		}
+																	},
+																	"required": ["newPostType"]
+																},
+																{
+																	"const": "media"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"keys": {
+															"type": "array",
+															"maxItems": 1000,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"key": {
+																		"type": "string",
+																		"minLength": 1,
+																		"maxLength": 300
+																	},
+																	"to": {
+																		"anyOf": [
+																			{
+																				"anyOf": [
+																					{
+																						"enum": [
+																							"title",
+																							"slug",
+																							"seo.title",
+																							"seo.description",
+																							"seo.canonical",
+																							"seo.noindex",
+																							"seo.image"
+																						],
+																						"type": "string"
+																					},
+																					{
+																						"type": "string",
+																						"pattern": "^fields\\.[a-z][A-Za-z0-9_]{0,63}$"
+																					},
+																					{
+																						"type": "object",
+																						"properties": {
+																							"newField": {
+																								"type": "object",
+																								"properties": {
+																									"key": {
+																										"type": "string",
+																										"pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+																									},
+																									"label": {
+																										"type": "string",
+																										"minLength": 1,
+																										"maxLength": 100
+																									},
+																									"type": {
+																										"enum": [
+																											"text",
+																											"richText",
+																											"body",
+																											"date",
+																											"media",
+																											"relationship",
+																											"number",
+																											"boolean",
+																											"email",
+																											"link"
+																										],
+																										"type": "string"
+																									},
+																									"to": {
+																										"type": "string",
+																										"minLength": 1,
+																										"maxLength": 100
+																									}
+																								},
+																								"required": ["key", "label", "type"]
+																							}
+																						},
+																						"required": ["newField"]
+																					}
+																				]
+																			},
+																			{
+																				"type": "null"
+																			}
+																		]
+																	}
+																},
+																"required": ["key", "to"]
+															}
+														}
+													},
+													"required": ["type", "to", "keys"]
+												}
+											}
+										},
+										"required": ["language", "types"]
+									},
+									"type": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"index": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 1000
+									},
+									"importId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "uuid"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "fileId", "settings", "type", "index"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/imports/previewSource": {
+			"post": {
+				"operationId": "imports.previewSource",
+				"summary": "What a run of a Module source's file would do, worked out in the background without writing anything.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"fileId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"settings": {
+										"type": "object",
+										"properties": {
+											"language": {
+												"anyOf": [
+													{
+														"type": "string",
+														"minLength": 2,
+														"maxLength": 35
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
+											"types": {
+												"type": "array",
+												"maxItems": 200,
+												"items": {
+													"type": "object",
+													"properties": {
+														"type": {
+															"type": "string",
+															"minLength": 1,
+															"maxLength": 100
+														},
+														"to": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"postTypeId": {
+																			"type": "string",
+																			"format": "uuid"
+																		}
+																	},
+																	"required": ["postTypeId"]
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"newPostType": {
+																			"type": "object",
+																			"properties": {
+																				"name": {
+																					"type": "string",
+																					"minLength": 1,
+																					"maxLength": 100
+																				}
+																			},
+																			"required": ["name"]
+																		}
+																	},
+																	"required": ["newPostType"]
+																},
+																{
+																	"const": "media"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"keys": {
+															"type": "array",
+															"maxItems": 1000,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"key": {
+																		"type": "string",
+																		"minLength": 1,
+																		"maxLength": 300
+																	},
+																	"to": {
+																		"anyOf": [
+																			{
+																				"anyOf": [
+																					{
+																						"enum": [
+																							"title",
+																							"slug",
+																							"seo.title",
+																							"seo.description",
+																							"seo.canonical",
+																							"seo.noindex",
+																							"seo.image"
+																						],
+																						"type": "string"
+																					},
+																					{
+																						"type": "string",
+																						"pattern": "^fields\\.[a-z][A-Za-z0-9_]{0,63}$"
+																					},
+																					{
+																						"type": "object",
+																						"properties": {
+																							"newField": {
+																								"type": "object",
+																								"properties": {
+																									"key": {
+																										"type": "string",
+																										"pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+																									},
+																									"label": {
+																										"type": "string",
+																										"minLength": 1,
+																										"maxLength": 100
+																									},
+																									"type": {
+																										"enum": [
+																											"text",
+																											"richText",
+																											"body",
+																											"date",
+																											"media",
+																											"relationship",
+																											"number",
+																											"boolean",
+																											"email",
+																											"link"
+																										],
+																										"type": "string"
+																									},
+																									"to": {
+																										"type": "string",
+																										"minLength": 1,
+																										"maxLength": 100
+																									}
+																								},
+																								"required": ["key", "label", "type"]
+																							}
+																						},
+																						"required": ["newField"]
+																					}
+																				]
+																			},
+																			{
+																				"type": "null"
+																			}
+																		]
+																	}
+																},
+																"required": ["key", "to"]
+															}
+														}
+													},
+													"required": ["type", "to", "keys"]
+												}
+											}
+										},
+										"required": ["language", "types"]
+									},
+									"importId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "uuid"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "fileId", "settings"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
 		"/imports/list": {
 			"post": {
 				"operationId": "imports.list",
@@ -12027,61 +12744,219 @@
 										"maxLength": 200
 									},
 									"source": {
-										"const": "csv"
+										"type": "string",
+										"pattern": "^(?:csv|[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[a-z]+(?:-[a-z]+)*)$"
 									},
 									"settings": {
-										"type": "object",
-										"properties": {
-											"postTypeId": {
-												"type": "string",
-												"format": "uuid"
-											},
-											"language": {
-												"anyOf": [
-													{
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"postTypeId": {
 														"type": "string",
-														"minLength": 2,
-														"maxLength": 35
+														"format": "uuid"
 													},
-													{
-														"type": "null"
-													}
-												]
-											},
-											"match": {
-												"type": "string",
-												"minLength": 1,
-												"maxLength": 300
-											},
-											"columns": {
-												"type": "array",
-												"maxItems": 200,
-												"items": {
-													"type": "object",
-													"properties": {
-														"column": {
-															"type": "string",
-															"minLength": 1,
-															"maxLength": 300
-														},
-														"to": {
-															"anyOf": [
-																{
+													"language": {
+														"anyOf": [
+															{
+																"type": "string",
+																"minLength": 2,
+																"maxLength": 35
+															},
+															{
+																"type": "null"
+															}
+														]
+													},
+													"match": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 300
+													},
+													"columns": {
+														"type": "array",
+														"maxItems": 200,
+														"items": {
+															"type": "object",
+															"properties": {
+																"column": {
 																	"type": "string",
 																	"minLength": 1,
 																	"maxLength": 300
 																},
-																{
-																	"type": "null"
+																"to": {
+																	"anyOf": [
+																		{
+																			"type": "string",
+																			"minLength": 1,
+																			"maxLength": 300
+																		},
+																		{
+																			"type": "null"
+																		}
+																	]
 																}
-															]
+															},
+															"required": ["column", "to"]
 														}
+													}
+												},
+												"required": ["postTypeId", "language", "match", "columns"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"language": {
+														"anyOf": [
+															{
+																"type": "string",
+																"minLength": 2,
+																"maxLength": 35
+															},
+															{
+																"type": "null"
+															}
+														]
 													},
-													"required": ["column", "to"]
-												}
+													"types": {
+														"type": "array",
+														"maxItems": 200,
+														"items": {
+															"type": "object",
+															"properties": {
+																"type": {
+																	"type": "string",
+																	"minLength": 1,
+																	"maxLength": 100
+																},
+																"to": {
+																	"anyOf": [
+																		{
+																			"type": "object",
+																			"properties": {
+																				"postTypeId": {
+																					"type": "string",
+																					"format": "uuid"
+																				}
+																			},
+																			"required": ["postTypeId"]
+																		},
+																		{
+																			"type": "object",
+																			"properties": {
+																				"newPostType": {
+																					"type": "object",
+																					"properties": {
+																						"name": {
+																							"type": "string",
+																							"minLength": 1,
+																							"maxLength": 100
+																						}
+																					},
+																					"required": ["name"]
+																				}
+																			},
+																			"required": ["newPostType"]
+																		},
+																		{
+																			"const": "media"
+																		},
+																		{
+																			"type": "null"
+																		}
+																	]
+																},
+																"keys": {
+																	"type": "array",
+																	"maxItems": 1000,
+																	"items": {
+																		"type": "object",
+																		"properties": {
+																			"key": {
+																				"type": "string",
+																				"minLength": 1,
+																				"maxLength": 300
+																			},
+																			"to": {
+																				"anyOf": [
+																					{
+																						"anyOf": [
+																							{
+																								"enum": [
+																									"title",
+																									"slug",
+																									"seo.title",
+																									"seo.description",
+																									"seo.canonical",
+																									"seo.noindex",
+																									"seo.image"
+																								],
+																								"type": "string"
+																							},
+																							{
+																								"type": "string",
+																								"pattern": "^fields\\.[a-z][A-Za-z0-9_]{0,63}$"
+																							},
+																							{
+																								"type": "object",
+																								"properties": {
+																									"newField": {
+																										"type": "object",
+																										"properties": {
+																											"key": {
+																												"type": "string",
+																												"pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+																											},
+																											"label": {
+																												"type": "string",
+																												"minLength": 1,
+																												"maxLength": 100
+																											},
+																											"type": {
+																												"enum": [
+																													"text",
+																													"richText",
+																													"body",
+																													"date",
+																													"media",
+																													"relationship",
+																													"number",
+																													"boolean",
+																													"email",
+																													"link"
+																												],
+																												"type": "string"
+																											},
+																											"to": {
+																												"type": "string",
+																												"minLength": 1,
+																												"maxLength": 100
+																											}
+																										},
+																										"required": ["key", "label", "type"]
+																									}
+																								},
+																								"required": ["newField"]
+																							}
+																						]
+																					},
+																					{
+																						"type": "null"
+																					}
+																				]
+																			}
+																		},
+																		"required": ["key", "to"]
+																	}
+																}
+															},
+															"required": ["type", "to", "keys"]
+														}
+													}
+												},
+												"required": ["language", "types"]
 											}
-										},
-										"required": ["postTypeId", "language", "match", "columns"]
+										]
 									}
 								},
 								"required": ["siteId", "name", "source", "settings"]
@@ -12135,58 +13010,215 @@
 										"maxLength": 200
 									},
 									"settings": {
-										"type": "object",
-										"properties": {
-											"postTypeId": {
-												"type": "string",
-												"format": "uuid"
-											},
-											"language": {
-												"anyOf": [
-													{
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"postTypeId": {
 														"type": "string",
-														"minLength": 2,
-														"maxLength": 35
+														"format": "uuid"
 													},
-													{
-														"type": "null"
-													}
-												]
-											},
-											"match": {
-												"type": "string",
-												"minLength": 1,
-												"maxLength": 300
-											},
-											"columns": {
-												"type": "array",
-												"maxItems": 200,
-												"items": {
-													"type": "object",
-													"properties": {
-														"column": {
-															"type": "string",
-															"minLength": 1,
-															"maxLength": 300
-														},
-														"to": {
-															"anyOf": [
-																{
+													"language": {
+														"anyOf": [
+															{
+																"type": "string",
+																"minLength": 2,
+																"maxLength": 35
+															},
+															{
+																"type": "null"
+															}
+														]
+													},
+													"match": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 300
+													},
+													"columns": {
+														"type": "array",
+														"maxItems": 200,
+														"items": {
+															"type": "object",
+															"properties": {
+																"column": {
 																	"type": "string",
 																	"minLength": 1,
 																	"maxLength": 300
 																},
-																{
-																	"type": "null"
+																"to": {
+																	"anyOf": [
+																		{
+																			"type": "string",
+																			"minLength": 1,
+																			"maxLength": 300
+																		},
+																		{
+																			"type": "null"
+																		}
+																	]
 																}
-															]
+															},
+															"required": ["column", "to"]
 														}
+													}
+												},
+												"required": ["postTypeId", "language", "match", "columns"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"language": {
+														"anyOf": [
+															{
+																"type": "string",
+																"minLength": 2,
+																"maxLength": 35
+															},
+															{
+																"type": "null"
+															}
+														]
 													},
-													"required": ["column", "to"]
-												}
+													"types": {
+														"type": "array",
+														"maxItems": 200,
+														"items": {
+															"type": "object",
+															"properties": {
+																"type": {
+																	"type": "string",
+																	"minLength": 1,
+																	"maxLength": 100
+																},
+																"to": {
+																	"anyOf": [
+																		{
+																			"type": "object",
+																			"properties": {
+																				"postTypeId": {
+																					"type": "string",
+																					"format": "uuid"
+																				}
+																			},
+																			"required": ["postTypeId"]
+																		},
+																		{
+																			"type": "object",
+																			"properties": {
+																				"newPostType": {
+																					"type": "object",
+																					"properties": {
+																						"name": {
+																							"type": "string",
+																							"minLength": 1,
+																							"maxLength": 100
+																						}
+																					},
+																					"required": ["name"]
+																				}
+																			},
+																			"required": ["newPostType"]
+																		},
+																		{
+																			"const": "media"
+																		},
+																		{
+																			"type": "null"
+																		}
+																	]
+																},
+																"keys": {
+																	"type": "array",
+																	"maxItems": 1000,
+																	"items": {
+																		"type": "object",
+																		"properties": {
+																			"key": {
+																				"type": "string",
+																				"minLength": 1,
+																				"maxLength": 300
+																			},
+																			"to": {
+																				"anyOf": [
+																					{
+																						"anyOf": [
+																							{
+																								"enum": [
+																									"title",
+																									"slug",
+																									"seo.title",
+																									"seo.description",
+																									"seo.canonical",
+																									"seo.noindex",
+																									"seo.image"
+																								],
+																								"type": "string"
+																							},
+																							{
+																								"type": "string",
+																								"pattern": "^fields\\.[a-z][A-Za-z0-9_]{0,63}$"
+																							},
+																							{
+																								"type": "object",
+																								"properties": {
+																									"newField": {
+																										"type": "object",
+																										"properties": {
+																											"key": {
+																												"type": "string",
+																												"pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+																											},
+																											"label": {
+																												"type": "string",
+																												"minLength": 1,
+																												"maxLength": 100
+																											},
+																											"type": {
+																												"enum": [
+																													"text",
+																													"richText",
+																													"body",
+																													"date",
+																													"media",
+																													"relationship",
+																													"number",
+																													"boolean",
+																													"email",
+																													"link"
+																												],
+																												"type": "string"
+																											},
+																											"to": {
+																												"type": "string",
+																												"minLength": 1,
+																												"maxLength": 100
+																											}
+																										},
+																										"required": ["key", "label", "type"]
+																									}
+																								},
+																								"required": ["newField"]
+																							}
+																						]
+																					},
+																					{
+																						"type": "null"
+																					}
+																				]
+																			}
+																		},
+																		"required": ["key", "to"]
+																	}
+																}
+															},
+															"required": ["type", "to", "keys"]
+														}
+													}
+												},
+												"required": ["language", "types"]
 											}
-										},
-										"required": ["postTypeId", "language", "match", "columns"]
+										]
 									}
 								},
 								"required": ["siteId", "importId"]
@@ -12611,6 +13643,318 @@
 					}
 				},
 				"x-webcraft-access": "write"
+			}
+		},
+		"/staging/get": {
+			"post": {
+				"operationId": "staging.get",
+				"summary": "The Site's Staging address and whether it has a staging password (never the password).",
+				"tags": ["staging"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/staging/setPassword": {
+			"post": {
+				"operationId": "staging.setPassword",
+				"summary": "Sets or removes the Site's staging password (Sensitive: admin only).",
+				"tags": ["staging"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"password": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 800
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "password"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-sensitive": "stagingPassword.change"
+			}
+		},
+		"/publishing/drafts": {
+			"post": {
+				"operationId": "publishing.drafts",
+				"summary": "Every Draft of the Site: what changed, who changed it last, and whether the caller may publish it.",
+				"tags": ["publishing"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/publishing/publishAll": {
+			"post": {
+				"operationId": "publishing.publishAll",
+				"summary": "Publishes the chosen Drafts of the Site together, after a preview and a confirmation.",
+				"tags": ["publishing"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"items": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 1000,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "entry"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "template"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "component"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "loop"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "script"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "form"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "formEmails"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "globals"
+														}
+													},
+													"required": ["kind"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "consentBanner"
+														}
+													},
+													"required": ["kind"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "designSystem"
+														}
+													},
+													"required": ["kind"]
+												}
+											]
+										}
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "items"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-confirmation": true
 			}
 		},
 		"/members/list": {

@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -38,6 +39,7 @@ type TestSite = { siteId: string; homeId: string; origin: string };
 async function newSite(options: { off?: boolean } = {}): Promise<TestSite> {
 	const slug = `redirect-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	for (const code of ["fr", "de"]) await staff.api.languages.add({ siteId, code });
 	const { postTypes } = await staff.api.postTypes.list({ siteId });
 	const pagesId = postTypes.find((candidate) => candidate.builtIn === "page")?.id ?? "";
@@ -48,7 +50,7 @@ async function newSite(options: { off?: boolean } = {}): Promise<TestSite> {
 		.create({ siteId, postTypeId: pagesId, title: "About" })
 		.then(({ entry: about }) => editor.api.entries.publish({ siteId, entryId: about.id }));
 	if (!options.off) await staff.api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: true });
-	return { siteId, homeId: entry.id, origin: `https://${slug}.sites.test` };
+	return { siteId, homeId: entry.id, origin: `https://${slug}.live.test` };
 }
 
 function visit(site: TestSite, path: string, headers: Record<string, string>) {

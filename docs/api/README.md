@@ -51,7 +51,7 @@ Procedures marked `x-webcraft-confirmation` publish, delete or change many thing
 { "confirmation": { "id": "…", "expiresAt": "2026-11-09T13:05:00.000Z" }, "preview": { … } }
 ```
 
-Some of these procedures answer more beside it (`"deleted": false` and what would go). Show the preview to whoever asked for the change, then call the procedure again with the same input and `"confirmation": "<id>"`. If what the preview showed changed in between (someone saved the Draft again), the call is refused with `CONFIRMATION_INVALID`, `data.problem: "changed"`, and nothing happens.
+Some of these procedures answer more beside it (`"deleted": false` and what would go; `publishing.publishAll` answers `"published": false` and the items in the order they would go live). Publish all goes live all or none: an item that can't be published yet stops them all with `PUBLISH_ALL_REFUSED` (409, naming the item and its own refusal in `data`). Show the preview to whoever asked for the change, then call the procedure again with the same input and `"confirmation": "<id>"`. If what the preview showed changed in between (someone saved the Draft again), the call is refused with `CONFIRMATION_INVALID`, `data.problem: "changed"`, and nothing happens.
 
 ## Versions
 

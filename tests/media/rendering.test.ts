@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -17,7 +18,7 @@ let postTypeId: string;
 type MediaView = Awaited<ReturnType<TestBrowser["api"]["media"]["get"]>>["media"];
 
 /** A URL on the Site's Staging address. */
-const onSite = (path: string) => `https://bakery.sites.test${path}`;
+const onSite = (path: string) => `https://bakery.live.test${path}`;
 
 async function uploadImage(name: string, width: number, height: number, alt?: string): Promise<MediaView> {
 	const { media } = await editor.api.media.upload({ siteId, file: upload(await photo({ width, height }), name) });
@@ -64,6 +65,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace()).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 
@@ -212,6 +214,7 @@ describe("until the worker is done", () => {
 describe("media Field values", () => {
 	test("must be a Media item of the same Site", async () => {
 		const otherSiteId = (await install.createSite((await editor.api.sites.get({ siteId })).workspace.id)).id;
+		await goLive(install, otherSiteId);
 		const admin = await install.superadmin();
 		const elsewhere = (await admin.api.media.upload({ siteId: otherSiteId, file: upload(pdf(), "elsewhere.pdf") }))
 			.media;
@@ -235,6 +238,7 @@ describe("media Field values", () => {
 
 	test("a media: image of another Site renders nothing", async () => {
 		const otherSiteId = (await install.createSite((await editor.api.sites.get({ siteId })).workspace.id)).id;
+		await goLive(install, otherSiteId);
 		const admin = await install.superadmin();
 		const foreign = (
 			await admin.api.media.upload({

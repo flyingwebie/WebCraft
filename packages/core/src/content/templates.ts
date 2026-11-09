@@ -19,6 +19,7 @@ import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { isUuid } from "../ids.ts";
+import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { archiveAddressOf } from "./archives.ts";
 import {
@@ -574,7 +575,8 @@ function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: S
 /** Writes a checked tree as the Draft of the Template `target` names, creating it the first time. */
 async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draft: ElementTree): Promise<Template> {
 	const now = scope.now();
-	const [updated] = await scope.update(templates, { draft, updatedAt: now }, whereFor(target));
+	const updatedBy = personIdOf(scope.access.actor);
+	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy }, whereFor(target));
 	return toTemplate(
 		updated ??
 			(await scope.insert(templates, {
@@ -583,6 +585,7 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 				draft,
 				createdAt: now,
 				updatedAt: now,
+				updatedBy,
 			})),
 	);
 }

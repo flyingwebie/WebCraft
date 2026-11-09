@@ -242,7 +242,7 @@ export function matchKey(value: Json): string {
 	return typeof value === "string" ? value.trim().toLocaleLowerCase() : JSON.stringify(value);
 }
 
-type CellRead =
+export type CellRead =
 	| { value: Json; input: unknown }
 	| { reading: Extract<TextReading, { entries: string[] } | { file: string }> }
 	| { problem: string; params?: Record<string, string | number> };
@@ -261,14 +261,22 @@ function readCell(cell: string, target: CsvTarget): CellRead {
 			? { value: slug, input: slug }
 			: { problem: "slug" };
 	}
-	const spec = specOf(target.field).value as unknown as ValueSpec<LeafField>;
-	const reading = spec.fromText(cell, target.field);
+	return readFieldText(cell, target.field);
+}
+
+/**
+ * A value written as text, read for a Field through its type's reading of text (`fromText`): the
+ * value to store, what must be found first (Entries, a file), or why the Field can't take it.
+ */
+export function readFieldText(cell: string, field: LeafField): CellRead {
+	const spec = specOf(field).value as unknown as ValueSpec<LeafField>;
+	const reading = spec.fromText(cell, field);
 	if ("problem" in reading) return reading;
 	if (!("input" in reading)) return { reading };
 	let refused = false;
 	const value = spec.parse(
 		reading.input,
-		target.field,
+		field,
 		() => {
 			refused = true;
 			return null;

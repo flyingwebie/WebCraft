@@ -4,7 +4,7 @@ import { asc, eq, sql } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
-import { actingPerson } from "../permissions/can.ts";
+import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	type ContentProblem,
@@ -159,7 +159,13 @@ export async function createLoop(scope: SiteScope, input: NewLoop): Promise<Loop
 		return await scope.transaction(async (tx) => {
 			if (await tx.first(loops, eq(loops.name, name))) throw new LoopNameTakenError(name);
 			const now = tx.now();
-			const row = await tx.insert(loops, { name, draft, createdAt: now, updatedAt: now });
+			const row = await tx.insert(loops, {
+				name,
+				draft,
+				createdAt: now,
+				updatedAt: now,
+				updatedBy: personIdOf(tx.access.actor),
+			});
 			await tx.audit("loop.create", { loopId: row.id, name });
 			return toLoop(row, await defaultLanguages(tx));
 		});
@@ -195,7 +201,11 @@ export async function saveLoopDraft(scope: SiteScope, loopId: string, change: Lo
 		const problems: ContentProblem[] = [];
 		const draft = await nextVersion(tx, storedLoopVersion(row.draft), change, problems);
 		if (problems.length > 0) throw new LoopInvalidError(problems);
-		const [saved] = await tx.update(loops, { draft, updatedAt: tx.now() }, eq(loops.id, row.id));
+		const [saved] = await tx.update(
+			loops,
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(loops.id, row.id),
+		);
 		return toLoop(saved ?? row, await defaultLanguages(tx));
 	});
 }
@@ -230,7 +240,11 @@ export async function saveLoopItems(scope: SiteScope, loopId: string, change: Lo
 			"The Loop",
 		);
 		if (problems.length > 0) throw new LoopInvalidError(problems);
-		const [saved] = await tx.update(loops, { draft: { ...draft, values }, updatedAt: tx.now() }, eq(loops.id, row.id));
+		const [saved] = await tx.update(
+			loops,
+			{ draft: { ...draft, values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(loops.id, row.id),
+		);
 		return toLoop(saved ?? row, languages);
 	});
 }

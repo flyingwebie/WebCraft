@@ -9,6 +9,7 @@ import type redirects from "@webcraft/module-redirects";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -24,7 +25,7 @@ const api = (browser: TestBrowser = editor) => moduleApi<typeof redirects>(brows
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const member = await install.createMember({ workspaceId, role: "editor" });
@@ -47,7 +48,8 @@ let sites = 0;
 async function newSite(): Promise<{ siteId: string; origin: string }> {
 	const slug = `missing-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
-	return { siteId, origin: `https://${slug}.sites.test` };
+	await goLive(install, siteId);
+	return { siteId, origin: `https://${slug}.live.test` };
 }
 
 /** A visitor's browser asking for a page. */

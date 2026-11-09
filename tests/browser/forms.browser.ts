@@ -29,6 +29,8 @@ beforeAll(async () => {
 	await api.modules.approve({ moduleId: "forms", version: forms.manifest.version });
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	// Visitors see the Site on its domain; its Staging address is for the people reviewing it.
+	await install.goLive(siteId);
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" })).account;
 	const createdOwner = await local.createMember({ workspaceId, role: "owner" });
 	owner = createdOwner.account;
@@ -122,7 +124,7 @@ beforeAll(async () => {
 	// Submissions, sent by visitors through the test process's own handler on the same database.
 	const send = async (fields: Record<string, string>, spam = false) => {
 		const visitor = formVisitor(local);
-		const page = await visitor.open(`https://${slug}.sites.test${PAGE}`);
+		const page = await visitor.open(install.liveUrl(slug, PAGE));
 		const sent = await visitor.send(
 			page,
 			{ venue: "hotel", consent: "yes", ...fields },
@@ -193,7 +195,7 @@ for (const theme of THEMES) {
 	describe(`a Form on a Site's page, ${theme}`, () => {
 		test("the page with the Form", async () => {
 			const page = await install.newPage(theme);
-			await page.goto(install.siteUrl(slug, PAGE));
+			await page.goto(install.liveUrl(slug, PAGE));
 			await page.waitForLoadState("load");
 
 			await expectAccessibleScreen(page, `a page with a Form (${theme})`);
@@ -201,7 +203,7 @@ for (const theme of THEMES) {
 
 		test("sent back with errors: the summary takes focus, and each of its links goes to its field", async () => {
 			const page = await install.newPage(theme);
-			await page.goto(install.siteUrl(slug, PAGE));
+			await page.goto(install.liveUrl(slug, PAGE));
 			await page.getByRole("button", { name: "Send" }).focus();
 			await Promise.all([page.waitForURL(`**/_webcraft/forms/${formId}`), page.keyboard.press("Enter")]);
 			await page.waitForLoadState("load");
@@ -220,7 +222,7 @@ for (const theme of THEMES) {
 
 		test("sent: the message shows in place of the Form", async () => {
 			const page = await install.newPage(theme);
-			await page.goto(install.siteUrl(slug, PAGE));
+			await page.goto(install.liveUrl(slug, PAGE));
 			await page.getByLabel("Your name").fill("Ada");
 			await page.getByLabel("Email").fill("ada@example.com");
 			await page.getByLabel("Hotel").check();

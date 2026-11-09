@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -21,12 +22,13 @@ let postTypeId: string;
 
 type MediaView = Awaited<ReturnType<TestBrowser["api"]["media"]["get"]>>["media"];
 
-const onSite = (path: string) => `https://bakery.sites.test${path}`;
+const onSite = (path: string) => `https://bakery.live.test${path}`;
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const editorMember = await install.createMember({ workspaceId, role: "editor" });
 	const authorMember = await install.createMember({ workspaceId, role: "author" });

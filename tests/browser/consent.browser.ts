@@ -36,6 +36,8 @@ async function consentSite(mode: "optIn" | "optOut" | "outside", layout: "bar" |
 	const { api } = await local.superadmin();
 	const slug = `consent-${++sites}`;
 	const siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	// Visitors see the Site on its domain; its Staging address is for the people reviewing it.
+	await install.goLive(siteId);
 	const site = await api.templates.saveSiteTemplateMarkup({ siteId, markup: SITE_TEMPLATE });
 	await api.templates.publish({ siteId, templateId: site.template.id });
 	const pages = (await api.postTypes.list({ siteId })).postTypes.find((postType) => postType.builtIn === "page");
@@ -111,7 +113,7 @@ async function expectRan(page: Page, expected: Ran): Promise<void> {
 
 /** Opens a Site's page (the note, unless given) and waits for the consent script to have run. */
 async function open(page: Page, slug: string, path = "/notes/ovens"): Promise<void> {
-	await page.goto(install.siteUrl(slug, path));
+	await page.goto(install.liveUrl(slug, path));
 	await page.waitForLoadState("load");
 	await page.waitForFunction(() => document.documentElement.hasAttribute("data-wc-consent-state"));
 }
@@ -291,7 +293,7 @@ describe("without JavaScript", () => {
 	test("no banner shows, nothing held back runs, and the page and its video's link work as they are", async () => {
 		const slug = await consentSite("optIn", "bar");
 		const page = await install.newPage("light", { javaScript: false });
-		await page.goto(install.siteUrl(slug, "/notes/ovens"));
+		await page.goto(install.liveUrl(slug, "/notes/ovens"));
 
 		expect(await page.getByRole("region", { name: "Privacy choices" }).isVisible()).toBe(false);
 		expect(await page.getByRole("button", { name: "Cookie settings" }).isVisible()).toBe(false);

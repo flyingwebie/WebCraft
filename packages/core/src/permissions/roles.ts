@@ -46,8 +46,10 @@ export const PERMISSIONS = {
 	"aiUsage.view": ["workspace", "site"],
 	/** Change the Protected terms AI translation leaves as written: the Workspace's, or a Site's. */
 	"protectedTerms.edit": ["workspace", "site"],
-	/** See a Site and open it in the admin. */
+	/** See a Site and open it in the admin, and on its Staging address. */
 	"site.view": ["site"],
+	/** Set or remove the Site's staging password, which lets people without an account see its Staging address. */
+	"staging.manage": ["site"],
 	/** Change a Site's Structure: Post Types, Fields, Templates, Components, the Design system, settings. */
 	"structure.edit": ["site"],
 	/** Edit Content and save Drafts. */
@@ -119,6 +121,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"aiUsage.view",
 			"protectedTerms.edit",
 			"site.view",
+			"staging.manage",
 			"structure.edit",
 			"entry.edit",
 			"entry.publish",
@@ -141,6 +144,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"aiUsage.view",
 			"protectedTerms.edit",
 			"site.view",
+			"staging.manage",
 			"entry.edit",
 			"entry.publish",
 			"formEmails.edit",

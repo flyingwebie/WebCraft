@@ -6,6 +6,7 @@ import { createTestInstall, type TestBrowser, type TestInstall } from "../harnes
 import { structuredDataLine, withoutStructuredData } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { stylesheetIn } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, type TestTree, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -18,6 +19,7 @@ beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-04-05T10:30:00Z") });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme <Bakery> & Co", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const member = await install.createMember({ workspaceId, role: "editor", name: "Edie <Editor>" });
 	editor = member.browser;
@@ -53,7 +55,7 @@ async function publishedPage(
 		fields: { note: entry.note ?? null },
 	});
 	const { entry: published } = await editor.api.entries.publish({ siteId, entryId: created.entry.id });
-	const response = await install.request(`https://bakery.sites.test/${key}/${published.published?.slug}`);
+	const response = await install.request(`https://bakery.live.test/${key}/${published.published?.slug}`);
 	return { html: await expectSafePage(response.clone()), response, entryId: created.entry.id };
 }
 
@@ -79,10 +81,10 @@ describe("semantic HTML", () => {
 				'<meta name="viewport" content="width=device-width, initial-scale=1">',
 				"<title>Daily bread · Acme &lt;Bakery&gt; &amp; Co</title>",
 				// What it tells search engines and other sites (see tests/seo), escaped as everything is.
-				'<link rel="canonical" href="https://bakery.sites.test/kind-1/daily-bread">',
+				'<link rel="canonical" href="https://bakery.live.test/kind-1/daily-bread">',
 				'<meta property="og:type" content="website">',
 				'<meta property="og:title" content="Daily bread">',
-				'<meta property="og:url" content="https://bakery.sites.test/kind-1/daily-bread">',
+				'<meta property="og:url" content="https://bakery.live.test/kind-1/daily-bread">',
 				'<meta property="og:site_name" content="Acme &lt;Bakery&gt; &amp; Co">',
 				'<meta property="og:locale" content="en">',
 				'<meta name="twitter:card" content="summary">',
@@ -221,7 +223,7 @@ describe("Drafts", () => {
 		await staff.api.templates.publish({ siteId, templateId: template.id });
 		await editor.api.entries.create({ siteId, postTypeId: postType.id, title: "Work in progress" });
 
-		expect((await install.request("https://bakery.sites.test/drafts/work-in-progress")).status).toBe(404);
+		expect((await install.request("https://bakery.live.test/drafts/work-in-progress")).status).toBe(404);
 	});
 
 	test("a Template's Draft changes nothing until it is published", async () => {
@@ -240,12 +242,12 @@ describe("Drafts", () => {
 			postTypeId: postType.id,
 			tree: tree(element("h2", [value("title")])),
 		});
-		expect(await (await install.request("https://bakery.sites.test/notices/closed-monday")).text()).toContain(
+		expect(await (await install.request("https://bakery.live.test/notices/closed-monday")).text()).toContain(
 			"<h1>Closed Monday</h1>",
 		);
 
 		await staff.api.templates.publish({ siteId, templateId: template.id });
-		expect(await (await install.request("https://bakery.sites.test/notices/closed-monday")).text()).toContain(
+		expect(await (await install.request("https://bakery.live.test/notices/closed-monday")).text()).toContain(
 			"<h2>Closed Monday</h2>",
 		);
 	});

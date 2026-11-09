@@ -5,15 +5,17 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
-const origin = "https://bakery.sites.test";
+const origin = "https://bakery.live.test";
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	const { api } = await install.superadmin();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	const { postType } = await api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const template = await api.templates.saveEntryTemplateMarkup({
 		siteId,
@@ -53,7 +55,8 @@ describe("every page links the Site's stylesheet", () => {
 		expect(response.headers.get("content-type")).toBe("text/css; charset=utf-8");
 		expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
 		expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-		expect(response.headers.get("x-robots-tag")).toBe("noindex");
+		// The Site's domain is for visitors and search engines alike: only its Staging address says noindex.
+		expect(response.headers.get("x-robots-tag")).toBeNull();
 	});
 
 	test("its name is the hash of what it holds: another name answers 404", async () => {
@@ -62,7 +65,7 @@ describe("every page links the Site's stylesheet", () => {
 
 		expect((await install.request(`${origin}${other}`)).status).toBe(404);
 		expect((await install.request(`${origin}/_wc/css/style.css`)).status).toBe(404);
-		expect((await install.request(`https://elsewhere.sites.test${href}`)).status).toBe(404);
+		expect((await install.request(`https://elsewhere.live.test${href}`)).status).toBe(404);
 	});
 
 	test("HEAD answers the same headers without the body", async () => {

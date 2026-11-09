@@ -1,5 +1,6 @@
 import { taggedTranslation } from "../harness/fake-ai.ts";
 import type { TestBrowser, TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 export const AI_KEY = "sk-translation-test-key-0123456789";
 
@@ -29,6 +30,8 @@ export async function translatedSite(
 	const slug = `translated-${++made}`;
 	const workspaceId = (await install.createWorkspace(`Acme ${made}`)).id;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	// Visitors see what is published on the Site's live domain (the Staging address shows Drafts).
+	const origin = await goLive(install, siteId);
 	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 	const editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
@@ -62,7 +65,7 @@ export async function translatedSite(
 		workspaceId,
 		siteId,
 		postTypeId: postType.id,
-		origin: `https://${slug}.sites.test`,
+		origin,
 		staff,
 		owner,
 		editor,

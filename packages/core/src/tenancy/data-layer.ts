@@ -37,6 +37,13 @@ export type DataLayer = {
 	 */
 	visitors(site: Site): VisitorScope;
 	/**
+	 * Opens a Site for the people reviewing it on its Staging address (ADR 0014): read-only like
+	 * `visitors`, with nobody signed in for certain (someone may have given the staging password), but
+	 * reading its Drafts too. Only the Site request pipeline opens one, for a request on the Staging
+	 * address that passed its access check.
+	 */
+	staging(site: Site): VisitorScope;
+	/**
 	 * Opens a Site for WebCraft's own work in the background, such as the worker cleaning an upload.
 	 * No person acts, so nothing is checked with `can()` and nothing is written to the Audit log: only
 	 * jobs open one, for the Site named in a payload that a checked procedure queued. Null when the
@@ -329,6 +336,14 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 		return result;
 	};
 
+	/** A Site read-only, limited to it, with no person: what visitors and the Staging address read through. */
+	const readOnly = (site: Site): VisitorScope => {
+		const condition = (table: SiteTable) =>
+			and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id)) as SQL;
+		const { select, first, count, where } = scopedQueries(db, condition, {});
+		return { select, first, count, where, db, level: "visitor", site, now: () => clock.now() };
+	};
+
 	return {
 		async install(access, permission) {
 			check(access.actor, permission, INSTALL);
@@ -355,12 +370,8 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			return siteScope(db, access, workspace, site, null);
 		},
 
-		visitors(site) {
-			const condition = (table: SiteTable) =>
-				and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id)) as SQL;
-			const { select, first, count, where } = scopedQueries(db, condition, {});
-			return { select, first, count, where, db, level: "visitor", site, now: () => clock.now() };
-		},
+		visitors: readOnly,
+		staging: readOnly,
 
 		async background(siteId) {
 			const site = isUuid(siteId) ? await findSite(db, siteId) : undefined;

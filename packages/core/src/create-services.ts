@@ -12,6 +12,7 @@ import { createCodeMode } from "./code-mode/index.ts";
 import { createConsent } from "./consent/index.ts";
 import {
 	addLanguage,
+	countDrafts,
 	createComponent,
 	createEntry,
 	createLoop,
@@ -40,6 +41,7 @@ import {
 	listPostTypes,
 	listTemplates,
 	publish,
+	publishAll,
 	publishPreview,
 	removeLanguage,
 	renameComponent,
@@ -63,6 +65,7 @@ import {
 	setDefaultLanguage,
 	setGlobalFields,
 	setSpecialPage,
+	siteDrafts,
 	siteLanguages,
 	updateLanguage,
 	updatePostType,
@@ -102,6 +105,7 @@ import {
 	type MasterKey,
 	rateLimitKey,
 	sessionSigningSecret,
+	stagingPasswordKey,
 	visitorIdKey,
 } from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
@@ -111,6 +115,7 @@ import { createInstallSetup } from "./setup.ts";
 import { entryTemplateData, globalsData, loopData } from "./site-pages/data-samples.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createSiteScripts } from "./site-scripts/index.ts";
+import { createStaging } from "./staging/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createInvites } from "./tenancy/invites.ts";
 import { createMembers } from "./tenancy/members.ts";
@@ -384,7 +389,13 @@ export async function createInstallServices(
 			exportTokens: exportDesignTokens,
 			importTokens: importDesignTokens,
 		},
-		publishing: { publish: (scope, item) => publish(scope, item, componentSources), preview: publishPreview },
+		publishing: {
+			publish: (scope, item) => publish(scope, item, componentSources),
+			preview: publishPreview,
+			drafts: siteDrafts,
+			count: countDrafts,
+			publishAll: (scope, items, confirmation) => publishAll(scope, items, confirmation, componentSources),
+		},
 		sitePages,
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),
@@ -400,6 +411,15 @@ export async function createInstallServices(
 			signingKey: await editModeSigningKey(masterKey),
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
+		staging: createStaging({
+			database,
+			clock,
+			config,
+			auth,
+			data,
+			actors,
+			passwordKey: await stagingPasswordKey(masterKey),
+		}),
 		codeMode: createCodeMode({ data, sources: componentSources, pages: sitePages }),
 		builder: createBuilder({ sources: componentSources }),
 		memberships,
@@ -410,7 +430,7 @@ export async function createInstallServices(
 		email,
 		storage,
 		media,
-		imports: createImports({ storage, jobs: ports.jobs }),
+		imports: createImports({ storage, jobs: ports.jobs, modules }),
 		modules,
 		backups: createBackups({
 			config,

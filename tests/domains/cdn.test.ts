@@ -8,6 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 /** Where Caddy reaches the web process in the Compose file. */
 const CADDY = "172.18.0.5";
@@ -46,7 +47,8 @@ async function newSite(cdn?: "cloudflare" | "fastly") {
 	const slug = `cdn-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { slug });
 	if (cdn) await staff.api.domains.setCdn({ siteId, cdn });
-	return { siteId, origin: `https://${slug}.sites.test` };
+	// Visitors on the Site's domain: its Staging address lets in only the people reviewing it.
+	return { siteId, origin: await goLive(install, siteId) };
 }
 
 /**
@@ -248,6 +250,7 @@ describe("the CDNs' published ranges", () => {
 			const { id: freshWorkspace } = await fresh.createWorkspace();
 			const { browser: freshStaff } = await fresh.createStaff({ workspaces: [freshWorkspace] });
 			const { id: siteId, slug } = await fresh.createSite(freshWorkspace);
+			await goLive(fresh, siteId);
 			await fresh.clock.advance(24 * 60 * MINUTE);
 			await fresh.drainJobs();
 			expect(fresh.http.requests.some((request) => request.url === FASTLY_LIST)).toBe(false);
@@ -260,11 +263,11 @@ describe("the CDNs' published ranges", () => {
 			const post = (visitor: string) =>
 				fresh.request(
 					fromAddress(
-						new Request(`https://${slug}.sites.test/_wc/consent`, {
+						new Request(`https://${slug}.live.test/_wc/consent`, {
 							method: "POST",
 							headers: {
 								"content-type": "application/json",
-								origin: `https://${slug}.sites.test`,
+								origin: `https://${slug}.live.test`,
 								"sec-fetch-site": "same-origin",
 								"x-forwarded-for": "198.18.0.7",
 								"fastly-client-ip": visitor,

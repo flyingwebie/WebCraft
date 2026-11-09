@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { component, type ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { sampleBoard } from "./sample/board.ts";
 import { sample } from "./sample/index.ts";
 
@@ -20,6 +21,7 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 });
@@ -45,7 +47,7 @@ async function publishedEntry(
 }
 
 async function mainOf(host: string, path: string): Promise<string> {
-	const response = await install.request(`https://${host}.sites.test${path}`);
+	const response = await install.request(`https://${host}.live.test${path}`);
 	expect(response.status).toBe(200);
 	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
 }
@@ -106,6 +108,7 @@ describe("a Module's Component", () => {
 
 	test("can be placed only on Sites where the Module runs, and shows nothing where it was switched off", async () => {
 		const other = await install.createSite(workspaceId, { slug: "market" });
+		await goLive(install, other.id);
 		const { path, postTypeId } = await publishedEntry(other.id, '<p>Hello</p><NoteCard body="Placed" />');
 		expect(await mainOf("market", path)).toBe('<p>Hello</p><aside data-tone="calm"><p>Placed</p></aside>');
 
