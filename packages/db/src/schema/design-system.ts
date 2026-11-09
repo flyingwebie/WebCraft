@@ -1,16 +1,75 @@
-import { boolean, foreignKey, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 import { sites } from "./tenancy.ts";
 
-// The Design system (ADR 0009): a Site's Design tokens, Classes and custom CSS. Site data, like the
-// content store: every row carries `workspace_id` and `site_id`, with a foreign key to
-// `sites (workspace_id, id)`.
+// The Design system (ADR 0009): a Site's Design tokens, Classes, base styles and custom CSS. Site
+// data, like the content store: every row carries `workspace_id` and `site_id`, with a foreign key
+// to `sites (workspace_id, id)`.
 
 /**
- * Classes: named sets of styles that elements reference by id (ADR 0009). So far only generated
- * Classes exist, made from inline styles in Template markup: `styles` holds their CSS declarations
- * in canonical form (`color: red; margin: 0 auto;`). The Design system's own Classes, their Draft
- * and published versions and the stylesheet build on this table.
+ * The Design system of a Site: one document holding its tokens, Classes, base styles, custom CSS
+ * and dark mode setting (`@webcraft/renderer` › `DesignSystem`), with a Draft and a published version
+ * like other publishable items, published as one item. Token and Class references inside it, and in
+ * element trees, are ids, so renaming changes nothing stored elsewhere. Made the first time a Site
+ * changes its Design system; until then, and until its first publish, the Site shows the default one.
+ */
+export const designSystems = pgTable(
+	"design_systems",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** The Draft: what Staff edit. */
+		draft: jsonb("draft").notNull(),
+		/** The published version visitors see; null until the first publish. */
+		published: jsonb("published"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		/** When the Draft was last saved. */
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		publishedAt: timestamp("published_at", { withTimezone: true }),
+		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
+	},
+	(table) => [
+		foreignKey({
+			name: "design_systems_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		unique("design_systems_site_id_id_unique").on(table.siteId, table.id),
+		unique("design_systems_site_id_unique").on(table.siteId),
+	],
+);
+
+/**
+ * Stylesheets a Site recently stopped using. A Site's current stylesheet is always built from what
+ * it has published; when a publish changes it, the one it replaces is kept here for a while, so a
+ * page a visitor loaded just before still finds its stylesheet under its content-hashed name.
+ */
+export const stylesheets = pgTable(
+	"stylesheets",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** The content hash in its file name. */
+		hash: text("hash").notNull(),
+		css: text("css").notNull(),
+		/** When a publish replaced it. */
+		retiredAt: timestamp("retired_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			name: "stylesheets_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		unique("stylesheets_site_id_hash_unique").on(table.siteId, table.hash),
+	],
+);
+
+/**
+ * No longer written: generated Classes made before the Design system had a Draft (#58). A migration
+ * moved them into each Site's Design system; the table goes in a later release (ADR 0031).
  */
 export const classes = pgTable(
 	"classes",
@@ -18,11 +77,8 @@ export const classes = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		workspaceId: uuid("workspace_id").notNull(),
 		siteId: uuid("site_id").notNull(),
-		/** The class name pages carry, such as `card` or `style-1a2b3c4d`. Unique on the Site. */
 		name: text("name").notNull(),
-		/** CSS declarations, in canonical form. */
 		styles: text("styles").notNull().default(""),
-		/** Made by WebCraft from an inline style, rather than by Staff. */
 		generated: boolean("generated").notNull().default(false),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
