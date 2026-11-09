@@ -27,3 +27,23 @@ export const domainsVerifyDue = defineJob({
 });
 
 export const domainsVerifyDueSchedule = defineSchedule({ job: domainsVerifyDue, cron: "* * * * *", payload: {} });
+
+/** The Domain check of one verified domain. Not retried: the next hour's check is the next try. */
+export const domainsCheck = defineJob({
+	name: "domains.check",
+	payload: domain,
+	queue: { retryLimit: 0, expireInSeconds: 300 },
+	run: ({ siteId, domainId }, context) => context.domains.checkQueued(siteId, domainId),
+});
+
+/** Every hour: the Domain check of every verified domain on the Install, one job each. */
+export const domainsCheckAll = defineJob({
+	name: "domains.check-all",
+	payload: z.object({}),
+	queue: { retryLimit: 0 },
+	run: async (_payload, context) => {
+		for (const live of await context.domains.liveDomains()) await context.jobs.send(domainsCheck, live);
+	},
+});
+
+export const domainsCheckAllSchedule = defineSchedule({ job: domainsCheckAll, cron: "41 * * * *", payload: {} });

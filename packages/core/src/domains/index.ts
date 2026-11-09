@@ -5,12 +5,14 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
 import type { Dns } from "../dns.ts";
+import type { Email } from "../email/index.ts";
 import type { OutgoingHttp } from "../http.ts";
 import type { Logger } from "../log.ts";
 import { slugOfStagingHostname } from "../site-pages/addresses.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import type { TlsProbe } from "../tls.ts";
-import { type CheckPorts, createVerificationSigner } from "./checks.ts";
+import { createVerificationSigner } from "./checks.ts";
+import { checkLiveDomain, type LiveCheckPorts, liveDomains } from "./domain-check.ts";
 import {
 	addDomain,
 	domainView,
@@ -48,7 +50,14 @@ export {
 	DomainNotFoundError,
 	DomainTakenError,
 } from "./errors.ts";
-export { domainsVerify, domainsVerifyDue, domainsVerifyDueSchedule } from "./jobs.ts";
+export {
+	domainsCheck,
+	domainsCheckAll,
+	domainsCheckAllSchedule,
+	domainsVerify,
+	domainsVerifyDue,
+	domainsVerifyDueSchedule,
+} from "./jobs.ts";
 export { displayName, domainName, isInstallName, partnerOf } from "./names.ts";
 
 /**
@@ -64,7 +73,7 @@ export type Domains = {
 	makePrimary(scope: SiteScope, domainId: string): Promise<SiteDomainList>;
 	/**
 	 * Checks a domain now (Check now): one waiting for DNS is verified when it reaches the Install, and
-	 * otherwise checked every few minutes again, as when it was added.
+	 * otherwise checked every few minutes again, as when it was added; a live one gets its Domain check.
 	 */
 	check(scope: SiteScope, domainId: string): Promise<SiteDomain>;
 	/**
@@ -81,6 +90,10 @@ export type Domains = {
 	claimDueVerifications(): Promise<DueDomain[]>;
 	/** For the worker: one claimed verification check. */
 	verifyQueued(siteId: string, domainId: string): Promise<void>;
+	/** For the worker: the verified domains of the Install, for the hourly Domain check. */
+	liveDomains(): Promise<DueDomain[]>;
+	/** For the worker: the Domain check of one verified domain. */
+	checkQueued(siteId: string, domainId: string): Promise<void>;
 };
 
 export type DomainsOptions = {
@@ -92,6 +105,8 @@ export type DomainsOptions = {
 	tls: TlsProbe;
 	clock: Clock;
 	log: Logger;
+	/** System emails, for the `domain-unreachable` email to the Site's Owners. */
+	email: Email;
 	/** The key verification signs with, derived from the Master key (`domainVerificationKey`). */
 	verificationKey: CryptoKey;
 };
@@ -100,13 +115,14 @@ export function createDomains(options: DomainsOptions): Domains {
 	const { config, database, data, clock, log } = options;
 	const deps = { config };
 	const signer = createVerificationSigner(options.verificationKey);
-	const ports: CheckPorts & { log: Logger } = {
+	const ports: LiveCheckPorts = {
 		config,
 		http: options.http,
 		dns: options.dns,
 		tls: options.tls,
 		signer,
 		log,
+		email: options.email,
 	};
 	return {
 		list: (scope) => listDomains(deps, scope),
@@ -114,10 +130,9 @@ export function createDomains(options: DomainsOptions): Domains {
 		makePrimary: (scope, domainId) => makePrimary(deps, scope, domainId),
 		async check(scope, domainId) {
 			let row = await findDomain(scope, domainId);
-			if (row.verifiedAt === null) {
-				row = await verifyOnce(ports, scope, row);
-				if (row.verifiedAt === null) row = await restartVerification(scope, row);
-			}
+			if (row.verifiedAt !== null) return domainView(deps, await checkLiveDomain(ports, scope, row));
+			row = await verifyOnce(ports, scope, row);
+			if (row.verifiedAt === null) row = await restartVerification(scope, row);
 			return domainView(deps, row);
 		},
 		verificationAnswer: (hostname, token) => verificationAnswer(database, signer, hostname, token),
@@ -140,6 +155,13 @@ export function createDomains(options: DomainsOptions): Domains {
 			const row = scope ? await findDomain(scope, domainId).catch(() => null) : null;
 			if (!scope || !row || row.verifiedAt !== null) return;
 			await verifyOnce(ports, scope, row);
+		},
+		liveDomains: () => liveDomains(database),
+		async checkQueued(siteId, domainId) {
+			const scope = await data.background(siteId);
+			const row = scope ? await findDomain(scope, domainId).catch(() => null) : null;
+			if (!scope || !row || row.verifiedAt === null) return;
+			await checkLiveDomain(ports, scope, row);
 		},
 	};
 }

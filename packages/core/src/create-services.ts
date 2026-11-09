@@ -209,6 +209,7 @@ export async function createInstallServices(
 			tls: ports.tls,
 			clock,
 			log,
+			email,
 			verificationKey: await domainVerificationKey(masterKey),
 		}),
 		languages: {

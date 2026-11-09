@@ -75,7 +75,7 @@ export async function claimDueVerifications(database: Database, now: Date): Prom
 }
 
 /** What verifying works on: a Site opened by Staff (Check now) or for WebCraft's own work (a job). */
-export type DomainScope = Pick<SiteScope, "first" | "update" | "now" | "db" | "site">;
+export type DomainScope = Pick<SiteScope, "first" | "update" | "now" | "db" | "site" | "workspace">;
 
 /**
  * Checks once whether a domain waiting for DNS reaches the Install, and records what was found. A

@@ -1,4 +1,11 @@
-import { domainsVerify, domainsVerifyDue, domainsVerifyDueSchedule } from "../domains/jobs.ts";
+import {
+	domainsCheck,
+	domainsCheckAll,
+	domainsCheckAllSchedule,
+	domainsVerify,
+	domainsVerifyDue,
+	domainsVerifyDueSchedule,
+} from "../domains/jobs.ts";
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
 import { mediaProcess, mediaVariants } from "../media/jobs.ts";
@@ -25,6 +32,8 @@ export const coreJobs = [
 	moduleLogPurge,
 	domainsVerifyDue,
 	domainsVerify,
+	domainsCheckAll,
+	domainsCheck,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -33,6 +42,7 @@ export const coreSchedules = [
 	rateLimitsPurgeSchedule,
 	moduleLogPurgeSchedule,
 	domainsVerifyDueSchedule,
+	domainsCheckAllSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {
