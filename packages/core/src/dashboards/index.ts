@@ -39,6 +39,7 @@ import {
 	type DashboardRange,
 	DEFAULT_RANGE,
 	freePlace,
+	funnelStepsDiffer,
 	MAX_DASHBOARDS,
 	MAX_TEMPLATES,
 	MAX_WIDGETS,
@@ -485,17 +486,27 @@ export function createDashboards(deps: {
 			if (answered.data) found.push(answered.data);
 			else problem ??= answered.problem;
 		}
-		const sum = addUp(found, widget.rows);
+		// A Funnel is matched across Sites by name only, and each Site builds its own steps, so two
+		// Sites' Funnel of that name can have different steps: then it can't be added up (model.ts).
+		const differs = funnelStepsDiffer(found);
+		const sum = differs ? null : addUp(found, widget.rows);
 		const counted = { counted: found.length, of: sites.length };
 		if (!sum) {
 			return {
 				...base,
 				sites: counted,
 				data: null,
-				problem: problem ?? {
-					code: "MODULE_NOT_RUNNING",
-					message: "The Module that adds this Widget isn't on for any of these Sites.",
-				},
+				problem:
+					problem ??
+					(differs
+						? {
+								code: "FUNNEL_STEPS_DIFFER",
+								message: "This Funnel's steps aren't the same on every Site, so they can't be added up.",
+							}
+						: {
+								code: "MODULE_NOT_RUNNING",
+								message: "The Module that adds this Widget isn't on for any of these Sites.",
+							}),
 			};
 		}
 		return {
