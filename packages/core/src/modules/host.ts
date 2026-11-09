@@ -7,6 +7,7 @@ import {
 	type ModuleContext,
 	type ModuleDefinition,
 	type ModuleEventName,
+	type ModuleEvents,
 	ModuleRefusedError,
 	wordsIn,
 } from "@webcraft/module-sdk";
@@ -64,7 +65,7 @@ import {
 	writeLine,
 } from "./runtime.ts";
 import { schemasOf } from "./schemas.ts";
-import { createVisitors, type SiteRouteRequest } from "./visitors.ts";
+import { createVisitors, formSenderOf, type SiteRouteRequest } from "./visitors.ts";
 
 /**
  * Where a Module stands on this Install:
@@ -192,9 +193,14 @@ export type ModuleHost = {
 	/**
 	 * Hands a checked Submission to the Module that keeps them on the Site, at once, and answers its
 	 * id. Throws `ModuleNotFoundError` where none runs, and `ModuleFailedError` when it fails (in the
-	 * Module log).
+	 * Module log). A kept Submission that isn't spam is then told to Modules as `form.submitted`, with
+	 * what WebCraft knows of its sender (`FormSender`), worked out from `sender` (the post).
 	 */
-	receiveSubmission(site: Site, submission: FormSubmission): Promise<{ id: string }>;
+	receiveSubmission(
+		site: Site,
+		submission: FormSubmission,
+		sender: { route: SiteRouteRequest; request: Request },
+	): Promise<{ id: string }>;
 	/** Changes how many months the Install keeps a Module's partitioned table's rows (`module.approve`). */
 	setKeepMonths(scope: InstallScope, moduleId: string, table: string, months: number): Promise<void>;
 	/** Makes Modules' partitions ahead of time and drops the months past keeping (the daily job). */
@@ -759,7 +765,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			return module && module.level === "site" && (await runsOnSite(site, module)) ? module.id : null;
 		},
 
-		async receiveSubmission(site, submission) {
+		async receiveSubmission(site, submission, sender) {
 			const module = receiving();
 			const receiver = module?.receiver;
 			if (!module || !receiver) throw new ModuleNotFoundError();
@@ -784,7 +790,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 					formKey: submission.formKey,
 					page: submission.page,
 					language: submission.language,
-				});
+					sender: await formSenderOf(visitors.visitorOf(sender.route, sender.request), sender.request),
+				} satisfies ModuleEvents["form.submitted"]);
 			}
 			return { id: kept.id };
 		},

@@ -3,6 +3,7 @@ import { FORM_POST_PATH, FORM_TOKEN_MARK } from "@webcraft/renderer";
 
 import { clientAddress } from "../client-address.ts";
 import { plainText } from "../responses.ts";
+import { editSessionOf } from "./edit-mode.ts";
 
 /**
  * Forms on a Site (GLOSSARY.md): what visitors send to `POST /_webcraft/forms/<id>`, on the Site's
@@ -48,6 +49,9 @@ export async function formPost(
 		fields: body === null ? null : fieldsOf(body),
 		clientAddress: clientAddress(request, services.config),
 		referer: request.headers.get("referer"),
+		via: host.address === "staging" ? "staging" : "domain",
+		editing: (await editSessionOf(services, request, host)).session !== null,
+		request,
 	});
 	switch (answer.kind) {
 		case "notFound":

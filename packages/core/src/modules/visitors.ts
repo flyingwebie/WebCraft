@@ -7,7 +7,13 @@
  */
 import type { Database } from "@webcraft/db";
 import { consentBanners, sessions, visitorSalts } from "@webcraft/db/schema";
-import { addressInRanges, type SiteVisitor, type VisitorConsent } from "@webcraft/module-sdk";
+import {
+	addressInRanges,
+	CONSENT_CATEGORIES,
+	type FormSender,
+	type SiteVisitor,
+	type VisitorConsent,
+} from "@webcraft/module-sdk";
 import { CHOSEN_CATEGORIES } from "@webcraft/renderer";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { z } from "zod";
@@ -133,6 +139,20 @@ export function createVisitors(deps: {
 			if (cached && cached.day < day) cached = undefined;
 			return deleted.length;
 		},
+	};
+}
+
+/**
+ * What a `form.submitted` event tells Modules of the visitor who sent a Form (`FormSender`): the
+ * visitor's facts answered at once, while the request is still there.
+ */
+export async function formSenderOf(visitor: SiteVisitor, request: Request): Promise<FormSender> {
+	const consent = await visitor.consent();
+	return {
+		via: visitor.via,
+		signedIn: await visitor.signedIn(),
+		doNotTrack: request.headers.get("dnt") === "1" || request.headers.get("sec-gpc") === "1",
+		consent: { asks: consent.asks, accepted: CONSENT_CATEGORIES.filter((category) => consent.has(category)) },
 	};
 }
 

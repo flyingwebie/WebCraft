@@ -165,8 +165,17 @@ export const siteAnalytics = defineModule({
 	schedules: [{ job: "rollUp", every: "hour" }],
 
 	events: {
-		/** A Form Submission is something a Goal counts (#103): kept as an event, with nothing the visitor typed. */
+		/**
+		 * A Form Submission is something a Goal counts (#103): kept as an event, with nothing the visitor
+		 * typed, on the terms of the collection path. Only once the sender accepted Analytics (where an
+		 * outside consent service asks, WebCraft can't read the answer, so never), and never from the
+		 * Staging address, from someone of the Install, or with Do Not Track or Global Privacy Control.
+		 * The Site's excluded address ranges can't apply: the event never holds the address.
+		 */
 		async "form.submitted"(event, context) {
+			const { sender } = event.data;
+			if (sender.via === "staging" || sender.signedIn || sender.doNotTrack) return;
+			if (!sender.consent.accepted.includes("analytics")) return;
 			await context.data.insert(events, {
 				occurredAt: event.occurredAt,
 				hour: startOf("hour", event.occurredAt),
