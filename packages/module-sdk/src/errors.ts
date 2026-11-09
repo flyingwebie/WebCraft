@@ -35,3 +35,15 @@ export class ModuleError extends Error {
 		this.status = status;
 	}
 }
+
+/**
+ * Whether an error is a Module's own answer (`ModuleError`), recognised by its name, code and status
+ * rather than by its class (SDK 1.4): the Module may run against another copy of the SDK than
+ * WebCraft's (a bundle, later a sandbox), whose class is a different one.
+ */
+export function isModuleError(error: unknown): error is ModuleError {
+	if (error instanceof ModuleError) return true;
+	if (!(error instanceof Error) || error.name !== "ModuleError") return false;
+	const { code, status } = error as { code?: unknown; status?: unknown };
+	return typeof code === "string" && (status === 400 || status === 403 || status === 404 || status === 409);
+}

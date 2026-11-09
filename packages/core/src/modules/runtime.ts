@@ -1,9 +1,10 @@
 import type { Database } from "@webcraft/db";
 import {
+	isModuleError,
 	type Label,
 	labelProblem,
 	type ModuleContext,
-	ModuleError,
+	type ModuleError,
 	type ModuleHttpOptions,
 	type ModulePlace,
 	ModuleRefusedError,
@@ -342,5 +343,5 @@ async function moduleHttp(
 
 /** Whether an error is a Module's own answer (`ModuleError`), which isn't a failure. */
 export function isModuleAnswer(error: unknown): error is ModuleError {
-	return error instanceof ModuleError;
+	return isModuleError(error);
 }

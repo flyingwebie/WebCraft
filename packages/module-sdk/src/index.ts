@@ -84,7 +84,7 @@ export {
 	type SiteRoute,
 	siteRoute,
 } from "./define.ts";
-export { ModuleError, type ModuleRefusal, ModuleRefusedError } from "./errors.ts";
+export { isModuleError, ModuleError, type ModuleRefusal, ModuleRefusedError } from "./errors.ts";
 export { MODULE_EVENTS, type ModuleEvent, type ModuleEventName, type ModuleEvents } from "./events.ts";
 export {
 	CONSENT_CATEGORIES,

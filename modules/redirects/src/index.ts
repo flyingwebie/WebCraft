@@ -141,4 +141,6 @@ export const redirects = defineModule({
 	schedules: [{ job: "purgeLog", every: "day" }],
 });
 
+export type { MissView } from "./log.ts";
+export type { RuleView } from "./rules.ts";
 export default redirects;
