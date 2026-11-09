@@ -343,7 +343,7 @@ async function suggestionsFor(scope: SiteScope, deps: SourceDeps, resolved: Reso
  * A Field (or Prop, or Global) and its parts as bindings name them: a Group's or Repeater's Fields,
  * a link's `url` and `text`, a select's `value` and `label`, what a Relationship points at.
  */
-function valuesOf(
+export function valuesOf(
 	field: FieldDefinition,
 	prefix: string,
 	parent: string | null,

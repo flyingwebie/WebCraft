@@ -124,6 +124,31 @@ describe("the Search element", () => {
 	});
 });
 
+describe("a layer label", () => {
+	test("prints as data-wc-label before the id, and saving the markup gives the same tree", async () => {
+		const tree = {
+			version: 1,
+			nodes: [
+				{
+					...el("hero", "section", [el("lead", "p", [text("Hi")])], [{ name: "aria-label", value: [text("Intro")] }]),
+					label: 'Hero & "intro" {{ x }}',
+				},
+				el("plain", "p", [text("No label")]),
+			],
+		} as TestTree;
+
+		const { tree: stored, markup, again } = await roundTrip(tree);
+
+		expect(stored).toEqual(tree as unknown as typeof stored);
+		expect(markup).toBe(
+			'<section aria-label="Intro" data-wc-label="Hero &amp; &quot;intro&quot; \\{{ x }}" data-wc-id="hero">' +
+				'<p data-wc-id="lead">Hi</p></section><p data-wc-id="plain">No label</p>',
+		);
+		expect(again.template.draft).toEqual(stored);
+		expect(again.markup).toBe(markup);
+	});
+});
+
 describe("every element setting", () => {
 	test("prints as this markup, and saving the markup gives the same tree", async () => {
 		const tree = {
@@ -469,6 +494,15 @@ describe("generated trees", () => {
 			!candidate.startsWith("->") &&
 			!candidate.endsWith("<!-"),
 	);
+	// A layer label: one line of text, never blank (a blank one is no label).
+	const label = fc.option(
+		fc
+			.string({ unit: fc.constantFrom(..."ab Z09-&<>\"'{}\\".split(""), "é", "😀", "{{"), minLength: 1, maxLength: 12 })
+			.filter((candidate) => candidate.trim() !== ""),
+		{ nil: undefined },
+	);
+	const withLabel = <Element extends object>(element: Element, chosen: string | undefined) =>
+		chosen === undefined ? element : { ...element, label: chosen };
 	const containers = ["div", "section", "span", "em", "strong", "article", "aside", "blockquote", "pre", "nav"];
 	const voids = ["br", "hr", "img", "wbr"];
 	const { node } = fc.letrec((tie) => ({
@@ -480,28 +514,39 @@ describe("generated trees", () => {
 			placement,
 			commentText.map((comment) => ({ type: "comment", text: comment })),
 			fc
-				.record({ tag: fc.constantFrom(...voids), attributes, classes: fc.subarray([0, 1, 2]) })
-				.map(({ tag, attributes: list, classes: chosen }) => ({
-					type: "element",
-					tag,
-					attributes: list,
-					classes: chosen.map((index) => classes[index]?.id ?? ""),
-					children: [],
-				})),
+				.record({ tag: fc.constantFrom(...voids), attributes, classes: fc.subarray([0, 1, 2]), label })
+				.map(({ tag, attributes: list, classes: chosen, label: named }) =>
+					withLabel(
+						{
+							type: "element",
+							tag,
+							attributes: list,
+							classes: chosen.map((index) => classes[index]?.id ?? ""),
+							children: [],
+						},
+						named,
+					),
+				),
 			fc
 				.record({
 					tag: fc.constantFrom(...containers),
 					attributes,
 					classes: fc.subarray([2, 1, 0]),
 					children: tie("nodes"),
+					label,
 				})
-				.map(({ tag, attributes: list, classes: chosen, children }) => ({
-					type: "element",
-					tag,
-					attributes: list,
-					classes: chosen.map((index) => classes[index]?.id ?? ""),
-					children,
-				})),
+				.map(({ tag, attributes: list, classes: chosen, children, label: named }) =>
+					withLabel(
+						{
+							type: "element",
+							tag,
+							attributes: list,
+							classes: chosen.map((index) => classes[index]?.id ?? ""),
+							children,
+						},
+						named,
+					),
+				),
 			fc.constant({ type: "themeToggle" }),
 			fc.constant({ type: "consentSettings" }),
 			fc.record({

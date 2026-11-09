@@ -43,6 +43,7 @@ import {
 	hasText,
 	isElementId,
 	isValuePath,
+	labelProblem,
 	MAX_PROBLEMS,
 	nestingProblem,
 	parseElementTree,
@@ -61,6 +62,9 @@ import { type MarkupNotice, type MarkupProblem, MarkupSource, TemplateMarkupInva
 
 /** The attribute that carries an element's id in Template markup. */
 export const ID_ATTRIBUTE = "data-wc-id";
+
+/** The attribute that carries an element's layer label in Template markup (`ElementNode.label`). */
+export const LABEL_ATTRIBUTE = "data-wc-label";
 
 export type ParseMarkupOptions = {
 	/** Whether a binding's path names a value this markup may read; every path is allowed when absent. */
@@ -853,6 +857,7 @@ class MarkupParser {
 	/** Builds an element from its attributes: its id, Classes, inline style and the rest, checked. */
 	private elementFrom(tag: string, written: readonly WrittenAttribute[], offset: number): ElementNode {
 		let id: string | undefined;
+		let label: string | undefined;
 		const classes: string[] = [];
 		const attributes: Attribute[] = [];
 		const seen = new Set<string>();
@@ -870,6 +875,12 @@ class MarkupParser {
 				} else {
 					id = attribute.text;
 				}
+				continue;
+			}
+			if (name === LABEL_ATTRIBUTE) {
+				const refused = attribute.bound ? "Values can't be used in a layer label." : labelProblem(attribute.text);
+				if (refused) this.problem(attribute.valueOffset, refused);
+				else if (attribute.text.trim()) label = attribute.text;
 				continue;
 			}
 			if (name === "class") {
@@ -913,7 +924,15 @@ class MarkupParser {
 		}
 		if (style) this.styleToClass(style, classes);
 		for (const classId of classes) this.classIds.add(classId);
-		return { type: "element", id: this.elementId(id, offset), tag, attributes, classes, children: [] };
+		const element: ElementNode = {
+			type: "element",
+			id: this.elementId(id, offset),
+			tag,
+			attributes,
+			classes,
+			children: [],
+		};
+		return label === undefined ? element : { ...element, label };
 	}
 
 	/** Turns an inline style into the generated Class for it, with a notice. */

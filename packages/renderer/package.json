@@ -11,7 +11,8 @@
 		"./body": "./src/body/index.ts",
 		"./forms": "./src/forms/version.ts",
 		"./forms/emails": "./src/forms/emails.ts",
-		"./forms/email-words": "./src/forms/email-words.ts"
+		"./forms/email-words": "./src/forms/email-words.ts",
+		"./builder": "./src/builder.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

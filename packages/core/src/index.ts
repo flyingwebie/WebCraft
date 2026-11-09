@@ -31,6 +31,17 @@ export {
 } from "./audit.ts";
 export { openBackupForCommand } from "./backups/command.ts";
 export * from "./backups/index.ts";
+export {
+	type Builder,
+	type BuilderCatalogue,
+	type BuilderDraft,
+	type BuilderOpened,
+	type BuilderPreview,
+	type BuilderTarget,
+	CANVAS_SOURCE,
+	type CanvasPlaceholder,
+	type PendingStyles,
+} from "./builder/index.ts";
 export * from "./cdns/index.ts";
 export { type Clock, systemClock } from "./clock.ts";
 export {

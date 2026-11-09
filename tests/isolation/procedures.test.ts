@@ -203,6 +203,7 @@ describe("Templates", () => {
 	isolation.refuses("templates.saveSiteTemplateMarkup", (api, { siteId }) =>
 		api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" }),
 	);
+	isolation.refuses("templates.list", (api, { siteId }) => api.templates.list({ siteId }));
 	isolation.refuses("templates.getSearchTemplate", (api, { siteId }) => api.templates.getSearchTemplate({ siteId }));
 	isolation.refuses("templates.saveSearchTemplate", (api, { siteId }) =>
 		api.templates.saveSearchTemplate({ siteId, tree: { version: 1, nodes: [] } }),
@@ -396,6 +397,25 @@ describe("Components", () => {
 	);
 	isolation.refuses("components.delete", async (api, target) =>
 		api.components.delete({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+});
+
+describe("the visual builder", () => {
+	const entryTemplateIn = async (target: IsolationTarget) => ({
+		kind: "entryTemplate" as const,
+		postTypeId: (await contentIn(target)).postTypeId,
+	});
+	isolation.refuses("builder.open", async (api, target) =>
+		api.builder.open({ siteId: target.siteId, target: await entryTemplateIn(target) }),
+	);
+	isolation.refuses("builder.preview", async (api, target) =>
+		api.builder.preview({ siteId: target.siteId, target: await entryTemplateIn(target), tree: tree(element("p")) }),
+	);
+	isolation.refuses("builder.markup", async (api, target) =>
+		api.builder.markup({ siteId: target.siteId, target: await entryTemplateIn(target), tree: tree(element("p")) }),
+	);
+	isolation.refuses("builder.read", async (api, target) =>
+		api.builder.read({ siteId: target.siteId, target: await entryTemplateIn(target), markup: "<p>Hi</p>" }),
 	);
 });
 

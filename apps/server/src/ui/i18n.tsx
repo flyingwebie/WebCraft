@@ -40,6 +40,11 @@ export function pageTitle(language: AdminLanguageCode, page: MessageKey): string
 	return t("app.pageTitle", { page: t(page) });
 }
 
+/** One message in an Admin language, outside React (a route's `head()`). */
+export function messageIn(language: AdminLanguageCode, key: MessageKey, values?: Record<string, string>): string {
+	return createTranslator({ locale: language, messages: adminMessages[language] })(key, values);
+}
+
 /** A page's `<title>` when its name is data (an Entry's title, a Post Type's name), with the place it is in. */
 export function pageTitleOf(language: AdminLanguageCode, ...names: readonly (string | undefined)[]): string {
 	const t = createTranslator({ locale: language, messages: adminMessages[language] });
