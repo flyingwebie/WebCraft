@@ -260,7 +260,7 @@ export type InstallServices = InstallPorts & {
 	editMode: EditMode;
 	/**
 	 * Code mode (ADR 0016): Staff in Edit mode edit the Template markup, CSS and scripts of what they
-	 * select on the page, saved to the Drafts. Open its Site with `codeMode.open(session)`.
+	 * select on the page, saved to the Drafts. Open its Site with `codeMode.access(session)`.
 	 */
 	codeMode: CodeMode;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */

@@ -11,6 +11,7 @@ import {
 	AlreadyMemberError,
 	ClassInUseError,
 	ClassNotFoundError,
+	CodeSourceNotFoundError,
 	ComponentFromModuleError,
 	ComponentInUseError,
 	ComponentInvalidError,
@@ -456,6 +457,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EditModeUnavailableError) {
 		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof CodeSourceNotFoundError) {
+		return new ORPCError("CODE_SOURCE_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof EditPathInvalidError) {
 		return new ORPCError("EDIT_PATH_INVALID", { status: 400, message: error.message, cause: error });

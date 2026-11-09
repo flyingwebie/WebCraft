@@ -1,3 +1,5 @@
+import { contentHash } from "@webcraft/renderer";
+
 /** Whether two JSON values are equal, whatever the order of their keys. */
 export function sameJson(a: unknown, b: unknown): boolean {
 	return stableJson(a) === stableJson(b);
@@ -11,4 +13,12 @@ export function stableJson(value: unknown): string {
 		return `{${keys.map((key) => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
 	}
 	return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * A Draft's version: 16 hexadecimal digits of the SHA-256 of its JSON, whatever the order of its
+ * keys. A save names the version it was based on, so it never overwrites a Draft someone changed since.
+ */
+export function draftVersion(draft: unknown): string {
+	return contentHash(stableJson(draft));
 }

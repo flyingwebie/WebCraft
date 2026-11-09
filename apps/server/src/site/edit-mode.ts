@@ -71,11 +71,19 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	 * Structure, every element tagged. Only for someone who may change the Structure (`structure.edit`).
 	 */
 	"code/start": async (services, session, _body, request) => {
-		await services.codeMode.open(session);
+		await services.codeMode.access(session);
 		const response = json(200, { code: true });
 		const maxAge = Math.max(0, Math.floor((session.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
 		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "on", maxAge));
 		return response;
+	},
+	/**
+	 * Opens what an element comes from (by the reference the page tags it with): its Template or
+	 * Component as Template markup, for Code mode's HTML panel.
+	 */
+	"code/open": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.open(scope, host, parse(codeSource, body)));
 	},
 	/** Turns Code mode off for this browser: its pages are Content editing's again. */
 	"code/stop": async (_services, _session, _body, request) => {
@@ -122,6 +130,11 @@ type EditAction = (
 ) => Promise<Response>;
 
 const pagePath = z.object({ path: z.string().max(2000) });
+
+/** A reference to what an element comes from, as pages in Code mode tag it (`data-wc-code`); null for the page's content. */
+const codeRef = z.string().max(1000).nullable();
+
+const codeSource = z.object({ path: z.string().max(2000), ref: codeRef });
 
 const pageChange = z.object({ path: z.string().max(2000), item: z.string().max(100), key: z.string().max(200) });
 

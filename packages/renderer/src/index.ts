@@ -136,6 +136,7 @@ export {
 	type CommentNode,
 	type ConditionBranch,
 	type ConditionNode,
+	childListsOf,
 	ELEMENT_TREE_VERSION,
 	type ElementNode,
 	type ElementTree,

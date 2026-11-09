@@ -215,7 +215,11 @@ export async function createInstallServices(
 			signingKey: await editModeSigningKey(masterKey),
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
-		codeMode: createCodeMode({ data }),
+		codeMode: createCodeMode({
+			data,
+			sources: componentSources,
+			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
+		}),
 		memberships,
 		members: createMembers({ database, email }),
 		staff: createStaff({ email }),

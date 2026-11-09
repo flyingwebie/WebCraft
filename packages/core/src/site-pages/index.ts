@@ -93,6 +93,11 @@ export type PageContent = {
 	readsGlobals: boolean;
 	/** Whether the path has no page, so the 404 page shows there. */
 	notFound: boolean;
+	/**
+	 * The Post Type whose Entry template renders the page's content; null when no Template does (a
+	 * Page, arranged with its Page layout, or the 404 page).
+	 */
+	templatePostTypeId: string | null;
 };
 
 /**
@@ -213,6 +218,7 @@ export function createSitePages(options: {
 				entryId: found?.entry.id ?? null,
 				readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
 				notFound: located === null,
+				templatePostTypeId: found && !isPagePostType(found.postType) ? found.postType.id : null,
 			};
 		},
 

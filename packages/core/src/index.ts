@@ -21,7 +21,13 @@ export {
 	recordAudit,
 } from "./audit.ts";
 export { type Clock, systemClock } from "./clock.ts";
-export type { CodeMode } from "./code-mode/index.ts";
+export {
+	type CodeMode,
+	type CodeSourceKind,
+	CodeSourceNotFoundError,
+	type OpenedSource,
+	type Suggestions,
+} from "./code-mode/index.ts";
 export {
 	adminOriginFor,
 	ConfigError,
