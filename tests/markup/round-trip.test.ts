@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import fc from "fast-check";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import type { TestNode, TestTree } from "../harness/trees.ts";
+import type { TestExpression, TestNode, TestTree } from "../harness/trees.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -244,7 +244,11 @@ describe("every element setting", () => {
 	});
 
 	test("Loops, pagination and every Condition operator print as this markup, and read back the same", async () => {
-		const compare = (operator: string, left: unknown, right: unknown) => ({ type: "compare", operator, left, right });
+		const compare = (
+			operator: "<" | "<=" | ">" | ">=" | "contains",
+			left: TestExpression,
+			right: TestExpression,
+		): TestExpression => ({ type: "compare", operator, left, right });
 		const tree = {
 			version: 1,
 			nodes: [

@@ -21,9 +21,15 @@ export type TestAttributePart = { type: "text"; text: string } | TestValue;
 export type TestExpression =
 	| { type: "value"; path: string }
 	| { type: "literal"; value: string | number | boolean }
+	| { type: "now" }
 	| { type: "not"; operand: TestExpression }
 	| { type: "and" | "or"; left: TestExpression; right: TestExpression }
-	| { type: "compare"; operator: "==" | "!="; left: TestExpression; right: TestExpression };
+	| {
+			type: "compare";
+			operator: "==" | "!=" | "<" | "<=" | ">" | ">=" | "contains";
+			left: TestExpression;
+			right: TestExpression;
+	  };
 
 export type TestNode =
 	| {
@@ -43,6 +49,8 @@ export type TestNode =
 			otherwise: TestNode[] | null;
 	  }
 	| { type: "outlet" }
+	| { type: "loop"; source: string; alias: string; children: TestNode[]; empty: TestNode[] | null }
+	| { type: "pagination"; loop: string }
 	| {
 			type: "component";
 			id?: string;
