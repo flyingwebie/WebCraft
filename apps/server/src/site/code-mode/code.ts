@@ -1109,15 +1109,17 @@ export function codeMode(config: CodeModeConfig): void {
 	}
 
 	/**
-	 * Template markup with line breaks and indentation between block-level tags, where whitespace never
-	 * shows on the page: after the end of a block element or the start of a block container, before the
-	 * start of a block element or the end of a block container. Nothing else changes (text, inline
-	 * elements, bindings, Components, commands stay as written), so saving it keeps every element.
+	 * Template markup with line breaks and indentation between tags where whitespace never shows on
+	 * the page: next to a block boundary (the start or end of a block container, before or after a
+	 * block element), where CSS drops spaces at the start and end of lines. Only between two tags
+	 * (elements or Components), never next to text, values or commands (so an element showing one
+	 * value alone stays editable in place), and never inside `<pre>`. Nothing else changes, so the
+	 * markup saves to the same elements and reads back exactly as formatted.
 	 */
 	function formatMarkup(text: string): string {
 		const tag =
 			/<!--[\s\S]*?-->|\\\{\{|\{\{[\s\S]*?\}\}|<\/([A-Za-z][\w-]*)\s*>|<([A-Za-z][\w-]*)(?:[^>"']|"[^"]*"|'[^']*')*?(\/?)>/g;
-		type Token = { kind: "start" | "end" | "other"; name: string };
+		type Token = { kind: "start" | "end" | "component" | "other"; name: string };
 		const stack: string[] = [];
 		let out = "";
 		let last = 0;
@@ -1127,17 +1129,21 @@ export function codeMode(config: CodeModeConfig): void {
 			const between = text.slice(last, at);
 			const current: Token = match[1]
 				? { kind: "end", name: match[1].toLowerCase() }
-				: match[2] && !/^[A-Z]/.test(match[2])
-					? { kind: "start", name: match[2].toLowerCase() }
+				: match[2]
+					? /^[A-Z]/.test(match[2])
+						? { kind: "component", name: match[2] }
+						: { kind: "start", name: match[2].toLowerCase() }
 					: { kind: "other", name: "" };
-			const breakAfter =
+			const tags = previous !== null && previous.kind !== "other" && current.kind !== "other";
+			const blockBefore =
 				previous !== null &&
 				((previous.kind === "end" && BLOCK.has(previous.name)) ||
 					(previous.kind === "start" && CONTAINERS.has(previous.name)));
-			const breakBefore =
+			const blockAfter =
 				(current.kind === "start" && BLOCK.has(current.name)) ||
 				(current.kind === "end" && CONTAINERS.has(current.name));
-			if (breakAfter && breakBefore && /^\s*$/.test(between)) {
+			const preformatted = stack.some((name) => name === "pre" || name === "textarea");
+			if (tags && (blockBefore || blockAfter) && !preformatted && /^\s*$/.test(between)) {
 				const depth = current.kind === "end" ? stack.length - 1 : stack.length;
 				out += `\n${"  ".repeat(Math.max(0, depth))}`;
 			} else out += between;

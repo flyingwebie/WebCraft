@@ -265,6 +265,47 @@ describe("previewing and saving", () => {
 	});
 });
 
+describe("CSS and Format", () => {
+	test("the page previews unsaved CSS under its strict policy, as the Class will look", async () => {
+		const page = await codeModePage("light");
+		await page.locator("main h1").click();
+		const css = page.getByRole("textbox", { name: "CSS: .hero-title" });
+		await css.waitFor();
+
+		await css.fill("font-size: var(--text-xl);\ncolor: rgb(1, 2, 3);");
+
+		await page.waitForFunction(
+			() => getComputedStyle(document.querySelector("main h1") as Element).color === "rgb(1, 2, 3)",
+		);
+		const { api } = await install.install.superadmin();
+		const { designSystem } = await api.designSystem.get({ siteId });
+		expect(designSystem.draft.classes.find((each) => each.name === "hero-title")?.styles).toBe(
+			"font-size: var(--text-xl);",
+		);
+	});
+
+	test("Format puts block elements on lines of their own, and saving keeps it exactly", async () => {
+		const page = await codeModePage("light");
+		const html = page.getByRole("textbox", { name: /^HTML of / });
+		const region = page.getByRole("region", { name: "HTML" });
+
+		await region.getByRole("button", { name: "Format" }).click();
+		const formatted = await html.inputValue();
+		expect(formatted).toMatch(/^<article data-wc-id="[^"]+">\n {2}<Hero /);
+		expect(formatted).toMatch(/<\/p>\n<\/article>$/);
+
+		await region.getByRole("button", { name: "Save", exact: true }).click();
+		await page.getByText("Saved to Draft · Blog posts · Entry template").first().waitFor();
+		expect(await draftMarkup()).toBe(formatted);
+		expect(await html.inputValue()).toBe(formatted);
+		await (await install.install.superadmin()).api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: ENTRY_TEMPLATE,
+		});
+	});
+});
+
 describe("scripts", () => {
 	test("a changed script runs only when Run is pressed, with its errors in the console", async () => {
 		const page = await codeModePage("light");
