@@ -8,8 +8,8 @@ import { createBunHttp } from "@webcraft/server/outgoing-http";
 
 import { createTestCertificateAuthority } from "../harness/certificates.ts";
 import { type Call, type Outcome, runCall } from "./calls.ts";
+import { type CallsProcess, NODE_CALLS, startCalls } from "./children.ts";
 
-const NODE_CALLS = new URL("./node-calls.ts", import.meta.url).pathname;
 // The servers listen on loopback, which the guarded fetcher calls only as the Install's own addresses.
 const LOOPBACK = ["127.0.0.1", "::1"];
 
@@ -68,14 +68,14 @@ let plain: Server;
 let plain6: Server;
 let secure: Server;
 let secure6: Server;
-let node: ReturnType<typeof startNodeCalls>;
+let node: CallsProcess;
 
 beforeAll(() => {
 	plain = startServer("127.0.0.1");
 	plain6 = startServer("::1");
 	secure = startServer("127.0.0.1", tls);
 	secure6 = startServer("::1", tls);
-	node = startNodeCalls();
+	node = startCalls(["node", NODE_CALLS, authority.cert]);
 });
 
 afterAll(async () => {
@@ -232,42 +232,4 @@ describe.each(runtimes)("%s outgoing HTTP under the guarded fetcher", (_, call) 
 async function eventually(check: () => boolean): Promise<void> {
 	for (let attempt = 0; attempt < 50 && !check(); attempt++) await Bun.sleep(100);
 	expect(check()).toBe(true);
-}
-
-/** A `node` process making calls with the worker's outgoing HTTP (see `node-calls.ts`). */
-function startNodeCalls() {
-	const child = Bun.spawn(["node", NODE_CALLS, authority.cert], { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
-	const waiting = new Map<number, (outcome: Outcome) => void>();
-	let nextId = 0;
-	let stderr = "";
-	(async () => {
-		for await (const chunk of child.stderr.pipeThrough(new TextDecoderStream())) stderr += chunk;
-	})();
-	(async () => {
-		let buffered = "";
-		for await (const chunk of child.stdout.pipeThrough(new TextDecoderStream())) {
-			buffered += chunk;
-			const lines = buffered.split("\n");
-			buffered = lines.pop() ?? "";
-			for (const line of lines) {
-				const { id, outcome } = JSON.parse(line) as { id: number; outcome: Outcome };
-				waiting.get(id)?.(outcome);
-				waiting.delete(id);
-			}
-		}
-		for (const settle of waiting.values()) settle({ error: { name: "NodeExited", message: stderr } });
-	})();
-	return {
-		call(call: Call): Promise<Outcome> {
-			const id = nextId++;
-			const outcome = new Promise<Outcome>((resolve) => waiting.set(id, resolve));
-			child.stdin.write(`${JSON.stringify({ id, call })}\n`);
-			child.stdin.flush();
-			return outcome;
-		},
-		async close() {
-			child.stdin.end();
-			await child.exited;
-		},
-	};
 }
