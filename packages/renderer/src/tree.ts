@@ -92,6 +92,12 @@ export type LanguageSwitcherNode = { type: "languageSwitcher" };
 export type ConsentSettingsNode = { type: "consentSettings" };
 
 /**
+ * The Search element (`{{@search}}`): a search box that sends visitors, with a plain GET, to the
+ * Site's search results page in the page's language (ADR 0021).
+ */
+export type SearchNode = { type: "search" };
+
+/**
  * A Form placed here (`{{@form <key>}}`): the Site's Form, by id, so changing its key changes
  * nothing placed. It renders the Form's published version where Forms run on the Site.
  */
@@ -1029,6 +1035,13 @@ export function loopNamesIn(tree: ElementTree): string[] {
 		if (rest.length === 0 && (LOOP_STATS as readonly string[]).includes(stat ?? "")) names.add(name);
 	}
 	return [...names];
+}
+
+/** Whether a tree holds a Search element (`{{@search}}`), anywhere in it. */
+export function searchElementIn(tree: ElementTree): boolean {
+	const visit = (nodes: readonly TreeNode[]): boolean =>
+		nodes.some((node) => node.type === "search" || childListsOf(node).some(visit));
+	return visit(tree.nodes);
 }
 
 const ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";

@@ -51,6 +51,8 @@ export type RenderOptions = {
 	languageSwitcher?: () => string;
 	/** What `{{@form <key>}}` shows: the Form with this id, rendered. Nothing when absent. */
 	form?: (formId: string) => string;
+	/** What `{{@search}}` shows: the Search element. Nothing when absent. */
+	search?: () => string;
 	/**
 	 * Attributes WebCraft adds to an element, written after the element's own (such as the id of
 	 * the page's <main>, which the skip link points at); their values are escaped.
@@ -230,6 +232,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		themeToggle: () => options.themeToggle?.() ?? "",
 		languageSwitcher: () => options.languageSwitcher?.() ?? "",
 		form: (formId) => options.form?.(formId) ?? "",
+		search: () => options.search?.() ?? "",
 		loop: (loop) => renderLoop(loop, options, state),
 		pagination: (name) => paginationHtml(options.loop?.(name), options),
 		consentSettings: () => options.consentSettings?.() ?? "",

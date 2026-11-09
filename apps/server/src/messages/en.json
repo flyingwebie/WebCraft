@@ -1891,6 +1891,11 @@
 			"pageUrlPattern": "Pages are found by their parent Page and slug, so their URL pattern can't change.",
 			"urlPatternFormat": "A URL pattern is a path of fixed parts (lower-case letters, digits and dashes) and one {slug}, such as /blog/{slug}.",
 			"urlPatternParts": "A URL pattern has at most {max} parts.",
+			"searchedFieldsCount": "A Post Type has up to {max} Searched fields.",
+			"searchedFieldWeight": "A Searched field's weight is A, B, C or D.",
+			"searchedFieldUnknown": "This Post Type has no Field {field} to search.",
+			"searchedFieldType": "Site search reads text, rich text, Body, select, link and email Fields, not {field}.",
+			"searchedFieldTwice": "{field} is searched once, with one weight.",
 			"bodyInLoop": "Loop items have no Body field: a query Loop over a Post Type reads its Entries' bodies.",
 			"relationshipInLoop": "Loop items can't hold Relationships: a query Loop lists Entries."
 		},
@@ -2254,7 +2259,34 @@
 			"label": "{name}",
 			"globalsLabel": "Globals",
 			"fields": "Fields",
-			"data": "Data"
+			"data": "Data",
+			"search": "Site search"
+		},
+		"search": {
+			"tab": "Site search",
+			"heading": "Site search",
+			"intro": "What Site search and the search boxes of Filters look in. Every Post Type is indexed; a change here rebuilds the Site's search index within a minute.",
+			"searchable": "Show in Site search",
+			"searchableHelp": "Its published Entries are listed on the Site's search results page. Turned off, they are still indexed for Filters' search boxes.",
+			"fieldsHeading": "Searched fields",
+			"fieldsHelp": "A match in a Field weighted A counts most, in D least. Text, rich text, Body, select, link and email Fields can be searched.",
+			"field": "Field",
+			"searched": "Searched",
+			"weight": "Weight",
+			"searchField": "Search {field}",
+			"weightOf": "Weight of {field}",
+			"weights": {
+				"A": "A · counts most",
+				"B": "B",
+				"C": "C",
+				"D": "D · counts least"
+			},
+			"none": "Search reads this Post Type's title only: it has no Fields search can read.",
+			"save": "Save changes",
+			"discard": "Discard",
+			"unsaved": "Unsaved changes",
+			"saved": "Saved. Site search follows within a minute.",
+			"notSaved": "Nothing was saved:"
 		}
 	},
 	"globals": {

@@ -1,9 +1,17 @@
-import { POST_TYPE_NAME_MAX_LENGTH } from "@webcraft/core";
+import { POST_TYPE_NAME_MAX_LENGTH, SEARCH_WEIGHTS, SEARCHED_FIELDS_MAX } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
 import { fieldInputs as fields, language } from "../fields.ts";
 import { id } from "../inputs.ts";
+
+/**
+ * Searched fields: what Site search (and Filters' search boxes) look in, each with a weight from A
+ * (counts most) to D: `title` or a Field's path (`summary`, `origin.city`, `steps.text`).
+ */
+const searchedFields = z
+	.array(z.object({ field: z.string().max(300), weight: z.enum(SEARCH_WEIGHTS) }))
+	.max(SEARCHED_FIELDS_MAX * 2);
 
 /** Post Types: the kinds of Entry a Site holds, with a URL pattern and Fields. Structure: Staff change them. */
 export const postTypes = {
@@ -28,6 +36,8 @@ export const postTypes = {
 				key: z.string().max(100).optional(),
 				urlPattern: z.string().max(500),
 				fields: fields.optional(),
+				searchable: z.boolean().optional(),
+				searchedFields: searchedFields.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -36,8 +46,10 @@ export const postTypes = {
 		}),
 
 	/**
-	 * Changes a Post Type's name, URL pattern or Fields (the full list, in order). It applies at once:
-	 * Post Types have no Draft, so the Site's page cache is cleared.
+	 * Changes a Post Type's name, URL pattern, Fields (the full list, in order), whether Site search
+	 * shows its Entries, or its Searched fields (the full list). It applies at once: Post Types have no
+	 * Draft, so the Site's page cache is cleared; a change to what is searched rebuilds the Site's
+	 * search index in the background.
 	 */
 	update: signedIn
 		.input(
@@ -50,6 +62,8 @@ export const postTypes = {
 					.optional(),
 				urlPattern: z.string().max(500).optional(),
 				fields: fields.optional(),
+				searchable: z.boolean().optional(),
+				searchedFields: searchedFields.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {

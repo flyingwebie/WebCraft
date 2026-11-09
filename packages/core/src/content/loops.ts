@@ -1,5 +1,5 @@
 import { loops } from "@webcraft/db/schema";
-import { EXPRESSION_KEYWORDS, type LoopCatalogue, type LoopInfo } from "@webcraft/renderer";
+import { EXPRESSION_KEYWORDS, type LoopCatalogue, type LoopInfo, SEARCH_LOOP } from "@webcraft/renderer";
 import { asc, eq, sql } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
@@ -109,6 +109,8 @@ const RESERVED_LOOP_NAMES: ReadonlySet<string> = new Set([
 	"loop",
 	"url",
 	"id",
+	// Site search's built-in Loop, on the search results page (ADR 0021).
+	SEARCH_LOOP,
 ]);
 
 /** Keys a Loop item's Field can't take: an item's `id`, and the words Conditions use. */

@@ -24,6 +24,8 @@ import {
 	getLoop,
 	getPostType,
 	getScript,
+	getSearchTemplate,
+	getSearchTemplateMarkup,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	getSpecialPages,
@@ -45,6 +47,8 @@ import {
 	saveLoopDraft,
 	saveLoopItems,
 	saveScriptDraft,
+	saveSearchTemplate,
+	saveSearchTemplateMarkup,
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
 	scriptById,
@@ -79,6 +83,7 @@ import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
+import { createSiteSearch } from "./search/service.ts";
 import {
 	domainVerificationKey,
 	editModeSigningKey,
@@ -246,6 +251,11 @@ export async function createInstallServices(
 			archiveTemplateMarkup: (scope, postTypeId) => getArchiveTemplateMarkup(scope, postTypeId, componentSources),
 			saveArchiveTemplateMarkup: (scope, postTypeId, markup, base) =>
 				saveArchiveTemplateMarkup(scope, postTypeId, markup, componentSources, base),
+			searchTemplate: getSearchTemplate,
+			saveSearchTemplate: (scope, tree) => saveSearchTemplate(scope, tree, componentSources),
+			searchTemplateMarkup: (scope) => getSearchTemplateMarkup(scope, componentSources),
+			saveSearchTemplateMarkup: (scope, markup, base) =>
+				saveSearchTemplateMarkup(scope, markup, componentSources, base),
 		},
 		components: {
 			list: (scope) => listComponents(scope, componentSources),
@@ -301,6 +311,7 @@ export async function createInstallServices(
 			settings: getSpecialPages,
 			setHomePage: (scope, pageId) => setSpecialPage(scope, "home", pageId),
 			setNotFoundPage: (scope, pageId, language) => setSpecialPage(scope, "notFound", pageId, language),
+			setSearchPage: (scope, pageId) => setSpecialPage(scope, "search", pageId),
 		},
 		designSystem: {
 			get: getDesignSystem,
@@ -313,6 +324,7 @@ export async function createInstallServices(
 		},
 		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
+		search: createSiteSearch({ database, data, log }),
 		consent: createConsent({ data, rateLimits }),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({

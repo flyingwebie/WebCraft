@@ -108,6 +108,17 @@ const FORM_PARTS = [
 ];
 
 /**
+ * The Search element's hooks (`SEARCH_HOOKS`): its box and button on one row (wrapping on narrow
+ * screens), both big enough to tap, in the page's own colours so they read in light and dark. Staff
+ * restyle them in the Site's custom CSS.
+ */
+const SEARCH_PARTS = [
+	".wc-search{display:flex;flex-wrap:wrap;gap:0.5em;margin-block:1em}",
+	".wc-search-input{box-sizing:border-box;flex:1 1 12em;min-inline-size:0;min-block-size:2.75rem;padding:0.5em 0.75em;border:1px solid currentColor;border-radius:0.25em;background-color:Canvas;color:CanvasText;font:inherit}",
+	".wc-search-button{min-block-size:2.75rem;padding:0.5em 1.25em;border:1px solid currentColor;border-radius:0.25em;background-color:CanvasText;color:Canvas;font:inherit;cursor:pointer}",
+];
+
+/**
  * The Consent banner's hooks (`CONSENT_HOOKS`, ADR 0020): the banner in its three layouts (a bar along
  * the bottom, a box in a corner, a centred modal dialog), its categories and buttons, the "Cookie
  * settings" button and a held-back embed's placeholder. Colours are the page's own (`Canvas`,
@@ -200,7 +211,7 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		const declarations = build(designSystem.baseStyles[target] ?? [], "declarations");
 		if (declarations) baseRules.push(`${target}{${declarations}}`);
 	}
-	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS, ...CONSENT_PARTS);
+	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS, ...SEARCH_PARTS, ...CONSENT_PARTS);
 
 	const used = designSystem.classes.filter((each) => use.classIds.has(each.id));
 	const classRules: string[] = [];

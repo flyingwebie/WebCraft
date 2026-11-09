@@ -2,6 +2,14 @@ import { postTypes } from "@webcraft/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
+import { markSearchIndexStale } from "../search/index-version.ts";
+import {
+	defaultSearchedFields,
+	indexDefinition,
+	keptSearchedFields,
+	parseSearchedFields,
+	type SearchedField,
+} from "../search/searched-fields.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { checkPatternLeavesArchives } from "./archives.ts";
 import { type ContentProblem, PostTypeInvalidError, PostTypeNotFoundError, PostTypeTakenError } from "./errors.ts";
@@ -38,6 +46,10 @@ export type PostType = {
 	fields: FieldDefinition[];
 	/** The Fields every Entry of it has, whatever its Post Type: Pages add `parent`. */
 	builtInFields: readonly (BuiltInField | "parent")[];
+	/** Whether its Entries show in Site search (every Post Type is indexed; ADR 0021). */
+	searchable: boolean;
+	/** Its Searched fields: what Site search and Filters' search boxes look in, with their weights. */
+	searchedFields: SearchedField[];
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -48,10 +60,21 @@ export type NewPostType = {
 	key?: string;
 	urlPattern: string;
 	fields?: FieldInput[];
+	/** Whether Site search shows its Entries; true when not given. */
+	searchable?: boolean;
+	/** Its Searched fields; the title (A) and its Body field (B) when not given. */
+	searchedFields?: unknown[];
 };
 
 /** What can change on a Post Type. Its key can't: Templates, Loops and files name it. */
-export type PostTypeChange = { name?: string; urlPattern?: string; fields?: FieldInput[] };
+export type PostTypeChange = {
+	name?: string;
+	urlPattern?: string;
+	fields?: FieldInput[];
+	searchable?: boolean;
+	/** Replaces its Searched fields. Without it, a change to its Fields keeps those whose Field is still there. */
+	searchedFields?: unknown[];
+};
 
 export const POST_TYPE_NAME_MAX_LENGTH = 100;
 
@@ -77,6 +100,10 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 	const urlPattern = checkUrlPattern(input.urlPattern, problems);
 	// A Relationship may point at the Post Type's own Entries.
 	const fields = parseFields(input.fields ?? [], problems, await defineContext(scope, key));
+	const searchedFields =
+		input.searchedFields === undefined
+			? defaultSearchedFields(fields)
+			: parseSearchedFields(input.searchedFields, fields, problems);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 
 	return saving(() =>
@@ -86,7 +113,16 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 			await checkPatternLeavesPages(tx, urlPattern);
 			await checkPatternOutsidePrefixes(tx, urlPattern);
 			const now = tx.now();
-			const row = await tx.insert(postTypes, { key, name, urlPattern, fields, createdAt: now, updatedAt: now });
+			const row = await tx.insert(postTypes, {
+				key,
+				name,
+				urlPattern,
+				fields,
+				searchable: input.searchable ?? true,
+				searchedFields,
+				createdAt: now,
+				updatedAt: now,
+			});
 			await tx.audit("postType.create", { postTypeId: row.id, key, name, urlPattern });
 			return toPostType(row);
 		}),
@@ -117,7 +153,14 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 		change.fields === undefined
 			? existing.fields
 			: parseFields(change.fields, problems, await defineContext(scope, existing.key, existing), existing.fields);
+	const searchedFields =
+		change.searchedFields === undefined
+			? keptSearchedFields(existing.searchedFields, fields)
+			: parseSearchedFields(change.searchedFields, fields, problems);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
+	// The search documents of its Entries are built from these: when they change, the index is rebuilt.
+	const searchChanged =
+		indexDefinition(existing.fields, existing.searchedFields) !== indexDefinition(fields, searchedFields);
 
 	return saving(() =>
 		scope.transaction(async (tx) => {
@@ -129,11 +172,19 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 			}
 			const [row] = await tx.update(
 				postTypes,
-				{ name, urlPattern, fields, updatedAt: tx.now() },
+				{
+					name,
+					urlPattern,
+					fields,
+					searchable: change.searchable ?? existing.searchable,
+					searchedFields,
+					updatedAt: tx.now(),
+				},
 				eq(postTypes.id, existing.id),
 			);
 			if (!row) throw new PostTypeNotFoundError();
 			await clearPageCache(tx);
+			if (searchChanged) await markSearchIndexStale(tx);
 			await tx.audit("postType.update", {
 				postTypeId: existing.id,
 				key: existing.key,
@@ -214,6 +265,7 @@ async function saving<Result>(save: () => Promise<Result>): Promise<Result> {
 }
 
 export function toPostType(row: typeof postTypes.$inferSelect): PostType {
+	const fields = storedFields(row.fields);
 	return {
 		id: row.id,
 		siteId: row.siteId,
@@ -221,8 +273,10 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 		name: row.name,
 		builtIn: row.builtIn === "page" ? "page" : null,
 		urlPattern: row.urlPattern,
-		fields: storedFields(row.fields),
+		fields,
 		builtInFields: row.builtIn === "page" ? PAGE_BUILT_IN_FIELDS : BUILT_IN_FIELDS,
+		searchable: row.searchable,
+		searchedFields: keptSearchedFields(row.searchedFields, fields),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

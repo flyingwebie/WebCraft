@@ -180,6 +180,12 @@ export const SETTING_RULES = [
 	"pageUrlPattern",
 	"urlPatternFormat",
 	"urlPatternParts",
+	// Its Searched fields (Site search)
+	"searchedFieldsCount",
+	"searchedFieldWeight",
+	"searchedFieldUnknown",
+	"searchedFieldType",
+	"searchedFieldTwice",
 ] as const;
 
 export type SettingRule = (typeof SETTING_RULES)[number];
