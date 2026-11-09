@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getApi } from "../../ui/api.ts";
 import { ENTRY_STATUSES, EntriesList } from "../../ui/content/EntriesList.tsx";
+import { CsvImportSheet } from "../../ui/imports/CsvImportSheet.tsx";
 
 /** What the list shows: a search over titles and slugs, and one status. */
 const search = z.object({
@@ -41,6 +42,16 @@ function EntriesPage() {
 			search={searchParams}
 			onSearch={(next, options) =>
 				navigate({ search: (current) => ({ ...current, ...next }), replace: options?.replace })
+			}
+			actions={
+				place.permissions.includes("import.run") ? (
+					<CsvImportSheet
+						siteId={siteId}
+						postType={postType}
+						languages={place.languages}
+						addsFields={place.permissions.includes("structure.edit")}
+					/>
+				) : null
 			}
 		/>
 	);
