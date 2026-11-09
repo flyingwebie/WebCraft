@@ -65,4 +65,6 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Modules (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/modules`, as: "staff" },
 	{ name: "Site › Modules (Staff)", path: ({ siteId }) => `/sites/${siteId}/modules`, as: "staff" },
 	{ name: "Site › a Module's page", path: ({ siteId }) => `/sites/${siteId}/m/sample/notes`, as: "owner" },
+	{ name: "Site › Post Types & Fields (Pages)", path: ({ siteId }) => `/sites/${siteId}/post-types`, as: "staff" },
+	{ name: "Site › Globals, none defined yet", path: ({ siteId }) => `/sites/${siteId}/globals`, as: "owner" },
 ];
