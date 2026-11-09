@@ -116,3 +116,68 @@ export const VALUE_RULES = [
 ] as const;
 
 export type ValueRule = (typeof VALUE_RULES)[number];
+
+/**
+ * Why a Post Type's, a Field's or the Globals' settings were refused, as their `problems` name it
+ * (`rule`, with `params` to fill in), for the admin to word in each Admin language. The English
+ * `message` beside it stays for API clients.
+ */
+export const SETTING_RULES = [
+	// The list of Fields
+	"fieldCount",
+	"keyFormat",
+	"keyReserved",
+	"keyTwice",
+	"labelLength",
+	"helpLength",
+	"typeUnknown",
+	"typeChanged",
+	"bodyNested",
+	"bodyTwice",
+	"bodyOnPage",
+	"bodyNotHere",
+	"requiredNever",
+	"translatableShared",
+	"translatableInner",
+	"fieldsDepth",
+	"fieldsEmpty",
+	"defaultNone",
+	"defaultInvalid",
+	// One type's settings
+	"wholeNumber",
+	"number",
+	"boolean",
+	"lengthOrder",
+	"numberOrder",
+	"dateMode",
+	"dateFormat",
+	"dateOrder",
+	"optionsCount",
+	"optionValueFormat",
+	"optionValueTwice",
+	"optionLabelLength",
+	"minNotMultiple",
+	"maxNotMultiple",
+	"countsOrder",
+	"rowsOrder",
+	"patternLength",
+	"patternInvalid",
+	"blocksOffList",
+	"blockUnknown",
+	"blockAlwaysOn",
+	"relationshipInGlobals",
+	"relationshipInModuleComponent",
+	"postTypesCount",
+	"postTypeUnknown",
+	// The Post Type itself
+	"postTypeKeyFormat",
+	"postTypeNameLength",
+	"pageUrlPattern",
+	"urlPatternFormat",
+	"urlPatternParts",
+] as const;
+
+export type SettingRule = (typeof SETTING_RULES)[number];
+
+/** What fills in a setting problem's wording, such as the key or the largest number allowed. */
+export type SettingParams = Readonly<Record<string, string | number>>;

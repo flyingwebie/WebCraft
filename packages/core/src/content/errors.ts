@@ -2,12 +2,16 @@
  * One reason something was refused, and where: `urlPattern`, `parentId`, `fields[2].key`, or a value's path such
  * as `fields.team[1].name`. A value that breaks one of its Field's rules says which (`required`,
  * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
- * `postTypes`, `media`: `VALUE_RULES`), so the admin can word it in the person's language.
+ * `postTypes`, `media`: `VALUE_RULES`), and a refused setting of a Post Type, a Field or the Globals
+ * says why (`SETTING_RULES`, with `params` to fill in), so the admin can word it in the person's
+ * language. `message` is the English wording API clients read.
  */
 export type ContentProblem = {
 	at: string;
 	message: string;
 	rule?: string;
+	/** What fills in the wording of a setting's `rule`, such as the key or the largest number allowed. */
+	params?: Readonly<Record<string, string | number>>;
 	/** The language of the value it is about, when it isn't the Default language's (or a shared) value. */
 	language?: string;
 };

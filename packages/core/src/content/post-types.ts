@@ -70,6 +70,7 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 		problems.push({
 			at: "key",
 			message: "A Post Type key is lower-case letters, digits and dashes, starting with a letter (at most 64).",
+			rule: "postTypeKeyFormat",
 		});
 	}
 	const urlPattern = checkUrlPattern(input.urlPattern, problems);
@@ -104,6 +105,7 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 			problems.push({
 				at: "urlPattern",
 				message: "Pages are found by their parent Page and slug, so their URL pattern can't change.",
+				rule: "pageUrlPattern",
 			});
 		}
 	} else if (change.urlPattern !== undefined) {
@@ -173,7 +175,12 @@ async function findPostType(scope: Pick<SiteScope, "first">, postTypeId: string)
 function checkName(input: string, problems: ContentProblem[]): string {
 	const name = input.trim();
 	if (!name || name.length > POST_TYPE_NAME_MAX_LENGTH) {
-		problems.push({ at: "name", message: `A Post Type's name has 1 to ${POST_TYPE_NAME_MAX_LENGTH} characters.` });
+		problems.push({
+			at: "name",
+			message: `A Post Type's name has 1 to ${POST_TYPE_NAME_MAX_LENGTH} characters.`,
+			rule: "postTypeNameLength",
+			params: { max: POST_TYPE_NAME_MAX_LENGTH },
+		});
 	}
 	return name;
 }
@@ -181,7 +188,12 @@ function checkName(input: string, problems: ContentProblem[]): string {
 function checkUrlPattern(input: string, problems: ContentProblem[]): string {
 	const parsed = parseUrlPattern(input);
 	if ("problem" in parsed) {
-		problems.push({ at: "urlPattern", message: parsed.problem });
+		problems.push({
+			at: "urlPattern",
+			message: parsed.problem,
+			rule: parsed.rule,
+			...(parsed.params ? { params: parsed.params } : {}),
+		});
 		return input;
 	}
 	return parsed.pattern;

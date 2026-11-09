@@ -16,6 +16,7 @@ import {
 	type FieldInput,
 	isFieldType,
 	type Json,
+	type Report,
 	reporterAt,
 	specOf,
 } from "./field-types.ts";
@@ -105,6 +106,8 @@ export function parseFields(
 	const listName = context.listName ?? "fields";
 	/** Props are declared with the Field types; problems about the top-level list name what they are. */
 	const word = (depth: number) => (depth === 1 && listName === "props" ? "Prop" : "Field");
+	/** What the list holds, for the admin's wording: Props or Fields. */
+	const kind = (depth: number) => (depth === 1 && listName === "props" ? "prop" : "field");
 	let count = 0;
 	let bodies = 0;
 	const parseList = (
@@ -121,6 +124,8 @@ export function parseFields(
 				problems.push({
 					at: "fields",
 					message: `At most ${MAX_FIELDS} Fields, counting those inside Groups and Repeaters.`,
+					rule: "fieldCount",
+					params: { max: MAX_FIELDS },
 				});
 			}
 			const here = `${at}[${index}]`;
@@ -129,49 +134,69 @@ export function parseFields(
 			if (!FIELD_KEY.test(key)) {
 				report(
 					"key",
+					"keyFormat",
 					`A ${word(depth)} key starts with a lower-case letter, then letters, digits and underscores (at most 64).`,
+					{ kind: kind(depth) },
 				);
 			} else if (reserved.has(key.toLowerCase())) {
-				report("key", `${key} is kept for WebCraft; choose another key.`);
+				report("key", "keyReserved", `${key} is kept for WebCraft; choose another key.`, { key });
 			} else if (seen.has(key.toLowerCase())) {
-				report("key", `Two ${word(depth)}s have the key ${key}.`);
+				report("key", "keyTwice", `Two ${word(depth)}s have the key ${key}.`, { key, kind: kind(depth) });
 			}
 			seen.add(key.toLowerCase());
 			const label = typeof input.label === "string" ? input.label.trim() : "";
 			if (!label || label.length > FIELD_LABEL_MAX_LENGTH) {
-				report("label", `A ${word(depth)}'s label has 1 to ${FIELD_LABEL_MAX_LENGTH} characters.`);
+				report("label", "labelLength", `A ${word(depth)}'s label has 1 to ${FIELD_LABEL_MAX_LENGTH} characters.`, {
+					max: FIELD_LABEL_MAX_LENGTH,
+					kind: kind(depth),
+				});
 			}
 			const help = typeof input.help === "string" ? input.help.trim() : "";
 			if (help.length > FIELD_HELP_MAX_LENGTH)
-				report("help", `Help text has at most ${FIELD_HELP_MAX_LENGTH} characters.`);
+				report("help", "helpLength", `Help text has at most ${FIELD_HELP_MAX_LENGTH} characters.`, {
+					max: FIELD_HELP_MAX_LENGTH,
+				});
 			const type = isFieldType(input.type) ? input.type : "text";
-			if (!isFieldType(input.type)) report("type", `There is no Field type ${String(input.type)}.`);
+			if (!isFieldType(input.type)) {
+				report("type", "typeUnknown", `There is no Field type ${String(input.type)}.`, { type: String(input.type) });
+			}
 			const previous = before.find((field) => field.key === key);
 			if (previous && previous.type !== input.type) {
-				report("type", `${key} is a ${previous.type} ${word(depth)}; a ${word(depth)} keeps its type.`);
+				report("type", "typeChanged", `${key} is a ${previous.type} ${word(depth)}; a ${word(depth)} keeps its type.`, {
+					key,
+					type: previous.type,
+					kind: kind(depth),
+				});
 			}
 
 			if (type === "body") {
 				// "The body" is never ambiguous: a Post Type has one at most, among its own Fields.
 				if (depth > 1) {
-					report("type", "A Body field sits among a Post Type's own Fields, not inside a Group or Repeater.");
+					report(
+						"type",
+						"bodyNested",
+						"A Body field sits among a Post Type's own Fields, not inside a Group or Repeater.",
+					);
 				} else if (bodies++ > 0) {
-					report("type", "A Post Type has at most one Body field.");
+					report("type", "bodyTwice", "A Post Type has at most one Body field.");
 				}
 			}
 			const spec = FIELD_TYPE_SPECS[type];
 			const required = input.required ?? false;
 			if (required && !spec.requirable)
-				report("required", "A true/false Field always has a value, so it can't be required.");
+				report("required", "requiredNever", "A true/false Field always has a value, so it can't be required.");
 			let translatable = spec.translation === "default-on";
 			if (input.translatable !== undefined) {
 				if (input.translatable && spec.translation === "never") {
-					report(
-						"translatable",
-						type === "relationship"
-							? "A Relationship is shared by every language."
-							: "Its Fields are translatable one by one; set it on each of them.",
-					);
+					if (type === "relationship") {
+						report("translatable", "translatableShared", "A Relationship is shared by every language.");
+					} else {
+						report(
+							"translatable",
+							"translatableInner",
+							"Its Fields are translatable one by one; set it on each of them.",
+						);
+					}
 				} else {
 					translatable = input.translatable;
 				}
@@ -190,9 +215,18 @@ export function parseFields(
 			if (field.type === "group" || field.type === "repeater") {
 				const inner = Array.isArray(input.fields) ? input.fields : [];
 				if (depth >= MAX_FIELD_DEPTH) {
-					report("fields", `Groups and Repeaters nest at most ${MAX_FIELD_DEPTH} deep.`);
+					report("fields", "fieldsDepth", `Groups and Repeaters nest at most ${MAX_FIELD_DEPTH} deep.`, {
+						max: MAX_FIELD_DEPTH,
+					});
 				} else if (inner.length === 0) {
-					report("fields", `A ${field.type === "group" ? "Group" : "Repeater"} holds at least one Field.`);
+					report(
+						"fields",
+						"fieldsEmpty",
+						`A ${field.type === "group" ? "Group" : "Repeater"} holds at least one Field.`,
+						{
+							kind: field.type,
+						},
+					);
 				} else {
 					const previousFields = previous && "fields" in previous ? previous.fields : [];
 					field.fields = parseList(inner, `${here}.fields`, depth + 1, previousFields);
@@ -206,15 +240,11 @@ export function parseFields(
 }
 
 /** Checks a Field's default against its own type and rules. Only some types have one. */
-function parseDefault(
-	field: FieldDefinition,
-	input: unknown,
-	report: (setting: string, message: string) => void,
-): never {
+function parseDefault(field: FieldDefinition, input: unknown, report: Report): never {
 	if (input === undefined || input === null) return null as never;
 	const value = specOf(field).value;
 	if (!value || !FIELD_TYPE_TRAITS[field.type].hasDefault) {
-		report("default", "This kind of Field has no default.");
+		report("default", "defaultNone", "This kind of Field has no default.");
 		return null as never;
 	}
 	let refused = false;
@@ -223,7 +253,7 @@ function parseDefault(
 		field as never,
 		(message) => {
 			refused = true;
-			report("default", message);
+			report("default", "defaultInvalid", message);
 			return null;
 		},
 		() => {},
@@ -231,7 +261,7 @@ function parseDefault(
 	if (refused || parsed === null) return null as never;
 	const broken = value.rules(parsed, field as never);
 	if (broken.length > 0) {
-		report("default", broken.map((rule) => rule.message).join(" "));
+		report("default", "defaultInvalid", broken.map((rule) => rule.message).join(" "));
 		return null as never;
 	}
 	return parsed as never;
