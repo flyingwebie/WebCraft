@@ -72,6 +72,17 @@ export function isLoopInfo(found: LoopInfo | { refused: string } | undefined): f
 	return found !== undefined && "isKnownValue" in found;
 }
 
+/**
+ * Whether a `{{@loop …}}` source names a value's path (`gallery`, `post.tags`) rather than a Loop of
+ * the Site by name: a Loop's name is one lower-case word, or several joined by dashes (`LOOP_NAME` in
+ * `@webcraft/core`, `content/loops.ts`), so it never has a dot, and a source with one can only be a
+ * value's path. This also means that source can never be filtered (`filterRegion` in `html.ts`):
+ * only a named query Loop can be.
+ */
+export function isLoopValuePath(source: string): boolean {
+	return source.includes(".");
+}
+
 /** What bindings may read where they are: the values around them, and the Loops they sit in. */
 export type ValueScope = {
 	/** Whether a path names a value here; every path is allowed when absent. */
@@ -179,7 +190,7 @@ export function loopBodyScope(
 	if (around.aliases.length >= LOOP_LIMITS.depth) {
 		problem = { on: "loop", message: `Loops nest at most ${LOOP_LIMITS.depth} deep.` };
 	}
-	const site = source.includes(".") ? undefined : around.loops?.byName(source);
+	const site = isLoopValuePath(source) ? undefined : around.loops?.byName(source);
 	if (isLoopInfo(site)) itemKnown = (path) => site.isKnownValue(path);
 	else if (site) problem ??= { on: "source", message: site.refused };
 	else if (around.isKnownValue === undefined) itemKnown = undefined;

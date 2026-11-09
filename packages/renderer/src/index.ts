@@ -117,6 +117,7 @@ export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
 export {
 	DEFAULT_ITEM_NAME,
 	isLoopInfo,
+	isLoopValuePath,
 	LOOP_LIMITS,
 	LOOP_POSITION,
 	LOOP_STATS,
