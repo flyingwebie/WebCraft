@@ -1018,7 +1018,7 @@ async function renderSitePage(
 		scripts: ownScripts ? await pageScripts(scope, entry?.id ?? null, view.structure) : [],
 		outsideScripts: await pageOutsideScripts(scope),
 		// People editing are never asked for consent (ADR 0022).
-		consent: editing ? undefined : await pageConsent(scope, language.code),
+		consent: editing ? undefined : await pageConsent(scope, languages),
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(entry, storedFields(globalsRow?.fields)),

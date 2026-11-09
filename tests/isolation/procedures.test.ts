@@ -220,6 +220,14 @@ describe("Site script safety", () => {
 	isolation.refuses("consentBanner.setSettings", (api, { siteId }) =>
 		api.consentBanner.setSettings({ siteId, mode: "optOut", layout: "box" }),
 	);
+	isolation.refuses(
+		"consentBanner.saveDraft",
+		(api, { siteId }) => api.consentBanner.saveDraft({ siteId, fields: { heading: "Choices" } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("consentBanner.publish", (api, { siteId }) => api.consentBanner.publish({ siteId }), {
+		as: ["staff", "editor"],
+	});
 	/** A Consent record in a target's Site, as a visitor's choice on its banner leaves one. */
 	const consentRecords = new Map<string, Promise<string>>();
 	const consentRecordIn = (target: IsolationTarget) => {

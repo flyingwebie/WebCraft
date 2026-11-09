@@ -1,17 +1,38 @@
-import { CONSENT_LAYOUTS, CONSENT_MODES } from "@webcraft/core";
+import { CONSENT_LAYOUTS, CONSENT_MODES, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
+import { fieldValues, language } from "../fields.ts";
 import { id } from "../inputs.ts";
 
 /**
  * A Site's Consent banner (ADR 0020). Its setting (mode and layout) is a Site setting: Staff change it
- * (`structure.edit`), it applies at once and is logged. Everyone who sees the Site reads it.
+ * (`structure.edit`), it applies at once and is logged. Its words are Content: Members write them in
+ * a Draft (`entry.edit`), per language, and publish them (`entry.publish`). Everyone who sees the
+ * Site reads it.
  */
 export const consentBanner = {
-	/** The Site's banner: its mode, layout and version. */
-	get: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+	/** The Site's banner: its mode, layout and version, and its words in `language` (the Default language unless given). */
+	get: signedIn.input(z.object({ siteId: id, language: language.optional() })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "site.view");
+		return { banner: await context.services.consent.get(site, input.language) };
+	}),
+
+	/** Saves changes to the words' Draft, in one language. Visitors see nothing of them until published. */
+	saveDraft: signedIn
+		.input(z.object({ siteId: id, language: language.optional(), fields: fieldValues }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "entry.edit");
+			return {
+				banner: await context.services.consent.saveDraft(site, { language: input.language, fields: input.fields }),
+			};
+		}),
+
+	/** Publishes the words' Draft: every page shows them at once, as a new banner version. */
+	publish: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const item = { kind: "consentBanner" } as const;
+		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+		await context.services.publishing.publish(site, item);
 		return { banner: await context.services.consent.get(site) };
 	}),
 

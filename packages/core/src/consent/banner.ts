@@ -10,12 +10,14 @@
  * Consent record names the version it answered.
  */
 import { consentBanners } from "@webcraft/db/schema";
-import { consentWords, type PageConsent } from "@webcraft/renderer";
+import type { PageConsent } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
 
+import type { Languages } from "../content/field-values.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { emptyVersion } from "../content/values.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { publishedWords } from "./text.ts";
 
 /**
  * How a Site asks for consent:
@@ -106,17 +108,12 @@ export async function lockBanner(scope: SiteScope): Promise<ConsentBannerRow> {
 }
 
 /**
- * What a visitor's page shows of the Site's banner, in the page's language, or undefined with the
- * mode None (nothing is held back, nothing asked).
+ * What a visitor's page shows of the Site's banner, in the page's language (its published words,
+ * WebCraft's own where nobody wrote one), or undefined with the mode None (nothing is asked).
  */
-export async function pageConsent(scope: BannerReader, language: string): Promise<PageConsent | undefined> {
-	const settings = settingsOf(await bannerRow(scope));
+export async function pageConsent(scope: BannerReader, languages: Languages): Promise<PageConsent | undefined> {
+	const row = await bannerRow(scope);
+	const settings = settingsOf(row);
 	if (settings.mode === "none") return undefined;
-	return {
-		mode: settings.mode,
-		layout: settings.layout,
-		version: settings.version,
-		words: consentWords(language),
-		privacyPolicy: null,
-	};
+	return { mode: settings.mode, layout: settings.layout, version: settings.version, ...publishedWords(row, languages) };
 }
