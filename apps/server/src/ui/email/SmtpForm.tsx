@@ -1,32 +1,21 @@
 import type { ApiClient } from "@webcraft/api";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { CircleAlertIcon, CircleCheckIcon, LockIcon, SendIcon } from "lucide-react";
-import { type FormEvent, type ReactNode, type RefObject, useEffect, useId, useRef, useState } from "react";
+import { SendIcon } from "lucide-react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
-import { PasswordInput } from "../PasswordInput.tsx";
+import { EMAIL, PasswordField, SECURITY_OPTIONS, Section, type Security, TestResult } from "./smtp-parts.tsx";
 
 /** The Install SMTP as the API shows it. */
 export type SmtpView = Awaited<ReturnType<ApiClient["install"]["smtp"]["get"]>>;
 
-type Security = "starttls" | "tls" | "none";
-
-const SECURITY_OPTIONS: { value: Security; label: MessageKey; port: number }[] = [
-	{ value: "starttls", label: "emailSettings.server.securityStarttls", port: 587 },
-	{ value: "tls", label: "emailSettings.server.securityTls", port: 465 },
-	{ value: "none", label: "emailSettings.server.securityNone", port: 25 },
-];
-
 type FieldName = "host" | "port" | "fromAddress" | "replyTo" | "testTo" | "form";
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * The Install SMTP form: server details, the sender address and a test email sent with what is in
@@ -224,6 +213,7 @@ export function SmtpForm({
 							<FieldDescription id="smtp-username-help">{t("emailSettings.server.usernameHelp")}</FieldDescription>
 						</Field>
 						<PasswordField
+							inputId="smtp-password"
 							stored={storedPassword}
 							replacing={replacing}
 							password={password}
@@ -311,145 +301,5 @@ export function SmtpForm({
 			{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
 			<div className="flex flex-wrap items-center justify-end gap-3">{actions({ busy })}</div>
 		</form>
-	);
-}
-
-function PasswordField({
-	stored,
-	replacing,
-	password,
-	setPassword,
-	disabled,
-	replaceButton,
-	onReplace,
-	onKeep,
-}: {
-	stored: { lastFour: string | null } | null;
-	replacing: boolean;
-	password: string;
-	setPassword(value: string): void;
-	disabled: boolean;
-	replaceButton: RefObject<HTMLButtonElement | null>;
-	onReplace(): void;
-	onKeep(): void;
-}) {
-	const t = useT();
-	const labelId = useId();
-	if (stored && !replacing) {
-		const status = stored.lastFour
-			? t("emailSettings.server.passwordSet", { lastFour: stored.lastFour })
-			: t("emailSettings.server.passwordSetHidden");
-		return (
-			<Field>
-				<p id={labelId} className="text-sm font-medium">
-					{t("emailSettings.server.password")}
-				</p>
-				<div className="flex items-center gap-3">
-					<p
-						id={`${labelId}-status`}
-						className="bg-muted text-muted-foreground flex h-9 flex-1 items-center gap-2 rounded-md border px-3 text-sm"
-					>
-						<LockIcon className="size-4 shrink-0" aria-hidden="true" />
-						{status}
-					</p>
-					<Button
-						ref={replaceButton}
-						type="button"
-						variant="outline"
-						onClick={onReplace}
-						aria-describedby={`${labelId} ${labelId}-status`}
-					>
-						{t("emailSettings.server.replace")}
-					</Button>
-				</div>
-				<FieldDescription>{t("emailSettings.server.passwordHelp")}</FieldDescription>
-			</Field>
-		);
-	}
-	return (
-		<Field>
-			<FieldLabel htmlFor="smtp-password">{t("emailSettings.server.password")}</FieldLabel>
-			<PasswordInput
-				id="smtp-password"
-				value={password}
-				onChange={(event) => setPassword(event.target.value)}
-				autoComplete="new-password"
-				disabled={disabled}
-				aria-describedby="smtp-password-help"
-			/>
-			<FieldDescription id="smtp-password-help">{t("emailSettings.server.passwordHelp")}</FieldDescription>
-			{stored ? (
-				<div>
-					<Button type="button" variant="outline" size="sm" onClick={onKeep}>
-						{t("emailSettings.server.keep")}
-					</Button>
-				</div>
-			) : null}
-		</Field>
-	);
-}
-
-function TestResult({ result }: { result: { status: "sent" | "failed"; response: string; to: string } }) {
-	const t = useT();
-	const sent = result.status === "sent";
-	return (
-		<div
-			className={`flex items-start gap-3 rounded-md border px-4 py-3 text-sm ${
-				sent ? "border-success-border bg-success text-success-foreground" : "border-destructive/60 bg-card"
-			}`}
-		>
-			{sent ? (
-				<CircleCheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-			) : (
-				<CircleAlertIcon className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden="true" />
-			)}
-			<div className="min-w-0 space-y-1">
-				<p className="font-medium">
-					{sent
-						? t("emailSettings.test.delivered", { to: result.to })
-						: t("emailSettings.test.failed", { to: result.to })}
-				</p>
-				<p className="break-words">{t("emailSettings.test.response", { response: result.response })}</p>
-			</div>
-		</div>
-	);
-}
-
-/** One part of the form: a card on the settings page, a plain section in the wizard. */
-function Section({
-	layout,
-	heading,
-	intro,
-	children,
-}: {
-	layout: "cards" | "plain";
-	heading: string;
-	intro?: string;
-	children: ReactNode;
-}) {
-	const id = useId();
-	if (layout === "cards") {
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>
-						<h2 id={id}>{heading}</h2>
-					</CardTitle>
-					{intro ? <CardDescription>{intro}</CardDescription> : null}
-				</CardHeader>
-				<CardContent>{children}</CardContent>
-			</Card>
-		);
-	}
-	return (
-		<section aria-labelledby={id} className="flex flex-col gap-4">
-			<div className="space-y-1">
-				<h2 id={id} className="font-medium">
-					{heading}
-				</h2>
-				{intro ? <p className="text-muted-foreground text-sm">{intro}</p> : null}
-			</div>
-			{children}
-		</section>
 	);
 }
