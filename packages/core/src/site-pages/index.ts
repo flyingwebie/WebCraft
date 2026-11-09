@@ -6,6 +6,7 @@ import {
 	type EditModePage,
 	type ElementTree,
 	mediaReferencesIn,
+	type PageAlternate,
 	type PageToRender,
 	renderPage,
 	type TemplateValue,
@@ -179,7 +180,8 @@ export function createSitePages(options: {
 			const located = await locate(view.scope, pathname);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
-			return { kind: "page", html: await renderEntryPage(view, host, await stylesOf(host), located) };
+			const alternates = await alternatesOf(view.scope, host, located);
+			return { kind: "page", html: await renderEntryPage(view, host, await stylesOf(host), located, alternates) };
 		},
 
 		async pageContent(host, pathname) {
@@ -263,6 +265,24 @@ async function locate(
 	if (!found) return null;
 	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: languagePath(languages, "/") };
 	return { kind: "found", found, ...place };
+}
+
+/**
+ * The page in each of the Site's languages, as `hreflang` alternates: the published Entry's address in
+ * every language, then `x-default` at the Default language's. None on a Site with one language.
+ */
+async function alternatesOf(scope: ReadScope, host: SiteHost, located: Located): Promise<PageAlternate[]> {
+	const { site, found } = located;
+	if (site.languages.length < 2) return [];
+	const alternates: PageAlternate[] = [];
+	for (const language of site.languages) {
+		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
+		const address = (await publishedAddresses(scope, found.postType, [found.entry.id], languages)).get(found.entry.id);
+		if (address) alternates.push({ hreflang: language.code, href: `${host.origin}${address.path}` });
+	}
+	const fallback = alternates.find((alternate) => alternate.hreflang === site.defaultLanguage);
+	if (fallback) alternates.push({ hreflang: "x-default", href: fallback.href });
+	return alternates;
 }
 
 /**
@@ -415,6 +435,7 @@ async function renderEntryPage(
 	host: SiteHost,
 	styles: SiteStyles,
 	located: Place & { found: FoundEntry },
+	alternates: readonly PageAlternate[] = [],
 ): Promise<string> {
 	const { scope } = view;
 	const { found, languages } = located;
@@ -452,7 +473,7 @@ async function renderEntryPage(
 		host,
 		styles,
 		located,
-		{ title: published.title, content, values: (path) => resolvePath(root, path) },
+		{ title: published.title, alternates, content, values: (path) => resolvePath(root, path) },
 		// Media values the content may read: its own, and its related Entries'.
 		[published.fields, [...related.values()].map((entry) => entry.values)],
 		{ id: entry.id, fields: postType.fields },
@@ -475,7 +496,7 @@ async function renderSitePage(
 	host: SiteHost,
 	styles: SiteStyles,
 	place: Place,
-	page: Pick<PageToRender, "title" | "content" | "values">,
+	page: Pick<PageToRender, "title" | "alternates" | "content" | "values">,
 	contentValues: unknown = null,
 	/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
 	entry: { id: string; fields: readonly FieldDefinition[] } | null = null,

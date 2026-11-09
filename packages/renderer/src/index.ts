@@ -106,6 +106,7 @@ export {
 	directionOf,
 	type EditModePage,
 	PAGE_HOOKS,
+	type PageAlternate,
 	type PageStyles,
 	type PageToRender,
 	pageWords,

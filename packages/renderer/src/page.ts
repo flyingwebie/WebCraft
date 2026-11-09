@@ -40,6 +40,11 @@ export type PageToRender = {
 	/** The page's own title; the document's title is `<title> · <Site name>`. */
 	title: string;
 	/**
+	 * The page in each of the Site's languages it exists in, as `hreflang` alternates (absolute
+	 * addresses), `x-default` last; none on a Site with one language.
+	 */
+	alternates?: readonly PageAlternate[];
+	/**
 	 * The page's content, shown where the Site template has `{{@outlet}}`: an Entry through its Entry
 	 * template, a Page's layout.
 	 */
@@ -64,6 +69,9 @@ export type PageToRender = {
 	 */
 	editMode?: EditModePage;
 };
+
+/** One `hreflang` alternate of a page: a BCP 47 tag (or `x-default`) and the absolute address there. */
+export type PageAlternate = { hreflang: string; href: string };
 
 /** What a page needs from the Site's published Design system. */
 export type PageStyles = {
@@ -134,6 +142,10 @@ export function renderPage(page: PageToRender): string {
 		'<meta name="viewport" content="width=device-width, initial-scale=1">',
 		...(editMode ? editModeHead(editMode) : []),
 		`<title>${escapeText(title)}</title>`,
+		...(page.alternates ?? []).map(
+			(alternate) =>
+				`<link rel="alternate" hreflang="${escapeAttribute(alternate.hreflang)}" href="${escapeAttribute(alternate.href)}">`,
+		),
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
 		"</head>",
