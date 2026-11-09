@@ -1,4 +1,5 @@
 import { Link, useMatches, useMatchRoute } from "@tanstack/react-router";
+import { Badge } from "@webcraft/ui/components/badge.tsx";
 import {
 	Sidebar,
 	SidebarContent,
@@ -84,16 +85,29 @@ function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: S
 				<SidebarContent>
 					{navigation.groups.map((group) => (
 						<SidebarGroup key={group.id}>
-							<SidebarGroupLabel id={`nav-${group.id}`}>{t(group.label)}</SidebarGroupLabel>
+							<SidebarGroupLabel id={`nav-${group.id}`} className="justify-between">
+								{t(group.label)}
+								{group.note ? (
+									<Badge variant="outline" className="font-normal">
+										{t(group.note)}
+									</Badge>
+								) : null}
+							</SidebarGroupLabel>
 							<SidebarGroupContent>
 								<SidebarMenu aria-labelledby={`nav-${group.id}`}>
 									{group.items.map((item) => {
-										const active = Boolean(matchRoute({ to: item.to, params: params as never, fuzzy: !item.exact }));
+										const itemParams = { ...params, ...item.params };
+										const active = Boolean(
+											matchRoute({ to: item.to, params: itemParams as never, fuzzy: !item.exact }),
+										);
 										return (
 											<SidebarMenuItem key={item.id}>
-												<SidebarMenuButton render={<Link to={item.to} params={params as never} />} isActive={active}>
+												<SidebarMenuButton
+													render={<Link to={item.to} params={itemParams as never} />}
+													isActive={active}
+												>
 													<item.icon aria-hidden="true" />
-													<span>{t(item.label)}</span>
+													<span>{typeof item.label === "string" ? t(item.label) : item.label.text}</span>
 												</SidebarMenuButton>
 											</SidebarMenuItem>
 										);

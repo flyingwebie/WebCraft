@@ -72,6 +72,9 @@ export const MAX_FIELD_DEPTH = 3;
 export const FIELD_LABEL_MAX_LENGTH = 100;
 export const FIELD_HELP_MAX_LENGTH = 500;
 
+/** The longest title an Entry has, in characters. */
+export const ENTRY_TITLE_MAX_LENGTH = 300;
+
 /** The longest text value, in characters. */
 export const TEXT_VALUE_MAX_LENGTH = 2_000;
 

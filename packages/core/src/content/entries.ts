@@ -13,6 +13,7 @@ import {
 	EntrySlugTakenError,
 	PageHasChildrenError,
 } from "./errors.ts";
+import { ENTRY_TITLE_MAX_LENGTH } from "./field-rules.ts";
 import type { FieldDefinition, Json } from "./field-types.ts";
 import {
 	checkFields,
@@ -129,7 +130,7 @@ export type EntryDeletion =
 	  }
 	| { deleted: true; links: number; confirmation?: undefined };
 
-export const ENTRY_TITLE_MAX_LENGTH = 300;
+export { ENTRY_TITLE_MAX_LENGTH };
 
 type EntryRow = typeof entries.$inferSelect;
 
