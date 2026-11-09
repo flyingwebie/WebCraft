@@ -15,7 +15,8 @@ beforeAll(async () => {
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
-	const editor: TestBrowser = (await install.createMember({ workspaceId, role: "editor", name: "Erin Editor" })).browser;
+	const editor: TestBrowser = (await install.createMember({ workspaceId, role: "editor", name: "Erin Editor" }))
+		.browser;
 	await staff.api.globals.setFields({ siteId, fields: [{ key: "tagline", label: "Tagline", type: "text" }] });
 	await editor.api.globals.saveDraft({ siteId, fields: { tagline: "Baked daily" } });
 	await editor.api.globals.publish({ siteId });
