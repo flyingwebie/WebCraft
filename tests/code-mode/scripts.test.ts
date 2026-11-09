@@ -165,6 +165,11 @@ describe("writing scripts in Code mode", () => {
 		expect(refused.data?.version).toBe(theirs.version);
 	});
 
+	test("refuses a path that isn't one on the Site", async () => {
+		const refused = await coding.edit("code/scripts", { path: "https://elsewhere.example/" });
+		expect((await refusal(refused, 400)).code).toBe("EDIT_PATH_INVALID");
+	});
+
 	test("the 404 page has the Site script only", async () => {
 		const scripts = await answer<Scripts>(coding.edit("code/scripts", { path: "/nothing-here" }));
 		expect(scripts.page).toBeNull();

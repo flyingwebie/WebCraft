@@ -5,7 +5,8 @@
  */
 
 import { getScript, type Script, type ScriptKind, saveScriptDraft, scriptFile } from "../content/scripts.ts";
-import { CODE_MODE_SCRIPT_PATH } from "../edit-mode/paths.ts";
+import { EditPathInvalidError } from "../edit-mode/errors.ts";
+import { CODE_MODE_SCRIPT_PATH, isEditPath } from "../edit-mode/paths.ts";
 import type { SiteHost, SitePages } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { CodeSourceNotFoundError } from "./errors.ts";
@@ -27,6 +28,7 @@ function codeScript(script: Script | null): CodeScript {
 
 /** The Entry whose page the path shows, if it shows one. */
 async function pageEntry(pages: Pick<SitePages, "pageContent">, host: SiteHost, path: string): Promise<string | null> {
+	if (!isEditPath(path)) throw new EditPathInvalidError();
 	return (await pages.pageContent(host, path)).entryId;
 }
 
@@ -54,7 +56,7 @@ export async function saveScript(
 	host: SiteHost,
 	input: { path: string; kind: ScriptKind; code: string; version: string | null },
 ): Promise<CodeScript> {
-	const entryId = input.kind === "site" ? null : await pageEntry(pages, host, input.path);
+	const entryId = await pageEntry(pages, host, input.path).then((found) => (input.kind === "site" ? null : found));
 	if (input.kind === "page" && entryId === null) throw new CodeSourceNotFoundError();
 	return codeScript(await saveScriptDraft(scope, entryId, input.code, { basedOn: input.version }));
 }
