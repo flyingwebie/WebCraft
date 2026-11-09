@@ -122,7 +122,14 @@ export async function previewFilter(
 	};
 }
 
-/** The visual builder's target for where a Filter is placed. */
+/**
+ * The visual builder's target for where a Filter is placed. The browser's own mapping of the same
+ * five kinds is `builderPath` in `apps/server/src/ui/filters/LayoutTab.tsx` (the builder's URL
+ * instead of this `BuilderTarget`); kept apart rather than behind one shared table because browser
+ * code may not import `@webcraft/core` itself (only types or its small no-import entry points, see
+ * docs/development.md), and the two outputs differ in shape (a path string there, a target object
+ * here), so a shared table would need its own translation at each call site anyway.
+ */
 function targetOf(placement: FilterPlacement): BuilderTarget | undefined {
 	switch (placement.kind) {
 		case "siteTemplate":
