@@ -40,6 +40,8 @@ export function problemText(t: Translate, problem: Problem, subject: ProblemSubj
 		case "url":
 		case "postTypes":
 		case "media":
+		case "blockType":
+		case "video":
 			return t(`content.problems.${rule}`);
 	}
 }
@@ -112,7 +114,14 @@ export function problemPlace(t: Translate, fields: readonly FieldDefinition[], a
 	if (at === "parentId") return t("content.builtIn.parent");
 	const found = fieldAtPath(fields, at);
 	if (!found) return t("content.problems.elsewhere");
+	// A Body field's `[n]` is one of its Blocks, not a Repeater's row.
+	const blocks = found.field.type === "body";
 	return found.trail
-		.map((part) => (part.row ? t("content.problems.inRow", { label: part.label, row: part.row }) : part.label))
+		.map((part, index) => {
+			if (!part.row) return part.label;
+			return blocks && index === found.trail.length - 1
+				? t("content.problems.inBlock", { label: part.label, block: part.row })
+				: t("content.problems.inRow", { label: part.label, row: part.row });
+		})
 		.join(" › ");
 }

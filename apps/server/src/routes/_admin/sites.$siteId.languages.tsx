@@ -439,6 +439,39 @@ function EditLanguageDialog({ siteId, language, onClose, finalFocus }: DialogPro
 /** What a two-step change answered first: its preview and the confirmation to send back. */
 type Asked<Preview> = { preview: Preview; confirmation: string } | null;
 
+/** What one step of a two-step change answers: done, or what it would change and the confirmation to send back. */
+type StepAnswer<Preview> = { done: true } | { done: false; preview: Preview; confirmation: string };
+
+/**
+ * A change that takes two steps: the first call answers what it would change, and confirming sends
+ * the confirmation back with the same call. A failure starts it over.
+ */
+function useTwoStep<Preview>(options: {
+	call: (confirmation: string | undefined) => Promise<StepAnswer<Preview>>;
+	done: () => Promise<void>;
+	failed: (failure: unknown) => void;
+}) {
+	const [asked, setAsked] = useState<Asked<Preview>>(null);
+	const [busy, setBusy] = useState(false);
+	const run = async () => {
+		setBusy(true);
+		try {
+			const answer = await options.call(asked?.confirmation);
+			if (!answer.done) {
+				setAsked({ preview: answer.preview, confirmation: answer.confirmation });
+				return;
+			}
+			await options.done();
+		} catch (failure) {
+			setAsked(null);
+			options.failed(failure);
+		} finally {
+			setBusy(false);
+		}
+	};
+	return { asked, busy, run };
+}
+
 /**
  * Making a language the Default language: the first call shows the warning with what would change
  * (addresses, Entries without a title of their own there); confirming sends the confirmation back.
@@ -446,31 +479,26 @@ type Asked<Preview> = { preview: Preview; confirmation: string } | null;
 function MakeDefaultDialog({ siteId, language, current, onClose, finalFocus }: DialogProps & { current?: Language }) {
 	const t = useT();
 	const router = useRouter();
-	const [asked, setAsked] = useState<Asked<{ changedPaths: number; withoutOwnTitle: number }>>(null);
-	const [busy, setBusy] = useState(false);
-	const run = async () => {
-		setBusy(true);
-		try {
+	const { asked, busy, run } = useTwoStep<{ changedPaths: number; withoutOwnTitle: number }>({
+		call: async (confirmation) => {
 			const api = await getApi();
 			const answer = await api.languages.setDefault({
 				siteId,
 				code: language.code,
-				...(asked ? { confirmation: asked.confirmation } : {}),
+				...(confirmation ? { confirmation } : {}),
 			});
-			if (!answer.changed) {
-				setAsked({ preview: answer.preview, confirmation: answer.confirmation.id });
-				return;
-			}
+			return answer.changed
+				? { done: true }
+				: { done: false, preview: answer.preview, confirmation: answer.confirmation.id };
+		},
+		done: async () => {
 			toast.success(t("siteLanguages.defaultChanged", { name: language.name }));
 			onClose();
 			await router.invalidate();
-		} catch (failure) {
-			setAsked(null);
-			toast.error(errorCode(failure) === "PATH_TAKEN" ? t("siteLanguages.prefixTaken") : t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
+		},
+		failed: (failure) =>
+			toast.error(errorCode(failure) === "PATH_TAKEN" ? t("siteLanguages.prefixTaken") : t(errorMessage(failure))),
+	});
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent closeLabel={t("siteLanguages.close")} finalFocus={finalFocus}>
@@ -505,32 +533,26 @@ function MakeDefaultDialog({ siteId, language, current, onClose, finalFocus }: D
 function RemoveLanguageDialog({ siteId, language, onClose, finalFocus }: DialogProps) {
 	const t = useT();
 	const router = useRouter();
-	const [asked, setAsked] = useState<Asked<{ pages: number }>>(null);
-	const [busy, setBusy] = useState(false);
-	const run = async () => {
-		setBusy(true);
-		try {
+	const { asked, busy, run } = useTwoStep<{ pages: number }>({
+		call: async (confirmation) => {
 			const api = await getApi();
 			const answer = await api.languages.remove({
 				siteId,
 				code: language.code,
-				...(asked ? { confirmation: asked.confirmation } : {}),
+				...(confirmation ? { confirmation } : {}),
 			});
-			if (!answer.removed) {
-				setAsked({ preview: answer.preview, confirmation: answer.confirmation.id });
-				return;
-			}
+			return answer.removed
+				? { done: true }
+				: { done: false, preview: answer.preview, confirmation: answer.confirmation.id };
+		},
+		done: async () => {
 			toast.success(t("siteLanguages.removed", { name: language.name }));
 			onClose();
 			await router.invalidate();
 			document.getElementById("main")?.focus();
-		} catch (failure) {
-			setAsked(null);
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
+		},
+		failed: (failure) => toast.error(t(errorMessage(failure))),
+	});
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent closeLabel={t("siteLanguages.close")} finalFocus={finalFocus}>

@@ -184,9 +184,9 @@ function writeLeafInput(node: unknown, field: LeafField, input: unknown, context
 			: spec.parse(
 					input,
 					field,
-					(message) => {
+					(message, within = "") => {
 						refused = true;
-						context.problems.push({ at, message });
+						context.problems.push({ at: `${at}${within}`, message });
 						return null;
 					},
 					(reference) => context.references.push({ ...reference, at }),
@@ -359,7 +359,12 @@ function checkLeaf(
 		if (field.required) missing();
 		return;
 	}
-	for (const broken of spec.rules(value, field)) findings.problems.push({ at: path, ...broken });
+	for (const { within = "", ...broken } of spec.rules(value, field)) {
+		findings.problems.push({ at: `${path}${within}`, ...broken });
+	}
+	for (const { within, ...reference } of spec.references?.(value, field) ?? []) {
+		findings.references.push({ ...reference, at: `${path}${within}`, problems: findings.problems });
+	}
 	if (field.type === "relationship") {
 		const ids = (Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === "string");
 		findings.references.push({

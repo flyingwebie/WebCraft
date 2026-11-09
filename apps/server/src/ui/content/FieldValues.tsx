@@ -25,6 +25,7 @@ import { type ReactNode, useRef, useState } from "react";
 import { useT } from "../i18n.tsx";
 import { MediaPicker } from "../media/MediaPicker.tsx";
 import type { MediaItem } from "../media/preview.ts";
+import { BodyEditor } from "./body/BodyEditor.tsx";
 import {
 	controlId,
 	type FieldDefinition,
@@ -370,6 +371,26 @@ function LeafValue({
 						lang={control.lang}
 						value={typeof value === "string" ? value : null}
 						onChange={onChange}
+					/>
+				</LeafFrame>
+			);
+		case "body":
+			return (
+				<LeafFrame field={field} control={control} context={context} labelAs="span">
+					<BodyEditor
+						siteId={context.siteId}
+						id={control.id}
+						labelledBy={control.labelId}
+						describedBy={control.describedBy}
+						invalid={control.invalid}
+						lang={control.lang}
+						path={path}
+						value={value}
+						blocksOff={field.blocksOff}
+						problems={context.problems}
+						media={context.media}
+						onMediaChosen={context.onMediaChosen}
+						onChange={(blocks) => onChange(blocks as unknown as Json)}
 					/>
 				</LeafFrame>
 			);
