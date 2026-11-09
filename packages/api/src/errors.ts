@@ -12,6 +12,7 @@ import {
 	AiProviderError,
 	AlreadyMemberError,
 	AltTextUnavailableError,
+	ApiTokenNotFoundError,
 	ArchiveUnavailableError,
 	CaptchaInvalidError,
 	ClassInUseError,
@@ -739,6 +740,9 @@ export function toApiError(error: unknown): unknown {
 			data: { action: error.action },
 			cause: error,
 		});
+	}
+	if (error instanceof ApiTokenNotFoundError) {
+		return new ORPCError("API_TOKEN_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof SensitiveActionRefusedError) {
 		return new ORPCError("SENSITIVE_ACTION_REFUSED", {

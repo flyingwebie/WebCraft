@@ -27,16 +27,16 @@ export {
 	API_TOKEN_LIMITS,
 	API_TOKEN_PREFIX,
 	type ApiAccess,
-	type ApiTokenLifetime,
 	ApiTokenInvalidError,
+	type ApiTokenLifetime,
 	ApiTokenNotFoundError,
 	type ApiTokenOffer,
 	type ApiTokenProblem,
-	ApiTokenReadOnlyError,
 	type ApiTokens,
 	type ApiTokenUse,
 	type ApiTokenView,
 	DEFAULT_API_TOKEN_LIFETIME,
+	isApiClient,
 	type NewApiToken,
 } from "./api-tokens.ts";
 export {
@@ -78,10 +78,13 @@ export {
 	type TrustedProxies,
 } from "./config.ts";
 export {
+	askConfirmation,
 	CONFIRMATION_LIFETIME_MS,
 	type Confirmation,
 	ConfirmationInvalidError,
 	type ConfirmationProblem,
+	type ConfirmationRequest,
+	useConfirmation,
 } from "./confirmations.ts";
 export * from "./consent/index.ts";
 export * from "./content/index.ts";
@@ -176,10 +179,10 @@ export {
 	type MemberAccess,
 	type ModuleActor,
 	type PersonActor,
-	type TokenActor,
 	permissionsOn,
 	type Reach,
 	type Resource,
+	type TokenActor,
 	workspacesReached,
 } from "./permissions/can.ts";
 export {

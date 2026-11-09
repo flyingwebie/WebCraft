@@ -38,6 +38,7 @@ import type {
 	PostTypeChange,
 	Published,
 	PublishItem,
+	PublishPreview,
 	SaveBase,
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
@@ -397,6 +398,11 @@ export type InstallServices = InstallPorts & {
 		 * and writes the Audit log. Open the Site with `publishPermission(item)`.
 		 */
 		publish(scope: SiteScope, item: PublishItem): Promise<Published>;
+		/**
+		 * What publishing one item would do now, publishing nothing: API clients are shown it and
+		 * confirm it before they publish (spec › Management API).
+		 */
+		preview(scope: SiteScope, item: PublishItem): Promise<PublishPreview>;
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;

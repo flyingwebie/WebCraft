@@ -1,6 +1,7 @@
 import { CONSENT_LAYOUTS, CONSENT_MODES, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { fieldValues, language } from "../fields.ts";
 import { id } from "../inputs.ts";
@@ -29,12 +30,15 @@ export const consentBanner = {
 		}),
 
 	/** Publishes the words' Draft: every page shows them at once, as a new banner version. */
-	publish: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "consentBanner" } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		await context.services.publishing.publish(site, item);
-		return { banner: await context.services.consent.get(site) };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish(() => ({ kind: "consentBanner" })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "consentBanner" } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			await context.services.publishing.publish(site, item);
+			return { banner: await context.services.consent.get(site) };
+		}),
 
 	/**
 	 * Changes how the Site asks for consent (`optIn`, `optOut`, `none`, `outside`) and how the banner

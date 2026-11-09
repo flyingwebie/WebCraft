@@ -1,7 +1,8 @@
-import { publishPermission } from "@webcraft/core";
+import { ClassNotFoundError, publishPermission } from "@webcraft/core";
 import { CSS_MAX_LENGTH, DESIGN_SYSTEM_LIMITS } from "@webcraft/renderer";
 import { z } from "zod";
 
+import { confirmationInput, confirmedForApiClients, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 
@@ -132,10 +133,24 @@ export const designSystem = {
 		}),
 
 	/** Deletes a Class from the Draft; refused while an element or CSS uses it (`CLASS_IN_USE`, with where). */
-	deleteClass: signedIn.input(z.object({ siteId: id, classId: designId })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-		return { designSystem: await context.services.designSystem.deleteClass(site, input.classId) };
-	}),
+	deleteClass: signedIn
+		.input(z.object({ siteId: id, classId: designId, confirmation: confirmationInput }))
+		.use(
+			confirmedForApiClients({
+				action: "class.delete",
+				permission: () => "structure.edit",
+				describe: async (site, input, services) => {
+					const { draft } = await services.designSystem.get(site);
+					const found = draft.classes.find((each) => each.id === input.classId);
+					if (!found) throw new ClassNotFoundError();
+					return { target: found.id, preview: { class: { id: found.id, name: found.name } } };
+				},
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { designSystem: await context.services.designSystem.deleteClass(site, input.classId) };
+		}),
 
 	/**
 	 * The Design tokens as a DTCG file (2025.10): the Draft's, or the published ones. WebCraft's own
@@ -164,9 +179,12 @@ export const designSystem = {
 	 * Publishes the Draft as one item: every page's stylesheet changes at once, and the Site's page
 	 * cache is cleared.
 	 */
-	publish: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "designSystem" } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		return { published: await context.services.publishing.publish(site, item) };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish(() => ({ kind: "designSystem" })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "designSystem" } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			return { published: await context.services.publishing.publish(site, item) };
+		}),
 };

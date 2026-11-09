@@ -11,9 +11,8 @@ import {
 	staffWorkspaces,
 } from "@webcraft/db/schema";
 import { and, asc, eq, gt, inArray, isNotNull, or } from "drizzle-orm";
-
-import type { Email } from "../email/index.ts";
 import { revokeTokensOutOfReach } from "../api-tokens.ts";
+import type { Email } from "../email/index.ts";
 import { isUuid } from "../ids.ts";
 import { can, holdsAccess, type MemberAccess, personIdOf, type Reach } from "../permissions/can.ts";
 import { ASSIGNED_ROLES, isWorkspaceRole, WORKSPACE_ROLES, type WorkspaceRole } from "../permissions/roles.ts";

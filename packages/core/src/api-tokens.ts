@@ -5,9 +5,9 @@ import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import { type AuditVia, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import { isUuid } from "./ids.ts";
+import type { People, Person } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { can, type PersonActor, type Reach, type TokenActor, workspacesReached } from "./permissions/can.ts";
-import type { People, Person } from "./people.ts";
 import type { RateLimitRule, RateLimits, RateLimitTally } from "./rate-limits.ts";
 import type { Access, Executor, WorkspaceScope } from "./tenancy/data-layer.ts";
 import { SiteNotFoundError } from "./tenancy/errors.ts";
@@ -28,6 +28,14 @@ import { newToken } from "./tokens.ts";
  * WebCraft revokes it at once, in the same transaction as the change, and again on its next use for
  * any other way access ends. While the person's account is locked, their tokens wait.
  */
+
+/**
+ * Whether a call comes from an API client (an API token; OAuth grants later) rather than a person in
+ * the admin or Edit mode. API clients confirm publishing and other destructive changes in two steps.
+ */
+export function isApiClient(access: Access): boolean {
+	return access.actor.kind === "token";
+}
 
 /** What every API token starts with, so people (and secret scanners) recognise one. */
 export const API_TOKEN_PREFIX = "webcraft_";
@@ -125,14 +133,6 @@ export class ApiTokenNotFoundError extends Error {
 	override name = "ApiTokenNotFoundError";
 	constructor() {
 		super("There is no such API token among yours.");
-	}
-}
-
-/** A read-only token called a procedure that may change something. */
-export class ApiTokenReadOnlyError extends Error {
-	override name = "ApiTokenReadOnlyError";
-	constructor() {
-		super("This API token is read-only: it can't call procedures that change anything.");
 	}
 }
 

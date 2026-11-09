@@ -1,6 +1,7 @@
 import { publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { fieldInputs, fieldValues, language } from "../fields.ts";
 import { id } from "../inputs.ts";
@@ -42,10 +43,13 @@ export const globals = {
 	}),
 
 	/** Publishes the Globals' Draft: every page shows the new values at once. */
-	publish: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "globals" } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		await context.services.publishing.publish(site, item);
-		return { globals: await context.services.globals.get(site) };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish(() => ({ kind: "globals" })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "globals" } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			await context.services.publishing.publish(site, item);
+			return { globals: await context.services.globals.get(site) };
+		}),
 };

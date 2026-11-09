@@ -17,7 +17,6 @@ export {
 } from "./context.ts";
 export { toApiError } from "./errors.ts";
 export { adminRouter } from "./module-router.ts";
-export { type ApiClient, type ApiRouter, apiRouter } from "./router.ts";
 export {
 	createPublicApi,
 	OPENAPI_DOCUMENT_PATH,
@@ -26,4 +25,5 @@ export {
 	type PublicProcedure,
 	publicProcedure,
 } from "./public.ts";
+export { type ApiClient, type ApiRouter, apiRouter } from "./router.ts";
 export { ADMIN_API_PREFIX, createAdminApi, type RequestFacts } from "./rpc.ts";

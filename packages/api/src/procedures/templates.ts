@@ -1,6 +1,7 @@
 import { publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 
 /** The longest Template markup one save takes, in characters. */
@@ -163,10 +164,13 @@ export const templates = {
 	 * Publishes a Template's Draft: every page it renders changes at once, and the Site's page cache is
 	 * cleared. An Archive template takes its address (`PATH_TAKEN` where a Page or URL pattern has it).
 	 */
-	publish: signedIn.input(z.object({ siteId: id, templateId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "template", id: input.templateId } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		const published = await context.services.publishing.publish(site, item);
-		return { published };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, templateId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish((input) => ({ kind: "template", id: input.templateId })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "template", id: input.templateId } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			const published = await context.services.publishing.publish(site, item);
+			return { published };
+		}),
 };
