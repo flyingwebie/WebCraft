@@ -19,6 +19,8 @@ export {
 	API_TOKEN_LIMITS,
 	API_TOKEN_PREFIX,
 	type ApiAccess,
+	type ApiClientLimits,
+	type ApiClientUse,
 	ApiTokenInvalidError,
 	type ApiTokenLifetime,
 	ApiTokenNotFoundError,
@@ -166,6 +168,21 @@ export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup
 export * from "./media/index.ts";
 export { type MigrateBackup, type MigrateStepReport, migrateStep } from "./migrate-step.ts";
 export * from "./modules/index.ts";
+export {
+	type AuthorizationCheck,
+	type AuthorizationParameters,
+	type AuthorizationRequest,
+	type GrantChoice,
+	MCP_PATH,
+	OAUTH_LIFETIMES,
+	OAUTH_PREFIXES,
+	type OAuth,
+	OAuthGrantNotFoundError,
+	type OAuthGrantView,
+	OAuthRequestError,
+	type RegisteredClient,
+	type TokenAnswer,
+} from "./oauth.ts";
 export {
 	ADMIN_THEMES,
 	type AdminTheme,
@@ -345,6 +362,19 @@ export {
 } from "./tenancy/staff.ts";
 export { WORKSPACE_NAME_MAX_LENGTH, type WorkspaceSummary } from "./tenancy/workspaces.ts";
 export { systemTls, type TlsCertificate, type TlsProbe } from "./tls.ts";
+export {
+	DEFAULT_TOOLSETS,
+	defaultToolsets,
+	isToolset,
+	moduleToolset,
+	OPT_IN_TOOLSETS,
+	offeredToolsets,
+	TOOLSETS,
+	type Toolset,
+	type ToolsetKey,
+	ToolsetUnknownError,
+	toolsetModule,
+} from "./toolsets.ts";
 export * from "./translation/index.ts";
 export {
 	type Release,

@@ -17,7 +17,9 @@ import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
 import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
+import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
 import { Route as AdminAccountIndexRouteImport } from './routes/_admin/account.index'
+import { Route as AdminAccountAiClientsRouteImport } from './routes/_admin/account.ai-clients'
 import { Route as AdminAccountApiTokensRouteImport } from './routes/_admin/account.api-tokens'
 import { Route as AdminSettingsAiRouteImport } from './routes/_admin/settings.ai'
 import { Route as AdminSettingsBackupsRouteImport } from './routes/_admin/settings.backups'
@@ -118,9 +120,19 @@ const AdminStaffRoute = AdminStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => AdminRoute,
 } as any)
+const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
+  id: '/oauth/authorize',
+  path: '/oauth/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAccountIndexRoute = AdminAccountIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AdminAccountRoute,
+} as any)
+const AdminAccountAiClientsRoute = AdminAccountAiClientsRouteImport.update({
+  id: '/ai-clients',
+  path: '/ai-clients',
   getParentRoute: () => AdminAccountRoute,
 } as any)
 const AdminAccountApiTokensRoute = AdminAccountApiTokensRouteImport.update({
@@ -471,6 +483,8 @@ export interface FileRoutesByFullPath {
   '/account': typeof AdminAccountRouteWithChildren
   '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/settings/ai': typeof AdminSettingsAiRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
@@ -539,7 +553,9 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/': typeof AdminIndexRoute
+  '/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/settings/ai': typeof AdminSettingsAiRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
@@ -604,7 +620,9 @@ export interface FileRoutesById {
   '/_admin/account': typeof AdminAccountRouteWithChildren
   '/_admin/email-log': typeof AdminEmailLogRoute
   '/_admin/staff': typeof AdminStaffRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/_admin/': typeof AdminIndexRoute
+  '/_admin/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/_admin/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/_admin/settings/ai': typeof AdminSettingsAiRoute
   '/_admin/settings/backups': typeof AdminSettingsBackupsRoute
@@ -677,6 +695,8 @@ export interface FileRouteTypes {
     | '/account'
     | '/email-log'
     | '/staff'
+    | '/oauth/authorize'
+    | '/account/ai-clients'
     | '/account/api-tokens'
     | '/settings/ai'
     | '/settings/backups'
@@ -745,7 +765,9 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/email-log'
     | '/staff'
+    | '/oauth/authorize'
     | '/'
+    | '/account/ai-clients'
     | '/account/api-tokens'
     | '/settings/ai'
     | '/settings/backups'
@@ -809,7 +831,9 @@ export interface FileRouteTypes {
     | '/_admin/account'
     | '/_admin/email-log'
     | '/_admin/staff'
+    | '/oauth/authorize'
     | '/_admin/'
+    | '/_admin/account/ai-clients'
     | '/_admin/account/api-tokens'
     | '/_admin/settings/ai'
     | '/_admin/settings/backups'
@@ -878,6 +902,7 @@ export interface RootRouteChildren {
   InviteRoute: typeof InviteRoute
   SetupRoute: typeof SetupRoute
   SignInRoute: typeof SignInRoute
+  OauthAuthorizeRoute: typeof OauthAuthorizeRoute
   BuilderSiteIdSplatRoute: typeof BuilderSiteIdSplatRoute
 }
 
@@ -939,11 +964,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminStaffRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/oauth/authorize': {
+      id: '/oauth/authorize'
+      path: '/oauth/authorize'
+      fullPath: '/oauth/authorize'
+      preLoaderRoute: typeof OauthAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_admin/account/': {
       id: '/_admin/account/'
       path: '/'
       fullPath: '/account/'
       preLoaderRoute: typeof AdminAccountIndexRouteImport
+      parentRoute: typeof AdminAccountRoute
+    }
+    '/_admin/account/ai-clients': {
+      id: '/_admin/account/ai-clients'
+      path: '/ai-clients'
+      fullPath: '/account/ai-clients'
+      preLoaderRoute: typeof AdminAccountAiClientsRouteImport
       parentRoute: typeof AdminAccountRoute
     }
     '/_admin/account/api-tokens': {
@@ -1370,11 +1409,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminAccountRouteChildren {
+  AdminAccountAiClientsRoute: typeof AdminAccountAiClientsRoute
   AdminAccountApiTokensRoute: typeof AdminAccountApiTokensRoute
   AdminAccountIndexRoute: typeof AdminAccountIndexRoute
 }
 
 const AdminAccountRouteChildren: AdminAccountRouteChildren = {
+  AdminAccountAiClientsRoute: AdminAccountAiClientsRoute,
   AdminAccountApiTokensRoute: AdminAccountApiTokensRoute,
   AdminAccountIndexRoute: AdminAccountIndexRoute,
 }
@@ -1616,6 +1657,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteRoute: InviteRoute,
   SetupRoute: SetupRoute,
   SignInRoute: SignInRoute,
+  OauthAuthorizeRoute: OauthAuthorizeRoute,
   BuilderSiteIdSplatRoute: BuilderSiteIdSplatRoute,
 }
 export const routeTree = rootRouteImport

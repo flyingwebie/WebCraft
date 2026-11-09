@@ -36,7 +36,7 @@ export const redirects = defineModule({
 			it: "Porta i visitatori dai vecchi percorsi ai nuovi con regole di reindirizzamento, aggiunte dagli Editor o in automatico quando cambia un percorso pubblicato, ed elenca i percorsi richiesti che non hanno una pagina.",
 		},
 		version: "1.1.0",
-		sdk: "^1.7.0",
+		sdk: "^1.9.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -79,6 +79,7 @@ export const redirects = defineModule({
 			/** The Site's Redirect rules, the most recently changed first. */
 			list: procedure({
 				permission: "manage",
+				toolset: "content",
 				kind: "read",
 				input: z.object({ limit: z.number().int().min(1).max(LIST_LIMIT).default(500) }),
 				async run(input, context) {
@@ -92,6 +93,7 @@ export const redirects = defineModule({
 			/** Adds a rule: from a path (or every path under one, `/old/*`) to a path or an https:// address. */
 			add: procedure({
 				permission: "manage",
+				toolset: "content",
 				input: z.object({ from: text, to: text, status: status.default(301) }),
 				async run(input, context) {
 					return { rule: await addRule(context, input) };
@@ -99,6 +101,7 @@ export const redirects = defineModule({
 			}),
 			update: procedure({
 				permission: "manage",
+				toolset: "content",
 				input: z.object({ ruleId: z.uuid(), from: text.optional(), to: text.optional(), status: status.optional() }),
 				async run({ ruleId, ...change }, context) {
 					return { rule: await updateRule(context, ruleId, change) };
@@ -106,6 +109,7 @@ export const redirects = defineModule({
 			}),
 			remove: procedure({
 				permission: "manage",
+				toolset: "content",
 				input: z.object({ ruleId: z.uuid() }),
 				async run(input, context) {
 					await removeRule(context, input.ruleId);
@@ -117,6 +121,7 @@ export const redirects = defineModule({
 			/** The 404 log: the paths asked for most often first; `ignored` lists the ignored ones instead. */
 			list: procedure({
 				permission: "manage",
+				toolset: "content",
 				kind: "read",
 				input: z.object({
 					ignored: z.boolean().default(false),
@@ -129,6 +134,7 @@ export const redirects = defineModule({
 			/** Ignores a path of the 404 log (it leaves the list), or shows it again. */
 			ignore: procedure({
 				permission: "manage",
+				toolset: "content",
 				input: z.object({ missId: z.uuid(), ignored: z.boolean().default(true) }),
 				async run(input, context) {
 					return { miss: await ignoreMiss(context, input.missId, input.ignored) };

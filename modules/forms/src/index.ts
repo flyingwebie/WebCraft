@@ -137,7 +137,7 @@ export const forms = defineModule({
 			it: "Conserva ciò che i visitatori inviano con i Form di ogni Sito, con una cartella Spam tenuta 30 giorni, invia notifiche, risposte automatiche e Webhook, e permette di cercarli, esportarli ed eliminarli. Se è spento, i Form di un Sito non si vedono.",
 		},
 		version: "1.1.0",
-		sdk: "^1.6.0",
+		sdk: "^1.9.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -189,6 +189,7 @@ export const forms = defineModule({
 			 */
 			list: procedure({
 				permission: "submissions.view",
+				toolset: "submissions",
 				kind: "read",
 				input: filters.extend({
 					limit: z.number().int().min(1).max(LIST_LIMIT).default(50),
@@ -220,6 +221,7 @@ export const forms = defineModule({
 			/** One Submission, with its delivery log: each email and Webhook call sent for it. */
 			get: procedure({
 				permission: "submissions.view",
+				toolset: "submissions",
 				kind: "read",
 				input: z.object({ id: z.uuid() }),
 				async run(input, context) {
@@ -231,6 +233,7 @@ export const forms = defineModule({
 			/** Marks Submissions read or unread, for everyone who reads them. */
 			setRead: procedure({
 				permission: "submissions.view",
+				toolset: "submissions",
 				input: z.object({ ids: z.array(z.uuid()).min(1).max(LIST_LIMIT), read: z.boolean() }),
 				async run(input, context) {
 					const changed = await context.data.update(
@@ -252,6 +255,7 @@ export const forms = defineModule({
 			 */
 			notSpam: procedure({
 				permission: "submissions.manage",
+				toolset: "submissions",
 				input: z.object({ id: z.uuid() }),
 				async run(input, context) {
 					const row = await found(context, input.id);
@@ -297,6 +301,7 @@ export const forms = defineModule({
 			 */
 			delete: procedure({
 				permission: "submissions.manage",
+				toolset: "submissions",
 				input: z.object({
 					ids: z.array(z.uuid()).min(1).max(DELETE_LIMIT),
 					confirmation: z.string().max(100).optional(),
@@ -335,6 +340,7 @@ export const forms = defineModule({
 			 */
 			export: procedure({
 				permission: "submissions.view",
+				toolset: "submissions",
 				kind: "read",
 				input: filters.extend({ formId: z.uuid() }),
 				async run(input, context) {
@@ -364,6 +370,7 @@ export const forms = defineModule({
 			/** How long a Form keeps its Submissions: 30, 90 or 365 days, or null for forever. */
 			get: procedure({
 				permission: "submissions.view",
+				toolset: "forms",
 				kind: "read",
 				input: z.object({ formId: z.uuid() }),
 				async run(input, context) {
@@ -377,6 +384,7 @@ export const forms = defineModule({
 			 */
 			set: procedure({
 				permission: "submissions.manage",
+				toolset: "forms",
 				input: z.object({
 					formId: z.uuid(),
 					keepDays: z.union([z.literal(30), z.literal(90), z.literal(365)]).nullable(),

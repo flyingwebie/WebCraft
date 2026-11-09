@@ -1,5 +1,6 @@
 import { entries, people, publishedSlugs } from "@webcraft/db/schema";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUuid } from "../ids.ts";
@@ -187,6 +188,7 @@ export async function createEntry(scope: SiteScope, input: NewEntry): Promise<En
 			createdAt: now,
 			updatedAt: now,
 			updatedBy: personIdOf(tx.access.actor),
+			updatedVia: clientNameOf(tx.access.via),
 		});
 		const languages = await entryLanguages(tx, input.language);
 		const taken = isPagePostType(postType)
@@ -538,7 +540,12 @@ async function changeDraft(
 
 	const [saved] = await scope.update(
 		entries,
-		{ draft: version, updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor) },
+		{
+			draft: version,
+			updatedAt: scope.now(),
+			updatedBy: personIdOf(scope.access.actor),
+			updatedVia: clientNameOf(scope.access.via),
+		},
 		eq(entries.id, row.id),
 	);
 	if (!saved) throw new EntryNotFoundError();

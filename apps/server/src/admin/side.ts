@@ -7,6 +7,7 @@ import {
 	SiteNotFoundError,
 	type SiteScope,
 } from "@webcraft/core";
+import { createMcpEndpoint, createOAuthEndpoints } from "@webcraft/mcp";
 
 import { clientAddress } from "../client-address.ts";
 import { mediaFileResponse } from "../media-response.ts";
@@ -18,12 +19,16 @@ import { healthz, readyz } from "./health.ts";
 /**
  * Everything served on the admin host. The web process answers its own paths first (`/healthz`,
  * `/readyz`, Caddy's ask at `/caddy/ask`, the Management API at `/api/rpc` for the admin's pages
- * and at `/api/v1` for API tokens, Media previews at `/api/media/…`, the builder's canvas at
- * `/api/builder/canvas`, and later `/mcp` and OAuth); the admin app renders the rest.
+ * and at `/api/v1` for API tokens, the MCP server at `/mcp`, the OAuth endpoints its AI clients use
+ * (`/.well-known/…`, `/oauth/register`, `/oauth/token`, `/oauth/revoke`), Media previews at
+ * `/api/media/…`, the builder's canvas at `/api/builder/canvas`); the admin app renders the rest,
+ * the approval page at `/oauth/authorize` included.
  */
 export function createAdminSide(services: InstallServices, adminApp?: Handler): Handler {
 	const adminApi = createAdminApi(services);
 	const publicApi = createPublicApi(services);
+	const mcp = createMcpEndpoint(services);
+	const oauth = createOAuthEndpoints(services);
 	return async (request) => {
 		const { pathname } = new URL(request.url);
 		switch (pathname) {
@@ -50,11 +55,30 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 			// site's page can't act with a signed-in person's session.
 			return (await publicApi(request, { clientAddress: clientAddress(request, services.config) })) ?? notFound();
 		}
+		if (pathname === "/mcp" || pathname === "/mcp/") {
+			// Bearer tokens only (an AI client's or an API token): cookies are never read here.
+			return (await mcp(request, { clientAddress: clientAddress(request, services.config) })) ?? notFound();
+		}
+		const oauthAnswer = await oauth(request, { clientAddress: clientAddress(request, services.config) });
+		if (oauthAnswer) return oauthAnswer;
+		if (pathname === APPROVAL_PAGE_PATH && adminApp) return neverFramed(await adminApp(request));
 		if (pathname.startsWith(MEDIA_PREVIEW_PREFIX)) {
 			return readOnly(request, () => mediaPreview(services, request, pathname.slice(MEDIA_PREVIEW_PREFIX.length)));
 		}
 		return adminApp ? adminApp(request) : notFound();
 	};
+}
+
+/** The approval page an AI client sends the person to (`routes/oauth.authorize.tsx`). */
+const APPROVAL_PAGE_PATH = "/oauth/authorize";
+
+/** The approval page never shows inside another site's frame, where a click could be stolen. */
+function neverFramed(response: Response): Response {
+	const headers = new Headers(response.headers);
+	headers.set("x-frame-options", "DENY");
+	headers.set("content-security-policy", "frame-ancestors 'none'");
+	headers.set("cache-control", "no-store");
+	return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 /** Where the admin shows a Site's Media files (thumbnails and previews): `/api/media/<site id>/<name>`. */

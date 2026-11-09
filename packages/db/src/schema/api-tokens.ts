@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { boolean, foreignKey, index, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
@@ -31,6 +32,14 @@ export const apiTokens = pgTable(
 		hint: text("hint").notNull(),
 		allSites: boolean("all_sites").notNull().default(true),
 		readOnly: boolean("read_only").notNull().default(false),
+		/**
+		 * The Toolsets switched on: WebCraft's own keys and Modules' (`m.<id>`). Tokens made before
+		 * Toolsets have every one but Submissions, which is only ever on when its person chose it.
+		 */
+		toolsets: text("toolsets")
+			.array()
+			.notNull()
+			.default(sql`'{content,media,structure,forms,publishing,translation,siteSettings,analytics}'::text[]`),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		expiresAt: timestamp("expires_at", { withTimezone: true }),
 		/** When a request last used it, at most once a minute. */

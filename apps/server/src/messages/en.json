@@ -274,7 +274,8 @@
 			"label": "Open the account menu",
 			"account": "Your account",
 			"signOut": "Sign out",
-			"apiTokens": "API tokens"
+			"apiTokens": "API tokens",
+			"aiClients": "AI clients"
 		},
 		"darkTheme": "Dark theme",
 		"nav": {
@@ -550,6 +551,43 @@
 			"revokeTitle": "Revoke {name}?",
 			"revokeText": "Scripts and AI clients using it are refused from their next request. This can't be undone.",
 			"revokedToast": "{name} was revoked."
+		},
+		"aiClients": {
+			"pageTitle": "AI clients",
+			"heading": "AI clients",
+			"intro": "AI clients you approved act as you through WebCraft's MCP server, within one Workspace and the Sites, Toolsets and access you chose. They never do more than you may, and never a change that needs your password.",
+			"cardIntro": "AI clients you approved to act as you through the MCP server.",
+			"manage": "Manage AI clients",
+			"emptyTitle": "No AI clients yet",
+			"emptyBody": "When an AI client asks to work as you, you approve it on a page it sends you to. It then shows here.",
+			"howTo": "AI clients connect to {path} on this address and ask you to approve them.",
+			"client": "AI client",
+			"reaches": "Reaches",
+			"access": "Access",
+			"lastUsed": "Last used",
+			"neverUsed": "Not yet",
+			"status": "Status",
+			"actions": "Actions",
+			"allSites": "Every Site",
+			"noSites": "No Site left",
+			"readWrite": "Read and change",
+			"readOnly": "Read only",
+			"mayPublish": "May publish",
+			"sendsBackTo": "Sends you back to {host}",
+			"approvedAt": "Approved {date}",
+			"active": "Active",
+			"expired": "Expired: unused for 30 days",
+			"revoked": "Revoked",
+			"revokedClient": "Revoked by the client",
+			"revokedAccess": "Revoked: access ended",
+			"revokedReuse": "Revoked: a used token came back",
+			"revoke": "Revoke",
+			"revokeLabel": "Revoke {name}",
+			"revokeTitle": "Revoke {name}?",
+			"revokeText": "It is refused from its next request, and has to ask you again to come back. This can't be undone.",
+			"revokedToast": "{name} was revoked.",
+			"cancel": "Cancel",
+			"close": "Close"
 		}
 	},
 	"identityCheck": {
@@ -971,6 +1009,7 @@
 		"editInSafeModeHelp": "With none of the Site's own scripts running"
 	},
 	"publishAll": {
+		"changedVia": "{person} via {client}",
 		"button": "Publish all",
 		"changesCounted": "{count, plural, one {change} other {changes}}",
 		"title": "Publish all changes",
@@ -4721,6 +4760,76 @@
 			"FUNNELS_TOO_MANY": "A Site has at most 50 Funnels.",
 			"FUNNEL_NOT_FOUND": "That Funnel is no longer here."
 		}
+	},
+	"toolsets": {
+		"legend": "Toolsets",
+		"help": "What it may work on. Within these, it can only do what you may do.",
+		"required": "Switch on at least one Toolset.",
+		"moduleDescription": "Everything the {module} Module adds.",
+		"submissionsWarning": "Submissions hold what visitors typed into your Forms: names, email addresses, messages. Every read is recorded in the Audit log. Switch this on only for a client you trust with visitors' data.",
+		"content": {
+			"label": "Content",
+			"description": "Entries and Pages, the Globals' values, Imports and Redirect rules."
+		},
+		"media": {
+			"label": "Media",
+			"description": "The Media library: files, folders and the Trash."
+		},
+		"structure": {
+			"label": "Structure",
+			"description": "Post Types and Fields, Templates, Components, Loops, scripts, Libraries and the Design system."
+		},
+		"forms": {
+			"label": "Forms",
+			"description": "Building Forms, their emails and how long they keep Submissions."
+		},
+		"publishing": {
+			"label": "Publishing",
+			"description": "The list of Drafts and Publish all."
+		},
+		"translation": {
+			"label": "Translation",
+			"description": "The Site's languages and translations."
+		},
+		"siteSettings": {
+			"label": "Site settings",
+			"description": "Domains, Staging, Webhooks, SEO, the Consent banner, outside scripts, Modules, Sites and Members."
+		},
+		"analytics": {
+			"label": "Analytics",
+			"description": "Site analytics, Goals, Funnels and Dashboards."
+		},
+		"submissions": {
+			"label": "Submissions",
+			"description": "What visitors sent through your Forms."
+		}
+	},
+	"oauth": {
+		"pageTitle": "Approve an AI client",
+		"heading": "Approve {client}?",
+		"intro": "{client} asks to work in WebCraft as you, {person}. It will be able to do what you choose here, and never more than you may do.",
+		"client": "AI client",
+		"sendsBackTo": "Sends you back to",
+		"onThisDevice": "{client} sends you back to an address on this device. Any app on it could call itself {client}: approve only if you started this yourself, just now.",
+		"workspace": "Workspace",
+		"sites": "Sites",
+		"allSites": "Every Site of the Workspace, including Sites added later",
+		"chosenSites": "Only the Sites I choose",
+		"noSitesToChoose": "This Workspace has no Site you can see.",
+		"sitesRequired": "Choose at least one Site.",
+		"access": "Access",
+		"readWrite": "Read and change",
+		"readOnly": "Read only",
+		"mayPublish": "May publish",
+		"mayPublishHelp": "Without it, the client saves Drafts but can't make them what visitors see. Publishing and deleting always show you a preview to confirm first.",
+		"limits": "It can never change passwords, secrets, tokens, roles or Site access. You can revoke it at any time under Your account › AI clients.",
+		"approve": "Approve {client}",
+		"deny": "Deny",
+		"noWorkspaces": "You reach no Workspace yet, so there is nothing this client could work in.",
+		"refusedHeading": "This request can't be approved",
+		"refusedClient": "The app that sent you here isn't registered with this WebCraft. Nothing was approved.",
+		"refusedRedirect": "The app asked to send you back to an address it didn't register. Nothing was approved, and you weren't sent anywhere.",
+		"toAdmin": "Go to the admin"
 	},
 	"filters": {
 		"pageTitle": "Filters",
