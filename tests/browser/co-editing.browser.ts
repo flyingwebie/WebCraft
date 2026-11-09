@@ -90,15 +90,15 @@ describe("without the server", () => {
 		test(`the editor says it is offline, then read-only after 5 minutes (${theme})`, async () => {
 			const page = await install.newPage(theme);
 			await page.clock.install();
-			let server: { close(): Promise<void> } | null = null;
+			const sockets: { close(): Promise<void> }[] = [];
 			// The socket goes through the test, which can break it as a network would.
 			await page.routeWebSocket(/\/api\/drafts\//, (socket) => {
 				const upstream = socket.connectToServer();
-				server = { close: () => upstream.close() };
+				sockets.push({ close: () => upstream.close() });
 			});
 			await openEntry(page, staff);
 			await page.routeWebSocket(/\/api\/drafts\//, (socket) => socket.close({ code: 1006 }).catch(() => {}));
-			await server?.close();
+			for (const socket of sockets) await socket.close();
 			await page.getByRole("status").filter({ hasText: "Offline" }).first().waitFor();
 			// Changes made offline are kept.
 			await page.getByLabel("Summary").fill("Written offline");
