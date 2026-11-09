@@ -1,0 +1,4 @@
+const sel=QHTML.map(l=>[l[0],l[1],true]);
+const {r,vp}=aLayout(1,0,"D1 · A Placement selected: Props on the right, the Component's markup below",{sel:"quote",kind:"place",crumbs:["main","Page layout","Customer quote"],html:sel,css:[[".quote {",K.attr],["  padding-block: var(--space-xl);",K.text],["  background: var(--surface-2);",K.text],["  text-align: center;",K.text],["}",K.attr]]});
+notes(r,[["Placement row selected","Its tree row, the whole Component on the page and all its markup are marked."],["Props on the right","This Placement's own Prop values. Changing them changes this page only."],["Markup is the Component's","Editing the HTML or Class CSS changes the Component on all 4 pages, as the warning says."],["Inside it, inline","The Component's elements open under a divider; select one to edit it in place."]]);
+Export([r],"png",OUT+"D1");

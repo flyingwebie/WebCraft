@@ -1,0 +1,15 @@
+const {r,body}=cmChrome(0,2,"C1 · Bottom workspace: page full width, everything in the dock",{vertical:true});r.height=1010;
+const {vp,E}=pageBox(body,1440,400,{S:{quote:"sel"},scroll:880});
+outlineBox(vp,240,150,960,84,"blockquote.quote__text",{mono:true});
+const D=fr(body,"Dock",{layout:"vertical",width:"fill_container",height:"fill_container",fill:K.panel,stroke:K.line,strokeWidth:{top:1}});
+crumbLine(D,{tools:t=>{}});
+const strip=fr(D,"Element strip",{width:"fill_container",height:44,padding:[0,10],gap:10,alignItems:"center",stroke:K.line,strokeWidth:{bottom:1}});
+const tg=dinput(strip,"blockquote",{mono:true,caret:true});tg.width=130;const lb=dinput(strip,"Quote text");lb.width=150;
+classChip(strip,"quote__text",{on:true,x:true});classChip(strip,"is-large",{x:true});const ad=fr(strip,"Add class",{height:24,padding:[0,7],gap:4,cornerRadius:5,stroke:K.line,strokeWidth:1,alignItems:"center"});dic(ad,"plus",{width:11,height:11});dt(ad,"Class",{fontSize:11,fill:K.muted});
+const at=fr(strip,"Attrs",{height:24,padding:[0,8],gap:5,cornerRadius:5,fill:K.raised,alignItems:"center"});dic(at,"list",{width:12,height:12});dt(at,"2 attributes",{fontSize:12});
+sp(strip);insertBar(strip,{w:"fit_content",h:44,where:"After",items:[["heading","Heading"],["pilcrow","Paragraph"],["image","Image"],["link","Link"],["box","Div"],["repeat","Loop"],["git-branch","Condition"],["component","Component"]]}).strokeWidth=0;
+const cols=fr(D,"Columns",{width:"fill_container",height:"fill_container"});
+const T=fr(cols,"Tree",{layout:"vertical",width:300,height:"fill_container",clip:true,padding:[6,0],stroke:K.line,strokeWidth:{right:1}});homeTree(T);
+codePanel(cols,"HTML",{sub:"Customer quote",tools:["wand-sparkles","save"],lines:QHTML});codePanel(cols,"CSS",{seg:[["Class","Site"],"Class"],tools:["save"],lines:QCSS});codePanel(cols,"JS",{seg:[["Page","Site"],"Page"],tools:["save"],lines:QJS});
+notes(r,[["Page full width","Nothing beside the page, so what you see is the real layout at desktop width."],["Settings as a strip","Tag, layer label, Classes and attributes in one line; attributes open a small popover."],["Tree is the dock's first column","Tree, HTML, CSS, JS side by side. Drag the dock's edge to give it more height."],["Insert at the end of the strip","Acts on the selected row, After or Inside."]]);
+Export([r],"png",OUT+"C1");

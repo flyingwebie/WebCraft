@@ -1,0 +1,12 @@
+const {r,body}=cmChrome(0,0,"A1 · Three sides: tree left, settings right, code below",{});r.height=1010;
+const L=dfr(body,"Left · Layers",{layout:"vertical",width:280,height:"fill_container",stroke:K.line,strokeWidth:{right:1}});
+dhead(L,"Layers",{icon:"layers",tools:["search","chevrons-down-up"]});insertBar(L,{where:"After",items:[["heading","Heading"],["pilcrow","Paragraph"],["image","Image"],["repeat","Loop"],["component","Component"]],w:"fill_container"});
+const T=fr(L,"Tree",{layout:"vertical",width:"fill_container",padding:[6,0]});homeTree(T);
+const M=fr(body,"Middle",{layout:"vertical",width:"fill_container",height:"fill_container"});crumbLine(M);
+const {vp,E}=pageBox(M,860,520,{S:{quote:"sel"},scroll:790});outlineBox(vp,91,122,680,80,"blockquote.quote__text",{mono:true});
+const D=fr(M,"Code dock",{width:"fill_container",height:"fill_container",fill:K.panel,stroke:K.line,strokeWidth:{top:1}});
+codePanel(D,"HTML",{sub:"Customer quote",tools:["wand-sparkles","save"],lines:QHTML});codePanel(D,"CSS",{seg:[["Class","Site"],"Class"],tools:["save"],lines:QCSS,strip:c=>{const s=fr(c,"Layout icons",{width:"fill_container",height:32,padding:[0,10],gap:4,alignItems:"center",stroke:K.line,strokeWidth:{bottom:1}});for(const i of ["arrow-right","arrow-down","align-start-vertical","align-center-vertical","align-end-vertical","grid-2x2"])dic(s,i);}});codePanel(D,"JS",{seg:[["Page","Site"],"Page"],tools:["save"],lines:QJS});
+const RC=dfr(body,"Right · Element",{layout:"vertical",width:300,height:"fill_container",stroke:K.line,strokeWidth:{left:1}});
+dhead(RC,"Element",{icon:"sliders-horizontal"});settingsBox(RC,{});
+notes(r,[["Tree on the left","The builder's Layers panel, unchanged: rows, keys, drag, row actions."],["Settings on the right","The builder's Inspector: tag, layer label, Classes, attributes. Props when a Placement is selected."],["Code stays below","Today's three panels, narrower. The page shrinks to the space left."],["Insert above the tree","Inside or After the selected row; More opens the full insert list."]]);
+Export([r],"png",OUT+"A1");
