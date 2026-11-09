@@ -7,7 +7,9 @@ import { type Environment, type InstallConfig, loadInstallConfig } from "./confi
 import { createInstallServices } from "./create-services.ts";
 import { systemDns } from "./dns.ts";
 import { createSmtpMailer } from "./email/smtp-mailer.ts";
-import { fetchHttp } from "./http.ts";
+import type { OutgoingHttp } from "./http.ts";
+import { createBunHttp } from "./http-bun.ts";
+import { createNodeHttp } from "./http-node.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import { type ImageProcessor, imagesOnlyInWorker } from "./media/images.ts";
@@ -66,7 +68,11 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 
 	// Built before the job queue starts, so a wrong Master key is refused first.
 	const services = await createInstallServices(
-		{ ...realPorts(config, database, log), jobs: createJobQueue(boss), images: options.images ?? imagesOnlyInWorker },
+		{
+			...realPorts(config, database, log, OUTGOING_HTTP[processName]()),
+			jobs: createJobQueue(boss),
+			images: options.images ?? imagesOnlyInWorker,
+		},
 		masterKey,
 		{ modules },
 	);
@@ -89,7 +95,8 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 		return await createInstallServices(
 			{
-				...realPorts(config, database, log),
+				// Server commands run on Bun, as the web process does.
+				...realPorts(config, database, log, createBunHttp()),
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
 				images: imagesOnlyInWorker,
 			},
@@ -101,13 +108,27 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 	}
 }
 
-/** The real adapters every process uses; only the job queue differs between them. */
-function realPorts(config: InstallConfig, database: Database, log: Logger): Omit<InstallPorts, "jobs" | "images"> {
+/**
+ * Each process's outgoing HTTP, on its own runtime (ADR 0006): both connect a call the guarded fetcher
+ * checked to the address it checked.
+ */
+const OUTGOING_HTTP: Record<InstallProcess, () => OutgoingHttp> = {
+	web: createBunHttp,
+	worker: createNodeHttp,
+};
+
+/** The real adapters every process uses; only outgoing HTTP and the job queue differ between them. */
+function realPorts(
+	config: InstallConfig,
+	database: Database,
+	log: Logger,
+	http: OutgoingHttp,
+): Omit<InstallPorts, "jobs" | "images"> {
 	return {
 		config,
 		database,
 		mailer: createSmtpMailer(),
-		http: fetchHttp,
+		http,
 		dns: systemDns,
 		tls: systemTls,
 		clock: systemClock,

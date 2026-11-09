@@ -10,11 +10,10 @@ import type { OutgoingHttp } from "./http.ts";
  * - calls only `http` and `https` URLs without credentials in them, on the hosts allowed;
  * - resolves the host first and refuses loopback, private, link-local and other addresses that
  *   aren't on the public internet, then does the same after every redirect;
+ * - connects to the address it checked (outgoing HTTP's `connectTo`), never resolving the name
+ *   again, so a DNS answer that changes after the check (DNS rebinding) can't move the connection;
  * - follows at most 3 redirects (none for calls that carry a secret);
  * - gives up after a timeout, and refuses answers larger than a limit, reading the body in full.
- *
- * Outgoing HTTP resolves the name again when it connects; an HTTP adapter that connects to the
- * checked address (with Node's `lookup` hook) closes that gap in the worker.
  */
 export type GuardedFetch = (request: Request, options: GuardedFetchOptions) => Promise<Response>;
 
@@ -88,7 +87,7 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 			const body = request.body === null ? null : await request.arrayBuffer();
 			let hop = { url: new URL(request.url), method: request.method, headers: new Headers(request.headers), body };
 			for (let redirects = 0; ; redirects++) {
-				await Promise.race([checkTarget(hop.url, allowed, own, dns), aborted]);
+				const address = await Promise.race([checkTarget(hop.url, allowed, own, dns), aborted]);
 				let response: Response;
 				try {
 					response = await Promise.race([
@@ -100,6 +99,8 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 								redirect: "manual",
 								signal: controller.signal,
 							}),
+							// The connection goes to the address just checked: the name is never resolved again.
+							{ connectTo: address },
 						),
 						aborted,
 					]);
@@ -124,7 +125,16 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 	};
 }
 
-async function checkTarget(url: URL, allowed: ReadonlySet<string>, own: ReadonlySet<string>, dns: Dns): Promise<void> {
+/**
+ * Checks where a call would go, and answers the address to connect to: the first one the host
+ * resolves to, once every one of them passed.
+ */
+async function checkTarget(
+	url: URL,
+	allowed: ReadonlySet<string>,
+	own: ReadonlySet<string>,
+	dns: Dns,
+): Promise<string> {
 	if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) {
 		throw new GuardedFetchError(
 			"scheme",
@@ -144,11 +154,13 @@ async function checkTarget(url: URL, allowed: ReadonlySet<string>, own: Readonly
 			throw new GuardedFetchError("address", `${host} doesn't resolve.`, { cause: error });
 		}
 	}
-	if (addresses.length === 0) throw new GuardedFetchError("address", `${host} doesn't resolve.`);
+	const [first] = addresses;
+	if (first === undefined) throw new GuardedFetchError("address", `${host} doesn't resolve.`);
 	const internal = addresses.find((address) => !isPublicAddress(address) && !own.has(canonicalAddress(address)));
 	if (internal !== undefined) {
 		throw new GuardedFetchError("address", `${host} resolves to ${internal}, inside the server's network.`);
 	}
+	return first;
 }
 
 type Hop = { url: URL; method: string; headers: Headers; body: ArrayBuffer | null };
