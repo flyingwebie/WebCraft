@@ -119,6 +119,25 @@ describe("refused Module migrations", () => {
 		expect(message).toContain("outside its own schema, m_sample");
 	});
 
+	test("one that changes rows of WebCraft's", async () => {
+		const message = await refusal(
+			sampleWith([{ name: "0002-rename", sql: "UPDATE public.workspaces SET name = 'Taken over';" }]),
+		);
+		expect(message).toContain("changed public.workspaces, outside its own schema");
+	});
+
+	test("one that empties a table of WebCraft's", async () => {
+		const message = await refusal(sampleWith([{ name: "0002-forget", sql: "TRUNCATE public.module_log;" }]));
+		expect(message).toContain("changed public.module_log, outside its own schema");
+	});
+
+	test("one that reads a table of WebCraft's", async () => {
+		const message = await refusal(
+			sampleWith([{ name: "0002-peek", sql: "SELECT count(*) FROM public.people WHERE email LIKE '%@%';" }]),
+		);
+		expect(message).toContain("read public.people, outside its own schema");
+	});
+
 	test("one that makes a table outside its schema", async () => {
 		const message = await refusal(
 			sampleWith([{ name: "0002-outside", sql: "CREATE TABLE public.sample_things (id uuid PRIMARY KEY);" }]),

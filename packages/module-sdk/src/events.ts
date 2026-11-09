@@ -6,8 +6,17 @@
  * New events are additions (a minor SDK version); a payload only ever gains fields.
  */
 export type ModuleEvents = {
-	/** An Entry was published: its Draft went live. */
-	"entry.published": { entryId: string; postTypeId: string };
+	/**
+	 * An Entry was published: its Draft went live. `path` is where visitors find it now, and
+	 * `pathChanges` every published path the publish changed (its new slug, a Page that moved and
+	 * every Page under it), so a Module can send the old paths on.
+	 */
+	"entry.published": {
+		entryId: string;
+		postTypeId: string;
+		path: string;
+		pathChanges: { entryId: string; language: string; from: string; to: string }[];
+	};
 	/** An Entry was deleted. */
 	"entry.deleted": { entryId: string; postTypeId: string };
 	/** A Template was published. */

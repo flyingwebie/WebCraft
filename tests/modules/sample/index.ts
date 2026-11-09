@@ -111,14 +111,36 @@ export const sample = defineModule({
 			}),
 			remind: procedure({
 				permission: "notes.edit",
-				input: z.object({ noteId: z.uuid(), delaySeconds: z.number().int().min(0).max(86_400) }),
-				async run({ noteId, delaySeconds }, context) {
-					await context.jobs.send("remind", { noteId }, { delaySeconds });
+				input: z.object({
+					noteId: z.uuid(),
+					delaySeconds: z.number().int().min(0).max(86_400),
+					/** Gives up after queuing the reminder, so the transaction rolls back. */
+					giveUp: z.boolean().default(false),
+				}),
+				async run({ noteId, delaySeconds, giveUp }, context) {
+					await context.transaction(async (tx) => {
+						await tx.jobs.send("remind", { noteId }, { delaySeconds });
+						if (giveUp) throw new ModuleError("gave-up", "The sample gave up on the reminder.", 409);
+					});
 					return { queued: true };
 				},
 			}),
 		},
 		settings: {
+			/** Calls the hook with its token in the URL; answers the status, or everything it could read of the failure. */
+			checkHook: procedure({
+				permission: "structure.edit",
+				input: z.object({}),
+				async run(_input, context) {
+					const token = context.secrets.placeholder("hook-token");
+					try {
+						const response = await context.http(`https://hooks.sample.example/check/${token}?token=${token}`);
+						return { status: response.status, seen: null };
+					} catch (error) {
+						return { status: null, seen: everythingIn(error) };
+					}
+				},
+			}),
 			setHookToken: procedure({
 				permission: "structure.edit",
 				input: z.object({ token: z.string().min(1).max(500) }),
@@ -201,6 +223,7 @@ export const sample = defineModule({
 	adminPages: [{ path: "notes", label: { en: "Notes", it: "Note" }, permission: "notes.view" }],
 	events: {
 		async "entry.published"(event, context) {
+			await context.log.info("Heard that an Entry was published.", event.data);
 			const note = await addNote(context, `Entry ${event.data.entryId} was published.`, "module");
 			await context.audit("note.add", { noteId: note.id, entryId: event.data.entryId });
 			const token = await context.secrets.describe("hook-token");
@@ -226,6 +249,18 @@ export const sample = defineModule({
 		}),
 	},
 });
+
+/** Every text a Module can read of an error and the errors behind it: what must never hold a secret. */
+function everythingIn(error: unknown, depth = 0): string[] {
+	if (depth > 4 || error === null || typeof error !== "object") return [String(error)];
+	const texts: string[] = [];
+	for (const key of Object.getOwnPropertyNames(error)) {
+		const value = (error as Record<string, unknown>)[key];
+		if (key === "cause") texts.push(...everythingIn(value, depth + 1));
+		else texts.push(`${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}`);
+	}
+	return [...texts, String(error)];
+}
 
 /** Tries one thing the sample never declared; WebCraft must refuse each. */
 async function probe(attempt: (typeof PROBES)[number], context: ModuleContext): Promise<void> {

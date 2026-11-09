@@ -7,7 +7,9 @@ import type pg from "pg";
  * migrations as SQL; each runs once, recorded in `module_migrations` with a checksum. WebCraft
  * refuses, and the whole step rolls back, when a Module's migrations:
  *
- * - change anything outside its schema (WebCraft's tables, another Module's, roles, extensions);
+ * - change anything outside its schema (WebCraft's tables, another Module's, roles, extensions),
+ *   rows included, or read a table outside it other than `sites` and `workspaces` (which its
+ *   foreign keys point at);
  * - leave a table in its schema that it doesn't declare, a view, or a table that doesn't follow the
  *   tenant rule (a Site table's `(workspace_id, site_id)` points at `sites (workspace_id, id)`, a
  *   Workspace table's `workspace_id` at `workspaces (id)`, both deleting with them);
@@ -96,6 +98,7 @@ async function migrateModule(client: Client, module: ModuleSchema): Promise<stri
 	if (pending.length > 0) {
 		const before = await outsideDigest(client, schema);
 		await client.query(`CREATE SCHEMA IF NOT EXISTS ${ident(schema)}`);
+		const activity = await outsideActivity(client, schema);
 		await client.query(`SET LOCAL search_path TO ${ident(schema)}, public`);
 		for (const migration of pending) {
 			try {
@@ -112,6 +115,12 @@ async function migrateModule(client: Client, module: ModuleSchema): Promise<stri
 			);
 		}
 		await client.query("SET LOCAL search_path TO DEFAULT");
+		const touched = touchedOutside(activity, await outsideActivity(client, schema));
+		if (touched) {
+			throw new ModuleMigrationError(
+				`The Module ${moduleId}'s migrations ${touched.how} ${touched.table}, outside its own schema, ${schema}. A Module only reads and changes its own tables.`,
+			);
+		}
 		if ((await outsideDigest(client, schema)) !== before) {
 			throw new ModuleMigrationError(
 				`The Module ${moduleId}'s migrations changed something outside its own schema, ${schema}. A Module only changes its own tables.`,
@@ -160,6 +169,69 @@ async function outsideDigest(client: Client, schema: string): Promise<string> {
 		[schema],
 	);
 	return rows[0]?.digest ?? "";
+}
+
+/**
+ * What this transaction did so far to tables outside `schema`, by table: rows read and changed (the
+ * transaction's own statistics), and the locks it holds (a `TRUNCATE` or `ALTER` changes no counted
+ * row, but takes a lock). Compared before and after a Module's migrations.
+ */
+type Activity = Map<string, { reads: number; writes: number; locks: Set<string> }>;
+
+async function outsideActivity(client: Client, schema: string): Promise<Activity> {
+	const activity: Activity = new Map();
+	const entry = (table: string) => {
+		let found = activity.get(table);
+		if (!found) {
+			found = { reads: 0, writes: 0, locks: new Set() };
+			activity.set(table, found);
+		}
+		return found;
+	};
+	const counts = await client.query<{ name: string; reads: string; writes: string }>(
+		`SELECT schemaname || '.' || relname AS name,
+				coalesce(seq_scan, 0) + coalesce(idx_scan, 0) AS reads,
+				n_tup_ins + n_tup_upd + n_tup_del AS writes
+			FROM pg_stat_xact_user_tables WHERE schemaname <> $1`,
+		[schema],
+	);
+	for (const row of counts.rows)
+		Object.assign(entry(row.name), { reads: Number(row.reads), writes: Number(row.writes) });
+	const locks = await client.query<{ name: string; mode: string }>(
+		`SELECT n.nspname || '.' || c.relname AS name, l.mode
+			FROM pg_locks l JOIN pg_class c ON c.oid = l.relation JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE l.pid = pg_backend_pid() AND l.locktype = 'relation' AND l.granted AND c.relkind IN ('r', 'p')
+				AND n.nspname <> $1 AND n.nspname NOT IN ('pg_catalog', 'information_schema')`,
+		[schema],
+	);
+	for (const row of locks.rows) entry(row.name).locks.add(row.mode);
+	return activity;
+}
+
+/** The tables a Module's foreign keys point at: reading them (and locking them, to add or drop a key) is how a key works. */
+const REFERENCED_TABLES = new Set(["public.sites", "public.workspaces"]);
+
+/** The Module migrations' own record, which the step itself writes. */
+const MIGRATIONS_RECORD = "public.module_migrations";
+
+/** Locks that only read. */
+const READ_LOCKS = new Set(["AccessShareLock", "RowShareLock"]);
+
+/** The first table outside its schema a Module's migrations changed or read, between two snapshots. */
+function touchedOutside(before: Activity, after: Activity): { how: "changed" | "read"; table: string } | null {
+	let read: string | null = null;
+	for (const [table, now] of after) {
+		if (table === MIGRATIONS_RECORD) continue;
+		const then = before.get(table) ?? { reads: 0, writes: 0, locks: new Set<string>() };
+		const newLocks = [...now.locks].filter((mode) => !then.locks.has(mode));
+		// INSERT, UPDATE and DELETE take a row-exclusive lock even when they change no row; adding or
+		// dropping a foreign key never does.
+		if (now.writes > then.writes || newLocks.includes("RowExclusiveLock")) return { how: "changed", table };
+		if (REFERENCED_TABLES.has(table)) continue;
+		if (newLocks.some((mode) => !READ_LOCKS.has(mode))) return { how: "changed", table };
+		if (read === null && (now.reads > then.reads || newLocks.length > 0)) read = table;
+	}
+	return read === null ? null : { how: "read", table: read };
 }
 
 /** Every relation in the Module's schema is a table it declares, following the tenant rule, with its declared columns. */

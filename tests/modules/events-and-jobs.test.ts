@@ -87,6 +87,31 @@ describe("events", () => {
 		});
 	});
 
+	test("tell a Module where a published Entry is, and which published paths the publish changed", async () => {
+		const { siteId, entryId } = await siteWithEntry();
+		const postTypeId = (await staff.api.entries.get({ siteId, entryId })).entry.postTypeId;
+		await staff.api.entries.publish({ siteId, entryId });
+		await staff.api.entries.saveDraft({ siteId, entryId, slug: "hello-again" });
+		await install.drainJobs();
+
+		await staff.api.entries.publish({ siteId, entryId });
+		await install.drainJobs();
+
+		const { lines } = await (await install.superadmin()).api.modules.log({ moduleId: "sample", limit: 200 });
+		const heard = lines.filter(
+			(line) => line.message === "Heard that an Entry was published." && line.siteId === siteId,
+		);
+		expect(heard.map((line) => line.details)).toEqual([
+			{
+				entryId,
+				postTypeId,
+				path: "/posts/hello-again",
+				pathChanges: [{ entryId, language: "en", from: "/posts/hello", to: "/posts/hello-again" }],
+			},
+			{ entryId, postTypeId, path: "/posts/hello", pathChanges: [] },
+		]);
+	});
+
 	test("never block a publish when the Module fails: the failure goes to the Module log and is tried again", async () => {
 		const { siteId, slug, entryId } = await siteWithEntry();
 		install.http.respond("POST", SAMPLE_HOOK, { status: 500 });
@@ -159,6 +184,18 @@ describe("a Module's own jobs", () => {
 			details: { noteId: note.id, found: true },
 		});
 	});
+
+	test("queued in a change that was rolled back never run", async () => {
+		const site = await install.createSite(workspaceId);
+		const { note } = await notes(staff).add({ siteId: site.id, body: "Remind me, or not" });
+
+		await expect(
+			notes(staff).remind({ siteId: site.id, noteId: note.id, delaySeconds: 0, giveUp: true }),
+		).rejects.toMatchObject({ code: "MODULE_ERROR", status: 409, data: { code: "gave-up" } });
+
+		await install.clock.advance(MINUTE);
+		expect((await install.drainJobs()).completed.map((job) => job.name)).not.toContain("modules.job");
+	});
 });
 
 describe("outside calls", () => {
@@ -173,6 +210,37 @@ describe("outside calls", () => {
 		await staff.api.entries.publish({ siteId, entryId });
 		await install.drainJobs();
 		expect(hookCalls()[before]?.headers.get("authorization")).toBe("Bearer a-hook-token-0123456789-wxyz");
+	});
+
+	test("carry a secret in the address too, written so it can't change the address", async () => {
+		const site = await install.createSite(workspaceId);
+		const settings = moduleApi<typeof sample>(staff, "sample").settings;
+		await settings.setHookToken({ siteId: site.id, token: "a token/with?odd&chars#0123" });
+		install.http.respond("GET", /^https:\/\/hooks\.sample\.example\/check\//, { status: 204 });
+		const before = install.http.requests.length;
+
+		expect(await settings.checkHook({ siteId: site.id })).toEqual({ status: 204, seen: null });
+
+		const token = "a%20token%2Fwith%3Fodd%26chars%230123";
+		expect(install.http.requests.slice(before).map((request) => request.url)).toEqual([
+			`https://hooks.sample.example/check/${token}?token=${token}`,
+		]);
+	});
+
+	test("that fail never hand the secret back to the Module, in the error or anything behind it", async () => {
+		const site = await install.createSite(workspaceId);
+		const settings = moduleApi<typeof sample>(staff, "sample").settings;
+		await settings.setHookToken({ siteId: site.id, token: "never-shown-token-0123456789" });
+		// The call fails the way an unreachable host does, with an error naming the address.
+		install.http.respond("GET", /^https:\/\/hooks\.sample\.example\/check\//, (request) => {
+			throw new Error(`Unable to connect to ${request.url}`);
+		});
+
+		const { status, seen } = await settings.checkHook({ siteId: site.id });
+
+		expect(status).toBeNull();
+		expect(seen?.join("\n")).toContain("didn't answer");
+		expect(seen?.join("\n")).not.toContain("never-shown-token");
 	});
 
 	test("that carry a secret never follow a redirect", async () => {

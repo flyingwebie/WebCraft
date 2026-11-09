@@ -91,9 +91,20 @@ export function describeError(error: unknown): Record<string, unknown> {
 const AUDIT_ACTION = /^[a-z][a-zA-Z0-9]*(?:\.[a-z][a-zA-Z0-9]*)+$/;
 const SECRET_NAME = /^[a-z0-9][a-z0-9._-]{0,99}$/;
 const PLACEHOLDER = /\{\{wc-secret:([a-z0-9][a-z0-9._-]{0,99})\}\}/g;
+/** A placeholder as it reads in a URL's path, where the braces are percent-encoded. */
+const ENCODED_PLACEHOLDER = /%7B%7Bwc-secret:([a-z0-9][a-z0-9._-]{0,99})%7D%7D/gi;
 
-/** The context a Module's code runs with at a place opened for it (see `ModuleContext` in the SDK). */
-export function moduleContext(module: RunnableModule, scope: PlaceScope, deps: RuntimeDeps): ModuleContext {
+/**
+ * The context a Module's code runs with at a place opened for it (see `ModuleContext` in the SDK).
+ * Inside `transaction`, `afterCommit` holds what waits for the commit: jobs the Module queued, which
+ * never run when the transaction rolls back.
+ */
+export function moduleContext(
+	module: RunnableModule,
+	scope: PlaceScope,
+	deps: RuntimeDeps,
+	afterCommit: (() => Promise<void>)[] | null = null,
+): ModuleContext {
 	const { manifest } = module;
 	const place = placeOf(scope);
 	const refuse = (reason: ConstructorParameters<typeof ModuleRefusedError>[0], message: string): never => {
@@ -189,15 +200,26 @@ export function moduleContext(module: RunnableModule, scope: PlaceScope, deps: R
 				const parsed = job.payload.safeParse(payload);
 				if (!parsed.success) refuse("job", `The job ${name} doesn't take that payload: ${parsed.error.message}`);
 				const delay = options.delaySeconds ?? 0;
-				await deps.jobs.send(
-					moduleJob,
-					{ moduleId: module.id, job: name, place, payload: parsed.data },
-					delay > 0 ? { startAfter: delay } : {},
-				);
+				const send = () =>
+					deps.jobs
+						.send(
+							moduleJob,
+							{ moduleId: module.id, job: name, place, payload: parsed.data },
+							delay > 0 ? { startAfter: delay } : {},
+						)
+						.then(() => {});
+				if (afterCommit) afterCommit.push(send);
+				else await send();
 			},
 		},
 		log: { info: log("info"), warn: log("warn"), error: log("error") },
-		transaction: (work) => scope.transaction((tx) => work(moduleContext(module, tx, deps))),
+		async transaction(work) {
+			if (afterCommit) return scope.transaction((tx) => work(moduleContext(module, tx, deps, afterCommit)));
+			const pending: (() => Promise<void>)[] = [];
+			const result = await scope.transaction((tx) => work(moduleContext(module, tx, deps, pending)));
+			for (const send of pending) await send();
+			return result;
+		},
 	};
 }
 
@@ -260,17 +282,29 @@ async function moduleHttp(
 	) {
 		headers["content-type"] = "application/x-www-form-urlencoded;charset=UTF-8";
 	}
-	const texts = [target.toString(), ...Object.values(headers), body ?? ""];
-	const names = [...new Set(texts.flatMap((text) => [...text.matchAll(PLACEHOLDER)].map((match) => match[1] ?? "")))];
+	const address = target.toString();
+	const texts = [address, ...Object.values(headers), body ?? ""];
+	const names = [
+		...new Set(
+			texts.flatMap((text) =>
+				[...text.matchAll(PLACEHOLDER), ...text.matchAll(ENCODED_PLACEHOLDER)].map((match) => match[1] ?? ""),
+			),
+		),
+	];
 
 	const call = async (values: ReadonlyMap<string, string>) => {
 		const fill = (text: string) => text.replace(PLACEHOLDER, (_, name: string) => values.get(name) ?? "");
-		const request = new Request(fill(target.toString()), {
-			method: options.method ?? "GET",
-			headers: Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, fill(value)])),
-			body: body === undefined ? undefined : fill(body),
-		});
+		// In the address a secret is percent-encoded, so no character of it can change where the call goes.
+		const fillAddress = (text: string) =>
+			text
+				.replace(ENCODED_PLACEHOLDER, (_, name: string) => encodeURIComponent(values.get(name) ?? ""))
+				.replace(PLACEHOLDER, (_, name: string) => encodeURIComponent(values.get(name) ?? ""));
 		try {
+			const request = new Request(fillAddress(address), {
+				method: options.method ?? "GET",
+				headers: Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, fill(value)])),
+				body: body === undefined ? undefined : fill(body),
+			});
 			return await deps.fetch(request, {
 				allowedHosts: hosts,
 				timeoutMs: options.timeoutMs,
@@ -279,10 +313,13 @@ async function moduleHttp(
 				maxRedirects: values.size > 0 ? 0 : undefined,
 			});
 		} catch (error) {
-			if (error instanceof GuardedFetchError && ["host", "address", "scheme"].includes(error.problem)) {
-				throw new ModuleRefusedError("host", error.message);
+			// Only WebCraft's own words reach the Module, never the error behind them: an adapter's error
+			// can name the address, with a secret filled into it.
+			if (error instanceof GuardedFetchError) {
+				if (["host", "address", "scheme"].includes(error.problem)) throw new ModuleRefusedError("host", error.message);
+				throw new GuardedFetchError(error.problem, error.message);
 			}
-			throw error;
+			throw new GuardedFetchError("unreachable", `The call to ${target.host} couldn't be made.`);
 		}
 	};
 

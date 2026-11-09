@@ -13,6 +13,7 @@ import { and, eq, getTableName, isNull } from "drizzle-orm";
 
 import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { Access, InstallScope, Site } from "../tenancy/data-layer.ts";
@@ -162,7 +163,15 @@ export type ModuleHostOptions = RuntimeDeps & { modules: readonly ModuleDefiniti
 
 /** The Audit log actions Modules hear of, as SDK events with the data the SDK promises. */
 const EVENTS_OF_ACTIONS: Record<string, { event: ModuleEventName; data: (details: AuditDetails) => object }> = {
-	"entry.publish": { event: "entry.published", data: ({ entryId, postTypeId }) => ({ entryId, postTypeId }) },
+	"entry.publish": {
+		event: "entry.published",
+		data: ({ entryId, postTypeId, path, pathChanges }) => ({
+			entryId,
+			postTypeId,
+			path,
+			pathChanges: pathChanges ?? [],
+		}),
+	},
 	"entry.delete": { event: "entry.deleted", data: ({ entryId, postTypeId }) => ({ entryId, postTypeId }) },
 	"template.publish": { event: "template.published", data: ({ templateId }) => ({ templateId }) },
 	"globals.publish": { event: "globals.published", data: () => ({}) },
@@ -466,7 +475,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 			const { route } = match.compiled;
 			let response: Response;
 			try {
-				response = await route.handle(request, routeContext(module, scope, options, match.params));
+				response = await route.handle(forModule(request), routeContext(module, scope, options, match.params));
 				if (!(response instanceof Response))
 					throw new TypeError("The Site route answered something that isn't a Response.");
 			} catch (error) {
@@ -477,7 +486,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 				log.warn("A Module's Site route failed", { moduleId: module.id, route: route.path, error });
 				return new Response("Internal Server Error", { status: 500, headers: PLAIN });
 			}
-			const headers = new Headers(response.headers);
+			const headers = withoutWebCraftSetCookies(response.headers);
 			// Never cached as a page; a Module lets browsers keep its answer only by saying so itself.
 			if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
 			headers.set("x-content-type-options", "nosniff");
@@ -566,6 +575,31 @@ function canAt(scope: PlaceScope, permission: AddedPermission | Permission): boo
 
 function keyOf(permission: AddedPermission | Permission): string {
 	return typeof permission === "string" ? permission : permission.key;
+}
+
+/**
+ * The request as a Module's Site route sees it: without WebCraft's own cookies (Edit mode's, and
+ * any other WebCraft sets on the Site's domain), so a Module never acts with them.
+ */
+function forModule(request: Request): Request {
+	const cookie = request.headers.get("cookie");
+	if (cookie === null) return request;
+	const headers = new Headers(request.headers);
+	const kept = withoutWebCraftCookies(cookie);
+	if (kept === null) headers.delete("cookie");
+	else headers.set("cookie", kept);
+	return new Request(request, { headers });
+}
+
+/** A Site route's answer headers, without any cookie the Module tried to set under one of WebCraft's names. */
+function withoutWebCraftSetCookies(answer: Headers): Headers {
+	const headers = new Headers(answer);
+	const cookies = headers.getSetCookie();
+	headers.delete("set-cookie");
+	for (const cookie of cookies) {
+		if (!isWebCraftCookie(cookie.split("=")[0] ?? "")) headers.append("set-cookie", cookie);
+	}
+	return headers;
 }
 
 /** A Site route's parameters when its parts match the path's segments, or null. */
