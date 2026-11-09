@@ -18,6 +18,9 @@
 /** The WebSocket subprotocol both sides speak. */
 export const DRAFTS_PROTOCOL = "webcraft-drafts";
 
+/** The event Edit mode's module sends with the shared-Draft client once it has loaded (`edit-mode.ts`). */
+export const DRAFTS_LOADED_EVENT = "webcraft:drafts";
+
 /** A WebSocket subprotocol carrying Edit mode's header token, which a browser can't send as a header. */
 export const EDIT_TOKEN_PROTOCOL_PREFIX = "webcraft-edit-token.";
 

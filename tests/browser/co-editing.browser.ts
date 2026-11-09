@@ -43,6 +43,14 @@ beforeAll(async () => {
 		fields: { summary: "Crusty" },
 	});
 	entryId = entry.id;
+	// A page for the Entry, so it opens in Edit mode on the Site.
+	const template = await api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId,
+		markup: "<article><h1>{{ title }}</h1><p>{{ summary }}</p></article>",
+	});
+	await api.templates.publish({ siteId, templateId: template.template.id });
+	await api.entries.publish({ siteId, entryId });
 	await api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] });
 });
 
@@ -109,6 +117,38 @@ describe("without the server", () => {
 			expect(await page.getByLabel("Summary").isDisabled()).toBe(true);
 			await expectAccessibleScreen(page, `Entry editor read-only after 5 minutes offline (${theme})`);
 			await page.close();
+		});
+	}
+});
+
+describe("Edit mode", () => {
+	for (const theme of THEMES) {
+		test(`shows who is editing the page's Draft in the admin, where, and their changes (${theme})`, async () => {
+			const eve = await install.newPage(theme);
+			await install.signIn(eve, editor);
+			await eve.goto(install.adminUrl(`/sites/${siteId}`));
+			await eve.getByRole("button", { name: "Edit on site" }).click();
+			await eve.waitForURL((url) => url.hostname === new URL(install.siteUrl("bakery", "/")).hostname);
+			await eve.goto(install.siteUrl("bakery", "/recipes/fresh-bread"));
+			await eve.getByRole("button", { name: "Publish", exact: true }).waitFor();
+
+			const ada = await install.newPage(theme);
+			await openEntry(ada, staff);
+			await ada.getByLabel("Summary").focus();
+			await eve.getByText("Ada Staff is here").waitFor();
+			await eve
+				.getByRole("list", { name: "Also editing this page" })
+				.getByText("Ada Staff")
+				.waitFor({ state: "attached" });
+
+			await ada.getByLabel("Summary").fill(`Crusty, said in the admin (${theme})`);
+			await eve
+				.locator("article p")
+				.filter({ hasText: `Crusty, said in the admin (${theme})` })
+				.waitFor();
+			await expectAccessibleScreen(eve, `Edit mode with someone else in a region (${theme})`);
+			await ada.close();
+			await eve.close();
 		});
 	}
 });

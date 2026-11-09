@@ -1676,7 +1676,13 @@
 				"FORBIDDEN": "Only Staff can change code.",
 				"EDIT_MODE_ENDED": "Edit mode has ended. Open it again from the admin."
 			}
-		}
+		},
+		"alsoEditing": "Also editing this page",
+		"isHere": "{name} is here",
+		"via": "{name} via {client}",
+		"viaTranslation": "{name} via AI translation",
+		"someone": "Someone",
+		"publishedBy": "Published by {name}"
 	},
 	"siteLanguages": {
 		"pageTitle": "Languages",

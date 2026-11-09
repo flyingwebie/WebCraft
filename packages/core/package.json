@@ -19,7 +19,8 @@
 		"./ai-models": "./src/ai/models.ts",
 		"./edit-paths": "./src/edit-mode/paths.ts",
 		"./staging-rules": "./src/staging/password-rules.ts",
-		"./draft-document": "./src/co-editing/browser.ts"
+		"./draft-document": "./src/co-editing/browser.ts",
+		"./draft-document/edit-mode": "./src/co-editing/edit-mode.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"
