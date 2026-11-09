@@ -701,7 +701,7 @@ class MarkupParser {
 					this.problem(offset, found?.refused ?? `There is no Filter named ${name} on this Site.`);
 					return undefined;
 				}
-				return { id: found.id, loop: found.loop };
+				return { id: found.id, name: found.name, loop: found.loop, controls: found.controls };
 			},
 			problem: (offset, message) => this.problem(offset, message),
 			scope: this.scope,

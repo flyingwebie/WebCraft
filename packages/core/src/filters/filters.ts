@@ -13,8 +13,17 @@ import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
-import { checkFilterVersion, type FilterVersionInput, readFilterVersion, storedFilterVersion } from "./definition.ts";
+import {
+	checkFilterVersion,
+	type FilterContext,
+	type FilterSources,
+	type FilterVersionInput,
+	filterSources,
+	readFilterVersion,
+	storedFilterVersion,
+} from "./definition.ts";
 import { FilterInvalidError, FilterNameTakenError, FilterNotFoundError } from "./errors.ts";
+import { type FilterUsage, filterUsages } from "./usage.ts";
 
 /**
  * Filters (GLOSSARY.md): the controls visitors use to narrow, search and sort the items of one query
@@ -107,7 +116,12 @@ function loopTaken(loop: string): FilterInvalidError {
  * a Draft) or its published version (for a publish). Reports a Loop that is missing, isn't a query
  * Loop or (for a publish) isn't published.
  */
-async function loopContext(scope: SiteScope, loop: unknown, which: "draft" | "published", problems: ContentProblem[]) {
+export async function loopContext(
+	scope: SiteScope,
+	loop: unknown,
+	which: "draft" | "published",
+	problems: ContentProblem[],
+): Promise<FilterContext | undefined> {
 	if (typeof loop !== "string" || loop === "") {
 		problems.push({ at: "loop", message: "A Filter narrows one query Loop of the Site, by name." });
 		return undefined;
@@ -133,10 +147,28 @@ async function loopContext(scope: SiteScope, loop: unknown, which: "draft" | "pu
 	return { query: version.query, postTypes: await listPostTypes(scope) };
 }
 
-/** The Filters of the scope's Site, by name. */
-export async function listFilters(scope: SiteScope): Promise<Filter[]> {
+/** The Filters of the scope's Site, by name, each with where it is placed. */
+export async function listFilters(scope: SiteScope): Promise<(Filter & { usage: FilterUsage })[]> {
 	const rows = await scope.select(filters, undefined, { orderBy: [asc(filters.name)] });
-	return rows.map(toFilter);
+	const usageOf = await filterUsages(scope);
+	return rows.map((row) => ({ ...toFilter(row), usage: usageOf(row.id) }));
+}
+
+/**
+ * One Filter as the Filter builder reads it: where it is placed, and what its controls can use from
+ * its Loop's Draft (null when its Loop is no longer a query Loop of the Site).
+ */
+export async function filterDetails(
+	scope: SiteScope,
+	filterId: string,
+): Promise<{ filter: Filter; usage: FilterUsage; sources: FilterSources | null }> {
+	const filter = await getFilter(scope, filterId);
+	const context = await loopContext(scope, filter.loop, "draft", []);
+	return {
+		filter,
+		usage: (await filterUsages(scope))(filter.id),
+		sources: context ? filterSources(context) : null,
+	};
 }
 
 /** One Filter of the scope's Site. */
@@ -251,8 +283,9 @@ export async function siteFilters(
 	};
 	const found = (row: FilterRow | undefined) => {
 		if (!row) return undefined;
-		if (!versionOf(row)) return { refused: `The Filter ${row.name} isn't published yet: publish it first.` };
-		return { id: row.id, name: row.name, loop: row.loop };
+		const version = versionOf(row);
+		if (!version) return { refused: `The Filter ${row.name} isn't published yet: publish it first.` };
+		return { id: row.id, name: row.name, loop: row.loop, controls: version.controls.map((control) => control.id) };
 	};
 	return {
 		named: (name) => found(byName.get(name)),
