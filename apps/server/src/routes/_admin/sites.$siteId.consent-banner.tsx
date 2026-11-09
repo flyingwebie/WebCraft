@@ -19,6 +19,7 @@ import { getApi } from "../../ui/api.ts";
 import { type ConsentBannerView, ConsentBannerWords } from "../../ui/consent/ConsentBannerWords.tsx";
 import { errorMessage } from "../../ui/errors.ts";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
+import { useLeaveOnClose } from "../../ui/history/leave.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -55,6 +56,8 @@ function ConsentBannerPage() {
 	const { banner } = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
+	// Closing the editor keeps the words' Draft as a Checkpoint when it changed.
+	useLeaveOnClose(siteId, { kind: "consentBanner" });
 	if (place.level !== "site") return null;
 	return (
 		<>

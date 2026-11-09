@@ -21,6 +21,7 @@ import {
 	ScriptNotFoundError,
 	TemplateNotFoundError,
 } from "../content/errors.ts";
+import { itemPermission } from "../content/item-permission.ts";
 import { siteLanguages } from "../content/languages.ts";
 import type { PublishItem } from "../content/publishing.ts";
 import { emptyVersion, readValue, storedVersion } from "../content/values.ts";
@@ -83,10 +84,7 @@ const CONTENT_KINDS: readonly HistoryItem["kind"][] = ["entry", "globals", "cons
  * (Templates, Components, Loops, Filters, scripts, Forms, the Design system): `structure.edit`.
  */
 export function historyReadPermission(item: Pick<HistoryItem, "kind">): Permission {
-	if (item.kind === "formEmails") return "formEmails.edit";
-	return item.kind === "entry" || item.kind === "globals" || item.kind === "consentBanner"
-		? "site.view"
-		: "structure.edit";
+	return itemPermission(item.kind, "site.view");
 }
 
 /**
@@ -95,10 +93,7 @@ export function historyReadPermission(item: Pick<HistoryItem, "kind">): Permissi
  * `formEmails.edit`; Structure: `structure.edit`.
  */
 export function historyEditPermission(item: Pick<HistoryItem, "kind">): Permission {
-	if (item.kind === "formEmails") return "formEmails.edit";
-	return item.kind === "entry" || item.kind === "globals" || item.kind === "consentBanner"
-		? "entry.edit"
-		: "structure.edit";
+	return itemPermission(item.kind, "entry.edit");
 }
 
 /** The id an item's history rows carry: its own, or null for the items a Site has one of. */
