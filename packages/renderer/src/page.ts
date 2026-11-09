@@ -10,12 +10,13 @@ import {
 import { CONSENT_SCRIPT } from "./consent/script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import type { RenderTime } from "./expressions.ts";
+import { FILTER_SCRIPT } from "./filters/script.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree, safeUrl } from "./html.ts";
 import type { LoopItemPlace, LoopRun } from "./loops.ts";
 import { SEARCH_HIT_NAME, SEARCH_LOOP, SEARCH_QUERY_VALUE } from "./loops.ts";
 import type { MediaReader } from "./media.ts";
 import { type PageSeo, seoTags, sharingTags } from "./seo.ts";
-import type { Attribute, ElementNode, ElementTree, TreeNode, ValueNode } from "./tree.ts";
+import type { Attribute, ElementNode, ElementTree, FilterNode, TreeNode, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
 
 /**
@@ -116,6 +117,13 @@ export type PageToRender = {
 	formScripts?: () => readonly PageOutsideScript[];
 	/** What each Loop of the Site the page names shows here, in both templates (`RenderOptions.loop`). */
 	loop?: (name: string) => LoopRun | undefined;
+	/**
+	 * What `{{@filter}}` shows, in both templates: the Filter's controls as a GET form (`renderFilter`),
+	 * or nothing. A page showing one links the Filter script, which updates its Loop in place.
+	 */
+	filter?: (node: FilterNode) => string;
+	/** Whether a Loop of the Site is narrowed by a Filter the page shows: its output is then a region the script swaps. */
+	filtered?: (loop: string) => boolean;
 	/** The time the page is rendered, for Conditions reading `now`. */
 	time?: RenderTime;
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
@@ -279,6 +287,14 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	// The embed script comes only with a video to play; the consent script with something held back.
 	const shown = { videos: 0, held: 0, settings: 0 };
 	const loopItemsShown = { count: 0 };
+	// The regions of filtered Loops, numbered across both templates; the Filter script comes with a Filter.
+	const regions = new Map<string, number>();
+	let filtersShown = 0;
+	const filter = (node: FilterNode) => {
+		const html = page.filter?.(node) ?? "";
+		if (html) filtersShown++;
+		return html;
+	};
 	const held = consent
 		? (embed: { category: string; label: string; source: string }) => {
 				shown.held++;
@@ -302,6 +318,9 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		form: page.form,
 		search,
 		loop: page.loop,
+		filter,
+		filtered: page.filtered,
+		regions,
 		time: page.time,
 		loopItemsShown,
 		themeToggle,
@@ -324,6 +343,9 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		form: page.form,
 		search,
 		loop: page.loop,
+		filter,
+		filtered: page.filtered,
+		regions,
 		time: page.time,
 		loopItemsShown,
 		themeToggle,
@@ -374,6 +396,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
 		...(asks && consent ? consentHead(consent) : []),
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
+		...(filtersShown > 0 ? [`<script src="${FILTER_SCRIPT.href}" defer></script>`] : []),
 		...(page.libraries ?? []).map((library) => {
 			const tag = editMode ? ` data-wc-library="${escapeAttribute(library.name)}"` : "";
 			return `<script src="${escapeAttribute(library.src)}" integrity="${escapeAttribute(library.integrity)}" defer${tag}></script>`;

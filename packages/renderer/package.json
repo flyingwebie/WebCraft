@@ -9,6 +9,7 @@
 		".": "./src/index.ts",
 		"./rich-text": "./src/rich-text.ts",
 		"./body": "./src/body/index.ts",
+		"./filters": "./src/filters/version.ts",
 		"./forms": "./src/forms/version.ts",
 		"./forms/emails": "./src/forms/emails.ts",
 		"./forms/email-words": "./src/forms/email-words.ts",

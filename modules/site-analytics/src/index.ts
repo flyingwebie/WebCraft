@@ -11,6 +11,7 @@ import {
 	defineModule,
 	desc,
 	eq,
+	formSenderCounted,
 	gte,
 	isAddressRange,
 	job,
@@ -491,19 +492,19 @@ export const siteAnalytics = defineModule({
 	events: {
 		/**
 		 * A Form Submission is something a Goal counts (#103): kept as an event, with nothing the visitor
-		 * typed, on the terms of the collection path. Only once the sender accepted Analytics (where an
-		 * outside consent service asks, WebCraft can't read the answer, so never), and never from the
-		 * Staging address, from someone of the Install, or with Do Not Track or Global Privacy Control.
-		 * The Site's excluded address ranges can't apply: the event never holds the address.
+		 * typed, on the terms of the collection path, by the one rule the SDK gives for whether a sender
+		 * is counted by analytics (`formSenderCounted`, SDK 1.8: Analytics accepted, never Staging,
+		 * someone of the Install, Do Not Track or Global Privacy Control). The Site's excluded address
+		 * ranges can't apply: the event never holds the address.
 		 *
-		 * With the sender's id for the day (SDK 1.8), it joins the visit that sender had going on the Site
-		 * (an event in the last 30 minutes), with the visit's source, country and device, so Funnels and
-		 * filters count it; without one, it stands alone, counted by Form only.
+		 * With the sender's id for the day (SDK 1.8, given on the same rule), it joins the visit that
+		 * sender had going on the Site (an event in the last 30 minutes), with the visit's source,
+		 * country and device, so Funnels and filters count it; without one, it stands alone, counted by
+		 * Form only.
 		 */
 		async "form.submitted"(event, context) {
 			const { sender } = event.data;
-			if (sender.via === "staging" || sender.signedIn || sender.doNotTrack) return;
-			if (!sender.consent.accepted.includes("analytics")) return;
+			if (!formSenderCounted(sender)) return;
 			const visitor = event.data.visitor ?? null;
 			const last = visitor
 				? await context.data.first(

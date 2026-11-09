@@ -2,9 +2,9 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "69395e7f-1248-4c65-b084-9000187623a4",
+  "id": "db1cb99a-ecd8-4fd9-81c1-fa2c71c807d6",
   "prevIds": [
-    "aad5b14b-b438-4944-ae65-0d335aa39260"
+    "434a4d4f-120f-4f6e-8951-2b47269ba10c"
   ],
   "footprints": [
     {
@@ -262,6 +262,24 @@
       ],
       "reads": [
         "n|tbl|public.design_systems",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "filters",
+        "updated_via"
+      ],
+      "writes": [
+        "s|col|public.filters.updated_via",
+        "n|col|public.filters.updated_via",
+        "e|col|public.filters.updated_via"
+      ],
+      "reads": [
+        "n|tbl|public.filters",
         "n|sch|public"
       ]
     },
@@ -766,6 +784,22 @@
       "row": {
         "schema": "public",
         "table": "design_systems",
+        "name": "updated_via",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "filters",
         "name": "updated_via",
         "type": "text",
         "typeSchema": null,

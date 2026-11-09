@@ -41,6 +41,17 @@ export function clientAddress(request: Request, config: InstallConfig): string |
 	return proxiedAddress(request, config.trustedProxies);
 }
 
+/**
+ * Gives `to`, a request the Site pipeline makes for one it is answering (a Filter's fragments are the
+ * page's), the client address `from` came from, so rate limits count the same visitor.
+ */
+export function sameClient(from: Request, to: Request): void {
+	const recorded = (from as ConnectedRequest)[VISITOR];
+	const ip = (from as ConnectedRequest).ip;
+	if (recorded !== undefined) Object.defineProperty(to, VISITOR, { value: recorded, configurable: true });
+	if (typeof ip === "string") Object.defineProperty(to, "ip", { value: ip, enumerable: true });
+}
+
 /** Records the address of the connection a request came in on, as the server reports it. */
 export function setConnectionAddress(request: Request, address: string | undefined): void {
 	if (address) Object.defineProperty(request, "ip", { value: address, enumerable: true });

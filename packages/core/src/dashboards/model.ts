@@ -226,10 +226,33 @@ export function placeWidget<Widget extends Rect & { id: string }>(
 	return widgets.map((widget) => placed.find((each) => each.id === widget.id) ?? widget);
 }
 
+/** A Funnel-shaped answer, as one Site gives it. */
+type FunnelAnswer = Extract<WidgetData, { shape: "funnel" }>;
+
+/**
+ * Whether a Workspace Widget's Funnel answers don't all share the same steps: each Site builds its
+ * own Funnel of a name, matched across Sites by that name only, so two Sites' "same" Funnel can have
+ * different steps (a step's label is its Goal's name or its path). When they differ, `addUp` must not
+ * add them step by step (a later step of one Site would land under an earlier step's label of
+ * another): the caller (`dashboards/index.ts`) checks this first and answers a problem instead.
+ */
+export function funnelStepsDiffer(answers: readonly WidgetData[]): boolean {
+	const funnels = answers.filter((answer): answer is FunnelAnswer => answer.shape === "funnel");
+	const [first, ...rest] = funnels;
+	if (!first) return false;
+	const labels = first.steps.map((step) => step.label);
+	return rest.some(
+		(answer) =>
+			answer.steps.length !== labels.length || answer.steps.some((step, index) => step.label !== labels[index]),
+	);
+}
+
 /**
  * Several Sites' answers for one Widget, added up (a Workspace Dashboard): counts add (visitors
  * Site by Site and day by day, as Site analytics counts them), a rate's two counts add, a table's rows
- * add by their key (then the biggest first, at most `limit`), a Funnel's steps add step by step.
+ * add by their key (then the biggest first, at most `limit`), a Funnel's steps add by their label (the
+ * caller keeps mismatched Funnels, `funnelStepsDiffer`, from reaching here at all; matching by label
+ * rather than position keeps this from quietly mixing one Site's step into another's here too).
  */
 export function addUp(answers: readonly WidgetData[], limit: number): WidgetData | null {
 	const [first] = answers;
@@ -291,12 +314,14 @@ export function addUp(answers: readonly WidgetData[], limit: number): WidgetData
 		}
 		case "funnel": {
 			const steps = first.steps.map((step) => ({ ...step }));
+			const indexByLabel = new Map(steps.map((step, index) => [step.label, index]));
 			for (const answer of answers.slice(1)) {
 				if (answer.shape !== "funnel") continue;
-				answer.steps.forEach((step, index) => {
-					const into = steps[index];
+				for (const step of answer.steps) {
+					const index = indexByLabel.get(step.label);
+					const into = index === undefined ? undefined : steps[index];
 					if (into) into.count += step.count;
-				});
+				}
 			}
 			return { shape: "funnel", steps, countedFrom };
 		}

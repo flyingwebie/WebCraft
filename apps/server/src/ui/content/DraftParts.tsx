@@ -4,6 +4,7 @@ import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import { CircleAlertIcon, CircleCheckIcon, LoaderIcon, UploadIcon } from "lucide-react";
 import { type ReactNode, type RefObject, useRef, useState } from "react";
+import { useAfterRender } from "../after-render.ts";
 
 import { errorCode, errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
@@ -174,6 +175,7 @@ export function useDraftPublish(options: {
 }): DraftPublishing {
 	const t = useT();
 	const summary = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const [publishing, setPublishing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const publish = async () => {
@@ -188,7 +190,7 @@ export function useDraftPublish(options: {
 		} catch (failure) {
 			if (options.invalid.includes(errorCode(failure) ?? "")) {
 				setError(t("entries.editor.fixFirst"));
-				requestAnimationFrame(() => summary.current?.focus());
+				afterRender(() => summary.current?.focus());
 			} else {
 				setError(t(errorMessage(failure)));
 			}

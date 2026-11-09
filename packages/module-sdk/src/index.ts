@@ -98,7 +98,14 @@ export {
 	siteRoute,
 } from "./define.ts";
 export { isModuleError, ModuleError, type ModuleRefusal, ModuleRefusedError } from "./errors.ts";
-export { type FormSender, MODULE_EVENTS, type ModuleEvent, type ModuleEventName, type ModuleEvents } from "./events.ts";
+export {
+	type FormSender,
+	formSenderCounted,
+	MODULE_EVENTS,
+	type ModuleEvent,
+	type ModuleEventName,
+	type ModuleEvents,
+} from "./events.ts";
 export {
 	IMPORT_FILE_MAX_BYTES,
 	type ImportSource,

@@ -129,6 +129,8 @@ export {
 	type SavedRegion,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
+export * from "./filters/index.ts";
+export { type FilterState, readFilterState, type StateKey, type StateReader } from "./filters/state.ts";
 export * from "./forms/index.ts";
 export {
 	createGuardedFetch,
@@ -269,6 +271,7 @@ export {
 	type LanguageChoice,
 	type PageContent,
 	type PageEditing,
+	type PageFilterState,
 	type PageInLanguage,
 	pathSegments,
 	reservedSlugs,

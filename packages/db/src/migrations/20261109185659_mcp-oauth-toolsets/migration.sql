@@ -61,6 +61,7 @@ ALTER TABLE "loops" ADD COLUMN "updated_via" text;--> statement-breakpoint
 ALTER TABLE "scripts" ADD COLUMN "updated_via" text;--> statement-breakpoint
 ALTER TABLE "templates" ADD COLUMN "updated_via" text;--> statement-breakpoint
 ALTER TABLE "design_systems" ADD COLUMN "updated_via" text;--> statement-breakpoint
+ALTER TABLE "filters" ADD COLUMN "updated_via" text;--> statement-breakpoint
 ALTER TABLE "forms" ADD COLUMN "emails_updated_via" text;--> statement-breakpoint
 ALTER TABLE "forms" ADD COLUMN "updated_via" text;--> statement-breakpoint
 CREATE INDEX "oauth_codes_grant_id_idx" ON "oauth_codes" ("grant_id");--> statement-breakpoint

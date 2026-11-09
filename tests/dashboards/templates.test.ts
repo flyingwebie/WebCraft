@@ -206,6 +206,129 @@ describe("a Workspace Dashboard", () => {
 		expect(off.id).toBeTruthy();
 	});
 
+	test("doesn't add up a Funnel whose Sites built different steps, and says so", async () => {
+		const workspace = await install.createWorkspace("Mixed funnels");
+		const staff = (await install.createStaff({ workspaces: [workspace.id] })).browser;
+		const north = await analyticsSite(staff, workspace.id);
+		const south = await analyticsSite(staff, workspace.id);
+
+		const { goal: signedUp } = await analyticsApi(staff).goals.create({
+			siteId: north.siteId,
+			name: "Signed up",
+			definition: { kind: "event", event: "signup" },
+		});
+		await analyticsApi(staff).funnels.create({
+			siteId: north.siteId,
+			name: "Launch",
+			steps: [
+				{ kind: "page", path: "/", match: "exact" },
+				{ kind: "goal", goalId: signedUp.id },
+			],
+		});
+		const { goal: bought } = await analyticsApi(staff).goals.create({
+			siteId: south.siteId,
+			name: "Bought",
+			definition: { kind: "event", event: "buy" },
+		});
+		await analyticsApi(staff).funnels.create({
+			siteId: south.siteId,
+			name: "Launch",
+			steps: [
+				{ kind: "page", path: "/", match: "exact" },
+				{ kind: "page", path: "/pricing", match: "exact" },
+				{ kind: "goal", goalId: bought.id },
+			],
+		});
+
+		const northVisitor = analyticsVisitor(install, north.origin, { address: "203.0.113.111" });
+		await northVisitor.view("/");
+		await install.clock.advance(60_000);
+		await northVisitor.send({ t: "event", p: "/", n: "signup" });
+
+		const southVisitor = analyticsVisitor(install, south.origin, { address: "203.0.113.112" });
+		await southVisitor.view("/");
+		await install.clock.advance(60_000);
+		await southVisitor.view("/pricing", { i: 1 });
+		await install.clock.advance(60_000);
+		await southVisitor.send({ t: "event", p: "/pricing", n: "buy" });
+
+		const place = { workspaceId: workspace.id };
+		const { dashboard } = await staff.api.dashboards.create({ ...place, name: "Launch funnel" });
+		const { widgetId } = await staff.api.dashboards.widgets.add({
+			...place,
+			dashboardId: dashboard.id,
+			kind: "site-analytics:funnel",
+			settings: { funnel: "Launch" },
+		});
+		const data = async () =>
+			(await staff.api.dashboards.widgets.data({ ...place, dashboardId: dashboard.id, widgetId })).widget;
+
+		expect(await data()).toMatchObject({
+			sites: { counted: 2, of: 2 },
+			data: null,
+			problem: { code: "FUNNEL_STEPS_DIFFER" },
+		});
+	});
+
+	test("adds up a Funnel step by step when every Site built the same steps", async () => {
+		const workspace = await install.createWorkspace("Matching funnels");
+		const staff = (await install.createStaff({ workspaces: [workspace.id] })).browser;
+		const north = await analyticsSite(staff, workspace.id);
+		const south = await analyticsSite(staff, workspace.id);
+
+		const makeFunnel = async (siteId: string) => {
+			const { goal } = await analyticsApi(staff).goals.create({
+				siteId,
+				name: "Signed up",
+				definition: { kind: "event", event: "signup" },
+			});
+			await analyticsApi(staff).funnels.create({
+				siteId,
+				name: "Launch",
+				steps: [
+					{ kind: "page", path: "/", match: "exact" },
+					{ kind: "goal", goalId: goal.id },
+				],
+			});
+		};
+		await makeFunnel(north.siteId);
+		await makeFunnel(south.siteId);
+
+		const northOne = analyticsVisitor(install, north.origin, { address: "203.0.113.113" });
+		await northOne.view("/");
+		await install.clock.advance(60_000);
+		await northOne.send({ t: "event", p: "/", n: "signup" });
+		await analyticsVisitor(install, north.origin, { address: "203.0.113.114" }).view("/");
+
+		const southOne = analyticsVisitor(install, south.origin, { address: "203.0.113.113" });
+		await southOne.view("/");
+		await install.clock.advance(60_000);
+		await southOne.send({ t: "event", p: "/", n: "signup" });
+
+		const place = { workspaceId: workspace.id };
+		const { dashboard } = await staff.api.dashboards.create({ ...place, name: "Launch funnel" });
+		const { widgetId } = await staff.api.dashboards.widgets.add({
+			...place,
+			dashboardId: dashboard.id,
+			kind: "site-analytics:funnel",
+			settings: { funnel: "Launch" },
+		});
+		const data = async () =>
+			(await staff.api.dashboards.widgets.data({ ...place, dashboardId: dashboard.id, widgetId })).widget;
+
+		expect(await data()).toMatchObject({
+			sites: { counted: 2, of: 2 },
+			problem: null,
+			data: {
+				shape: "funnel",
+				steps: [
+					{ label: "/", count: 3 },
+					{ label: "Signed up", count: 2 },
+				],
+			},
+		});
+	});
+
 	test("are Workspace Dashboards only: a Site's Dashboard isn't reachable as its Workspace's", async () => {
 		const workspace = await install.createWorkspace("Separate");
 		const staff = (await install.createStaff({ workspaces: [workspace.id] })).browser;

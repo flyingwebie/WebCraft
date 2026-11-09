@@ -18,6 +18,7 @@ import {
 	designSystemNames,
 	type ElementTree,
 	elementsOf,
+	FILTER_SCRIPT,
 	readDesignSystem,
 	THEME_TOGGLE_SCRIPT,
 	VIDEO_SCRIPT,
@@ -159,11 +160,12 @@ export { SCRIPT_PATH } from "@webcraft/renderer";
 
 /**
  * A script WebCraft serves on every Site by its file name (`/_wc/js/<name>`): the theme toggle's, the
- * embed script (a body's videos) and the consent script (the Consent banner), each named by its hash.
+ * embed script (a body's videos), the consent script (the Consent banner) and the Filter script (a
+ * page's Filters), each named by its hash.
  * Null for any other name.
  */
 export function siteScript(name: string): string | null {
-	for (const script of [THEME_TOGGLE_SCRIPT, VIDEO_SCRIPT, CONSENT_SCRIPT])
+	for (const script of [THEME_TOGGLE_SCRIPT, VIDEO_SCRIPT, CONSENT_SCRIPT, FILTER_SCRIPT])
 		if (name === script.name) return script.text;
 	return null;
 }

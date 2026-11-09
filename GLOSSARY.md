@@ -488,6 +488,10 @@ _Avoid_: Preview mode, draft mode, admin bar
 A third way of using Edit mode, for Staff and the Superadmin only: selecting an element on the page opens its HTML (from its Template or Component), its CSS (its Class or the Site CSS) and a page or Site script, all editable and saved to the Draft.
 _Avoid_: God mode, dev mode, developer tools
 
+**Command menu**:
+A search box for Staff in the builder and Code mode, opened from the keyboard, with three tabs: Actions (for the page, or for the selected element), Go to (Pages, Templates, Components and elements on the page) and Insert.
+_Avoid_: Command palette, command bar, spotlight
+
 **Safe mode**:
 Edit mode with none of the Site's own scripts running, so a broken script can never lock anyone out of editing.
 _Avoid_: Recovery mode, scriptless mode, debug mode

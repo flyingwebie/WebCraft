@@ -5,8 +5,8 @@
  * new command is a new entry here and a new node kind in `TreeNode`, never a change to the markup
  * parser or printer.
  *
- * Commands the spec names but later work brings (Filters and Popups) are reserved: markup naming
- * them is refused for now.
+ * Commands the spec names but later work brings (Popups) are reserved: markup naming them is
+ * refused for now.
  */
 import { type Expression, passes, type RenderTime, writeExpression } from "./expressions.ts";
 import { DEFAULT_ITEM_NAME, loopBodyScope, paginationProblem, readLoopArgument, type ValueScope } from "./loops.ts";
@@ -14,6 +14,7 @@ import type {
 	ConditionBranch,
 	ConditionNode,
 	ConsentSettingsNode,
+	FilterNode,
 	FormNode,
 	LanguageSwitcherNode,
 	LoopNode,
@@ -35,7 +36,8 @@ export type CommandNode =
 	| LoopNode
 	| PaginationNode
 	| SearchNode
-	| ConsentSettingsNode;
+	| ConsentSettingsNode
+	| FilterNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -55,6 +57,8 @@ export type FromMarkupTools = {
 	expression(text: string, offset: number): Expression | undefined;
 	/** The id of the Site's Form with this key, written at `offset`; undefined after reporting a problem. */
 	form(key: string, offset: number): string | undefined;
+	/** The Site's Filter with this name, written at `offset` (its id and Loop); undefined after reporting a problem. */
+	filter(name: string, offset: number): { id: string; loop: string } | undefined;
 	problem(offset: number, message: string): void;
 	/** What bindings may read where the command is. */
 	scope: ValueScope;
@@ -73,6 +77,8 @@ export type CheckTools = {
 	scope: ValueScope;
 	/** Checks a stored Form id at `at`: one of the Site's Forms the tree may place. */
 	form(input: unknown, at: string): string | undefined;
+	/** Checks a stored Filter id at `at`: one of the Site's Filters the tree may place (its id and Loop). */
+	filter(input: unknown, at: string): { id: string; loop: string } | undefined;
 };
 
 export type RenderTools = {
@@ -97,12 +103,16 @@ export type RenderTools = {
 	search(): string;
 	/** The "Cookie settings" button, rendered: nothing where the page asks for no consent with a banner of WebCraft's. */
 	consentSettings(): string;
+	/** A Filter, rendered: nothing for a Filter the page can't show. */
+	filter(node: FilterNode): string;
 };
 
 /** What printing a command needs to know about the Site: the keys of its Forms. */
 export type ToMarkupTools = {
 	/** The key of the Form with this id, as `{{@form <key>}}` writes it. */
 	formKey(formId: string): string | undefined;
+	/** The name of the Filter with this id, as `{{@filter <name>}}` writes it. */
+	filterName(filterId: string): string | undefined;
 };
 
 /** A section as it prints: `{{@<keyword> <argument>}}` then its children. */
@@ -698,6 +708,126 @@ const consentSettingsCommand: TemplateCommand<ConsentSettingsNode> = {
 	},
 };
 
+/**
+ * Why a Filter can't be placed in a Loop's items: a page shows a Filter's controls where it is placed,
+ * not once per item.
+ */
+const FILTER_IN_LOOP =
+	"{{@filter}} can't go inside a Loop's items: a page shows a Filter once, not once per item. Place it outside the Loop, or in its {{@empty}}.";
+
+/** `{{@filter <name> for="<loop>"}}`'s argument: the Filter's name and its Loop's. */
+const FILTER_ARGUMENT = /^(\s*)([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\s+for="([^"]*)"\s*$/;
+
+/**
+ * `{{@filter <name> for="<loop>"}}`: one of the Site's Filters (GLOSSARY.md › Filter), placed by its
+ * name and stored by its id, with the query Loop it narrows, which the same tree must show. It renders
+ * the Filter's controls as a plain GET form, so it works without JavaScript; with JavaScript, its
+ * script updates the Loop in place. A form of its own, it goes where a <div> can, never in a Loop's
+ * items, a link, a control, a paragraph or another form.
+ */
+const filterCommand: TemplateCommand<FilterNode> = {
+	name: "filter",
+	nodeType: "filter",
+	block: false,
+	branches: [],
+	snippet: '{{@filter $0 for=""}}',
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		if (!section) return undefined;
+		const read = FILTER_ARGUMENT.exec(section.argument);
+		if (!read) {
+			tools.problem(
+				section.offset,
+				'{{@filter}} names the Filter and the Loop it narrows, such as {{@filter shop for="products"}}.',
+			);
+			return undefined;
+		}
+		if (tools.scope.aliases.length > 0) {
+			tools.problem(section.offset, FILTER_IN_LOOP);
+			return undefined;
+		}
+		const [, lead = "", name = "", loop = ""] = read;
+		const found = tools.filter(name, section.argumentOffset + lead.length);
+		if (!found) return undefined;
+		if (found.loop !== loop) {
+			tools.problem(
+				section.argumentOffset + lead.length + name.length,
+				`The Filter ${name} narrows the Loop ${found.loop}: write for="${found.loop}".`,
+			);
+			return undefined;
+		}
+		return { type: "filter", filter: found.id, loop };
+	},
+
+	toMarkup(node, tools) {
+		return [
+			{
+				keyword: "filter",
+				argument: `${tools.filterName(node.filter) ?? node.filter} for="${node.loop}"`,
+				children: [],
+			},
+		];
+	},
+
+	check(input, at, tools) {
+		if (tools.scope.aliases.length > 0) {
+			tools.problem(at, FILTER_IN_LOOP);
+			return undefined;
+		}
+		const found = tools.filter(input.filter, `${at}.filter`);
+		if (!found) return undefined;
+		if (input.loop !== found.loop) {
+			tools.problem(`${at}.loop`, `This Filter narrows the Loop ${found.loop}.`);
+			return undefined;
+		}
+		return { type: "filter", filter: found.id, loop: found.loop };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(node, tools) {
+		return tools.filter(node);
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => NO_FORM_INSIDE.has(tag));
+		if (inside) return `{{@filter}} is a form of its own: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@filter}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
+/**
+ * The Filters a tree places whose Loop the tree doesn't show (`{{@loop <name>}}`): a Filter acts on
+ * its one Loop, so the Template or Component placing it shows that Loop too.
+ */
+export function filtersWithoutTheirLoop(nodes: readonly TreeNode[]): FilterNode[] {
+	const placed: FilterNode[] = [];
+	const shown = new Set<string>();
+	const visit = (list: readonly TreeNode[]) => {
+		for (const node of list) {
+			if (node.type === "filter") placed.push(node);
+			if (node.type === "loop") shown.add(node.source);
+			if (node.type === "element") visit(node.children);
+			else if (node.type !== "text" && node.type !== "value" && node.type !== "comment" && node.type !== "component") {
+				const command = commandForNode(node.type);
+				for (const children of command?.children(node) ?? []) visit(children);
+			}
+		}
+	};
+	visit(nodes);
+	return placed.filter((node) => !shown.has(node.loop));
+}
+
+/** What `filtersWithoutTheirLoop` reports for a Filter whose Loop the tree doesn't show. */
+export function filterWithoutLoopMessage(node: FilterNode): string {
+	return `{{@filter}} narrows the Loop ${node.loop}: show it in the same Template or Component, with {{@loop ${node.loop}}}.`;
+}
+
 /** Every Template command there is. */
 export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	ifCommand,
@@ -709,10 +839,11 @@ export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	formCommand,
 	searchCommand,
 	consentSettingsCommand,
+	filterCommand,
 ];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
-export const RESERVED_COMMANDS: ReadonlySet<string> = new Set(["filter", "popup"]);
+export const RESERVED_COMMANDS: ReadonlySet<string> = new Set(["popup"]);
 
 /** The command written `{{@name}}`, if there is one. */
 export function commandNamed(name: string): TemplateCommand | undefined {

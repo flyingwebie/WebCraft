@@ -82,6 +82,7 @@ import {
 import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
+import { createFilters } from "./filters/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
 import { createSubmissionActions } from "./forms/kept.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
@@ -349,6 +350,7 @@ export async function createInstallServices(
 			clock,
 			log,
 		}),
+		filters: createFilters(),
 		loops: {
 			list: listLoops,
 			get: getLoop,

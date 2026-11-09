@@ -3,6 +3,7 @@ import {
 	consentBanners,
 	designSystems,
 	entries,
+	filters,
 	forms,
 	globals,
 	loops,
@@ -34,7 +35,7 @@ import { readValue, storedVersion } from "./values.ts";
  * Publish all (ADR 0014): every Draft of a Site, listed for the person reviewing them, and the ticked
  * ones published together. A Draft is an item whose Draft differs from what is published: an Entry
  * (never published ones too), the Globals, a Form's emails, the Consent banner's words (Content); a Template, a
- * Component, a Loop, a script, a Form, the Design system (Structure). Site settings have no Draft
+ * Component, a Loop, a Filter, a script, a Form, the Design system (Structure). Site settings have no Draft
  * (ADR 0025) and are never part of it, nor are Redirect rules.
  */
 
@@ -47,7 +48,7 @@ export type SiteDraft = {
 	group: DraftGroup;
 	/**
 	 * What it is called, as its Draft names it: an Entry's title (in the Default language), a
-	 * Component's, Loop's or Form's name, a page script's Entry's title. Null for the Globals, the
+	 * Component's, Loop's, Filter's or Form's name, a page script's Entry's title. Null for the Globals, the
 	 * Consent banner, the Design system, the Site script and Templates, which the admin names itself.
 	 */
 	name: string | null;
@@ -272,7 +273,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 		);
 	}
 
-	// Structure: the Design system, then Components, Loops, Forms, Templates and scripts.
+	// Structure: the Design system, then Components, Loops, Filters, Forms, Templates and scripts.
 	const designSystem = await scope.first(designSystems);
 	if (designSystem) {
 		const draft = readDesignSystem(designSystem.draft);
@@ -310,6 +311,12 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	});
 	for (const row of changedLoops) {
 		add(structure({ kind: "loop", id: row.id }, row, row.name), row);
+	}
+	const changedFilters = await scope.select(filters, sql`${filters.draft} is distinct from ${filters.published}`, {
+		orderBy: [filters.name],
+	});
+	for (const row of changedFilters) {
+		add(structure({ kind: "filter", id: row.id }, row, row.name), row);
 	}
 	const changedForms = await scope.select(forms, sql`${forms.draft} is distinct from ${forms.published}`, {
 		orderBy: [forms.name],
@@ -450,21 +457,22 @@ export async function publishAll(
 
 /**
  * The order items go live in, so each finds what it needs already published: the Design system,
- * Loops, Forms and their emails, Components (one before those placing it), Templates, scripts, the
+ * Loops, Filters, Forms and their emails, Components (one before those placing it), Templates, scripts, the
  * Globals, the Consent banner's words, then Entries (a Page after its parent).
  */
 async function publishOrder(scope: SiteScope, chosen: readonly SiteDraft[]): Promise<SiteDraft[]> {
 	const rank: Record<PublishItem["kind"], number> = {
 		designSystem: 0,
 		loop: 1,
-		form: 2,
-		formEmails: 3,
-		component: 4,
-		template: 5,
-		script: 6,
-		globals: 7,
-		consentBanner: 8,
-		entry: 9,
+		filter: 2,
+		form: 3,
+		formEmails: 4,
+		component: 5,
+		template: 6,
+		script: 7,
+		globals: 8,
+		consentBanner: 9,
+		entry: 10,
 	};
 	const byKind = [...chosen].sort((a, b) => rank[a.item.kind] - rank[b.item.kind]);
 	const componentOrder = await componentsInOrder(

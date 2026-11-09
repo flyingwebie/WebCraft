@@ -13,8 +13,8 @@ import {
 	pageHref,
 	pageNumberIn,
 	pathSegments,
+	readFilterState,
 	SCRIPT_PATH,
-	SEARCH_PARAMETER,
 	SEARCH_RATE_LIMIT,
 	SITE_SECURITY_HEADERS,
 	type SiteHost,
@@ -26,9 +26,11 @@ import {
 	VERIFY_PATH,
 } from "@webcraft/core";
 
-import { clientAddress, recordVisitorAddress } from "../client-address.ts";
+import { FILTER_FRAGMENTS_PATH } from "@webcraft/renderer";
+
+import { clientAddress, recordVisitorAddress, sameClient } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
-import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
+import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
 import {
 	clearEditCookie,
@@ -40,6 +42,7 @@ import {
 	pageEditing,
 	safeModeOf,
 } from "./edit-mode.ts";
+import { pageParts } from "./filter-fragments.ts";
 import { formPost, isFormPath, sentPage, withFormTokens } from "./forms.ts";
 import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
@@ -158,41 +161,92 @@ async function siteAnswer(
 		}
 		const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
 		if (chosen) return chosen;
-		const segments = pathSegments(url.pathname);
-		// Paths the Install keeps: each feature answers its own; until then, a plain 404.
-		if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
-		const edit = await editSessionOf(services, request, host);
-		// Which page of a paginated Loop: `?page=2`; anything else that isn't a page number is no page.
-		const number = pageNumberIn(url.searchParams);
-		if (number === undefined) return notFoundPage(services, host, url.pathname);
-		if (number === 1 && url.searchParams.has(PAGE_PARAMETER)) {
-			// A search's first page keeps the search.
-			const query = searchQueryIn(url.searchParams);
-			const search = query ? `?${new URLSearchParams({ [SEARCH_PARAMETER]: query })}` : "";
-			return redirect(host, `${canonicalPath(segments ?? [])}${search}`);
+		// The parts of a page a Filter's script swaps in place (GLOSSARY.md › Filter).
+		if (url.pathname === FILTER_FRAGMENTS_PATH || url.pathname.startsWith(`${FILTER_FRAGMENTS_PATH}/`)) {
+			return filterFragments(services, cache, request, host);
 		}
-		if (edit.session) {
-			return editModePage(
-				services,
-				host,
-				edit.session,
-				url.pathname,
-				await codeModeOf(services, request, edit.session),
-				safeModeOf(request),
-				number,
-				searchQueryIn(url.searchParams),
-			);
-		}
-		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
-		if (redirected) return redirected;
-		const page = showsDrafts(host)
-			? await draftPage(services, request, host, number)
-			: await visitorPage(services, cache, request, host, number);
-		return edit.stale ? withEditCookieCleared(request, page) : page;
+		return pageAnswer(services, cache, request, host);
 	});
 }
 
 /**
+ * The page at a request's path, as visitors, the people reviewing the Staging address or a person in
+ * Edit mode see it. `fragment` says the page is asked for its parts by a Filter's script: a path with
+ * no page then tells the 404 log nothing.
+ */
+async function pageAnswer(
+	services: InstallServices,
+	cache: PageCache,
+	request: Request,
+	host: SiteHost,
+	fragment = false,
+): Promise<Response> {
+	const url = new URL(request.url);
+	const segments = pathSegments(url.pathname);
+	// Paths the Install keeps: each feature answers its own; until then, a plain 404.
+	if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
+	const edit = await editSessionOf(services, request, host);
+	// Which page of a paginated Loop: `?page=2`; anything else that isn't a page number is no page.
+	// (`?page=1` goes on to the page itself, keeping its search and Filters' choices: see `render`.)
+	const number = pageNumberIn(url.searchParams);
+	if (number === undefined) return notFoundPage(services, host, url.pathname);
+	if (edit.session) {
+		return editModePage(
+			services,
+			host,
+			edit.session,
+			url.pathname,
+			await codeModeOf(services, request, edit.session),
+			safeModeOf(request),
+			number,
+			url.searchParams,
+		);
+	}
+	if (!fragment) {
+		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
+		if (redirected) return redirected;
+	}
+	const page = showsDrafts(host)
+		? await draftPage(services, request, host, number)
+		: await visitorPage(services, cache, request, host, number, fragment);
+	return edit.stale ? withEditCookieCleared(request, page) : page;
+}
+
+/**
+ * What a Filter's script swaps in place: `/_wc/filter/<page path>?<choices>` answers the page at that
+ * path with those choices, exactly as a request for it would (from the page cache, on the Staging
+ * address, in Edit mode), as JSON: its address in normal form (`url`, where a plain form's fields went
+ * on to), its title, each Filter's form by id, and each region of its filtered Loops (their items and
+ * pagination) by name, as the server rendered and escaped them. Anything but a page is a plain 404,
+ * and the script then loads the page instead.
+ */
+async function filterFragments(
+	services: InstallServices,
+	cache: PageCache,
+	request: Request,
+	host: SiteHost,
+): Promise<Response> {
+	const url = new URL(request.url);
+	let target = new URL(`${url.pathname.slice(FILTER_FRAGMENTS_PATH.length) || "/"}${url.search}`, url.origin);
+	const headers = { "cache-control": "no-store", "x-robots-tag": "noindex", ...addressHeaders(host) };
+	// A plain form's fields go on to their normal address once; a page's first page once more.
+	for (let hop = 0; hop < 3; hop++) {
+		const inner = new Request(target, { headers: request.headers });
+		sameClient(request, inner);
+		const response = await pageAnswer(services, cache, inner, host, true);
+		const location = response.headers.get("location");
+		if (response.status >= 300 && response.status < 400 && location) {
+			const next = new URL(location, target);
+			if (next.origin !== target.origin) break;
+			target = next;
+			continue;
+		}
+		if (response.status !== 200 || !response.headers.get("content-type")?.startsWith("text/html")) break;
+		const parts = pageParts(await response.text());
+		return json(200, { url: `${target.pathname}${target.search}`, ...parts }, headers);
+	}
+	return plainText(404, "Not Found", headers);
+} /**
  * Adds the security headers every answer on a Site's domain carries (ADR 0023): `nosniff`, a strict
  * referrer policy, no framing by other sites, and, on answers that bring no policy of their own (a
  * page brings the Site's, Edit mode its own, a Media file one its viewer can open with), the fixed
@@ -237,8 +291,12 @@ async function verification(services: InstallServices, hostname: string, token: 
 /**
  * The page visitors get at the URL, from the page cache, rendering and keeping it on a miss. Pages
  * are kept by normalised URL: one form of the path, and of the query parameters only the page of a
- * paginated Loop (`?page=2`, each page its own entry; Filters will allow theirs, sorted). A page
- * that shows something time changes is kept until then.
+ * paginated Loop (`?page=2`, each page its own entry) and what the page's Filters allow, in their
+ * normal form (keys sorted, an option list's slugs sorted; GLOSSARY.md › Filter). What a path's
+ * Filters read is remembered from its last render, so a request is looked up under its normal
+ * address first. A filtered page is a variant: a Site keeps a limited number of them, and one past it
+ * is answered without being kept (`no-store`); one with a search in it is never kept and counts as a
+ * search. A page that shows something time changes is kept until then.
  */
 async function visitorPage(
 	services: InstallServices,
@@ -246,53 +304,82 @@ async function visitorPage(
 	request: Request,
 	host: SiteHost,
 	number: number,
+	fragment = false,
 ) {
 	const url = new URL(request.url);
 	const { pathname } = url;
 	const first = await beforePage(services, request, host, number);
 	if ("response" in first) return first.response;
-	// The same path is another page on each of the Site's addresses (its language, its links), and
-	// each page of a paginated Loop another page.
-	const key = `${host.origin}${pageHref(canonicalPath(first.segments), number)}`;
-	const cached = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
-	if (cached) return pageResponse(services, request, host, cached, "HIT");
+	const { segments, search: query, searchPage } = first;
+	// A search on the search results page counted already; a Filter's counts once, like it.
+	let counted = searchPage;
+	const withinSearchLimit = async () => {
+		if (counted) return true;
+		counted = true;
+		const address = clientAddress(request, services.config) ?? "unknown";
+		return services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT);
+	};
+	// The same path is another page on each of the Site's addresses (its language, its links), each
+	// page of a paginated Loop another page, and each choice of its Filters another.
+	const path = canonicalPath(segments);
+	const pathKey = `${host.origin}${path}`;
+	const reader = cache.reader(host.site.id, host.cacheGeneration, pathKey);
+	const state = reader ? readFilterState(reader, url.searchParams) : undefined;
+	if (state?.search !== undefined && !(await withinSearchLimit())) return tooManySearches(host);
+	const firstPageAsked = number === 1 && url.searchParams.has(PAGE_PARAMETER);
+	if (state && !state.differs && state.search === undefined && !firstPageAsked && !searchPage) {
+		const key = `${host.origin}${pageHref(path, number, state.query)}`;
+		const cached = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
+		if (cached) return pageResponse(services, request, host, cached, "HIT", { filtered: state.query !== "" });
+	}
 	// A page kept in the cache holds no visitor's Form token: each answer fills in its own.
 	const answer = await services.sitePages.render(host, pathname, undefined, {
 		forms: { cached: true },
 		page: number,
-		search: first.search,
+		search: query,
+		query: url.searchParams,
 	});
 	if (!answer) {
 		// A path with no page: the Site's 404 log hears of it (a page past a paginated Loop's last isn't one).
-		if (number === 1) noteMiss(services, request, host);
+		if (number === 1 && !fragment) noteMiss(services, request, host);
 		return notFoundPage(services, host, pathname);
 	}
-	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
+	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url), answer.temporary);
+	cache.setReader(host.site.id, host.cacheGeneration, pathKey, answer.filters.reader);
 	// The search results page shows one visitor's search: never kept, never indexed (ADR 0021).
 	if (answer.searchPage) return searchResponse(services, host, answer.html, answer.headers);
+	const filtered = answer.filters.query !== "";
+	// A Filter's search box: one visitor's search, never kept, counted like Site search.
+	if (answer.filters.search !== undefined) {
+		if (!(await withinSearchLimit())) return tooManySearches(host);
+		return searchResponse(services, host, answer.html, answer.headers, "noindex, follow");
+	}
 	const page = {
 		html: answer.html,
 		etag: await etagOf(answer.html),
 		headers: answer.headers,
 		expiresAt: answer.expiresAt?.getTime() ?? null,
 	};
-	cache.set(host.site.id, host.cacheGeneration, key, page);
-	return pageResponse(services, request, host, page, "MISS");
+	const key = `${host.origin}${pageHref(path, number, answer.filters.query)}`;
+	const kept = cache.set(host.site.id, host.cacheGeneration, key, page, { variant: filtered });
+	return pageResponse(services, request, host, page, "MISS", { filtered, kept });
 }
 
 /**
  * What a page request checks before its page is rendered, on a Site's domains and on its Staging
  * address alike: a path that can't be a page (the 404 page), a Form just sent (its message, on a page
  * answered for the visitor alone, before any cache), and a search past the client address's limit
- * (searches are never cached, ADR 0021). Answers a response to send as it is, or the path's segments
- * and the search to render with.
+ * (searches are never cached, ADR 0021). Answers a response to send as it is, or the path's segments,
+ * the search to render with and whether it is the search results page's (counted already).
  */
 async function beforePage(
 	services: InstallServices,
 	request: Request,
 	host: SiteHost,
 	number: number,
-): Promise<{ response: Response } | { segments: string[]; search: ReturnType<typeof searchQueryIn> }> {
+): Promise<
+	{ response: Response } | { segments: string[]; search: ReturnType<typeof searchQueryIn>; searchPage: boolean }
+> {
 	const url = new URL(request.url);
 	const { pathname } = url;
 	const segments = pathSegments(pathname);
@@ -300,13 +387,14 @@ async function beforePage(
 	const sent = await sentPage(services, request, host, number, addressHeaders(host));
 	if (sent) return { response: sent };
 	const search = searchQueryIn(url.searchParams);
-	if (search && (await services.sitePages.isSearchPage(host, pathname))) {
+	const searchPage = search !== "" && (await services.sitePages.isSearchPage(host, pathname));
+	if (searchPage) {
 		const address = clientAddress(request, services.config) ?? "unknown";
 		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
 			return { response: tooManySearches(host) };
 		}
 	}
-	return { segments, search };
+	return { segments, search, searchPage };
 }
 
 /**
@@ -319,9 +407,13 @@ async function draftPage(services: InstallServices, request: Request, host: Site
 	const { pathname } = url;
 	const first = await beforePage(services, request, host, number);
 	if ("response" in first) return first.response;
-	const answer = await services.sitePages.render(host, pathname, undefined, { page: number, search: first.search });
+	const answer = await services.sitePages.render(host, pathname, undefined, {
+		page: number,
+		search: first.search,
+		query: url.searchParams,
+	});
 	if (!answer) return notFoundPage(services, host, pathname);
-	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
+	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url), answer.temporary);
 	return new Response(answer.html, {
 		status: 200,
 		headers: {
@@ -352,14 +444,17 @@ async function editModePage(
 	code: SiteScope | null,
 	safe: boolean,
 	page: number,
-	search: string,
+	query: URLSearchParams,
 ): Promise<Response> {
 	const editing = await pageEditing(session, code, safe);
 	const answer = pathSegments(pathname)
-		? await services.sitePages.render(host, pathname, editing, { page, search })
+		? await services.sitePages.render(host, pathname, editing, { page, search: searchQueryIn(query), query })
 		: null;
 	if (answer?.kind === "redirect") {
-		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
+		return new Response(null, {
+			status: answer.temporary ? 302 : 301,
+			headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS },
+		});
 	}
 	if (answer) return editModeHtml(200, answer.html, answer.headers);
 	const notFoundPage = await services.sitePages.notFound(host, pathname, editing);
@@ -467,18 +562,25 @@ function immutableFile(
  */
 const PAGE_CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
+/**
+ * A page's answer. A filtered page (`filtered`) asks search engines not to index it but to follow its
+ * links, as its HTML does; one the cache didn't keep (`kept: false`, past the Site's limit of
+ * variants) is kept by nobody else either.
+ */
 async function pageResponse(
 	services: InstallServices,
 	request: Request,
 	host: SiteHost,
 	page: CachedPage,
 	cacheStatus: "HIT" | "MISS",
+	options: { filtered?: boolean; kept?: boolean } = {},
 ): Promise<Response> {
 	const headers: Record<string, string> = {
-		"cache-control": PAGE_CACHE_CONTROL,
+		"cache-control": options.kept === false ? "no-store" : PAGE_CACHE_CONTROL,
 		etag: page.etag,
 		"x-cache": cacheStatus,
 		"x-content-type-options": "nosniff",
+		...(options.filtered ? { "x-robots-tag": FILTERED_ROBOTS } : {}),
 		...page.headers,
 		...languageVary(host, new URL(request.url).pathname),
 		...addressHeaders(host),
@@ -510,6 +612,7 @@ async function searchResponse(
 	host: SiteHost,
 	html: string,
 	pageHeaders: Record<string, string>,
+	robots = "noindex",
 ): Promise<Response> {
 	return new Response(await withFormTokens(services, host, html), {
 		status: 200,
@@ -517,11 +620,15 @@ async function searchResponse(
 			"content-type": "text/html; charset=utf-8",
 			"cache-control": "no-store",
 			"x-content-type-options": "nosniff",
-			"x-robots-tag": "noindex",
+			"x-robots-tag": robots,
 			...pageHeaders,
+			...addressHeaders(host),
 		},
 	});
 }
+
+/** What a filtered or sorted page asks of search engines (GLOSSARY.md › Filter). */
+const FILTERED_ROBOTS = "noindex, follow";
 
 /**
  * A path with no page on a known Site: the Site's 404 page, with status 404. It is never kept in the
@@ -595,11 +702,18 @@ function referrerHost(referer: string | null): string | null {
 	}
 }
 
-/** A permanent redirect within the Site, such as the home page's own path to `/`. */
-function redirect(host: SiteHost, location: string): Response {
+/**
+ * A permanent redirect within the Site, such as the home page's own path to `/`; or, `temporary`, a
+ * Filter's choices sent on to their normal address (a Filter may change, so it is never kept).
+ */
+function redirect(host: SiteHost, location: string, temporary = false): Response {
 	return new Response(null, {
-		status: 301,
-		headers: { location, "cache-control": PAGE_CACHE_CONTROL, ...addressHeaders(host) },
+		status: temporary ? 302 : 301,
+		headers: {
+			location,
+			"cache-control": temporary ? "no-store" : PAGE_CACHE_CONTROL,
+			...addressHeaders(host),
+		},
 	});
 }
 

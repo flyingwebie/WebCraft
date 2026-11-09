@@ -49,9 +49,10 @@ export type BuilderSource = {
 	/** The Components its Draft may place, as Drafts place them. */
 	components: SiteComponents;
 	/** What its trees may hold, as `parseElementTree` and `parseTemplateMarkup` take it (Classes aside). */
-	rules: Omit<ParseTreeOptions, "classIds" | "forms" | "components" | "loops"> & {
+	rules: Omit<ParseTreeOptions, "classIds" | "forms" | "filters" | "components" | "loops"> & {
 		components: SiteComponents;
 		forms: SiteComponents["forms"];
+		filters: SiteComponents["filters"];
 		loops: LoopCatalogue;
 	};
 };

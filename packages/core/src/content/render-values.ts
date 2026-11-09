@@ -322,7 +322,8 @@ export function loopItemKnownValues(options: {
 		.map((postType) => fieldsShape(postType.fields, options.postTypes));
 	return pathsUnder({
 		part: (name) => {
-			if (builtIns.has(name)) return LEAF;
+			// A search's snippet: where a hit matched, when a Filter's search box narrows the Loop (ADR 0021).
+			if (builtIns.has(name) || name === "snippet") return LEAF;
 			for (const shape of listed) {
 				const found = shape.part(name);
 				if (found) return found;

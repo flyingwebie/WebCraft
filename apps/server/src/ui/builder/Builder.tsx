@@ -457,7 +457,7 @@ export function Builder({
 
 	const placeholderWords = useCallback(
 		(kind: string, name: string | null) => {
-			const known = ["outlet", "form", "search", "themeToggle", "languageSwitcher", "consentSettings"];
+			const known = ["outlet", "form", "filter", "search", "themeToggle", "languageSwitcher", "consentSettings"];
 			const which = (known.includes(kind) ? kind : "outlet") as "outlet";
 			return t(`builder.canvas.placeholders.${which}`, { name: name ?? "" });
 		},

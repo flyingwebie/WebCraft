@@ -7,6 +7,7 @@ import { Label } from "@webcraft/ui/components/label.tsx";
 import { CircleAlertIcon, LockIcon } from "lucide-react";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useAfterRender } from "../after-render.ts";
 
 import { errorCode, errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
@@ -80,6 +81,7 @@ export function StructureEditor({
 	const [failure, setFailure] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
 	const summary = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const dirty = JSON.stringify([settings, inputsOf(drafts)]) !== baseline;
 
 	useBlocker({
@@ -152,7 +154,7 @@ export function StructureEditor({
 			} else {
 				setFailure(errorMessage(error));
 			}
-			requestAnimationFrame(() => summary.current?.focus());
+			afterRender(() => summary.current?.focus());
 		} finally {
 			setBusy(false);
 		}
@@ -172,7 +174,7 @@ export function StructureEditor({
 			return;
 		}
 		setSelected(problem.uid);
-		requestAnimationFrame(() => {
+		afterRender(() => {
 			const option = /^options\[(\d+)\]\.(value|label)$/.exec(problem.setting);
 			const id = option ? `setting-option-${option[1]}-${option[2]}` : `setting-${problem.setting.split(/[.[]/)[0]}`;
 			(document.getElementById(id) ?? document.getElementById("field-settings-heading"))?.focus();

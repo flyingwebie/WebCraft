@@ -47,7 +47,14 @@ export function adminMediaPath(siteId: string): string {
 export const CANVAS_SOURCE = "b";
 
 /** What only a page shows, which the canvas shows as a placeholder the builder words. */
-export type CanvasPlaceholder = "outlet" | "form" | "search" | "themeToggle" | "languageSwitcher" | "consentSettings";
+export type CanvasPlaceholder =
+	| "outlet"
+	| "form"
+	| "filter"
+	| "search"
+	| "themeToggle"
+	| "languageSwitcher"
+	| "consentSettings";
 
 /** What the builder previews: a tree of one kind, with a Component's Props as it has them. */
 export type PreviewInput = {
@@ -59,6 +66,8 @@ export type PreviewInput = {
 	className(classId: string): string | undefined;
 	/** The key of a Form of the Site, for its placeholder. */
 	formKey(formId: string): string | undefined;
+	/** The name of a Filter of the Site, for its placeholder. */
+	filterName(filterId: string): string | undefined;
 };
 
 /** The canvas's HTML for a tree, in the Site's Default language. */
@@ -122,6 +131,7 @@ export async function renderPreview(scope: SiteScope, sources: ComponentSources,
 		search: () => placeholder("search"),
 		consentSettings: () => placeholder("consentSettings"),
 		form: (formId) => placeholder("form", input.formKey(formId)),
+		filter: (node) => placeholder("filter", input.filterName(node.filter)),
 		media: (id) => onAdminHost(shown.get(id), scope.site.id),
 		words: pageWords(code),
 		loop: loops.run,
