@@ -43,6 +43,7 @@ import type { Dns } from "./dns.ts";
 import type { Domains } from "./domains/index.ts";
 import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
+import type { Forms } from "./forms/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
 import type { JobQueue } from "./jobs/define.ts";
@@ -230,6 +231,8 @@ export type InstallServices = InstallPorts & {
 	 * Draft and a published version (published through `publishing.publish` with `{ kind: "component" }`).
 	 * Structure: open the Site with `structure.edit`. A Module's Components are listed where it runs.
 	 */
+	/** The Site's Forms, as Structure: building them, their keys and names, deleting them. */
+	forms: Forms;
 	components: {
 		list(scope: SiteScope): Promise<(Component & { usage: ComponentUsage })[]>;
 		get(scope: SiteScope, componentId: string): Promise<{ component: Component; usage: ComponentUsage }>;

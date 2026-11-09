@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { defineJob } from "../jobs/define.ts";
+import { defineSchedule } from "../jobs/schedules.ts";
 
 /** Where a Module's queued work runs: a Site, or a Workspace for Workspace-level Modules. */
 const place = z.union([
@@ -46,3 +47,25 @@ export const moduleJob = defineJob<QueuedJob>({
 	queue: RETRIES,
 	run: (payload, services): Promise<void> => services.modules.runJob(payload),
 });
+
+/**
+ * Modules' scheduled jobs (`schedules` in a definition): every hour and every day, each Module job
+ * scheduled that often is queued once in every place where its Module runs.
+ */
+export const moduleHourlyJobs = defineJob({
+	name: "modules.hourly",
+	payload: z.object({}),
+	run: (_payload, services): Promise<void> => services.modules.runSchedules("hour"),
+});
+
+export const moduleDailyJobs = defineJob({
+	name: "modules.daily",
+	payload: z.object({}),
+	run: (_payload, services): Promise<void> => services.modules.runSchedules("day"),
+});
+
+/** Modules' hourly jobs are queued at seven minutes past every hour, UTC. */
+export const moduleHourlyJobsSchedule = defineSchedule({ job: moduleHourlyJobs, cron: "7 * * * *", payload: {} });
+
+/** Modules' daily jobs are queued every day at 03:47 UTC. */
+export const moduleDailyJobsSchedule = defineSchedule({ job: moduleDailyJobs, cron: "47 3 * * *", payload: {} });

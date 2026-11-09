@@ -87,6 +87,12 @@ export type ThemeToggleNode = { type: "themeToggle" };
 /** The Language switcher (`{{@languageSwitcher}}`): links to the page in each of the Site's languages. */
 export type LanguageSwitcherNode = { type: "languageSwitcher" };
 
+/**
+ * A Form placed here (`{{@form <key>}}`): the Site's Form, by id, so changing its key changes
+ * nothing placed. It renders the Form's published version where Forms run on the Site.
+ */
+export type FormNode = { type: "form"; form: string };
+
 export type Attribute = {
 	/** A lower-case attribute name. */
 	name: string;
@@ -506,8 +512,22 @@ export type ParseTreeOptions = {
 	unknownValue?: (path: string) => string;
 	/** How deep the tree already sits in Components: 0 for a Template (the default), 1 for a Component's tree. */
 	placedDepth?: number;
+	/**
+	 * The Forms the tree may place (`{{@form}}`), by id. Every Form is refused when absent (a Module's
+	 * Component can't name a Site's Form).
+	 */
+	forms?: Pick<FormCatalogue, "byId">;
 	/** Makes an id for an element that has none; random by default. */
 	newId?: () => string;
+};
+
+/** A Form found: its id and key, why it can't be placed here, or undefined when there is none. */
+export type FormFound = { id: string; key: string } | { refused: string } | undefined;
+
+/** The Forms a tree may place, by key (Template markup) and by id (stored trees). */
+export type FormCatalogue = {
+	keyed(key: string): FormFound;
+	byId(id: string): FormFound;
 };
 
 /** A check of a whole tree: reports `problem(node, message)` for a node, `problem(undefined, …)` for the tree. */
@@ -767,6 +787,18 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 						unknownValue: options.unknownValue,
 					}),
 				nodes: (children, here) => parseNodes(children, here, ancestors, depth + 1),
+				form: (formId, here) => {
+					if (typeof formId !== "string") {
+						problem(here, "A placed Form names its Form by id.");
+						return undefined;
+					}
+					const found = options.forms?.byId(formId);
+					if (!found || "refused" in found) {
+						problem(here, found?.refused ?? `There is no Form with the id ${formId} on this Site.`);
+						return undefined;
+					}
+					return found.id;
+				},
 			});
 		}
 		problem(at, "A node is an element, text, a value, a comment, a Template command or a Placement.");

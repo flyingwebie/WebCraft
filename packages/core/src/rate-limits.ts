@@ -39,6 +39,12 @@ export type RateLimits = {
 	 * used up the limit in the current window; the refused requests count too.
 	 */
 	hit(name: RateLimitName, subject: string | null): Promise<void>;
+	/**
+	 * Counts one request against a limit of a feature's own (a Form's per-address limits), under a key
+	 * it makes (`form:<id>:minute:<address>`), and answers whether it is within the limit. Requests
+	 * beyond it count too.
+	 */
+	count(key: string, rule: RateLimitRule): Promise<boolean>;
 	/** Deletes the counters whose window ended; answers how many. */
 	purge(): Promise<number>;
 };
@@ -53,25 +59,35 @@ export function createRateLimits({
 	log: Logger;
 }): RateLimits {
 	const { db } = database;
+	/** Counts one request under `key` in its current window, and answers the count and when the window ends. */
+	const counted = async (key: string, rule: RateLimitRule) => {
+		const now = clock.now();
+		const windowEndsAt = new Date(now.getTime() + rule.windowMs);
+		const ended = sql`${rateLimits.windowEndsAt} <= ${now.toISOString()}::timestamptz`;
+		// One statement: requests at the same moment, from any web process, each count once.
+		const [counter] = await db
+			.insert(rateLimits)
+			.values({ key, hits: 1, windowEndsAt })
+			.onConflictDoUpdate({
+				target: rateLimits.key,
+				set: {
+					hits: sql`case when ${ended} then 1 else ${rateLimits.hits} + 1 end`,
+					windowEndsAt: sql`case when ${ended} then ${windowEndsAt.toISOString()}::timestamptz else ${rateLimits.windowEndsAt} end`,
+				},
+			})
+			.returning({ hits: rateLimits.hits, windowEndsAt: rateLimits.windowEndsAt });
+		return counter;
+	};
 	return {
+		async count(key, rule) {
+			const counter = await counted(key, rule);
+			return !counter || counter.hits <= rule.limit;
+		},
+
 		async hit(name, subject) {
 			const rule: RateLimitRule = RATE_LIMITS[name];
-			const key = `${name}:${subject ?? "unknown"}`;
 			const now = clock.now();
-			const windowEndsAt = new Date(now.getTime() + rule.windowMs);
-			const ended = sql`${rateLimits.windowEndsAt} <= ${now.toISOString()}::timestamptz`;
-			// One statement: requests at the same moment, from any web process, each count once.
-			const [counter] = await db
-				.insert(rateLimits)
-				.values({ key, hits: 1, windowEndsAt })
-				.onConflictDoUpdate({
-					target: rateLimits.key,
-					set: {
-						hits: sql`case when ${ended} then 1 else ${rateLimits.hits} + 1 end`,
-						windowEndsAt: sql`case when ${ended} then ${windowEndsAt.toISOString()}::timestamptz else ${rateLimits.windowEndsAt} end`,
-					},
-				})
-				.returning({ hits: rateLimits.hits, windowEndsAt: rateLimits.windowEndsAt });
+			const counter = await counted(`${name}:${subject ?? "unknown"}`, rule);
 			if (!counter || counter.hits <= rule.limit) return;
 			if (counter.hits === rule.limit + 1) {
 				log.warn("Too many requests from one client address: refused until the limit's window ends", {

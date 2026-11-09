@@ -74,6 +74,35 @@ const BODY_PARTS = [
 	'.wc-embed>a::before{content:"";flex:none;border-block:0.75em solid transparent;border-inline-start:1.25em solid currentColor}',
 ];
 
+/**
+ * Forms' own hooks (`FORM_HOOKS`): fields in a column, labels above their controls, errors in bold
+ * beside a bar in the danger colour (text keeps the page's colour, so it reads in light and dark), the error summary boxed, controls big enough to tap, and the honeypot
+ * out of sight. Text only for screen readers uses `wc-visually-hidden`. Staff restyle them in the
+ * Site's custom CSS.
+ */
+const FORM_PARTS = [
+	".wc-visually-hidden{position:absolute;inline-size:1px;block-size:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}",
+	".wc-form{display:grid;gap:1em;margin-block:1em}",
+	".wc-form-field{display:grid;gap:0.25em;margin:0;padding:0;border:0;min-inline-size:0}",
+	".wc-form-field>legend{padding:0;margin-block-end:0.25em;font-weight:bolder}",
+	".wc-form-label{font-weight:bolder}",
+	".wc-form-help,.wc-form-note{margin:0;font-size:0.9em;opacity:0.85}",
+	".wc-form-error{margin:0;padding-inline-start:0.5em;border-inline-start:0.25em solid var(--wc-callout-danger);font-weight:bolder}",
+	".wc-form-field input:not([type=checkbox]):not([type=radio]),.wc-form-field select,.wc-form-field textarea{box-sizing:border-box;inline-size:100%;min-block-size:2.75rem;padding:0.5em 0.75em;border:1px solid currentColor;border-radius:0.25em;background-color:Canvas;color:CanvasText;font:inherit}",
+	".wc-form-field [aria-invalid=true]{border-color:var(--wc-callout-danger);outline:1px solid var(--wc-callout-danger)}",
+	".wc-form-options{display:grid;gap:0.5em}",
+	".wc-form-option{display:flex;align-items:flex-start;gap:0.5em}",
+	".wc-form-option input{inline-size:1.5rem;block-size:1.5rem;margin:0;flex:none}",
+	".wc-form-errors{padding:1em;border:0.25em solid var(--wc-callout-danger);border-radius:0.25em}",
+	".wc-form-errors>h2{margin-block:0 0.5em;font-size:1.25em}",
+	".wc-form-errors ul{margin:0;padding-inline-start:1.25em}",
+	".wc-form-errors a{color:inherit;font-weight:bolder}",
+	".wc-form-submit{justify-self:start;min-block-size:2.75rem;padding:0.5em 1.25em;border:1px solid currentColor;border-radius:0.25em;background-color:CanvasText;color:Canvas;font:inherit;cursor:pointer}",
+	".wc-form-sent{padding:1em;border-inline-start:0.25em solid var(--wc-callout-success)}",
+	".wc-form-sent>p{margin:0}",
+	".wc-form-hp{position:absolute;inset-inline-start:-10000px;inline-size:1px;block-size:1px;overflow:hidden}",
+];
+
 /** The tones of a body's callouts: info follows the primary colour (while the Site has it). */
 function calloutTones(primary: string | undefined): string {
 	return [
@@ -111,7 +140,7 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		const declarations = build(designSystem.baseStyles[target] ?? [], "declarations");
 		if (declarations) baseRules.push(`${target}{${declarations}}`);
 	}
-	baseRules.push(...PAGE_PARTS, ...BODY_PARTS);
+	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS);
 
 	const used = designSystem.classes.filter((each) => use.classIds.has(each.id));
 	const classRules: string[] = [];

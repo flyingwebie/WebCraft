@@ -16,6 +16,7 @@ type Fixture = {
 	/** A Member whose access is changed, and one who is removed. */
 	changedMemberId: string;
 	removedMemberId: string;
+	siteId: string;
 	next: () => number;
 };
 
@@ -45,6 +46,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"leakedPasswordCheck.change": (api) => api.install.security.update({ leakedPasswordCheck: true }),
 	"storage.change": (api) => api.install.storage.update({ kind: "disk" }),
 	"module.approve": (api) => api.modules.approve({ moduleId: "sample", version: "1.0.0" }),
+	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
 };
 
 let install: TestInstall;
@@ -58,12 +60,14 @@ beforeAll(async () => {
 	const staff = await install.createStaff({ workspaces: "all" });
 	const changed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const removed = await install.createMember({ workspaceId: workspace.id, role: "author" });
+	const site = await install.createSite(workspace.id);
 	let made = 0;
 	fixture = {
 		staffId: staff.personId,
 		workspaceId: workspace.id,
 		changedMemberId: changed.personId,
 		removedMemberId: removed.personId,
+		siteId: site.id,
 		next: () => ++made,
 	};
 });

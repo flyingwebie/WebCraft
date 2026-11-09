@@ -4,6 +4,7 @@ import type { ModuleComponent } from "./component.ts";
 import type { ModuleContext, ModuleTable, ProcedureContext, SiteRouteContext } from "./context.ts";
 import type { ModuleEvent, ModuleEventName } from "./events.ts";
 import type { Label, ModuleManifestInput } from "./manifest.ts";
+import type { ModuleSchedule, SubmissionReceiver } from "./submissions.ts";
 import type { ModuleMigration } from "./tables.ts";
 
 /**
@@ -50,6 +51,16 @@ export type ModuleDefinition = {
 	 * `component`. Added in SDK 1.1.
 	 */
 	components?: readonly ModuleComponent[];
+	/**
+	 * Its jobs that run on a schedule, in every place where it runs: `{ job: "purge", every: "day" }`.
+	 * Added in SDK 1.2.
+	 */
+	schedules?: readonly ModuleSchedule[];
+	/**
+	 * How it keeps Form Submissions, which WebCraft hands it once it checked them (Site-level Modules
+	 * only; at most one Module of a build). Forms render only where such a Module runs. Added in SDK 1.2.
+	 */
+	formSubmissions?: SubmissionReceiver;
 	// Later SDK versions open more extension points; until then a Module can't use them:
 	/** Structure presets (#110). */
 	structurePresets?: readonly never[];

@@ -3,13 +3,14 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { traverseContractProcedures } from "@orpc/server";
 import { type ApiClient, apiRouter } from "@webcraft/api";
+import type forms from "@webcraft/module-forms";
 import type { ModuleApi, ModuleDefinition, ModuleProcedures } from "@webcraft/module-sdk";
-
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
 import { element, outlet, tree, value } from "../harness/trees.ts";
+
 import type { sampleBoard } from "../modules/sample/board.ts";
 import type { sample } from "../modules/sample/index.ts";
 
@@ -20,6 +21,7 @@ beforeAll(async () => {
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.0.0" });
 });
 
 afterAll(async () => {
@@ -303,6 +305,44 @@ describe("Components", () => {
 	);
 });
 
+describe("Forms", () => {
+	let keys = 0;
+	/** A new Form in a target's Site, made by the Superadmin. */
+	const formIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.forms.create({ siteId: target.siteId, name: `Form ${++keys}` })).form.id;
+	};
+
+	isolation.refuses("forms.list", (api, { siteId }) => api.forms.list({ siteId }));
+	isolation.refuses("forms.get", async (api, target) =>
+		api.forms.get({ siteId: target.siteId, formId: await formIn(target) }),
+	);
+	isolation.refuses("forms.create", (api, { siteId }) => api.forms.create({ siteId, name: `Ours ${++keys}` }));
+	isolation.refuses("forms.saveDraft", async (api, target) =>
+		api.forms.saveDraft({
+			siteId: target.siteId,
+			formId: await formIn(target),
+			form: { fields: [{ key: "email", type: "email", label: "Email" }] },
+		}),
+	);
+	isolation.refuses("forms.publish", async (api, target) =>
+		api.forms.publish({ siteId: target.siteId, formId: await formIn(target) }),
+	);
+	isolation.refuses("forms.rename", async (api, target) =>
+		api.forms.rename({ siteId: target.siteId, formId: await formIn(target), name: "Renamed" }),
+	);
+	isolation.refuses("forms.delete", async (api, target) =>
+		api.forms.delete({ siteId: target.siteId, formId: await formIn(target) }),
+	);
+	isolation.refuses("forms.captcha.get", (api, { siteId }) => api.forms.captcha.get({ siteId }));
+	isolation.refuses("forms.captcha.set", (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }));
+	isolation.refuses(
+		"m.forms.submissions.list",
+		(api, { siteId }) => moduleOf<typeof forms>(api, "forms").submissions.list({ siteId }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
 describe("Design system", () => {
 	/** A new Class in a target's Site's Design system, made by the Superadmin. */
 	const classIn = async (target: IsolationTarget) => {
@@ -492,7 +532,10 @@ describe("Media", () => {
 });
 
 /** A Module's procedures, from the person's Management API (`m.<module id>`). */
-function moduleOf<Definition extends typeof sample | typeof sampleBoard>(api: ApiClient, moduleId: string) {
+function moduleOf<Definition extends typeof sample | typeof sampleBoard | typeof forms>(
+	api: ApiClient,
+	moduleId: string,
+) {
 	return (api as unknown as { m: Record<string, ModuleApi<Definition>> }).m[moduleId] as ModuleApi<Definition>;
 }
 

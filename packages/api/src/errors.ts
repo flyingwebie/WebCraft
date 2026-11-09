@@ -9,6 +9,7 @@ import {
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
+	CaptchaInvalidError,
 	ClassInUseError,
 	ClassNotFoundError,
 	CodeSourceNotFoundError,
@@ -32,6 +33,10 @@ import {
 	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	FormInUseError,
+	FormInvalidError,
+	FormKeyTakenError,
+	FormNotFoundError,
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
 	HostInvalidError,
@@ -163,6 +168,41 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ComponentFromModuleError) {
 		return new ORPCError("COMPONENT_FROM_MODULE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof FormNotFoundError) {
+		return new ORPCError("FORM_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof FormInvalidError) {
+		return new ORPCError("FORM_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof FormKeyTakenError) {
+		return new ORPCError("FORM_KEY_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { key: error.key },
+			cause: error,
+		});
+	}
+	if (error instanceof FormInUseError) {
+		return new ORPCError("FORM_IN_USE", {
+			status: 409,
+			message: error.message,
+			data: { usedIn: error.usedIn },
+			cause: error,
+		});
+	}
+	if (error instanceof CaptchaInvalidError) {
+		return new ORPCError("CAPTCHA_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
 	}
 	if (error instanceof PostTypeInvalidError) {
 		return new ORPCError("POST_TYPE_INVALID", {

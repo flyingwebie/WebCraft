@@ -32,6 +32,8 @@ export const SENSITIVE_ACTIONS = {
 	"storage.change": "changes a secret",
 	/** Approving a Module: what it asks for (Permissions, outside hosts, email) is granted. */
 	"module.approve": "grants a Module access",
+	/** A Site's CAPTCHA for its Forms: its secret key is a secret. */
+	"formCaptcha.change": "changes a secret",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

@@ -6,6 +6,7 @@ import { designSystem } from "./procedures/design-system.ts";
 import { domains } from "./procedures/domains.ts";
 import { editMode } from "./procedures/edit-mode.ts";
 import { entries } from "./procedures/entries.ts";
+import { forms } from "./procedures/forms.ts";
 import { globals } from "./procedures/globals.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
@@ -45,6 +46,7 @@ export const apiRouter = {
 	domains,
 	templates,
 	components,
+	forms,
 	scripts,
 	libraries,
 	outsideScripts,

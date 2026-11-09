@@ -77,6 +77,7 @@ export {
 	type SavedRegion,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
+export * from "./forms/index.ts";
 export {
 	createGuardedFetch,
 	GUARDED_FETCH_LIMITS,

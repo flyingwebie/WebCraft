@@ -1,0 +1,360 @@
+import { components, entries, forms, postTypes, templates } from "@webcraft/db/schema";
+import {
+	type ElementTree,
+	FORM_KEY,
+	FORM_LIMITS,
+	type FormCatalogue,
+	type FormVersion,
+	formsPlacedIn,
+} from "@webcraft/renderer";
+import { and, asc, eq } from "drizzle-orm";
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { storedComponentVersion } from "../content/component-versions.ts";
+import { lockComponents } from "../content/components.ts";
+import type { ContentProblem } from "../content/errors.ts";
+import { isPagePostType } from "../content/pages.ts";
+import { slugify } from "../content/slugs.ts";
+import { isUniqueViolation } from "../db-errors.ts";
+import { isUuid } from "../ids.ts";
+import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { type FormVersionInput, newFormVersion, readFormVersion, storedFormVersion } from "./definition.ts";
+import {
+	FormInUseError,
+	FormInvalidError,
+	FormKeyTakenError,
+	FormNotFoundError,
+	type FormPlacement,
+} from "./errors.ts";
+
+/**
+ * The Site's Forms (GLOSSARY.md): Structure that Staff build in the admin, with a Draft and a
+ * published version, placed in Templates and Components with `{{@form <key>}}`. Visitors fill in the
+ * published version; what they send is kept by the Module that receives Submissions.
+ */
+
+/** Where a Form stands, as for Templates: never published, published as it is, or changed since. */
+export type FormStatus = "draft" | "published" | "changed";
+
+export type Form = {
+	id: string;
+	siteId: string;
+	key: string;
+	name: string;
+	status: FormStatus;
+	draft: FormVersion;
+	/** What visitors fill in; null until the first publish. */
+	published: FormVersion | null;
+	createdAt: Date;
+	updatedAt: Date;
+	publishedAt: Date | null;
+	lastPublishedAt: Date | null;
+};
+
+/** Where a Form is placed: the Templates and Components whose Draft or published version holds it. */
+export type FormUsage = { usedIn: FormPlacement[] };
+
+export type NewForm = { name: string; key?: string };
+
+export type FormDeletion = { deleted: false; confirmation: Confirmation } | { deleted: true };
+
+type FormRow = typeof forms.$inferSelect;
+
+export function toForm(row: FormRow, language = "en"): Form {
+	const draft = storedFormVersion(row.draft, language);
+	const published = row.published === null ? null : storedFormVersion(row.published, language);
+	return {
+		id: row.id,
+		siteId: row.siteId,
+		key: row.key,
+		name: row.name,
+		status:
+			published === null ? "draft" : JSON.stringify(published) === JSON.stringify(draft) ? "published" : "changed",
+		draft,
+		published,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+		publishedAt: row.publishedAt,
+		lastPublishedAt: row.lastPublishedAt,
+	};
+}
+
+/**
+ * Creates a Form on the scope's Site (open it with `structure.edit`): its name, and its key (made
+ * from the name when not given). It starts as a Draft with no fields, its button and message in the
+ * Site's Default language.
+ */
+export async function createForm(
+	scope: SiteScope,
+	input: NewForm,
+	languages: { defaultLanguage: string; others: readonly string[] },
+): Promise<Form> {
+	const problems: ContentProblem[] = [];
+	const name = checkName(input.name, problems);
+	const key = checkKey(input.key ?? keyFromName(name), problems);
+	if (problems.length > 0) throw new FormInvalidError(problems);
+	return keyed(key, () =>
+		scope.transaction(async (tx) => {
+			await checkKeyUnused(tx, key);
+			const now = tx.now();
+			const row = await tx.insert(forms, {
+				key,
+				name,
+				draft: newFormVersion(languages.defaultLanguage, languages.others),
+				createdAt: now,
+				updatedAt: now,
+			});
+			await tx.audit("form.create", { formId: row.id, key, name });
+			return toForm(row);
+		}),
+	);
+}
+
+/** The Site's Forms, by name, each with where it is placed. */
+export async function listForms(scope: SiteScope): Promise<(Form & { usage: FormUsage })[]> {
+	const rows = await scope.select(forms, undefined, { orderBy: [asc(forms.name), asc(forms.key)] });
+	const usageOf = await formUsages(scope);
+	return rows.map((row) => ({ ...toForm(row), usage: usageOf(row.id) }));
+}
+
+/** One Form of the Site, with where it is placed; `FormNotFoundError` otherwise. */
+export async function getForm(scope: SiteScope, formId: string): Promise<{ form: Form; usage: FormUsage }> {
+	const row = isUuid(formId) ? await scope.first(forms, eq(forms.id, formId)) : undefined;
+	if (!row) throw new FormNotFoundError();
+	return { form: toForm(row), usage: (await formUsages(scope))(row.id) };
+}
+
+/**
+ * Saves a Form's Draft (open the Site with `structure.edit`): each part given (`fields`,
+ * `submitLabel`, `success`, `spam`) replaces that part. Refused with every problem where it is
+ * (`FormInvalidError`). Visitors see nothing of it until it is published.
+ */
+export async function saveFormDraft(scope: SiteScope, formId: string, input: FormVersionInput): Promise<Form> {
+	return scope.transaction(async (tx) => {
+		const row = await lockForm(tx, formId);
+		const problems: ContentProblem[] = [];
+		const { version, pageIds } = readFormVersion(input, storedFormVersion(row.draft), problems);
+		for (const pageId of pageIds) {
+			if (!(await isPage(tx, pageId)))
+				problems.push({ at: "success.pageId", message: "There is no such Page on this Site." });
+		}
+		if (problems.length > 0) throw new FormInvalidError(problems);
+		const [updated] = await tx.update(forms, { draft: version, updatedAt: tx.now() }, eq(forms.id, row.id));
+		if (!updated) throw new FormNotFoundError();
+		return toForm(updated);
+	});
+}
+
+/**
+ * Changes a Form's name or key, or both (open the Site with `structure.edit`). Templates and
+ * Components place it by id, so `{{@form <key>}}` writes the new key everywhere at once.
+ */
+export async function renameForm(
+	scope: SiteScope,
+	formId: string,
+	input: { name?: string; key?: string },
+): Promise<Form> {
+	const problems: ContentProblem[] = [];
+	const name = input.name === undefined ? undefined : checkName(input.name, problems);
+	const key = input.key === undefined ? undefined : checkKey(input.key, problems);
+	if (problems.length > 0) throw new FormInvalidError(problems);
+	return keyed(key ?? "", () =>
+		scope.transaction(async (tx) => {
+			const row = await lockForm(tx, formId);
+			const next = { name: name ?? row.name, key: key ?? row.key };
+			if (next.name === row.name && next.key === row.key) return toForm(row);
+			if (next.key !== row.key) await checkKeyUnused(tx, next.key);
+			const [updated] = await tx.update(forms, { ...next, updatedAt: tx.now() }, eq(forms.id, row.id));
+			if (!updated) throw new FormNotFoundError();
+			await tx.audit("form.rename", { formId: row.id, from: { name: row.name, key: row.key }, to: next });
+			return toForm(updated);
+		}),
+	);
+}
+
+/**
+ * Deletes a Form (open the Site with `structure.edit`), in two steps: without a confirmation it
+ * deletes nothing and answers a confirmation id; with that id it deletes it. Refused while any
+ * Template or Component places it (`FormInUseError`). Submissions stay with the Module that keeps them.
+ */
+export async function deleteForm(
+	scope: SiteScope,
+	formId: string,
+	confirmation: string | undefined,
+): Promise<FormDeletion> {
+	return scope.transaction(async (tx) => {
+		// Which trees place which Forms is read under the trees' lock.
+		await lockComponents(tx);
+		const row = await lockForm(tx, formId);
+		const { usedIn } = (await formUsages(tx))(row.id);
+		if (usedIn.length > 0) throw new FormInUseError(usedIn);
+		const request = { action: "form.delete", target: row.id, preview: { name: row.name, key: row.key } };
+		if (confirmation === undefined) return { deleted: false, confirmation: await askConfirmation(tx, request) };
+		await useConfirmation(tx, confirmation, request);
+		await tx.delete(forms, eq(forms.id, row.id));
+		await tx.audit("form.delete", { formId: row.id, key: row.key, name: row.name });
+		return { deleted: true };
+	});
+}
+
+/**
+ * Publishes a Form's Draft: what visitors fill in from now on. Part of `publish` (open the Site with
+ * `structure.edit`), which clears the page cache. A redirect to a Page that has gone since is refused.
+ */
+export async function publishFormDraft(scope: SiteScope, formId: string): Promise<{ id: string; publishedAt: Date }> {
+	const row = await lockForm(scope, formId);
+	const draft = storedFormVersion(row.draft);
+	if (draft.success.kind === "redirect" && !(await isPage(scope, draft.success.pageId))) {
+		throw new FormInvalidError([{ at: "success.pageId", message: "There is no such Page on this Site." }]);
+	}
+	const now = scope.now();
+	await scope.update(
+		forms,
+		{ published: draft, publishedAt: row.publishedAt ?? now, lastPublishedAt: now, updatedAt: now },
+		eq(forms.id, row.id),
+	);
+	await scope.audit("form.publish", { formId: row.id, key: row.key, name: row.name });
+	return { id: row.id, publishedAt: now };
+}
+
+/** Reads one of the Site's Forms to change it, holding it until the transaction ends. */
+export async function lockForm(scope: SiteScope, formId: string): Promise<FormRow> {
+	if (!isUuid(formId)) throw new FormNotFoundError();
+	const [row] = await scope.db
+		.select()
+		.from(forms)
+		.where(scope.where(forms, eq(forms.id, formId)))
+		.for("update");
+	if (!row) throw new FormNotFoundError();
+	return row;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The Site's Forms, as trees placing them see them
+
+/** The Site's Forms in one version, for reading, checking, printing and rendering trees that place them. */
+export type SiteForms = FormCatalogue & {
+	/** The key of a Form of the Site (`{{@form <key>}}`). */
+	keyOf(formId: string): string | undefined;
+	/** The version a placed Form shows. */
+	version(formId: string): FormVersion | undefined;
+};
+
+/**
+ * The Site's Forms in one version: Drafts (what Drafts of Templates and Components may place) or
+ * published (what published ones place; a Form never published can't be placed there yet).
+ */
+export async function siteForms(
+	scope: Pick<SiteScope | VisitorScope, "select">,
+	which: "draft" | "published",
+): Promise<SiteForms> {
+	const rows = await scope.select(forms);
+	const byId = new Map(rows.map((row) => [row.id, row]));
+	const byKey = new Map(rows.map((row) => [row.key, row]));
+	const versionOf = (row: FormRow | undefined): FormVersion | undefined => {
+		if (!row) return undefined;
+		const stored = which === "draft" ? row.draft : row.published;
+		return stored === null ? undefined : storedFormVersion(stored);
+	};
+	const found = (row: FormRow | undefined) => {
+		if (!row) return undefined;
+		if (!versionOf(row)) return { refused: `The Form ${row.key} isn't published yet: publish it first.` };
+		return { id: row.id, key: row.key };
+	};
+	return {
+		keyed: (key) => found(byKey.get(key)),
+		byId: (formId) => found(byId.get(formId)),
+		keyOf: (formId) => byId.get(formId)?.key,
+		version: (formId) => versionOf(byId.get(formId)),
+	};
+}
+
+/** Forms are refused in a tree that can't name the Site's Forms, such as a Module's Component. */
+export const NO_FORMS: FormCatalogue = {
+	keyed: () => ({ refused: "Forms belong to one Site: a Module's Component can't place one." }),
+	byId: () => ({ refused: "Forms belong to one Site: a Module's Component can't place one." }),
+};
+
+/**
+ * Where each Form is placed: every Template and Component whose Draft or published version holds
+ * `{{@form}}` for it.
+ */
+export async function formUsages(scope: Pick<SiteScope, "select">): Promise<(formId: string) => FormUsage> {
+	const placements = new Map<string, FormPlacement[]>();
+	const add = (formIds: Iterable<string>, placement: FormPlacement) => {
+		for (const formId of formIds) {
+			const list = placements.get(formId) ?? [];
+			if (!list.some((known) => known.kind === placement.kind && known.id === placement.id)) list.push(placement);
+			placements.set(formId, list);
+		}
+	};
+	const placedIn = (...trees: unknown[]) =>
+		new Set(trees.flatMap((tree) => (tree ? formsPlacedIn(tree as ElementTree) : [])));
+	const names = new Map((await scope.select(postTypes)).map((postType) => [postType.id, postType.name]));
+	for (const row of await scope.select(templates)) {
+		add(placedIn(row.draft, row.published), {
+			kind: row.kind === "site" ? "siteTemplate" : "entryTemplate",
+			id: row.id,
+			name: row.postTypeId ? (names.get(row.postTypeId) ?? null) : null,
+		});
+	}
+	for (const row of await scope.select(components)) {
+		add(
+			placedIn(
+				storedComponentVersion(row.draft).tree,
+				row.published === null ? null : storedComponentVersion(row.published).tree,
+			),
+			{ kind: "component", id: row.id, name: row.name },
+		);
+	}
+	return (formId) => ({ usedIn: placements.get(formId) ?? [] });
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Names and keys
+
+function checkName(input: string, problems: ContentProblem[]): string {
+	const name = typeof input === "string" ? input.trim() : "";
+	if (name === "" || name.length > FORM_LIMITS.nameLength) {
+		problems.push({ at: "name", message: `A Form's name is 1 to ${FORM_LIMITS.nameLength} characters.` });
+	}
+	return name;
+}
+
+function checkKey(input: string, problems: ContentProblem[]): string {
+	const key = typeof input === "string" ? input.trim() : "";
+	if (!FORM_KEY.test(key) || key.length > FORM_LIMITS.keyLength) {
+		problems.push({
+			at: "key",
+			message: `A Form's key is lower-case letters and digits, words joined by dashes, at most ${FORM_LIMITS.keyLength}: such as contact or wedding-cake.`,
+		});
+	}
+	return key;
+}
+
+/** A key made from a name: `Wedding cake enquiry` gives `wedding-cake-enquiry`. */
+function keyFromName(name: string): string {
+	const slug = slugify(name).slice(0, FORM_LIMITS.keyLength).replace(/-+$/, "");
+	return /^[a-z]/.test(slug) ? slug : `form-${slug}`.replace(/-+$/, "");
+}
+
+async function checkKeyUnused(scope: SiteScope, key: string): Promise<void> {
+	if (await scope.first(forms, eq(forms.key, key))) throw new FormKeyTakenError(key);
+}
+
+/** Runs a save, turning another Form's key taken meanwhile into `FormKeyTakenError`. */
+async function keyed<Result>(key: string, save: () => Promise<Result>): Promise<Result> {
+	try {
+		return await save();
+	} catch (error) {
+		if (isUniqueViolation(error, "forms_site_id_key_unique")) throw new FormKeyTakenError(key);
+		throw error;
+	}
+}
+
+/** Whether `pageId` is one of the Site's Pages. */
+async function isPage(scope: Pick<SiteScope, "select" | "first">, pageId: string): Promise<boolean> {
+	if (!isUuid(pageId)) return false;
+	const pages = (await scope.select(postTypes)).find((postType) => isPagePostType({ builtIn: postType.builtIn }));
+	if (!pages) return false;
+	return (await scope.first(entries, and(eq(entries.id, pageId), eq(entries.postTypeId, pages.id)))) !== undefined;
+}

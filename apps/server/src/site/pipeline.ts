@@ -30,6 +30,7 @@ import {
 	pageEditing,
 	safeModeOf,
 } from "./edit-mode.ts";
+import { formPost, isFormPath, sentPage, withFormTokens } from "./forms.ts";
 import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
@@ -100,6 +101,8 @@ async function siteAnswer(
 		for (const [name, value] of Object.entries(addressHeaders(host))) answer.headers.set(name, value);
 		return answer;
 	}
+	// Forms post to the Site itself; their answers are made for one visitor and never cached.
+	if (isFormPath(url.pathname)) return formPost(services, request, host, addressHeaders(host));
 	return readOnly(request, async () => {
 		if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
 			return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));
@@ -187,16 +190,19 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 	const { pathname } = new URL(request.url);
 	const segments = pathSegments(pathname);
 	if (!segments) return notFoundPage(services, host, pathname);
+	// A Form just sent shows its message on a page answered for the visitor alone.
+	const sent = await sentPage(services, request, host, addressHeaders(host));
+	if (sent) return sent;
 	// The same path is another page on each of the Site's addresses (its language, its links).
 	const key = `${host.origin}${canonicalPath(segments)}`;
 	const cached = cache.get(host.site.id, host.cacheGeneration, key);
-	if (cached) return pageResponse(request, host, cached, "HIT");
-	const answer = await services.sitePages.render(host, pathname);
+	if (cached) return pageResponse(services, request, host, cached, "HIT");
+	const answer = await services.sitePages.render(host, pathname, undefined, { cached: true });
 	if (!answer) return notFoundPage(services, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, withQuery(answer, new URL(request.url)));
 	const page = { html: answer.html, etag: await etagOf(answer.html), headers: answer.headers };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
-	return pageResponse(request, host, page, "MISS");
+	return pageResponse(services, request, host, page, "MISS");
 }
 
 /**
@@ -324,7 +330,13 @@ function immutableFile(
  */
 const PAGE_CACHE_CONTROL = "public, max-age=0, must-revalidate";
 
-function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheStatus: "HIT" | "MISS"): Response {
+async function pageResponse(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	page: CachedPage,
+	cacheStatus: "HIT" | "MISS",
+): Promise<Response> {
 	const headers: Record<string, string> = {
 		"cache-control": PAGE_CACHE_CONTROL,
 		etag: page.etag,
@@ -337,7 +349,9 @@ function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheS
 	if (matchesETag(request.headers.get("if-none-match"), page.etag)) {
 		return new Response(null, { status: 304, headers });
 	}
-	return new Response(page.html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
+	// The page cache holds no Form token: each answer gets its own (the ETag is the cached page's).
+	const html = await withFormTokens(services, host, page.html);
+	return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
 }
 
 /**

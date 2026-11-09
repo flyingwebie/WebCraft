@@ -99,5 +99,13 @@ export {
 	moduleManifestSchema,
 	wordsIn,
 } from "./manifest.ts";
+export {
+	type FormSubmission,
+	type ModuleSchedule,
+	type SpamReason,
+	type SubmissionReceiver,
+	type SubmissionValue,
+	submissionReceiver,
+} from "./submissions.ts";
 export { type ModuleMigration, moduleSchema, moduleSchemaName, siteColumns, workspaceColumns } from "./tables.ts";
 export { SDK_VERSION } from "./version.ts";

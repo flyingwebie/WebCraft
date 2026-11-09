@@ -2,12 +2,14 @@ import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
 import {
 	Building2Icon,
+	ClipboardListIcon,
 	DatabaseIcon,
 	FileCodeIcon,
 	FileTextIcon,
 	GlobeIcon,
 	HardDriveIcon,
 	ImagesIcon,
+	InboxIcon,
 	LanguagesIcon,
 	LayoutDashboardIcon,
 	type LucideIcon,
@@ -36,6 +38,9 @@ export type PlaceSite = { id: string; name: string; slug: string };
 
 /** One of a Site's Post Types, as the sidebar lists it: Pages (`builtIn: "page"`), then the rest. */
 export type PlacePostType = { id: string; name: string; builtIn: "page" | null };
+
+/** One of a Site's Forms, as the sidebar lists it. */
+export type PlaceForm = { id: string; name: string };
 
 /** The languages a Site's Content is written in: the Default language first. */
 export type PlaceLanguages = { default: string; all: readonly string[] };
@@ -67,6 +72,8 @@ export type AdminPlace =
 			modulePages: readonly PlaceModulePage[];
 			/** The Site's Post Types: the Content group lists the Entries of each. */
 			postTypes: readonly PlacePostType[];
+			/** The Site's Forms, for people who may see them: each has its own item. */
+			forms: readonly PlaceForm[];
 			languages: PlaceLanguages;
 	  };
 
@@ -222,6 +229,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						to: "/sites/$siteId/post-types",
 					},
 					{
+						id: "site-forms",
+						label: "shell.nav.forms",
+						icon: ClipboardListIcon,
+						to: "/sites/$siteId/forms",
+						exact: true,
+					},
+					{
 						id: "site-libraries",
 						label: "shell.nav.libraries",
 						icon: PackageIcon,
@@ -280,6 +294,21 @@ function postTypeItems(postTypes: readonly PlacePostType[]): NavItem[] {
 	}));
 }
 
+/**
+ * A Site's Forms as Content items, after Media: one each (its Build and Settings tabs for Staff;
+ * Submissions and Emails for clients join them).
+ */
+function formItems(forms: readonly PlaceForm[]): NavItem[] {
+	return forms.map((form) => ({
+		id: `form-${form.id}`,
+		label: { text: form.name },
+		icon: InboxIcon,
+		to: "/sites/$siteId/forms/$formId",
+		params: { formId: form.id },
+		requires: "structure.edit",
+	}));
+}
+
 /** The sidebar of a place, with only the groups and items the person may see, and no empty groups. */
 export function navigationFor(place: AdminPlace): LevelNavigation {
 	const visible = (entry: { requires?: Permission }) => !entry.requires || place.permissions.includes(entry.requires);
@@ -290,7 +319,13 @@ export function navigationFor(place: AdminPlace): LevelNavigation {
 					group.id === "content"
 						? {
 								...group,
-								items: [...group.items.slice(0, 1), ...postTypeItems(place.postTypes), ...group.items.slice(1)],
+								items: [
+									...group.items.slice(0, 1),
+									...postTypeItems(place.postTypes),
+									...group.items.slice(1, 2),
+									...formItems(place.forms),
+									...group.items.slice(2),
+								],
 							}
 						: group,
 				)

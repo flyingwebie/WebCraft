@@ -43,6 +43,7 @@ export type TestNode =
 			otherwise: TestNode[] | null;
 	  }
 	| { type: "outlet" }
+	| { type: "form"; form: string }
 	| {
 			type: "component";
 			id?: string;
@@ -51,6 +52,11 @@ export type TestNode =
 	  };
 
 export type TestTree = { version: 1; nodes: TestNode[] };
+
+/** `{{@form <key>}}`: one of the Site's Forms, by id. */
+export function placedForm(formId: string): TestNode {
+	return { type: "form", form: formId };
+}
 
 export function tree(...nodes: TestNode[]): TestTree {
 	return { version: 1, nodes };
