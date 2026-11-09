@@ -6,6 +6,7 @@ import type { ApiClient } from "@webcraft/api";
 import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
 
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { sample } from "../modules/sample/index.ts";
 
 const MINUTE = 60 * 1000;
 
@@ -43,6 +44,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"password.change": (api) => api.me.changePassword({ newPassword: TEST_PASSWORD }),
 	"leakedPasswordCheck.change": (api) => api.install.security.update({ leakedPasswordCheck: true }),
 	"storage.change": (api) => api.install.storage.update({ kind: "disk" }),
+	"module.approve": (api) => api.modules.approve({ moduleId: "sample", version: "1.0.0" }),
 };
 
 let install: TestInstall;
@@ -50,7 +52,7 @@ let superadmin: TestAccount;
 let fixture: Fixture;
 
 beforeAll(async () => {
-	install = await createTestInstall();
+	install = await createTestInstall({ modules: [sample] });
 	superadmin = await install.createSuperadmin();
 	const workspace = await install.createWorkspace();
 	const staff = await install.createStaff({ workspaces: "all" });

@@ -21,6 +21,9 @@ import {
 } from "./edit-mode.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
+/** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
+const MODULE_ROUTES = "/_wc/m";
+
 export type SitePipelineOptions = {
 	/** The page cache; a new one holding the default amount unless given. */
 	pageCache?: PageCache;
@@ -35,9 +38,12 @@ export type SitePipelineOptions = {
  * pattern, else a Page by its path (the home page at `/`). A path with no page gets the Site's 404
  * page. Hostnames that are no Site's get the unbranded 404, and nothing here ever reaches the admin.
  *
+ * Modules' Site routes (`/_wc/m/<route prefix>/…`) go to the Module host, which answers them where
+ * the Module runs; they are never cached.
+ *
  * Steps still to come, in their places: Redirect domains and Redirect rules before everything else,
  * language prefixes and domains, each reserved path's feature (Forms, the Content API,
- * Modules, `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies), and the 404 log.
+ * `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies), and the 404 log.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();
@@ -47,6 +53,13 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		if (!host) return notFound();
 		const editing = await editModeEndpoint(services, request, host);
 		if (editing) return editing;
+		if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
+			// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
+			const answer = await services.modules.answerSiteRoute(host.site, request);
+			if (!answer) return plainText(404, "Not Found", addressHeaders(host));
+			for (const [name, value] of Object.entries(addressHeaders(host))) answer.headers.set(name, value);
+			return answer;
+		}
 		return readOnly(request, async () => {
 			if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
 				return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));

@@ -150,6 +150,29 @@ describe("images", () => {
 		expect(await imageInfo(bytes)).toMatchObject({ format: "jpeg", width: 64, height: 48 });
 	});
 
+	test.skipIf(!canMakeHeic)("a HEIC photo larger than the worker reads is refused before it is decoded", async () => {
+		// The real limit is some 268 million pixels; a small one stands in for it, without a huge file.
+		const small = await createTestInstall({ maxImagePixels: 1_000 });
+		try {
+			const smallWorkspace = (await small.createWorkspace("Small Ltd")).id;
+			const smallSite = (await small.createSite(smallWorkspace, { name: "Small", slug: "small" })).id;
+			const smallEditor = (await small.createMember({ workspaceId: smallWorkspace, role: "editor" })).browser;
+			const heic = await heicPhoto({ width: 64, height: 48 });
+
+			const { media } = await smallEditor.api.media.upload({
+				siteId: smallSite,
+				file: upload(heic ?? new Uint8Array(), "IMG_0002.HEIC", "image/heic"),
+			});
+			await small.drainJobs();
+
+			expect((await smallEditor.api.media.get({ siteId: smallSite, mediaId: media.id })).media).toMatchObject({
+				status: "failed",
+			});
+		} finally {
+			await small.close();
+		}
+	});
+
 	test("a file that claims to be an image but can't be read fails, and is never served", async () => {
 		const broken = new Uint8Array([
 			0xff,

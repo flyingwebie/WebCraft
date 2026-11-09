@@ -32,6 +32,7 @@ export {
 	type StorageSettings,
 } from "./install-storage.ts";
 export { mediaProcess, mediaVariants } from "./jobs.ts";
+export { MEDIA_KINDS, type MediaKind } from "./kinds.ts";
 export {
 	MEDIA_FOLDER_NAME_MAX_LENGTH,
 	MEDIA_MAX_BYTES,
@@ -47,6 +48,5 @@ export {
 } from "./library.ts";
 export { MEDIA_PATH } from "./names.ts";
 export type { S3Settings } from "./s3-storage.ts";
-export { MEDIA_KINDS, type MediaKind } from "./sniff.ts";
 export type { ByteRange, StorageBackend, StorageKind } from "./storage.ts";
 export { MEDIA_TEXT_MAX_LENGTH, type MediaText } from "./texts.ts";

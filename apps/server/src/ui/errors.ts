@@ -30,6 +30,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "IDENTITY_CHECK_CANCELLED":
 		case "SENSITIVE_ACTION_REFUSED":
 		case "SESSION_NOT_FOUND":
+		case "CHANGED_MEANWHILE":
 		case "MEDIA_NOT_FOUND":
 		case "MEDIA_FOLDER_NOT_FOUND":
 		case "MEDIA_FOLDER_TAKEN":

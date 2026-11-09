@@ -14,6 +14,7 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@webcraft/ui/components/sidebar.tsx";
+import { PuzzleIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useT } from "../i18n.tsx";
@@ -72,6 +73,7 @@ function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: S
 	const matchRoute = useMatchRoute();
 	const navigation = navigationFor(place);
 	const params = placeParams(place);
+	const modulePages = place.level === "install" ? [] : place.modulePages;
 
 	return (
 		<Sidebar mobileTitle={t("shell.navLabel")}>
@@ -104,6 +106,37 @@ function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: S
 							</SidebarGroupContent>
 						</SidebarGroup>
 					))}
+					{modulePages.length > 0 ? (
+						<SidebarGroup>
+							<SidebarGroupLabel id="nav-module-pages">{t("shell.nav.modulePagesGroup")}</SidebarGroupLabel>
+							<SidebarGroupContent>
+								<SidebarMenu aria-labelledby="nav-module-pages">
+									{modulePages.map((page) => {
+										const link =
+											place.level === "site"
+												? ({ to: "/sites/$siteId/m/$moduleId/$", params: { siteId: place.site.id } } as const)
+												: ({
+														to: "/workspaces/$workspaceId/m/$moduleId/$",
+														params: { workspaceId: params.workspaceId ?? "" },
+													} as const);
+										const pageParams = { ...link.params, moduleId: page.moduleId, _splat: page.path };
+										const active = Boolean(matchRoute({ to: link.to, params: pageParams as never }));
+										return (
+											<SidebarMenuItem key={`${page.moduleId}/${page.path}`}>
+												<SidebarMenuButton
+													render={<Link to={link.to} params={pageParams as never} />}
+													isActive={active}
+												>
+													<PuzzleIcon aria-hidden="true" />
+													<span>{page.label}</span>
+												</SidebarMenuButton>
+											</SidebarMenuItem>
+										);
+									})}
+								</SidebarMenu>
+							</SidebarGroupContent>
+						</SidebarGroup>
+					) : null}
 				</SidebarContent>
 				<SidebarFooter className="border-sidebar-border border-t">
 					<SidebarMenu>

@@ -1,6 +1,9 @@
 import { randomBytes } from "node:crypto";
+import { moduleSchemas } from "@webcraft/core";
 import { runMigrations } from "@webcraft/db";
 import pg from "pg";
+
+import { TEST_MODULES } from "./modules.ts";
 
 /**
  * Test databases. Every name starts with the database name in DATABASE_URL plus `_test_`, then a
@@ -55,7 +58,7 @@ async function createTemplate(): Promise<string> {
 	const name = `${prefix()}tpl`;
 	await admin((client) => client.query(`CREATE DATABASE ${quote(name)}`));
 	try {
-		await runMigrations(urlFor(name));
+		await runMigrations(urlFor(name), { modules: moduleSchemas(TEST_MODULES) });
 	} catch (error) {
 		await dropDatabase(name);
 		throw error;

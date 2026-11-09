@@ -8,6 +8,7 @@ import {
 	LayoutDashboardIcon,
 	type LucideIcon,
 	MailIcon,
+	PuzzleIcon,
 	ScrollTextIcon,
 	SettingsIcon,
 	ShieldCheckIcon,
@@ -26,20 +27,31 @@ export type PlaceWorkspace = { id: string; name: string };
 
 export type PlaceSite = { id: string; name: string; slug: string };
 
+/** One of a Module's admin pages the person may open at the place (`/…/m/<module id>/<path>`). */
+export type PlaceModulePage = { moduleId: string; path: string; label: string };
+
 /**
  * Where in the admin a page is, with the Permissions the person holds there (the sidebar and the
- * pages offer only what they allow). Workspace and Site places carry which Workspace and Site, and
- * the Workspace's Sites the person reaches, for the context switcher.
+ * pages offer only what they allow). Workspace and Site places carry which Workspace and Site, the
+ * Workspace's Sites the person reaches (for the context switcher), and the admin pages of the
+ * Modules running there that the person may open.
  */
 export type AdminPlace =
 	| { level: "install"; permissions: readonly string[] }
-	| { level: "workspace"; workspace: PlaceWorkspace; sites: PlaceSite[]; permissions: readonly string[] }
+	| {
+			level: "workspace";
+			workspace: PlaceWorkspace;
+			sites: PlaceSite[];
+			permissions: readonly string[];
+			modulePages: readonly PlaceModulePage[];
+	  }
 	| {
 			level: "site";
 			workspace: PlaceWorkspace;
 			site: PlaceSite;
 			sites: PlaceSite[];
 			permissions: readonly string[];
+			modulePages: readonly PlaceModulePage[];
 	  };
 
 export type NavItem = {
@@ -120,6 +132,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						to: "/settings/storage",
 						requires: "install.manage",
 					},
+					{
+						id: "modules",
+						label: "shell.nav.modules",
+						icon: PuzzleIcon,
+						to: "/settings/modules",
+						requires: "module.approve",
+					},
 				],
 			},
 		],
@@ -138,6 +157,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: UsersIcon,
 						to: "/workspaces/$workspaceId/members",
 						requires: "member.manage",
+					},
+					{
+						id: "workspace-modules",
+						label: "shell.nav.modules",
+						icon: PuzzleIcon,
+						to: "/workspaces/$workspaceId/modules",
+						requires: "module.manage",
 					},
 				],
 			},
@@ -158,6 +184,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						exact: true,
 					},
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
+					{
+						id: "site-modules",
+						label: "shell.nav.modules",
+						icon: PuzzleIcon,
+						to: "/sites/$siteId/modules",
+						requires: "module.manage",
+					},
 				],
 			},
 		],

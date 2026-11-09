@@ -1,0 +1,81 @@
+import { type ModuleManifest, wordsIn } from "@webcraft/module-sdk";
+
+import type { LoadedModule } from "./registry.ts";
+
+/**
+ * What a Module asks for, as the Superadmin approves it: one consent item per grant, such as
+ * `permission:sample.notes.edit:owner` (Owners get the Module's Permission to edit notes),
+ * `use:email` or `host:api.example.com`. An approval stores the items it granted; a later version
+ * asks for more when it has an item the approval doesn't.
+ */
+export function consentItems(manifest: ModuleManifest): string[] {
+	return [
+		...manifest.permissions.flatMap((permission) =>
+			permission.roles.map((role) => `permission:${manifest.id}.${permission.key}:${role}`),
+		),
+		...manifest.uses.map((use) => `use:${use}`),
+		...manifest.outsideHosts.map((host) => `host:${host}`),
+		...(manifest.siteScript ? [`script:${manifest.siteScript}`] : []),
+	];
+}
+
+/** Whether everything `manifest` asks for was granted. */
+export function isCovered(manifest: ModuleManifest, granted: readonly string[]): boolean {
+	return consentItems(manifest).every((item) => granted.includes(item));
+}
+
+/** What a Module asks for, in the person's language, each marked new when the approval didn't grant it. */
+export type ConsentView = {
+	permissions: { key: string; label: string; roles: string[]; isNew: boolean }[];
+	uses: { use: string; isNew: boolean }[];
+	outsideHosts: { host: string; isNew: boolean }[];
+	siteScript: { category: string; isNew: boolean } | null;
+};
+
+/** What a Module adds to WebCraft besides what it asks for, for the consent screen. */
+export type AdditionsView = {
+	/** Where it answers on Sites (`/_wc/m/sample/`), or null. */
+	siteRoutes: string | null;
+	/** The labels of its admin pages. */
+	adminPages: string[];
+	/** How many tables of its own it keeps. */
+	tables: number;
+	/** The events it reacts to. */
+	events: string[];
+};
+
+export function consentView(
+	manifest: ModuleManifest,
+	granted: readonly string[] | null,
+	language: string,
+): ConsentView {
+	const isNew = (item: string) => granted === null || !granted.includes(item);
+	const words = (label: Readonly<Record<string, string>>) => wordsIn(label, language, manifest.adminLanguages);
+	return {
+		permissions: manifest.permissions.map((permission) => {
+			const key = `${manifest.id}.${permission.key}`;
+			return {
+				key,
+				label: words(permission.label),
+				roles: [...permission.roles],
+				isNew: permission.roles.some((role) => isNew(`permission:${key}:${role}`)),
+			};
+		}),
+		uses: manifest.uses.map((use) => ({ use, isNew: isNew(`use:${use}`) })),
+		outsideHosts: manifest.outsideHosts.map((host) => ({ host, isNew: isNew(`host:${host}`) })),
+		siteScript: manifest.siteScript
+			? { category: manifest.siteScript, isNew: isNew(`script:${manifest.siteScript}`) }
+			: null,
+	};
+}
+
+export function additionsView(module: LoadedModule, language: string): AdditionsView {
+	if (!module.runnable) return { siteRoutes: null, adminPages: [], tables: 0, events: [] };
+	const { manifest } = module;
+	return {
+		siteRoutes: module.routes.length > 0 ? `/_wc/m/${manifest.routePrefix}/` : null,
+		adminPages: module.pages.map((page) => wordsIn(page.label, language, manifest.adminLanguages)),
+		tables: module.tables.size,
+		events: [...module.events],
+	};
+}

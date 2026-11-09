@@ -37,6 +37,8 @@ export type Secrets<Owner extends SecretOwner = SecretOwner> = {
 	describe(secret: SecretRef<Owner>): Promise<SecretDescription>;
 	/** Forgets the secret, so it is no longer set. Does nothing when it isn't. */
 	remove(secret: SecretRef<Owner>): Promise<void>;
+	/** The names of the owner's secrets that start with `prefix`, such as a Module's (`module:sample:`). */
+	names(owner: Owner, prefix: string): Promise<string[]>;
 };
 
 /**
@@ -71,6 +73,10 @@ export function installSecretsOnly(store: Secrets): InstallSecrets {
 		async remove(secret) {
 			check(secret);
 			return store.remove(secret);
+		},
+		async names(owner, prefix) {
+			check({ owner, name: prefix });
+			return store.names(owner, prefix);
 		},
 	};
 }
@@ -238,6 +244,22 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 		async remove(secret) {
 			checkRef(secret);
 			await db.delete(secretsTable).where(whereSecret(secret));
+		},
+
+		async names(owner, prefix) {
+			const { workspaceId, siteId } = ownerColumns(owner);
+			const rows = await db
+				.select({ name: secretsTable.name })
+				.from(secretsTable)
+				.where(
+					and(
+						workspaceId === null ? isNull(secretsTable.workspaceId) : eq(secretsTable.workspaceId, workspaceId),
+						siteId === null ? isNull(secretsTable.siteId) : eq(secretsTable.siteId, siteId),
+						sql`starts_with(${secretsTable.name}, ${prefix})`,
+					),
+				)
+				.orderBy(secretsTable.name);
+			return rows.map((row) => row.name);
 		},
 	};
 }

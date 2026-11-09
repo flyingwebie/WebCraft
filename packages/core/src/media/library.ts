@@ -6,7 +6,7 @@ import { clearPageCache } from "../content/page-cache.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
 import type { JobQueue } from "../jobs/define.ts";
-import { can } from "../permissions/can.ts";
+import { actingPerson, can, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import {
@@ -20,8 +20,9 @@ import {
 import type { VariantFormat } from "./images.ts";
 import type { InstallStorage } from "./install-storage.ts";
 import { mediaProcess } from "./jobs.ts";
+import type { MediaKind } from "./kinds.ts";
 import { contentHash, MEDIA_PATH, SERVED_NAME, servedName } from "./names.ts";
-import { gifSize, type MediaKind, sniff } from "./sniff.ts";
+import { gifSize, sniff } from "./sniff.ts";
 import { type ByteRange, siteFolder } from "./storage.ts";
 import { MEDIA_TEXTS, type MediaText, readText, storedTexts, writeText } from "./texts.ts";
 
@@ -178,7 +179,7 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 			const id = crypto.randomUUID();
 			const target = await storage.current();
 			const now = scope.now();
-			const personId = scope.access.actor.personId;
+			const personId = actingPerson(scope.access.actor);
 
 			// Images are cleaned by the worker before anyone sees them (they may carry GPS data): until
 			// then the upload is kept apart, and never served.
@@ -250,7 +251,7 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 		async update(scope, mediaId, change) {
 			const { defaultLanguage } = await siteLanguages(scope);
 			const language = checkLanguage(change.language, defaultLanguage);
-			const personId = scope.access.actor.personId;
+			const personId = actingPerson(scope.access.actor);
 			await scope.transaction(async (tx) => {
 				const [row] = isUuid(mediaId)
 					? await tx.db
@@ -360,7 +361,7 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 
 /** Whether the scope's person may change a Media item: their own upload, or any with `media.manage`. */
 function mayChange(scope: SiteScope, row: Pick<MediaRow, "uploadedBy">): boolean {
-	return row.uploadedBy === scope.access.actor.personId || canManage(scope);
+	return row.uploadedBy === personIdOf(scope.access.actor) || canManage(scope);
 }
 
 function canManage(scope: SiteScope): boolean {
@@ -411,7 +412,7 @@ async function views(
 				).map((person) => [person.id, person.name]),
 	);
 	const manages = canManage(scope);
-	const personId = scope.access.actor.personId;
+	const personId = personIdOf(scope.access.actor);
 	return rows.map((row) => {
 		const own = files.filter((file) => file.mediaId === row.id);
 		const texts = storedTexts(row.texts);

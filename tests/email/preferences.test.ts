@@ -45,6 +45,7 @@ describe("email switches", () => {
 			"review-result",
 			"scheduled-publish-failed",
 			"ai-key-cap",
+			"module-message",
 		]);
 		expect(emails.filter((email) => email.category === "alert").map((email) => email.type)).toEqual([
 			"domain-unreachable",

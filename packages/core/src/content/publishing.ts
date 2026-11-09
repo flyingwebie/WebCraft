@@ -14,6 +14,7 @@ import { clearPageCache } from "./page-cache.ts";
 import {
 	checkPublishedParent,
 	isPagePostType,
+	lockSitePaths,
 	MAX_PAGE_DEPTH,
 	pagesUnder,
 	parentIn,
@@ -81,6 +82,8 @@ export async function publish(scope: SiteScope, item: PublishItem): Promise<Publ
 }
 
 async function publishEntry(scope: SiteScope, entryId: string): Promise<Published> {
+	// Where an Entry is published depends on the patterns and the Page tree: hold them first.
+	await lockSitePaths(scope);
 	const row = await lockEntry(scope, entryId);
 	const postType = await getPostType(scope, row.postTypeId);
 	const { defaultLanguage } = await siteLanguages(scope);

@@ -14,6 +14,7 @@
 		"@webcraft/api": "workspace:*",
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",
+		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/server": "workspace:*",
 		"@webcraft/worker": "workspace:*",
 		"pg": "catalog:",
