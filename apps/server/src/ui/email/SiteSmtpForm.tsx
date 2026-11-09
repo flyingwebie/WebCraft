@@ -1,33 +1,23 @@
 import type { ApiClient } from "@webcraft/api";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
-import { CircleAlertIcon, CircleCheckIcon, LockIcon, SendIcon } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { SendIcon } from "lucide-react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
-import { PasswordInput } from "../PasswordInput.tsx";
+import { EMAIL, PasswordField, SECURITY_OPTIONS, Section, type Security, TestResult } from "./smtp-parts.tsx";
 
 /** A Site's email settings as the API shows them. */
 export type SiteSmtpView = Awaited<ReturnType<ApiClient["siteSmtp"]["get"]>>;
 
-type Security = "starttls" | "tls" | "none";
-
-const SECURITY_OPTIONS: { value: Security; label: MessageKey; port: number }[] = [
-	{ value: "starttls", label: "emailSettings.server.securityStarttls", port: 587 },
-	{ value: "tls", label: "emailSettings.server.securityTls", port: 465 },
-	{ value: "none", label: "emailSettings.server.securityNone", port: 25 },
-];
-
 type FieldName = "fromName" | "host" | "port" | "fromAddress" | "replyTo" | "testTo" | "form";
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what a sender name can't hold.
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
@@ -272,68 +262,24 @@ export function SiteSmtpForm({
 									{t("emailSettings.server.usernameHelp")}
 								</FieldDescription>
 							</Field>
-							{storedPassword && !replacing ? (
-								<Field>
-									<p id="site-smtp-password-label" className="text-sm font-medium">
-										{t("emailSettings.server.password")}
-									</p>
-									<div className="flex items-center gap-3">
-										<p
-											id="site-smtp-password-status"
-											className="bg-muted text-muted-foreground flex h-9 flex-1 items-center gap-2 rounded-md border px-3 text-sm"
-										>
-											<LockIcon className="size-4 shrink-0" aria-hidden="true" />
-											{storedPassword.lastFour
-												? t("emailSettings.server.passwordSet", { lastFour: storedPassword.lastFour })
-												: t("emailSettings.server.passwordSetHidden")}
-										</p>
-										<Button
-											ref={replaceButton}
-											type="button"
-											variant="outline"
-											onClick={() => {
-												setReplacing(true);
-												setFocusAfterChange("password");
-											}}
-											aria-describedby="site-smtp-password-label site-smtp-password-status"
-										>
-											{t("emailSettings.server.replace")}
-										</Button>
-									</div>
-									<FieldDescription>{t("emailSettings.server.passwordHelp")}</FieldDescription>
-								</Field>
-							) : (
-								<Field>
-									<FieldLabel htmlFor="site-smtp-password">{t("emailSettings.server.password")}</FieldLabel>
-									<PasswordInput
-										id="site-smtp-password"
-										value={password}
-										onChange={(event) => setPassword(event.target.value)}
-										autoComplete="new-password"
-										disabled={username.trim() === ""}
-										aria-describedby="site-smtp-password-help"
-									/>
-									<FieldDescription id="site-smtp-password-help">
-										{t("emailSettings.server.passwordHelp")}
-									</FieldDescription>
-									{storedPassword ? (
-										<div>
-											<Button
-												type="button"
-												variant="outline"
-												size="sm"
-												onClick={() => {
-													setReplacing(false);
-													setPassword("");
-													setFocusAfterChange("replace");
-												}}
-											>
-												{t("emailSettings.server.keep")}
-											</Button>
-										</div>
-									) : null}
-								</Field>
-							)}
+							<PasswordField
+								inputId="site-smtp-password"
+								stored={storedPassword}
+								replacing={replacing}
+								password={password}
+								setPassword={setPassword}
+								disabled={username.trim() === ""}
+								replaceButton={replaceButton}
+								onReplace={() => {
+									setReplacing(true);
+									setFocusAfterChange("password");
+								}}
+								onKeep={() => {
+									setReplacing(false);
+									setPassword("");
+									setFocusAfterChange("replace");
+								}}
+							/>
 						</div>
 					</FieldGroup>
 				</Section>
@@ -430,46 +376,5 @@ export function SiteSmtpForm({
 				</Button>
 			</div>
 		</form>
-	);
-}
-
-function TestResult({ result }: { result: { status: "sent" | "failed"; response: string; to: string } }) {
-	const t = useT();
-	const sent = result.status === "sent";
-	return (
-		<div
-			className={`flex items-start gap-3 rounded-md border px-4 py-3 text-sm ${
-				sent ? "border-success-border bg-success text-success-foreground" : "border-destructive/60 bg-card"
-			}`}
-		>
-			{sent ? (
-				<CircleCheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-			) : (
-				<CircleAlertIcon className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden="true" />
-			)}
-			<div className="min-w-0 space-y-1">
-				<p className="font-medium">
-					{sent
-						? t("emailSettings.test.delivered", { to: result.to })
-						: t("emailSettings.test.failed", { to: result.to })}
-				</p>
-				<p className="break-words">{t("emailSettings.test.response", { response: result.response })}</p>
-			</div>
-		</div>
-	);
-}
-
-function Section({ heading, intro, children }: { heading: string; intro?: string; children: ReactNode }) {
-	const id = useId();
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2 id={id}>{heading}</h2>
-				</CardTitle>
-				{intro ? <CardDescription>{intro}</CardDescription> : null}
-			</CardHeader>
-			<CardContent>{children}</CardContent>
-		</Card>
 	);
 }

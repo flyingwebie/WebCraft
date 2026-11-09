@@ -1,11 +1,10 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { CircleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
 import { SiteSmtpForm, type SiteSmtpView } from "../../ui/email/SiteSmtpForm.tsx";
-import { formatUtc } from "../../ui/format.ts";
+import { SmtpFailingNotice } from "../../ui/email/smtp-parts.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -60,23 +59,5 @@ function SiteEmailPage() {
 function FailingNotice({ health }: { health: SiteSmtpView["health"] }) {
 	const t = useT();
 	if (health.state !== "failing") return null;
-	return (
-		<div className="border-destructive/60 bg-card flex items-start gap-3 rounded-lg border px-4 py-3">
-			<CircleAlertIcon className="text-destructive mt-0.5 size-5 shrink-0" aria-hidden="true" />
-			<div className="min-w-0 space-y-1">
-				<h2 className="font-semibold">{t("siteEmail.failingTitle")}</h2>
-				<p className="text-sm">
-					{t("emailSettings.status.failingBody", {
-						count: health.failuresInARow,
-						since: health.failingSince ? formatUtc(health.failingSince) : "",
-					})}
-				</p>
-				{health.lastResponse ? (
-					<p className="text-sm break-words">
-						{t("emailSettings.status.lastResponse", { response: health.lastResponse })}
-					</p>
-				) : null}
-			</div>
-		</div>
-	);
+	return <SmtpFailingNotice title={t("siteEmail.failingTitle")} health={health} />;
 }
