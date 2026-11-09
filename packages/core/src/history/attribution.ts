@@ -1,7 +1,7 @@
 import { people } from "@webcraft/db/schema";
 import { inArray } from "drizzle-orm";
 
-import type { AuditVia } from "../audit.ts";
+import { type AuditVia, clientNameOf } from "../audit.ts";
 import type { Executor } from "../tenancy/data-layer.ts";
 
 /**
@@ -14,18 +14,6 @@ export type Attribution = {
 	via: AuditVia;
 	client: string | null;
 };
-
-/**
- * The client a change came in through, named for "<person> via <client>": every way in that carries
- * a name of its own (an API token's, an AI client's) except a server command and a Module acting by
- * itself, which are no client of a person's. The one place history reads it, so a new way in that
- * names its client shows without more work.
- */
-export function clientOf(via: AuditVia): string | null {
-	if (via.kind === "command" || via.kind === "module") return null;
-	const name = (via as { name?: unknown }).name;
-	return typeof name === "string" && name !== "" ? name : null;
-}
 
 /** A stored `via`, read back; an unreadable one counts as the admin. */
 export function storedVia(value: unknown): AuditVia {
@@ -52,6 +40,7 @@ export function attribution(personId: string | null, via: AuditVia, names: Reado
 	return {
 		person: personId && name !== undefined ? { id: personId, name } : null,
 		via,
-		client: clientOf(via),
+		// The one place history reads the client a change came through ("<person> via <client>").
+		client: clientNameOf(via),
 	};
 }

@@ -17,7 +17,7 @@ import { type HistoryItem, type HistoryItemSummary, historyEditPermission, itemS
 import { type Restored, restoreCopy } from "./restore.ts";
 import { changeHistorySettings, type HistorySettings, readHistorySettings } from "./settings.ts";
 
-export { type Attribution, clientOf } from "./attribution.ts";
+export type { Attribution } from "./attribution.ts";
 export { CHECKPOINT_EVERY_MS, type DraftBefore, noteDraftChange } from "./checkpoints.ts";
 export {
 	type ComparedPart,

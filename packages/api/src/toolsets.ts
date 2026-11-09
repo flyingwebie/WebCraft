@@ -1,0 +1,269 @@
+import type { Permission, Toolset } from "@webcraft/core";
+
+import type { PROCEDURES } from "./catalogue.ts";
+
+/**
+ * Where each public procedure stands for API clients (ADR 0030): the Toolsets it belongs to, the
+ * Permissions that let a person call it (any one of them, on a Site or the Workspace the client
+ * reaches), and whether it publishes.
+ *
+ * - A client (an API token or an AI client) calls a procedure only when one of its Toolsets is
+ *   switched on. `always` procedures (finding the Workspace and its Sites) answer every client.
+ * - An MCP session lists a tool only when its person holds one of `needs` somewhere the client
+ *   reaches; the procedure still checks the exact Permission on what it is called on.
+ * - `publishes` procedures make Drafts what visitors see: an AI client calls them only when its
+ *   person let it ("May publish").
+ *
+ * Adding a public procedure to the catalogue fails the typecheck until it has a line here.
+ */
+export const TOOL_PLACES = {
+	"workspaces.list": always("workspace.view"),
+	"workspaces.get": always("workspace.view"),
+	"workspaces.storage": place(["media"], "workspace.view"),
+	"workspaces.setQuota": place(["media"], "quota.manage"),
+	"sites.list": always("workspace.view"),
+	"sites.get": always("site.view"),
+	"sites.create": place(["siteSettings"], "site.create"),
+	"postTypes.list": place(["content", "structure"], "site.view"),
+	"postTypes.get": place(["content", "structure"], "site.view"),
+	"postTypes.create": place(["structure"], "structure.edit"),
+	"postTypes.update": place(["structure"], "structure.edit"),
+	"postTypes.data": place(["structure"], "structure.edit"),
+	"entries.list": place(["content"], "site.view"),
+	"entries.get": place(["content"], "site.view"),
+	"entries.create": place(["content"], "entry.edit"),
+	"entries.saveDraft": place(["content"], "entry.edit"),
+	"entries.delete": place(["content"], "entry.delete"),
+	"entries.publish": publishing(["content", "publishing"], "entry.publish"),
+	"globals.get": place(["content", "structure"], "site.view"),
+	"globals.setFields": place(["structure"], "structure.edit"),
+	"globals.saveDraft": place(["content"], "entry.edit"),
+	"globals.data": place(["structure"], "structure.edit"),
+	"globals.publish": publishing(["content", "publishing"], "entry.publish"),
+	"languages.list": place(["content", "translation", "siteSettings"], "site.view"),
+	"languages.add": place(["translation", "siteSettings"], "structure.edit"),
+	"languages.setDefault": place(["translation", "siteSettings"], "structure.edit"),
+	"languages.remove": place(["translation", "siteSettings"], "structure.edit"),
+	"languages.setBrowserRedirect": place(["translation", "siteSettings"], "structure.edit"),
+	"languages.update": place(["translation", "siteSettings"], "structure.edit"),
+	"domains.list": place(["siteSettings"], "site.view"),
+	"domains.setCdn": place(["siteSettings"], "structure.edit"),
+	"domains.add": place(["siteSettings"], "structure.edit"),
+	"domains.check": place(["siteSettings"], "structure.edit"),
+	"domains.makePrimary": place(["siteSettings"], "structure.edit"),
+	"domains.remove": place(["siteSettings"], "structure.edit"),
+	"staging.get": place(["siteSettings"], "site.view"),
+	"staging.setPassword": place(["siteSettings"], "staging.manage"),
+	"webhooks.list": place(["siteSettings"], "site.view"),
+	"webhooks.add": place(["siteSettings"], "structure.edit"),
+	"webhooks.update": place(["siteSettings"], "structure.edit"),
+	"webhooks.changeSecret": place(["siteSettings"], "structure.edit"),
+	"webhooks.remove": place(["siteSettings"], "structure.edit"),
+	"webhooks.deliveries": place(["siteSettings"], "site.view"),
+	"webhooks.setEnabled": place(["siteSettings"], "structure.edit"),
+	"webhooks.test": place(["siteSettings"], "structure.edit"),
+	"webhooks.redeliver": place(["siteSettings"], "structure.edit"),
+	"siteSmtp.get": place(["siteSettings"], "structure.edit"),
+	"siteSmtp.update": place(["siteSettings"], "structure.edit"),
+	"templates.list": place(["structure"], "structure.edit"),
+	"templates.getEntryTemplate": place(["structure"], "structure.edit"),
+	"templates.saveEntryTemplate": place(["structure"], "structure.edit"),
+	"templates.getEntryTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.saveEntryTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.getSiteTemplate": place(["structure"], "structure.edit"),
+	"templates.saveSiteTemplate": place(["structure"], "structure.edit"),
+	"templates.getSiteTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.saveSiteTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.getArchiveTemplate": place(["structure"], "structure.edit"),
+	"templates.saveArchiveTemplate": place(["structure"], "structure.edit"),
+	"templates.getArchiveTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.saveArchiveTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.getSearchTemplate": place(["structure"], "structure.edit"),
+	"templates.saveSearchTemplate": place(["structure"], "structure.edit"),
+	"templates.getSearchTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.saveSearchTemplateMarkup": place(["structure"], "structure.edit"),
+	"templates.publish": publishing(["structure", "publishing"], "structure.edit"),
+	"components.list": place(["structure"], "structure.edit"),
+	"components.get": place(["structure"], "structure.edit"),
+	"components.create": place(["structure"], "structure.edit"),
+	"components.saveDraft": place(["structure"], "structure.edit"),
+	"components.getMarkup": place(["structure"], "structure.edit"),
+	"components.saveMarkup": place(["structure"], "structure.edit"),
+	"components.publish": publishing(["structure", "publishing"], "structure.edit"),
+	"components.rename": place(["structure"], "structure.edit"),
+	"components.delete": place(["structure"], "structure.edit"),
+	"forms.list": place(["forms"], "structure.edit", "formEmails.edit"),
+	"forms.get": place(["forms"], "structure.edit", "formEmails.edit"),
+	"forms.saveEmails": place(["forms"], "formEmails.edit"),
+	"forms.publishEmails": publishing(["forms", "publishing"], "formEmails.edit"),
+	"forms.create": place(["forms"], "structure.edit"),
+	"forms.saveDraft": place(["forms"], "structure.edit"),
+	"forms.publish": publishing(["forms", "publishing"], "structure.edit"),
+	"forms.rename": place(["forms"], "structure.edit"),
+	"forms.captcha.get": place(["forms"], "structure.edit"),
+	"forms.captcha.set": place(["forms"], "structure.edit"),
+	"forms.delete": place(["forms"], "structure.edit"),
+	"loops.list": place(["structure"], "structure.edit"),
+	"loops.get": place(["structure"], "structure.edit"),
+	"loops.create": place(["structure"], "structure.edit"),
+	"loops.saveDraft": place(["structure"], "structure.edit"),
+	"loops.saveItems": place(["content", "structure"], "entry.edit"),
+	"loops.data": place(["structure"], "structure.edit"),
+	"loops.publish": publishing(["structure", "publishing"], "structure.edit"),
+	"filters.list": place(["structure"], "structure.edit"),
+	"filters.get": place(["structure"], "structure.edit"),
+	"filters.create": place(["structure"], "structure.edit"),
+	"filters.saveDraft": place(["structure"], "structure.edit"),
+	"filters.publish": publishing(["structure", "publishing"], "structure.edit"),
+	"scripts.get": place(["structure"], "structure.edit"),
+	"scripts.saveDraft": place(["structure"], "structure.edit"),
+	"scripts.publish": publishing(["structure", "publishing"], "structure.edit"),
+	"libraries.list": place(["structure"], "structure.edit"),
+	"libraries.add": place(["structure"], "structure.edit"),
+	"libraries.checkUpdates": place(["structure"], "structure.edit"),
+	"libraries.update": place(["structure"], "structure.edit"),
+	"libraries.remove": place(["structure"], "structure.edit"),
+	"outsideScripts.list": place(["siteSettings"], "structure.edit"),
+	"outsideScripts.add": place(["siteSettings"], "structure.edit"),
+	"outsideScripts.update": place(["siteSettings"], "structure.edit"),
+	"outsideScripts.remove": place(["siteSettings"], "structure.edit"),
+	"csp.get": place(["siteSettings"], "structure.edit"),
+	"csp.setMode": place(["siteSettings"], "structure.edit"),
+	"csp.addHost": place(["siteSettings"], "structure.edit"),
+	"csp.removeHost": place(["siteSettings"], "structure.edit"),
+	"consentBanner.get": place(["content", "siteSettings"], "site.view"),
+	"consentBanner.saveDraft": place(["content", "siteSettings"], "entry.edit"),
+	"consentBanner.publish": publishing(["content", "siteSettings", "publishing"], "entry.publish"),
+	"consentBanner.setSettings": place(["siteSettings"], "structure.edit"),
+	"consentBanner.record": place(["siteSettings"], "site.view"),
+	"seoSettings.get": place(["content", "siteSettings"], "site.view"),
+	"seoSettings.update": place(["siteSettings"], "structure.edit"),
+	"designSystem.get": place(["structure"], "structure.edit"),
+	"designSystem.saveDraft": place(["structure"], "structure.edit"),
+	"designSystem.createClass": place(["structure"], "structure.edit"),
+	"designSystem.updateClass": place(["structure"], "structure.edit"),
+	"designSystem.deleteClass": place(["structure"], "structure.edit"),
+	"designSystem.exportTokens": place(["structure"], "structure.edit"),
+	"designSystem.importTokens": place(["structure"], "structure.edit"),
+	"designSystem.publish": publishing(["structure", "publishing"], "structure.edit"),
+	"publishing.drafts": place(["publishing"], "site.view"),
+	"publishing.publishAll": publishing(["publishing"], "entry.publish", "structure.edit", "formEmails.edit"),
+	"history.list": place(["content", "structure", "publishing"], "site.view"),
+	"history.compare": place(["content", "structure", "publishing"], "site.view"),
+	"history.get": place(["content", "structure", "publishing"], "site.view"),
+	// A restore changes the Draft only: it never publishes.
+	"history.restore": place(["content", "structure"], "entry.edit", "structure.edit", "formEmails.edit"),
+	"media.list": place(["media"], "site.view"),
+	"media.overview": place(["media"], "site.view"),
+	"media.get": place(["media"], "site.view"),
+	"media.upload": place(["media"], "media.upload"),
+	"media.update": place(["media"], "media.upload"),
+	"media.importUrl": place(["media"], "media.upload"),
+	"media.replace": place(["media"], "media.upload"),
+	"media.usage": place(["media"], "site.view"),
+	"media.delete": place(["media"], "media.upload"),
+	"media.restore": place(["media"], "media.upload"),
+	"media.deleteForever": place(["media"], "media.upload"),
+	"media.emptyTrash": place(["media"], "media.manage"),
+	"media.folders.list": place(["media"], "site.view"),
+	"media.folders.create": place(["media"], "media.manage"),
+	"media.folders.rename": place(["media"], "media.manage"),
+	"media.folders.delete": place(["media"], "media.manage"),
+	"imports.uploadCsv": place(["content"], "import.run"),
+	"imports.sources": place(["content"], "import.run"),
+	"imports.startUpload": place(["content"], "import.run"),
+	"imports.uploadPart": place(["content"], "import.run"),
+	"imports.finishUpload": place(["content"], "import.run"),
+	"imports.file": place(["content"], "import.run"),
+	"imports.sample": place(["content"], "import.run"),
+	"imports.previewSource": place(["content"], "import.run"),
+	"imports.preview": place(["content"], "import.run"),
+	"imports.list": place(["content"], "import.run"),
+	"imports.get": place(["content"], "import.run"),
+	"imports.create": place(["content"], "import.run"),
+	"imports.update": place(["content"], "import.run"),
+	"imports.start": place(["content"], "import.run"),
+	"imports.stop": place(["content"], "import.run"),
+	"imports.report": place(["content"], "import.run"),
+	"imports.undo": place(["content"], "import.run"),
+	"pages.settings": place(["content", "siteSettings"], "site.view"),
+	"pages.setHomePage": place(["siteSettings"], "structure.edit"),
+	"pages.setNotFoundPage": place(["siteSettings"], "structure.edit"),
+	"pages.setSearchPage": place(["siteSettings"], "structure.edit"),
+	"members.list": place(["siteSettings"], "member.manage"),
+	"members.invite": place(["siteSettings"], "member.invite"),
+	"members.resendInvite": place(["siteSettings"], "member.invite"),
+	"members.revokeInvite": place(["siteSettings"], "member.invite"),
+	"members.changeAccess": place(["siteSettings"], "member.manage"),
+	"members.remove": place(["siteSettings"], "member.manage"),
+	"modules.siteList": place(["siteSettings"], "module.manage"),
+	"modules.workspaceList": place(["siteSettings"], "module.manage"),
+	"modules.setOnSite": place(["siteSettings"], "module.manage"),
+	"modules.setOnWorkspace": place(["siteSettings"], "module.manage"),
+	"modules.removeSiteData": place(["siteSettings"], "module.manage"),
+	"modules.removeWorkspaceData": place(["siteSettings"], "module.manage"),
+	"dashboards.catalog": place(["analytics"], "site.view", "workspace.view"),
+	"dashboards.options": place(["analytics"], "site.view", "workspace.view"),
+	"dashboards.list": place(["analytics"], "site.view", "workspace.view"),
+	"dashboards.get": place(["analytics"], "site.view", "workspace.view"),
+	"dashboards.create": place(["analytics"], "dashboard.manage"),
+	"dashboards.update": place(["analytics"], "dashboard.manage"),
+	"dashboards.delete": place(["analytics"], "dashboard.manage"),
+	"dashboards.saveAsTemplate": place(["analytics"], "dashboard.manage"),
+	"dashboards.export": place(["analytics"], "site.view", "workspace.view"),
+	"dashboards.widgets.add": place(["analytics"], "dashboard.manage"),
+	"dashboards.widgets.update": place(["analytics"], "dashboard.manage"),
+	"dashboards.widgets.move": place(["analytics"], "dashboard.manage"),
+	"dashboards.widgets.remove": place(["analytics"], "dashboard.manage"),
+	"dashboards.widgets.data": place(["analytics"], "site.view", "workspace.view"),
+	"dashboards.widgets.export": place(["analytics"], "site.view", "workspace.view"),
+	"dashboardTemplates.list": place(["analytics"], "dashboard.manage"),
+	"dashboardTemplates.delete": place(["analytics"], "dashboard.manage"),
+	"aiKeys.get": place(["translation"], "aiKey.manage"),
+	"aiKeys.setOwn": place(["translation"], "aiKey.manage"),
+	"aiKeys.removeOwn": place(["translation"], "aiKey.manage"),
+	"aiKeys.setOwnCap": place(["translation"], "aiKey.manage"),
+	"aiKeys.testOwn": place(["translation"], "aiKey.manage"),
+	"translations.overview": place(["translation"], "site.view"),
+	"translations.setMode": place(["translation"], "translation.manage"),
+	"translations.translateNow": place(["translation"], "translation.manage"),
+	"translations.queue": place(["translation"], "entry.edit"),
+	"translations.approve": publishing(["translation", "publishing"], "entry.publish"),
+	"translations.confirm": place(["translation"], "entry.edit", "formEmails.edit"),
+	"translations.retranslate": place(["translation"], "entry.edit", "formEmails.edit"),
+	"protectedTerms.list": place(["content", "translation"], "workspace.view"),
+	"protectedTerms.add": place(["translation"], "protectedTerms.edit"),
+	"protectedTerms.remove": place(["translation"], "protectedTerms.edit"),
+} as const satisfies Record<PublicProcedurePath, ToolPlace>;
+
+/**
+ * Where a public procedure stands for API clients: its Toolsets (or `always`), the Permissions
+ * that let a person call it (any one of them), and whether it publishes.
+ */
+export type ToolPlace = {
+	readonly toolsets: readonly Toolset[] | "always";
+	readonly needs: readonly Permission[];
+	readonly publishes: boolean;
+};
+
+/** Every public procedure's path in the catalogue (a read or a write, never internal), dotted. */
+export type PublicProcedurePath = {
+	[Path in keyof typeof PROCEDURES]: (typeof PROCEDURES)[Path] extends { readonly access: "internal" } ? never : Path;
+}[keyof typeof PROCEDURES];
+
+/** Where the public procedure at `path` (one of WebCraft's own, dotted) stands, or null for none. */
+export function toolPlaceOf(path: string): ToolPlace | null {
+	return Object.hasOwn(TOOL_PLACES, path) ? TOOL_PLACES[path as PublicProcedurePath] : null;
+}
+
+function place(toolsets: readonly Toolset[], ...needs: Permission[]): ToolPlace {
+	return { toolsets, needs, publishes: false };
+}
+
+function publishing(toolsets: readonly Toolset[], ...needs: Permission[]): ToolPlace {
+	return { toolsets, needs, publishes: true };
+}
+
+function always(...needs: Permission[]): ToolPlace {
+	return { toolsets: "always", needs, publishes: false };
+}

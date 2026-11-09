@@ -17,5 +17,5 @@ export type {
 } from "./host.ts";
 export { MODULE_LOG_DAYS, type ModuleLogLevel, type ModuleLogLine } from "./module-log.ts";
 export { MONTHS_AHEAD, type PartitionView } from "./partitions.ts";
-export { KEEP_MONTHS } from "./registry.ts";
+export { KEEP_MONTHS, resolvePermission } from "./registry.ts";
 export { moduleSchemas } from "./schemas.ts";

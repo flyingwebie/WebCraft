@@ -7,6 +7,7 @@ import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
 import { sample } from "../modules/sample/index.ts";
 
 const MINUTE = 60 * 1000;
@@ -18,6 +19,8 @@ type Fixture = {
 	/** A Member whose access is changed, and one who is removed. */
 	changedMemberId: string;
 	removedMemberId: string;
+	/** An AI client's authorization request, as it sends the person to the approval page. */
+	authorization: Record<string, string>;
 	next: () => number;
 };
 
@@ -62,6 +65,8 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 		}),
 	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
+	"aiClient.approve": (api, { workspaceId, authorization }) =>
+		api.oauth.approve({ parameters: authorization, workspaceId }),
 };
 
 let install: TestInstall;
@@ -76,8 +81,11 @@ beforeAll(async () => {
 	const staff = await install.createStaff({ workspaces: "all" });
 	const changed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const removed = await install.createMember({ workspaceId: workspace.id, role: "author" });
+	const client = await registerClient(install);
+	const { challenge } = await pkcePair();
 	let made = 0;
 	fixture = {
+		authorization: authorizationParameters(install, String(client.body.client_id), challenge),
 		staffId: staff.personId,
 		workspaceId: workspace.id,
 		siteId: site.id,

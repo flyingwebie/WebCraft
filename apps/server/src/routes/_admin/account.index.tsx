@@ -90,6 +90,19 @@ function AccountPage() {
 						</Link>
 					</CardContent>
 				</Card>
+				<Card id="ai-clients" tabIndex={-1} className="outline-none">
+					<CardHeader>
+						<CardTitle>
+							<h2>{t("account.aiClients.heading")}</h2>
+						</CardTitle>
+						<CardDescription>{t("account.aiClients.cardIntro")}</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<Link to="/account/ai-clients" className={buttonVariants({ variant: "outline" })}>
+							{t("account.aiClients.manage")}
+						</Link>
+					</CardContent>
+				</Card>
 				<EmailsCard />
 				<Card id="two-factor" tabIndex={-1} className="outline-none">
 					<CardHeader>

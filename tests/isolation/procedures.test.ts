@@ -11,6 +11,7 @@ import { formVisitor } from "../harness/forms.ts";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
+import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, outlet, text, tree, value } from "../harness/trees.ts";
@@ -84,6 +85,23 @@ describe("API tokens", () => {
 	isolation.refuses(
 		"apiTokens.create",
 		(api, { workspaceId }) => api.apiTokens.create({ workspaceId, name: "Isolation" }),
+		{ as: ["staff", "author"] },
+	);
+});
+
+describe("AI clients", () => {
+	/** An AI client's authorization request, as it sends the person to the approval page. */
+	let authorization: Record<string, string> | undefined;
+	const request = async () => {
+		if (!authorization) {
+			const { body } = await registerClient(install);
+			authorization = authorizationParameters(install, String(body.client_id), (await pkcePair()).challenge);
+		}
+		return authorization;
+	};
+	isolation.refuses(
+		"oauth.approve",
+		async (api, { workspaceId }) => api.oauth.approve({ parameters: await request(), workspaceId }),
 		{ as: ["staff", "author"] },
 	);
 });

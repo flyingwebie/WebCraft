@@ -4,9 +4,11 @@
  * Site changes its Design system. Until then the Draft is the default one, and until its first
  * publish visitors see the default one.
  */
+
 import { designSystems } from "@webcraft/db/schema";
 import { type DesignSystem, defaultDesignSystem, readDesignSystem } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
@@ -51,7 +53,12 @@ export async function lockDesignSystem(scope: SiteScope): Promise<LockedDesignSy
 export async function writeDraft(scope: SiteScope, locked: LockedDesignSystem, draft: DesignSystem): Promise<void> {
 	await scope.update(
 		designSystems,
-		{ draft, updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor) },
+		{
+			draft,
+			updatedAt: scope.now(),
+			updatedBy: personIdOf(scope.access.actor),
+			updatedVia: clientNameOf(scope.access.via),
+		},
 		eq(designSystems.id, locked.row.id),
 	);
 	await noteDraftChange(

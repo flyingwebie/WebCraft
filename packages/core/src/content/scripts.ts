@@ -9,9 +9,11 @@
  * Site's own scripts run, ADR 0022), the Drafts at `/_webcraft/edit/js/<hash>.js` for Staff in Code
  * mode only. A file a publish replaces is still served for 30 days, for pages loaded before it.
  */
+
 import { entries, scripts } from "@webcraft/db/schema";
 import { contentHash, type PageScript, SCRIPT_PATH } from "@webcraft/renderer";
 import { and, eq, isNull, type SQL } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { CODE_MODE_SCRIPT_PATH } from "../edit-mode/paths.ts";
@@ -99,6 +101,7 @@ export async function saveScriptDraft(
 					draftHash: contentHash(code),
 					updatedAt: now,
 					updatedBy: personIdOf(tx.access.actor),
+					updatedVia: clientNameOf(tx.access.via),
 				};
 				if (current) {
 					const [updated] = await tx.update(scripts, draft, eq(scripts.id, current.id));

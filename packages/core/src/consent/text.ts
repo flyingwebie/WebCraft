@@ -6,9 +6,11 @@
  * word nobody wrote shows WebCraft's own in the page's language; a language without its own value
  * shows the Default language's, one word at a time, as every Translatable field does.
  */
+
 import { consentBanners } from "@webcraft/db/schema";
 import { CONSENT_TEXT_KEYS, type ConsentTextKey, type ConsentWords, consentWords } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition, FieldInput, Json } from "../content/field-types.ts";
@@ -151,7 +153,12 @@ export async function saveConsentTextDraft(scope: SiteScope, change: ConsentText
 		if (problems.length > 0) throw new ConsentBannerInvalidError(problems);
 		const [saved] = await tx.update(
 			consentBanners,
-			{ draft: { values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			{
+				draft: { values },
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
+			},
 			eq(consentBanners.id, row.id),
 		);
 		await noteDraftChange(

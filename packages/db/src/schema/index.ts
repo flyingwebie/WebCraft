@@ -19,6 +19,7 @@ export * from "./install.ts";
 export * from "./languages.ts";
 export * from "./media.ts";
 export * from "./modules.ts";
+export * from "./oauth.ts";
 export * from "./people.ts";
 export * from "./rate-limits.ts";
 export * from "./search.ts";

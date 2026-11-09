@@ -105,6 +105,8 @@ export const entries = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+		/** The API client or AI client the Draft was last changed through (its name), or null: in the admin or Edit mode. */
+		updatedVia: text("updated_via"),
 		/** When the Entry was first published. */
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		/** When the Entry was last published. */
@@ -188,6 +190,8 @@ export const templates = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+		/** The API client or AI client the Draft was last changed through (its name), or null: in the admin or Edit mode. */
+		updatedVia: text("updated_via"),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},
@@ -231,6 +235,8 @@ export const components = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+		/** The API client or AI client the Draft was last changed through (its name), or null: in the admin or Edit mode. */
+		updatedVia: text("updated_via"),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},
@@ -271,6 +277,8 @@ export const scripts = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+		/** The API client or AI client the Draft was last changed through (its name), or null: in the admin or Edit mode. */
+		updatedVia: text("updated_via"),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},
@@ -314,6 +322,8 @@ export const loops = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+		/** The API client or AI client the Draft was last changed through (its name), or null: in the admin or Edit mode. */
+		updatedVia: text("updated_via"),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},
@@ -392,6 +402,8 @@ export const globals = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+		/** The API client or AI client the Draft was last changed through (its name), or null: in the admin or Edit mode. */
+		updatedVia: text("updated_via"),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},

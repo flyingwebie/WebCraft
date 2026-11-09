@@ -29,6 +29,8 @@ export const designSystems = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+		/** The API client or AI client the Draft was last changed through (its name), or null: in the admin or Edit mode. */
+		updatedVia: text("updated_via"),
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
 	},

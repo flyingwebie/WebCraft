@@ -1,6 +1,7 @@
 import { loops } from "@webcraft/db/schema";
 import { EXPRESSION_KEYWORDS, type LoopCatalogue, type LoopInfo, SEARCH_LOOP } from "@webcraft/renderer";
 import { asc, eq, sql } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
@@ -166,6 +167,7 @@ export async function createLoop(scope: SiteScope, input: NewLoop): Promise<Loop
 				createdAt: now,
 				updatedAt: now,
 				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
 			});
 			await tx.audit("loop.create", { loopId: row.id, name });
 			return toLoop(row, await defaultLanguages(tx));
@@ -204,7 +206,7 @@ export async function saveLoopDraft(scope: SiteScope, loopId: string, change: Lo
 		if (problems.length > 0) throw new LoopInvalidError(problems);
 		const [saved] = await tx.update(
 			loops,
-			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor), updatedVia: clientNameOf(tx.access.via) },
 			eq(loops.id, row.id),
 		);
 		await noteLoopChange(tx, row, draft);
@@ -244,7 +246,12 @@ export async function saveLoopItems(scope: SiteScope, loopId: string, change: Lo
 		if (problems.length > 0) throw new LoopInvalidError(problems);
 		const [saved] = await tx.update(
 			loops,
-			{ draft: { ...draft, values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			{
+				draft: { ...draft, values },
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
+			},
 			eq(loops.id, row.id),
 		);
 		await noteLoopChange(tx, row, { ...draft, values });

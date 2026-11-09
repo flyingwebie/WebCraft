@@ -49,3 +49,6 @@ export const publishItem = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("consentBanner") }),
 	z.object({ kind: z.literal("designSystem") }),
 ]);
+
+/** The Toolsets a client is given: WebCraft's own keys (`content`, `submissions`, …) and Modules' (`m.<id>`). */
+export const toolsetsInput = z.array(z.string().max(120)).max(100);

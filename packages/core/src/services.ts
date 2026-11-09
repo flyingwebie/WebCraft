@@ -71,6 +71,7 @@ import type { Logger } from "./log.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { ImageProcessor, InstallStorage, MediaLibrary } from "./media/index.ts";
 import type { ModuleHost } from "./modules/host.ts";
+import type { OAuth } from "./oauth.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
@@ -159,6 +160,16 @@ export type InstallServices = InstallPorts & {
 	translations: Translations;
 	/** API tokens: people's credentials for the Management API at `/api/v1`, and their limits. */
 	apiTokens: ApiTokens;
+	/**
+	 * AI clients: WebCraft as the OAuth 2.1 authorization server of its MCP server (`/mcp`), and the
+	 * grants people approve for AI clients (Your account › AI clients).
+	 */
+	oauth: OAuth;
+	/**
+	 * The key the MCP server signs a question's state with (a confirmation an AI client carries
+	 * between two calls; `mcpRequestStateKey`), the same in every web process.
+	 */
+	mcpRequestStateKey: Uint8Array;
 	/** The setup wizard and its token. */
 	setup: InstallSetup;
 	/** Install settings › General. */
