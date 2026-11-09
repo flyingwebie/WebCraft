@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon, XIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useAfterRender } from "../after-render.ts";
 
 import { getApi } from "../api.ts";
 import { Announcer } from "../content/reorder.tsx";
@@ -185,6 +186,7 @@ function FunnelDialog({
 	const t = useT();
 	const router = useRouter();
 	const id = useId();
+	const afterRender = useAfterRender();
 	const [name, setName] = useState(funnel?.name ?? "");
 	const [steps, setSteps] = useState<StepDraft[]>(
 		funnel ? funnel.steps.map((step) => draftOf(step, goals)) : [draftOf(undefined, goals), draftOf(undefined, goals)],
@@ -203,7 +205,7 @@ function FunnelDialog({
 		setSteps(next);
 		setAnnouncement(t("analyticsGoals.stepMoved", { n: to + 1, count: next.length }));
 		// Focus stays with the step's own button where it went.
-		requestAnimationFrame(() => document.getElementById(`${id}-${moved?.key}-${by < 0 ? "up" : "down"}`)?.focus());
+		afterRender(() => document.getElementById(`${id}-${moved?.key}-${by < 0 ? "up" : "down"}`)?.focus());
 	};
 	const save = async (submitted: FormEvent) => {
 		submitted.preventDefault();

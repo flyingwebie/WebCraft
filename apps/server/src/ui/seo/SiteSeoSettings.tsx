@@ -9,6 +9,7 @@ import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { CircleAlertIcon } from "lucide-react";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useAfterRender } from "../after-render.ts";
 
 import { getApi } from "../api.ts";
 import type { FieldDefinition, Problem } from "../content/model.ts";
@@ -68,6 +69,7 @@ export function SiteSeoSettings({
 	const [problems, setProblems] = useState<string[] | null>(null);
 	const [busy, setBusy] = useState(false);
 	const summary = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const choices = globalChoices(globals);
 	const chosen = (item: MediaItem) => setMedia((before) => ({ ...before, [item.id]: item }));
 
@@ -99,7 +101,7 @@ export function SiteSeoSettings({
 					? data.problems.map((problem) => settingProblemText(t, problem))
 					: [t(errorMessage(error))],
 			);
-			requestAnimationFrame(() => summary.current?.focus());
+			afterRender(() => summary.current?.focus());
 		} finally {
 			setBusy(false);
 		}
