@@ -23,13 +23,14 @@
 		"@webcraft/db": "workspace:*",
 		"@webcraft/module-forms": "workspace:*",
 		"@webcraft/module-redirects": "workspace:*",
-		"@webcraft/module-site-analytics": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",
+		"@webcraft/module-site-analytics": "workspace:*",
 		"@webcraft/renderer": "workspace:*",
 		"aws4fetch": "1.0.20",
 		"drizzle-orm": "catalog:",
 		"nodemailer": "^10.4.0",
 		"pg-boss": "catalog:",
+		"pg-copy-streams": "7.0.0",
 		"re2js": "^2.9.1",
 		"semver": "^7.8.6",
 		"zod": "catalog:"
@@ -37,6 +38,7 @@
 	"devDependencies": {
 		"@types/node": "catalog:",
 		"@types/nodemailer": "^8.0.2",
+		"@types/pg-copy-streams": "1.2.5",
 		"@types/semver": "^7.7.1",
 		"@webcraft/config": "workspace:*",
 		"typescript": "catalog:"

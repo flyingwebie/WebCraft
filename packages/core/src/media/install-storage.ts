@@ -181,7 +181,7 @@ export function createInstallStorage({ database, secrets, http, clock, log, dire
 }
 
 /** Writes, reads back and removes a small file, refusing storage that can't do all three. */
-async function checkBucket(storage: StorageBackend): Promise<void> {
+export async function checkBucket(storage: StorageBackend): Promise<void> {
 	const key = `webcraft-check/${crypto.randomUUID()}`;
 	const content = new TextEncoder().encode("WebCraft checked it can use this storage.\n");
 	try {
