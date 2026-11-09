@@ -88,7 +88,8 @@ export function textOf(value: TemplateValue): string {
 	if (typeof value === "string") return value;
 	if (typeof value === "number" || typeof value === "boolean") return String(value);
 	if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : isoDay(value);
-	if (value.type === "body") return bodyText(value.blocks);
+	// On one line: a body read as text sits in an attribute or a formatter (a description, an excerpt).
+	if (value.type === "body") return bodyText(value.blocks).replace(/\s+/g, " ").trim();
 	if (value.type === "toc") return joinList(value.headings.map((heading) => heading.text));
 	return richTextToText(value.html);
 }

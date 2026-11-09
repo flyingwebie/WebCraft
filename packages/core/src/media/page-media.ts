@@ -11,7 +11,7 @@ import { readText, storedTexts } from "./texts.ts";
 
 /**
  * The Media items a page shows, by id, as the renderer needs them: the original's address and size,
- * the variants by format and the alt text in the page's language. Only the Site's own items that
+ * the variants by format and the alt text and caption in the page's language. Only the Site's own items that
  * visitors can get (ready) are found.
  */
 export async function pageMedia(
@@ -45,6 +45,7 @@ export async function pageMedia(
 			width: row.width,
 			height: row.height,
 			alt: readText(storedTexts(row.texts), "alt", languages),
+			caption: readText(storedTexts(row.texts), "caption", languages),
 			sources: VARIANT_FORMATS.map((format) => ({
 				type: `image/${format}`,
 				candidates: variants

@@ -321,3 +321,52 @@ describe("Blocks in a Draft", () => {
 		});
 	});
 });
+
+describe("Checks on a body", () => {
+	test("warn about skipped headings, missing alt text, vague links, tables without headers and untitled videos, never blocking", async () => {
+		const { media: photoWithoutAlt } = await author.api.media.upload({
+			siteId,
+			file: upload(await photo({ width: 400, height: 300 }), "crumb.jpg"),
+		});
+		const { entry } = await entryWithBody([
+			{ type: "heading", level: 3, text: "Starting too deep" },
+			{ type: "heading", level: 2, text: "Ingredients" },
+			{ type: "heading", level: 4, text: "Flour" },
+			{ type: "heading", level: 3, text: "Water" },
+			{ type: "image", media: photoWithoutAlt.id },
+			{
+				type: "paragraph",
+				text: [
+					{ text: "Read our " },
+					{ text: "guide to rye", link: "/guides/rye" },
+					{ text: ", or " },
+					{ text: "click ", link: "/order" },
+					{ text: "here", link: "/order", marks: ["bold"] },
+					{ text: "." },
+				],
+			},
+			{ type: "list", items: [{ text: [{ text: "More…", link: "/more" }] }] },
+			{ type: "table", headerRow: false, rows: [["Rye", "€4"]] },
+			{ type: "table", headerRow: false, rows: [[""]] },
+			{ type: "video", url: "https://youtu.be/dQw4w9WgXcQ" },
+			{ type: "video", url: "https://youtu.be/dQw4w9WgXcQ", title: "Shaping a loaf" },
+		]);
+
+		expect(entry.checks).toEqual([
+			{ at: "fields.body[0]", check: "skippedHeading", detail: "H1 → H3", message: expect.any(String) },
+			{ at: "fields.body[2]", check: "skippedHeading", detail: "H2 → H4", message: expect.any(String) },
+			{ at: "fields.body[4]", check: "missingAlt", message: expect.any(String) },
+			{ at: "fields.body[5]", check: "vagueLink", detail: "click here", message: expect.any(String) },
+			{ at: "fields.body[6]", check: "vagueLink", detail: "More…", message: expect.any(String) },
+			{ at: "fields.body[7]", check: "tableHeader", message: expect.any(String) },
+			{ at: "fields.body[9]", check: "untitledVideo", message: expect.any(String) },
+		]);
+		// Checks are warnings: they never keep an Entry from being published.
+		expect(entry.problems).toEqual([]);
+		await editor.api.entries.publish({ siteId, entryId: entry.id });
+
+		await author.api.media.update({ siteId, mediaId: photoWithoutAlt.id, alt: "A slice of rye" });
+		const { entry: after } = await author.api.entries.get({ siteId, entryId: entry.id });
+		expect(after.checks.map((check) => check.check)).not.toContain("missingAlt");
+	});
+});
