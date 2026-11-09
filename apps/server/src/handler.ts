@@ -1,4 +1,4 @@
-import { type InstallServices, normaliseHostname } from "@webcraft/core";
+import { type InstallServices, normaliseHostname, type SitemapLimits } from "@webcraft/core";
 
 import { healthz, readyz } from "./admin/health.ts";
 import { createAdminSide } from "./admin/side.ts";
@@ -26,15 +26,20 @@ export type WebHandlerOptions = {
 	 * (`DEFAULT_FILTER_VARIANTS`) unless given, as a test of the limit needs fewer.
 	 */
 	filterVariants?: number;
+	/** How much one sitemap file holds: the protocol's limits unless given, as a test of splitting needs fewer. */
+	sitemapLimits?: Partial<SitemapLimits>;
 };
 
 /**
  * The web process's request handler: a plain `(Request) => Promise<Response>`. It routes every
  * request by hostname: the admin host to the admin side, every other hostname to the Site pipeline.
  */
-export function createWebHandler({ services, adminApp, filterVariants }: WebHandlerOptions): Handler {
+export function createWebHandler({ services, adminApp, filterVariants, sitemapLimits }: WebHandlerOptions): Handler {
 	const adminSide = createAdminSide(services, adminApp);
-	const sitePipeline = createSitePipeline(services, { pageCache: createPageCache({ maxVariants: filterVariants }) });
+	const sitePipeline = createSitePipeline(services, {
+		pageCache: createPageCache({ maxVariants: filterVariants }),
+		sitemapLimits,
+	});
 
 	return async (request) => {
 		try {

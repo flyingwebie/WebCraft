@@ -80,6 +80,7 @@ import {
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
+import { createDiscovery } from "./discovery/index.ts";
 import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
@@ -429,6 +430,7 @@ export async function createInstallServices(
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),
 		seo: createSeo(),
+		discovery: createDiscovery({ data }),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,
