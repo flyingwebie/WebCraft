@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { people, webhookDeliveries, webhookDeliveryAttempts, webhooks } from "@webcraft/db/schema";
-import { and, arrayContains, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, arrayContains, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import type { RecordedAuditEntry } from "../audit.ts";
 import type { Clock } from "../clock.ts";
@@ -9,10 +9,11 @@ import { siteAddresses } from "../domains/addresses.ts";
 import { type GuardedFetch, GuardedFetchError } from "../guarded-fetch.ts";
 import type { JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
+import { personIdOf } from "../permissions/can.ts";
 import { SecretNotSetError, type Secrets, SecretUnreadableError } from "../secrets/store.ts";
-import type { BackgroundScope, DataLayer } from "../tenancy/data-layer.ts";
-import { WebhookDeliveryNotFoundError } from "./errors.ts";
-import { publishedBy, type WebhookEvent } from "./events.ts";
+import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
+import { WebhookDeliveryNotFoundError, WebhookRedeliveryRefusedError } from "./errors.ts";
+import { publishedBy, TEST_EVENT, type WebhookEvent } from "./events.ts";
 import { webhooksDeliver } from "./jobs.ts";
 import { signatureHeader, signingSecretName, WEBHOOK_HEADERS } from "./signing.ts";
 import type { WebhookRow } from "./webhooks.ts";
@@ -463,4 +464,114 @@ export function deliveryView(
 				excerpt: attempt.responseExcerpt,
 			})),
 	};
+}
+
+/** One delivery of a Webhook, with its attempts; `WebhookDeliveryNotFoundError` when it has none with that id. */
+async function findDelivery(
+	scope: Pick<DeliveryScope, "first" | "select">,
+	webhookId: string,
+	deliveryId: string,
+): Promise<DeliveryView> {
+	const row = await scope.first(
+		webhookDeliveries,
+		and(eq(webhookDeliveries.webhookId, webhookId), eq(webhookDeliveries.id, deliveryId)),
+	);
+	if (!row) throw new WebhookDeliveryNotFoundError();
+	return deliveryView(row, await scope.select(webhookDeliveryAttempts, eq(webhookDeliveryAttempts.deliveryId, row.id)));
+}
+
+/**
+ * Send test: a signed `test` event, sent at once (whether the Webhook is on or off), recorded in the
+ * delivery log and answered with what the receiver said. Never retried, and never counted as a
+ * failure of the Webhook.
+ */
+export async function sendTest(ports: DeliveryPorts, scope: SiteScope, webhook: WebhookRow): Promise<DeliveryView> {
+	const id = crypto.randomUUID();
+	const now = scope.now();
+	const data = { by: await actorOf(ports.database, personIdOf(scope.access.actor)), via: scope.access.via.kind };
+	const body = JSON.stringify({
+		id,
+		type: TEST_EVENT,
+		occurredAt: now.toISOString(),
+		site: await siteOf(ports, scope),
+		data,
+	});
+	const row = await scope.insert(webhookDeliveries, {
+		id,
+		webhookId: webhook.id,
+		event: TEST_EVENT,
+		body,
+		test: true,
+		status: "queued",
+		nextAttemptAt: now,
+		createdAt: now,
+	});
+	const result = await attempt(ports, scope, webhook, row);
+	await recordAttempt(
+		ports,
+		scope,
+		webhook,
+		row,
+		{ siteId: scope.site.id, deliveryId: id, attempt: 1, round: MAX_ATTEMPTS },
+		result,
+	);
+	return findDelivery(scope, webhook.id, id);
+}
+
+/**
+ * Redeliver: a failed delivery is queued again, with the same id and body, for a new round of up to
+ * 6 attempts (numbered on from its last). Refused for a delivery that isn't failed, for a test send,
+ * and while the Webhook is switched off.
+ */
+export async function redeliver(
+	ports: DeliveryPorts,
+	scope: SiteScope,
+	webhook: WebhookRow,
+	deliveryId: string,
+): Promise<DeliveryView> {
+	const queued = await scope.transaction(async (tx) => {
+		const delivery = await tx.db
+			.select()
+			.from(webhookDeliveries)
+			.where(
+				tx.where(
+					webhookDeliveries,
+					and(eq(webhookDeliveries.webhookId, webhook.id), eq(webhookDeliveries.id, deliveryId)),
+				),
+			)
+			.for("update");
+		const [row] = delivery;
+		if (!row) throw new WebhookDeliveryNotFoundError();
+		if (row.test) throw new WebhookRedeliveryRefusedError("test");
+		if (row.status !== "failed") throw new WebhookRedeliveryRefusedError("not-failed");
+		const [current] = await tx.select(webhooks, eq(webhooks.id, webhook.id));
+		if (!current?.enabled) throw new WebhookRedeliveryRefusedError("switched-off");
+		await tx.update(
+			webhookDeliveries,
+			{ status: "queued", nextAttemptAt: tx.now(), finishedAt: null },
+			eq(webhookDeliveries.id, row.id),
+		);
+		return row;
+	});
+	// Sent once the delivery is queued for good, so the attempt finds it so.
+	await ports.jobs.send(webhooksDeliver, {
+		siteId: scope.site.id,
+		deliveryId: queued.id,
+		attempt: queued.attempts + 1,
+		round: 1,
+	});
+	return findDelivery(scope, webhook.id, queued.id);
+}
+
+/** How long the delivery log keeps a delivery. */
+export const DELIVERY_LOG_DAYS = 30;
+
+/** Deletes deliveries (and their attempts) older than 30 days, across the Install; answers how many. */
+export async function purgeDeliveries(database: Database, now: Date): Promise<number> {
+	const before = new Date(now.getTime() - DELIVERY_LOG_DAYS * 24 * 60 * 60_000);
+	const deleted = await database.db
+		.delete(webhookDeliveries)
+		.where(lt(webhookDeliveries.createdAt, before))
+		.returning({ id: webhookDeliveries.id });
+	return deleted.length;
 }

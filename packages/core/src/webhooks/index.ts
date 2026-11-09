@@ -8,10 +8,14 @@ import {
 	type DeliveryPage,
 	type DeliveryPorts,
 	type DeliveryScope,
+	type DeliveryView,
 	listDeliveries,
 	publishEventOf,
+	purgeDeliveries,
 	queueEvent,
+	redeliver,
 	runAttempt,
+	sendTest,
 } from "./deliveries.ts";
 import type { WebhookEvent } from "./events.ts";
 import {
@@ -19,6 +23,7 @@ import {
 	findWebhook,
 	listWebhooks,
 	type NewWebhook,
+	setWebhookEnabled,
 	type WebhookRow,
 	type WebhookView,
 	type WebhookWithSecret,
@@ -36,7 +41,7 @@ export {
 	WebhookRedeliveryRefusedError,
 } from "./errors.ts";
 export { isWebhookEvent, type PublishedItem, TEST_EVENT, WEBHOOK_EVENTS, type WebhookEvent } from "./events.ts";
-export { webhooksDeliver } from "./jobs.ts";
+export { webhooksDeliver, webhooksPurgeLog, webhooksPurgeLogSchedule } from "./jobs.ts";
 export { WEBHOOK_HEADERS } from "./signing.ts";
 export {
 	MAX_WEBHOOKS_PER_SITE,
@@ -58,6 +63,18 @@ export type Webhooks = {
 	/** Adds a Webhook, on at once; answers the signing secret WebCraft made, once, when none was given. */
 	add(scope: SiteScope, input: NewWebhook): Promise<WebhookWithSecret>;
 	/**
+	 * Switches a Webhook on or off. Off, it receives nothing, and deliveries waiting for an attempt
+	 * are stopped (to redeliver once it is on again).
+	 */
+	setEnabled(scope: SiteScope, webhookId: string, enabled: boolean): Promise<WebhookView>;
+	/**
+	 * Send test: a signed `test` event sent at once, on or off, recorded in the delivery log and
+	 * answered with what the receiver said. Never retried; never counted as a failure.
+	 */
+	test(scope: SiteScope, webhookId: string): Promise<DeliveryView>;
+	/** Queues a failed delivery again (same id and body) for a new round of attempts, while the Webhook is on. */
+	redeliver(scope: SiteScope, webhookId: string, deliveryId: string): Promise<DeliveryView>;
+	/**
 	 * A Webhook's delivery log, newest first, `limit` at a time (the page before the delivery
 	 * `before` when given). Deliveries are kept 30 days.
 	 */
@@ -76,6 +93,8 @@ export type Webhooks = {
 	afterAudit(entry: RecordedAuditEntry): Promise<void>;
 	/** For the worker: one attempt of a delivery. */
 	runAttempt(payload: AttemptPayload): Promise<void>;
+	/** For the worker: deletes deliveries older than 30 days across the Install; answers how many. */
+	purgeLog(): Promise<number>;
 };
 
 export type WebhooksOptions = Omit<DeliveryPorts, "onFinished">;
@@ -86,6 +105,10 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 	return {
 		list: listWebhooks,
 		add: addWebhook,
+		setEnabled: setWebhookEnabled,
+		test: async (scope, webhookId) => sendTest(ports, scope, await findWebhook(scope, webhookId)),
+		redeliver: async (scope, webhookId, deliveryId) =>
+			redeliver(ports, scope, await findWebhook(scope, webhookId), deliveryId),
 		async deliveries(scope, webhookId, options) {
 			await findWebhook(scope, webhookId);
 			return listDeliveries(scope, webhookId, options);
@@ -93,6 +116,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 		queueEvent: queue,
 		afterAudit: (entry) => publishEventOf(ports, queue, entry),
 		runAttempt: (payload) => runAttempt(ports, payload),
+		purgeLog: () => purgeDeliveries(options.database, options.clock.now()),
 	};
 }
 

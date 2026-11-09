@@ -4,6 +4,7 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import { can } from "../permissions/can.ts";
 import type { SecretDescription } from "../secrets/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { stopDeliveries, waitingDeliveries } from "./deliveries.ts";
 import { TooManyWebhooksError, WebhookNotFoundError } from "./errors.ts";
 import { isWebhookEvent, type WebhookEvent } from "./events.ts";
 import { givenSecret, hostOf, webhookUrl } from "./rules.ts";
@@ -162,4 +163,39 @@ async function lockSiteWebhooks(scope: Pick<SiteScope, "db" | "site">): Promise<
 	await scope.db.execute(
 		sql`select pg_advisory_xact_lock(hashtextextended(${`webcraft:webhooks:${scope.site.id}`}, 0))`,
 	);
+}
+
+/** The Site's Webhook with this id, locked for a change in `scope`'s transaction. */
+export async function lockWebhook(scope: Pick<SiteScope, "db" | "where">, webhookId: string): Promise<WebhookRow> {
+	const [row] = await scope.db
+		.select()
+		.from(webhooks)
+		.where(scope.where(webhooks, eq(webhooks.id, webhookId)))
+		.for("update");
+	if (!row) throw new WebhookNotFoundError();
+	return row;
+}
+
+/**
+ * Switches a Webhook on or off. Switched off, it receives nothing: deliveries still waiting for an
+ * attempt are stopped (failed, to redeliver once it is on again). Switched on, its count of failures
+ * in a row starts again.
+ */
+export async function setWebhookEnabled(scope: SiteScope, webhookId: string, enabled: boolean): Promise<WebhookView> {
+	const row = await scope.transaction(async (tx) => {
+		const current = await lockWebhook(tx, webhookId);
+		if (current.enabled === enabled) return current;
+		const now = tx.now();
+		const [updated] = await tx.update(
+			webhooks,
+			enabled
+				? { enabled, switchedOffReason: null, failuresInARow: 0, updatedAt: now }
+				: { enabled, switchedOffReason: null, switchedOffAt: now, updatedAt: now },
+			eq(webhooks.id, current.id),
+		);
+		if (!enabled) await stopDeliveries(tx, await waitingDeliveries(tx, current.id));
+		await tx.audit(enabled ? "webhook.switchOn" : "webhook.switchOff", { webhookId: current.id, name: current.name });
+		return updated ?? current;
+	});
+	return webhookView(scope, row);
 }

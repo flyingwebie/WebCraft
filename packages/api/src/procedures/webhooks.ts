@@ -65,4 +65,38 @@ export const webhooks = {
 			const site = await context.services.data.site(context.access, input.siteId, "site.view");
 			return await context.services.webhooks.deliveries(site, input.webhookId, input);
 		}),
+
+	/**
+	 * Switches a Webhook on or off. Off, it receives nothing, and deliveries waiting for an attempt
+	 * stop (they can be redelivered once it is on again); on again, its count of failures starts over.
+	 */
+	setEnabled: signedIn
+		.input(z.object({ siteId: id, webhookId: id, enabled: z.boolean() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { webhook: await context.services.webhooks.setEnabled(site, input.webhookId, input.enabled) };
+		}),
+
+	/**
+	 * Send test: sends the Webhook a signed `test` event at once (on or off) and answers the delivery,
+	 * with what the receiver said. Never retried, and never counted as a failure.
+	 */
+	test: signedIn.input(z.object({ siteId: id, webhookId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { delivery: await context.services.webhooks.test(site, input.webhookId) };
+	}),
+
+	/**
+	 * Redeliver: queues a failed delivery again, with the same id and body, for a new round of
+	 * attempts. Refused for one that isn't failed, for a test send, and while the Webhook is off
+	 * (`WEBHOOK_REDELIVERY_REFUSED`).
+	 */
+	redeliver: signedIn
+		.input(z.object({ siteId: id, webhookId: id, deliveryId: id }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return {
+				delivery: await context.services.webhooks.redeliver(site, input.webhookId, input.deliveryId),
+			};
+		}),
 };
