@@ -76,6 +76,14 @@ async function memberOf(workspaceId: string): Promise<string> {
 	return (await install.createMember({ workspaceId, role: "author" })).personId;
 }
 
+describe("API tokens", () => {
+	isolation.refuses(
+		"apiTokens.create",
+		(api, { workspaceId }) => api.apiTokens.create({ workspaceId, name: "Isolation" }),
+		{ as: ["staff", "author"] },
+	);
+});
+
 describe("Workspaces", () => {
 	isolation.refuses("workspaces.get", (api, { workspaceId }) => api.workspaces.get({ workspaceId }), {
 		as: ["staff", "owner", "author"],
@@ -567,7 +575,9 @@ describe("Languages", () => {
 	isolation.refuses("languages.list", (api, { siteId }) => api.languages.list({ siteId }), {
 		as: ["staff", "author"],
 	});
-	isolation.refuses("languages.add", (api, { siteId }) => api.languages.add({ siteId, code: "fr" }));
+	// Each call adds a language the Site doesn't have yet.
+	const newLanguages = ["nl", "sv", "da", "fi", "pl", "cs"];
+	isolation.refuses("languages.add", (api, { siteId }) => api.languages.add({ siteId, code: newLanguages.shift() ?? "el" }));
 	isolation.refuses("languages.update", (api, { siteId }) =>
 		api.languages.update({ siteId, code: "en", name: "Inglese" }),
 	);

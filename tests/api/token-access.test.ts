@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ModuleApi } from "@webcraft/module-sdk";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
+import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { sample } from "../modules/sample/index.ts";
 
@@ -162,5 +163,22 @@ describe("what a token never does", () => {
 		const { notes: listed } = await notes.list({ siteId: first.id });
 		expect(listed.map((note: { body: string }) => note.body)).toContain("Through the API");
 		await expect(notes.list({ siteId: theirSite.id })).rejects.toMatchObject({ status: 404 });
+	});
+});
+
+describe("uploads", () => {
+	test("a script uploads Media with multipart form data", async () => {
+		const { ours, first } = await workspaces();
+		const admin = await install.superadmin();
+		const { secret } = await createApiToken(admin, { workspaceId: ours.id, name: "Uploader" });
+
+		const { media } = await tokenClient(install, secret).api.media.upload({
+			siteId: first.id,
+			file: upload(await photo({ width: 40, height: 30 }), "bread.jpg", "image/jpeg"),
+		});
+
+		expect(media).toMatchObject({ fileName: "bread.jpg" });
+		const { items } = await admin.api.media.list({ siteId: first.id });
+		expect(items.map((file) => file.id)).toEqual([media.id]);
 	});
 });

@@ -2,7 +2,10 @@ import { OpenAPIGenerator } from "@orpc/openapi";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { type AnyProcedure, ORPCError, onError, type TraverseContractProcedureCallbackOptions } from "@orpc/server";
 import { ResponseHeadersPlugin } from "@orpc/server/plugins";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import {
+	experimental_ZodSmartCoercionPlugin as ZodSmartCoercionPlugin,
+	ZodToJsonSchemaConverter,
+} from "@orpc/zod/zod4";
 import {
 	type ApiAccess,
 	ApiTokenInvalidError,
@@ -67,7 +70,8 @@ export function createPublicApi(
 		if (!handler) {
 			handler = new OpenAPIHandler<ApiContext>(router, {
 				filter: ({ path }) => publicProcedure(services, path) !== null,
-				plugins: [new ResponseHeadersPlugin()],
+				// Plain JSON has no dates: an input's dates come as ISO strings, read as the schema says.
+				plugins: [new ResponseHeadersPlugin(), new ZodSmartCoercionPlugin()],
 				clientInterceptors: [
 					onError((error, { path }) => {
 						if (error instanceof ORPCError && error.status < 500) return;

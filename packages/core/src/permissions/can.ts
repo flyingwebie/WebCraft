@@ -169,6 +169,13 @@ export type MemberAccess = { role: string; sites: Reach };
  * never held this way.
  */
 export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAccess): boolean {
+	if (actor.kind === "token") {
+		// A token holds what its person holds, within its Workspace and Sites.
+		if (actor.workspaceId !== workspaceId) return false;
+		const sites =
+			access.sites === "all" ? actor.sites === "all" : access.sites.every((id) => includes(actor.sites, id));
+		return sites && holdsAccess(actor.person, workspaceId, access);
+	}
 	if (actor.kind !== "person") return false;
 	const role = roleDefinition(access.role);
 	if (role?.reach !== "membership") return false;
