@@ -3,16 +3,22 @@ export type CachedPage = {
 	html: string;
 	/** A strong ETag of the HTML: the same page always has the same one. */
 	etag: string;
+	/**
+	 * When the page stops being valid with time alone (a Condition reading `now`, a Loop listing the
+	 * last 12 months), in milliseconds since the epoch; null while only a publish changes it.
+	 */
+	expiresAt?: number | null;
 };
 
 /**
  * The web process's page cache: rendered HTML per Site, by normalised URL (ADR 0004). Each page is
  * kept under the Site's page cache generation, which every publish raises in Postgres (from the web
  * process or the worker), so a publish retires the Site's whole cache at once in every web process.
- * It holds at most `maxBytes` of HTML, forgetting the least recently used pages first.
+ * It holds at most `maxBytes` of HTML, forgetting the least recently used pages first. A page that
+ * shows something time changes is kept only until its `expiresAt`, by the Install's clock (`now`).
  */
 export type PageCache = {
-	get(siteId: string, generation: number, key: string): CachedPage | undefined;
+	get(siteId: string, generation: number, key: string, now: Date): CachedPage | undefined;
 	set(siteId: string, generation: number, key: string, page: CachedPage): void;
 };
 
@@ -45,11 +51,15 @@ export function createPageCache(options: { maxBytes?: number } = {}): PageCache 
 	};
 
 	return {
-		get(siteId, generation, key) {
+		get(siteId, generation, key, now) {
 			if (!advance(siteId, generation)) return undefined;
 			const cacheKey = `${siteId} ${key}`;
 			const page = pages.get(cacheKey);
 			if (!page) return undefined;
+			if (page.expiresAt != null && now.getTime() >= page.expiresAt) {
+				remove(cacheKey);
+				return undefined;
+			}
 			pages.delete(cacheKey);
 			pages.set(cacheKey, page);
 			return { html: page.html, etag: page.etag };

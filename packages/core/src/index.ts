@@ -174,6 +174,7 @@ export {
 	stagingHostname,
 	stagingUrl,
 } from "./site-pages/index.ts";
+export { MAX_PAGE_NUMBER } from "./site-pages/loops.ts";
 export type {
 	Access,
 	BackgroundScope,

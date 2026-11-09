@@ -161,6 +161,7 @@ export {
 	elementsOf,
 	type LanguageSwitcherNode,
 	type LoopNode,
+	loopNamesIn,
 	type OutletNode,
 	type PaginationNode,
 	type ParseTreeOptions,

@@ -3,6 +3,7 @@ import {
 	type EditSession,
 	type InstallServices,
 	isReservedPath,
+	MAX_PAGE_NUMBER,
 	MEDIA_PATH,
 	normaliseHostname,
 	pathSegments,
@@ -82,7 +83,12 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
 			const edit = await editSessionOf(services, request, host);
-			if (edit.session) return editModePage(services, host, edit.session, url.pathname);
+			const number = pageNumber(url);
+			if (number === undefined) return notFoundPage(services, host, url.pathname);
+			if (number === 1 && url.searchParams.has(PAGE_PARAMETER)) {
+				return redirect(host, canonicalPath(segments ?? []));
+			}
+			if (edit.session) return editModePage(services, host, edit.session, url.pathname, number);
 			const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
 			if (redirected) return redirected;
 			const page = await visitorPage(services, cache, request, host);
@@ -91,22 +97,43 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 	};
 }
 
+/** The query parameter naming a page of a paginated Loop: `/blog?page=2`. */
+const PAGE_PARAMETER = "page";
+
+/**
+ * Which page of a paginated Loop the URL asks for: 1 without `?page`, the number it gives (2 to
+ * `MAX_PAGE_NUMBER`, written without leading zeros), undefined for anything else (a page not found).
+ * `?page=1` is the page itself (answered with a redirect to it).
+ */
+function pageNumber(url: URL): number | undefined {
+	const given = url.searchParams.getAll(PAGE_PARAMETER);
+	if (given.length === 0) return 1;
+	const [value = ""] = given;
+	if (given.length > 1 || !/^[1-9][0-9]{0,3}$/.test(value)) return undefined;
+	const page = Number(value);
+	return page <= MAX_PAGE_NUMBER ? page : undefined;
+}
+
 /**
  * The page visitors get at the URL, from the page cache, rendering and keeping it on a miss. Pages
- * are kept by normalised URL: one form of the path, and no query parameters (no parameter changes a
- * page yet; Filters will allow theirs, sorted).
+ * are kept by normalised URL: one form of the path, and of the query parameters only the page of a
+ * paginated Loop (`?page=2`, each page its own entry; Filters will allow theirs, sorted). A page
+ * that shows something time changes is kept until then.
  */
 async function visitorPage(services: InstallServices, cache: PageCache, request: Request, host: SiteHost) {
-	const { pathname } = new URL(request.url);
+	const url = new URL(request.url);
+	const { pathname } = url;
 	const segments = pathSegments(pathname);
 	if (!segments) return notFoundPage(services, host, pathname);
-	const key = canonicalPath(segments);
-	const cached = cache.get(host.site.id, host.cacheGeneration, key);
+	const number = pageNumber(url) ?? 1;
+	const key = number > 1 ? `${canonicalPath(segments)}?${PAGE_PARAMETER}=${number}` : canonicalPath(segments);
+	const now = services.clock.now();
+	const cached = cache.get(host.site.id, host.cacheGeneration, key, now);
 	if (cached) return pageResponse(request, host, cached, "HIT");
-	const answer = await services.sitePages.render(host, pathname);
+	const answer = await services.sitePages.render(host, pathname, undefined, number);
 	if (!answer) return notFoundPage(services, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, answer.location);
-	const page = { html: answer.html, etag: await etagOf(answer.html) };
+	const page = { html: answer.html, etag: await etagOf(answer.html), expiresAt: answer.expiresAt?.getTime() ?? null };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
 	return pageResponse(request, host, page, "MISS");
 }
@@ -120,9 +147,10 @@ async function editModePage(
 	host: SiteHost,
 	session: EditSession,
 	pathname: string,
+	page: number,
 ): Promise<Response> {
 	const editing = await pageEditing(session);
-	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing) : null;
+	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing, page) : null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
 	}

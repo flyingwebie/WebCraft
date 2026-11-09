@@ -33,7 +33,7 @@ import {
 import { checkExpression, type Expression, expressionPaths } from "./expressions.ts";
 import { checkFormat, type ValueFormat } from "./formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "./languages.ts";
-import { type LoopCatalogue, rootScope, type ValueScope } from "./loops.ts";
+import { LOOP_STATS, type LoopCatalogue, rootScope, type ValueScope } from "./loops.ts";
 
 /** The version of the element tree format, stored in every tree. */
 export const ELEMENT_TREE_VERSION = 1;
@@ -972,6 +972,28 @@ export function valuePathsOf(tree: ElementTree): string[] {
 	};
 	visit(tree.nodes);
 	return [...paths];
+}
+
+/**
+ * The names that may be Loops of the Site in a tree, in the order they come: each Loop's source that
+ * is a name alone (`latest-posts`, not `post.tags`), each `{{@pagination}}`'s Loop, and each `name`
+ * read as `name.count` or another of `LOOP_STATS`. A page runs the Loops of the Site among them.
+ */
+export function loopNamesIn(tree: ElementTree): string[] {
+	const names = new Set<string>();
+	const visit = (nodes: readonly TreeNode[]) => {
+		for (const node of nodes) {
+			if (node.type === "loop" && !node.source.includes(".")) names.add(node.source);
+			if (node.type === "pagination") names.add(node.loop);
+			for (const children of childListsOf(node)) visit(children);
+		}
+	};
+	visit(tree.nodes);
+	for (const path of valuePathsOf(tree)) {
+		const [name = "", stat, ...rest] = path.split(".");
+		if (rest.length === 0 && (LOOP_STATS as readonly string[]).includes(stat ?? "")) names.add(name);
+	}
+	return [...names];
 }
 
 const ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";

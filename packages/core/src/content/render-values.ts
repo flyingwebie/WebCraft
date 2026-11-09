@@ -106,6 +106,11 @@ export function entryParts(
 	};
 }
 
+/** A list of Fields' values by key, as bindings read them (a Loop's own item); Relationships aren't followed. */
+export function valuesParts(fields: readonly FieldDefinition[], values: Readonly<Record<string, Json>>): Parts {
+	return fieldParts(fields, values, null, null);
+}
+
 /**
  * The Globals as `site.x` reads them, with the Site's own values beside them: `site.language`, the
  * page's language (a Condition's `site.language == "fr"`), and `site.name`.

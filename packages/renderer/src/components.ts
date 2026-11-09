@@ -10,6 +10,7 @@
  * names, their Props and how fixed text is read as each Prop's value, and their trees. It reads
  * nothing itself.
  */
+import { commandForNode } from "./commands.ts";
 import {
 	type AttributePart,
 	type ElementTree,
@@ -91,14 +92,18 @@ export function isComponentInfo(found: ComponentFound): found is ComponentInfo {
 }
 
 /** Every Placement in the nodes, depth first, including those inside Template commands (not inside Components). */
+/** The lists of children a Template command's node holds (a Condition's branches, a Loop's items and `{{@empty}}`); none for anything else. */
+function commandChildren(node: TreeNode): readonly (readonly TreeNode[])[] {
+	if (node.type === "element" || node.type === "text" || node.type === "value" || node.type === "comment") return [];
+	if (node.type === "component") return [];
+	return commandForNode(node.type)?.children(node) ?? [];
+}
+
 export function* placementsIn(nodes: readonly TreeNode[]): Generator<PlacementNode> {
 	for (const node of nodes) {
 		if (node.type === "component") yield node;
 		else if (node.type === "element") yield* placementsIn(node.children);
-		else if (node.type === "condition") {
-			for (const branch of node.branches) yield* placementsIn(branch.children);
-			if (node.otherwise) yield* placementsIn(node.otherwise);
-		}
+		else for (const children of commandChildren(node)) yield* placementsIn(children);
 	}
 }
 
@@ -149,8 +154,8 @@ export function boundaryProblem(
 				if (!memo.has(key)) memo.set(key, visit(nested.tree.nodes, inner, depth + 1, where));
 				const found = memo.get(key);
 				if (found) return found;
-			} else if (node.type === "condition") {
-				for (const children of [...node.branches.map((branch) => branch.children), node.otherwise ?? []]) {
+			} else {
+				for (const children of commandChildren(node)) {
 					const found = visit(children, inner, depth, where);
 					if (found) return found;
 				}
@@ -176,10 +181,9 @@ export function placementProblems(
 	const visit = (list: readonly TreeNode[], ancestors: readonly string[]) => {
 		for (const node of list) {
 			if (node.type === "element") visit(node.children, [...ancestors, node.tag]);
-			else if (node.type === "condition") {
-				for (const branch of node.branches) visit(branch.children, ancestors);
-				if (node.otherwise) visit(node.otherwise, ancestors);
-			} else if (node.type === "component") {
+			else if (node.type !== "component") {
+				for (const children of commandChildren(node)) visit(children, ancestors);
+			} else {
 				const info = byId(node.component);
 				if (!isComponentInfo(info)) continue;
 				const problem = boundaryProblem(info, ancestors, byId, memo, placedDepth + 1);
@@ -207,10 +211,7 @@ export function expansionProblem(
 			size++;
 			if (node.type === "component") size += componentSize(node.component, depth);
 			else if (node.type === "element") size += sizeOf(node.children, depth);
-			else if (node.type === "condition") {
-				for (const branch of node.branches) size += sizeOf(branch.children, depth);
-				if (node.otherwise) size += sizeOf(node.otherwise, depth);
-			}
+			else for (const children of commandChildren(node)) size += sizeOf(children, depth);
 			if (size > COMPONENT_LIMITS.expandedNodes) return size;
 		}
 		return size;
@@ -236,8 +237,8 @@ export function expansionProblem(
 			else if (node.type === "element") {
 				const found = visit(node.children);
 				if (found) return found;
-			} else if (node.type === "condition") {
-				for (const children of [...node.branches.map((branch) => branch.children), node.otherwise ?? []]) {
+			} else {
+				for (const children of commandChildren(node)) {
 					const found = visit(children);
 					if (found) return found;
 				}
