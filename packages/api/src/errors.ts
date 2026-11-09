@@ -95,6 +95,11 @@ import {
 	TokenInUseError,
 	TokensFileInvalidError,
 	TooManyHostsError,
+	TooManyWebhooksError,
+	WebhookDeliveryNotFoundError,
+	WebhookInvalidError,
+	WebhookNotFoundError,
+	WebhookRedeliveryRefusedError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
 import { ModuleError } from "@webcraft/module-sdk";
@@ -372,6 +377,36 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof DomainChangeRefusedError) {
 		return new ORPCError("DOMAIN_CHANGE_REFUSED", {
+			status: 409,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
+	}
+	if (error instanceof WebhookInvalidError) {
+		return new ORPCError("WEBHOOK_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { field: error.field, reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof WebhookNotFoundError) {
+		return new ORPCError("WEBHOOK_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof TooManyWebhooksError) {
+		return new ORPCError("TOO_MANY_WEBHOOKS", {
+			status: 409,
+			message: error.message,
+			data: { max: error.max },
+			cause: error,
+		});
+	}
+	if (error instanceof WebhookDeliveryNotFoundError) {
+		return new ORPCError("WEBHOOK_DELIVERY_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof WebhookRedeliveryRefusedError) {
+		return new ORPCError("WEBHOOK_REDELIVERY_REFUSED", {
 			status: 409,
 			message: error.message,
 			data: { problem: error.problem },

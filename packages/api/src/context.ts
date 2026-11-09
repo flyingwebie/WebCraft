@@ -100,6 +100,34 @@ export function onInstall(permission: Permission) {
 }
 
 /**
+ * Procedures in one Workspace that need one Permission there, such as `member.manage`: opens the
+ * Workspace from the input's `workspaceId` for the person (404 when they can't see it, 403 when they
+ * may not do this) and gives the procedure `context.workspace`. Put `sensitive(…)` after it.
+ */
+export function onWorkspace(permission: Permission) {
+	return base
+		.$context<ApiContext & { access: Access }>()
+		.middleware(async ({ context, next }, input: { workspaceId: string }) => {
+			const workspace = await context.services.data.workspace(context.access, input.workspaceId, permission);
+			return next({ context: { workspace } });
+		});
+}
+
+/**
+ * Procedures on one Site that need one Permission there, such as `structure.edit`: opens the Site
+ * from the input's `siteId` for the person (404 when they can't see it, 403 when they may not do
+ * this) and gives the procedure `context.site`. Put `sensitive(…)` after it.
+ */
+export function onSite(permission: Permission) {
+	return base
+		.$context<ApiContext & { access: Access }>()
+		.middleware(async ({ context, next }, input: { siteId: string }) => {
+			const site = await context.services.data.site(context.access, input.siteId, permission);
+			return next({ context: { site } });
+		});
+}
+
+/**
  * Marks a procedure as a Sensitive action from the one list (`SENSITIVE_ACTIONS` in
  * `@webcraft/core`): it is refused unless the person confirmed who they are in this admin session
  * within the last 10 minutes (`IDENTITY_CHECK_REQUIRED`; the admin asks for their password, then

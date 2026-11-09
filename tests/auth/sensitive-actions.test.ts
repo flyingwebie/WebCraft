@@ -13,10 +13,10 @@ const MINUTE = 60 * 1000;
 type Fixture = {
 	staffId: string;
 	workspaceId: string;
+	siteId: string;
 	/** A Member whose access is changed, and one who is removed. */
 	changedMemberId: string;
 	removedMemberId: string;
-	siteId: string;
 	next: () => number;
 };
 
@@ -46,6 +46,8 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"leakedPasswordCheck.change": (api) => api.install.security.update({ leakedPasswordCheck: true }),
 	"storage.change": (api) => api.install.storage.update({ kind: "disk" }),
 	"module.approve": (api) => api.modules.approve({ moduleId: "sample", version: "1.0.0" }),
+	"webhook.change": (api, { siteId }) =>
+		api.webhooks.add({ siteId, url: "https://hooks.agency.example/build", events: ["publish"] }),
 	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
 };
 
@@ -57,17 +59,17 @@ beforeAll(async () => {
 	install = await createTestInstall({ modules: [sample] });
 	superadmin = await install.createSuperadmin();
 	const workspace = await install.createWorkspace();
+	const site = await install.createSite(workspace.id);
 	const staff = await install.createStaff({ workspaces: "all" });
 	const changed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const removed = await install.createMember({ workspaceId: workspace.id, role: "author" });
-	const site = await install.createSite(workspace.id);
 	let made = 0;
 	fixture = {
 		staffId: staff.personId,
 		workspaceId: workspace.id,
+		siteId: site.id,
 		changedMemberId: changed.personId,
 		removedMemberId: removed.personId,
-		siteId: site.id,
 		next: () => ++made,
 	};
 });
@@ -92,6 +94,26 @@ describe("each Sensitive action", () => {
 			await expect(call(browser.api, fixture)).resolves.toBeDefined();
 		});
 	}
+
+	test("nobody is asked to confirm who they are for something they may not do in a Workspace or on a Site", async () => {
+		const author = await install.createMember({ workspaceId: fixture.workspaceId, role: "author" });
+		await install.clock.advance(11 * MINUTE);
+
+		const actions = [
+			"member.invite",
+			"member.changeAccess",
+			"member.remove",
+			"formCaptcha.change",
+			"webhook.change",
+		] as const;
+		for (const action of actions) {
+			const refusal = await SENSITIVE_ACTION_CALLS[action](author.browser.api, fixture).then(
+				() => "allowed",
+				(error: { code: string }) => error.code,
+			);
+			expect({ action, refusal }).toEqual({ action, refusal: "FORBIDDEN" });
+		}
+	});
 
 	test("every Sensitive action has a row here", () => {
 		expect(Object.keys(SENSITIVE_ACTION_CALLS).sort()).toEqual([...ALL_SENSITIVE_ACTIONS].sort());

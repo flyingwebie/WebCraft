@@ -132,6 +132,16 @@ export const SYSTEM_EMAIL_TYPES = {
 		category: "alert",
 		data: z.object({ siteName: name, lastResponse: z.string().max(1000), settingsPath: adminPath }),
 	},
+	"webhook-switched-off": {
+		category: "alert",
+		data: z.object({
+			webhookName: name,
+			host: z.string().max(300),
+			siteName: name,
+			failures: count,
+			webhooksPath: adminPath,
+		}),
+	},
 } as const satisfies Record<string, { category: EmailCategory; data: z.ZodType }>;
 
 export type SystemEmailType = keyof typeof SYSTEM_EMAIL_TYPES;

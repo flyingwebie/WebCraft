@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { sensitive, signedIn } from "../context.ts";
+import { onWorkspace, sensitive, signedIn } from "../context.ts";
 import { email, id, memberSites, workspaceRole } from "../inputs.ts";
 
 /**
@@ -23,12 +23,12 @@ export const members = {
 	 * the same Workspace again replaces the earlier invite.
 	 */
 	invite: signedIn
-		.use(sensitive("member.invite"))
 		.input(z.object({ workspaceId: id, email, role: workspaceRole, sites: memberSites }))
+		.use(onWorkspace("member.invite"))
+		.use(sensitive("member.invite"))
 		.handler(async ({ context, input }) => {
-			const { workspaceId, ...invite } = input;
-			const workspace = await context.services.data.workspace(context.access, workspaceId, "member.invite");
-			return { invite: await context.services.members.invite(workspace, invite) };
+			const { workspaceId: _, ...invite } = input;
+			return { invite: await context.services.members.invite(context.workspace, invite) };
 		}),
 
 	/** Sends a pending invite again with a new link, valid for 7 more days; the earlier link stops working. */
@@ -46,12 +46,12 @@ export const members = {
 
 	/** Changes a Member's role and Sites; it takes effect on their next request. */
 	changeAccess: signedIn
-		.use(sensitive("member.changeAccess"))
 		.input(z.object({ workspaceId: id, personId: id, role: workspaceRole, sites: memberSites }))
+		.use(onWorkspace("member.manage"))
+		.use(sensitive("member.changeAccess"))
 		.handler(async ({ context, input }) => {
-			const workspace = await context.services.data.workspace(context.access, input.workspaceId, "member.manage");
 			return {
-				member: await context.services.members.changeAccess(workspace, input.personId, {
+				member: await context.services.members.changeAccess(context.workspace, input.personId, {
 					role: input.role,
 					sites: input.sites,
 				}),
@@ -60,11 +60,11 @@ export const members = {
 
 	/** Removes a Member from the Workspace; it takes effect on their next request. Their account stays. */
 	remove: signedIn
-		.use(sensitive("member.remove"))
 		.input(z.object({ workspaceId: id, personId: id }))
+		.use(onWorkspace("member.manage"))
+		.use(sensitive("member.remove"))
 		.handler(async ({ context, input }) => {
-			const workspace = await context.services.data.workspace(context.access, input.workspaceId, "member.manage");
-			await context.services.members.remove(workspace, input.personId);
+			await context.services.members.remove(context.workspace, input.personId);
 			return { ok: true as const };
 		}),
 };

@@ -298,6 +298,10 @@ _Avoid_: Alias, secondary domain, parked domain
 A call the Install makes to an outside address when something happens on a Site, such as a form being submitted or an Entry being published.
 _Avoid_: Callback, hook, integration
 
+**Delivery log**:
+The record of every call a Webhook made in the last 30 days: what was sent, each attempt, and what the receiving system answered. Staff send a failed delivery again from it.
+_Avoid_: Webhook history, event log, call log
+
 ### Search and discovery
 
 **SEO fields**:
