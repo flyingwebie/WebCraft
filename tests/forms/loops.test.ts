@@ -1,7 +1,7 @@
-// Forms together with Loops, pagination and time (GLOSSARY.md › Form, Loop): a Form on page N of a
-// paginated Loop posts back to page N and its errors and message show there, while the cached page N
-// stays everyone's; a page kept until a `now` Condition changes still gives each answer its own Form
-// token.
+// Forms together with Loops, pagination and time (GLOSSARY.md › Form, Loop): a page shows a placed
+// Form once, never once per Loop item; a Form on page N of a paginated Loop posts back to page N and
+// its errors and message show there, while the cached page N stays everyone's; a page kept until a
+// `now` Condition changes still gives each answer its own Form token.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type forms from "@webcraft/module-forms";
 
@@ -81,6 +81,77 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await install.close();
+});
+
+describe("a Form in a Loop", () => {
+	test("can't be placed in a Loop's items, in markup or in a tree; {{@empty}} may hold one", async () => {
+		const markup = (text: string) =>
+			staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: recipesId, markup: text });
+
+		await expect(
+			markup("{{@loop paged-recipes as r}}<article>{{@form order}}</article>{{/loop}}"),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: {
+				problems: [
+					{
+						line: 1,
+						column: 38,
+						message: expect.stringContaining("{{@form}} can't go inside a Loop's items"),
+					},
+				],
+			},
+		});
+		await expect(
+			staff.api.templates.saveArchiveTemplate({
+				siteId,
+				postTypeId: recipesId,
+				tree: {
+					version: 1,
+					nodes: [
+						{
+							type: "loop",
+							source: "paged-recipes",
+							alias: "r",
+							children: [{ type: "form", form: formId }],
+							empty: null,
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_INVALID",
+			data: {
+				problems: [{ at: "nodes[0].children[0]", message: expect.stringContaining("can't go inside a Loop's items") }],
+			},
+		});
+		const saved = await markup("{{@loop paged-recipes as r}}<p>{{ r.title }}</p>{{@empty}}{{@form order}}{{/loop}}");
+		expect(saved.markup).toContain("{{@empty}}{{@form order}}{{/loop}}");
+	});
+
+	test("one a Component brings into a Loop's items shows nothing there; the page's own is Form number 1", async () => {
+		const { component } = await staff.api.components.create({ siteId, name: "OrderBox" });
+		await staff.api.components.saveMarkup({
+			siteId,
+			componentId: component.id,
+			markup: "<aside>{{@form order}}</aside>",
+		});
+		await staff.api.components.publish({ siteId, componentId: component.id });
+		await archive(
+			"{{@loop paged-recipes as r}}<article><h2>{{ r.title }}</h2><OrderBox /></article>{{/loop}}{{@form order}}",
+		);
+
+		const page = await formVisitor(install).open(`${SITE}/recipes`);
+
+		expect(page.status).toBe(200);
+		const main = mainOf(page.html);
+		expect(main).toStartWith(
+			"<article><h2>Apple tart</h2><aside></aside></article><article><h2>Brioche</h2><aside></aside></article>",
+		);
+		expect(main.match(/<form /g)).toHaveLength(1);
+		expect(main).toContain('<form class="wc-form" id="wc-form-1"');
+		expect(page.form().hidden).toMatchObject({ "wc-page": "/recipes", "wc-i": "1" });
+	});
 });
 
 describe("a Form on page 2 of a paginated Archive", () => {

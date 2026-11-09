@@ -389,6 +389,14 @@ const languageSwitcherCommand: TemplateCommand<LanguageSwitcherNode> = {
 const NO_FORM_INSIDE = new Set([...INTERACTIVE, ...PHRASING_ONLY, "form"]);
 
 /**
+ * Why a Form can't be placed in a Loop's items: a page shows a placed Form once, never once per item
+ * (the copies would be the same Form, with nothing telling their Submissions apart). `{{@empty}}`
+ * renders once, so it may hold one.
+ */
+const FORM_IN_LOOP =
+	"{{@form}} can't go inside a Loop's items: a page shows a placed Form once, not once per item. Place it outside the Loop, or in its {{@empty}}.";
+
+/**
  * `{{@form <key>}}`: one of the Site's Forms, placed by its key and stored by its id. It renders the
  * Form's published version as a `<form>` posting to the Site itself, which works without JavaScript;
  * nothing where Forms don't run on the Site. A form is a block of its own, so it goes where a <div>
@@ -408,6 +416,10 @@ const formCommand: TemplateCommand<FormNode> = {
 			tools.problem(section?.offset ?? 0, "{{@form}} names the Form to place by its key, such as {{@form contact}}.");
 			return undefined;
 		}
+		if (tools.scope.aliases.length > 0) {
+			tools.problem(section.offset, FORM_IN_LOOP);
+			return undefined;
+		}
 		const leading = section.argument.length - section.argument.trimStart().length;
 		const formId = tools.form(key, section.argumentOffset + leading);
 		return formId === undefined ? undefined : { type: "form", form: formId };
@@ -418,6 +430,10 @@ const formCommand: TemplateCommand<FormNode> = {
 	},
 
 	check(input, at, tools) {
+		if (tools.scope.aliases.length > 0) {
+			tools.problem(at, FORM_IN_LOOP);
+			return undefined;
+		}
 		const formId = tools.form(input.form, `${at}.form`);
 		return formId === undefined ? undefined : { type: "form", form: formId };
 	},

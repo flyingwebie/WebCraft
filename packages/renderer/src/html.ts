@@ -255,6 +255,9 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 				...options,
 				values: itemReader(node.alias, item, index, items.length, options.values),
 				editRegion: editRegion && ((value) => editRegion(value, place)),
+				// A Form shows once where it is placed, never once per item: markup can't place one in a
+				// Loop's items, and one a Component brings there renders nothing.
+				form: undefined,
 			},
 			inner,
 		);

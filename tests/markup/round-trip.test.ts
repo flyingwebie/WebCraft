@@ -514,7 +514,7 @@ describe("generated trees", () => {
 			empty,
 		}));
 	// The Language switcher and pagination render a <nav>, and a Form a <form>, so they go where one
-	// can: here, at the top level.
+	// can: here, at the top level (a Form never in a Loop's items).
 	const form = fc.constantFrom(0, 1).map((index) => ({ type: "form", form: formIds[index] }));
 	const nodes = fc.array(
 		fc.oneof(
