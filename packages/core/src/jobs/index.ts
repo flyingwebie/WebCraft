@@ -20,6 +20,7 @@ import {
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
+import { webhooksDeliver, webhooksPurgeLog, webhooksPurgeLogSchedule } from "../webhooks/jobs.ts";
 import type { JobDefinition } from "./define.ts";
 import { samplePing } from "./sample-ping.ts";
 import type { JobSchedule } from "./schedules.ts";
@@ -45,6 +46,8 @@ export const coreJobs = [
 	domainsVerify,
 	domainsCheckAll,
 	domainsCheck,
+	webhooksDeliver,
+	webhooksPurgeLog,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -57,6 +60,7 @@ export const coreSchedules = [
 	siteFilesPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
+	webhooksPurgeLogSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {

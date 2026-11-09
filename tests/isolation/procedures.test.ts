@@ -497,6 +497,59 @@ describe("Domains", () => {
 	);
 });
 
+/** A Webhook of a target's Site, added by the Superadmin, whose receiver refuses everything (410). */
+async function webhookIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	install.dns.answer("hooks.isolation.example", ["93.184.216.34"]);
+	install.http.respond("POST", /^https:\/\/hooks\.isolation\.example\//, { status: 410 });
+	const { webhook } = await api.webhooks.add({
+		siteId: target.siteId,
+		url: `https://hooks.isolation.example/${newSlug()}`,
+		events: ["publish"],
+	});
+	return webhook.id;
+}
+
+/** A Webhook of a target's Site with one failed delivery. */
+async function failedDeliveryIn(target: IsolationTarget): Promise<{ webhookId: string; deliveryId: string }> {
+	const { api } = await install.superadmin();
+	const webhookId = await webhookIn(target);
+	await api.globals.publish({ siteId: target.siteId });
+	await install.drainJobs();
+	const { deliveries } = await api.webhooks.deliveries({ siteId: target.siteId, webhookId });
+	return { webhookId, deliveryId: deliveries[0]?.id ?? "" };
+}
+
+describe("Webhooks", () => {
+	const webhook = { url: "https://hooks.isolation.example/added", events: ["publish" as const] };
+	isolation.refuses("webhooks.list", (api, { siteId }) => api.webhooks.list({ siteId }), { as: ["staff", "owner"] });
+	isolation.refuses("webhooks.add", (api, { siteId }) => api.webhooks.add({ siteId, ...webhook }));
+	isolation.refuses("webhooks.update", async (api, target) =>
+		api.webhooks.update({ siteId: target.siteId, webhookId: await webhookIn(target), ...webhook }),
+	);
+	isolation.refuses("webhooks.changeSecret", async (api, target) =>
+		api.webhooks.changeSecret({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+	);
+	isolation.refuses("webhooks.setEnabled", async (api, target) =>
+		api.webhooks.setEnabled({ siteId: target.siteId, webhookId: await webhookIn(target), enabled: false }),
+	);
+	// Without a confirmation it only answers what removing would do.
+	isolation.refuses("webhooks.remove", async (api, target) =>
+		api.webhooks.remove({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+	);
+	isolation.refuses(
+		"webhooks.deliveries",
+		async (api, target) => api.webhooks.deliveries({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("webhooks.test", async (api, target) =>
+		api.webhooks.test({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+	);
+	isolation.refuses("webhooks.redeliver", async (api, target) =>
+		api.webhooks.redeliver({ siteId: target.siteId, ...(await failedDeliveryIn(target)) }),
+	);
+});
+
 describe("Edit mode", () => {
 	isolation.refuses("editMode.open", (api, { siteId }) => api.editMode.open({ siteId, path: "/" }), {
 		as: ["staff", "author"],

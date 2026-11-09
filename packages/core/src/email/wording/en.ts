@@ -157,6 +157,15 @@ export const en: EmailWording = {
 			],
 			action: { label: "Check the domains", path: domainsPath },
 		}),
+		"webhook-switched-off": ({ webhookName, host, siteName, failures, webhooksPath }) => ({
+			subject: `A Webhook of ${siteName} was switched off`,
+			heading: "A Webhook was switched off",
+			paragraphs: [
+				`The Webhook ${webhookName} of ${siteName}, to ${host}, failed ${failures} deliveries in a row, so it was switched off: it receives nothing until it is switched on again.`,
+				"Once the system it calls works again, switch it on and redeliver what it missed from its delivery log.",
+			],
+			action: { label: "Open the Webhooks", path: webhooksPath },
+		}),
 		"module-message": ({ moduleName, languages, subject, heading, paragraphs, action }) => {
 			const words = (label: Readonly<Record<string, string>>) => wordsIn(label, "en", languages);
 			return {
