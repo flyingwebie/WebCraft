@@ -12,6 +12,9 @@ import {
 	ClassInUseError,
 	ClassNotFoundError,
 	ConfirmationInvalidError,
+	EditFieldInvalidError,
+	EditModeUnavailableError,
+	EditPathInvalidError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
 	EntryInvalidError,
@@ -412,6 +415,15 @@ export function toApiError(error: unknown): unknown {
 			data: { retryAfterSeconds: error.retryAfterSeconds },
 			cause: error,
 		});
+	}
+	if (error instanceof EditFieldInvalidError) {
+		return new ORPCError("EDIT_FIELD_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof EditModeUnavailableError) {
+		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof EditPathInvalidError) {
+		return new ORPCError("EDIT_PATH_INVALID", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof InvalidCredentialsError) {
 		return new ORPCError("INVALID_CREDENTIALS", { status: 401, message: error.message, cause: error });

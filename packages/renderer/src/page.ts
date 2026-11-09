@@ -1,7 +1,7 @@
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import { escapeAttribute, escapeText, renderTree } from "./html.ts";
 import type { MediaReader } from "./media.ts";
-import type { ElementNode, ElementTree } from "./tree.ts";
+import type { ElementNode, ElementTree, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
 
 /**
@@ -56,6 +56,13 @@ export type PageToRender = {
 	media?: MediaReader;
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
+	/**
+	 * Renders the page for Edit mode (ADR 0022) rather than for visitors: never indexed, with WebCraft's
+	 * own files first in `<head>` and the editable regions tagged. Edit mode pages carry no script but
+	 * WebCraft's own: the Site's scripts (#99) are written only where this is absent or allows them,
+	 * and outside scripts never are.
+	 */
+	editMode?: EditModePage;
 };
 
 /** What a page needs from the Site's published Design system. */
@@ -64,6 +71,21 @@ export type PageStyles = {
 	stylesheet: string;
 	/** Whether the Design system has dark values, which follow the visitor's device (and the theme toggle). */
 	darkMode: boolean;
+};
+
+/** What a page rendered for Edit mode adds to what visitors get. */
+export type EditModePage = {
+	/**
+	 * The attributes that tag an element showing `value` alone as an editable region, or undefined
+	 * when it isn't editable. `template` is where the binding is: the page's content or the Site template.
+	 */
+	region(value: ValueNode, template: "content" | "site"): readonly (readonly [string, string])[] | undefined;
+	/** `<meta>` elements for WebCraft's own script, by name, such as the Edit mode session's header token. */
+	meta: readonly (readonly [name: string, content: string])[];
+	/** WebCraft's own scripts, as paths on the Site's domain; they run before anything else on the page. */
+	scripts: readonly string[];
+	/** WebCraft's own stylesheets, as paths on the Site's domain. */
+	stylesheets: readonly string[];
 };
 
 /**
@@ -77,6 +99,7 @@ export type PageStyles = {
 export function renderPage(page: PageToRender): string {
 	const { site } = page;
 	const title = page.title.trim() ? `${page.title} · ${site.name}` : site.name;
+	const { editMode } = page;
 	// The theme toggle shows only with dark values to switch to; its script comes only with it.
 	let toggles = 0;
 	const themeToggle = () => {
@@ -91,6 +114,7 @@ export function renderPage(page: PageToRender): string {
 		media: page.media,
 		priorityImage: { given: false },
 		themeToggle,
+		editRegion: editMode && ((value) => editMode.region(value, "content")),
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
@@ -100,6 +124,7 @@ export function renderPage(page: PageToRender): string {
 		outlet: () => content,
 		extraAttributes: mainAttributes,
 		themeToggle,
+		editRegion: editMode && ((value) => editMode.region(value, "site")),
 	});
 	return [
 		"<!doctype html>",
@@ -107,6 +132,7 @@ export function renderPage(page: PageToRender): string {
 		"<head>",
 		'<meta charset="utf-8">',
 		'<meta name="viewport" content="width=device-width, initial-scale=1">',
+		...(editMode ? editModeHead(editMode) : []),
 		`<title>${escapeText(title)}</title>`,
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
@@ -126,6 +152,22 @@ function headStyles(styles: PageStyles | undefined): string[] {
 	return [
 		...(styles.darkMode ? ['<meta name="color-scheme" content="light dark">'] : []),
 		`<link rel="stylesheet" href="${escapeAttribute(styles.stylesheet)}">`,
+	];
+}
+
+/**
+ * What Edit mode puts in `<head>`, before anything else the page loads: `noindex`, the meta for
+ * WebCraft's script, then WebCraft's own scripts (classic and not deferred, so they run before any
+ * Site script) and stylesheets. Every one is a file on the Site's domain: nothing is inline.
+ */
+function editModeHead(editMode: EditModePage): string[] {
+	return [
+		'<meta name="robots" content="noindex, nofollow">',
+		...editMode.meta.map(
+			([name, content]) => `<meta name="${escapeAttribute(name)}" content="${escapeAttribute(content)}">`,
+		),
+		...editMode.scripts.map((src) => `<script src="${escapeAttribute(src)}"></script>`),
+		...editMode.stylesheets.map((href) => `<link rel="stylesheet" href="${escapeAttribute(href)}">`),
 	];
 }
 

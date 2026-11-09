@@ -41,6 +41,24 @@ export { isWebCraftCookie, WEBCRAFT_COOKIE_PREFIX } from "./cookies.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./design-system/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
+export {
+	EDIT_LINK_LIFETIME_MS,
+	EDIT_MODE_PATH,
+	EDIT_SESSION_LIFETIME_MS,
+	EditFieldInvalidError,
+	type EditItem,
+	type EditLink,
+	type EditMode,
+	EditModeUnavailableError,
+	EditPathInvalidError,
+	type EditSession,
+	type EnteredEditMode,
+	isEditPath,
+	type PageChange,
+	type PageState,
+	type RegionChange,
+	type SavedRegion,
+} from "./edit-mode/index.ts";
 export * from "./email/index.ts";
 export {
 	createGuardedFetch,
@@ -142,6 +160,8 @@ export {
 export {
 	canonicalPath,
 	isReservedPath,
+	type PageContent,
+	type PageEditing,
 	pathSegments,
 	reservedSlugs,
 	type SiteAnswer,

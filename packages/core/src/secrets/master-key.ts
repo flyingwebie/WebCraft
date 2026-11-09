@@ -15,6 +15,7 @@ const MAKE_ONE = "Make one with `openssl rand -base64 32` and keep a copy outsid
 const HKDF_SALT = new TextEncoder().encode("webcraft master key");
 const FINGERPRINT_LABEL = "webcraft master key fingerprint";
 const SESSION_SIGNING_LABEL = "webcraft session cookie signing";
+const EDIT_MODE_LABEL = "webcraft edit mode header token";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -108,6 +109,21 @@ export function secretsKey(masterKey: MasterKey, version: number): Promise<Crypt
 export async function sessionSigningSecret(masterKey: MasterKey): Promise<string> {
 	const bits = await crypto.subtle.deriveBits(hkdf(SESSION_SIGNING_LABEL), await stateOf(masterKey).base, 256);
 	return Array.from(new Uint8Array(bits), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * The key Edit mode signs each Edit mode session's header token with (HMAC-SHA256), derived from
+ * the Master key, so every web process makes and checks the same tokens without storing them. Only
+ * the Install's start-up uses it, so it is not part of `@webcraft/core`'s public exports.
+ */
+export async function editModeSigningKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(EDIT_MODE_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
 }
 
 /** Only keys made here derive anything; a `new MasterKey()` made elsewhere refuses to be used. */

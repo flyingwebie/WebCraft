@@ -39,6 +39,13 @@ export type RenderOptions = {
 	media?: MediaReader;
 	/** Present while rendering `<main>`: its first Media image loads eagerly, with high priority. */
 	priorityImage?: ImagePriority;
+	/**
+	 * Edit mode's tags (ADR 0022): the attributes that mark an element showing one binding alone
+	 * (`<h1>{{ title }}</h1>`) as an editable region, or undefined when that binding isn't editable.
+	 * A tagged element also carries its element id as `data-wc-id`, so Edit mode can find it in the
+	 * tree. Absent for the pages visitors get, which carry no such attributes.
+	 */
+	editRegion?: (value: ValueNode) => readonly (readonly [name: string, value: string])[] | undefined;
 };
 
 /**
@@ -72,7 +79,7 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
 			for (const attribute of node.attributes) attributes += renderAttribute(attribute, options);
-			for (const [name, value] of options.extraAttributes?.(node) ?? []) {
+			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
@@ -90,6 +97,19 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 		outlet: () => options.outlet?.() ?? "",
 		themeToggle: () => options.themeToggle?.() ?? "",
 	});
+}
+
+/**
+ * Edit mode's tags for an element: when its only content is one binding (comments aside) and that
+ * binding is editable, the region's attributes and the element's id. Nothing otherwise.
+ */
+function editTags(node: ElementNode, options: RenderOptions): readonly (readonly [string, string])[] {
+	if (!options.editRegion || VOID_ELEMENTS.has(node.tag)) return [];
+	const content = node.children.filter((child) => child.type !== "comment");
+	const [only] = content;
+	if (content.length !== 1 || only?.type !== "value") return [];
+	const region = options.editRegion(only);
+	return region ? [...region, ["data-wc-id", node.id]] : [];
 }
 
 /** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */

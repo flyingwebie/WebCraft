@@ -37,6 +37,7 @@ import {
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
+import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
 import { createInstallSettings } from "./install-settings.ts";
@@ -48,7 +49,7 @@ import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
-import { type MasterKey, sessionSigningSecret } from "./secrets/master-key.ts";
+import { editModeSigningKey, type MasterKey, sessionSigningSecret } from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
@@ -121,6 +122,7 @@ export async function createInstallServices(
 		modules: options.modules ?? FIRST_PARTY_MODULES,
 	});
 	listeners.afterAudit = modules.afterAudit;
+	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };
 	const memberships = createMemberships({ database, clock });
 	const storage = createInstallStorage({
 		database,
@@ -130,6 +132,7 @@ export async function createInstallServices(
 		log,
 		directory: config.storageDir,
 	});
+	const sitePages = createSitePages({ database, config, data, storage });
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -141,7 +144,7 @@ export async function createInstallServices(
 		settings,
 		masterKey: createMasterKeyBackup({ database, clock, log, fingerprint: await masterKey.fingerprint() }),
 		data,
-		actors: { person: (personId) => loadPersonActor(database.db, personId) },
+		actors,
 		workspaces: {
 			list: (access) => listWorkspaces(database, access),
 			create: createWorkspace,
@@ -179,7 +182,17 @@ export async function createInstallServices(
 			importTokens: importDesignTokens,
 		},
 		publishing: { publish },
-		sitePages: createSitePages({ database, config, data, storage }),
+		sitePages,
+		editMode: createEditMode({
+			database,
+			clock,
+			config,
+			auth,
+			data,
+			actors,
+			signingKey: await editModeSigningKey(masterKey),
+			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
+		}),
 		memberships,
 		members: createMembers({ database, email }),
 		staff: createStaff({ email }),

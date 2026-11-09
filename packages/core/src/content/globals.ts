@@ -2,7 +2,7 @@ import { globals } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 import { actingPerson } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { siteLanguages } from "./entries.ts";
+import { restoredVersion, siteLanguages } from "./entries.ts";
 import { type ContentProblem, GlobalsIncompleteError, GlobalsInvalidError } from "./errors.ts";
 import type { FieldDefinition, FieldInput, Json } from "./field-types.ts";
 import { checkFields, defaultValues, type Findings, randomRowId, readFields, writeFields } from "./field-values.ts";
@@ -104,8 +104,8 @@ export async function setGlobalFields(scope: SiteScope, inputs: readonly FieldIn
 }
 
 /**
- * Saves a change to the Globals' Draft (open the Site with `entry.edit`): the one place it is
- * written. Values of the wrong kind are refused (`GlobalsInvalidError`); values breaking a rule are
+ * Saves a change to the Globals' Draft (open the Site with `entry.edit`): the one place people's
+ * changes are written (`undoGlobalsChanges` puts published values back). Values of the wrong kind are refused (`GlobalsInvalidError`); values breaking a rule are
  * saved and listed in `problems`. Visitors see nothing of it until the Globals are published.
  */
 export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange): Promise<Globals> {
@@ -132,6 +132,23 @@ export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange):
 }
 
 /**
+ * Puts values of the Globals' Draft back as they are published (open the Site with `entry.edit`):
+ * those of the Fields named in `keys`, or every value; a value never published is removed. Edit
+ * mode's Publish menu undoes changes and discards a page's Drafts with it.
+ */
+export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string[] | "all"): Promise<Globals> {
+	return scope.transaction(async (tx) => {
+		const row = await lockGlobals(tx);
+		const { defaultLanguage } = await siteLanguages(tx);
+		const draft = storedVersion(row.draft);
+		const restored = restoredVersion(draft, storedVersion(row.published), keys);
+		if (sameJson(restored, draft)) return toGlobals(tx, row, defaultLanguage, defaultLanguage);
+		const [saved] = await tx.update(globals, { draft: restored, updatedAt: tx.now() }, eq(globals.id, row.id));
+		return toGlobals(tx, saved ?? row, defaultLanguage, defaultLanguage);
+	});
+}
+
+/**
  * Publishes the Globals' Draft, inside `publish`'s transaction: refuses broken rules
  * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`).
  */
@@ -153,13 +170,18 @@ export async function publishGlobals(scope: SiteScope): Promise<Published> {
 	return { kind: "globals", id: row.id, publishedAt: now, pathChanges: [] };
 }
 
-/** The Site's published Globals: their Fields and published values (empty while never published). */
-export function publishedGlobals(
+/**
+ * The Site's Globals as one version shows them: their Fields and the published values (empty while
+ * never published) for visitors, or the Draft's in Edit mode.
+ */
+export function globalsVersion(
 	row: GlobalsRow | undefined,
 	languages: { language: string; defaultLanguage: string },
+	version: "published" | "draft" = "published",
 ) {
 	const fields = storedFields(row?.fields);
-	const values = row?.published ? readFields(storedVersion(row.published).values, fields, languages) : {};
+	const stored = version === "draft" ? row?.draft : row?.published;
+	const values = stored ? readFields(storedVersion(stored).values, fields, languages) : {};
 	return { fields, values };
 }
 

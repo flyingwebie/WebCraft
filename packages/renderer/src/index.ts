@@ -104,6 +104,7 @@ export {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
 	directionOf,
+	type EditModePage,
 	PAGE_HOOKS,
 	type PageStyles,
 	type PageToRender,
