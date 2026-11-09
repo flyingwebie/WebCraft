@@ -95,7 +95,7 @@ describe("unknown names", () => {
 		await refuses("<blink>x</blink>", 1, 1, "There is no element named blink");
 		await refuses('<Card title="x"></Card>', 1, 1, "There is no Component named Card");
 		await refuses("{{@repeat items}}x{{/repeat}}", 1, 1, "There is no Template command {{@repeat}}");
-		await refuses("{{@loop posts as post}}x{{/loop}}", 1, 1, "{{@loop}} isn't available yet");
+		await refuses("{{@form contact}}", 1, 1, "{{@form}} isn't available yet");
 		await refuses("<p>{{@outlet}}</p>", 1, 4, "{{@outlet}} belongs to the Site template");
 	});
 

@@ -90,6 +90,7 @@ export {
 	EXPRESSION_KEYWORDS,
 	type Expression,
 	passes,
+	type RenderTime,
 	readExpression,
 	writeExpression,
 } from "./expressions.ts";
@@ -101,8 +102,20 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
-export { type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
+export { type PaginationWords, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
 export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
+export {
+	DEFAULT_ITEM_NAME,
+	isLoopInfo,
+	LOOP_LIMITS,
+	LOOP_POSITION,
+	LOOP_STATS,
+	type LoopCatalogue,
+	type LoopInfo,
+	type LoopItem,
+	type LoopItemPlace,
+	type LoopRun,
+} from "./loops.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
 export { type PrintMarkupOptions, printTemplateMarkup } from "./markup/print.ts";
@@ -147,7 +160,9 @@ export {
 	ElementTreeInvalidError,
 	elementsOf,
 	type LanguageSwitcherNode,
+	type LoopNode,
 	type OutletNode,
+	type PaginationNode,
 	type ParseTreeOptions,
 	parseElementTree,
 	randomElementId,

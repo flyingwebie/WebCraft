@@ -27,6 +27,7 @@ import { URL_ATTRIBUTES } from "../escape.ts";
 import { type Expression, expressionPaths, readExpression } from "../expressions.ts";
 import { readFormat } from "../formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "../languages.ts";
+import { type LoopCatalogue, rootScope, type ValueScope } from "../loops.ts";
 import { mediaReference } from "../media.ts";
 import {
 	type Attribute,
@@ -51,7 +52,6 @@ import {
 	type TreeNode,
 	textPlacementProblem,
 	textProblem,
-	unknownValueMessage,
 	type ValueNode,
 	VOID_ELEMENTS,
 } from "../tree.ts";
@@ -85,6 +85,11 @@ export type ParseMarkupOptions = {
 	components?: ComponentCatalogue;
 	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
 	unknownValue?: (path: string) => string;
+	/**
+	 * The Loops of the Site the markup may name (`{{@loop latest-posts}}`, `latest-posts.count`);
+	 * without them a Loop's source can only be a list the markup reads.
+	 */
+	loops?: LoopCatalogue;
 	/** How deep the markup already sits in Components: 0 for a Template (the default), 1 for a Component's. */
 	placedDepth?: number;
 	/** Makes an id for an element written without one; random by default. */
@@ -182,9 +187,12 @@ class MarkupParser {
 	private readonly boundaries = new Map<string, string | undefined>();
 	private readonly newId: () => string;
 	private readonly options: ParseMarkupOptions;
+	/** What bindings may read where the reading is: inside a Loop, its items too. */
+	private scope: ValueScope;
 
 	constructor(markup: string, options: ParseMarkupOptions) {
 		this.options = options;
+		this.scope = rootScope(options);
 		this.source = new MarkupSource(markup);
 		this.text = this.source.text;
 		this.newId = options.newId ?? randomElementId;
@@ -221,6 +229,7 @@ class MarkupParser {
 					refuseCommand: this.options.refuseCommand,
 					components: this.options.components,
 					unknownValue: this.options.unknownValue,
+					loops: this.options.loops,
 					placedDepth: this.options.placedDepth,
 					classIds: this.classIds,
 					newId: this.newId,
@@ -467,8 +476,8 @@ class MarkupParser {
 			this.problem(pathOffset, `${path} isn't a value's name: write names joined by dots, such as {{ title }}.`);
 			return undefined;
 		}
-		if (this.options.isKnownValue && !this.options.isKnownValue(path)) {
-			this.problem(pathOffset, (this.options.unknownValue ?? unknownValueMessage)(path));
+		if (this.scope.isKnownValue && !this.scope.isKnownValue(path)) {
+			this.problem(pathOffset, this.scope.unknownValue(path));
 			return undefined;
 		}
 		if (formats.length === 0) return { type: "value", path };
@@ -578,12 +587,11 @@ class MarkupParser {
 			this.problem(offset + read.problem.offset, read.problem.message);
 			return undefined;
 		}
-		const unknown = expressionPaths(read.expression).find(
-			(path) => this.options.isKnownValue && !this.options.isKnownValue(path),
-		);
+		const { isKnownValue } = this.scope;
+		const unknown = expressionPaths(read.expression).find((path) => isKnownValue && !isKnownValue(path));
 		if (unknown !== undefined) {
-			const at = new RegExp(`(?<![A-Za-z0-9_.])${unknown.replaceAll(".", "\\.")}(?![A-Za-z0-9_])`).exec(text);
-			this.problem(offset + (at?.index ?? 0), (this.options.unknownValue ?? unknownValueMessage)(unknown));
+			const at = new RegExp(`(?<![A-Za-z0-9_.-])${unknown.replaceAll(".", "\\.")}(?![A-Za-z0-9_-])`).exec(text);
+			this.problem(offset + (at?.index ?? 0), this.scope.unknownValue(unknown));
 			return undefined;
 		}
 		return read.expression;
@@ -610,8 +618,20 @@ class MarkupParser {
 				branches: command.branches,
 				offset: opened.offset,
 			};
+			const around = this.scope;
 			for (;;) {
-				const { nodes, end } = this.readContent(container, ancestors, depth + 1);
+				// The opening section's content may read more than what is around it: a Loop's items.
+				this.scope =
+					sections.length === 0 && command.bodyScope
+						? command.bodyScope(current, around, (offset, message) => this.problem(offset, message))
+						: around;
+				let content: { nodes: TreeNode[]; end: End };
+				try {
+					content = this.readContent(container, ancestors, depth + 1);
+				} finally {
+					this.scope = around;
+				}
+				const { nodes, end } = content;
 				sections.push({ ...current, children: nodes });
 				if (end.kind === "branch") {
 					current = {
@@ -646,6 +666,7 @@ class MarkupParser {
 		return command.fromMarkup(sections, {
 			expression: (text, offset) => this.readExpression(text, offset),
 			problem: (offset, message) => this.problem(offset, message),
+			scope: this.scope,
 		});
 	}
 

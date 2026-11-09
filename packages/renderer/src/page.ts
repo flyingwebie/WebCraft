@@ -1,6 +1,8 @@
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
+import type { RenderTime } from "./expressions.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
+import type { LoopItemPlace, LoopRun } from "./loops.ts";
 import type { MediaReader } from "./media.ts";
 import type { ElementNode, ElementTree, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
@@ -78,6 +80,10 @@ export type PageToRender = {
 	media?: MediaReader;
 	/** What Placements show, in both templates: their Components' published trees. */
 	component?: PlacementRenderer;
+	/** What each Loop of the Site the page names shows here, in both templates (`RenderOptions.loop`). */
+	loop?: (name: string) => LoopRun | undefined;
+	/** The time the page is rendered, for Conditions reading `now`. */
+	time?: RenderTime;
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
@@ -110,9 +116,14 @@ export type PageStyles = {
 export type EditModePage = {
 	/**
 	 * The attributes that tag an element showing `value` alone as an editable region, or undefined
-	 * when it isn't editable. `template` is where the binding is: the page's content or the Site template.
+	 * when it isn't editable. `template` is where the binding is: the page's content or the Site template;
+	 * `item`, the Loop item it sits in, if any.
 	 */
-	region(value: ValueNode, template: "content" | "site"): readonly (readonly [string, string])[] | undefined;
+	region(
+		value: ValueNode,
+		template: "content" | "site",
+		item?: LoopItemPlace,
+	): readonly (readonly [string, string])[] | undefined;
 	/** `<meta>` elements for WebCraft's own script, by name, such as the Edit mode session's header token. */
 	meta: readonly (readonly [name: string, content: string])[];
 	/** WebCraft's own scripts, as paths on the Site's domain; they run before anything else on the page. */
@@ -144,6 +155,7 @@ export function renderPage(page: PageToRender): string {
 	const words = pageWords(site.language);
 	// The embed script comes only with a video to play.
 	const shown = { videos: 0 };
+	const loopItemsShown = { count: 0 };
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
@@ -153,9 +165,12 @@ export function renderPage(page: PageToRender): string {
 		media: page.media,
 		priorityImage: { given: false },
 		component: page.component,
+		loop: page.loop,
+		time: page.time,
+		loopItemsShown,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && ((value) => editMode.region(value, "content")),
+		editRegion: editMode && ((value, item) => editMode.region(value, "content", item)),
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
@@ -167,9 +182,12 @@ export function renderPage(page: PageToRender): string {
 		outlet: () => content,
 		extraAttributes: mainAttributes,
 		component: page.component,
+		loop: page.loop,
+		time: page.time,
+		loopItemsShown,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && ((value) => editMode.region(value, "site")),
+		editRegion: editMode && ((value, item) => editMode.region(value, "site", item)),
 	});
 	return [
 		"<!doctype html>",
@@ -259,6 +277,11 @@ type PageWords = {
 	playVideo: string;
 	/** A video's player title when the video has none. */
 	video: string;
+	/** Pagination's name, its previous and next links, and a page's link ("Page {n}"). */
+	pagination: string;
+	previousPage: string;
+	nextPage: string;
+	pageNumber: string;
 };
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
@@ -270,6 +293,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Language",
 		playVideo: "Play video",
 		video: "Video",
+		pagination: "Pages",
+		previousPage: "Previous",
+		nextPage: "Next",
+		pageNumber: "Page {n}",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
@@ -279,6 +306,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Lingua",
 		playVideo: "Riproduci il video",
 		video: "Video",
+		pagination: "Pagine",
+		previousPage: "Precedente",
+		nextPage: "Successiva",
+		pageNumber: "Pagina {n}",
 	},
 	fr: {
 		skipLink: "Aller au contenu principal",
@@ -288,6 +319,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Langue",
 		playVideo: "Lire la vidéo",
 		video: "Vidéo",
+		pagination: "Pages",
+		previousPage: "Précédente",
+		nextPage: "Suivante",
+		pageNumber: "Page {n}",
 	},
 	de: {
 		skipLink: "Zum Hauptinhalt springen",
@@ -297,6 +332,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Sprache",
 		playVideo: "Video abspielen",
 		video: "Video",
+		pagination: "Seiten",
+		previousPage: "Zurück",
+		nextPage: "Weiter",
+		pageNumber: "Seite {n}",
 	},
 	es: {
 		skipLink: "Ir al contenido principal",
@@ -306,6 +345,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Idioma",
 		playVideo: "Reproducir el vídeo",
 		video: "Vídeo",
+		pagination: "Páginas",
+		previousPage: "Anterior",
+		nextPage: "Siguiente",
+		pageNumber: "Página {n}",
 	},
 	pt: {
 		skipLink: "Ir para o conteúdo principal",
@@ -315,6 +358,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Idioma",
 		playVideo: "Reproduzir o vídeo",
 		video: "Vídeo",
+		pagination: "Páginas",
+		previousPage: "Anterior",
+		nextPage: "Seguinte",
+		pageNumber: "Página {n}",
 	},
 	nl: {
 		skipLink: "Naar de hoofdinhoud",
@@ -324,6 +371,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Taal",
 		playVideo: "Video afspelen",
 		video: "Video",
+		pagination: "Pagina's",
+		previousPage: "Vorige",
+		nextPage: "Volgende",
+		pageNumber: "Pagina {n}",
 	},
 };
 

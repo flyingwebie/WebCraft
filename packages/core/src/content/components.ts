@@ -21,6 +21,7 @@ import {
 	ElementTreeInvalidError,
 	EXPRESSION_KEYWORDS,
 	expansionProblem,
+	type LoopCatalogue,
 	type MarkupNotice,
 	type PropInfo,
 	parseElementTree,
@@ -49,6 +50,7 @@ import {
 } from "./errors.ts";
 import { type FieldDefinition, type FieldInput, parseFields, storedFields } from "./fields.ts";
 import { sameJson } from "./json.ts";
+import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { listPostTypes, type PostType } from "./post-types.ts";
 import { readPropText } from "./props.ts";
@@ -474,12 +476,19 @@ export async function lockComponents(scope: Pick<SiteScope, "db" | "site">): Pro
 export type ComponentReadContext = {
 	postTypes: readonly PostType[];
 	globalFields: readonly FieldDefinition[];
+	/** The Loops of the Site its tree may name (`{{@loop latest-posts}}`). */
+	loops: LoopCatalogue;
 };
 
-export async function readContext(scope: Pick<SiteScope, "select" | "first">): Promise<ComponentReadContext> {
+/** What a Component's tree reads: the Loops' Drafts for a Draft being saved, their published versions for a publish. */
+export async function readContext(
+	scope: Pick<SiteScope, "select" | "first">,
+	version: "draft" | "published" = "draft",
+): Promise<ComponentReadContext> {
 	return {
 		postTypes: await listPostTypes(scope),
 		globalFields: storedFields((await scope.first(globals))?.fields),
+		loops: await loopCatalogue(scope, version),
 	};
 }
 
@@ -502,6 +511,7 @@ export function componentTreeRules(
 				: undefined,
 		refuseCommand: refuseSiteTemplateCommands,
 		components: catalogue,
+		loops: context.loops,
 		// A Component's tree is itself placed: what it places sits one level deeper.
 		placedDepth: 1,
 	};

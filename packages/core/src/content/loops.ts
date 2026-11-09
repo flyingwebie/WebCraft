@@ -1,5 +1,5 @@
 import { loops } from "@webcraft/db/schema";
-import { EXPRESSION_KEYWORDS } from "@webcraft/renderer";
+import { EXPRESSION_KEYWORDS, type LoopCatalogue, type LoopInfo } from "@webcraft/renderer";
 import { asc, eq, sql } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
@@ -30,6 +30,7 @@ import { languagesFor, siteLanguages } from "./languages.ts";
 import { type LoopQuery, parseQuery, storedQuery } from "./loop-queries.ts";
 import { listPostTypes } from "./post-types.ts";
 import type { Published } from "./publishing.ts";
+import { loopItemKnownValues } from "./render-values.ts";
 
 /**
  * Loops (GLOSSARY.md): repeated parts of a Site that render the same markup once per item, placed
@@ -389,4 +390,34 @@ export async function siteLoops(
 					: storedLoopVersion(row.published),
 		]),
 	);
+}
+
+/**
+ * The Loops of the Site a tree may name, with what their items may be read as: their Drafts for a
+ * Draft being saved, their published versions for a publish (a Loop never published is refused
+ * there, as a Component is).
+ */
+export async function loopCatalogue(
+	scope: Pick<SiteScope, "select">,
+	version: "draft" | "published",
+): Promise<LoopCatalogue> {
+	const found = await siteLoops(scope, version);
+	const postTypes = await listPostTypes(scope);
+	const infos = new Map<string, LoopInfo | { refused: string }>();
+	for (const [name, loop] of found) {
+		infos.set(
+			name,
+			loop === null
+				? { refused: `The Loop ${name} isn't published yet: publish it first.` }
+				: {
+						isKnownValue: loopItemKnownValues({
+							source: loop.source,
+							listed: loop.query.postTypes,
+							fields: loop.fields,
+							postTypes,
+						}),
+					},
+		);
+	}
+	return { byName: (name) => infos.get(name) };
 }

@@ -3,6 +3,7 @@ import {
 	type ComponentCatalogue,
 	checkSiteTemplate,
 	type ElementTree,
+	type LoopCatalogue,
 	type MarkupNotice,
 	parseElementTree,
 	parseTemplateMarkup,
@@ -27,6 +28,7 @@ import { PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.t
 import type { FieldDefinition } from "./field-types.ts";
 import { storedFields } from "./fields.ts";
 import { sameJson } from "./json.ts";
+import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { knownValues } from "./render-values.ts";
@@ -121,13 +123,14 @@ type TemplateTarget =
 	| { kind: "site"; globalFields: readonly FieldDefinition[] };
 
 /**
- * What the Template `target` names may hold, placing the Components of `components`: their Drafts
- * for a Draft, their published versions for a publish.
+ * What the Template `target` names may hold, placing the Components of `components` and naming the
+ * Loops of `loops`: their Drafts for a Draft, their published versions for a publish.
  */
-function rulesFor(target: TemplateTarget, components: ComponentCatalogue) {
+function rulesFor(target: TemplateTarget, components: ComponentCatalogue, loops: LoopCatalogue) {
 	return {
 		...(target.kind === "entry" ? entryTemplateRules(target.context) : siteTemplateRules(target.globalFields)),
 		components,
+		loops,
 	};
 }
 
@@ -143,8 +146,9 @@ function parseTemplate(
 	target: TemplateTarget,
 	classIds: ReadonlySet<string>,
 	components: ComponentCatalogue,
+	loops: LoopCatalogue,
 ): ElementTree {
-	return parseElementTree(tree, { ...rulesFor(target, components), classIds });
+	return parseElementTree(tree, { ...rulesFor(target, components, loops), classIds });
 }
 
 /** An Entry template to save: Pages have none, being arranged with a Page layout (`PagesHaveNoEntryTemplateError`). */
@@ -196,7 +200,13 @@ async function saveTemplate(
 			// The Components it places can't be deleted while it is saved.
 			await lockComponents(tx);
 			const { ids } = classCatalogue(await draftDesignSystem(tx));
-			const draft = parseTemplate(tree, target, ids, await siteComponents(tx, "draft", sources));
+			const draft = parseTemplate(
+				tree,
+				target,
+				ids,
+				await siteComponents(tx, "draft", sources),
+				await loopCatalogue(tx, "draft"),
+			);
 			return writeTemplateDraft(tx, target, draft);
 		}),
 	);
@@ -238,7 +248,7 @@ async function saveTemplateMarkup(
 			const catalogue = classCatalogue(await draftDesignSystem(tx));
 			const components = await siteComponents(tx, "draft", sources);
 			const { tree, notices } = parseTemplateMarkup(markup, {
-				...rulesFor(target, components),
+				...rulesFor(target, components, await loopCatalogue(tx, "draft")),
 				classNamed: catalogue.named,
 				classForStyle: catalogue.forStyle,
 			});
@@ -348,8 +358,14 @@ export async function checkTemplateForPublish(
 			? await siteTemplateTarget(scope)
 			: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
 	const { ids } = classCatalogue(await draftDesignSystem(scope));
-	// Visitors will see the Components it places as they are published.
-	return parseTemplate(row.draft, target, ids, await siteComponents(scope, "published", sources));
+	// Visitors will see the Components it places and the Loops it names as they are published.
+	return parseTemplate(
+		row.draft,
+		target,
+		ids,
+		await siteComponents(scope, "published", sources),
+		await loopCatalogue(scope, "published"),
+	);
 }
 
 /** Reads a Template for publishing, holding it until the transaction ends. */

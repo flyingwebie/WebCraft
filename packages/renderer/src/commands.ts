@@ -5,22 +5,31 @@
  * new command is a new entry here and a new node kind in `TreeNode`, never a change to the markup
  * parser or printer.
  *
- * Commands the spec names but later work brings (Loops and `{{@empty}}`, pagination, Forms, Filters
- * and Popups) are reserved: markup naming them is refused for now.
+ * Commands the spec names but later work brings (Forms, Filters and Popups) are reserved: markup
+ * naming them is refused for now.
  */
-import { type Expression, passes, writeExpression } from "./expressions.ts";
+import { type Expression, passes, type RenderTime, writeExpression } from "./expressions.ts";
+import { DEFAULT_ITEM_NAME, loopBodyScope, paginationProblem, readLoopArgument, type ValueScope } from "./loops.ts";
 import type {
 	ConditionBranch,
 	ConditionNode,
 	LanguageSwitcherNode,
+	LoopNode,
 	OutletNode,
+	PaginationNode,
 	ThemeToggleNode,
 	TreeNode,
 } from "./tree.ts";
 import type { TemplateValue } from "./values.ts";
 
 /** The node kinds Template commands store. */
-export type CommandNode = ConditionNode | OutletNode | ThemeToggleNode | LanguageSwitcherNode;
+export type CommandNode =
+	| ConditionNode
+	| OutletNode
+	| ThemeToggleNode
+	| LanguageSwitcherNode
+	| LoopNode
+	| PaginationNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -39,18 +48,31 @@ export type FromMarkupTools = {
 	/** Reads an expression written at `offset` in the markup; undefined after reporting a problem. */
 	expression(text: string, offset: number): Expression | undefined;
 	problem(offset: number, message: string): void;
+	/** What bindings may read where the command is. */
+	scope: ValueScope;
 };
 
 export type CheckTools = {
 	problem(at: string, message: string): void;
 	/** Checks a stored expression at `at`. */
 	expression(input: unknown, at: string): Expression | undefined;
-	/** Checks a stored list of nodes at `at`, as children of the command's parent. */
-	nodes(input: unknown, at: string): TreeNode[];
+	/**
+	 * Checks a stored list of nodes at `at`, as children of the command's parent, reading what
+	 * `scope` allows (what is around the command when absent).
+	 */
+	nodes(input: unknown, at: string, scope?: ValueScope): TreeNode[];
+	/** What bindings may read where the command is. */
+	scope: ValueScope;
 };
 
 export type RenderTools = {
 	read(path: string): TemplateValue;
+	/** The time the page is rendered, for tests that read `now`. */
+	time?: RenderTime;
+	/** Renders a Loop: its content once per item, or what shows when it has none. */
+	loop(node: LoopNode): string;
+	/** The links to a Loop's pages: nothing unless it paginates on this page. */
+	pagination(loop: string): string;
 	/** Renders nodes in the command's place. */
 	nodes(nodes: readonly TreeNode[]): string;
 	/** The page's content, rendered: what the Site template's `{{@outlet}}` shows. */
@@ -81,6 +103,15 @@ export type TemplateCommand<Node extends CommandNode = CommandNode> = {
 	render(node: Node, tools: RenderTools): string;
 	/** Why the command can't sit inside `ancestors` (element tags, outermost first), or undefined. */
 	placementProblem?(ancestors: readonly string[]): string | undefined;
+	/**
+	 * What the opening section's content may read, from its argument (a Loop's items), reporting a
+	 * problem with the argument; what is around it when absent. Markup reads the content with it.
+	 */
+	bodyScope?(
+		section: Omit<MarkupSection, "children">,
+		around: ValueScope,
+		problem: (offset: number, message: string) => void,
+	): ValueScope;
 };
 
 /** `{{@if test}} … {{@else if test}} … {{@else}} … {{/if}}`: a Condition. */
@@ -150,7 +181,7 @@ const ifCommand: TemplateCommand<ConditionNode> = {
 	},
 
 	render(node, tools) {
-		const chosen = node.branches.find((branch) => passes(branch.test, tools.read));
+		const chosen = node.branches.find((branch) => passes(branch.test, tools.read, tools.time));
 		if (chosen) return tools.nodes(chosen.children);
 		return node.otherwise === null ? "" : tools.nodes(node.otherwise);
 	},
@@ -331,23 +362,156 @@ const languageSwitcherCommand: TemplateCommand<LanguageSwitcherNode> = {
 	},
 };
 
+/**
+ * `{{@loop source as post}} … {{@empty}} … {{/loop}}`: a Loop (`loops.ts`). Its content renders once
+ * per item, reading the item as `post.x` and its position as `loop.x`; `{{@empty}}`'s content renders
+ * when there are none and reads only what is around the Loop.
+ */
+const loopCommand: TemplateCommand<LoopNode> = {
+	name: "loop",
+	nodeType: "loop",
+	block: true,
+	branches: ["empty"],
+
+	bodyScope(section, around, problem) {
+		const read = readLoopArgument(section.argument);
+		if ("problem" in read) {
+			problem(section.argumentOffset + read.at, read.problem);
+			return { ...around, isKnownValue: undefined, aliases: [...around.aliases, DEFAULT_ITEM_NAME] };
+		}
+		const body = loopBodyScope(read.source, read.alias, around);
+		if (body.problem) {
+			const at =
+				body.problem.on === "loop"
+					? section.offset
+					: section.argumentOffset + (body.problem.on === "source" ? read.sourceAt : read.aliasAt);
+			problem(at, body.problem.message);
+		}
+		return body.scope;
+	},
+
+	fromMarkup(sections, tools) {
+		const [opening, ...rest] = sections;
+		const read = readLoopArgument(opening?.argument ?? "");
+		let empty: TreeNode[] | null = null;
+		for (const section of rest) {
+			if (section.argument.trim()) {
+				tools.problem(section.argumentOffset, "{{@empty}} takes nothing: write it alone.");
+			}
+			if (empty !== null) tools.problem(section.offset, "A Loop has {{@empty}} once at most.");
+			empty = section.children;
+		}
+		if (!opening || "problem" in read) return undefined;
+		return { type: "loop", source: read.source, alias: read.alias, children: opening.children, empty };
+	},
+
+	toMarkup(node) {
+		return [
+			{
+				keyword: "loop",
+				argument: node.alias === DEFAULT_ITEM_NAME ? node.source : `${node.source} as ${node.alias}`,
+				children: node.children,
+			},
+			...(node.empty === null ? [] : [{ keyword: "empty", argument: "", children: node.empty }]),
+		];
+	},
+
+	check(input, at, tools) {
+		const { source, alias = DEFAULT_ITEM_NAME } = input;
+		if (typeof source !== "string" || typeof alias !== "string") {
+			tools.problem(at, "A Loop names its source and what its items are called.");
+			return undefined;
+		}
+		const read = readLoopArgument(`${source} as ${alias}`);
+		if ("problem" in read || read.source !== source || read.alias !== alias) {
+			tools.problem(`${at}.source`, `${source} isn't a Loop's name or a value's name.`);
+			return undefined;
+		}
+		const body = loopBodyScope(source, alias, tools.scope);
+		if (body.problem) {
+			tools.problem(body.problem.on === "loop" ? at : `${at}.${body.problem.on}`, body.problem.message);
+		}
+		const children = tools.nodes(input.children ?? [], `${at}.children`, body.scope);
+		const empty = input.empty === null || input.empty === undefined ? null : tools.nodes(input.empty, `${at}.empty`);
+		return { type: "loop", source, alias, children, empty };
+	},
+
+	children(node) {
+		return node.empty === null ? [node.children] : [node.children, node.empty];
+	},
+
+	render(node, tools) {
+		return tools.loop(node);
+	},
+};
+
+/**
+ * `{{@pagination latest-posts}}`: links to the pages of a Loop of the Site that paginates, on
+ * Archive templates and Pages; nothing elsewhere, or with one page. It renders a <nav>, so it goes
+ * where one can.
+ */
+const paginationCommand: TemplateCommand<PaginationNode> = {
+	name: "pagination",
+	nodeType: "pagination",
+	block: false,
+	branches: [],
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		if (!section) return undefined;
+		const name = section.argument.trim();
+		const refused = paginationProblem(name, tools.scope);
+		if (refused) {
+			const leading = section.argument.length - section.argument.trimStart().length;
+			tools.problem(name ? section.argumentOffset + leading : section.offset, refused);
+			return undefined;
+		}
+		return { type: "pagination", loop: name };
+	},
+
+	toMarkup(node) {
+		return [{ keyword: "pagination", argument: node.loop, children: [] }];
+	},
+
+	check(input, at, tools) {
+		const name = typeof input.loop === "string" ? input.loop : "";
+		const refused = paginationProblem(name, tools.scope);
+		if (refused) {
+			tools.problem(`${at}.loop`, refused);
+			return undefined;
+		}
+		return { type: "pagination", loop: name };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(node, tools) {
+		return tools.pagination(node.loop);
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => INTERACTIVE.has(tag) || PHRASING_ONLY.has(tag));
+		if (inside) return `{{@pagination}} is a list of links in a <nav>: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@pagination}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
 /** Every Template command there is. */
 export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	ifCommand,
+	loopCommand,
 	outletCommand,
+	paginationCommand,
 	themeToggleCommand,
 	languageSwitcherCommand,
 ];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
-export const RESERVED_COMMANDS: ReadonlySet<string> = new Set([
-	"loop",
-	"empty",
-	"pagination",
-	"form",
-	"filter",
-	"popup",
-]);
+export const RESERVED_COMMANDS: ReadonlySet<string> = new Set(["form", "filter", "popup"]);
 
 /** The command written `{{@name}}`, if there is one. */
 export function commandNamed(name: string): TemplateCommand | undefined {

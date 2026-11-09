@@ -341,7 +341,7 @@ async function publishComponent(scope: SiteScope, componentId: string, sources: 
 	const catalogue = await siteComponents(scope, "published", sources, { self: row.id });
 	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	const tree = parseElementTree(draft.tree, {
-		...componentTreeRules(draft.props, await readContext(scope), catalogue),
+		...componentTreeRules(draft.props, await readContext(scope, "published"), catalogue),
 		classIds: ids,
 	});
 	// Every copy changes: each must still fit where it is placed and published.
