@@ -119,6 +119,11 @@ export const siteAnalytics = defineModule({
 		routePrefix: "analytics",
 		siteScript: "analytics",
 	},
+	// Goals and Funnels are Structure: Staff build them (their screens are in the admin's `ui/analytics/`).
+	adminPages: [
+		{ path: "goals", label: { en: "Goals", it: "Obiettivi" }, permission: "structure.edit" },
+		{ path: "funnels", label: { en: "Funnels", it: "Funnel" }, permission: "structure.edit" },
+	],
 	tables: [events, rollups, rollupState, settings, goals, funnels],
 	migrations,
 	partitions: [

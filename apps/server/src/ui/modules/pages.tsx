@@ -1,5 +1,7 @@
 import type { ComponentType } from "react";
 
+import { FunnelsScreen, funnelsData } from "../analytics/FunnelsScreen.tsx";
+import { GoalsScreen, goalsData } from "../analytics/GoalsScreen.tsx";
 import { useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 import { RedirectsScreen, redirectsData } from "../redirects/Redirects.tsx";
@@ -26,6 +28,10 @@ export type ModuleScreen = {
  */
 export const MODULE_PAGES: Readonly<Record<string, Readonly<Record<string, ModuleScreen>>>> = {
 	redirects: { redirects: { Screen: RedirectsScreen, load: redirectsData } },
+	"site-analytics": {
+		goals: { Screen: GoalsScreen, load: goalsData },
+		funnels: { Screen: FunnelsScreen, load: funnelsData },
+	},
 };
 
 /** A Module's admin page in the shell, or a plain notice when this version of the admin has no screen for it. */
