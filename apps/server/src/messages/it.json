@@ -869,7 +869,7 @@
 	},
 	"publishAll": {
 		"button": "Pubblica tutto",
-		"buttonLabel": "Pubblica tutto: {count, plural, one {# modifica} other {# modifiche}}",
+		"changesCounted": "{count, plural, one {modifica} other {modifiche}}",
 		"title": "Pubblica tutte le modifiche",
 		"close": "Chiudi",
 		"loading": "Ricerca delle bozze del sito…",

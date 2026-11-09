@@ -869,7 +869,7 @@
 	},
 	"publishAll": {
 		"button": "Publish all",
-		"buttonLabel": "Publish all: {count, plural, one {# change} other {# changes}}",
+		"changesCounted": "{count, plural, one {change} other {changes}}",
 		"title": "Publish all changes",
 		"close": "Close",
 		"loading": "Looking for the Site's Drafts…",

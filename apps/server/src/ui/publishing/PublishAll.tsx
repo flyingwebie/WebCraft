@@ -70,18 +70,14 @@ export function PublishAllButton({
 	}, [openAtStart]);
 	return (
 		<>
-			<Button
-				ref={trigger}
-				size="sm"
-				onClick={() => setOpen(true)}
-				aria-label={t("publishAll.buttonLabel", { count })}
-				aria-haspopup="dialog"
-			>
+			<Button ref={trigger} size="sm" onClick={() => setOpen(true)} aria-haspopup="dialog">
 				<UploadIcon aria-hidden="true" />
-				{t("publishAll.button")}
-				<Badge variant="secondary" className="ms-1 tabular-nums" aria-hidden="true">
+				{t("publishAll.button")}{" "}
+				<Badge variant="secondary" className="ms-1 tabular-nums">
 					{count}
 				</Badge>
+				{/* Its name says what the number counts: "Publish all 3 changes". */}
+				<span className="sr-only"> {t("publishAll.changesCounted", { count })}</span>
 			</Button>
 			{open ? <PublishAllDialog siteId={siteId} onClose={() => setOpen(false)} finalFocus={trigger} /> : null}
 		</>

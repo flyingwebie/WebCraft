@@ -1,4 +1,4 @@
-import { contentHash, escapeAttribute, escapeText } from "@webcraft/renderer";
+import { contentHash, escapeAttribute, escapeText, pageWords } from "@webcraft/renderer";
 
 import { type StagingWords, stagingWords } from "./words.ts";
 
@@ -11,6 +11,9 @@ const STYLES = `:root{color-scheme:light dark;--bg:#fafafa;--fg:#18181b;--muted:
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;padding:1rem;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{width:100%;max-width:28rem;background:var(--card);border:1px solid var(--border);border-radius:.75rem;padding:2rem}
+main:focus{outline:none}
+.skip{position:absolute;top:.5rem;left:.5rem;padding:.5rem 1rem;background:var(--card);color:var(--fg)}
+.skip:not(:focus){clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap;padding:0}
 h1{font-size:1.5rem;line-height:1.25;margin:0 0 .25rem}
 h2{font-size:1.125rem;margin:1.5rem 0 .25rem}
 p{margin:.5rem 0;color:var(--muted)}
@@ -88,7 +91,8 @@ export function stagingPage(options: StagingPageOptions): string {
 		`<link rel="stylesheet" href="${STAGING_STYLESHEET.path}">`,
 		"</head>",
 		"<body>",
-		"<main>",
+		`<a class="skip" href="#main">${escapeText(pageWords(options.language).skipLink)}</a>`,
+		'<main id="main" tabindex="-1">',
 		`<h1>${escapeText(words.title)}</h1>`,
 		`<p class="site">${escapeText(options.siteName)}</p>`,
 		`<p>${escapeText(words.intro)}</p>`,
