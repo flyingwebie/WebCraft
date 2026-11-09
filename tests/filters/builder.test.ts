@@ -150,7 +150,8 @@ describe("the live preview", () => {
 		await shop.staff.api.templates.saveArchiveTemplateMarkup({
 			siteId: shop.siteId,
 			postTypeId: shop.productsId,
-			markup: '<ul>{{@loop products as p}}<li>{{ p.title }}</li>{{@empty}}<li>None</li>{{/loop}}</ul>{{@pagination products}}',
+			markup:
+				"<ul>{{@loop products as p}}<li>{{ p.title }}</li>{{@empty}}<li>None</li>{{/loop}}</ul>{{@pagination products}}",
 		});
 
 		const preview = await shop.staff.api.filters.preview({ siteId: shop.siteId, filterId: shop.filterId });
