@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let siteId: string;
@@ -60,7 +61,7 @@ test.each(PAGES)(
 	async (_name, path, status) => {
 		const response = await install.request(`${origin}${path}`);
 		expect(response.status).toBe(status);
-		const html = await response.text();
+		const html = await expectSafePage(response);
 
 		expect(html).toStartWith('<!doctype html>\n<html lang="en" dir="ltr">\n');
 		const body = /<body>\n([\s\S]*)\n<\/body>/.exec(html)?.[1] ?? "";
@@ -69,7 +70,6 @@ test.each(PAGES)(
 		expect(body).toMatch(
 			/^[^\n]*\n<header><nav aria-label="Main">[\s\S]*<\/nav><\/header><div><main [\s\S]*<\/main><\/div><footer>/,
 		);
-		expect(html).not.toMatch(/<script|<style|\sstyle=|\son[a-z]+=/i);
 	},
 );
 
@@ -82,7 +82,7 @@ test("a 404 page under a chosen Page has the same defaults", async () => {
 	const response = await install.request(`${origin}/still/missing`);
 
 	expect(response.status).toBe(404);
-	const html = await response.text();
+	const html = await expectSafePage(response);
 	expect(html).toContain("<title>Lost? · Acme Bakery</title>");
 	expect(html).toContain('<a class="wc-skip-link" href="#wc-main">Skip to main content</a>');
 	expect(html.match(/<main\b[^>]*>/g)).toEqual(['<main id="wc-main" tabindex="-1">']);

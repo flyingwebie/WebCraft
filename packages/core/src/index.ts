@@ -192,6 +192,7 @@ export {
 	stagingUrl,
 } from "./site-pages/index.ts";
 export { MAX_PAGE_NUMBER } from "./site-pages/loops.ts";
+export * from "./site-scripts/index.ts";
 export type {
 	Access,
 	BackgroundScope,

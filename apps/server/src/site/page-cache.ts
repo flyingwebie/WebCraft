@@ -8,6 +8,8 @@ export type CachedPage = {
 	 * last 12 months), in milliseconds since the epoch; null while only a publish changes it.
 	 */
 	expiresAt?: number | null;
+	/** The security headers the page is sent with: its Content Security Policy (ADR 0023). */
+	headers: Readonly<Record<string, string>>;
 };
 
 /**
@@ -62,7 +64,7 @@ export function createPageCache(options: { maxBytes?: number } = {}): PageCache 
 			}
 			pages.delete(cacheKey);
 			pages.set(cacheKey, page);
-			return { html: page.html, etag: page.etag };
+			return { html: page.html, etag: page.etag, headers: page.headers };
 		},
 
 		set(siteId, generation, key, page) {

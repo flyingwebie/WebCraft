@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -71,7 +72,7 @@ async function page(
 async function mainOf(path: string): Promise<string> {
 	const response = await install.request(`https://bakery.sites.test${path}`);
 	expect(response.status).toBe(200);
-	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
+	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await expectSafePage(response))?.[1] ?? "";
 }
 
 describe("placing a Component", () => {

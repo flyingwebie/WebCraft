@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -42,7 +43,7 @@ async function siteWithPost(): Promise<{ siteId: string; url: string }> {
 async function bodyOf(url: string): Promise<string> {
 	const response = await install.request(url);
 	expect(response.status).toBe(200);
-	return /<body>\n([\s\S]*)\n<\/body>/.exec(await response.text())?.[1] ?? "";
+	return /<body>\n([\s\S]*)\n<\/body>/.exec(await expectSafePage(response))?.[1] ?? "";
 }
 
 describe("the built-in Site template", () => {

@@ -60,6 +60,8 @@ export function errorMessage(error: unknown): MessageKey {
 		case "ARCHIVE_UNAVAILABLE":
 		case "DOMAIN_TAKEN":
 		case "DOMAIN_NOT_FOUND":
+		case "LIBRARY_NOT_FOUND":
+		case "OUTSIDE_SCRIPT_NOT_FOUND":
 			return `errors.${code}`;
 		case "DOMAIN_INVALID":
 			return (data as { reason?: unknown } | undefined)?.reason === "install"

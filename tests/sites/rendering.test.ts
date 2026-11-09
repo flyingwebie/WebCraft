@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 import { stylesheetIn } from "../harness/site-styles.ts";
 import { element, type TestTree, text, tree, value } from "../harness/trees.ts";
 
@@ -52,7 +53,7 @@ async function publishedPage(
 	});
 	const { entry: published } = await editor.api.entries.publish({ siteId, entryId: created.entry.id });
 	const response = await install.request(`https://bakery.sites.test/${key}/${published.published?.slug}`);
-	return { html: await response.text(), response, entryId: created.entry.id };
+	return { html: await expectSafePage(response.clone()), response, entryId: created.entry.id };
 }
 
 describe("semantic HTML", () => {

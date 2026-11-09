@@ -99,6 +99,8 @@ export function codeMode(config: CodeModeConfig): void {
 	const path = win.location.pathname;
 	const SVG = "http://www.w3.org/2000/svg";
 	const PANEL_KEY = "webcraft-code-panels";
+	/** Which script the JS panel opens at, when the editing bar's notice about a failed script asked: `site` or `page`. */
+	const CODE_SCRIPT_KEY = "webcraft-code-script";
 	const ICONS: Record<string, string[]> = {
 		code: ["m18 16 4-4-4-4", "m6 8-4 4 4 4", "m14.5 4-5 16"],
 		brush: [
@@ -397,6 +399,25 @@ export function codeMode(config: CodeModeConfig): void {
 		build();
 		for (const line of pending.splice(0)) logLine("error", line);
 		await Promise.all([open(null), loadCss(null), loadScripts()]);
+		openAskedScript();
+	}
+
+	/**
+	 * When the editing bar's notice about a failed Site script brought Staff here, the JS panel opens
+	 * at that script (`site` or `page`), its editor focused.
+	 */
+	function openAskedScript(): void {
+		let asked: string | null = null;
+		try {
+			asked = win.sessionStorage.getItem(CODE_SCRIPT_KEY);
+			win.sessionStorage.removeItem(CODE_SCRIPT_KEY);
+		} catch {
+			return;
+		}
+		if (asked !== "site" && asked !== "page") return;
+		showPanels(true);
+		switchScript(asked);
+		jsEditor.area.focus();
 	}
 
 	// ---------------------------------------------------------------------------------------------

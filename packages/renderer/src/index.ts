@@ -147,9 +147,15 @@ export {
 	type LanguageLink,
 	PAGE_HOOKS,
 	type PageAlternate,
+	type PageLibrary,
+	type PageOutsideScript,
+	type PageScript,
+	type PageScriptTag,
 	type PageStyles,
 	type PageToRender,
 	pageWords,
+	type RenderedPage,
+	renderDocument,
 	renderPage,
 } from "./page.ts";
 export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
