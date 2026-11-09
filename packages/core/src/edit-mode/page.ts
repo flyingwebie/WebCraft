@@ -46,6 +46,8 @@ export type PageState = {
 	};
 	/** Whether the person may publish the page's changes; Authors save them to the Draft only. */
 	canPublish: boolean;
+	/** Whether the person may use Code mode (ADR 0016): change the Site's Structure (`structure.edit`), as Staff do. */
+	canCode: boolean;
 	/** The page's changes: its Entry's values, then the values of the Globals it shows. */
 	changes: PageChange[];
 	/** Where Publish all is, in the admin, and how many of the Site's other Drafts it would hold. */
@@ -88,6 +90,11 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 			item: content.entryId ? `entry:${content.entryId}` : null,
 		},
 		canPublish: can(scope.access.actor, "entry.publish", {
+			level: "site",
+			workspaceId: scope.workspace.id,
+			siteId: scope.site.id,
+		}),
+		canCode: can(scope.access.actor, "structure.edit", {
 			level: "site",
 			workspaceId: scope.workspace.id,
 			siteId: scope.site.id,

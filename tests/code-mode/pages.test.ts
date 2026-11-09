@@ -164,6 +164,17 @@ describe("a page in Code mode", () => {
 });
 
 describe("who gets Code mode", () => {
+	test("the editing bar offers Code mode to Staff, never to Members", async () => {
+		const coding = await openEditMode(install, staff, siteId, path);
+		const editing = await openEditMode(install, editor, siteId, path);
+
+		const forStaff = (await (await coding.edit("state", { path })).json()) as { canCode: boolean };
+		const forMember = (await (await editing.edit("state", { path })).json()) as { canCode: boolean };
+
+		expect(forStaff.canCode).toBe(true);
+		expect(forMember.canCode).toBe(false);
+	});
+
 	test("Members in Edit mode can't turn it on", async () => {
 		const editing = await openEditMode(install, editor, siteId, path);
 
