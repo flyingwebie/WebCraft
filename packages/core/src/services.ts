@@ -28,6 +28,7 @@ import type {
 	SaveBase,
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
+	Script,
 	SpecialPages,
 	Template,
 	TemplateMarkup,
@@ -221,6 +222,17 @@ export type InstallServices = InstallPorts & {
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
 		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
 		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
+	};
+	/**
+	 * The Site script and page scripts (ADR 0016): Structure with a Draft, published through
+	 * `publishing.publish` with `{ kind: "script" }`. Open the Site with `structure.edit`.
+	 */
+	scripts: {
+		/** The Site script (`entryId` null) or an Entry's page script; null while there is none. */
+		get(scope: SiteScope, entryId: string | null): Promise<Script | null>;
+		byId(scope: SiteScope, scriptId: string): Promise<Script>;
+		/** Saves its Draft, making it the first time; with `basedOn`, refused when it changed since. */
+		saveDraft(scope: SiteScope, entryId: string | null, code: string, base?: SaveBase): Promise<Script>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing

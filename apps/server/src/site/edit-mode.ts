@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
+	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	EDIT_MODE_PATH,
 	type EditSession,
@@ -10,6 +11,7 @@ import {
 	isDevelopmentHostname,
 	type PageEditing,
 	RateLimitedError,
+	SCRIPT_MAX_LENGTH,
 	type SiteHost,
 	type SiteScope,
 	WEBCRAFT_COOKIE_PREFIX,
@@ -45,6 +47,12 @@ export async function editModeEndpoint(
 			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
 		}
 		return codeModeStylesheet(services, request, host);
+	}
+	if (url.pathname.startsWith(CODE_MODE_SCRIPT_PATH)) {
+		if (request.method !== "GET" && request.method !== "HEAD") {
+			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
+		}
+		return codeModeScript(services, request, host, url.pathname.slice(CODE_MODE_SCRIPT_PATH.length));
 	}
 	if (url.pathname.startsWith(EDIT_ASSETS_PATH)) {
 		if (request.method !== "GET" && request.method !== "HEAD") {
@@ -113,6 +121,19 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	"code/createClass": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.createClass(scope, parse(codeClassName, body).name));
+	},
+	/** The page's scripts for the JS panel: the Site script and the page's own, with their Drafts' files. */
+	"code/scripts": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.scripts(scope, host, parse(pagePath, body).path));
+	},
+	/**
+	 * Saves the Site script's or the page's script's Draft, based on the version it was opened at. It
+	 * runs on the page only when Staff press Run, which loads the file this answers, or load the page.
+	 */
+	"code/saveScript": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.saveScript(scope, host, parse(codeSaveScript, body)));
 	},
 	/** Turns Code mode off for this browser: its pages are Content editing's again. */
 	"code/stop": async (_services, _session, _body, request) => {
@@ -197,6 +218,13 @@ const codePreview = z.object({
 const codeSaveCss = z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH), version: draftVersion });
 
 const codeClassName = z.object({ name: z.string().max(200) });
+
+const codeSaveScript = z.object({
+	path: z.string().max(2000),
+	kind: z.enum(["site", "page"]),
+	code: z.string().max(SCRIPT_MAX_LENGTH),
+	version: draftVersion,
+});
 
 const codeSave = z.object({
 	path: z.string().max(2000),
@@ -387,6 +415,30 @@ export async function codeModeOf(
 ): Promise<SiteScope | null> {
 	if (cookieValue(request, siteCookieName(new URL(request.url).hostname, "code")) !== "on") return null;
 	return services.codeMode.openIfAllowed(session);
+}
+
+/**
+ * The Draft of one of the Site's scripts, as a page in Code mode runs it: only for Staff in Code mode,
+ * never kept by anyone. A plain 404 for everyone else, and for any other name.
+ */
+async function codeModeScript(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	name: string,
+): Promise<Response> {
+	const edit = await editSessionOf(services, request, host);
+	const scope = edit.session && (await services.codeMode.openIfAllowed(edit.session));
+	const code = scope ? await services.codeMode.draftScript(scope, name) : null;
+	if (code === null) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
+	return new Response(request.method === "HEAD" ? null : code, {
+		headers: {
+			"content-type": "text/javascript; charset=utf-8",
+			"cache-control": "no-store",
+			"x-content-type-options": "nosniff",
+			"x-robots-tag": "noindex",
+		},
+	});
 }
 
 /**

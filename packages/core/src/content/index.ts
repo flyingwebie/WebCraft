@@ -67,6 +67,7 @@ export {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	ScriptNotFoundError,
 	TemplateNotFoundError,
 } from "./errors.ts";
 export {
@@ -111,6 +112,14 @@ export {
 } from "./post-types.ts";
 export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
 export type { LinkBack } from "./relationships.ts";
+export {
+	getScript,
+	SCRIPT_MAX_LENGTH,
+	type Script,
+	type ScriptKind,
+	saveScriptDraft,
+	scriptById,
+} from "./scripts.ts";
 export {
 	type ChosenPage,
 	getSpecialPages,

@@ -10,6 +10,7 @@
 import type { MarkupNotice } from "@webcraft/renderer";
 
 import type { ComponentSources } from "../content/components.ts";
+import type { ScriptKind } from "../content/scripts.ts";
 import { draftStyles } from "../design-system/stylesheet.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
 import type { EditSession } from "../edit-mode/index.ts";
@@ -19,11 +20,13 @@ import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { type CodeClass, type CodeCss, type CssTarget, makeClass, readCss, saveCss } from "./css.ts";
 import { type MarkupChange, previewMarkup, type SavedMarkup, saveMarkup } from "./markup.ts";
+import { type CodeScript, type CodeScripts, draftScript, readScripts, saveScript } from "./scripts.ts";
 import { type OpenedSource, openSource, readCodeRef, type SourceDeps } from "./sources.ts";
 
 export type { CodeClass, CodeCss, CssTarget, TokenKind } from "./css.ts";
 export { CodeSourceNotFoundError } from "./errors.ts";
 export type { MarkupChange, SavedMarkup } from "./markup.ts";
+export type { CodeScript, CodeScripts } from "./scripts.ts";
 export type { CodeSourceKind, OpenedSource, Suggestions } from "./sources.ts";
 
 /** What a preview answers: the whole page, as Code mode shows it with the unsaved changes, and its stylesheet. */
@@ -84,6 +87,16 @@ export type CodeMode = {
 	}>;
 	/** Makes a Class of the Design system's Draft, for a name the HTML panel doesn't know yet. */
 	createClass(scope: SiteScope, name: string): Promise<{ class: CodeClass }>;
+	/** The scripts of the page at `path`, for the JS panel: the Site script and the page's own. */
+	scripts(scope: SiteScope, host: SiteHost, path: string): Promise<CodeScripts>;
+	/** Saves the Site script's or the page's script's Draft, based on the version it was opened at. */
+	saveScript(
+		scope: SiteScope,
+		host: SiteHost,
+		input: { path: string; kind: ScriptKind; code: string; version: string | null },
+	): Promise<CodeScript>;
+	/** The Draft of one of the Site's scripts by its file's name, as Code mode's pages load it; null for any other. */
+	draftScript(scope: SiteScope, name: string): Promise<string | null>;
 };
 
 export function createCodeMode(options: {
@@ -134,5 +147,8 @@ export function createCodeMode(options: {
 		css: (scope, host, input) => readCss(scope, deps, host, input),
 		saveCss: (scope, input) => saveCss(scope, input),
 		createClass: (scope, name) => makeClass(scope, name),
+		scripts: (scope, host, path) => readScripts(scope, pages, host, path),
+		saveScript: (scope, host, input) => saveScript(scope, pages, host, input),
+		draftScript,
 	};
 }

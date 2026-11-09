@@ -44,6 +44,14 @@ export class DraftChangedError extends Error {
 	}
 }
 
+/** There is no such script on the Site: no Site script or page script with that id. */
+export class ScriptNotFoundError extends Error {
+	override name = "ScriptNotFoundError";
+	constructor() {
+		super("There is no such script on this Site.");
+	}
+}
+
 /** There is no such Template on the Site. */
 export class TemplateNotFoundError extends Error {
 	override name = "TemplateNotFoundError";

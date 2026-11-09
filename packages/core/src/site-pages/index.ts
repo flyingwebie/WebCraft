@@ -51,6 +51,7 @@ import {
 	type RelatedEntry,
 	resolvePath,
 } from "../content/render-values.ts";
+import { pageScripts, scriptFile } from "../content/scripts.ts";
 import { specialPageId } from "../content/special-pages.ts";
 import { pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
@@ -163,6 +164,8 @@ export type SitePages = {
 	 * one, or one a publish replaced lately. Null for any other name.
 	 */
 	stylesheet(host: SiteHost, name: string): Promise<string | null>;
+	/** A published script of the Site (its Site script, a page script) by the name it is served under (`/_wc/js/<name>`). */
+	script(host: SiteHost, name: string): Promise<string | null>;
 };
 
 /** How many Sites' styles a web process keeps built at most. */
@@ -258,6 +261,10 @@ export function createSitePages(options: {
 
 		async stylesheet(host, name) {
 			return stylesheetFile(data.visitors(host.site), await stylesOf(host), name);
+		},
+
+		script(host, name) {
+			return scriptFile(data.visitors(host.site), name, "published");
 		},
 	};
 }
@@ -569,6 +576,7 @@ async function renderSitePage(
 		className: styles.className,
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
+		scripts: await pageScripts(scope, entry?.id ?? null, view.structure),
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(entry, storedFields(globalsRow?.fields)),

@@ -19,7 +19,7 @@ import { type RegionChange, type SavedRegion, saveRegion } from "./regions.ts";
 
 export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
 export type { PageChange, PageState } from "./page.ts";
-export { CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
+export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 export type { EditItem, RegionChange, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */

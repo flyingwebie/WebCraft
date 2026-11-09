@@ -55,6 +55,7 @@ import {
 	PostTypeNotFoundError,
 	PostTypeTakenError,
 	RateLimitedError,
+	ScriptNotFoundError,
 	SensitiveActionRefusedError,
 	SessionNotFoundError,
 	SetupClosedError,
@@ -113,6 +114,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof PageNotFoundError) {
 		return new ORPCError("PAGE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ScriptNotFoundError) {
+		return new ORPCError("SCRIPT_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof TemplateNotFoundError) {
 		return new ORPCError("TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });
