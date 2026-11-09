@@ -72,6 +72,7 @@ import type { MembershipsService } from "./tenancy/memberships.ts";
 import type { StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
 import type { TlsProbe } from "./tls.ts";
+import type { Webhooks } from "./webhooks/index.ts";
 
 /**
  * The edges of a running Install: real adapters in the processes, fakes in tests. Everything else
@@ -204,6 +205,12 @@ export type InstallServices = InstallPorts & {
 	};
 	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
 	domains: Domains;
+	/**
+	 * A Site's Webhooks: signed calls to outside addresses when something happens on the Site, sent by
+	 * the worker with retries and kept in a delivery log. Anyone who sees the Site reads them;
+	 * changing them takes `structure.edit`.
+	 */
+	webhooks: Webhooks;
 	/**
 	 * A Site's languages (Structure): the Default language and the others, their names, directions and
 	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.

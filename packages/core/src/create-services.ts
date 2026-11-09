@@ -86,6 +86,7 @@ import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
 import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
+import { createWebhooks } from "./webhooks/index.ts";
 
 export type CreateServicesOptions = {
 	/** The Modules this Install loads: the first-party Modules of this build unless given. */
@@ -226,6 +227,7 @@ export async function createInstallServices(
 			email,
 			verificationKey: await domainVerificationKey(masterKey),
 		}),
+		webhooks: createWebhooks(),
 		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
 		languages: {
 			get: siteLanguages,

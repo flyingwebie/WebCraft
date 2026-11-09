@@ -32,6 +32,13 @@ export const SENSITIVE_ACTIONS = {
 	"storage.change": "changes a secret",
 	/** Approving a Module: what it asks for (Permissions, outside hosts, email) is granted. */
 	"module.approve": "grants a Module access",
+	/**
+	 * Adding a Webhook, or changing where it is sent, what it receives or its signing secret: it sends
+	 * the Site's data to an outside address, signed with a secret. Never for an API token or AI client,
+	 * which could otherwise open a channel out of the Site. Switching one off, removing it, a test
+	 * send and a redelivery only use what was confirmed.
+	 */
+	"webhook.change": "sends Site data to an outside address",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

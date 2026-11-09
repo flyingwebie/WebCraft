@@ -255,3 +255,4 @@ export {
 } from "./tenancy/staff.ts";
 export { WORKSPACE_NAME_MAX_LENGTH, type WorkspaceSummary } from "./tenancy/workspaces.ts";
 export { systemTls, type TlsCertificate, type TlsProbe } from "./tls.ts";
+export * from "./webhooks/index.ts";

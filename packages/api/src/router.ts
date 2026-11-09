@@ -24,6 +24,7 @@ import { csp, libraries, outsideScripts } from "./procedures/site-scripts.ts";
 import { sites } from "./procedures/sites.ts";
 import { staff } from "./procedures/staff.ts";
 import { templates } from "./procedures/templates.ts";
+import { webhooks } from "./procedures/webhooks.ts";
 import { workspaces } from "./procedures/workspaces.ts";
 
 /**
@@ -43,6 +44,7 @@ export const apiRouter = {
 	globals,
 	languages,
 	domains,
+	webhooks,
 	templates,
 	components,
 	scripts,
