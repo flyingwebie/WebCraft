@@ -52,6 +52,7 @@ describe("email switches", () => {
 			"domain-unreachable",
 			"site-smtp-failing",
 			"media-quota-warning",
+			"report-failed",
 			"webhook-switched-off",
 		]);
 		expect(emails.find((email) => email.type === "password-reset")).toEqual({

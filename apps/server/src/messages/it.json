@@ -806,6 +806,10 @@
 			"name": "Spazio Media oltre l'80%",
 			"description": "Quando i Media di un Workspace che segui superano l'80% della quota di spazio."
 		},
+		"report-failed": {
+			"name": "Report non riuscito",
+			"description": "Quando il PDF di un report non può essere creato, quindi non viene inviato."
+		},
 		"webhook-switched-off": {
 			"name": "Webhook disattivato",
 			"description": "Quando un Webhook di un Site continua a non funzionare e viene disattivato."

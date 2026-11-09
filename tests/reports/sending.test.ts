@@ -199,6 +199,12 @@ describe("making the PDF", () => {
 
 		expect(install.pdf.rendered.length).toBeGreaterThanOrEqual(3);
 		expect(mailTo(install, "render@bakery.example")).toEqual([]);
+		// Staff are told, so it doesn't fail unseen.
+		const { lines } = await (await install.superadmin()).api.install.emailLog.list({});
+		expect(lines.find((line) => line.type === "report-failed")).toMatchObject({
+			recipient: "staff@agency.example",
+			subject: "“Weekly results” couldn't be sent",
+		});
 		const [failed] = (await staff.api.reports.history({ siteId: site.siteId, reportId: report.id })).sends;
 		expect(failed).toMatchObject({ status: "failed", problem: "Its PDF couldn't be made (timeout).", pdf: null });
 		await expect(

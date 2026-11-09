@@ -974,6 +974,7 @@ export function createReports(deps: ReportsDeps): Reports {
 					);
 					// Tried again after 2, then 4 minutes; never sent without its PDF.
 					if (again) await deps.queue.render(ref, new Date(clock.now().getTime() + 2 ** attempts * MINUTE_MS));
+					else await tellFailed(scope, send);
 					return;
 				}
 				await (scope as BackgroundScope).update(
@@ -1003,6 +1004,29 @@ export function createReports(deps: ReportsDeps): Reports {
 			if (!row?.pdf) return null;
 			return { filename: ref.filename, contentType: "application/pdf", content: new Uint8Array(row.pdf) };
 		},
+	};
+
+	/** Tells the Workspace's Staff that a Report wasn't sent: its PDF couldn't be made. */
+	const tellFailed = async (scope: Background, send: SendRow) => {
+		const level = levelOf(scope);
+		const report = await (scope as BackgroundScope).first(
+			reports,
+			inPlace(level, reports, eq(reports.id, send.reportId)),
+		);
+		const staff = await siteStaff(scope);
+		if (!report || staff.length === 0) return;
+		const base = scope.level === "background" ? `/sites/${scope.site.id}` : `/workspaces/${scope.workspace.id}`;
+		const dashboardId = report.dashboardId ?? report.workspaceDashboardId;
+		await deps.email.send({
+			type: "report-failed",
+			to: staff.map((personId) => ({ personId })),
+			data: {
+				reportName: report.name,
+				placeName: scope.level === "background" ? scope.site.name : scope.workspace.name,
+				reportsPath: `${base}/dashboards/${dashboardId}/reports?report=${report.id}`,
+			},
+			related: { kind: "reportSend", id: send.id },
+		});
 	};
 
 	/** The page a Report's PDF is made from: the same page a Share link shows, with the Report's AI text. */

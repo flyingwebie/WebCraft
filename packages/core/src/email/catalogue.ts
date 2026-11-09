@@ -146,6 +146,10 @@ export const SYSTEM_EMAIL_TYPES = {
 			workspacePath: adminPath,
 		}),
 	},
+	"report-failed": {
+		category: "alert",
+		data: z.object({ reportName: title, placeName: name, reportsPath: adminPath }),
+	},
 	"webhook-switched-off": {
 		category: "alert",
 		data: z.object({

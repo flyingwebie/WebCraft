@@ -180,6 +180,15 @@ export const it: EmailWording = {
 			],
 			action: { label: "Vedi lo spazio", path: workspacePath },
 		}),
+		"report-failed": ({ reportName, placeName, reportsPath }) => ({
+			subject: `Non è stato possibile inviare “${reportName}”`,
+			heading: "Non è stato possibile inviare un report",
+			paragraphs: [
+				`Il PDF del report “${reportName}” per ${placeName} non è stato creato dopo tre tentativi, quindi non è stato inviato a nessuno.`,
+				"La sua cronologia spiega perché. Inviatelo di nuovo da lì quando il problema è risolto.",
+			],
+			action: { label: "Apri la cronologia", path: reportsPath },
+		}),
 		"webhook-switched-off": ({ webhookName, host, siteName, failures, webhooksPath }) => ({
 			subject: `Un Webhook di ${siteName} è stato disattivato`,
 			heading: "Un Webhook è stato disattivato",

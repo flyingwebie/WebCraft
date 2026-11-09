@@ -128,7 +128,12 @@ for (const theme of THEMES) {
 
 		test("the Report dialog and a Report's menu", async () => {
 			const page = await open(reportsPath());
-			await expectOverlayUsable(page, page.getByRole("button", { name: "New Report" }), "dialog", `Report dialog (${theme})`);
+			await expectOverlayUsable(
+				page,
+				page.getByRole("button", { name: "New Report" }),
+				"dialog",
+				`Report dialog (${theme})`,
+			);
 			await expectOverlayUsable(
 				page,
 				page.getByRole("button", { name: "Actions for Weekly results" }),
@@ -141,7 +146,9 @@ for (const theme of THEMES) {
 			const page = await open(`${reportsPath()}?report=${reportId}&review=${heldId}`);
 			const dialog = page.getByRole("dialog", { name: "Review the AI text" });
 			await dialog.waitFor();
-			expect(await dialog.getByLabel("What happened").inputValue()).toBe("A steady week, with visitors finding the menu.");
+			expect(await dialog.getByLabel("What happened").inputValue()).toBe(
+				"A steady week, with visitors finding the menu.",
+			);
 			await page.waitForTimeout(250);
 
 			// The dialog sits at the end of the page, outside the landmarks, as dialogs do.

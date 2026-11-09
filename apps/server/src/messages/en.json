@@ -806,6 +806,10 @@
 			"name": "Media storage over 80%",
 			"description": "When the Media of a Workspace you look after passes 80% of its storage quota."
 		},
+		"report-failed": {
+			"name": "Report failed",
+			"description": "When a Report's PDF can't be made, so it isn't sent."
+		},
 		"webhook-switched-off": {
 			"name": "Webhook switched off",
 			"description": "When a Site's Webhook keeps failing and is switched off."
