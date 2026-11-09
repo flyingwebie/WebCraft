@@ -118,6 +118,7 @@ import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
 import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
+import { createTranslations } from "./translation/service.ts";
 import { createUpdates } from "./updates.ts";
 import { createWebhooks } from "./webhooks/index.ts";
 
@@ -212,6 +213,18 @@ export async function createInstallServices(
 	const apiTokens = createApiTokens({ database, clock, people, rateLimits, keyHash: await apiTokenKey(masterKey) });
 	const memberships = createMemberships({ database, clock });
 	const aiKeys = createAiKeys({ database, secrets: store, clock, log, email, ai: ports.ai });
+	// AI translation hears of every publish, after it is saved, and queues its work for the worker.
+	const translations = createTranslations({
+		database,
+		data,
+		ai: ports.ai,
+		keys: aiKeys,
+		jobs: ports.jobs,
+		clock,
+		log,
+		actors: { person: (personId: string) => loadPersonActor(database.db, personId) },
+	});
+	listeners.afterAudit.push(translations.afterAudit);
 	const storage = createInstallStorage({
 		database,
 		secrets: installSecrets,
@@ -258,6 +271,7 @@ export async function createInstallServices(
 		rateLimits,
 		people,
 		aiKeys,
+		translations,
 		apiTokens,
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,

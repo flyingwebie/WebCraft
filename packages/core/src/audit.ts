@@ -11,6 +11,7 @@ type Executor = Database["db"] | Transaction;
  * - `module`: a Module acting by itself (its id): in a background job, an event or a Site route.
  * - `editMode`: Edit mode, on a Site's own domain.
  * - `token`: an API token (its name), through the Management API at `/api/v1`.
+ * - `translation`: AI translation, writing on behalf of the person who asked for it (who published).
  *
  * Later ways in add their kinds here: an AI client (its name), and Impersonation ("<Staff> as <Member>").
  */
@@ -19,7 +20,8 @@ export type AuditVia =
 	| { kind: "command"; name: string }
 	| { kind: "module"; name: string }
 	| { kind: "editMode" }
-	| { kind: "token"; name: string };
+	| { kind: "token"; name: string }
+	| { kind: "translation" };
 
 /** Something changed, as the Audit log keeps it. Values are plain JSON; never put a secret's value here. */
 export type AuditDetails = Record<string, unknown>;
@@ -87,5 +89,6 @@ export async function listAuditEntries(executor: Executor, options: { limit: num
 function viaOf(kind: string, name: string | null): AuditVia {
 	if (kind === "command" || kind === "module" || kind === "token") return { kind, name: name ?? "" };
 	if (kind === "editMode") return { kind: "editMode" };
+	if (kind === "translation") return { kind: "translation" };
 	return { kind: "admin" };
 }

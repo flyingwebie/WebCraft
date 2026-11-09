@@ -1,14 +1,19 @@
 import type { Json } from "./field-types.ts";
 import type { StoredValues } from "./field-values.ts";
+import { personValue } from "./translation-sources.ts";
 
 /**
- * Who wrote a value (ADR 0003): a person for now; AI translation and Automatic translation join as
- * writers, and Outdated translations are worked out from them.
+ * Who wrote a value (ADR 0003): a person, or AI translation. Outdated translations are worked out
+ * from them: AI translation writes its own values again, never a person's.
  */
-export type Writer = { kind: "person"; personId: string };
+export type Writer = { kind: "person"; personId: string } | { kind: "ai" };
 
-/** One value in one language, with who wrote it. */
-export type LanguageValue = { value: Json; by: Writer | null };
+/**
+ * One value in one language, with who wrote it, and in a language other than the Default language the
+ * Default-language value it translates (`source`), when known: a person's value whose source changed
+ * since is an Outdated translation (see `translation-sources.ts`).
+ */
+export type LanguageValue = { value: Json; by: Writer | null; source?: Json };
 
 /**
  * One version of an Entry (its Draft or its published version) or of the Globals, as stored: every
@@ -52,7 +57,9 @@ export function writeValue(version: EntryVersion, place: ValuePlace, value: stri
 	if (value === "") {
 		delete byLanguage[place.language];
 	} else if (byLanguage[place.language]?.value !== value) {
-		byLanguage[place.language] = { value, by };
+		// A title in another language translates the Default language's: its source is kept with it.
+		byLanguage[place.language] =
+			place.key === "title" ? personValue(byLanguage, place, "text", value, by) : { value, by };
 	}
 	return { values: { ...version.values, [place.key]: byLanguage } };
 }

@@ -155,6 +155,43 @@ export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string
 }
 
 /**
+ * Writes translations into the Globals (AI translation's, a person confirming or approving one), as
+ * `writeEntryTranslations` does for an Entry: `change` gets the Draft and published version, locked,
+ * and answers what to write. Open the Site with `entry.edit`, and `entry.publish` for the published
+ * version, whose publishing the caller finishes.
+ */
+export async function writeGlobalsTranslations(
+	scope: SiteScope,
+	change: (globals: {
+		draft: EntryVersion;
+		published: EntryVersion | null;
+		fields: FieldDefinition[];
+	}) =>
+		| { draft?: EntryVersion; published?: EntryVersion }
+		| null
+		| Promise<{ draft?: EntryVersion; published?: EntryVersion } | null>,
+): Promise<boolean> {
+	return scope.transaction(async (tx) => {
+		const row = await lockGlobals(tx);
+		const written = await change({
+			draft: storedVersion(row.draft),
+			published: row.published ? storedVersion(row.published) : null,
+			fields: storedFields(row.fields),
+		});
+		if (!written) return false;
+		await tx.update(
+			globals,
+			{
+				...(written.draft ? { draft: written.draft, updatedAt: tx.now() } : {}),
+				...(written.published && row.published ? { published: written.published } : {}),
+			},
+			eq(globals.id, row.id),
+		);
+		return true;
+	});
+}
+
+/**
  * Publishes the Globals' Draft, inside `publish`'s transaction: refuses broken rules
  * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`).
  */

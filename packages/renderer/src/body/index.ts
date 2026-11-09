@@ -10,6 +10,7 @@ export {
 	BLOCK_TYPES,
 	type Block,
 	type BlockSource,
+	type BlockText,
 	type BlockType,
 	type BlockTypeSpec,
 	BODY_LIMITS,

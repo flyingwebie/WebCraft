@@ -90,6 +90,7 @@ import type { MembershipsService } from "./tenancy/memberships.ts";
 import type { StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
 import type { TlsProbe } from "./tls.ts";
+import type { Translations } from "./translation/service.ts";
 import type { Updates } from "./updates.ts";
 import type { Webhooks } from "./webhooks/index.ts";
 
@@ -144,6 +145,11 @@ export type InstallServices = InstallPorts & {
 	 * goes through `aiKeys.call`, which picks the key, keeps the monthly caps and records the cost.
 	 */
 	aiKeys: AiKeys;
+	/**
+	 * AI translation: Translation modes per Site language, the queue of work the worker runs after each
+	 * publish (or Translate now), the Review queue, Outdated translations and Protected terms.
+	 */
+	translations: Translations;
 	/** API tokens: people's credentials for the Management API at `/api/v1`, and their limits. */
 	apiTokens: ApiTokens;
 	/** The setup wizard and its token. */

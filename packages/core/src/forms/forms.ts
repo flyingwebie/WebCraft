@@ -276,6 +276,63 @@ export async function publishFormDraft(scope: SiteScope, formId: string): Promis
 	return { id: row.id, publishedAt: now };
 }
 
+/** A Form's emails as translations see them: each version, and the translations AI translation wrote. */
+export type FormEmailsVersions = {
+	name: string;
+	draft: FormEmails;
+	published: FormEmails | null;
+	/** By language and place (`autoReply.subject`): the text the AI wrote and the text it translated. */
+	aiTranslations: Record<string, Record<string, { text: string; source: string }>>;
+};
+
+/**
+ * Writes translations into a Form's emails (AI translation's, an approved one), as
+ * `writeEntryTranslations` does for an Entry: the Form is locked, `change` answers what to write.
+ * Open the Site with `formEmails.edit`; the caller finishes publishing.
+ */
+export async function writeFormEmailsTranslations(
+	scope: SiteScope,
+	formId: string,
+	change: (emails: FormEmailsVersions) =>
+		| { draft?: FormEmails; published?: FormEmails; aiTranslations?: FormEmailsVersions["aiTranslations"] }
+		| null
+		| Promise<{
+				draft?: FormEmails;
+				published?: FormEmails;
+				aiTranslations?: FormEmailsVersions["aiTranslations"];
+		  } | null>,
+): Promise<boolean> {
+	return scope.transaction(async (tx) => {
+		const row = await lockForm(tx, formId);
+		const written = await change(formEmailsVersions(row));
+		if (!written) return false;
+		await tx.update(
+			forms,
+			{
+				...(written.draft ? { emailsDraft: written.draft, updatedAt: tx.now() } : {}),
+				...(written.published && row.emailsPublished ? { emailsPublished: written.published } : {}),
+				...(written.aiTranslations ? { emailsAiTranslations: written.aiTranslations } : {}),
+			},
+			eq(forms.id, row.id),
+		);
+		return true;
+	});
+}
+
+/** A Form's emails, each version and the AI's translations, as stored. */
+export function formEmailsVersions(row: FormRow): FormEmailsVersions {
+	const marks = row.emailsAiTranslations;
+	return {
+		name: row.name,
+		draft: storedFormEmails(row.emailsDraft),
+		published: row.emailsPublished ? storedFormEmails(row.emailsPublished) : null,
+		aiTranslations:
+			marks && typeof marks === "object" && !Array.isArray(marks)
+				? (marks as FormEmailsVersions["aiTranslations"])
+				: {},
+	};
+}
+
 /** Reads one of the Site's Forms to change it, holding it until the transaction ends. */
 export async function lockForm(scope: SiteScope, formId: string): Promise<FormRow> {
 	if (!isUuid(formId)) throw new FormNotFoundError();

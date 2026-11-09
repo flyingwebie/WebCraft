@@ -55,6 +55,16 @@ export function publishedBy(
 	action: string,
 	details: AuditDetails,
 ): { item: PublishedItem; pathChanges: PathChange[] } | null {
+	// AI translation publishing an item's translated values publishes that item (`translation.publish`).
+	if (action === "translation.publish") {
+		const item = (details.item ?? {}) as Record<string, unknown>;
+		const kind = item.kind === "formEmails" ? "formEmails" : text(item.kind);
+		if (!kind) return null;
+		if (kind === "entry") {
+			return { item: { kind, id: text(item.id), postTypeId: text(item.postTypeId), path: null }, pathChanges: [] };
+		}
+		return { item: { kind, id: text(item.id) }, pathChanges: [] };
+	}
 	const kind = PUBLISH_ACTION.exec(action)?.[1];
 	if (!kind) return null;
 	const id = text(details[`${kind}Id`]);

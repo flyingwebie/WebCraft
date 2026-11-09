@@ -96,6 +96,8 @@ import {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	ProtectedTermInvalidError,
+	ProtectedTermNotFoundError,
 	RateLimitedError,
 	ScriptNotFoundError,
 	SensitiveActionRefusedError,
@@ -118,6 +120,8 @@ import {
 	TokensFileInvalidError,
 	TooManyHostsError,
 	TooManyWebhooksError,
+	TranslationLanguageError,
+	TranslationNotFoundError,
 	WebhookDeliveryNotFoundError,
 	WebhookInvalidError,
 	WebhookNotFoundError,
@@ -573,6 +577,28 @@ export function toApiError(error: unknown): unknown {
 			data: { maxBytes: error.maxBytes },
 			cause: error,
 		});
+	}
+	if (error instanceof TranslationLanguageError) {
+		return new ORPCError("TRANSLATION_LANGUAGE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof TranslationNotFoundError) {
+		return new ORPCError("TRANSLATION_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ProtectedTermInvalidError) {
+		return new ORPCError("PROTECTED_TERM_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { index: error.index, reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof ProtectedTermNotFoundError) {
+		return new ORPCError("PROTECTED_TERM_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof AiKeyInvalidError) {
 		return new ORPCError("AI_KEY_INVALID", {

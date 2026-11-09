@@ -78,6 +78,8 @@ describe("creating an Entry", () => {
 			],
 			seoPreview: { title: expect.stringMatching(/^Sourdough starter · Site \d+$/), description: null, image: null },
 			linkedFrom: [],
+			// Translations stand only in a language other than the Default language.
+			translation: null,
 		});
 		expect((await editor.api.entries.get({ siteId, entryId: entry.id })).entry).toEqual(entry);
 	});

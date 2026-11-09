@@ -33,6 +33,7 @@ import { siteSmtp } from "./procedures/site-smtp.ts";
 import { sites } from "./procedures/sites.ts";
 import { staff } from "./procedures/staff.ts";
 import { templates } from "./procedures/templates.ts";
+import { protectedTerms, translations } from "./procedures/translations.ts";
 import { webhooks } from "./procedures/webhooks.ts";
 import { workspaces } from "./procedures/workspaces.ts";
 
@@ -55,6 +56,8 @@ export const apiRouter = {
 	entries,
 	globals,
 	languages,
+	translations,
+	protectedTerms,
 	domains,
 	webhooks,
 	siteSmtp,
