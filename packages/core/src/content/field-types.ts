@@ -2,6 +2,30 @@ import { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, safeUrl } from "@w
 import { RE2JS } from "re2js";
 import { isUuid } from "../ids.ts";
 import type { ContentProblem } from "./errors.ts";
+import {
+	DATE_MODES,
+	type DateMode,
+	FIELD_TYPE_TRAITS,
+	FIELD_TYPES,
+	type FieldType,
+	type FieldTypeTraits,
+	MAX_LINKED_ENTRIES,
+	MAX_OPTIONS,
+	MAX_ROWS,
+	PATTERN_MAX_LENGTH,
+	TEXT_VALUE_MAX_LENGTH,
+} from "./field-rules.ts";
+
+export {
+	DATE_MODES,
+	type DateMode,
+	FIELD_TYPES,
+	type FieldType,
+	MAX_LINKED_ENTRIES,
+	MAX_OPTIONS,
+	MAX_ROWS,
+	TEXT_VALUE_MAX_LENGTH,
+} from "./field-rules.ts";
 
 /**
  * The Field-type registry: everything the content store knows about each Field type, in one place.
@@ -12,29 +36,6 @@ import type { ContentProblem } from "./errors.ts";
 
 /** A JSON value, as Field values are stored and as the APIs give them. */
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
-
-/** The Field types there are, in the order the admin offers them. */
-export const FIELD_TYPES = [
-	"text",
-	"richText",
-	"number",
-	"boolean",
-	"date",
-	"select",
-	"media",
-	"link",
-	"email",
-	"relationship",
-	"group",
-	"repeater",
-] as const;
-
-export type FieldType = (typeof FIELD_TYPES)[number];
-
-/** How a date Field is written: a day (`2026-03-02`), a time of day (`09:30`) or a moment (`2026-03-02T09:30:00Z`). */
-export const DATE_MODES = ["date", "time", "dateTime"] as const;
-
-export type DateMode = (typeof DATE_MODES)[number];
 
 /** One choice of a select Field: the value stored, and the label people and visitors see. */
 export type SelectOption = { value: string; label: string };
@@ -190,27 +191,16 @@ export type ValueSpec<Field extends LeafField> = {
 	isEmpty?(value: Json): boolean;
 };
 
-/** Everything the content store knows about one Field type. */
-export type FieldTypeSpec<Field extends FieldDefinition = FieldDefinition> = {
-	/** Whether values are per language: by default, only when chosen, or never (shared by every language). */
-	translation: "default-on" | "default-off" | "never";
-	/** Whether a value can be required (a true/false Field always has one). */
-	requirable: boolean;
+/** Everything the content store knows about one Field type: its traits (`field-rules.ts`) and what it does. */
+export type FieldTypeSpec<Field extends FieldDefinition = FieldDefinition> = FieldTypeTraits & {
 	/** Reads the type's own settings from input, reporting each problem where it is. */
 	settings(input: FieldInput, report: Report, context: DefineContext): Omit<Field, keyof Common<FieldType, unknown>>;
 	/** The value side of a leaf type; containers (Group, Repeater) have none. */
 	value?: Field extends LeafField ? ValueSpec<Field> : never;
 };
 
-/** The longest text value, and the longest rich text (as cleaned HTML), in characters. */
-export const TEXT_VALUE_MAX_LENGTH = 2_000;
+/** The longest rich text (as cleaned HTML), in characters. */
 export const RICH_TEXT_VALUE_MAX_LENGTH = RICH_TEXT_MAX_LENGTH;
-/** The most choices of a select Field, and the most Entries a Relationship points at. */
-export const MAX_OPTIONS = 200;
-export const MAX_LINKED_ENTRIES = 200;
-/** The most rows a Repeater holds. */
-export const MAX_ROWS = 500;
-const PATTERN_MAX_LENGTH = 200;
 const OPTION_VALUE = /^[A-Za-z0-9_-]{1,64}$/;
 const OPTION_LABEL_MAX_LENGTH = 100;
 const LINK_TEXT_MAX_LENGTH = 300;
@@ -219,8 +209,7 @@ const EMAIL_MAX_LENGTH = 320;
 const EMAIL = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
 
 const text: FieldTypeSpec<TextField> = {
-	translation: "default-on",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.text,
 	settings(input, report) {
 		const minLength = whole(input.minLength, "minLength", report, { min: 0, max: TEXT_VALUE_MAX_LENGTH });
 		const maxLength = whole(input.maxLength, "maxLength", report, { min: 1, max: TEXT_VALUE_MAX_LENGTH });
@@ -255,8 +244,7 @@ const text: FieldTypeSpec<TextField> = {
 };
 
 const richText: FieldTypeSpec<RichTextField> = {
-	translation: "default-on",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.richText,
 	settings(input, report) {
 		return { maxLength: whole(input.maxLength, "maxLength", report, { min: 1, max: RICH_TEXT_VALUE_MAX_LENGTH }) };
 	},
@@ -285,8 +273,7 @@ const richText: FieldTypeSpec<RichTextField> = {
 };
 
 const number: FieldTypeSpec<NumberField> = {
-	translation: "default-off",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.number,
 	settings(input, report) {
 		const min = finite(input.min, "min", report);
 		const max = finite(input.max, "max", report);
@@ -314,8 +301,7 @@ const number: FieldTypeSpec<NumberField> = {
 };
 
 const boolean: FieldTypeSpec<BooleanField> = {
-	translation: "default-off",
-	requirable: false,
+	...FIELD_TYPE_TRAITS.boolean,
 	settings: () => ({}),
 	value: {
 		empty: () => false,
@@ -331,8 +317,7 @@ const boolean: FieldTypeSpec<BooleanField> = {
 };
 
 const date: FieldTypeSpec<DateField> = {
-	translation: "default-off",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.date,
 	settings(input, report) {
 		const mode = (input.mode ?? "date") as DateMode;
 		if (!DATE_MODES.includes(mode)) {
@@ -372,8 +357,7 @@ const date: FieldTypeSpec<DateField> = {
 };
 
 const select: FieldTypeSpec<SelectField> = {
-	translation: "default-off",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.select,
 	settings(input, report) {
 		const options: SelectOption[] = [];
 		if (!Array.isArray(input.options) || input.options.length === 0 || input.options.length > MAX_OPTIONS) {
@@ -440,8 +424,7 @@ const select: FieldTypeSpec<SelectField> = {
 };
 
 const media: FieldTypeSpec<MediaField> = {
-	translation: "default-off",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.media,
 	settings: () => ({}),
 	value: {
 		empty: () => null,
@@ -460,8 +443,7 @@ const media: FieldTypeSpec<MediaField> = {
 };
 
 const link: FieldTypeSpec<LinkField> = {
-	translation: "default-on",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.link,
 	settings: () => ({}),
 	value: {
 		empty: () => null,
@@ -492,8 +474,7 @@ const link: FieldTypeSpec<LinkField> = {
 };
 
 const email: FieldTypeSpec<EmailField> = {
-	translation: "default-off",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.email,
 	settings: (input, report) => ({ pattern: pattern(input.pattern, report) }),
 	value: {
 		empty: () => null,
@@ -513,8 +494,7 @@ const email: FieldTypeSpec<EmailField> = {
 };
 
 const relationship: FieldTypeSpec<RelationshipField> = {
-	translation: "never",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.relationship,
 	settings(input, report, context) {
 		if (context.owner === "globals") {
 			report("type", "Globals can't hold Relationships.");
@@ -560,15 +540,13 @@ const relationship: FieldTypeSpec<RelationshipField> = {
 };
 
 const group: FieldTypeSpec<GroupField> = {
-	translation: "never",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.group,
 	// Its Fields are read by `parseFields`, which knows how deep they are.
 	settings: () => ({ fields: [] }),
 };
 
 const repeater: FieldTypeSpec<RepeaterField> = {
-	translation: "never",
-	requirable: true,
+	...FIELD_TYPE_TRAITS.repeater,
 	settings(input, report) {
 		const min = whole(input.min, "min", report, { min: 0, max: MAX_ROWS });
 		const max = whole(input.max, "max", report, { min: 1, max: MAX_ROWS });

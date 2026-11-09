@@ -62,6 +62,7 @@ export {
 	saveGlobalsDraft,
 	setGlobalFields,
 } from "./globals.ts";
+export { languagesOf } from "./languages.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,

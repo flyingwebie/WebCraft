@@ -2,6 +2,14 @@ import { EXPRESSION_KEYWORDS } from "@webcraft/renderer";
 
 import type { ContentProblem } from "./errors.ts";
 import {
+	FIELD_HELP_MAX_LENGTH,
+	FIELD_KEY,
+	FIELD_LABEL_MAX_LENGTH,
+	FIELD_TYPE_TRAITS,
+	MAX_FIELD_DEPTH,
+	MAX_FIELDS,
+} from "./field-rules.ts";
+import {
 	type DefineContext,
 	FIELD_TYPE_SPECS,
 	type FieldDefinition,
@@ -12,6 +20,12 @@ import {
 	specOf,
 } from "./field-types.ts";
 
+export {
+	FIELD_HELP_MAX_LENGTH,
+	FIELD_LABEL_MAX_LENGTH,
+	MAX_FIELD_DEPTH,
+	MAX_FIELDS,
+} from "./field-rules.ts";
 export {
 	DATE_MODES,
 	type DateMode,
@@ -72,19 +86,6 @@ export const RESERVED_FIELD_KEYS: ReadonlySet<string> = new Set(
  * Conditions' tests use, which a path can't end in.
  */
 const RESERVED_NESTED_KEYS: ReadonlySet<string> = new Set(["id", ...EXPRESSION_KEYWORDS]);
-
-/** A Field key: starts with a lower-case letter, then letters, digits and underscores; at most 64. */
-const FIELD_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;
-
-/** The most Fields a Post Type (or the Globals) has, counting those inside Groups and Repeaters. */
-export const MAX_FIELDS = 200;
-
-/** How deep Groups and Repeaters nest: a Field at the top is at depth 1. */
-export const MAX_FIELD_DEPTH = 3;
-
-/** The longest label and help text, in characters. */
-export const FIELD_LABEL_MAX_LENGTH = 100;
-export const FIELD_HELP_MAX_LENGTH = 500;
 
 /**
  * Checks a list of Fields (a Post Type's or the Globals'), adding a problem for each setting that is
@@ -196,7 +197,7 @@ function parseDefault(
 ): never {
 	if (input === undefined || input === null) return null as never;
 	const value = specOf(field).value;
-	if (!value || field.type === "media" || field.type === "relationship") {
+	if (!value || !FIELD_TYPE_TRAITS[field.type].hasDefault) {
 		report("default", "This kind of Field has no default.");
 		return null as never;
 	}
