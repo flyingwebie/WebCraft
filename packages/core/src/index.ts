@@ -127,6 +127,7 @@ export {
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
 export * from "./filters/index.ts";
+export { type FilterState, readFilterState, type StateKey, type StateReader } from "./filters/state.ts";
 export * from "./forms/index.ts";
 export {
 	createGuardedFetch,
@@ -265,7 +266,6 @@ export {
 	stagingUrl,
 } from "./site-pages/index.ts";
 export { MAX_PAGE_NUMBER, PAGE_PARAMETER, pageHref, pageNumberIn } from "./site-pages/loops.ts";
-export { type FilterState, readFilterState, type StateKey, type StateReader } from "./filters/state.ts";
 export * from "./site-scripts/index.ts";
 export {
 	type EnteredStaging,

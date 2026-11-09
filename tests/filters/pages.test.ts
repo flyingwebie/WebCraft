@@ -25,7 +25,10 @@ let visitors = 0;
 
 /** A page of the shop as a visitor of their own gets it (each address may search 30 times a minute). */
 async function visit(path: string): Promise<{ response: Response; html: string }> {
-	const request = fromAddress(new Request(`${shop.origin}${path}`, { redirect: "manual" }), `198.51.100.${++visitors % 250}`);
+	const request = fromAddress(
+		new Request(`${shop.origin}${path}`, { redirect: "manual" }),
+		`198.51.100.${++visitors % 250}`,
+	);
 	const response = await install.request(request);
 	const html = response.status === 200 ? await expectSafePage(response) : await response.text();
 	return { response, html };
@@ -42,7 +45,9 @@ describe("the Filter on the page", () => {
 		expect(html).toContain(
 			'<label for="wc-filter-shop-1">Search the shop</label><input type="search" id="wc-filter-shop-1" name="q" placeholder="Search the shop" maxlength="200" enterkeyhint="search">',
 		);
-		expect(html).toContain('<fieldset class="wc-filter-control" data-wc-control="checkboxes"><legend>Category</legend>');
+		expect(html).toContain(
+			'<fieldset class="wc-filter-control" data-wc-control="checkboxes"><legend>Category</legend>',
+		);
 		expect(html).toContain('<input type="checkbox" role="switch" id="wc-filter-shop-4" name="vegan" value="1">');
 		expect(html).toContain('<legend>Price</legend><label for="wc-filter-shop-5-min">From</label><input type="number"');
 		expect(html).toContain('name="baked.min"');
@@ -80,10 +85,11 @@ describe("choosing", () => {
 		const both = await visit("/shop?category=bread,pastries");
 		expect(listed(both.html)).toEqual(["Butter croissant", "Cinnamon bun", "Country sourdough", "Pain au chocolat"]);
 		expect(both.html).toContain('<p class="wc-filter-count" data-wc-control="count">6 products</p>');
-		expect(optionsIn(both.html, "category").filter((option) => option.checked).map((option) => option.value)).toEqual([
-			"bread",
-			"pastries",
-		]);
+		expect(
+			optionsIn(both.html, "category")
+				.filter((option) => option.checked)
+				.map((option) => option.value),
+		).toEqual(["bread", "pastries"]);
 	});
 
 	test("controls combine: every one must match", async () => {
