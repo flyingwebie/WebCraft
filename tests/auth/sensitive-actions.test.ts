@@ -95,6 +95,26 @@ describe("each Sensitive action", () => {
 		});
 	}
 
+	test("nobody is asked to confirm who they are for something they may not do in a Workspace or on a Site", async () => {
+		const author = await install.createMember({ workspaceId: fixture.workspaceId, role: "author" });
+		await install.clock.advance(11 * MINUTE);
+
+		const actions = [
+			"member.invite",
+			"member.changeAccess",
+			"member.remove",
+			"formCaptcha.change",
+			"webhook.change",
+		] as const;
+		for (const action of actions) {
+			const refusal = await SENSITIVE_ACTION_CALLS[action](author.browser.api, fixture).then(
+				() => "allowed",
+				(error: { code: string }) => error.code,
+			);
+			expect({ action, refusal }).toEqual({ action, refusal: "FORBIDDEN" });
+		}
+	});
+
 	test("every Sensitive action has a row here", () => {
 		expect(Object.keys(SENSITIVE_ACTION_CALLS).sort()).toEqual([...ALL_SENSITIVE_ACTIONS].sort());
 	});

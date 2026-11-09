@@ -162,7 +162,7 @@ create: signedIn
 	}),
 ```
 
-- `signedIn` gives `context.access`: the person as `can()` sees them (read fresh on every request, so a change to someone's access takes effect at once) and `via`, how the call came in. Install-level procedures start from `onInstall("staff.manage")`, which gives `context.install`.
+- `signedIn` gives `context.access`: the person as `can()` sees them (read fresh on every request, so a change to someone's access takes effect at once) and `via`, how the call came in. Install-level procedures start from `onInstall("staff.manage")`, which gives `context.install`; after `.input(…)`, `.use(onWorkspace("member.manage"))` and `.use(onSite("structure.edit"))` open the Workspace or Site the input names (`workspaceId`, `siteId`) with that Permission, as `context.workspace` or `context.site`.
 - A Site procedure takes `siteId` only: the data layer finds its Workspace.
 - Every procedure here is internal to the admin; `/api/v1` and the public ones come later.
 - Add one isolation line for it (below) when it takes a `workspaceId` or `siteId`.
@@ -178,6 +178,7 @@ A Sensitive action (`GLOSSARY.md`) needs a password, passkey or 2FA check within
 
   ```ts
   invite: onInstall("staff.manage").use(sensitive("staff.invite")).input(…).handler(…),
+  remove: signedIn.input(…).use(onWorkspace("member.manage")).use(sensitive("member.remove")).handler(…),
   ```
 
   It answers `IDENTITY_CHECK_REQUIRED` (403, `data.action`) when the session's last check is older than 10 minutes, and `SENSITIVE_ACTION_REFUSED` (403) for anything that isn't a person's admin session: only `signedIn` gives `access.identityCheckedAt`, so later actor kinds (API tokens, OAuth grants, Modules) are refused without a change here. Its type needs `context.access`, so it can't be put on a procedure that has no signed-in person.
