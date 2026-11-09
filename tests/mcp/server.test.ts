@@ -188,6 +188,32 @@ describe("calling tools", () => {
 	});
 });
 
+describe("limits", () => {
+	test("an AI client makes at most 30 writes a minute, as an API token does", async () => {
+		const owner = await install.createMember({ workspaceId, role: "owner" });
+		const { accessToken } = await approveAiClient(install, owner.browser, { workspaceId });
+		const client = await connectMcp(install, accessToken);
+		const { entry } = answerOf<{ entry: { id: string } }>(
+			await client.callTool({ name: "entries_create", arguments: { siteId, postTypeId: pagesId, title: "Busy" } }),
+		);
+		for (let write = 2; write <= 30; write++) {
+			const saved = await client.callTool({
+				name: "entries_save_draft",
+				arguments: { siteId, entryId: entry.id, values: { title: `Busy ${write}` } },
+			});
+			expect({ write, refused: saved.isError ?? false }).toEqual({ write, refused: false });
+		}
+		const refused = await client.callTool({
+			name: "entries_save_draft",
+			arguments: { siteId, entryId: entry.id, values: { title: "One too many" } },
+		});
+		expect(refusalOf(refused).code).toBe("TOO_MANY_REQUESTS");
+		// Reads go on.
+		expect((await client.callTool({ name: "sites_list", arguments: { workspaceId } })).isError).toBeFalsy();
+		await client.close();
+	});
+});
+
 describe("history", () => {
 	test("a Draft an AI client changed shows as changed by '<person> via <client>'; one the person changed, by them", async () => {
 		const owner = await install.createMember({ workspaceId, role: "owner", name: "Olive Owner" });

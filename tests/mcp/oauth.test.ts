@@ -444,6 +444,47 @@ describe("ending a grant", () => {
 	});
 });
 
+describe("housekeeping", () => {
+	test("a client nobody approves within a week is forgotten; an approved one stays", async () => {
+		const workspace = await install.createWorkspace();
+		const owner = await install.createMember({ workspaceId: workspace.id, role: "owner" });
+		const unapproved = String((await registerClient(install, { client_name: "Never approved" })).body.client_id);
+		const approved = await approveAiClient(install, owner.browser, { workspaceId: workspace.id });
+		await install.clock.advance(8 * DAY);
+		await install.drainJobs();
+
+		const admin = await install.signIn(owner.account);
+		const { challenge } = await pkcePair();
+		const forgotten = await admin.api.oauth.check({
+			parameters: authorizationParameters(install, unapproved, challenge),
+		});
+		expect(forgotten.check).toEqual({ kind: "refused", problem: "client" });
+		const kept = await admin.api.oauth.check({
+			parameters: authorizationParameters(install, approved.clientId, challenge),
+		});
+		expect(kept.check.kind).toBe("ask");
+	});
+
+	test("browser-based clients may call the MCP server and the token endpoint from another origin, without cookies", async () => {
+		for (const path of ["/mcp", "/oauth/token", "/oauth/register", "/.well-known/oauth-authorization-server"]) {
+			const response = await install.request(
+				new Request(install.adminUrl(path), {
+					method: "OPTIONS",
+					headers: {
+						origin: "https://assistant.example",
+						"access-control-request-method": "POST",
+						"access-control-request-headers": "authorization, content-type, mcp-protocol-version",
+					},
+				}),
+			);
+			expect({ path, status: response.status }).toEqual({ path, status: 204 });
+			expect(response.headers.get("access-control-allow-origin")).toBe("*");
+			expect(response.headers.get("access-control-allow-credentials")).toBeNull();
+			expect(response.headers.get("access-control-allow-headers")).toContain("authorization");
+		}
+	});
+});
+
 describe("a real client", () => {
 	test("finds its way in by itself: discovery, registration, the person's approval, PKCE, then tools", async () => {
 		const workspace = await install.createWorkspace();
