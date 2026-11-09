@@ -5,6 +5,8 @@ import {
 	builtInNotFoundPage,
 	type EditModePage,
 	type ElementTree,
+	FORM_TOKEN_MARK,
+	formWords,
 	isComponentInfo,
 	type LanguageLink,
 	mediaReferencesIn,
@@ -62,6 +64,7 @@ import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
 import { draftStyles, type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
 import { domainOrigin, placeOf, type SiteAddresses, verifiedDomains } from "../domains/addresses.ts";
+import { type PageFormsOptions, pageForms, type ShownForm } from "../forms/page-forms.ts";
 import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
@@ -107,8 +110,8 @@ export type SiteHost = {
 /** A language a visitor chose with the Language switcher, and the page to go on to. */
 export type LanguageChoice = { language: string; location: string };
 
-/** A rendered page of a Site. */
-export type SitePage = { html: string };
+/** A rendered page of a Site, with the Forms it shows (numbered as their ids are). */
+export type SitePage = { html: string; forms?: readonly ShownForm[] };
 
 /**
  * What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to
@@ -176,13 +179,18 @@ export type SitePages = {
 	 * `editing`, the page for Edit mode: the same page, showing the Drafts of its Content (its Entry and
 	 * the Globals) through the published Templates, its editable regions tagged.
 	 */
-	render(host: SiteHost, pathname: string, editing?: PageEditing): Promise<SiteAnswer | null>;
+	render(host: SiteHost, pathname: string, editing?: PageEditing, forms?: PageFormsOptions): Promise<SiteAnswer | null>;
 	/**
 	 * The Site's 404 page, for `pathname` with no page, in the path's language: the Page Staff chose,
 	 * once published, else the built-in one, in the Site template. With `editing`, for Edit mode, as
 	 * `render` does.
 	 */
-	notFound(host: SiteHost, pathname: string, editing?: PageEditing): Promise<SitePage>;
+	notFound(host: SiteHost, pathname: string, editing?: PageEditing, forms?: PageFormsOptions): Promise<SitePage>;
+	/**
+	 * A page showing one Form alone, in the Site template, in the path's language: where a Form sent
+	 * back with errors goes when the page it came from no longer shows it.
+	 */
+	formPage(host: SiteHost, pathname: string, formId: string, forms: PageFormsOptions): Promise<SitePage>;
 	/**
 	 * What the page at `pathname` shows from the content store, found as `render` finds it: its Entry
 	 * (none on the built-in 404 page) and whether it reads the Globals (`site.x`). For Edit mode's
@@ -224,9 +232,17 @@ export function createSitePages(options: {
 	storage: InstallStorage;
 	/** The Components of the Modules running on each Site. */
 	components?: ComponentSources;
+	/** Whether Forms run on a Site: a Module keeping their Submissions runs there. Never, when absent. */
+	formsOn?: (site: Site) => Promise<boolean>;
+	/** A time-trap token for a Form on a page of the Site handed out now. */
+	formToken?: (site: Site) => Promise<string>;
 }): SitePages {
 	const { database, config, data, storage } = options;
 	const sources = options.components ?? NO_MODULE_COMPONENTS;
+	const forms = {
+		on: options.formsOn ?? (async () => false),
+		token: options.formToken ?? (async () => ""),
+	};
 	// Each Site's styles, built once per page cache generation: a publish that changes them raises it.
 	// The Sites used least recently go first when there are too many.
 	const built = new Map<string, { generation: number; styles: Promise<SiteStyles> }>();
@@ -289,13 +305,13 @@ export function createSitePages(options: {
 			});
 		},
 
-		async render(host, pathname, editing) {
-			const view = viewFor(data, host, editing, sources);
+		async render(host, pathname, editing, formOptions) {
+			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms });
 			const located = await locate(view.scope, host, pathname, editing !== undefined);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
 			const extras = await languageExtras(view.scope, host, located, located.found);
-			return { kind: "page", html: await renderEntryPage(view, host, await viewStyles(view), located, extras) };
+			return { kind: "page", ...(await renderEntryPage(view, host, await viewStyles(view), located, extras)) };
 		},
 
 		async pageContent(host, pathname) {
@@ -324,19 +340,30 @@ export function createSitePages(options: {
 			};
 		},
 
-		async notFound(host, pathname, editing) {
-			const view = viewFor(data, host, editing, sources);
+		async notFound(host, pathname, editing, formOptions) {
+			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms });
 			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
 			if (place.found) {
 				const located = { ...place, found: place.found };
-				return { html: await renderEntryPage(view, host, styles, located, { alternates: [], languageLinks }) };
+				return renderEntryPage(view, host, styles, located, { alternates: [], languageLinks });
 			}
 			const builtIn = builtInNotFoundPage(place.language.code);
-			return {
-				html: await renderSitePage(view, host, styles, place, { ...builtIn, languageLinks, values: () => undefined }),
-			};
+			return renderSitePage(view, host, styles, place, { ...builtIn, languageLinks, values: () => undefined });
+		},
+
+		async formPage(host, pathname, formId, formOptions) {
+			const view = viewFor(data, host, undefined, sources, { pathname, options: formOptions, forms });
+			const place = await notFoundPlace(view.scope, host, pathname);
+			const styles = await viewStyles(view);
+			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
+			return renderSitePage(view, host, styles, place, {
+				title: formWords(place.language.code).problemTitle,
+				languageLinks,
+				content: { version: 1, nodes: [{ type: "form", form: formId }] },
+				values: () => undefined,
+			});
 		},
 
 		async preferredHome(host, acceptLanguage) {
@@ -407,6 +434,36 @@ function hostOf(
  */
 export function isReservedPath(segments: readonly string[]): boolean {
 	return (segments[0]?.startsWith("_") ?? false) || segments.some((segment) => segment.includes("."));
+}
+
+/** The language a path on a hostname is in (the Default language when it names none). */
+export async function languageOnHost(scope: ReadScope, host: SiteHost, pathname: string): Promise<string> {
+	const site = await siteLanguages(scope);
+	const onHost = pathOnHost(site, host, pathSegments(pathname) ?? [], true);
+	return onHost.kind === "path" ? onHost.languages.language : site.defaultLanguage;
+}
+
+/**
+ * Where one of the Site's published Pages is in a language, as a link from this hostname: a path
+ * here, or an address on another of the Site's domains. Null when the Page isn't published or is
+ * hidden in the language.
+ */
+export async function pageLocation(
+	scope: ReadScope,
+	host: SiteHost,
+	pageId: string,
+	language: string,
+): Promise<string | null> {
+	const postTypes = await listPostTypes(scope);
+	const page = await publishedPage(scope, postTypes, pageId);
+	if (!page) return null;
+	const { defaultLanguage } = await siteLanguages(scope);
+	const languages = { language, defaultLanguage };
+	if (!isVisibleIn(storedVersion(page.entry.published), languages)) return null;
+	const address = (await publishedAddresses(scope, page.postType, [pageId], languages)).get(pageId);
+	if (!address) return null;
+	const there = placeOf(host.addresses, languages, address.path);
+	return there.origin === host.origin ? there.path : `${there.origin}${there.path}`;
 }
 
 /** Where a page is: its language among the Site's, with the Default language values fall back to. */
@@ -627,19 +684,41 @@ type View = {
 	editing?: PageEditing;
 	/** Where the Components of the Modules running on the Site come from. */
 	sources: ComponentSources;
+	/** The page's path on its hostname, which its Forms send back with what visitors fill in. */
+	page: string;
+	/** What this answer shows in the page's Forms (whether it is cached, one visitor's state of one Form). */
+	forms?: PageFormsOptions;
+	/** Whether Forms run on the Site, and their time-trap tokens. */
+	formsOf: FormsOfSite;
 };
 
-function viewFor(data: DataLayer, host: SiteHost, editing: PageEditing | undefined, sources: ComponentSources): View {
+/** Whether Forms run on a Site, and a time-trap token for a page handed out now. */
+type FormsOfSite = { on: (site: Site) => Promise<boolean>; token: (site: Site) => Promise<string> };
+
+function viewFor(
+	data: DataLayer,
+	host: SiteHost,
+	editing: PageEditing | undefined,
+	sources: ComponentSources,
+	request: { pathname: string; options?: PageFormsOptions; forms: FormsOfSite },
+): View {
+	const segments = pathSegments(request.pathname);
+	const common = {
+		host,
+		sources,
+		page: segments ? canonicalPath(segments) : "/",
+		forms: request.options,
+		formsOf: request.forms,
+	};
 	return editing
 		? {
-				host,
+				...common,
 				scope: editing.scope,
 				version: "draft",
 				structure: editing.code ? "draft" : "published",
 				editing,
-				sources,
 			}
-		: { host, scope: data.visitors(host.site), version: "published", structure: "published", sources };
+		: { ...common, scope: data.visitors(host.site), version: "published", structure: "published" };
 }
 
 /**
@@ -769,7 +848,7 @@ async function renderEntryPage(
 	styles: SiteStyles,
 	located: Place & { found: FoundEntry },
 	extras: LanguageExtras,
-): Promise<string> {
+): Promise<SitePage> {
 	const { scope } = view;
 	const { found, languages } = located;
 	const { postType, entry } = found;
@@ -840,7 +919,7 @@ async function renderSitePage(
 	contentValues: unknown = null,
 	/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
 	entry: { id: string; fields: readonly FieldDefinition[] } | null = null,
-): Promise<string> {
+): Promise<SitePage> {
 	const { scope, editing } = view;
 	const { languages, language } = place;
 	const globalsRow = await scope.first(globals);
@@ -869,8 +948,21 @@ async function renderSitePage(
 		],
 		languages,
 	);
-	return renderPage({
+	const formsOn = await view.formsOf.on(host.site);
+	const forms = await pageForms(scope, {
+		on: formsOn,
+		which: view.structure,
+		language: language.code,
+		page: view.page,
+		token: !formsOn ? "" : view.forms?.cached ? FORM_TOKEN_MARK : await view.formsOf.token(host.site),
+		forms: view.forms,
+		editMode: editing !== undefined,
+	});
+	// A page sent back with a Form's errors says so first in its title.
+	const invalid = view.forms?.state?.state.kind === "invalid";
+	const html = renderPage({
 		...page,
+		title: invalid ? `${formWords(language.code).errorPrefix} ${page.title}` : page.title,
 		site: { name: host.site.name, language: language.code, direction: language.direction },
 		siteTemplate,
 		siteValues: (path) => resolvePath(siteRoot, path),
@@ -884,7 +976,10 @@ async function renderSitePage(
 			code: view.structure === "draft",
 		},
 		component: placed.render,
+		form: forms.render,
+		outsideScripts: forms.outsideScripts,
 	});
+	return { html, forms: forms.shown };
 }
 
 /**

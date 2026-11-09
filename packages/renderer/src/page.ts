@@ -78,6 +78,14 @@ export type PageToRender = {
 	media?: MediaReader;
 	/** What Placements show, in both templates: their Components' published trees. */
 	component?: PlacementRenderer;
+	/** What `{{@form <key>}}` shows, in both templates: the Form, rendered (`renderForm`). Nothing when absent. */
+	form?: (formId: string) => string;
+	/**
+	 * Outside scripts the page needs (ADR 0023), such as a Form's CAPTCHA: addresses on other hosts,
+	 * loaded `async` after everything else in `<head>`. Asked once the page's templates have rendered,
+	 * so only what the page shows asks for one. Never in Edit mode (ADR 0022).
+	 */
+	outsideScripts?: () => readonly string[];
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
@@ -165,6 +173,7 @@ export function renderPage(page: PageToRender): string {
 		media: page.media,
 		priorityImage: { given: false },
 		component: page.component,
+		form: page.form,
 		themeToggle,
 		languageSwitcher,
 		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "content") : undefined,
@@ -180,6 +189,7 @@ export function renderPage(page: PageToRender): string {
 		outlet: () => content,
 		extraAttributes: mainAttributes,
 		component: page.component,
+		form: page.form,
 		themeToggle,
 		languageSwitcher,
 		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
@@ -201,6 +211,9 @@ export function renderPage(page: PageToRender): string {
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
 		...(page.scripts ?? []).map((src) => `<script src="${escapeAttribute(src)}" defer></script>`),
+		...(editMode ? [] : (page.outsideScripts?.() ?? [])).map(
+			(src) => `<script src="${escapeAttribute(src)}" async defer></script>`,
+		),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,

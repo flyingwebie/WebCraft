@@ -7,6 +7,7 @@ import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem, lockDesignSystem } from "../design-system/design-systems.ts";
 import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
 import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-system/stylesheet.ts";
+import { publishFormDraft } from "../forms/forms.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -51,14 +52,15 @@ import { type EntryVersion, ownValue, storedVersion } from "./values.ts";
 import { isVisibleIn } from "./visibility.ts";
 
 /**
- * One item to publish. Forms join Entries, Templates, Components, the Globals and the Design
- * system; Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
+ * One item to publish: an Entry, a Template, a Component, a script, a Form, the Globals or the
+ * Design system. Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
  */
 export type PublishItem =
 	| { kind: "entry"; id: string }
 	| { kind: "template"; id: string }
 	| { kind: "component"; id: string }
 	| { kind: "script"; id: string }
+	| { kind: "form"; id: string }
 	| { kind: "globals" }
 	| { kind: "designSystem" };
 
@@ -143,6 +145,10 @@ async function publishItem(scope: SiteScope, item: PublishItem, sources: Compone
 		case "script": {
 			const published = await publishScriptDraft(scope, item.id);
 			return { kind: "script", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
+		}
+		case "form": {
+			const published = await publishFormDraft(scope, item.id);
+			return { kind: "form", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 	}
 }

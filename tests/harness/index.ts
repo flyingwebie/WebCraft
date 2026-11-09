@@ -34,7 +34,7 @@ import { createWebHandler } from "@webcraft/server/handler";
 import { createImageProcessor } from "@webcraft/worker/images";
 import type { PgBoss } from "pg-boss";
 
-import { createTestBrowser, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
+import { createTestBrowser, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
 import { createFakeDns, type FakeDns } from "./fake-dns.ts";
@@ -440,8 +440,13 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		storageDir,
 		env,
 		adminUrl: (path) => new URL(path, adminOrigin).toString(),
+		// A Request given keeps the client address it came from (`fromAddress`).
 		request: (input, init) =>
-			handle(input instanceof Request ? new Request(input, init) : new Request(String(input), init)),
+			handle(
+				input instanceof Request
+					? fromAddress(new Request(input, init), (input as Request & { ip?: string }).ip ?? null)
+					: new Request(String(input), init),
+			),
 		browser: (browserOptions) => createTestBrowser({ send, adminOrigin, ...browserOptions }),
 		createSuperadmin,
 		signIn,

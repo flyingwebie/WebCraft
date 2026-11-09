@@ -5,13 +5,14 @@
  * new command is a new entry here and a new node kind in `TreeNode`, never a change to the markup
  * parser or printer.
  *
- * Commands the spec names but later work brings (Loops and `{{@empty}}`, pagination, Forms, Filters
- * and Popups) are reserved: markup naming them is refused for now.
+ * Commands the spec names but later work brings (Loops and `{{@empty}}`, pagination, Filters and
+ * Popups) are reserved: markup naming them is refused for now.
  */
 import { type Expression, passes, writeExpression } from "./expressions.ts";
 import type {
 	ConditionBranch,
 	ConditionNode,
+	FormNode,
 	LanguageSwitcherNode,
 	OutletNode,
 	ThemeToggleNode,
@@ -20,7 +21,7 @@ import type {
 import type { TemplateValue } from "./values.ts";
 
 /** The node kinds Template commands store. */
-export type CommandNode = ConditionNode | OutletNode | ThemeToggleNode | LanguageSwitcherNode;
+export type CommandNode = ConditionNode | OutletNode | ThemeToggleNode | LanguageSwitcherNode | FormNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -38,6 +39,8 @@ export type MarkupSection = {
 export type FromMarkupTools = {
 	/** Reads an expression written at `offset` in the markup; undefined after reporting a problem. */
 	expression(text: string, offset: number): Expression | undefined;
+	/** The id of the Site's Form with this key, written at `offset`; undefined after reporting a problem. */
+	form(key: string, offset: number): string | undefined;
 	problem(offset: number, message: string): void;
 };
 
@@ -47,6 +50,8 @@ export type CheckTools = {
 	expression(input: unknown, at: string): Expression | undefined;
 	/** Checks a stored list of nodes at `at`, as children of the command's parent. */
 	nodes(input: unknown, at: string): TreeNode[];
+	/** Checks a stored Form id at `at`: one of the Site's Forms the tree may place. */
+	form(input: unknown, at: string): string | undefined;
 };
 
 export type RenderTools = {
@@ -59,6 +64,14 @@ export type RenderTools = {
 	themeToggle(): string;
 	/** The Language switcher, rendered: nothing on a Site with one language. */
 	languageSwitcher(): string;
+	/** A Form, rendered: nothing where Forms don't run, or for a Form the page can't show. */
+	form(formId: string): string;
+};
+
+/** What printing a command needs to know about the Site: the keys of its Forms. */
+export type ToMarkupTools = {
+	/** The key of the Form with this id, as `{{@form <key>}}` writes it. */
+	formKey(formId: string): string | undefined;
 };
 
 /** A section as it prints: `{{@<keyword> <argument>}}` then its children. */
@@ -79,7 +92,7 @@ export type TemplateCommand<Node extends CommandNode = CommandNode> = {
 	 */
 	snippet: string;
 	fromMarkup(sections: readonly MarkupSection[], tools: FromMarkupTools): Node | undefined;
-	toMarkup(node: Node): PrintedSection[];
+	toMarkup(node: Node, tools: ToMarkupTools): PrintedSection[];
 	check(input: Record<string, unknown>, at: string, tools: CheckTools): Node | undefined;
 	/** The node's lists of children, for walking a tree. */
 	children(node: Node): readonly (readonly TreeNode[])[];
@@ -340,23 +353,71 @@ const languageSwitcherCommand: TemplateCommand<LanguageSwitcherNode> = {
 	},
 };
 
+/** Elements a <form> can't go inside: another form's controls, or text and inline elements only. */
+const NO_FORM_INSIDE = new Set([...INTERACTIVE, ...PHRASING_ONLY, "form"]);
+
+/**
+ * `{{@form <key>}}`: one of the Site's Forms, placed by its key and stored by its id. It renders the
+ * Form's published version as a `<form>` posting to the Site itself, which works without JavaScript;
+ * nothing where Forms don't run on the Site. A form is a block of its own, so it goes where a <div>
+ * can, never inside a link, a control, a paragraph or another form.
+ */
+const formCommand: TemplateCommand<FormNode> = {
+	name: "form",
+	nodeType: "form",
+	block: false,
+	branches: [],
+	snippet: "{{@form $0}}",
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		const key = section?.argument.trim() ?? "";
+		if (!section || key === "") {
+			tools.problem(section?.offset ?? 0, "{{@form}} names the Form to place by its key, such as {{@form contact}}.");
+			return undefined;
+		}
+		const leading = section.argument.length - section.argument.trimStart().length;
+		const formId = tools.form(key, section.argumentOffset + leading);
+		return formId === undefined ? undefined : { type: "form", form: formId };
+	},
+
+	toMarkup(node, tools) {
+		return [{ keyword: "form", argument: tools.formKey(node.form) ?? node.form, children: [] }];
+	},
+
+	check(input, at, tools) {
+		const formId = tools.form(input.form, `${at}.form`);
+		return formId === undefined ? undefined : { type: "form", form: formId };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(node, tools) {
+		return tools.form(node.form);
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => NO_FORM_INSIDE.has(tag));
+		if (inside) return `{{@form}} is a form of its own: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@form}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
 /** Every Template command there is. */
 export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	ifCommand,
 	outletCommand,
 	themeToggleCommand,
 	languageSwitcherCommand,
+	formCommand,
 ];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
-export const RESERVED_COMMANDS: ReadonlySet<string> = new Set([
-	"loop",
-	"empty",
-	"pagination",
-	"form",
-	"filter",
-	"popup",
-]);
+export const RESERVED_COMMANDS: ReadonlySet<string> = new Set(["loop", "empty", "pagination", "filter", "popup"]);
 
 /** The command written `{{@name}}`, if there is one. */
 export function commandNamed(name: string): TemplateCommand | undefined {

@@ -259,7 +259,11 @@ export async function openSource(
 	return {
 		source: { kind: source.kind, id: source.id, name: source.name, editable: source.editable },
 		ref: writeCodeRef(ref),
-		markup: printTemplateMarkup(source.tree, { className: classes.nameOf, componentName: catalogue.nameOf }),
+		markup: printTemplateMarkup(source.tree, {
+			className: classes.nameOf,
+			componentName: catalogue.nameOf,
+			formKey: catalogue.forms.keyOf,
+		}),
 		version: source.draft === null ? null : draftVersion(source.draft),
 		element: found ? { id: idOf(found.node), tag: tagOf(found.node) } : null,
 		breadcrumb: steps.map((step, index) => ({

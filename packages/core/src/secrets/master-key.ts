@@ -17,6 +17,7 @@ const FINGERPRINT_LABEL = "webcraft master key fingerprint";
 const SESSION_SIGNING_LABEL = "webcraft session cookie signing";
 const EDIT_MODE_LABEL = "webcraft edit mode header token";
 const DOMAIN_VERIFICATION_LABEL = "webcraft domain verification";
+const FORM_TIME_LABEL = "webcraft form time trap";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -135,6 +136,21 @@ export async function editModeSigningKey(masterKey: MasterKey): Promise<CryptoKe
 export async function domainVerificationKey(masterKey: MasterKey): Promise<CryptoKey> {
 	return crypto.subtle.deriveKey(
 		hkdf(DOMAIN_VERIFICATION_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key Forms sign their time-trap tokens with (HMAC-SHA256), derived from the Master key: the
+ * time a page holding a Form was handed out, which a post sends back. Web processes make and check
+ * them without storing them. Only the Install's start-up uses it.
+ */
+export async function formTimeKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(FORM_TIME_LABEL),
 		await stateOf(masterKey).base,
 		{ name: "HMAC", hash: "SHA-256", length: 256 },
 		false,

@@ -58,6 +58,7 @@ import {
 import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
+import { createForms, createFormTokens } from "./forms/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
 import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
@@ -71,6 +72,7 @@ import { createRateLimits } from "./rate-limits.ts";
 import {
 	domainVerificationKey,
 	editModeSigningKey,
+	formTimeKey,
 	type MasterKey,
 	sessionSigningSecret,
 } from "./secrets/master-key.ts";
@@ -158,13 +160,23 @@ export async function createInstallServices(
 		log,
 		directory: config.storageDir,
 	});
-	const sitePages = createSitePages({ database, config, data, storage, components: componentSources });
+	const rateLimits = createRateLimits({ database, clock, log });
+	const formTokens = createFormTokens({ key: await formTimeKey(masterKey), clock });
+	const sitePages = createSitePages({
+		database,
+		config,
+		data,
+		storage,
+		components: componentSources,
+		formsOn: async (site) => (await modules.submissionsKeptBy(site)) !== null,
+		formToken: (site) => formTokens.issue(site.id),
+	});
 	return {
 		...ports,
 		secrets: installSecrets,
 		auth,
 		account: createAccount({ database, auth, clock }),
-		rateLimits: createRateLimits({ database, clock, log }),
+		rateLimits,
 		people: createPeople({ database, clock }),
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,
@@ -205,6 +217,15 @@ export async function createInstallServices(
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
+		forms: createForms({
+			data,
+			modules,
+			rateLimits,
+			tokens: formTokens,
+			fetch: createGuardedFetch({ http: ports.http, dns: ports.dns }),
+			clock,
+			log,
+		}),
 		domains: createDomains({
 			config,
 			database,

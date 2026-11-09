@@ -43,6 +43,12 @@ export type DataLayer = {
 	 * Site no longer exists.
 	 */
 	background(siteId: string): Promise<BackgroundScope | null>;
+	/**
+	 * Uses one of a Site's secrets for a visitor's request, inside the call that needs it, such as
+	 * checking a Form's CAPTCHA answer with the Site's secret key. Like `useWith`, it never hands the
+	 * value back. Only the Site request pipeline uses it, for the Site it found by hostname.
+	 */
+	useSiteSecret<Result>(site: Site, name: string, use: (value: string) => Promise<Result>): Promise<Result>;
 };
 
 /**
@@ -364,6 +370,10 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			const site = isUuid(siteId) ? await findSite(db, siteId) : undefined;
 			const workspace = site ? await findWorkspace(db, site.workspaceId) : undefined;
 			return site && workspace ? backgroundScope(db, workspace, site) : null;
+		},
+
+		useSiteSecret(site, name, use) {
+			return secrets.useWith({ owner: { kind: "site", workspaceId: site.workspaceId, siteId: site.id }, name }, use);
 		},
 	};
 }

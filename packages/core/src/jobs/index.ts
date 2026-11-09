@@ -9,7 +9,14 @@ import {
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
 import { mediaProcess, mediaVariants } from "../media/jobs.ts";
-import { moduleEventJob, moduleJob } from "../modules/jobs.ts";
+import {
+	moduleDailyJobs,
+	moduleDailyJobsSchedule,
+	moduleEventJob,
+	moduleHourlyJobs,
+	moduleHourlyJobsSchedule,
+	moduleJob,
+} from "../modules/jobs.ts";
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
 import type { JobDefinition } from "./define.ts";
@@ -29,6 +36,8 @@ export const coreJobs = [
 	mediaVariants,
 	moduleEventJob,
 	moduleJob,
+	moduleHourlyJobs,
+	moduleDailyJobs,
 	moduleLogPurge,
 	domainsVerifyDue,
 	domainsVerify,
@@ -41,6 +50,8 @@ export const coreSchedules = [
 	emailLogPurgeSchedule,
 	rateLimitsPurgeSchedule,
 	moduleLogPurgeSchedule,
+	moduleHourlyJobsSchedule,
+	moduleDailyJobsSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
 ] as readonly JobSchedule<unknown>[];

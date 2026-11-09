@@ -38,6 +38,7 @@ import {
 	type ElementTree,
 	ElementTreeInvalidError,
 	elementProblem,
+	type FormCatalogue,
 	hasText,
 	isElementId,
 	isValuePath,
@@ -85,6 +86,8 @@ export type ParseMarkupOptions = {
 	components?: ComponentCatalogue;
 	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
 	unknownValue?: (path: string) => string;
+	/** The Forms the markup may place (`{{@form <key>}}`), by key and by id. Every Form is refused when absent. */
+	forms?: FormCatalogue;
 	/** How deep the markup already sits in Components: 0 for a Template (the default), 1 for a Component's. */
 	placedDepth?: number;
 	/** Makes an id for an element written without one; random by default. */
@@ -220,6 +223,7 @@ class MarkupParser {
 					refuseElement: this.options.refuseElement,
 					refuseCommand: this.options.refuseCommand,
 					components: this.options.components,
+					forms: this.options.forms,
 					unknownValue: this.options.unknownValue,
 					placedDepth: this.options.placedDepth,
 					classIds: this.classIds,
@@ -645,6 +649,14 @@ class MarkupParser {
 		}
 		return command.fromMarkup(sections, {
 			expression: (text, offset) => this.readExpression(text, offset),
+			form: (key, offset) => {
+				const found = this.options.forms?.keyed(key);
+				if (!found || "refused" in found) {
+					this.problem(offset, found?.refused ?? `There is no Form with the key ${key} on this Site.`);
+					return undefined;
+				}
+				return found.id;
+			},
 			problem: (offset, message) => this.problem(offset, message),
 		});
 	}

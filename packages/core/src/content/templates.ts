@@ -1,6 +1,5 @@
 import { globals, templates } from "@webcraft/db/schema";
 import {
-	type ComponentCatalogue,
 	checkSiteTemplate,
 	type DesignSystem,
 	type ElementTree,
@@ -128,10 +127,11 @@ type TemplateTarget =
  * What the Template `target` names may hold, placing the Components of `components`: their Drafts
  * for a Draft, their published versions for a publish.
  */
-function rulesFor(target: TemplateTarget, components: ComponentCatalogue) {
+function rulesFor(target: TemplateTarget, components: SiteComponents) {
 	return {
 		...(target.kind === "entry" ? entryTemplateRules(target.context) : siteTemplateRules(target.globalFields)),
 		components,
+		forms: components.forms,
 	};
 }
 
@@ -146,7 +146,7 @@ function parseTemplate(
 	tree: unknown,
 	target: TemplateTarget,
 	classIds: ReadonlySet<string>,
-	components: ComponentCatalogue,
+	components: SiteComponents,
 ): ElementTree {
 	return parseElementTree(tree, { ...rulesFor(target, components), classIds });
 }
@@ -329,7 +329,11 @@ async function templateMarkup(
 
 /** A tree as Template markup: Classes by name, Placements by their Components' names. */
 function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: SiteComponents): string {
-	return printTemplateMarkup(tree, { className: catalogue.nameOf, componentName: components.nameOf });
+	return printTemplateMarkup(tree, {
+		className: catalogue.nameOf,
+		componentName: components.nameOf,
+		formKey: components.forms.keyOf,
+	});
 }
 
 /** Writes a checked tree as the Draft of the Template `target` names, creating it the first time. */

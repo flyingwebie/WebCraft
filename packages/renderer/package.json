@@ -8,7 +8,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./rich-text": "./src/rich-text.ts",
-		"./body": "./src/body/index.ts"
+		"./body": "./src/body/index.ts",
+		"./forms": "./src/forms/version.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

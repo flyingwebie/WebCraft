@@ -18,6 +18,7 @@
 	"dependencies": {
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/db": "workspace:*",
+		"@webcraft/module-forms": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/renderer": "workspace:*",
 		"aws4fetch": "1.0.20",
