@@ -1,11 +1,13 @@
 // The first rendered Site, end to end: Staff define a Post Type with a text Field and its Entry
 // template, a Member writes an Entry and publishes it, and visitors get the page on the Site's
-// Staging address, from the page cache until the next publish.
+// domain, from the page cache until the next publish. (Its Staging address shows the Drafts to the
+// people reviewing it: tests/staging/.)
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { structuredDataLine } from "../harness/seo.ts";
 import { stylesheetIn } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -13,6 +15,8 @@ let staff: TestBrowser;
 let editor: TestBrowser;
 let siteId: string;
 let stagingUrl: string;
+/** The Site's Primary domain, where its visitors are. */
+let liveUrl: string;
 
 beforeAll(async () => {
 	install = await createTestInstall();
@@ -21,6 +25,7 @@ beforeAll(async () => {
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	stagingUrl = (await editor.api.sites.get({ siteId })).stagingUrl ?? "";
+	liveUrl = await goLive(install, siteId);
 });
 
 afterAll(async () => {
@@ -31,7 +36,7 @@ describe("create → publish → render → cache → republish", () => {
 	let postTypeId: string;
 	let entryId: string;
 
-	test("a published Entry renders as semantic HTML on the Site's Staging address", async () => {
+	test("a published Entry renders as semantic HTML on the Site's domain", async () => {
 		expect(stagingUrl).toBe("https://bakery.sites.test");
 		const { postType } = await staff.api.postTypes.create({
 			siteId,
@@ -56,7 +61,7 @@ describe("create → publish → render → cache → republish", () => {
 		entryId = entry.id;
 		await editor.api.entries.publish({ siteId, entryId });
 
-		const page = await install.request(`${stagingUrl}/blog/fresh-bread-daily`);
+		const page = await install.request(`${liveUrl}/blog/fresh-bread-daily`);
 
 		expect(page.status).toBe(200);
 		expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
@@ -70,10 +75,10 @@ describe("create → publish → render → cache → republish", () => {
 				'<meta name="viewport" content="width=device-width, initial-scale=1">',
 				"<title>Fresh bread daily · Acme Bakery</title>",
 				// What it tells search engines and other sites (see tests/seo).
-				`<link rel="canonical" href="${stagingUrl}/blog/fresh-bread-daily">`,
+				`<link rel="canonical" href="${liveUrl}/blog/fresh-bread-daily">`,
 				'<meta property="og:type" content="website">',
 				'<meta property="og:title" content="Fresh bread daily">',
-				`<meta property="og:url" content="${stagingUrl}/blog/fresh-bread-daily">`,
+				`<meta property="og:url" content="${liveUrl}/blog/fresh-bread-daily">`,
 				'<meta property="og:site_name" content="Acme Bakery">',
 				'<meta property="og:locale" content="en">',
 				'<meta name="twitter:card" content="summary">',
@@ -93,8 +98,8 @@ describe("create → publish → render → cache → republish", () => {
 	});
 
 	test("the next visitor gets the same page from the page cache", async () => {
-		const first = await install.request(`${stagingUrl}/blog/fresh-bread-daily`);
-		const second = await install.request(`${stagingUrl}/blog/fresh-bread-daily`);
+		const first = await install.request(`${liveUrl}/blog/fresh-bread-daily`);
+		const second = await install.request(`${liveUrl}/blog/fresh-bread-daily`);
 
 		expect(second.headers.get("x-cache")).toBe("HIT");
 		expect(second.headers.get("etag")).toBe(first.headers.get("etag"));
@@ -105,21 +110,21 @@ describe("create → publish → render → cache → republish", () => {
 	test("a saved Draft changes nothing visitors see until it is published", async () => {
 		await editor.api.entries.saveDraft({ siteId, entryId, fields: { summary: "Now out of the oven at six." } });
 
-		const page = await install.request(`${stagingUrl}/blog/fresh-bread-daily`);
+		const page = await install.request(`${liveUrl}/blog/fresh-bread-daily`);
 
 		expect(page.headers.get("x-cache")).toBe("HIT");
 		expect(await page.text()).toContain("<p>Out of the oven at seven.</p>");
 	});
 
 	test("republishing clears the Site's page cache, so visitors get the new version at once", async () => {
-		const before = await install.request(`${stagingUrl}/blog/fresh-bread-daily`);
+		const before = await install.request(`${liveUrl}/blog/fresh-bread-daily`);
 
 		await editor.api.entries.publish({ siteId, entryId });
-		const after = await install.request(`${stagingUrl}/blog/fresh-bread-daily`);
+		const after = await install.request(`${liveUrl}/blog/fresh-bread-daily`);
 
 		expect(after.headers.get("x-cache")).toBe("MISS");
 		expect(after.headers.get("etag")).not.toBe(before.headers.get("etag"));
 		expect(await after.text()).toContain("<p>Now out of the oven at six.</p>");
-		expect((await install.request(`${stagingUrl}/blog/fresh-bread-daily`)).headers.get("x-cache")).toBe("HIT");
+		expect((await install.request(`${liveUrl}/blog/fresh-bread-daily`)).headers.get("x-cache")).toBe("HIT");
 	});
 });

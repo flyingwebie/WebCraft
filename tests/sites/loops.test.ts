@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -20,6 +21,7 @@ beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-04-01T09:00:00Z") });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	await staff.api.languages.add({ siteId, code: "fr" });
 	chefsId = (
@@ -149,7 +151,7 @@ async function template(postTypeId: string, markup: string): Promise<void> {
 
 /** What visitors get inside <main> at `path`. */
 async function main(path: string): Promise<string> {
-	const response = await install.request(`https://bakery.sites.test${path}`);
+	const response = await install.request(`https://bakery.live.test${path}`);
 	expect(response.status).toBe(200);
 	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await response.text())?.[1] ?? "";
 }
@@ -391,7 +393,7 @@ describe("Conditions", () => {
 
 	test("a date window: the page is rendered again when the window opens", async () => {
 		await template(showcaseId, '{{@if now >= "2026-04-05"}}Open{{@else}}Soon{{/if}}');
-		const get = () => install.request("https://bakery.sites.test/showcase/here");
+		const get = () => install.request("https://bakery.live.test/showcase/here");
 
 		expect(await (await get()).text()).toContain("Soon");
 		expect((await get()).headers.get("x-cache")).toBe("HIT");

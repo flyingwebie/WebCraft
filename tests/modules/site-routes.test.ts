@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 import { sample } from "./sample/index.ts";
 
 let install: TestInstall;
@@ -27,7 +28,8 @@ const notes = (browser: TestBrowser) => moduleApi<typeof sample>(browser, "sampl
 /** A new Site with the sample Module on, and the address of its Staging host. */
 async function newSite() {
 	const site = await install.createSite(workspaceId);
-	return { id: site.id, url: (path: string) => `https://${site.slug}.sites.test${path}` };
+	await goLive(install, site.id);
+	return { id: site.id, url: (path: string) => `https://${site.slug}.live.test${path}` };
 }
 
 describe("a Module's Site routes", () => {
@@ -42,7 +44,8 @@ describe("a Module's Site routes", () => {
 		expect(first.status).toBe(200);
 		expect(first.headers.get("cache-control")).toBe("no-store");
 		expect(first.headers.get("x-cache")).toBeNull();
-		expect(first.headers.get("x-robots-tag")).toBe("noindex");
+		// The Site's domain is for visitors and search engines alike: only its Staging address says noindex.
+		expect(first.headers.get("x-robots-tag")).toBeNull();
 		expect(await first.json()).toEqual({ notes: [{ body: "Opening hours change on Monday", source: "person" }] });
 
 		await notes(staff).add({ siteId: site.id, body: "And on Tuesday" });
@@ -138,7 +141,7 @@ describe("a Module's Site routes", () => {
 		try {
 			const site = await waiting.createSite((await waiting.createWorkspace()).id);
 
-			const answer = await waiting.request(`https://${site.slug}.sites.test/_wc/m/sample/notes`);
+			const answer = await waiting.request(`https://${site.slug}.live.test/_wc/m/sample/notes`);
 
 			expect(answer.status).toBe(404);
 		} finally {

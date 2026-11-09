@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -30,7 +31,8 @@ let addresses = 0;
 async function newSite() {
 	const slug = `records-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery", slug });
-	return { siteId, origin: `https://${slug}.sites.test` };
+	await goLive(install, siteId);
+	return { siteId, origin: `https://${slug}.live.test` };
 }
 
 type Choice = { choices?: unknown; version?: unknown; language?: unknown };

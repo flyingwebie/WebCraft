@@ -1,13 +1,17 @@
-// Staging addresses: with WEBCRAFT_SITES_DOMAIN set, each Site answers on `<site slug>.<sites domain>`.
-// The admin host stays reserved: it is never a Site's address, and Site hostnames never reach the admin.
+// Staging addresses: with WEBCRAFT_SITES_DOMAIN set, each Site answers on `<site slug>.<sites domain>`,
+// to the people reviewing it (tests/staging/ covers who they are and what it shows). The admin host
+// stays reserved: it is never a Site's address, and Site hostnames never reach the admin.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { openStaging, type StagingBrowser } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
 let workspaceId: string;
+/** The Bakery's Staging address, opened by the Superadmin. */
+let bakery: StagingBrowser;
 
 beforeAll(async () => {
 	install = await createTestInstall();
@@ -50,54 +54,65 @@ function expectSiteNotFoundPage(response: Response, body: string): void {
 
 describe("each Site's Staging address", () => {
 	test("is <site slug>.<sites domain>, and shows that Site's pages only", async () => {
-		const bakery = await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" });
+		const bakery_ = await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" });
 		const careers = await install.createSite(workspaceId, { name: "Acme Careers", slug: "careers" });
-		await publishPage(bakery.id, "about", "About the bakery");
+		await publishPage(bakery_.id, "about", "About the bakery");
 		await publishPage(careers.id, "about", "Work with us");
 
-		const bakeryUrl = (await admin.api.sites.get({ siteId: bakery.id })).stagingUrl;
+		const bakeryUrl = (await admin.api.sites.get({ siteId: bakery_.id })).stagingUrl;
 		const careersUrl = (await admin.api.sites.get({ siteId: careers.id })).stagingUrl;
 
 		expect(bakeryUrl).toBe("https://bakery.sites.test");
 		expect(careersUrl).toBe("https://careers.sites.test");
-		expect(await (await install.request(`${bakeryUrl}/pages/about`)).text()).toContain("<h1>About the bakery</h1>");
-		expect(await (await install.request(`${careersUrl}/pages/about`)).text()).toContain("<h1>Work with us</h1>");
+		bakery = await openStaging(install, admin, bakery_.id);
+		const careersReviewer = await openStaging(install, admin, careers.id);
+		expect(await (await bakery.page("/pages/about")).text()).toContain("<h1>About the bakery</h1>");
+		expect(await (await careersReviewer.page("/pages/about")).text()).toContain("<h1>Work with us</h1>");
 	});
 
 	test("matches the hostname in any case, with or without the trailing dot", async () => {
 		const shop = await install.createSite(workspaceId, { name: "Acme Shop", slug: "shop" });
 		await publishPage(shop.id, "hours", "Opening hours");
+		const reviewer = await openStaging(install, admin, shop.id);
+		const cookie = Array.from(reviewer.browser.cookies, ([name, value]) => `${name}=${value}`).join("; ");
 
 		for (const hostname of ["SHOP.Sites.Test", "shop.sites.test."]) {
-			const response = await install.request(`https://${hostname}/pages/hours`);
+			const response = await install.request(`https://${hostname}/pages/hours`, { headers: { cookie } });
 			expect(response.status).toBe(200);
+			// Someone it doesn't know gets the Site's own page asking them to sign in, not the unbranded 404.
+			const stranger = await install.request(`https://${hostname}/pages/hours`);
+			expect(stranger.status).toBe(403);
+			expect(await stranger.text()).toContain("Acme Shop");
 		}
 	});
 
 	test("tells search engines not to index it", async () => {
-		const response = await install.request("https://bakery.sites.test/pages/about");
-		const missing = await install.request("https://bakery.sites.test/pages/no-such-page");
+		const response = await bakery.page("/pages/about");
+		const missing = await bakery.page("/pages/no-such-page");
+		const stranger = await install.request("https://bakery.sites.test/pages/about");
 
 		expect(response.headers.get("x-robots-tag")).toBe("noindex");
 		expect(missing.headers.get("x-robots-tag")).toBe("noindex");
+		expect(stranger.headers.get("x-robots-tag")).toBe("noindex");
 	});
 
 	test("answers a path with no page with the Site's own unbranded 404 page", async () => {
 		for (const path of ["/", "/pages/no-such-page", "/pages", "/pages/about/more", "//pages/about"]) {
-			const response = await install.request(`https://bakery.sites.test${path}`);
+			const response = await bakery.page(path);
 			expectSiteNotFoundPage(response, await response.text());
 		}
 	});
 
 	test("answers only GET and HEAD; HEAD has the headers without the page", async () => {
-		const post = await install.request("https://bakery.sites.test/pages/about", { method: "POST", body: "x" });
-		const head = await install.request("https://bakery.sites.test/pages/about", { method: "HEAD" });
+		const post = await bakery.page("/pages/about", { method: "POST", body: "x" });
+		const head = await bakery.page("/pages/about", { method: "HEAD" });
 
 		expect(post.status).toBe(405);
 		expect(post.headers.get("allow")).toBe("GET, HEAD");
 		expect(head.status).toBe(200);
 		expect(head.headers.get("content-type")).toBe("text/html; charset=utf-8");
-		expect(head.headers.get("etag")).toBeTruthy();
+		// Never kept by anyone, so it has no ETag to check it against.
+		expect(head.headers.get("cache-control")).toBe("private, no-store");
 		expect(await head.text()).toBe("");
 	});
 });
@@ -114,15 +129,22 @@ describe("hostnames that are no Site's", () => {
 describe("Site hostnames never reach the admin", () => {
 	test("the admin's own paths on a Staging address are the Site's, not the admin's", async () => {
 		for (const path of ["/healthz", "/readyz", "/sign-in", "/api/rpc/session/current"]) {
-			const response = await install.request(`https://bakery.sites.test${path}`);
+			const response = await bakery.page(path);
 			expectSiteNotFoundPage(response, await response.text());
 		}
-		const call = await install.request("https://bakery.sites.test/api/rpc/session/current", {
+		const call = await bakery.page("/api/rpc/session/current", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: "{}",
 		});
 		expect(call.status).toBe(405);
+		// Without the Staging cookie, nothing at all.
+		const stranger = await install.request("https://bakery.sites.test/api/rpc/session/current", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: "{}",
+		});
+		expect(stranger.status).toBe(403);
 	});
 
 	test("when the admin host sits under the sites domain, its name can't be a Site's slug", async () => {

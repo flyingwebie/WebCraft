@@ -9,6 +9,7 @@ import { headOf } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage, expectSiteHeaders, policyOf } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -32,6 +33,7 @@ let sites = 0;
 async function newSite() {
 	const slug = `held-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery", slug });
+	await goLive(install, siteId);
 	const pages = (await editor.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.builtIn === "page");
 	const { entry } = await editor.api.entries.create({ siteId, postTypeId: pages?.id as string, title: "Home" });
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
@@ -50,7 +52,7 @@ async function newSite() {
 		consentCategory: "necessary",
 		source: { kind: "url", url: "https://status.example.com/check.js" },
 	});
-	return { siteId, slug, url: (path: string) => `https://${slug}.sites.test${path}` };
+	return { siteId, slug, url: (path: string) => `https://${slug}.live.test${path}` };
 }
 
 /** Script tags that run as the page loads: those outside any <template>. */

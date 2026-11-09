@@ -8,6 +8,7 @@ import { formIn, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -15,7 +16,7 @@ let owner: TestBrowser;
 let siteId: string;
 let formId: string;
 let postTypeId: string;
-const PAGE = "https://bakery.sites.test/visit/contact";
+const PAGE = "https://bakery.live.test/visit/contact";
 
 /** The Submissions kept for the Form, newest first. */
 async function kept(folder: "inbox" | "spam" = "inbox") {
@@ -27,6 +28,7 @@ beforeAll(async () => {
 	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.0.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 	await staff.api.languages.add({ siteId, code: "it" });
@@ -157,7 +159,7 @@ describe("the page shows the Form", () => {
 	});
 
 	test("in another language, every text shows its own value there", async () => {
-		const page = await formVisitor(install).open("https://bakery.sites.test/it/visit/contact");
+		const page = await formVisitor(install).open("https://bakery.live.test/it/visit/contact");
 
 		expect(page.html).toContain(">Il tuo nome<");
 		expect(page.html).toContain('<p class="wc-form-help" id="wc-form-1-email-help">Rispondiamo qui.</p>');
@@ -209,8 +211,8 @@ describe("sending without JavaScript", () => {
 			{ key: "campaign", label: "Campaign", type: "hidden", value: "newsletter" },
 		]);
 
-		await expectSafePage(await install.request(`https://bakery.sites.test${sent.headers.get("location")}`));
-		const after = await visitor.open(`https://bakery.sites.test${sent.headers.get("location")}`);
+		await expectSafePage(await install.request(`https://bakery.live.test${sent.headers.get("location")}`));
+		const after = await visitor.open(`https://bakery.live.test${sent.headers.get("location")}`);
 		expect(after.status).toBe(200);
 		expect(after.response.headers.get("cache-control")).toBe("no-store");
 		expect(after.html).toContain(
@@ -257,7 +259,7 @@ describe("sending without JavaScript", () => {
 
 	test("errors are in the page's language", async () => {
 		const visitor = formVisitor(install);
-		const page = await visitor.open("https://bakery.sites.test/it/visit/contact");
+		const page = await visitor.open("https://bakery.live.test/it/visit/contact");
 		await install.clock.advance(5000);
 
 		const html = await (await visitor.send(page, { email: "x", tiers: "1" })).text();
@@ -270,14 +272,14 @@ describe("sending without JavaScript", () => {
 
 	test("a Submission from a page in another language records that language", async () => {
 		const visitor = formVisitor(install);
-		const page = await visitor.open("https://bakery.sites.test/it/visit/contact");
+		const page = await visitor.open("https://bakery.live.test/it/visit/contact");
 		await install.clock.advance(5000);
 
 		const sent = await visitor.send(page, { name: "Carla", email: "carla@example.it", consent: "yes" });
 
 		expect(sent.headers.get("location")).toBe("/it/visit/contact?wc-sent=1#wc-form-1");
 		expect((await kept())[0]).toMatchObject({ language: "it", page: "/it/visit/contact" });
-		const after = await visitor.open(`https://bakery.sites.test${sent.headers.get("location")}`);
+		const after = await visitor.open(`https://bakery.live.test${sent.headers.get("location")}`);
 		expect(after.html).toContain("<p>Grazie! Ti contatteremo.</p>");
 	});
 
@@ -294,7 +296,7 @@ describe("sending without JavaScript", () => {
 		await staff.api.forms.saveDraft({ siteId, formId, form: { success: { kind: "redirect", pageId: thanks.id } } });
 		await staff.api.forms.publish({ siteId, formId });
 		const visitor = formVisitor(install);
-		const page = await visitor.open("https://bakery.sites.test/it/visit/contact");
+		const page = await visitor.open("https://bakery.live.test/it/visit/contact");
 		await install.clock.advance(5000);
 
 		const sent = await visitor.send(page, { name: "Dario", email: "dario@example.it", consent: "yes" });
@@ -332,7 +334,7 @@ describe("what the post path refuses", () => {
 		expect((await visitor.send(page, fields, { origin: "https://elsewhere.example" })).status).toBe(403);
 		expect((await visitor.send(page, fields, { origin: null, fetchSite: null })).status).toBe(403);
 		expect((await visitor.send(page, fields, { contentType: "application/json", body: "{}" })).status).toBe(415);
-		expect((await install.request(`https://bakery.sites.test/_webcraft/forms/${formId}`)).status).toBe(405);
+		expect((await install.request(`https://bakery.live.test/_webcraft/forms/${formId}`)).status).toBe(405);
 		const unknown = { ...page, form: () => ({ ...page.form(), action: `/_webcraft/forms/${crypto.randomUUID()}` }) };
 		expect((await visitor.send(unknown, fields)).status).toBe(404);
 	});

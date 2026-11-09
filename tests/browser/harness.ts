@@ -16,6 +16,7 @@ import {
 	type TestInstall,
 } from "../harness/index.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 /** The production web process, started with the test suite's Modules (see web.ts). */
@@ -27,6 +28,8 @@ const ADMIN_HOST = "admin.localhost";
 
 /** The domain Sites' Staging addresses sit under: a Site with the slug `bakery` is `bakery.sites.localhost`. */
 const SITES_DOMAIN = "sites.localhost";
+/** The domain `goLive` puts Sites on: names under `.localhost` reach this machine in a browser. */
+const LIVE_DOMAIN = "live.localhost";
 
 export type Theme = "light" | "dark";
 
@@ -58,8 +61,19 @@ export type BrowserInstall = {
 	install: TestInstall;
 	/** A URL on the admin, such as `adminUrl("/setup")`. */
 	adminUrl(path: string): string;
-	/** A URL on a Site's Staging address, such as `siteUrl("bakery", "/blog/fresh-bread")`. */
+	/**
+	 * A URL on a Site's Staging address, such as `siteUrl("bakery", "/blog/fresh-bread")`: it shows the
+	 * Site with its Drafts to the people reviewing it (Edit mode opens there too, while the Site has
+	 * no domain).
+	 */
 	siteUrl(siteSlug: string, path: string): string;
+	/**
+	 * Puts a Site live on its Primary domain, `<slug>.live.localhost` (a browser finds names under
+	 * `.localhost` on this machine), verified by the Install, where visitors see what is published.
+	 */
+	goLive(siteId: string): Promise<void>;
+	/** A URL on the Primary domain `goLive` gave a Site, such as `liveUrl("bakery", "/blog/fresh-bread")`. */
+	liveUrl(siteSlug: string, path: string): string;
 	/** The setup token the web process printed in its log when it started. */
 	setupToken(): string;
 	/** Creates the Superadmin without the wizard (as `webcraft admin create-superadmin` does). */
@@ -128,6 +142,10 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 		install,
 		adminUrl: (path) => new URL(path, origin).toString(),
 		siteUrl: (siteSlug, path) => new URL(path, `http://${siteSlug}.${SITES_DOMAIN}:${port}`).toString(),
+		async goLive(siteId) {
+			await goLive(install, siteId, LIVE_DOMAIN);
+		},
+		liveUrl: (siteSlug, path) => new URL(path, `http://${siteSlug}.${LIVE_DOMAIN}:${port}`).toString(),
 		setupToken() {
 			const token = logs.findLast((entry) => typeof entry.setupToken === "string")?.setupToken;
 			if (typeof token !== "string") throw new Error("The web process printed no setup token.");

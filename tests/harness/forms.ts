@@ -9,8 +9,8 @@ import type { TestInstall } from "./index.ts";
 export type FormVisitor = {
 	/** The client address the web process sees. */
 	address: string;
-	/** Loads a page; `form(n)` reads the n-th Form on it (from 1). */
-	open(url: string): Promise<LoadedPage>;
+	/** Loads a page, with `headers` such as its cookies; `form(n)` reads the n-th Form on it (from 1). */
+	open(url: string, headers?: Record<string, string>): Promise<LoadedPage>;
 	/** Sends Form number `instance` of a loaded page with `fields`, as a browser posts it. */
 	send(page: LoadedPage, fields: Record<string, string | readonly string[]>, options?: SendOptions): Promise<Response>;
 };
@@ -48,8 +48,8 @@ export function formVisitor(install: TestInstall, address?: string): FormVisitor
 	const own = address ?? `198.51.100.${n % 250}`;
 	return {
 		address: own,
-		async open(url) {
-			const response = await install.request(fromAddress(new Request(url), own));
+		async open(url, headers = {}) {
+			const response = await install.request(fromAddress(new Request(url, { headers }), own));
 			const html = await response.text();
 			return { url, status: response.status, html, response, form: (instance = 1) => formIn(html, instance) };
 		},

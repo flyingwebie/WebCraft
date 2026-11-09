@@ -9,13 +9,14 @@ import { formIn, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 import { expectSafePage, policyOf } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
 let owner: TestBrowser;
 let siteId: string;
 let formId: string;
-const PAGE = "https://bakery.sites.test/visit/contact";
+const PAGE = "https://bakery.live.test/visit/contact";
 const VERIFY = "https://verify.challenges.example/siteverify";
 const CAPTCHA = {
 	scriptUrl: "https://challenges.example/widget.js",
@@ -34,6 +35,7 @@ beforeAll(async () => {
 	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.0.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 	const { form } = await staff.api.forms.create({ siteId, name: "Contact", key: "contact" });

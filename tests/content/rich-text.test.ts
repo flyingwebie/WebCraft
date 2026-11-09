@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import pg from "pg";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -14,6 +15,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 });
@@ -107,7 +109,7 @@ describe("on render", () => {
 		});
 		await editor.api.entries.publish({ siteId, entryId: entry.id });
 
-		const html = await (await install.request(`https://bakery.sites.test/${key}/shown`)).text();
+		const html = await (await install.request(`https://bakery.live.test/${key}/shown`)).text();
 
 		expect(html).toContain(
 			'<main id="wc-main" tabindex="-1"><article title="Fresh &quot;bread&quot; &amp; more">' +
@@ -139,7 +141,7 @@ describe("on render", () => {
 		}
 
 		// The page is rendered for the first time now, from the changed published version.
-		const html = await (await install.request(`https://bakery.sites.test/${key}/tampered`)).text();
+		const html = await (await install.request(`https://bakery.live.test/${key}/tampered`)).text();
 
 		expect(html).toContain(`<main id="wc-main" tabindex="-1"><div>${CLEAN}</div></main>`);
 	});

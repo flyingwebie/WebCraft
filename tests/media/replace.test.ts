@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { imageInfo, pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -15,12 +16,13 @@ let author: TestBrowser;
 let accounts: { editor: TestAccount; author: TestAccount };
 let postTypeId: string;
 
-const onSite = (path: string) => `https://bakery.sites.test${path}`;
+const onSite = (path: string) => `https://bakery.live.test${path}`;
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace()).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const member = await install.createMember({ workspaceId, role: "editor" });
 	const authorMember = await install.createMember({ workspaceId, role: "author" });

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { layerOf, pageWithStyles, stylesheetIn } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -25,6 +26,7 @@ afterAll(async () => {
 async function siteWithPost() {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const { template } = await staff.api.templates.saveEntryTemplateMarkup({
 		siteId,
@@ -34,7 +36,7 @@ async function siteWithPost() {
 	await staff.api.templates.publish({ siteId, templateId: template.id });
 	const { entry } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });
-	return { siteId, url: `https://${slug}.sites.test/blog/fresh-bread` };
+	return { siteId, url: `https://${slug}.live.test/blog/fresh-bread` };
 }
 
 describe("the Draft", () => {

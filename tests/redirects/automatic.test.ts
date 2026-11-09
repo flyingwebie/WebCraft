@@ -7,6 +7,7 @@ import type redirects from "@webcraft/module-redirects";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -36,6 +37,7 @@ type TestSite = { siteId: string; origin: string; pagesId: string; blogId: strin
 async function newSite(): Promise<TestSite> {
 	const slug = `moving-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const saved = await staff.api.templates.saveEntryTemplateMarkup({
 		siteId,
@@ -44,7 +46,7 @@ async function newSite(): Promise<TestSite> {
 	});
 	await staff.api.templates.publish({ siteId, templateId: saved.template.id });
 	const pagesId = (await editor.api.postTypes.list({ siteId })).postTypes.find((each) => each.builtIn === "page")?.id;
-	return { siteId, origin: `https://${slug}.sites.test`, pagesId: pagesId ?? "", blogId: postType.id };
+	return { siteId, origin: `https://${slug}.live.test`, pagesId: pagesId ?? "", blogId: postType.id };
 }
 
 /** Publishing takes a moment: each change happens later than the one before, as it does for people. */

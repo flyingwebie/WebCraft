@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, type TestNode, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -18,6 +19,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	categoriesId = (
@@ -105,7 +107,7 @@ async function render(nodes: TestNode[], fields: Record<string, unknown>): Promi
 	const slug = `product-${++pages}`;
 	const { entry } = await editor.api.entries.create({ siteId, postTypeId: productsId, title: "Loaf", slug, fields });
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
-	const html = await (await install.request(`https://bakery.sites.test/products/${slug}`)).text();
+	const html = await (await install.request(`https://bakery.live.test/products/${slug}`)).text();
 	return /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "";
 }
 
@@ -264,7 +266,7 @@ describe("written as Template markup", () => {
 		const slug = `product-${++pages}`;
 		const { entry } = await editor.api.entries.create({ siteId, postTypeId: productsId, title: "Loaf", slug, fields });
 		await editor.api.entries.publish({ siteId, entryId: entry.id });
-		const html = await (await install.request(`https://bakery.sites.test/products/${slug}`)).text();
+		const html = await (await install.request(`https://bakery.live.test/products/${slug}`)).text();
 		return /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "";
 	}
 

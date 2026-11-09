@@ -8,6 +8,7 @@ import type forms from "@webcraft/module-forms";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -17,7 +18,7 @@ let formId: string;
 let recipesId: string;
 let pagesId: string;
 
-const SITE = "https://bakery.sites.test";
+const SITE = "https://bakery.live.test";
 const DAY = 24 * 60 * 60 * 1000;
 /** A time-trap token as pages carry them: never the cache's mark. */
 const TOKEN = /^[0-9a-z]+\.[A-Za-z0-9_-]{43}$/;
@@ -44,6 +45,7 @@ beforeAll(async () => {
 	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.0.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 	const { form } = await staff.api.forms.create({ siteId, name: "Order", key: "order" });

@@ -11,6 +11,7 @@ import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
+import { goLive } from "../harness/staging.ts";
 import { element, outlet, text, tree, value } from "../harness/trees.ts";
 
 import type { sampleBoard } from "../modules/sample/board.ts";
@@ -286,8 +287,8 @@ describe("Site script safety", () => {
 		let made = consentRecords.get(target.siteId);
 		if (!made) {
 			made = (async () => {
-				const { stagingUrl } = await (await install.superadmin()).api.sites.get({ siteId: target.siteId });
-				const origin = stagingUrl as string;
+				// A visitor's choice, on the Site's domain.
+				const origin = await goLive(install, target.siteId);
 				const answer = await install.request(`${origin}/_wc/consent`, {
 					method: "POST",
 					headers: { "content-type": "application/json", origin, "sec-fetch-site": "same-origin" },
@@ -468,10 +469,10 @@ describe("Redirect rules and the 404 log", () => {
 	/** A path of a target's 404 log: a visitor's browser asked for it. */
 	async function missIn(target: IsolationTarget) {
 		const admin = await install.superadmin();
-		const { stagingUrl } = await admin.api.sites.get({ siteId: target.siteId });
+		const origin = await goLive(install, target.siteId);
 		const path = `/missing-${++paths}`;
 		const userAgent = "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/131.0";
-		await install.request(new Request(`${stagingUrl}${path}`, { headers: { "user-agent": userAgent } }));
+		await install.request(new Request(`${origin}${path}`, { headers: { "user-agent": userAgent } }));
 		await install.drainJobs();
 		const { misses } = await redirectsOf(admin.api).notFound.list({ siteId: target.siteId });
 		const miss = misses.find((each) => each.path === path);
@@ -691,6 +692,36 @@ describe("Edit mode", () => {
 	isolation.refuses("editMode.open", (api, { siteId }) => api.editMode.open({ siteId, path: "/" }), {
 		as: ["staff", "author"],
 	});
+});
+
+describe("the Staging address", () => {
+	isolation.refuses("staging.open", (api, { siteId }) => api.staging.open({ siteId, path: "/" }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("staging.get", (api, { siteId }) => api.staging.get({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("staging.setPassword", (api, { siteId }) => api.staging.setPassword({ siteId, password: null }), {
+		as: ["staff", "owner"],
+	});
+});
+
+describe("Publish all", () => {
+	isolation.refuses("publishing.drafts", (api, { siteId }) => api.publishing.drafts({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("publishing.count", (api, { siteId }) => api.publishing.count({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"publishing.publishAll",
+		async (api, target) => {
+			// A Draft of its own in the target's Site, made by the Superadmin.
+			const admin = await install.superadmin();
+			const { postTypeId } = await contentIn(target);
+			const { entry } = await admin.api.entries.create({ siteId: target.siteId, postTypeId, title: "Draft" });
+			return api.publishing.publishAll({ siteId: target.siteId, items: [{ kind: "entry", id: entry.id }] });
+		},
+		{ as: ["staff", "editor"] },
+	);
 });
 
 describe("Members", () => {

@@ -18,6 +18,8 @@ beforeAll(async () => {
 	const { api } = await local.superadmin();
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	// Visitors see the Site on its domain; its Staging address is for the people reviewing it.
+	await install.goLive(siteId);
 	await api.languages.add({ siteId, code: "fr" });
 	await api.languages.add({ siteId, code: "ar" });
 	const site = await api.templates.saveSiteTemplateMarkup({
@@ -101,7 +103,7 @@ for (const theme of THEMES) {
 		] as const) {
 			test(name, async () => {
 				const page = await install.newPage(theme);
-				await page.goto(install.siteUrl(slug, path));
+				await page.goto(install.liveUrl(slug, path));
 				await page.waitForLoadState("networkidle");
 
 				await expectAccessibleScreen(page, `Site page ${name} (${theme})`);

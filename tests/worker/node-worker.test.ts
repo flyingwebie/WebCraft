@@ -5,6 +5,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { samplePing } from "@webcraft/core";
 import { imageInfo, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type LocalSmtpServer, startSmtpServer, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 const WORKER = new URL("../../apps/worker/src/main.ts", import.meta.url).pathname;
 
@@ -95,6 +96,7 @@ test("the worker cleans an uploaded photo on Node, then makes its AVIF and WebP 
 	const admin = await install.superadmin();
 	const workspaceId = (await install.createWorkspace()).id;
 	const siteId = (await install.createSite(workspaceId, { slug: "worker-photos" })).id;
+	await goLive(install, siteId);
 	const { media } = await admin.api.media.upload({
 		siteId,
 		file: upload(await photo({ width: 700, height: 400, orientation: 8, camera: true }), "oven.jpg"),
@@ -113,7 +115,7 @@ test("the worker cleans an uploaded photo on Node, then makes its AVIF and WebP 
 		const { media: ready } = await admin.api.media.get({ siteId, mediaId: media.id });
 		expect(ready).toMatchObject({ status: "ready", width: 400, height: 700 });
 		expect(ready.variants.map((variant) => `${variant.format} ${variant.width}`)).toEqual(["avif 320", "webp 320"]);
-		const served = await install.request(`https://worker-photos.sites.test${ready.url}`);
+		const served = await install.request(`https://worker-photos.live.test${ready.url}`);
 		expect(await imageInfo(new Uint8Array(await served.arrayBuffer()))).toMatchObject({
 			width: 400,
 			height: 700,

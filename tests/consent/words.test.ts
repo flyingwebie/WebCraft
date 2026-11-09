@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -31,6 +32,7 @@ let sites = 0;
 async function newSite() {
 	const slug = `words-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery", slug });
+	await goLive(install, siteId);
 	await staff.api.languages.add({ siteId, code: "fr" });
 	const pages = (await editor.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.builtIn === "page");
 	const { entry } = await editor.api.entries.create({ siteId, postTypeId: pages?.id as string, title: "Home" });
@@ -43,7 +45,7 @@ async function newSite() {
 		consentCategory: "analytics",
 		source: { kind: "url", url: "https://tags.example.com/count.js" },
 	});
-	return { siteId, url: (path: string) => `https://${slug}.sites.test${path}` };
+	return { siteId, url: (path: string) => `https://${slug}.live.test${path}` };
 }
 
 /** The banner's markup on a page. */

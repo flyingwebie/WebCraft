@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -28,6 +29,7 @@ let sites = 0;
 async function siteWithPost(): Promise<{ siteId: string; url: string }> {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const saved = await staff.api.templates.saveEntryTemplateMarkup({
 		siteId,
@@ -37,7 +39,7 @@ async function siteWithPost(): Promise<{ siteId: string; url: string }> {
 	await staff.api.templates.publish({ siteId, templateId: saved.template.id });
 	const { entry } = await editor.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
-	return { siteId, url: `https://${slug}.sites.test/blog/fresh-bread` };
+	return { siteId, url: `https://${slug}.live.test/blog/fresh-bread` };
 }
 
 async function bodyOf(url: string): Promise<string> {
@@ -228,6 +230,7 @@ describe("what a Site template holds: one <main> at the top level of the page, h
 describe("Entry templates", () => {
 	test("hold neither <main> nor {{@outlet}}: both belong to the Site template around them", async () => {
 		const siteId = (await install.createSite(workspaceId, { slug: `outlets-${++sites}` })).id;
+		await goLive(install, siteId);
 		const { postType } = await staff.api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 
 		for (const [markup, says] of [

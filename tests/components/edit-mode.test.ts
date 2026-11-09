@@ -5,6 +5,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let editing: EditModeBrowser;
@@ -14,6 +15,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const editor: TestBrowser = (await install.createMember({ workspaceId, role: "editor", name: "Erin Editor" }))
 		.browser;
@@ -56,7 +58,7 @@ test("an Edit mode page shows the Components it places, untagged, with the Draft
 
 	expect(mainOf(html)).toBe("<article><header><h1>Fresh bread</h1><p>Baked twice daily</p></header></article>");
 	// Visitors still see what is published.
-	const visitor = await (await install.request(`https://bakery.sites.test${path}`)).text();
+	const visitor = await (await install.request(`https://bakery.live.test${path}`)).text();
 	expect(mainOf(visitor)).toBe("<article><header><h1>Fresh bread</h1><p>Baked daily</p></header></article>");
 });
 

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -25,8 +26,9 @@ afterAll(async () => {
 async function newSite() {
 	const slug = `bakery-${++sites}`;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	await goLive(install, siteId);
 	const { designSystem } = await staff.api.designSystem.get({ siteId });
-	return { siteId, url: `https://${slug}.sites.test/`, tokens: designSystem.draft.tokens };
+	return { siteId, url: `https://${slug}.live.test/`, tokens: designSystem.draft.tokens };
 }
 
 /** Tokens as a save takes them: a token without an id is new. */

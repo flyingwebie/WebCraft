@@ -14,6 +14,7 @@ import {
 } from "../harness/analytics.ts";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { givePassword, stagingVisitor } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -119,7 +120,7 @@ describe("Form Submissions", () => {
 	/** Sends the Form on the home page at `origin`, from `address`, with `headers`; answers its status. */
 	const sendForm = async (origin: string, address: string, headers: Record<string, string> = {}) => {
 		const visitor = formVisitor(install, address);
-		const page = await visitor.open(`${origin}/`);
+		const page = await visitor.open(`${origin}/`, headers.cookie ? { cookie: headers.cookie } : {});
 		await install.clock.advance(5000);
 		return (await visitor.send(page, { email: `${address}@example.org` }, { headers })).status;
 	};
@@ -178,7 +179,13 @@ describe("Form Submissions", () => {
 		const site = await siteWithForm();
 		const signedIn = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 
-		expect(await sendForm(site.staging, "203.0.113.31")).toBe(303);
+		// Someone the Staging address lets in with its password, who isn't signed in.
+		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
+		await owner.api.staging.setPassword({ siteId: site.siteId, password: "a review password" });
+		const reviewer = stagingVisitor(install, new URL(site.staging).hostname.split(".")[0] ?? "");
+		await givePassword(reviewer, "a review password");
+		const cookie = `__Host-webcraft.staging-password=${reviewer.browser.cookies.get("__Host-webcraft.staging-password")}`;
+		expect(await sendForm(site.staging, "203.0.113.31", { cookie })).toBe(303);
 		expect(await sendForm(site.origin, signedIn.address ?? "")).toBe(303);
 		expect(await formEvents(site.siteId)).toBe(0);
 

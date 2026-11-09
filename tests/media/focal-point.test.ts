@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let siteId: string;
@@ -14,12 +15,13 @@ let editor: TestBrowser;
 let author: TestBrowser;
 let postTypeId: string;
 
-const onSite = (path: string) => `https://gallery.sites.test${path}`;
+const onSite = (path: string) => `https://gallery.live.test${path}`;
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace()).id;
 	siteId = (await install.createSite(workspaceId, { slug: "gallery" })).id;
+	await goLive(install, siteId);
 	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	author = (await install.createMember({ workspaceId, role: "author" })).browser;

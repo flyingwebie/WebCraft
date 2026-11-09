@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -15,6 +16,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 });
@@ -70,7 +72,7 @@ async function page(
 
 /** What a published page shows inside <main>. */
 async function mainOf(path: string): Promise<string> {
-	const response = await install.request(`https://bakery.sites.test${path}`);
+	const response = await install.request(`https://bakery.live.test${path}`);
 	expect(response.status).toBe(200);
 	return /<main[^>]*>([\s\S]*)<\/main>/.exec(await expectSafePage(response))?.[1] ?? "";
 }

@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createFakeS3, createTestInstall, type FakeS3, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let bucket: FakeS3;
@@ -40,13 +41,14 @@ beforeAll(async () => {
 	admin = await install.superadmin();
 	workspaceId = (await install.createWorkspace()).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
+	await goLive(install, siteId);
 });
 
 afterAll(async () => {
 	await install.close();
 });
 
-const onSite = (path: string) => `https://bakery.sites.test${path}`;
+const onSite = (path: string) => `https://bakery.live.test${path}`;
 
 describe("storage", () => {
 	let onDisk: { url: string; bytes: Uint8Array<ArrayBuffer> };

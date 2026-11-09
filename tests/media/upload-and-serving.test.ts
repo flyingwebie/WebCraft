@@ -6,6 +6,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { canMakeHeic, heicPhoto, imageInfo, pdf, photo, pixel, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -16,6 +17,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+	await goLive(install, siteId);
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 });
 
@@ -24,7 +26,7 @@ afterAll(async () => {
 });
 
 /** A URL on the Site's Staging address. */
-const onSite = (path: string) => `https://bakery.sites.test${path}`;
+const onSite = (path: string) => `https://bakery.live.test${path}`;
 
 /** Uploads a file as the Editor, runs the worker's jobs, and answers the Media item as it is then. */
 async function uploadAndProcess(file: File) {
@@ -95,7 +97,8 @@ describe("images", () => {
 		expect(response.headers.get("accept-ranges")).toBe("bytes");
 		// Media is never a page: the page cache doesn't keep it.
 		expect(response.headers.get("x-cache")).toBeNull();
-		expect(response.headers.get("x-robots-tag")).toBe("noindex");
+		// The Site's domain is for visitors and search engines alike: only its Staging address says noindex.
+		expect(response.headers.get("x-robots-tag")).toBeNull();
 	});
 
 	test("variants: every fixed width up to the original's, each in AVIF and WebP, never larger", async () => {
@@ -250,10 +253,11 @@ describe("storage on local disk", () => {
 describe("/_media/ on the Site's domain", () => {
 	test("answers only this Site's own files", async () => {
 		const otherSiteId = (await install.createSite(workspaceId, { slug: "cafe" })).id;
+		await goLive(install, otherSiteId);
 		const admin = await install.superadmin();
 		const { media } = await admin.api.media.upload({ siteId: otherSiteId, file: upload(pdf(), "menu.pdf") });
 
-		expect((await install.request(`https://cafe.sites.test${media.url}`)).status).toBe(200);
+		expect((await install.request(`https://cafe.live.test${media.url}`)).status).toBe(200);
 		expect((await install.request(onSite(media.url ?? ""))).status).toBe(404);
 		for (const path of ["/_media/", "/_media", "/_media/0000000000000000-nothing.jpg", `${media.url}/more`]) {
 			const response = await install.request(onSite(path));

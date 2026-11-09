@@ -58,7 +58,8 @@ function stagingBrowser(origin: string, browser: TestBrowser): StagingBrowser {
 	return {
 		origin,
 		browser,
-		page: (path, init) => browser.request(new Request(new URL(path, origin), init)),
+		// The path as it is written, `//pages/about` included (a URL base would read that as a host).
+		page: (path, init) => browser.request(new Request(`${origin}${path}`, init)),
 	};
 }
 
@@ -70,12 +71,13 @@ export const TEST_LIVE_DOMAIN = "live.test";
  * Install and verified at once (as "Check now" does). Answers its origin, `https://<slug>.live.test`,
  * where the Site shows what is published. Its Staging address shows its Drafts to the people
  * reviewing it instead (ADR 0014), so tests of what visitors see go here. Going live again answers
- * the same origin.
+ * the same origin. `domain` puts it under another domain (the browser tests use `live.localhost`,
+ * which a browser finds on this machine); the origin is then the domain's as the Install writes it.
  */
-export async function goLive(install: TestInstall, siteId: string): Promise<string> {
+export async function goLive(install: TestInstall, siteId: string, domain = TEST_LIVE_DOMAIN): Promise<string> {
 	const admin = await install.superadmin();
 	const { site } = await admin.api.sites.get({ siteId });
-	const name = `${site.slug}.${TEST_LIVE_DOMAIN}`;
+	const name = `${site.slug}.${domain}`;
 	const origin = `https://${name}`;
 	const listed = await admin.api.domains.list({ siteId });
 	if (listed.domains.some((domain) => domain.name === name && domain.verifiedAt !== null)) return origin;
@@ -83,7 +85,7 @@ export async function goLive(install: TestInstall, siteId: string): Promise<stri
 	const existing = listed.domains.find((domain) => domain.name === name);
 	const domainId = existing?.id ?? (await admin.api.domains.add({ siteId, name })).domains[0]?.id;
 	if (!domainId) throw new Error(`${name} wasn't added.`);
-	const { domain } = await admin.api.domains.check({ siteId, domainId });
-	if (domain.verifiedAt === null) throw new Error(`${name} wasn't verified: ${JSON.stringify(domain)}`);
+	const checked = (await admin.api.domains.check({ siteId, domainId })).domain;
+	if (checked.verifiedAt === null) throw new Error(`${name} wasn't verified: ${JSON.stringify(checked)}`);
 	return origin;
 }
