@@ -10,6 +10,7 @@ import {
 	type SiteHost,
 	STYLESHEET_PATH,
 	siteScript,
+	VERIFY_PATH,
 } from "@webcraft/core";
 
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
@@ -57,7 +58,12 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 	const cache = options.pageCache ?? createPageCache();
 	return async (request) => {
 		const url = new URL(request.url);
-		const host = await services.sitePages.resolveHost(normaliseHostname(url.hostname));
+		const hostname = normaliseHostname(url.hostname);
+		// Domain verification comes first: a domain waiting for DNS belongs to no Site yet.
+		if (url.pathname.startsWith(VERIFY_PATH)) {
+			return readOnly(request, () => verification(services, hostname, url.pathname.slice(VERIFY_PATH.length)));
+		}
+		const host = await services.sitePages.resolveHost(hostname);
 		if (!host) return notFound();
 		const editing = await editModeEndpoint(services, request, host);
 		if (editing) return editing;
@@ -89,6 +95,16 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			return edit.stale ? withEditCookieCleared(request, page) : page;
 		});
 	};
+}
+
+/**
+ * A domain verification request, `/_webcraft/verify/<token>` (ADR 0015): on one of the Install's
+ * domains, with that domain's own token, the answer only this Install makes for it; anything else is
+ * the plain 404. Never kept by anyone, as a new token's answer must come from the Install itself.
+ */
+async function verification(services: InstallServices, hostname: string, token: string): Promise<Response> {
+	const answer = await services.domains.verificationAnswer(hostname, token);
+	return answer === null ? plainText(404, "Not Found") : plainText(200, answer);
 }
 
 /**

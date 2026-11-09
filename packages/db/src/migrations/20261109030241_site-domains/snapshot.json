@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "aa9c26aa-5467-4e7f-a455-6f75f8081c2f",
+  "id": "77f2ad32-769c-41a5-8d5c-1dde7e34a11f",
   "prevIds": [
     "86c06daf-a06c-4a18-9bca-36f7f2ec08c8"
   ],
@@ -275,22 +275,6 @@
         "notNull": false,
         "dimensions": 0,
         "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
-        "name": "verify_round",
-        "type": "integer",
-        "typeSchema": null,
-        "notNull": true,
-        "dimensions": 0,
-        "default": "0",
         "generated": null,
         "identity": null,
         "entityType": "columns"

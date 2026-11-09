@@ -158,7 +158,6 @@ export async function insertDomain(
 	try {
 		return await scope.insert(siteDomains, {
 			...domain,
-			verifyRound: 1,
 			verifyStartedAt: now,
 			nextCheckAt: now,
 			createdAt: now,

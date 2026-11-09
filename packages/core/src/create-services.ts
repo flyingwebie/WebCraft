@@ -64,7 +64,12 @@ import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
-import { editModeSigningKey, type MasterKey, sessionSigningSecret } from "./secrets/master-key.ts";
+import {
+	domainVerificationKey,
+	editModeSigningKey,
+	type MasterKey,
+	sessionSigningSecret,
+} from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
@@ -195,7 +200,17 @@ export async function createInstallServices(
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
-		domains: createDomains({ config }),
+		domains: createDomains({
+			config,
+			database,
+			data,
+			http: ports.http,
+			dns: ports.dns,
+			tls: ports.tls,
+			clock,
+			log,
+			verificationKey: await domainVerificationKey(masterKey),
+		}),
 		languages: {
 			get: siteLanguages,
 			add: (scope, input) => addLanguage({ config }, scope, input),

@@ -37,6 +37,15 @@ export const domains = {
 		}),
 
 	/**
+	 * Checks a domain now: one waiting for DNS is verified when it reaches the Install (and is checked
+	 * every few minutes again otherwise, as when it was added). Answers the domain as it is now.
+	 */
+	check: signedIn.input(z.object({ siteId: id, domainId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { domain: await context.services.domains.check(site, input.domainId) };
+	}),
+
+	/**
 	 * Makes a verified domain the Primary domain. The Primary domain before it becomes a Redirect
 	 * domain, so its links keep working.
 	 */

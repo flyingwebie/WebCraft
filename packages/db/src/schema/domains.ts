@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { foreignKey, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { foreignKey, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { siteLanguages } from "./languages.ts";
 import { sites } from "./tenancy.ts";
@@ -12,7 +12,7 @@ import { sites } from "./tenancy.ts";
  *
  * A domain serves visitors only once verified (`verified_at`): the Install fetched
  * `http://<name>/_webcraft/verify/<token>` and got back the answer only it can make. Until then it
- * waits for DNS, checked again by background jobs (`verify_round`, `next_check_at`). Once verified,
+ * waits for DNS, checked again by background jobs (`verify_started_at`, `next_check_at`). Once verified,
  * the hourly Domain check marks it Unreachable (`unreachable_since`) while its DNS, certificate or
  * answer is wrong.
  */
@@ -31,11 +31,9 @@ export const siteDomains = pgTable(
 		/** When the Install confirmed the domain reaches it; null while it waits for DNS. */
 		verifiedAt: timestamp("verified_at", { withTimezone: true }),
 		/**
-		 * The current round of automatic verification checks: every check job carries the round it
-		 * belongs to, and a job of an earlier round (Staff pressed Check now since) does nothing.
+		 * When the current round of automatic verification checks started (when the domain was added, or
+		 * Staff last pressed Check now): checks come every few minutes for an hour, then hourly for 7 days.
 		 */
-		verifyRound: integer("verify_round").notNull().default(0),
-		/** When the current round started: checks come every few minutes for an hour, then hourly for 7 days. */
 		verifyStartedAt: timestamp("verify_started_at", { withTimezone: true }),
 		/** When the next automatic check is due; null when none is (verified, or only on demand now). */
 		nextCheckAt: timestamp("next_check_at", { withTimezone: true }),

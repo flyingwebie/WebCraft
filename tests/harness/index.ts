@@ -40,6 +40,7 @@ import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "
 import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
+import { createFakeTls, type FakeTls } from "./fake-tls.ts";
 
 export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
@@ -47,6 +48,7 @@ export type { FakeDns } from "./fake-dns.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
 export { createFakeS3, type FakeS3, type FakeS3Options } from "./fake-s3.ts";
+export type { FakeTls } from "./fake-tls.ts";
 export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
 
 /** The invite link in an invite email: `https://admin.test/invite?token=…`. Throws when there is none. */
@@ -253,6 +255,14 @@ export type TestInstall = {
 	http: FakeHttp;
 	/** The Install's DNS: names resolve only to what a test answers (`dns.answer(name, addresses)`). */
 	dns: FakeDns;
+	/** The certificates hosts answer with over HTTPS (`tls.answer(name, { expiresAt })`); none unless given. */
+	tls: FakeTls;
+	/**
+	 * Points a domain at this Install, as its DNS records would: it resolves to the Install's first
+	 * address, every HTTP request to it reaches this Install's handler, and it answers HTTPS with a
+	 * certificate valid for 90 more days (or the one given; null for none).
+	 */
+	connectDomain(name: string, options?: { certificate?: { expiresAt: Date; trusted?: boolean } | null }): void;
 	clock: TestInstallClock;
 	/** Every log entry the Install wrote. */
 	logs: LogEntry[];
@@ -307,6 +317,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const mail = createFakeMailer();
 	const http = createFakeHttp();
 	const dns = createFakeDns();
+	const tls = createFakeTls();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
@@ -332,6 +343,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		mailer: mail,
 		http: http.fetch,
 		dns: dns.resolver,
+		tls: tls.probe,
 		clock,
 		log,
 		// The real image processing the worker does (it isn't an edge, so it isn't faked).
@@ -498,6 +510,25 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		lastEmailTo,
 		http,
 		dns,
+		tls,
+		connectDomain(name, connectOptions = {}) {
+			const domain = name.toLowerCase();
+			dns.answer(domain, [publicAddresses[0] ?? "203.0.113.10"]);
+			const escaped = domain.replaceAll(".", "\\.");
+			http.respond("GET", new RegExp(`^https?://${escaped}(:\\d+)?/`), async (request) => {
+				const response = await handle(new Request(request.url, { headers: request.headers }));
+				return {
+					status: response.status,
+					body: new Uint8Array(await response.arrayBuffer()),
+					headers: Object.fromEntries(response.headers),
+				};
+			});
+			const certificate =
+				connectOptions.certificate === undefined
+					? { expiresAt: new Date(clock.now().getTime() + 90 * 24 * 60 * 60_000) }
+					: connectOptions.certificate;
+			tls.answer(domain, certificate);
+		},
 		clock,
 		logs,
 		async restart(restartOptions = {}) {

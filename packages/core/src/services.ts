@@ -67,6 +67,7 @@ import type { MembersService } from "./tenancy/members.ts";
 import type { MembershipsService } from "./tenancy/memberships.ts";
 import type { StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
+import type { TlsProbe } from "./tls.ts";
 
 /**
  * The edges of a running Install: real adapters in the processes, fakes in tests. Everything else
@@ -80,6 +81,8 @@ export type InstallPorts = {
 	http: OutgoingHttp;
 	/** DNS, for the guarded fetcher's address checks. */
 	dns: Dns;
+	/** TLS, for the Domain check's look at each domain's certificate. */
+	tls: TlsProbe;
 	clock: Clock;
 	log: Logger;
 	/**

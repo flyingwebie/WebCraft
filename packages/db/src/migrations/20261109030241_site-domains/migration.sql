@@ -6,7 +6,6 @@ CREATE TABLE "site_domains" (
 	"role" text NOT NULL,
 	"language" text,
 	"verified_at" timestamp with time zone,
-	"verify_round" integer DEFAULT 0 NOT NULL,
 	"verify_started_at" timestamp with time zone,
 	"next_check_at" timestamp with time zone,
 	"last_checked_at" timestamp with time zone,

@@ -25,6 +25,12 @@ export type GuardedFetchOptions = {
 	maxRedirects?: number;
 	timeoutMs?: number;
 	maxBytes?: number;
+	/**
+	 * Addresses that may be called although they aren't on the public internet: the Install's own,
+	 * for its checks of its own domains only (a Site domain pointing at an Install on a private
+	 * network, or at this machine in development). Every other address keeps the rule.
+	 */
+	installAddresses?: readonly string[];
 };
 
 export const GUARDED_FETCH_LIMITS = {
@@ -67,6 +73,7 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 		const timeoutMs = Math.min(options.timeoutMs ?? GUARDED_FETCH_LIMITS.timeoutMs, GUARDED_FETCH_LIMITS.maxTimeoutMs);
 		const maxBytes = Math.min(options.maxBytes ?? GUARDED_FETCH_LIMITS.maxBytes, GUARDED_FETCH_LIMITS.maxMaxBytes);
 		const allowed = new Set(options.allowedHosts.map((host) => host.toLowerCase()));
+		const own = new Set((options.installAddresses ?? []).map(canonicalAddress));
 		const controller = new AbortController();
 		const timer = setTimeout(
 			() => controller.abort(new GuardedFetchError("timeout", `No answer within ${timeoutMs} ms.`)),
@@ -81,7 +88,7 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 			const body = request.body === null ? null : await request.arrayBuffer();
 			let hop = { url: new URL(request.url), method: request.method, headers: new Headers(request.headers), body };
 			for (let redirects = 0; ; redirects++) {
-				await Promise.race([checkTarget(hop.url, allowed, dns), aborted]);
+				await Promise.race([checkTarget(hop.url, allowed, own, dns), aborted]);
 				let response: Response;
 				try {
 					response = await Promise.race([
@@ -117,7 +124,7 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 	};
 }
 
-async function checkTarget(url: URL, allowed: ReadonlySet<string>, dns: Dns): Promise<void> {
+async function checkTarget(url: URL, allowed: ReadonlySet<string>, own: ReadonlySet<string>, dns: Dns): Promise<void> {
 	if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) {
 		throw new GuardedFetchError(
 			"scheme",
@@ -138,7 +145,7 @@ async function checkTarget(url: URL, allowed: ReadonlySet<string>, dns: Dns): Pr
 		}
 	}
 	if (addresses.length === 0) throw new GuardedFetchError("address", `${host} doesn't resolve.`);
-	const internal = addresses.find((address) => !isPublicAddress(address));
+	const internal = addresses.find((address) => !isPublicAddress(address) && !own.has(canonicalAddress(address)));
 	if (internal !== undefined) {
 		throw new GuardedFetchError("address", `${host} resolves to ${internal}, inside the server's network.`);
 	}
@@ -233,6 +240,15 @@ function isPublicIPv4(address: string): boolean {
 	if (a === 203 && b === 0 && c === 113) return false; // TEST-NET-3
 	if (a >= 224) return false; // multicast, reserved and broadcast
 	return true;
+}
+
+/**
+ * One spelling of an IP address, so two spellings of the same one compare equal (`2001:DB8::10` and
+ * `2001:db8:0:0:0:0:0:10`). Anything that isn't an IPv6 address is only put in lower case.
+ */
+export function canonicalAddress(address: string): string {
+	const words = isIP(address) === 6 ? ipv6Words(address) : null;
+	return words ? words.map((word) => word.toString(16)).join(":") : address.toLowerCase();
 }
 
 /** The eight 16-bit words of an IPv6 address, or null when it can't be read. */
