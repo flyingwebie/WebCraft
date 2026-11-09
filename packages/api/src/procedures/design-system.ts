@@ -138,6 +138,29 @@ export const designSystem = {
 	}),
 
 	/**
+	 * The Design tokens as a DTCG file (2025.10): the Draft's, or the published ones. WebCraft's own
+	 * details sit in `$extensions.webcraft`, so importing the file gives back the same tokens.
+	 */
+	exportTokens: signedIn
+		.input(z.object({ siteId: id, version: z.enum(["draft", "published"]).default("draft") }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { tokens: await context.services.designSystem.exportTokens(site, input.version) };
+		}),
+
+	/**
+	 * Imports a DTCG file into the Draft: each kind of token it holds (colours, spacing, type, fonts,
+	 * radius, shadows, breakpoints, content widths) replaces the Draft's; kinds it leaves out stay.
+	 * Tokens keep their ids by the file's `$extensions.webcraft.id`, else by name.
+	 */
+	importTokens: signedIn
+		.input(z.object({ siteId: id, tokens: z.record(z.string(), z.unknown()) }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { designSystem: await context.services.designSystem.importTokens(site, input.tokens) };
+		}),
+
+	/**
 	 * Publishes the Draft as one item: every page's stylesheet changes at once, and the Site's page
 	 * cache is cleared.
 	 */

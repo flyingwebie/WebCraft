@@ -44,6 +44,7 @@ export {
 	readCssAt,
 	readDesignSystem,
 } from "./design-system/document.ts";
+export { DTCG_EXTENSION, type DtcgProblem, exportTokens, importTokens } from "./design-system/dtcg.ts";
 export {
 	type Breakpoint,
 	type ColourToken,

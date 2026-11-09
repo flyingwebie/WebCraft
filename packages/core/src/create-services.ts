@@ -30,7 +30,9 @@ import {
 import {
 	createClass,
 	deleteClass,
+	exportDesignTokens,
 	getDesignSystem,
+	importDesignTokens,
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
@@ -149,6 +151,8 @@ export async function createInstallServices(
 			createClass,
 			updateClass,
 			deleteClass,
+			exportTokens: exportDesignTokens,
+			importTokens: importDesignTokens,
 		},
 		publishing: { publish },
 		sitePages: createSitePages({ database, config, data, storage }),

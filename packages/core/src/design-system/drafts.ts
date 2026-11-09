@@ -20,7 +20,9 @@ import {
 	defaultDesignSystem,
 	designSystemNames,
 	designSystemProblems,
+	exportTokens,
 	type FontToken,
+	importTokens,
 	printCss,
 	readCssAt,
 	readDesignSystem,
@@ -33,7 +35,7 @@ import {
 import { sameJson } from "../content/json.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type DesignSystemRow, lockDesignSystem, writeDraft } from "./design-systems.ts";
-import { ClassInUseError, ClassNotFoundError, TokenInUseError } from "./errors.ts";
+import { ClassInUseError, ClassNotFoundError, TokenInUseError, TokensFileInvalidError } from "./errors.ts";
 import { classUses, tokenUses } from "./usage.ts";
 
 /** A Class as Staff edit it: its CSS as text. */
@@ -212,6 +214,34 @@ export async function deleteClass(scope: SiteScope, classId: string): Promise<De
 	});
 }
 
+/**
+ * The Design tokens as a DTCG file: the Draft's, or the published ones (the default ones until the
+ * Design system is first published).
+ */
+export async function exportDesignTokens(
+	scope: SiteScope,
+	version: "draft" | "published",
+): Promise<Record<string, unknown>> {
+	const row = await scope.first(designSystems);
+	const stored = version === "draft" ? row?.draft : row?.published;
+	const designSystem = stored ? readDesignSystem(stored) : defaultDesignSystem();
+	return exportTokens(designSystem.tokens, `Design tokens of ${scope.site.name}`);
+}
+
+/**
+ * Imports a DTCG file into the Draft: each kind of token it holds replaces the Draft's, keeping the
+ * ids of tokens it names (so their uses stay linked). Refused when the file can't be read
+ * (`TokensFileInvalidError`), when its tokens can't be used (`DesignSystemInvalidError`), or when it
+ * leaves out a token something uses (`TokenInUseError`).
+ */
+export async function importDesignTokens(scope: SiteScope, file: unknown): Promise<DesignSystemView> {
+	return changeDraft(scope, (draft) => {
+		const read = importTokens(file, draft.tokens);
+		if ("problems" in read) throw new TokensFileInvalidError(read.problems);
+		return { tokens: read.tokens };
+	});
+}
+
 /** Every Class of the Draft as it is: by id and name, its CSS left out so it stays. */
 function keepClasses(draft: DesignSystem): ClassInput[] {
 	return draft.classes.map((each) => ({ id: each.id, name: each.name }));
@@ -270,8 +300,7 @@ function applyChange(current: DesignSystem, change: DesignSystemChange): DesignS
 				};
 			})
 		: current.classes;
-	const tokenProblems = designSystemProblems({ ...current, tokens, classes: [], baseStyles: {}, customCss: [] });
-	if (tokenProblems.length > 0) throw new DesignSystemInvalidError(tokenProblems);
+	// Tokens are checked with the rest, after removing one in use is refused with where it is used.
 	const names = designSystemNames({ ...current, tokens, classes: skeleton });
 
 	const read = (text: string | undefined, stored: CssText, kind: CssKind, at: string): CssText =>

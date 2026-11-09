@@ -199,6 +199,10 @@ export type InstallServices = InstallPorts & {
 		): Promise<{ class: EditableClass; designSystem: DesignSystemView }>;
 		/** Deletes a Class; refused while something uses it (`ClassInUseError` says where). */
 		deleteClass(scope: SiteScope, classId: string): Promise<DesignSystemView>;
+		/** The Draft's or the published Design tokens as a DTCG file. */
+		exportTokens(scope: SiteScope, version: "draft" | "published"): Promise<Record<string, unknown>>;
+		/** Imports a DTCG file into the Draft: each kind of token it holds replaces the Draft's. */
+		importTokens(scope: SiteScope, file: unknown): Promise<DesignSystemView>;
 	};
 	publishing: {
 		/**

@@ -201,6 +201,10 @@ describe("Design system", () => {
 		api.designSystem.deleteClass({ siteId: target.siteId, classId: await classIn(target) }),
 	);
 	isolation.refuses("designSystem.publish", (api, { siteId }) => api.designSystem.publish({ siteId }));
+	isolation.refuses("designSystem.exportTokens", (api, { siteId }) => api.designSystem.exportTokens({ siteId }));
+	isolation.refuses("designSystem.importTokens", (api, { siteId }) =>
+		api.designSystem.importTokens({ siteId, tokens: { width: { content: { $value: { value: 70, unit: "rem" } } } } }),
+	);
 });
 
 describe("Pages", () => {
