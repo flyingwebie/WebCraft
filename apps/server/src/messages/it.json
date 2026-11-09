@@ -259,7 +259,8 @@
 			"label": "Apri il menu dell'account",
 			"account": "Il tuo account",
 			"signOut": "Esci",
-			"apiTokens": "Token API"
+			"apiTokens": "Token API",
+			"aiClients": "Client AI"
 		},
 		"darkTheme": "Tema scuro",
 		"nav": {
@@ -529,6 +530,43 @@
 			"revokeTitle": "Revocare {name}?",
 			"revokeText": "Script e client AI che lo usano vengono rifiutati dalla richiesta successiva. Non si può annullare.",
 			"revokedToast": "{name} è stato revocato."
+		},
+		"aiClients": {
+			"pageTitle": "Client AI",
+			"heading": "Client AI",
+			"intro": "I client AI che hai approvato agiscono come te tramite il server MCP di WebCraft, in un Workspace e con i Siti, i Toolset e l'accesso che hai scelto. Non fanno mai più di quanto puoi fare tu, né modifiche che richiedono la tua password.",
+			"cardIntro": "I client AI che hai approvato ad agire come te tramite il server MCP.",
+			"manage": "Gestisci i client AI",
+			"emptyTitle": "Ancora nessun client AI",
+			"emptyBody": "Quando un client AI chiede di lavorare come te, lo approvi in una pagina a cui ti manda. Poi compare qui.",
+			"howTo": "I client AI si collegano a {path} su questo indirizzo e ti chiedono di approvarli.",
+			"client": "Client AI",
+			"reaches": "Raggiunge",
+			"access": "Accesso",
+			"lastUsed": "Ultimo uso",
+			"neverUsed": "Non ancora",
+			"status": "Stato",
+			"actions": "Azioni",
+			"allSites": "Tutti i Siti",
+			"noSites": "Nessun Sito rimasto",
+			"readWrite": "Lettura e modifica",
+			"readOnly": "Sola lettura",
+			"mayPublish": "Può pubblicare",
+			"sendsBackTo": "Ti rimanda a {host}",
+			"approvedAt": "Approvato il {date}",
+			"active": "Attivo",
+			"expired": "Scaduto: inutilizzato da 30 giorni",
+			"revoked": "Revocato",
+			"revokedClient": "Revocato dal client",
+			"revokedAccess": "Revocato: accesso terminato",
+			"revokedReuse": "Revocato: è tornato un token già usato",
+			"revoke": "Revoca",
+			"revokeLabel": "Revoca {name}",
+			"revokeTitle": "Revocare {name}?",
+			"revokeText": "Viene rifiutato dalla prossima richiesta e dovrà chiederti di nuovo l'approvazione per tornare. Non si può annullare.",
+			"revokedToast": "{name} è stato revocato.",
+			"cancel": "Annulla",
+			"close": "Chiudi"
 		}
 	},
 	"identityCheck": {
@@ -4426,5 +4464,75 @@
 			"FUNNELS_TOO_MANY": "Un sito ha al massimo 50 funnel.",
 			"FUNNEL_NOT_FOUND": "Quel funnel non è più qui."
 		}
+	},
+	"toolsets": {
+		"legend": "Toolset",
+		"help": "Su cosa può lavorare. All'interno di questi, può fare solo ciò che puoi fare tu.",
+		"required": "Attiva almeno un Toolset.",
+		"moduleDescription": "Tutto ciò che aggiunge il Modulo {module}.",
+		"submissionsWarning": "Gli invii contengono ciò che i visitatori hanno scritto nei tuoi Form: nomi, indirizzi email, messaggi. Ogni lettura viene registrata nell'Audit log. Attivalo solo per un client a cui affideresti i dati dei visitatori.",
+		"content": {
+			"label": "Contenuti",
+			"description": "Entry e Pagine, i valori dei Globals, gli Import e le regole di Redirect."
+		},
+		"media": {
+			"label": "Media",
+			"description": "La libreria Media: file, cartelle e Cestino."
+		},
+		"structure": {
+			"label": "Struttura",
+			"description": "Post Type e Field, Template, Component, Loop, script, Library e Design system."
+		},
+		"forms": {
+			"label": "Form",
+			"description": "La creazione dei Form, le loro email e per quanto tempo conservano gli invii."
+		},
+		"publishing": {
+			"label": "Pubblicazione",
+			"description": "L'elenco delle Bozze e Pubblica tutto."
+		},
+		"translation": {
+			"label": "Traduzione",
+			"description": "Le lingue del Sito e le traduzioni."
+		},
+		"siteSettings": {
+			"label": "Impostazioni del Sito",
+			"description": "Domini, Staging, Webhook, SEO, il Consent banner, gli script esterni, i Moduli, i Siti e i Membri."
+		},
+		"analytics": {
+			"label": "Analisi",
+			"description": "Site analytics, Obiettivi, Funnel e Dashboard."
+		},
+		"submissions": {
+			"label": "Invii",
+			"description": "Ciò che i visitatori hanno inviato tramite i tuoi Form."
+		}
+	},
+	"oauth": {
+		"pageTitle": "Approva un client AI",
+		"heading": "Approvare {client}?",
+		"intro": "{client} chiede di lavorare in WebCraft come te, {person}. Potrà fare ciò che scegli qui, e mai più di quanto puoi fare tu.",
+		"client": "Client AI",
+		"sendsBackTo": "Ti rimanda a",
+		"onThisDevice": "{client} ti rimanda a un indirizzo su questo dispositivo. Qualsiasi app sul dispositivo potrebbe chiamarsi {client}: approva solo se l'hai avviato tu, proprio ora.",
+		"workspace": "Workspace",
+		"sites": "Siti",
+		"allSites": "Tutti i Siti del Workspace, inclusi quelli aggiunti in seguito",
+		"chosenSites": "Solo i Siti che scelgo",
+		"noSitesToChoose": "Questo Workspace non ha Siti che puoi vedere.",
+		"sitesRequired": "Scegli almeno un Sito.",
+		"access": "Accesso",
+		"readWrite": "Lettura e modifica",
+		"readOnly": "Sola lettura",
+		"mayPublish": "Può pubblicare",
+		"mayPublishHelp": "Senza questo, il client salva le Bozze ma non può renderle visibili ai visitatori. Pubblicare ed eliminare ti mostrano sempre un'anteprima da confermare.",
+		"limits": "Non può mai cambiare password, segreti, token, ruoli o accessi ai Siti. Puoi revocarlo in qualsiasi momento in Il tuo account › Client AI.",
+		"approve": "Approva {client}",
+		"deny": "Rifiuta",
+		"noWorkspaces": "Non hai ancora accesso a nessun Workspace, quindi questo client non avrebbe dove lavorare.",
+		"refusedHeading": "Questa richiesta non può essere approvata",
+		"refusedClient": "L'app che ti ha mandato qui non è registrata in questo WebCraft. Non è stato approvato nulla.",
+		"refusedRedirect": "L'app ha chiesto di rimandarti a un indirizzo che non ha registrato. Non è stato approvato nulla e non sei stato mandato da nessuna parte.",
+		"toAdmin": "Vai all'admin"
 	}
 }
