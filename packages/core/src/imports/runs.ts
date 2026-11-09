@@ -607,15 +607,19 @@ async function sourceReport(scope: SiteScope, run: RunRow, defaultLanguage: stri
 			rules: ruleRows.map((row) => row.details as { from: string; to: string }),
 		},
 		structure: {
-			postTypes: typeRows.map((row) => ({
-				id: row.postTypeId && typeNames.has(row.postTypeId) ? row.postTypeId : null,
-				name: (row.postTypeId ? typeNames.get(row.postTypeId) : undefined) ?? (row.details as { name: string }).name,
-			})),
-			fields: fieldRows.map((row) => ({
-				postType: (row.postTypeId ? typeNames.get(row.postTypeId) : undefined) ?? "",
-				key: (row.details as { key: string }).key,
-				label: (row.details as { label: string }).label,
-			})),
+			postTypes: typeRows
+				.map((row) => ({
+					id: row.postTypeId && typeNames.has(row.postTypeId) ? row.postTypeId : null,
+					name: (row.postTypeId ? typeNames.get(row.postTypeId) : undefined) ?? (row.details as { name: string }).name,
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name)),
+			fields: fieldRows
+				.map((row) => ({
+					postType: (row.postTypeId ? typeNames.get(row.postTypeId) : undefined) ?? "",
+					key: (row.details as { key: string }).key,
+					label: (row.details as { label: string }).label,
+				}))
+				.sort((a, b) => a.postType.localeCompare(b.postType) || a.key.localeCompare(b.key)),
 		},
 		skippedTypes: json.skippedTypes ?? [],
 		skippedKeys: json.skippedKeys ?? [],
