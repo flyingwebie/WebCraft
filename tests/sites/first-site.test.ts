@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { structuredDataLine } from "../harness/seo.ts";
 import { stylesheetIn } from "../harness/site-styles.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
@@ -68,6 +69,16 @@ describe("create → publish → render → cache → republish", () => {
 				'<meta charset="utf-8">',
 				'<meta name="viewport" content="width=device-width, initial-scale=1">',
 				"<title>Fresh bread daily · Acme Bakery</title>",
+				// What it tells search engines and other sites (see tests/seo).
+				`<link rel="canonical" href="${stagingUrl}/blog/fresh-bread-daily">`,
+				'<meta property="og:type" content="website">',
+				'<meta property="og:title" content="Fresh bread daily">',
+				`<meta property="og:url" content="${stagingUrl}/blog/fresh-bread-daily">`,
+				'<meta property="og:site_name" content="Acme Bakery">',
+				'<meta property="og:locale" content="en">',
+				'<meta name="twitter:card" content="summary">',
+				'<meta name="twitter:title" content="Fresh bread daily">',
+				structuredDataLine(html),
 				// The Site's stylesheet, named by the hash of what it holds.
 				`<link rel="stylesheet" href="${stylesheetIn(html)}">`,
 				"</head>",

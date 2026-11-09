@@ -14,6 +14,7 @@ import { escapeAttribute, escapeText, type PlacementRenderer, renderTree, safeUr
 import type { LoopItemPlace, LoopRun } from "./loops.ts";
 import { SEARCH_HIT_NAME, SEARCH_LOOP, SEARCH_QUERY_VALUE } from "./loops.ts";
 import type { MediaReader } from "./media.ts";
+import { type PageSeo, seoTags, sharingTags } from "./seo.ts";
 import type { Attribute, ElementNode, ElementTree, TreeNode, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
 
@@ -63,8 +64,16 @@ export type PageToRender = {
 		language: string;
 		direction: "ltr" | "rtl";
 	};
-	/** The page's own title; the document's title is `<title> · <Site name>`. */
+	/**
+	 * The page's own title; without `seo`, the document's title is `<title> · <Site name>`.
+	 */
 	title: string;
+	/**
+	 * What the page tells search engines and other sites (`seo.ts`): its whole title, description,
+	 * canonical URL, robots noindex, Open Graph and social tags and structured data, worked out by core
+	 * from its SEO fields and their fallbacks.
+	 */
+	seo?: PageSeo;
 	/**
 	 * What the Language switcher links to: the page in each of the Site's languages, in their order.
 	 * It shows nothing with fewer than two.
@@ -252,7 +261,7 @@ export function renderPage(page: PageToRender): string {
 /** Renders a whole page as `renderPage` does, and says what its policy must allow (`RenderedPage`). */
 export function renderDocument(page: PageToRender): RenderedPage {
 	const { site } = page;
-	const title = page.title.trim() ? `${page.title} · ${site.name}` : site.name;
+	const title = page.seo ? page.seo.title : page.title.trim() ? `${page.title} · ${site.name}` : site.name;
 	const { editMode } = page;
 	// The theme toggle shows only with dark values to switch to; its script comes only with it.
 	let toggles = 0;
@@ -354,10 +363,13 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		'<meta name="viewport" content="width=device-width, initial-scale=1">',
 		...(editMode ? editModeHead(editMode) : []),
 		`<title>${escapeText(title)}</title>`,
+		...(page.seo ? seoTags(page.seo, { editMode: editMode !== undefined }) : []),
 		...(page.alternates ?? []).map(
 			(alternate) =>
 				`<link rel="alternate" hreflang="${escapeAttribute(alternate.hreflang)}" href="${escapeAttribute(alternate.href)}">`,
 		),
+		// Edit mode is never indexed nor shared: its pages carry the title, description and canonical URL only.
+		...(page.seo && !editMode ? sharingTags(page.seo) : []),
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
 		...(asks && consent ? consentHead(consent) : []),

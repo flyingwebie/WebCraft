@@ -116,7 +116,7 @@ export async function writeEntrySeo(
 		delete input.canonical;
 	}
 	if (typeof input.image === "string" && input.image !== "" && isUuid(input.image)) {
-		if (!(await isSocialImage(scope, input.image))) {
+		if (!(await isSocialImageOf(scope, input.image))) {
 			context.problems.push({
 				at: `${SEO_KEY}.image`,
 				message: "A social image is a JPEG, PNG, WebP, AVIF or GIF image of the Site's Media library.",
@@ -155,7 +155,7 @@ function isSpaceOrControl(character: string): boolean {
 }
 
 /** Whether a Media item of the scope's Site can be a social image: an image other sites show, not in the Trash. */
-async function isSocialImage(scope: Pick<SiteScope, "db" | "where">, mediaId: string): Promise<boolean> {
+export async function isSocialImageOf(scope: Pick<SiteScope, "db" | "where">, mediaId: string): Promise<boolean> {
 	const [row] = await scope.db
 		.select({ kind: media.kind, contentType: media.contentType })
 		.from(media)

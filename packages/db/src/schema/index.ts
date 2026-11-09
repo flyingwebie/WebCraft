@@ -16,6 +16,7 @@ export * from "./people.ts";
 export * from "./rate-limits.ts";
 export * from "./search.ts";
 export * from "./secrets.ts";
+export * from "./seo.ts";
 export * from "./site-scripts.ts";
 export * from "./tenancy.ts";
 export * from "./webhooks.ts";

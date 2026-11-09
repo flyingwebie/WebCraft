@@ -63,6 +63,7 @@ import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
 import type { SiteSearch } from "./search/service.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
+import type { SeoService } from "./seo/index.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { DataSample } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
@@ -397,6 +398,8 @@ export type InstallServices = InstallPorts & {
 	 * with a Draft) and the Consent records visitors' choices leave.
 	 */
 	consent: ConsentService;
+	/** SEO (the SEO decision): each Site's SEO settings; Entries' SEO fields and Post Types' are in the content store. */
+	seo: SeoService;
 	/**
 	 * Site script safety (ADRs 0022, 0023): each Site's Content Security Policy and allowed hosts, its
 	 * outside scripts and its Libraries. Open the Site with `structure.edit`.

@@ -71,12 +71,15 @@ import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts"
 import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
 import { draftStyles, type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
-import { domainOrigin, placeOf, type SiteAddresses, verifiedDomains } from "../domains/addresses.ts";
+import { domainOrigin, placeOf, type SiteAddresses, siteAddresses, verifiedDomains } from "../domains/addresses.ts";
 import { type PageFormsOptions, pageForms, type ShownForm } from "../forms/page-forms.ts";
 import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
+import { readEntrySeo } from "../seo/entry-seo.ts";
+import { archivePageSeo, entryPageSeo, type SeoPlace, type SeoSite, unlistedPageSeo } from "../seo/page-seo.ts";
+import { siteSeoSettings } from "../seo/site-settings.ts";
 import { siteAllowedHosts } from "../site-scripts/csp.ts";
 import { type LibraryFile, libraryFile, pageLibraries } from "../site-scripts/libraries.ts";
 import { outsideScriptCode, pageOutsideScripts } from "../site-scripts/outside-scripts.ts";
@@ -132,6 +135,12 @@ export type SiteHost = {
 	 * domain and each language's own (see `SiteAddresses`).
 	 */
 	addresses: SiteAddresses;
+	/**
+	 * Where the Site's pages are for its visitors, whatever hostname asked: its verified Primary domain
+	 * and languages' domains, or the Staging address while it has no Primary domain. Canonical URLs
+	 * point there, so a live Site's Staging address never sends search engines to itself.
+	 */
+	visitorAddresses: SiteAddresses;
 	/** Whether the Site sends a first visit to the home page on to the browser's language (ADR 0010). */
 	browserLanguageRedirect: boolean;
 	/** How the Site's Content Security Policy applies (ADR 0023). */
@@ -398,7 +407,15 @@ export function createSitePages(options: {
 				const origin = stagingUrl(config, row.slug) ?? `https://${hostname}`;
 				// The Staging address shows every language under its prefix, on itself.
 				const addresses = { main: origin, languages: {} };
-				return hostOf(row, { address: "staging", language: null, redirectTo: null, origin, addresses });
+				const visitorAddresses = (await siteAddresses(database.db, config, row)) ?? addresses;
+				return hostOf(row, {
+					address: "staging",
+					language: null,
+					redirectTo: null,
+					origin,
+					addresses,
+					visitorAddresses,
+				});
 			}
 			// A domain serves its Site only once verified (ADR 0015).
 			const [found] = await database.db
@@ -422,6 +439,7 @@ export function createSitePages(options: {
 				redirectTo: address === "redirect" ? primary : null,
 				origin,
 				addresses,
+				visitorAddresses: addresses,
 			});
 		},
 
@@ -540,11 +558,24 @@ export function createSitePages(options: {
 			const path = canonicalPath(pathSegments(pathname) ?? []);
 			if (place.found) {
 				const located = { ...place, found: place.found };
-				return renderEntryPage(view, host, styles, located, { alternates: [], languageLinks }, { page: null, path });
+				return renderEntryPage(
+					view,
+					host,
+					styles,
+					located,
+					{ alternates: [], languageLinks },
+					{ page: null, path, notFound: true },
+				);
 			}
 			const builtIn = builtInNotFoundPage(place.language.code);
+			const seo = await unlistedPageSeo(
+				view.scope,
+				await seoSiteOf(view, host, place),
+				seoPlace(place, []),
+				builtIn.title,
+			);
 			return renderSitePage(view, host, styles, place, {
-				page: { ...builtIn, languageLinks, values: () => undefined },
+				page: { ...builtIn, seo, languageLinks, values: () => undefined },
 				loops: { current: null, page: null, path },
 			});
 		},
@@ -560,9 +591,11 @@ export function createSitePages(options: {
 			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
+			const title = formWords(place.language.code).problemTitle;
 			return renderSitePage(view, host, styles, place, {
 				page: {
-					title: formWords(place.language.code).problemTitle,
+					title,
+					seo: await unlistedPageSeo(view.scope, await seoSiteOf(view, host, place), seoPlace(place, []), title),
 					languageLinks,
 					content: { version: 1, nodes: [{ type: "form", form: formId }] },
 					values: () => undefined,
@@ -671,7 +704,7 @@ export function createSitePages(options: {
 /** A Site found by a hostname, with how the hostname reaches it. */
 function hostOf(
 	row: typeof sites.$inferSelect,
-	how: Pick<SiteHost, "address" | "language" | "redirectTo" | "origin" | "addresses">,
+	how: Pick<SiteHost, "address" | "language" | "redirectTo" | "origin" | "addresses" | "visitorAddresses">,
 ): SiteHost {
 	return {
 		site: { id: row.id, workspaceId: row.workspaceId, name: row.name, slug: row.slug, createdAt: row.createdAt },
@@ -900,8 +933,21 @@ async function renderArchivePage(
 	const site = await siteParts(view, archive, host.site.name);
 	const root: Parts = { text: null, part: (name) => (name === "site" ? site : undefined) };
 	const title = pagedTitle(archive.postType.name, page, archive.language.code);
+	const seo = await archivePageSeo(view.scope, await seoSiteOf(view, host, archive), seoPlace(archive, alternates), {
+		postType: archive.postType,
+		title,
+		path: languagePath(archive.languages, pathText(archive.parts)),
+		page,
+	});
 	return renderSitePage(view, host, styles, archive, {
-		page: { title, alternates, languageLinks, content: archive.content, values: (path) => resolvePath(root, path) },
+		page: {
+			title,
+			seo,
+			alternates,
+			languageLinks,
+			content: archive.content,
+			values: (path) => resolvePath(root, path),
+		},
 		loops: { current: null, page, path: archive.path },
 	});
 }
@@ -1226,7 +1272,7 @@ async function renderEntryPage(
 	styles: SiteStyles,
 	located: Place & { found: FoundEntry },
 	extras: LanguageExtras,
-	where: { page: number | null; path: string },
+	where: { page: number | null; path: string; notFound?: boolean },
 ): Promise<RenderedPage> {
 	const { scope } = view;
 	const { found, languages } = located;
@@ -1268,9 +1314,24 @@ async function renderEntryPage(
 	});
 	// Past a Page's first page, its title says which, and its alternates are that page in each language.
 	const page = where.page ?? 1;
+	const title = pagedTitle(published.title, page, located.language.code);
+	const address = (await publishedAddresses(scope, postType, [entry.id], languages)).get(entry.id);
+	const seo = await entryPageSeo(scope, await seoSiteOf(view, host, located), seoPlace(located, extras.alternates), {
+		postType,
+		entryId: entry.id,
+		seo: readEntrySeo(version.values, languages),
+		title,
+		values: (path) => resolvePath(root, path),
+		path: address?.path ?? where.path,
+		page,
+		notFoundPage: where.notFound === true || (await isNotFoundPage(scope, entry.id, languages.language)),
+		answersMissing: where.notFound === true,
+		dates: { publishedAt: entry.publishedAt, lastPublishedAt: entry.lastPublishedAt },
+	});
 	return renderSitePage(view, host, styles, located, {
 		page: {
-			title: pagedTitle(published.title, page, located.language.code),
+			title,
+			seo,
 			alternates: extras.alternates.map((alternate) => ({ ...alternate, href: pageHref(alternate.href, page) })),
 			languageLinks: extras.languageLinks,
 			content,
@@ -1305,9 +1366,16 @@ async function renderSearchPage(
 	const site = await siteParts(view, located, host.site.name);
 	const root: Parts = { text: null, part: (name) => (name === "site" ? site : undefined) };
 	const search: SearchOnPage = { query: where.query, postTypes: await searchedPostTypes(scope, found.postTypes) };
+	const shownTitle = pagedTitle(
+		searchPageTitle(title, where.query, located.language.code),
+		where.page,
+		located.language.code,
+	);
 	return renderSitePage(view, host, styles, located, {
 		page: {
-			title: pagedTitle(searchPageTitle(title, where.query, located.language.code), where.page, located.language.code),
+			title: shownTitle,
+			// One visitor's search: never indexed (`X-Robots-Tag` says so too).
+			seo: await unlistedPageSeo(scope, await seoSiteOf(view, host, located), seoPlace(located, []), shownTitle),
 			alternates: extras.alternates,
 			languageLinks: extras.languageLinks,
 			content,
@@ -1362,6 +1430,42 @@ async function siteParts(view: View, place: Place, name: string): Promise<Parts>
 	return globalsParts(site.fields, site.values, { language: place.language.code, name });
 }
 
+/** What every page of the Site works its SEO out with (`SeoSite`), read as the page's view reads. */
+async function seoSiteOf(view: View, host: SiteHost, place: Place): Promise<SeoSite> {
+	const settings = await siteSeoSettings(view.scope);
+	// The Globals visitors see, even in Edit mode: structured data is what the Site says once published.
+	const globalsRow = await view.scope.first(globals);
+	const published = globalsVersion(globalsRow, place.languages, "published");
+	const globalParts = globalsParts(published.fields, published.values);
+	return {
+		settings,
+		name: settings.siteName ?? host.site.name,
+		languages: place.site,
+		addresses: host.visitorAddresses,
+		postTypes: await listPostTypes(view.scope),
+		globals: (path) => resolvePath(globalParts, path),
+	};
+}
+
+/** A page's language and the other languages it is in (its `hreflang` alternates, `x-default` aside). */
+function seoPlace(place: Place, alternates: readonly PageAlternate[]): SeoPlace {
+	const code = place.languages.language;
+	return {
+		languages: place.languages,
+		alsoIn: alternates
+			.map((alternate) => alternate.hreflang)
+			.filter((hreflang) => hreflang !== "x-default" && hreflang !== code),
+	};
+}
+
+/** Whether a Page is the Site's 404 page, or a language's: at its own path it shows with 200, never indexed. */
+async function isNotFoundPage(scope: ReadScope, entryId: string, language: string): Promise<boolean> {
+	return (
+		(await specialPageId(scope, "notFound")) === entryId ||
+		(await specialPageId(scope, "notFound", language)) === entryId
+	);
+}
+
 /** A page's title, with its number past the first page of its paginated Loop (`Recipes · Page 2`). */
 function pagedTitle(title: string, page: number, language: string): string {
 	return page > 1 ? `${title} · ${pageWords(language).pageNumber.replace("{n}", String(page))}` : title;
@@ -1382,7 +1486,7 @@ async function renderSitePage(
 	styles: SiteStyles,
 	place: Place,
 	options: {
-		page: Pick<PageToRender, "title" | "alternates" | "languageLinks" | "content" | "values">;
+		page: Pick<PageToRender, "title" | "seo" | "alternates" | "languageLinks" | "content" | "values">;
 		/** Values the content reads, for the Media it may show. */
 		contentValues?: unknown;
 		/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
@@ -1462,6 +1566,11 @@ async function renderSitePage(
 	const rendered = renderDocument({
 		...page,
 		title: invalid ? `${formWords(language.code).errorPrefix} ${page.title}` : page.title,
+		// A page sent back with a Form's errors is one visitor's: never indexed.
+		seo:
+			page.seo && invalid
+				? { ...page.seo, title: `${formWords(language.code).errorPrefix} ${page.seo.title}`, noindex: true }
+				: page.seo,
 		site: { name: host.site.name, language: language.code, direction: language.direction },
 		siteTemplate,
 		siteValues: (path) => resolvePath(siteRoot, path),

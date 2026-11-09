@@ -12,6 +12,7 @@
 		"./media-kinds": "./src/media/kinds.ts",
 		"./field-rules": "./src/content/field-rules.ts",
 		"./search-fields": "./src/search/searched-fields.ts",
+		"./seo-rules": "./src/seo/seo-rules.ts",
 		"./domain-partner": "./src/domains/partner.ts"
 	},
 	"scripts": {

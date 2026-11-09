@@ -10,6 +10,7 @@ import {
 	parseSearchedFields,
 	type SearchedField,
 } from "../search/searched-fields.ts";
+import { keptPostTypeSeo, type PostTypeSeo, type PostTypeSeoChange, parsePostTypeSeo } from "../seo/seo-rules.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { checkPatternLeavesArchives } from "./archives.ts";
 import { publishedAddresses } from "./entry-paths.ts";
@@ -53,6 +54,11 @@ export type PostType = {
 	searchable: boolean;
 	/** Its Searched fields: what Site search and Filters' search boxes look in, with their weights. */
 	searchedFields: SearchedField[];
+	/**
+	 * Its SEO settings: the title pattern, the Fields its Entries' description and social image fall
+	 * back to, and its Schema type with each property mapped (see `seo/seo-rules.ts`).
+	 */
+	seo: PostTypeSeo;
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -67,6 +73,8 @@ export type NewPostType = {
 	searchable?: boolean;
 	/** Its Searched fields; the title (A) and its Body field (B) when not given. */
 	searchedFields?: unknown[];
+	/** Its SEO settings; WebCraft's defaults for the parts not given. */
+	seo?: PostTypeSeoChange;
 };
 
 /** What can change on a Post Type. Its key can't: Templates, Loops and files name it. */
@@ -77,6 +85,8 @@ export type PostTypeChange = {
 	searchable?: boolean;
 	/** Replaces its Searched fields. Without it, a change to its Fields keeps those whose Field is still there. */
 	searchedFields?: unknown[];
+	/** Changes its SEO settings: each part given replaces that part. */
+	seo?: PostTypeSeoChange;
 };
 
 export const POST_TYPE_NAME_MAX_LENGTH = 100;
@@ -107,6 +117,8 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 		input.searchedFields === undefined
 			? defaultSearchedFields(fields)
 			: parseSearchedFields(input.searchedFields, fields, problems);
+	const defaults = keptPostTypeSeo({}, fields);
+	const seo = input.seo === undefined ? undefined : parsePostTypeSeo(input.seo, defaults, fields, problems);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 
 	return saving(() =>
@@ -123,6 +135,8 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 				fields,
 				searchable: input.searchable ?? true,
 				searchedFields,
+				// Until Staff set them, the defaults follow its Fields.
+				seo: seo ?? {},
 				createdAt: now,
 				updatedAt: now,
 			});
@@ -138,7 +152,8 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
  * address: `postType.update` then logs them as `pathChanges` (Redirect rules follow them).
  */
 export async function updatePostType(scope: SiteScope, postTypeId: string, change: PostTypeChange): Promise<PostType> {
-	const existing = toPostType(await findPostType(scope, postTypeId));
+	const row = await findPostType(scope, postTypeId);
+	const existing = { ...toPostType(row), storedSeo: row.seo };
 	const problems: ContentProblem[] = [];
 	const name = change.name === undefined ? existing.name : checkName(change.name, problems);
 	let urlPattern = existing.urlPattern;
@@ -161,6 +176,10 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 		change.searchedFields === undefined
 			? keptSearchedFields(existing.searchedFields, fields)
 			: parseSearchedFields(change.searchedFields, fields, problems);
+	const seo =
+		change.seo === undefined
+			? undefined
+			: parsePostTypeSeo(change.seo, keptPostTypeSeo(existing.storedSeo, fields), fields, problems);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 	// The search documents of its Entries are built from these: when they change, the index is rebuilt.
 	const searchChanged =
@@ -184,6 +203,7 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 					fields,
 					searchable: change.searchable ?? existing.searchable,
 					searchedFields,
+					...(seo ? { seo } : {}),
 					updatedAt: tx.now(),
 				},
 				eq(postTypes.id, existing.id),
@@ -307,6 +327,7 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 		builtInFields: row.builtIn === "page" ? PAGE_BUILT_IN_FIELDS : BUILT_IN_FIELDS,
 		searchable: row.searchable,
 		searchedFields: keptSearchedFields(row.searchedFields, fields),
+		seo: keptPostTypeSeo(row.seo, fields),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
