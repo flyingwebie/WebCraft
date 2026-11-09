@@ -23,6 +23,7 @@ import type {
 	Template,
 	TemplateMarkup,
 } from "./content/index.ts";
+import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
@@ -176,6 +177,28 @@ export type InstallServices = InstallPorts & {
 		setHomePage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
 		/** Chooses the 404 page, or the built-in one with null; it applies at once. */
 		setNotFoundPage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
+	};
+	/**
+	 * Each Site's Design system (ADR 0009): tokens, Classes, base styles, custom CSS and dark mode,
+	 * with a Draft; publishing goes through `publishing.publish` with `{ kind: "designSystem" }`.
+	 * Structure: open the Site with `structure.edit`.
+	 */
+	designSystem: {
+		get(scope: SiteScope): Promise<DesignSystemView>;
+		/** Saves a change to the Draft: each section given replaces that section. */
+		saveDraft(scope: SiteScope, change: DesignSystemChange): Promise<DesignSystemView>;
+		createClass(
+			scope: SiteScope,
+			input: ClassChange,
+		): Promise<{ class: EditableClass; designSystem: DesignSystemView }>;
+		/** Renames or restyles a Class; elements and CSS using it follow, since they refer to it by id. */
+		updateClass(
+			scope: SiteScope,
+			classId: string,
+			change: Partial<ClassChange>,
+		): Promise<{ class: EditableClass; designSystem: DesignSystemView }>;
+		/** Deletes a Class; refused while something uses it (`ClassInUseError` says where). */
+		deleteClass(scope: SiteScope, classId: string): Promise<DesignSystemView>;
 	};
 	publishing: {
 		/**

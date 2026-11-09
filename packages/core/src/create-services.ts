@@ -27,6 +27,13 @@ import {
 	setSpecialPage,
 	updatePostType,
 } from "./content/index.ts";
+import {
+	createClass,
+	deleteClass,
+	getDesignSystem,
+	saveDesignSystemDraft,
+	updateClass,
+} from "./design-system/drafts.ts";
 import { createEmail } from "./email/index.ts";
 import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
@@ -135,6 +142,13 @@ export async function createInstallServices(
 			settings: getSpecialPages,
 			setHomePage: (scope, pageId) => setSpecialPage(scope, "home", pageId),
 			setNotFoundPage: (scope, pageId) => setSpecialPage(scope, "notFound", pageId),
+		},
+		designSystem: {
+			get: getDesignSystem,
+			saveDraft: saveDesignSystemDraft,
+			createClass,
+			updateClass,
+			deleteClass,
 		},
 		publishing: { publish },
 		sitePages: createSitePages({ database, config, data, storage }),

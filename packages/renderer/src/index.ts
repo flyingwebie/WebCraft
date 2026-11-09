@@ -45,9 +45,20 @@ export {
 	readDesignSystem,
 } from "./design-system/document.ts";
 export {
+	type Breakpoint,
+	type ColourToken,
 	DEFAULT_TOKENS,
+	type Dimension,
+	type DimensionToken,
+	type FontToken,
+	type Range,
+	type Scale,
+	type ScaleStep,
+	type ShadowLayer,
+	type ShadowToken,
 	type TokenRef,
 	type Tokens,
+	tokenNames,
 	UTILITY_ID_PREFIX,
 	utilitiesOf,
 } from "./design-system/tokens.ts";

@@ -180,6 +180,29 @@ describe("Templates", () => {
 	);
 });
 
+describe("Design system", () => {
+	/** A new Class in a target's Site's Design system, made by the Superadmin. */
+	const classIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.designSystem.createClass({ siteId: target.siteId, name: `card-${newSlug()}` })).class.id;
+	};
+
+	isolation.refuses("designSystem.get", (api, { siteId }) => api.designSystem.get({ siteId }));
+	isolation.refuses("designSystem.saveDraft", (api, { siteId }) =>
+		api.designSystem.saveDraft({ siteId, customCss: "p { margin: 0; }" }),
+	);
+	isolation.refuses("designSystem.createClass", (api, { siteId }) =>
+		api.designSystem.createClass({ siteId, name: `leaked-${newSlug()}` }),
+	);
+	isolation.refuses("designSystem.updateClass", async (api, target) =>
+		api.designSystem.updateClass({ siteId: target.siteId, classId: await classIn(target), styles: "color: red;" }),
+	);
+	isolation.refuses("designSystem.deleteClass", async (api, target) =>
+		api.designSystem.deleteClass({ siteId: target.siteId, classId: await classIn(target) }),
+	);
+	isolation.refuses("designSystem.publish", (api, { siteId }) => api.designSystem.publish({ siteId }));
+});
+
 describe("Pages", () => {
 	/** A Page in a target's Site, made by the Superadmin. */
 	const pageIn = async (target: IsolationTarget) => {
