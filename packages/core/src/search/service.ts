@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { sites } from "@webcraft/db/schema";
-import { inArray, lt, sql } from "drizzle-orm";
+import { inArray, lt } from "drizzle-orm";
 
 import type { Logger } from "../log.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
@@ -35,7 +35,7 @@ export function createSiteSearch(options: { database: Database; data: DataLayer;
 			const claimed = await database.db
 				.update(sites)
 				.set({ searchIndexVersion: SEARCH_INDEX_VERSION })
-				.where(inArray(sites.id, sql`(${behind})`))
+				.where(inArray(sites.id, behind))
 				.returning({ id: sites.id });
 			return claimed.map((site) => site.id);
 		},

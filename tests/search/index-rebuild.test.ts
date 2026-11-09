@@ -126,6 +126,41 @@ describe("changing Searched fields", () => {
 		expect(await found("walnut")).toEqual(["Rye", "Walnut cake"]);
 	});
 
+	test("every Site whose index is behind is rebuilt in the same minute", async () => {
+		const workspaceId = (await install.createWorkspace("Other Ltd")).id;
+		const admin = await install.superadmin();
+		const others: string[] = [];
+		for (const slug of ["mill", "dairy"]) {
+			const otherId = (await install.createSite(workspaceId, { name: slug, slug })).id;
+			const { postType } = await admin.api.postTypes.create({
+				siteId: otherId,
+				name: "Notes",
+				urlPattern: "/notes/{slug}",
+				fields: [{ key: "summary", label: "Summary", type: "text" }],
+			});
+			others.push(otherId);
+			await admin.api.postTypes.update({
+				siteId: otherId,
+				postTypeId: postType.id,
+				searchedFields: [{ field: "summary", weight: "A" }],
+			});
+		}
+		await staff.api.postTypes.update({
+			siteId,
+			postTypeId: recipesId,
+			searchedFields: [
+				{ field: "title", weight: "A" },
+				{ field: "summary", weight: "B" },
+			],
+		});
+
+		const drained = await settle();
+
+		const rebuilt = drained.completed.filter((run) => run.name === "search.rebuild").map((run) => run.data);
+		expect(rebuilt).toEqual(expect.arrayContaining([{ siteId }, { siteId: others[0] }, { siteId: others[1] }]));
+		expect(drained.failed).toEqual([]);
+	});
+
 	test("a change that searches the same as before rebuilds nothing", async () => {
 		await staff.api.postTypes.update({ siteId, postTypeId: recipesId, name: "Our recipes" });
 		await staff.api.postTypes.update({ siteId, postTypeId: recipesId, searchable: false });
