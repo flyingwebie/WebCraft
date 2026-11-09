@@ -668,9 +668,7 @@ async function renderArchivePage(
 	}
 	const site = await siteParts(view, archive, host.site.name);
 	const root: Parts = { text: null, part: (name) => (name === "site" ? site : undefined) };
-	const name = archive.postType.name;
-	const title =
-		page > 1 ? `${name} · ${pageWords(archive.language.code).pageNumber.replace("{n}", String(page))}` : name;
+	const title = pagedTitle(archive.postType.name, page, archive.language.code);
 	return renderSitePage(view, host, styles, archive, {
 		page: { title, alternates, languageLinks, content: archive.content, values: (path) => resolvePath(root, path) },
 		loops: { current: null, page, path: archive.path },
@@ -1006,8 +1004,16 @@ async function renderEntryPage(
 		related,
 		site,
 	});
+	// Past a Page's first page, its title says which, and its alternates are that page in each language.
+	const page = where.page ?? 1;
 	return renderSitePage(view, host, styles, located, {
-		page: { title: published.title, ...extras, content, values: (path) => resolvePath(root, path) },
+		page: {
+			title: pagedTitle(published.title, page, located.language.code),
+			alternates: extras.alternates.map((alternate) => ({ ...alternate, href: pageHref(alternate.href, page) })),
+			languageLinks: extras.languageLinks,
+			content,
+			values: (path) => resolvePath(root, path),
+		},
 		// Media values the content may read: its own, and its related Entries'.
 		contentValues: [published.fields, [...related.values()].map((entry) => entry.values)],
 		entry: { id: entry.id, fields: postType.fields },
@@ -1019,6 +1025,11 @@ async function renderEntryPage(
 async function siteParts(view: View, place: Place, name: string): Promise<Parts> {
 	const site = globalsVersion(await view.scope.first(globals), place.languages, view.version);
 	return globalsParts(site.fields, site.values, { language: place.language.code, name });
+}
+
+/** A page's title, with its number past the first page of its paginated Loop (`Recipes · Page 2`). */
+function pagedTitle(title: string, page: number, language: string): string {
+	return page > 1 ? `${title} · ${pageWords(language).pageNumber.replace("{n}", String(page))}` : title;
 }
 
 /** A page rendered, with until when it may be kept and the pages of its paginated Loop. */

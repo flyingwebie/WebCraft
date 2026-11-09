@@ -174,7 +174,14 @@ describe("pagination", () => {
 		});
 		await staff.api.templates.publish({ siteId, templateId: entryTemplate.template.id });
 
-		expect(await mainOf(await get("/about?page=2"))).toContain("<p>Crumble</p>");
+		const paged = await (await get("/about?page=2")).text();
+		expect(/<main[^>]*>([\s\S]*)<\/main>/.exec(paged)?.[1]).toContain("<p>Crumble</p>");
+		// Its title says which page it is, and its alternates are that page in each language, as an Archive's.
+		expect(paged).toContain("<title>About · Page 2 · Acme Bakery</title>");
+		expect(paged).toContain('<link rel="alternate" hreflang="fr" href="https://bakery.sites.test/fr/about?page=2">');
+		expect(paged).toContain(
+			'<link rel="alternate" hreflang="x-default" href="https://bakery.sites.test/about?page=2">',
+		);
 		const onEntry = await get("/recipes/brioche?page=2");
 		expect(onEntry.status).toBe(301);
 		expect(onEntry.headers.get("location")).toBe("/recipes/brioche");
