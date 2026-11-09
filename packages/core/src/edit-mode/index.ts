@@ -199,8 +199,10 @@ export function createEditMode(options: {
 				});
 				await tx.audit("editMode.start", { path: link.path });
 			});
-			// Links that ran out are kept no longer than needed.
+			// Links and sessions that ran out are kept no longer than needed (on every Site: no person
+			// reads them any more).
 			await db.delete(editLinks).where(lte(editLinks.expiresAt, now));
+			await db.delete(editSessions).where(lte(editSessions.expiresAt, now));
 			return { cookie, expiresAt, path: link.path };
 		},
 
