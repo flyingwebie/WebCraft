@@ -157,6 +157,35 @@ describe("refused Module migrations", () => {
 		expect(message).toContain("m_sample.stray, which it doesn't declare");
 	});
 
+	test("one keeping a table in monthly partitions without partitioning it by its column", async () => {
+		const visits = schema.table("visits", {
+			...siteColumns(),
+			id: uuid("id").notNull(),
+			at: timestamp("at", { withTimezone: true }).notNull(),
+		});
+		const message = await refusal({
+			...sampleWith(
+				[
+					{
+						name: "0002-visits",
+						sql: `CREATE TABLE visits (
+	id uuid NOT NULL,
+	workspace_id uuid NOT NULL,
+	site_id uuid NOT NULL,
+	at timestamp with time zone NOT NULL,
+	FOREIGN KEY (workspace_id, site_id) REFERENCES sites (workspace_id, id) ON DELETE CASCADE
+);`,
+					},
+				],
+				[...(sample.tables ?? []), visits],
+			),
+			partitions: [{ table: visits, column: visits.at, label: { en: "Visits", it: "Visite" }, keepMonths: 6 }],
+		});
+		expect(message).toContain(
+			"m_sample.visits is kept in monthly partitions, so it must be made PARTITION BY RANGE (at)",
+		);
+	});
+
 	test("one whose table isn't tied to its Site", async () => {
 		const loose = schema.table("loose", { ...siteColumns(), id: uuid("id").primaryKey() });
 		const message = await refusal(

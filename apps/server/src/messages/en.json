@@ -974,7 +974,9 @@
 			"approve": "Approve",
 			"cancel": "Cancel",
 			"close": "Close",
-			"approved": "{name} {version} is approved."
+			"approved": "{name} {version} is approved.",
+			"siteScriptBeforeConsent": "Add a script to Site pages that runs before visitors answer the Consent banner, sending only what needs no consent, and does more once they accept {category}",
+			"partitions": "Keep {label} in monthly parts, each dropped once older than this Install keeps them (now {months, plural, one {# month} other {# months}})"
 		},
 		"roles": {
 			"staff": "Staff",
@@ -993,7 +995,8 @@
 			"entryPublished": "an Entry is published",
 			"entryDeleted": "an Entry is deleted",
 			"templatePublished": "a Template is published",
-			"globalsPublished": "the Globals are published"
+			"globalsPublished": "the Globals are published",
+			"formSubmitted": "a Form Submission is kept"
 		},
 		"log": {
 			"title": "Module log of {name}",
@@ -1041,6 +1044,13 @@
 		"page": {
 			"heading": "This page isn't available",
 			"body": "The Module has no screen for this page in this version of the admin."
+		},
+		"keep": {
+			"label": "Keep {label} for",
+			"months": "{count, plural, one {# month} other {# months}}",
+			"save": "Save",
+			"saveOf": "Save how long {name} keeps {label}",
+			"saved": "{name} now keeps {label} for {count, plural, one {# month} other {# months}}."
 		}
 	},
 	"editBar": {

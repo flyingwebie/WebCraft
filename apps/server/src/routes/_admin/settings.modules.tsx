@@ -12,9 +12,10 @@ import {
 	DialogTitle,
 } from "@webcraft/ui/components/dialog.tsx";
 import { FieldError } from "@webcraft/ui/components/field.tsx";
+import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@webcraft/ui/components/sheet.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { useRef, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
@@ -81,6 +82,9 @@ function ModulesPage() {
 										<span className="block font-medium">{module.name}</span>
 										<span className="text-muted-foreground block text-xs">{module.description}</span>
 										<span className="text-muted-foreground block text-xs">{t(LEVEL_KEYS[module.level])}</span>
+										{module.partitions.map((partition) => (
+											<KeepMonthsForm key={partition.table} module={module} partition={partition} />
+										))}
 									</TableCell>
 									<TableCell className="font-mono text-xs">
 										{module.version}
@@ -116,6 +120,61 @@ function ModulesPage() {
 				</div>
 			)}
 		</>
+	);
+}
+
+type Partition = ModuleView["partitions"][number];
+
+/** The choices for how many months rows are kept: common ones, and whatever is set now. */
+const KEEP_CHOICES = [1, 3, 6, 12, 13, 18, 24, 36, 60, 120];
+
+/**
+ * How long the Install keeps the rows of one of a Module's partitioned tables (such as Site
+ * analytics' raw events): an Install setting. Older months are dropped every day.
+ */
+function KeepMonthsForm({ module, partition }: { module: ModuleView; partition: Partition }) {
+	const t = useT();
+	const router = useRouter();
+	const id = useId();
+	const [months, setMonths] = useState(partition.keepMonths);
+	const [busy, setBusy] = useState(false);
+	const choices = [...new Set([...KEEP_CHOICES, partition.keepMonths])].sort((a, b) => a - b);
+
+	const save = async (event: FormEvent) => {
+		event.preventDefault();
+		setBusy(true);
+		try {
+			const api = await getApi();
+			await api.modules.setKeepMonths({ moduleId: module.id, table: partition.table, months });
+			toast.success(t("modules.keep.saved", { name: module.name, label: partition.label, count: months }));
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<form className="mt-2 flex flex-wrap items-center gap-2 text-xs" onSubmit={save}>
+			<label htmlFor={id}>{t("modules.keep.label", { label: partition.label })}</label>
+			<NativeSelect id={id} size="sm" value={months} onChange={(event) => setMonths(Number(event.target.value))}>
+				{choices.map((choice) => (
+					<NativeSelectOption key={choice} value={choice}>
+						{t("modules.keep.months", { count: choice })}
+					</NativeSelectOption>
+				))}
+			</NativeSelect>
+			<Button
+				type="submit"
+				size="sm"
+				variant="outline"
+				disabled={busy || months === partition.keepMonths}
+				aria-label={t("modules.keep.saveOf", { name: module.name, label: partition.label })}
+			>
+				{t("modules.keep.save")}
+			</Button>
+		</form>
 	);
 }
 
