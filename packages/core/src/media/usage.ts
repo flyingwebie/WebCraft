@@ -6,6 +6,7 @@ import {
 	loops,
 	mediaFiles,
 	postTypes,
+	seoSettings,
 	templates,
 } from "@webcraft/db/schema";
 import { and, asc, eq, or, type SQL, sql } from "drizzle-orm";
@@ -25,7 +26,8 @@ export type UseVersion = "draft" | "published";
  *   the Fields by key;
  * - the Globals, with the Fields by key;
  * - a Template (`media:<id>` written in it), a Component, a Loop (its Loop items);
- * - the Design system (its CSS names the file's address).
+ * - the Design system (its CSS names the file's address);
+ * - the Site's SEO settings (its default social image, its organisation's logo), which apply at once.
  */
 export type MediaUse =
 	| {
@@ -46,7 +48,13 @@ export type MediaUse =
 	  }
 	| { kind: "component"; id: string; name: string; versions: UseVersion[] }
 	| { kind: "loop"; id: string; name: string; versions: UseVersion[] }
-	| { kind: "designSystem"; versions: UseVersion[] };
+	| { kind: "designSystem"; versions: UseVersion[] }
+	| {
+			kind: "seoSettings";
+			/** The Site's SEO settings using it: `defaultImage`, `organizationLogo`. They have no Draft. */
+			settings: ("defaultImage" | "organizationLogo")[];
+			versions: UseVersion[];
+	  };
 
 /**
  * Where a feature keeps references to Media, searched for one item: WebCraft's own content below.
@@ -65,6 +73,7 @@ const SOURCES: readonly MediaUseSource[] = [
 	componentUses,
 	loopUses,
 	designSystemUses,
+	seoSettingsUses,
 ];
 
 /** Every place a Media item is used on its Site, in the order of `SOURCES`, each kind sorted by name. */
@@ -196,4 +205,14 @@ async function designSystemUses(scope: SiteScope, file: MediaReferences): Promis
 	const versions = new Set<UseVersion>();
 	for (const name of file.names) for (const version of versionsHolding(row, name)) versions.add(version);
 	return [{ kind: "designSystem", versions: (["draft", "published"] as const).filter((each) => versions.has(each)) }];
+}
+
+/** The Site's SEO settings: its default social image and its organisation's logo (applied at once, so published). */
+async function seoSettingsUses(scope: SiteScope, file: MediaReferences): Promise<MediaUse[]> {
+	const row = await scope.first(seoSettings);
+	if (!row) return [];
+	const settings: ("defaultImage" | "organizationLogo")[] = [];
+	if (row.defaultImage === file.id) settings.push("defaultImage");
+	if ((row.organization as { logo?: unknown } | null)?.logo === file.id) settings.push("organizationLogo");
+	return settings.length > 0 ? [{ kind: "seoSettings", settings, versions: ["published"] }] : [];
 }

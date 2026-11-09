@@ -147,6 +147,8 @@ export function problemPlace(t: Translate, fields: readonly FieldDefinition[], a
 	if (at === "title") return t("content.builtIn.title");
 	if (at === "slug") return t("content.builtIn.slug");
 	if (at === "parentId") return t("content.builtIn.parent");
+	// The SEO fields have a card of their own, which words what saving one met.
+	if (at === "seo" || at.startsWith("seo.")) return t("seo.card.heading");
 	const found = fieldAtPath(fields, at);
 	if (!found) return t("content.problems.elsewhere");
 	// A Body field's `[n]` is one of its Blocks, not a Repeater's row.

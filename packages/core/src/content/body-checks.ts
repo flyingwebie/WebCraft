@@ -4,15 +4,24 @@ import { inArray } from "drizzle-orm";
 
 import { isUuid } from "../ids.ts";
 import { readText, storedTexts } from "../media/texts.ts";
+import type { SeoCheckKind } from "../seo/seo-rules.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import type { FieldDefinition, Json } from "./field-types.ts";
 
 /**
  * A Check on an Entry (`GLOSSARY.md`): a warning shown while it is edited, which never stops it
- * being published. `at` is where it is (`fields.body[3]`, a Body field's fourth Block), `check` what
- * it is about, for the admin to word, and `detail` the words it is about (a vague link's text).
+ * being published. `at` is where it is (`fields.body[3]`, a Body field's fourth Block; `seo.title`),
+ * `check` what it is about, for the admin to word, and `detail` the words it is about (a vague link's
+ * text). Body fields' Checks come from here, the SEO check's from `seo/checks.ts`.
  */
-export type EntryCheck = { at: string; check: BodyCheckKind; message: string; detail?: string };
+export type EntryCheck = {
+	at: string;
+	check: BodyCheckKind | SeoCheckKind;
+	message: string;
+	detail?: string;
+	/** The numbers the Check's words need (the SEO check's lengths). */
+	params?: Readonly<Record<string, number>>;
+};
 
 const MESSAGES: Readonly<Record<BodyCheckKind, (detail: string | undefined) => string>> = {
 	skippedHeading: (detail) =>

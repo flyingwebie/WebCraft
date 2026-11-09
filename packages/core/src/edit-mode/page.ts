@@ -25,11 +25,11 @@ import type { EditItem } from "./regions.ts";
 export type PageChange = {
 	/** `entry:<id>` or `globals`. */
 	item: string;
-	/** The stored value's key: `title`, `slug`, `parent` or a Field's key. */
+	/** The stored value's key: `title`, `slug`, `parent`, `seo` (the SEO fields) or a Field's key. */
 	key: string;
 	/** The Field's label; null for an Entry's built-in values, which the editing bar names itself. */
 	label: string | null;
-	/** The Field's type (`text`, `richText`, …), or `text` and `parent` for built-in values. */
+	/** The Field's type (`text`, `richText`, …), or `text`, `parent` and `seo` for built-in values. */
 	type: string;
 	/** Who wrote the Draft's value, when one person did; `you` when it was the person asking. */
 	by: { name: string; you: boolean } | null;
@@ -200,7 +200,7 @@ function nameOf(item: EditItem): string {
 }
 
 /** Built-in values an Entry stores beside its Fields, in the order the Publish menu lists them. */
-const BUILT_IN_KEYS = ["title", "slug", "parent"] as const;
+const BUILT_IN_KEYS = ["title", "slug", "parent", "seo"] as const;
 
 /** Every stored value of the items whose Draft differs from what is published. */
 async function changesOf(
@@ -239,7 +239,7 @@ async function changesOf(
 				item: nameOf(item),
 				key,
 				label: field?.label ?? (builtIns.includes(key) ? null : key),
-				type: field?.type ?? (key === "parent" ? "parent" : "text"),
+				type: field?.type ?? (key === "parent" || key === "seo" ? key : "text"),
 				// Who wrote it in the page's language; a shared value is kept under the Default language.
 				writer: writerOf(draft[key], language) ?? writerOf(draft[key], defaultLanguage),
 			});

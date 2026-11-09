@@ -56,6 +56,12 @@ export const postTypes = pgTable(
 		 * (`summary`, `address.city`, `steps.text`) and `weight` A (counts most) to D.
 		 */
 		searchedFields: jsonb("searched_fields").notNull().default(sql`'[{"field":"title","weight":"A"}]'::jsonb`),
+		/**
+		 * Its SEO settings (the SEO decision): the title pattern, the Fields its Entries' description and
+		 * social image fall back to, and its Schema type with each property mapped to a Field. `{}` until
+		 * Staff set them: WebCraft's defaults, worked out from its Fields, apply until then.
+		 */
+		seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

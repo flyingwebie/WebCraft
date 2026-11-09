@@ -24,6 +24,7 @@ import { errorCode, errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
+import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
 import { useAutosave } from "./autosave.ts";
 import {
 	DraftStatusCard,
@@ -40,14 +41,21 @@ import { problemText } from "./problems.ts";
 import type { RelationshipTargets } from "./RelationshipPicker.tsx";
 
 /** A change to an Entry's Draft, as `entries.saveDraft` takes it. */
-type EntryChange = { title?: string; slug?: string; parentId?: string | null; fields?: Record<string, Json> };
+type EntryChange = {
+	title?: string;
+	slug?: string;
+	parentId?: string | null;
+	fields?: Record<string, Json>;
+	seo?: Partial<SeoValues>;
+};
 
 /** A Page another Page can be under. */
 export type PageOption = { id: string; title: string; slug: string; parentId: string | null };
 
 function mergeChanges(older: EntryChange, newer: EntryChange): EntryChange {
 	const fields = older.fields || newer.fields ? { ...older.fields, ...newer.fields } : undefined;
-	return { ...older, ...newer, ...(fields ? { fields } : {}) };
+	const seo = older.seo || newer.seo ? { ...older.seo, ...newer.seo } : undefined;
+	return { ...older, ...newer, ...(fields ? { fields } : {}), ...(seo ? { seo } : {}) };
 }
 
 /**
@@ -84,6 +92,7 @@ export function EntryEditor({
 		slug: loaded.draft.slug,
 		parentId: loaded.draft.parentId,
 		fields: loaded.draft.fields as FieldValues,
+		seo: loaded.draft.seo,
 	}));
 	const [refused, setRefused] = useState<Problem[]>([]);
 	const [slugTaken, setSlugTaken] = useState(false);
@@ -123,7 +132,12 @@ export function EntryEditor({
 	});
 
 	const change = (part: EntryChange) => {
-		setValues((before) => ({ ...before, ...part, fields: { ...before.fields, ...part.fields } }));
+		setValues((before) => ({
+			...before,
+			...part,
+			fields: { ...before.fields, ...part.fields },
+			seo: { ...before.seo, ...part.seo },
+		}));
 		autosave.change(part);
 	};
 
@@ -301,6 +315,17 @@ export function EntryEditor({
 						</p>
 					) : null}
 				</DraftStatusCard>
+
+				<EntrySeoCard
+					siteId={siteId}
+					postType={postType}
+					entry={entry}
+					values={values.seo}
+					problems={problems}
+					media={media}
+					onMediaChosen={(item) => setMedia((before) => ({ ...before, [item.id]: item }))}
+					onChange={(seo) => change({ seo })}
+				/>
 
 				<Card>
 					<CardHeader>

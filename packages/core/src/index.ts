@@ -196,6 +196,7 @@ export {
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";
 export * from "./secrets/index.ts";
+export * from "./seo/index.ts";
 export type { InstallPorts, InstallServices } from "./services.ts";
 export {
 	type InstallSetup,

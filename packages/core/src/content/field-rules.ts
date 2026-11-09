@@ -186,6 +186,23 @@ export const SETTING_RULES = [
 	"searchedFieldUnknown",
 	"searchedFieldType",
 	"searchedFieldTwice",
+	// Its SEO settings (the title pattern, the fallbacks and the Schema type)
+	"seoTitlePatternLength",
+	"seoTitleToken",
+	"seoDescriptionField",
+	"seoImageField",
+	"schemaTypeUnknown",
+	"schemaPropertyUnknown",
+	"schemaSource",
+	"schemaFaqRepeater",
+	// A Site's SEO settings
+	"seoSiteNameLength",
+	"seoSeparator",
+	"seoImage",
+	"seoOrganizationKind",
+	"seoOrganizationName",
+	"seoSameAs",
+	"seoGlobal",
 ] as const;
 
 export type SettingRule = (typeof SETTING_RULES)[number];

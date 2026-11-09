@@ -280,7 +280,8 @@
 			"loops": "Loops",
 			"forms": "Forms",
 			"libraries": "Libraries",
-			"imports": "Imports"
+			"imports": "Imports",
+			"seo": "SEO"
 		}
 	},
 	"masterKeyBanner": {
@@ -982,7 +983,8 @@
 			"component": "Component {name}",
 			"loop": "Loop {name}",
 			"designSystem": "Design system",
-			"untitled": "Untitled"
+			"untitled": "Untitled",
+			"seoSettings": "SEO settings"
 		},
 		"focal": {
 			"heading": "Focal point",
@@ -1276,7 +1278,8 @@
 		"builtIns": {
 			"title": "Title",
 			"slug": "Address",
-			"parent": "Parent page"
+			"parent": "Parent page",
+			"seo": "SEO fields"
 		},
 		"types": {
 			"text": "Text",
@@ -2054,7 +2057,22 @@
 			"searchedFieldType": "Site search reads text, rich text, Body, select, link and email Fields, not {field}.",
 			"searchedFieldTwice": "{field} is searched once, with one weight.",
 			"bodyInLoop": "Loop items have no Body field: a query Loop over a Post Type reads its Entries' bodies.",
-			"relationshipInLoop": "Loop items can't hold Relationships: a query Loop lists Entries."
+			"relationshipInLoop": "Loop items can't hold Relationships: a query Loop lists Entries.",
+			"seoTitlePatternLength": "A title pattern has 1 to {max} characters.",
+			"seoTitleToken": "{token} isn't a token a title pattern knows: the tokens are title, site, postType and separator, each in curly brackets.",
+			"seoDescriptionField": "A description comes from a text, rich text or Body field, not {field}.",
+			"seoImageField": "A social image comes from a media Field or a Body field, not {field}.",
+			"schemaTypeUnknown": "{type} isn't one of the Schema types.",
+			"schemaPropertyUnknown": "This Schema type has no property {property}.",
+			"schemaSource": "{source} can't give {property}: choose a Field of the right kind.",
+			"schemaFaqRepeater": "An FAQ's questions and answers are two Fields of the same Repeater.",
+			"seoSiteNameLength": "The Site's name has at most {max} characters.",
+			"seoSeparator": "A separator has 1 to {max} characters, such as · or |.",
+			"seoImage": "Choose a JPEG, PNG, WebP, AVIF or GIF image of the Media library.",
+			"seoOrganizationKind": "The organisation is an Organization or a LocalBusiness.",
+			"seoOrganizationName": "The organisation's name has at most {max} characters.",
+			"seoSameAs": "Give up to {max} https addresses of profiles elsewhere.",
+			"seoGlobal": "Choose a text, rich text or email Global, not {global}."
 		},
 		"requiredToPublish": "(needed to publish)",
 		"shared": "Shared",
@@ -2417,7 +2435,8 @@
 			"globalsLabel": "Globals",
 			"fields": "Fields",
 			"data": "Data",
-			"search": "Site search"
+			"search": "Site search",
+			"seo": "SEO"
 		},
 		"search": {
 			"heading": "Site search",
@@ -3113,6 +3132,116 @@
 			"targetTwice": "Two columns go into the same Field.",
 			"matchUnknown": "Entries can only be matched by the title, the slug, or a text, email or number Field.",
 			"matchNotMapped": "Choose a column for what rows match Entries by."
+		}
+	},
+	"seo": {
+		"card": {
+			"heading": "SEO & sharing",
+			"title": "SEO title",
+			"titleHelp": "The page's whole title in search results. Leave it empty to use the Post Type's title pattern.",
+			"description": "Description",
+			"descriptionHelp": "Leave it empty to use the Post Type's description Field or the start of the body.",
+			"count": "{count} of {max} characters",
+			"image": "Social image",
+			"imageFromField": "Without one, it uses {field}.",
+			"imageFromSite": "Without one, it uses the Site's default image.",
+			"imageNone": "Without one, shared links show no picture.",
+			"imageRefused": "Choose a JPEG, PNG, WebP, AVIF or GIF image of the Media library.",
+			"canonical": "Canonical URL",
+			"canonicalHelp": "Leave it empty for this page's own address. A path on the Site or an https address.",
+			"canonicalRefused": "A canonical URL is an https or http address, or a path on the Site starting with /.",
+			"noindex": "Hide from search engines",
+			"noindexHelp": "Search engines are asked not to index this page, and Site search leaves it out. One setting for every language.",
+			"checks": "SEO check",
+			"checksHelp": "Warnings only: they never stop a publish.",
+			"structuredData": "Structured data: {type}, set on the Post Type."
+		},
+		"checks": {
+			"seoTitleLong": "The title is {length} characters long: search engines show about {max}.",
+			"seoDescriptionMissing": "There's no description: search engines will pick some of the page's text.",
+			"seoDescriptionShort": "The description is {length} characters long: at least {min} says more about the page.",
+			"seoDescriptionLong": "The description is {length} characters long: search engines show about {max}.",
+			"seoImageMissing": "There's no social image: shared links will show without a picture.",
+			"seoImageAlt": "The social image has no alt text in this language."
+		},
+		"schemaTypes": {
+			"webPage": "Web page",
+			"article": "Article",
+			"blogPosting": "Blog post",
+			"product": "Product",
+			"event": "Event",
+			"person": "Person",
+			"organization": "Organisation",
+			"localBusiness": "Local business",
+			"faqPage": "FAQ page",
+			"recipe": "Recipe",
+			"service": "Service"
+		},
+		"sources": {
+			"title": "Title",
+			"author": "Author",
+			"publishedAt": "First published",
+			"lastPublishedAt": "Last published",
+			"createdAt": "Created",
+			"seoDescription": "The page's description",
+			"seoImage": "The page's social image"
+		},
+		"postType": {
+			"heading": "SEO",
+			"intro": "What this Post Type's Entries fall back to when their SEO fields are empty, and how they describe themselves to search engines.",
+			"titlePattern": "Title pattern",
+			"titlePatternHelp": "Pages without an SEO title are titled by this pattern. Add a token:",
+			"addToken": "Add {token} to the title pattern",
+			"descriptionField": "Description from",
+			"bodyStart": "The start of the Body field",
+			"noBody": "None",
+			"descriptionHelp": "Cut at a word to about 155 characters, as plain text.",
+			"imageField": "Social image from",
+			"noImage": "None",
+			"imageHelp": "Without it, pages use the Site's default image.",
+			"schemaType": "Schema type",
+			"schemaTypeHelp": "What this Post Type's Entries are, for search engines. Choosing one maps its properties to WebCraft's guesses.",
+			"properties": "Properties",
+			"propertiesHelp": "Where each property's value comes from. Properties left unmapped are left out.",
+			"property": "Property",
+			"from": "From",
+			"fromOf": "Where {property} comes from",
+			"notMapped": "Not mapped",
+			"save": "Save",
+			"discard": "Discard changes",
+			"unsaved": "Unsaved changes",
+			"saved": "SEO settings saved.",
+			"notSaved": "The SEO settings weren't saved:"
+		},
+		"site": {
+			"heading": "SEO",
+			"intro": "What every page of the Site falls back to, and who search engines are told is behind it. Changes apply at once.",
+			"siteName": "Site name in titles",
+			"siteNameHelp": "Leave it empty to use the Site's name, {name}.",
+			"separator": "Separator",
+			"separatorHelp": "Put between the parts of a title, such as · or |.",
+			"defaultImage": "Default social image",
+			"defaultImageHelp": "Shared links of pages without an image of their own show it.",
+			"organization": "Organisation",
+			"organizationHelp": "Every page tells search engines who is behind the Site.",
+			"kind": "Kind",
+			"kinds": {
+				"organization": "Organisation",
+				"localBusiness": "Local business"
+			},
+			"organizationName": "Name",
+			"organizationNameHelp": "Leave it empty to use the Site's name in titles.",
+			"logo": "Logo",
+			"sameAs": "Profiles elsewhere",
+			"sameAsHelp": "One https address per line, such as the organisation's social media pages.",
+			"telephone": "Telephone from",
+			"email": "Email from",
+			"address": "Address from",
+			"globalsHelp": "Its telephone, email and address come from the Globals.",
+			"noGlobal": "None",
+			"save": "Save",
+			"saved": "SEO settings saved.",
+			"notSaved": "The SEO settings weren't saved:"
 		}
 	}
 }

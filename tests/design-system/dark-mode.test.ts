@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { withoutStructuredData } from "../harness/seo.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
 
 let install: TestInstall;
@@ -142,7 +143,9 @@ describe("the theme toggle", () => {
 		expect(scripts).toHaveLength(1);
 		expect(scripts[0]).toMatch(/^\/_wc\/js\/[0-9a-f]{16}\.js$/);
 		// No script is ever written into the page itself.
-		expect([...html.matchAll(/<script\b[^>]*>/g)].map((match) => match[0])).toEqual([`<script src="${scripts[0]}">`]);
+		expect([...withoutStructuredData(html).matchAll(/<script\b[^>]*>/g)].map((match) => match[0])).toEqual([
+			`<script src="${scripts[0]}">`,
+		]);
 
 		const script = await install.request(`${origin}${scripts[0]}`);
 		expect(script.status).toBe(200);
@@ -158,7 +161,7 @@ describe("the theme toggle", () => {
 		const { html } = await pageWithStyles(install, url);
 
 		expect(html).toContain("<header><p>Acme Bakery</p></header>");
-		expect(html).not.toContain("<script");
+		expect(withoutStructuredData(html)).not.toContain("<script");
 	});
 
 	test("pages without a toggle get no script", async () => {
@@ -166,7 +169,7 @@ describe("the theme toggle", () => {
 		await staff.api.designSystem.saveDraft({ siteId, darkMode: true });
 		await staff.api.designSystem.publish({ siteId });
 
-		expect((await pageWithStyles(install, url)).html).not.toContain("<script");
+		expect(withoutStructuredData((await pageWithStyles(install, url)).html)).not.toContain("<script");
 	});
 
 	test("is written {{@themeToggle}} in markup and stored as its own node; it can't go inside a link", async () => {

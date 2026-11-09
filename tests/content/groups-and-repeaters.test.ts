@@ -120,7 +120,9 @@ describe("defining them", () => {
 			siteId,
 			name: "Nested titles",
 			urlPattern: "/nested/{slug}",
-			fields: [{ key: "seo", label: "SEO", type: "group", fields: [{ key: "title", label: "Title", type: "text" }] }],
+			fields: [
+				{ key: "heading", label: "Heading", type: "group", fields: [{ key: "title", label: "Title", type: "text" }] },
+			],
 		});
 		expect(postType.fields[0]).toMatchObject({ fields: [{ key: "title" }] });
 	});

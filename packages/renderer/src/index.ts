@@ -174,6 +174,16 @@ export {
 export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
 export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText } from "./rich-text.ts";
 export {
+	cutText,
+	type JsonLd,
+	jsonLdText,
+	type PageSeo,
+	type PageSharing,
+	type SocialImage,
+	seoTags,
+	sharingTags,
+} from "./seo.ts";
+export {
 	type Attribute,
 	type AttributePart,
 	type CommentNode,
@@ -213,10 +223,15 @@ export {
 export {
 	type BodyValue,
 	bodyValue,
+	isBody,
+	isList,
+	isPresent,
+	isRichText,
 	type RichText,
 	richText,
 	type TemplateValue,
 	type TocValue,
+	textOf,
 	tocValue,
 	type ValueReader,
 } from "./values.ts";

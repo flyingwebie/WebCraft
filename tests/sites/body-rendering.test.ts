@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { withoutStructuredData } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
@@ -191,7 +192,7 @@ describe("{{ body }} on a page", () => {
 			].join(""),
 		);
 		// Without a video, the page links no script.
-		expect(html).not.toContain("<script");
+		expect(withoutStructuredData(html)).not.toContain("<script");
 	});
 
 	test("an image shows the Media item's alt text and caption; the first in <main> loads first", async () => {

@@ -169,7 +169,8 @@ describe("the Design system's page parts", () => {
 		const page = await install.newPage("dark");
 		await page.goto(install.siteUrl(slug, "/blog/fresh-bread"));
 
-		expect(await page.locator("script").count()).toBe(0);
+		// No script that runs: the page's structured data is a data block, never run.
+		expect(await page.locator('script:not([type="application/ld+json"])').count()).toBe(0);
 		expect(await page.getByRole("button").count()).toBe(0);
 	});
 });

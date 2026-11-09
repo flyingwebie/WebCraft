@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId/entries/$postTypeId/
 			if (entry.postTypeId !== postType.id) throw notFound();
 			const [relationships, media, pages] = await Promise.all([
 				loadRelationshipTargets(api, siteId, postType.fields, entry.language),
-				loadMedia(api, siteId, postType.fields, entry.draft.fields),
+				loadMedia(api, siteId, postType.fields, entry.draft.fields, [entry.draft.seo.image]),
 				postType.builtIn === "page"
 					? api.entries.list({ siteId, postTypeId: postType.id }).then(({ entries }) =>
 							entries.map((page) => ({
