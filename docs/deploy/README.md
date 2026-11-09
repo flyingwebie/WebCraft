@@ -10,16 +10,16 @@ An Install runs on one of three supported targets:
 
 The images are plain, so other hosts may work, but only these three are supported. A server with 2 vCPUs and 2 GB of memory is enough to start.
 
-This page covers what every target shares: the images, the settings, the first start, the Master key, updates, backups, and how the Install tells visitors' addresses apart behind a proxy or a CDN.
+This page covers what every target shares: the images, the settings, the first start, the Master key, updates and going back a version, Backups and restoring them, the update check, and how the Install tells visitors' addresses apart behind a proxy or a CDN.
 
 ## The images
 
 Two images, published to the GitHub Container Registry for `linux/amd64` and `linux/arm64`:
 
-- `ghcr.io/flyingwebie/webcraft-web`: the web process (Bun): the admin, the APIs and every Site. It also holds the `webcraft` command for the server commands (`webcraft admin migrate`, `create-superadmin`, `rotate-key`), so `docker compose exec web webcraft admin …` works. Its health check asks `/readyz` on the admin host.
-- `ghcr.io/flyingwebie/webcraft-worker`: the worker (Node LTS): jobs, image processing, email, Webhooks and Domain checks. It answers no HTTP, so it has no health check.
+- `ghcr.io/flyingwebie/webcraft-web`: the web process (Bun): the admin, the APIs and every Site. It also holds the `webcraft` command for the server commands (`webcraft admin migrate`, `backup`, `restore`, `check-update`, `create-superadmin`, `rotate-key`), so `docker compose exec web webcraft admin …` works. Its health check asks `/readyz` on the admin host.
+- `ghcr.io/flyingwebie/webcraft-worker`: the worker (Node LTS): jobs, image processing, email, Webhooks, Domain checks and the daily Backup. It answers no HTTP, so it has no health check.
 
-Tags: a release `v1.2.3` is published as `1.2.3`, `1.2`, `1` and `latest`; the `main` branch as `main` and `sha-<commit>`. Pin an exact release (`1.2.3`) in production, so an update happens only when you change it. Both images run as an unprivileged user (uid 1000) and keep files in `/var/lib/webcraft/storage`, a volume they share.
+Tags: a release `v1.2.3` is published as `1.2.3`, `1.2`, `1` and `latest`; the `main` branch as `main` and `sha-<commit>`. Pin an exact release (`1.2.3`) in production, so an update happens only when you change it. Both images run as an unprivileged user (uid 1000) and keep files in `/var/lib/webcraft/storage` and Backups in `/var/lib/webcraft/backups`, two volumes they share (with the migrate step, which runs the web image). Neither image needs `pg_dump`: WebCraft writes and reads a Backup's database dump itself.
 
 The images are built from this repository by `.github/workflows/images.yml` (`apps/server/Dockerfile`, `apps/worker/Dockerfile`). To build one yourself: `docker build -f apps/server/Dockerfile -t webcraft-web .` from the repo root.
 
@@ -36,6 +36,8 @@ Every setting is an environment variable; web, worker and the migrate step get t
 | `WEBCRAFT_EDGE` | `caddy`, `coolify` or `railway`. Each target's files set it. |
 | `WEBCRAFT_PUBLIC_ADDRESSES` | Optional: the Install's public IP addresses, separated by commas. Site domains point their A and AAAA records at them; without it, the Domains screen offers only a CNAME record to the admin host. |
 | `WEBCRAFT_TRUSTED_PROXIES` | Optional: the proxies whose word on a visitor's address is believed (see "Visitors' addresses"). Each target's default is right unless you add a proxy of your own. |
+| `WEBCRAFT_BACKUP_DIR` | The Backups folder. The images set it to `/var/lib/webcraft/backups`; mount a volume there in the worker, the migrate step and the web container (see "Backups"). |
+| `WEBCRAFT_UPDATE_FEED` | Optional: where the update check reads the newest release (an `https` address), or `off`. Unset, the project's own feed (see "The update check"). |
 
 Web and worker refuse to start when a setting is missing or malformed, when the database is behind (run the migrate step), or when `WEBCRAFT_SECRET_KEY` isn't the Install's Master key; the log says which and how to fix it.
 
@@ -51,16 +53,58 @@ Web and worker refuse to start when a setting is missing or malformed, when the 
 
 ## Updates
 
-Change the image tag (`WEBCRAFT_VERSION`) and deploy again. The migrate step applies the new version's migrations first; web and worker start only once it has finished, and refuse to start on a database that is behind (ADR 0031). Every migration keeps the previous version working, so going back one version is changing the tag back. There is no one-click update: it would need the Docker socket.
+Change the image tag (`WEBCRAFT_VERSION`) and deploy again. The migrate step runs first (ADR 0031): when anything is pending (WebCraft's migrations, a Module's, the job queue's schema) it **takes a Backup** of the Install, where Install settings › Backups says, then applies each migration in its own transaction, makes or updates every job queue and records the version. Web and worker start only once it has finished, and refuse to start on a database that is behind. There is no one-click update: it would need the Docker socket.
+
+`webcraft admin migrate --no-backup` skips the Backup (and says so). Each target's files run the step with its Backup; on Railway, send Backups to a bucket first (see [railway.md](railway.md)), since the pre-deploy container keeps nothing.
+
+### Going back a version
+
+Every migration keeps the previous version working (add first, remove in a later release), so going back one version is changing the tag back: the previous version's migrate step accepts the newer database and changes nothing, and web and worker start on it.
+
+One thing can't go back: **the job queue's schema**. When an update upgraded it, the migrate step says so ("The job queue schema went from version 46 to version 47"), and the previous version refuses to start on it (`/readyz` answers `job-queue-newer`). Going back then means restoring the Backup the migrate step took before that update, with the previous version (see "Restoring"): changes made since are lost.
+
+A migration that fails is rolled back and stops the step; the ones before it stay applied, and the previous version runs on them. Fix the cause (or go back to the previous tag), then run the step again.
 
 ## Backups
 
-Until `webcraft admin backup` comes (with scheduled Backups), back up the two things that hold an Install's data, and keep the Master key apart from both:
+A **Backup** (ADR 0032) is one archive of the whole Install, `webcraft-backup-<date>-<time>-<why>-<id>.tar`: a plain tar file holding
 
-- **The database**, with `pg_dump` (each guide has the command for its target).
-- **The storage volume** (`/var/lib/webcraft/storage`): uploaded Media while the Install's storage is local disk (Install settings › Storage). With an S3-compatible bucket, use the bucket's own versioning or replication instead.
+- `manifest.json`: when and why it was taken, the WebCraft version that wrote the data and the one that took it, the Module SDK version, the Modules and their versions, the migration level (every migration the database had), and the **Master key's fingerprint**, never the key;
+- `database/*.copy.gz`: every row of WebCraft's tables and every Module's (partitioned tables included), and every sequence, as of one moment. The job queue isn't in it (jobs waiting at that moment are lost; see "Restoring"), nor the day's salts of Site analytics, which must not outlive their day;
+- `files/…`: the files kept on local disk: Media originals and uploads waiting for the worker, Library files, files waiting for an Import and Form uploads. Media's resized copies (variants) aren't: a restore makes them again.
 
-Restore into an empty database of the same or a newer WebCraft version, with the same Master key, then run the migrate step.
+While the Install's storage is an **S3-compatible bucket**, its files stay there: a Backup doesn't copy them (the manifest says how many there are). Turn on the bucket's versioning or replication instead; a bucket is usually the safer copy.
+
+**Taking one**:
+
+- **Every day** at 01:11 UTC the worker takes one, while Install settings › Backups has scheduled Backups on (the default). It keeps the newest Backup of each of the last 7 days and of each of the last 4 weeks (Monday to Sunday, UTC), 7 to 11 archives, and removes older scheduled ones.
+- **By the migrate step**, before it changes anything (see "Updates").
+- **By command**: `webcraft admin backup` writes one where Install settings › Backups says, or `webcraft admin backup --to <file or folder>`.
+
+**Where they go** (Install settings › Backups, the Superadmin): the **Backups folder** (`WEBCRAFT_BACKUP_DIR`, a volume on the server; copy its archives off the server too), or an **S3-compatible bucket**, under a `backups/` folder after the bucket's prefix, uploaded in parts. Use another bucket than Media's. The bucket's secret access key is stored encrypted under the Master key, like every secret; WebCraft writes, reads and removes a small file there before saving. Backups taken by command or by the migrate step are never removed by the keep rules.
+
+A Backup that fails is in the Backup log on Install settings › Backups with why, in the log, and on a notice on every admin page for the Superadmin until one succeeds.
+
+Every archive holds every local file, so each is about as big as the database plus local storage. Keep that in mind for the Backups volume's disk.
+
+## Restoring
+
+`webcraft admin restore <archive>` restores a whole Install (never one Site of it: Sites move by Site export, ADR 0033) into an empty database:
+
+1. **Stop web and worker.** The command refuses to run while either is connected to the database.
+2. Make sure the environment has the **Master key the Install had** when the Backup was taken: the command refuses another one (the manifest's fingerprint must match). The key is never in a Backup.
+3. Run it with the Install's environment, the storage volume mounted, and the archive where the command can read it (a Backup in a bucket: download it first). It refuses a database that holds anything (`--force` replaces everything in it, once you type the database's name, or pass `--confirm <name>`), a Backup a newer WebCraft wrote or with migrations this version doesn't have, and a file that isn't a Backup.
+4. It rebuilds the schema the Backup was taken at, loads every row in one transaction, writes the files back into local storage, then runs the migrate step: a Backup of an older version comes back up to the running one. It queues every image's variants to be made again (pages show the originals until the worker has made them), uploads still waiting to be cleaned and Import runs that were under way, and starts every Site's page cache and search index over.
+5. Start web and worker.
+
+Jobs that were waiting in the queue when the Backup was taken (emails being retried, Webhook deliveries) are not in it: their lines in the Email log and the delivery log stay as they were.
+
+## The update check
+
+Once a day the worker reads a public release feed for the newest WebCraft release, and the Superadmin sees "Update available" on the Install's pages (with a link to the release notes), and the version on Install settings › General. `webcraft admin check-update` reads it at once.
+
+- The feed is the project's latest-release JSON on GitHub unless `WEBCRAFT_UPDATE_FEED` names another `https` address (an agency's own static file of `{ "version", "url", "notes" }`, or GitHub's release JSON of a fork); `WEBCRAFT_UPDATE_FEED=off` turns the check off.
+- The request sends nothing about the Install: a plain `User-Agent: WebCraft`, no id, no version, no query added. It goes through the guarded fetcher (public addresses only, a timeout and a size limit), at most once a day, and the result is kept in the database: the admin never calls out itself.
 
 ## Visitors' addresses
 

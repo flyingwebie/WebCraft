@@ -1,3 +1,4 @@
+import { backupsScheduled, backupsScheduledSchedule } from "../backups/jobs.ts";
 import { cdnRefreshRanges, cdnRefreshRangesSchedule } from "../cdns/index.ts";
 import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
 import {
@@ -29,6 +30,7 @@ import { visitorSaltsPurge, visitorSaltsPurgeSchedule } from "../modules/visitor
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
 import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
+import { updatesCheck, updatesCheckSchedule } from "../updates.ts";
 import { webhooksDeliver, webhooksPurgeLog, webhooksPurgeLogSchedule } from "../webhooks/jobs.ts";
 import type { JobDefinition } from "./define.ts";
 import { samplePing } from "./sample-ping.ts";
@@ -67,6 +69,8 @@ export const coreJobs = [
 	consentRecordsPurge,
 	webhooksDeliver,
 	webhooksPurgeLog,
+	backupsScheduled,
+	updatesCheck,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -87,6 +91,8 @@ export const coreSchedules = [
 	searchRebuildDueSchedule,
 	consentRecordsPurgeSchedule,
 	webhooksPurgeLogSchedule,
+	backupsScheduledSchedule,
+	updatesCheckSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {
@@ -99,5 +105,6 @@ export {
 	runJob,
 	workJobs,
 } from "./define.ts";
+export { jobQueues } from "./queues.ts";
 export { samplePing } from "./sample-ping.ts";
 export { defineSchedule, type JobSchedule, scheduleJobs } from "./schedules.ts";

@@ -282,6 +282,7 @@
 			"libraries": "Libraries",
 			"imports": "Imports",
 			"seo": "SEO",
+			"backups": "Backups",
 			"templates": "Templates",
 			"components": "Components"
 		}
@@ -328,7 +329,18 @@
 		"defaultLanguage": "Default Admin language",
 		"defaultLanguageHelp": "The language of signed-out pages and of everyone who hasn't chosen their own.",
 		"save": "Save",
-		"saved": "Saved."
+		"saved": "Saved.",
+		"version": {
+			"heading": "WebCraft version",
+			"running": "This Install runs WebCraft {version}.",
+			"newer": "WebCraft {version} is available.",
+			"newest": "It is the newest release.",
+			"checked": "Last checked {time}.",
+			"never": "The release feed hasn't been checked yet: the worker checks it once a day.",
+			"off": "The update check is off (WEBCRAFT_UPDATE_FEED=off).",
+			"problem": "The last check couldn't read the release feed.",
+			"notes": "Release notes"
+		}
 	},
 	"securitySettings": {
 		"pageTitle": "Security",
@@ -3244,6 +3256,57 @@
 			"save": "Save",
 			"saved": "SEO settings saved.",
 			"notSaved": "The SEO settings weren't saved:"
+		}
+	},
+	"backupFailingBanner": {
+		"title": "The last Backup failed",
+		"body": "The Install's newest Backup couldn't be written. Until one succeeds, a lost server or a regretted update can't be undone from it.",
+		"action": "See Backups"
+	},
+	"updateBanner": {
+		"title": "WebCraft {version} is available",
+		"body": "This Install runs WebCraft {running}. To update, change the image tag and deploy again: the migrate step takes a Backup first.",
+		"action": "Release notes for {version}"
+	},
+	"backupSettings": {
+		"pageTitle": "Backups",
+		"heading": "Backups",
+		"intro": "A Backup holds the whole Install: its database, the files kept on local disk (but the resized copies of images, which are made again) and a manifest. It never holds the Master key: keep WEBCRAFT_SECRET_KEY somewhere else, as a restore needs it.",
+		"scheduled": "Take a Backup every day",
+		"scheduledHelp": "At 01:11 UTC, by the worker. The newest Backup of each of the last {daily} days and of each of the last {weekly} weeks is kept; older scheduled Backups are removed. Backups taken by command or before migrations are kept.",
+		"where": "Where Backups go",
+		"folder": "Backups folder",
+		"folderHelp": "On this server, in {directory} (WEBCRAFT_BACKUP_DIR). Copy Backups off the server as well.",
+		"s3": "S3-compatible bucket",
+		"s3Help": "Backups go into a backups folder of the bucket, uploaded in parts. Before saving, WebCraft writes, reads and removes a small file there. Use a bucket other than the one holding Media.",
+		"prefixHelp": "Optional. Put in front of the backups folder, so one bucket can hold several Installs.",
+		"save": "Save",
+		"saved": "Saved.",
+		"log": {
+			"heading": "Recent Backups",
+			"emptyTitle": "No Backups yet",
+			"emptyBody": "The first scheduled Backup is taken tonight; webcraft admin backup takes one now.",
+			"when": "Taken",
+			"reason": "Why",
+			"status": "Status",
+			"size": "Size",
+			"where": "Where",
+			"reasons": {
+				"scheduled": "Scheduled",
+				"command": "By command",
+				"beforeMigrations": "Before migrations"
+			},
+			"statuses": {
+				"running": "Being taken",
+				"done": "Done",
+				"failed": "Failed",
+				"removed": "Removed"
+			}
+		},
+		"restore": {
+			"heading": "Restoring",
+			"body": "A Backup is restored on the server, into an empty database, with the Master key the Install had then. Stop web and worker first, then run:",
+			"site": "Restoring brings back the whole Install. To move or copy one Site, use a Site export instead."
 		}
 	},
 	"templates": {

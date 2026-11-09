@@ -4,6 +4,7 @@ import type { Database } from "@webcraft/db";
 import type { Account } from "./account.ts";
 import type { AiProviders } from "./ai.ts";
 import type { AuditEntry } from "./audit.ts";
+import type { Backups } from "./backups/service.ts";
 import type { Builder } from "./builder/index.ts";
 import type { Cdns } from "./cdns/index.ts";
 import type { Clock } from "./clock.ts";
@@ -87,6 +88,7 @@ import type { MembershipsService } from "./tenancy/memberships.ts";
 import type { StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
 import type { TlsProbe } from "./tls.ts";
+import type { Updates } from "./updates.ts";
 import type { Webhooks } from "./webhooks/index.ts";
 
 /**
@@ -454,4 +456,11 @@ export type InstallServices = InstallPorts & {
 	 * them (their procedures, Site routes, events and jobs) within what they declared.
 	 */
 	modules: ModuleHost;
+	/**
+	 * Backups (ADR 0032): Install settings › Backups, the Backup log, taking one (the worker's daily
+	 * Backup) and the keep rules. Restoring is `webcraft admin restore`.
+	 */
+	backups: Backups;
+	/** The update check: the newest WebCraft release the release feed lists, checked once a day. */
+	updates: Updates;
 };

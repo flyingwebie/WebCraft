@@ -20,6 +20,9 @@ export function readyz(request: Request, services: InstallServices): Promise<Res
 				return json(200, { status: "ready", checks: { database: "ok", schema: "current" } });
 			case "behind":
 				return json(503, { status: "not ready", checks: { database: "ok", schema: "behind" } });
+			case "job-queue-newer":
+				// After going back a version: the job queue can't run on a newer version's schema.
+				return json(503, { status: "not ready", checks: { database: "ok", schema: "job-queue-newer" } });
 			case "unreachable":
 				services.log.warn("The readiness check cannot reach the database", { error: check.error });
 				return json(503, { status: "not ready", checks: { database: "unreachable", schema: "unknown" } });
