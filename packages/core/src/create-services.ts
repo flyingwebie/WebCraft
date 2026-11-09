@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import { createBackups } from "./backups/service.ts";
+import { createBuilder } from "./builder/index.ts";
 import { createCdns } from "./cdns/index.ts";
 import { createCodeMode } from "./code-mode/index.ts";
 import { createConsent } from "./consent/index.ts";
@@ -35,6 +36,7 @@ import {
 	listEntries,
 	listLoops,
 	listPostTypes,
+	listTemplates,
 	publish,
 	removeLanguage,
 	renameComponent,
@@ -267,6 +269,7 @@ export async function createInstallServices(
 		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft, delete: deleteEntry },
 		globals: { get: getGlobals, setFields: setGlobalFields, saveDraft: saveGlobalsDraft, data: globalsData },
 		templates: {
+			list: listTemplates,
 			entryTemplate: getEntryTemplate,
 			saveEntryTemplate: (scope, postTypeId, tree) => saveEntryTemplate(scope, postTypeId, tree, componentSources),
 			entryTemplateMarkup: (scope, postTypeId) => getEntryTemplateMarkup(scope, postTypeId, componentSources),
@@ -370,6 +373,7 @@ export async function createInstallServices(
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
 		codeMode: createCodeMode({ data, sources: componentSources, pages: sitePages }),
+		builder: createBuilder({ sources: componentSources }),
 		memberships,
 		members: createMembers({ database, email }),
 		staff: createStaff({ email }),

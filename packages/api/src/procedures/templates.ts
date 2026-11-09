@@ -10,6 +10,16 @@ import { basedOn, id } from "../inputs.ts";
 
 /** Templates: Structure, stored as element trees with a Draft and a published version. Staff change and publish them. */
 export const templates = {
+	/**
+	 * Every Template the Site can have, made or not: the Site template, the Search results template,
+	 * then each Post Type's Entry and Archive templates (`unavailable: "address"` for an Archive whose
+	 * URL pattern starts with `{slug}`). Pages have neither.
+	 */
+	list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { templates: await context.services.templates.list(site) };
+	}),
+
 	/** A Post Type's Entry template, or null while it has none. */
 	getEntryTemplate: signedIn.input(z.object({ siteId: id, postTypeId: id })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");

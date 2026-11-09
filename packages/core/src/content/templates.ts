@@ -433,6 +433,74 @@ async function saveTemplateMarkup(
 	);
 }
 
+/** One Template a Site can have, made or not: see `listTemplates`. */
+export type TemplateListing = {
+	kind: TemplateKind;
+	/** The Post Type an Entry or Archive template belongs to; null for the Site and Search results templates. */
+	postType: { id: string; name: string } | null;
+	/** The Template, once the Site has made it. */
+	template: { id: string; status: TemplateStatus; updatedAt: Date } | null;
+	/** Why it can't be made: an Archive template of a URL pattern starting with `{slug}` has no address. */
+	unavailable: "address" | null;
+};
+
+/**
+ * Every Template the scope's Site can have, made or not: the Site template, the Search results
+ * template, then each Post Type's Entry and Archive templates (Pages have neither: they are arranged
+ * with Page layouts).
+ */
+export async function listTemplates(scope: SiteScope): Promise<TemplateListing[]> {
+	const rows = (await scope.select(templates)).map(toTemplate);
+	const made = (kind: TemplateKind, postTypeId: string | null) => {
+		const found = rows.find((row) => row.kind === kind && row.postTypeId === postTypeId);
+		return found ? { id: found.id, status: found.status, updatedAt: found.updatedAt } : null;
+	};
+	const listed: TemplateListing[] = [
+		{ kind: "site", postType: null, template: made("site", null), unavailable: null },
+		{ kind: "search", postType: null, template: made("search", null), unavailable: null },
+	];
+	for (const postType of await listPostTypes(scope)) {
+		if (isPagePostType(postType)) continue;
+		const owner = { id: postType.id, name: postType.name };
+		listed.push({ kind: "entry", postType: owner, template: made("entry", postType.id), unavailable: null });
+		let unavailable: TemplateListing["unavailable"] = null;
+		try {
+			archiveAddressOf(postType);
+		} catch {
+			unavailable = "address";
+		}
+		listed.push({ kind: "archive", postType: owner, template: made("archive", postType.id), unavailable });
+	}
+	return listed;
+}
+
+/** What a tree of one kind of Template may hold, as `parseElementTree` and `parseTemplateMarkup` take it. */
+export type TemplateTreeRules = ReturnType<typeof rulesFor>;
+
+/**
+ * A Template as the visual builder opens it (open the Site with `structure.edit`): the Template
+ * (null while the Site hasn't made it), and what its trees may hold, placing the Components and
+ * Forms given and naming the Loops given, as saving its Draft would check it. Throws as saving would
+ * for a Template that can't exist: Pages have no Entry template (`PagesHaveNoEntryTemplateError`)
+ * nor Archive template, nor has a URL pattern starting with `{slug}` (`ArchiveUnavailableError`).
+ */
+export async function templateSource(
+	scope: SiteScope,
+	kind: TemplateKind,
+	postTypeId: string | null,
+): Promise<{ template: Template | null; rules(components: SiteComponents, loops: LoopCatalogue): TemplateTreeRules }> {
+	const target =
+		kind === "site"
+			? await siteTemplateTarget(scope)
+			: kind === "search"
+				? await searchTemplateTarget(scope)
+				: kind === "archive"
+					? await archiveTemplateTarget(scope, postTypeId ?? "")
+					: await entryTemplateTarget(scope, postTypeId ?? "");
+	const row = await scope.first(templates, whereFor(target));
+	return { template: row ? toTemplate(row) : null, rules: (components, loops) => rulesFor(target, components, loops) };
+}
+
 /** Which Template markup is read for: see `readTemplateMarkup`. */
 export type TemplateMarkupTarget = { kind: "entry"; postTypeId: string } | { kind: "site" };
 
