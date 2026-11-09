@@ -26,7 +26,7 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 });
 
 afterAll(async () => {

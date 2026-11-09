@@ -682,6 +682,10 @@ export function createSitePages(options: {
 					(await locateArchive(scope, asStaging, path, true)) !== undefined ||
 					(await locate(scope, asStaging, path, true))?.kind === "found",
 				languageOf: (path) => languageOf(site, path),
+				mediaPath: async (mediaId) => {
+					const languages = { language: site.defaultLanguage, defaultLanguage: site.defaultLanguage };
+					return (await pageMedia(scope, [mediaId], languages)).get(mediaId.toLowerCase())?.url ?? null;
+				},
 			});
 			const location = target && addressFrom(site, host, target.to);
 			// A rule never sends a request to its own address (whatever query it adds), which would loop.

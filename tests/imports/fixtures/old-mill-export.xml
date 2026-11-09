@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- A made-up WordPress export of a made-up bakery, for the WordPress import's tests. -->
+<rss version="2.0"
+	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:wp="http://wordpress.org/export/1.2/"
+>
+<channel>
+	<title>Old Mill Bakery</title>
+	<link>https://oldmill.example</link>
+	<description>Bread from the old mill</description>
+	<language>en-GB</language>
+	<wp:wxr_version>1.2</wp:wxr_version>
+	<wp:base_site_url>https://oldmill.example</wp:base_site_url>
+	<wp:base_blog_url>https://oldmill.example</wp:base_blog_url>
+
+	<wp:author><wp:author_id>1</wp:author_id><wp:author_login><![CDATA[mara]]></wp:author_login><wp:author_email><![CDATA[mara@oldmill.example]]></wp:author_email><wp:author_display_name><![CDATA[Mara Quinn]]></wp:author_display_name></wp:author>
+	<wp:author><wp:author_id>2</wp:author_id><wp:author_login><![CDATA[tom]]></wp:author_login><wp:author_email><![CDATA[tom@oldmill.example]]></wp:author_email><wp:author_display_name><![CDATA[Tom Reyes]]></wp:author_display_name></wp:author>
+
+	<wp:category><wp:term_id>2</wp:term_id><wp:category_nicename><![CDATA[news]]></wp:category_nicename><wp:category_parent><![CDATA[]]></wp:category_parent><wp:cat_name><![CDATA[News]]></wp:cat_name></wp:category>
+	<wp:category><wp:term_id>3</wp:term_id><wp:category_nicename><![CDATA[recipes]]></wp:category_nicename><wp:category_parent><![CDATA[]]></wp:category_parent><wp:cat_name><![CDATA[Recipes]]></wp:cat_name><wp:category_description><![CDATA[How we bake]]></wp:category_description></wp:category>
+	<wp:tag><wp:term_id>4</wp:term_id><wp:tag_slug><![CDATA[bread]]></wp:tag_slug><wp:tag_name><![CDATA[Bread]]></wp:tag_name></wp:tag>
+	<wp:tag><wp:term_id>5</wp:term_id><wp:tag_slug><![CDATA[seasonal]]></wp:tag_slug><wp:tag_name><![CDATA[Seasonal]]></wp:tag_name></wp:tag>
+	<wp:term><wp:term_id>6</wp:term_id><wp:term_taxonomy><![CDATA[flavour]]></wp:term_taxonomy><wp:term_slug><![CDATA[nutty]]></wp:term_slug><wp:term_parent><![CDATA[]]></wp:term_parent><wp:term_name><![CDATA[Nutty]]></wp:term_name></wp:term>
+	<wp:term><wp:term_id>7</wp:term_id><wp:term_taxonomy><![CDATA[nav_menu]]></wp:term_taxonomy><wp:term_slug><![CDATA[main-menu]]></wp:term_slug><wp:term_name><![CDATA[Main menu]]></wp:term_name></wp:term>
+
+	<item>
+		<title>Spring opening hours</title>
+		<link>https://oldmill.example/2024/03/spring-opening-hours/</link>
+		<pubDate>Tue, 12 Mar 2024 09:30:00 +0000</pubDate>
+		<dc:creator><![CDATA[mara]]></dc:creator>
+		<guid isPermaLink="false">https://oldmill.example/?p=10</guid>
+		<description></description>
+		<content:encoded><![CDATA[<!-- wp:paragraph -->
+<p>From April we open <strong>an hour earlier</strong>, so the first loaves are on the shelf at seven. See the <a href="https://oldmill.example/about/">about page</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2>When we bake</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul><li>Sourdough every morning</li><li>Rye on <em>Thursdays</em></li></ul>
+<!-- /wp:list -->
+
+<!-- wp:image -->
+<figure class="wp-block-image"><img src="https://oldmill.example/wp-content/uploads/2024/03/loaf-1024x683.jpg" alt="A loaf cooling by the window" class="wp-image-30"/><figcaption>The first loaf of the day</figcaption></figure>
+<!-- /wp:image -->
+
+<p>[order_form id="7"]</p>
+
+<blockquote><p>The best rye in the valley.</p></blockquote>
+<script>document.write("never")</script>
+<p onclick="steal()">Come early.</p>]]></content:encoded>
+		<excerpt:encoded><![CDATA[We open an hour earlier from April.]]></excerpt:encoded>
+		<wp:post_id>10</wp:post_id>
+		<wp:post_date><![CDATA[2024-03-12 10:30:00]]></wp:post_date>
+		<wp:post_date_gmt><![CDATA[2024-03-12 09:30:00]]></wp:post_date_gmt>
+		<wp:post_modified_gmt><![CDATA[2024-03-14 08:00:00]]></wp:post_modified_gmt>
+		<wp:comment_status><![CDATA[open]]></wp:comment_status>
+		<wp:post_name><![CDATA[spring-opening-hours]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>0</wp:menu_order>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="category" nicename="news"><![CDATA[News]]></category>
+		<category domain="post_tag" nicename="bread"><![CDATA[Bread]]></category>
+		<category domain="post_tag" nicename="seasonal"><![CDATA[Seasonal]]></category>
+		<wp:postmeta><wp:meta_key><![CDATA[_thumbnail_id]]></wp:meta_key><wp:meta_value><![CDATA[30]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[_seo_meta_title]]></wp:meta_key><wp:meta_value><![CDATA[Spring hours | Old Mill]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[_seo_meta_description]]></wp:meta_key><wp:meta_value><![CDATA[Earlier mornings from April.]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[_edit_lock]]></wp:meta_key><wp:meta_value><![CDATA[1710000000:1]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[subtitle]]></wp:meta_key><wp:meta_value><![CDATA[Earlier mornings]]></wp:meta_value></wp:postmeta>
+		<wp:comment><wp:comment_id>1</wp:comment_id><wp:comment_author><![CDATA[A visitor]]></wp:comment_author><wp:comment_content><![CDATA[Lovely!]]></wp:comment_content></wp:comment>
+	</item>
+
+	<item>
+		<title>Rye week</title>
+		<link>https://oldmill.example/2024/04/rye-week/</link>
+		<dc:creator><![CDATA[tom]]></dc:creator>
+		<content:encoded><![CDATA[<div class="pb-row"><div class="pb-col"><p>Two kinds</p></div><div class="pb-col"><p>of rye</p></div></div>
+<iframe src="https://www.youtube.com/embed/aaaaaaaaaaa" title="Inside the bakery"></iframe>
+<iframe src="https://maps.example/embed?place=mill"></iframe>]]></content:encoded>
+		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<wp:post_id>11</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-04-02 07:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[rye-week]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<category domain="category" nicename="recipes"><![CDATA[Recipes]]></category>
+	</item>
+
+	<item>
+		<title>A draft we never finished</title>
+		<link>https://oldmill.example/?p=12</link>
+		<dc:creator><![CDATA[mara]]></dc:creator>
+		<content:encoded><![CDATA[Still writing this one.
+
+Second thought.]]></content:encoded>
+		<wp:post_id>12</wp:post_id>
+		<wp:post_date_gmt><![CDATA[0000-00-00 00:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[]]></wp:post_name>
+		<wp:status><![CDATA[draft]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+	</item>
+
+	<item>
+		<title>Thrown away</title>
+		<link>https://oldmill.example/thrown-away/</link>
+		<content:encoded><![CDATA[Gone.]]></content:encoded>
+		<wp:post_id>13</wp:post_id>
+		<wp:post_name><![CDATA[thrown-away]]></wp:post_name>
+		<wp:status><![CDATA[trash]]></wp:status>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+	</item>
+
+	<item>
+		<title>Our team</title>
+		<link>https://oldmill.example/about/team/</link>
+		<dc:creator><![CDATA[mara]]></dc:creator>
+		<content:encoded><![CDATA[<p>Mara bakes, Tom delivers.</p>]]></content:encoded>
+		<wp:post_id>21</wp:post_id>
+		<wp:post_name><![CDATA[team]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>20</wp:post_parent>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+	</item>
+
+	<item>
+		<title>About us</title>
+		<link>https://oldmill.example/about/</link>
+		<dc:creator><![CDATA[mara]]></dc:creator>
+		<content:encoded><![CDATA[<p>We have baked by the river since 1921.</p><p>[contact_box]</p>]]></content:encoded>
+		<wp:post_id>20</wp:post_id>
+		<wp:post_name><![CDATA[about]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+	</item>
+
+	<item>
+		<title>Seeded rye</title>
+		<link>https://oldmill.example/products/seeded-rye/</link>
+		<dc:creator><![CDATA[tom]]></dc:creator>
+		<content:encoded><![CDATA[<p>A dense loaf with sunflower and pumpkin seeds.</p>]]></content:encoded>
+		<wp:post_id>40</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-02-01 12:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[seeded-rye]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:post_type><![CDATA[product]]></wp:post_type>
+		<category domain="flavour" nicename="nutty"><![CDATA[Nutty]]></category>
+		<wp:postmeta><wp:meta_key><![CDATA[_price]]></wp:meta_key><wp:meta_value><![CDATA[5.20]]></wp:meta_value></wp:postmeta>
+		<wp:postmeta><wp:meta_key><![CDATA[serves]]></wp:meta_key><wp:meta_value><![CDATA[8]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title>Loaf</title>
+		<link>https://oldmill.example/2024/03/spring-opening-hours/loaf/</link>
+		<wp:post_id>30</wp:post_id>
+		<wp:post_parent>10</wp:post_parent>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://oldmill.example/wp-content/uploads/2024/03/loaf.jpg]]></wp:attachment_url>
+		<excerpt:encoded><![CDATA[Our <em>sourdough</em> loaf]]></excerpt:encoded>
+		<wp:postmeta><wp:meta_key><![CDATA[_wp_attachment_image_alt]]></wp:meta_key><wp:meta_value><![CDATA[A sourdough loaf on a board]]></wp:meta_value></wp:postmeta>
+	</item>
+
+	<item>
+		<title>Oven</title>
+		<wp:post_id>31</wp:post_id>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://oldmill.example/wp-content/uploads/2023/11/oven.png]]></wp:attachment_url>
+	</item>
+
+	<item>
+		<title>Main menu link</title>
+		<wp:post_id>50</wp:post_id>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_type><![CDATA[nav_menu_item]]></wp:post_type>
+	</item>
+</channel>
+</rss>

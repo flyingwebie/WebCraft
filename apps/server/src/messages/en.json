@@ -1142,7 +1142,8 @@
 			"siteScriptBeforeConsent": "Add a script to Site pages that runs before visitors answer the Consent banner, sending only what needs no consent, and does more once they accept {category}",
 			"partitions": "Keep {label} in monthly parts, each dropped once older than this Install keeps them (now {months, plural, one {# month} other {# months}})",
 			"redirectRules": "Keep the Sites' Redirect rules, which answer visitors before the Sites' own pages",
-			"notFoundLog": "Keep the Sites' 404 log: the paths visitors asked for that have no page, without their query strings or who asked"
+			"notFoundLog": "Keep the Sites' 404 log: the paths visitors asked for that have no page, without their query strings or who asked",
+			"importSources": "Import content into Sites as Drafts from {sources}, creating Post Types, Media files and Redirect rules"
 		},
 		"roles": {
 			"staff": "Staff",

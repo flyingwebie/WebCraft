@@ -9,7 +9,16 @@ import { defineModule, desc, job, notFoundLog, procedure, redirectRules, z } fro
 
 import { ignoreMiss, LOG_KEPT_DAYS, listMisses, purgeMisses, recordMisses } from "./log.ts";
 import { migrations } from "./migrations.ts";
-import { addRule, findTarget, followPathChanges, removeRule, ruleView, updateRule } from "./rules.ts";
+import {
+	addImportedRules,
+	addRule,
+	findTarget,
+	followPathChanges,
+	removeImportedRules,
+	removeRule,
+	ruleView,
+	updateRule,
+} from "./rules.ts";
 import { misses, rules } from "./tables.ts";
 
 /** The most rules or paths one list answers. */
@@ -26,8 +35,8 @@ export const redirects = defineModule({
 			en: "Sends visitors from old paths to new ones with Redirect rules, added by Editors or automatically when a published path changes, and lists the paths visitors asked for that have no page.",
 			it: "Porta i visitatori dai vecchi percorsi ai nuovi con regole di reindirizzamento, aggiunte dagli Editor o in automatico quando cambia un percorso pubblicato, ed elenca i percorsi richiesti che non hanno una pagina.",
 		},
-		version: "1.0.0",
-		sdk: "^1.5.0",
+		version: "1.1.0",
+		sdk: "^1.7.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -48,6 +57,8 @@ export const redirects = defineModule({
 	redirectRules: redirectRules({
 		tables: [rules],
 		find: (request, context) => findTarget(context, request.path),
+		add: (asked, context) => addImportedRules(context, asked),
+		remove: (added, context) => removeImportedRules(context, added),
 	}),
 
 	notFoundLog: notFoundLog({

@@ -85,3 +85,43 @@ export class ImportUndoRefusedError extends Error {
 		this.entries = entries;
 	}
 }
+
+/** No such import source on the Site: no Module adding it runs there. */
+export class ImportSourceNotFoundError extends Error {
+	override name = "ImportSourceNotFoundError";
+	constructor() {
+		super("There is no such import source on this Site: its Module isn't on here.");
+	}
+}
+
+/**
+ * Why a file uploaded in parts was refused:
+ * - `size`: larger than the source takes, or parts still to come when it was finished;
+ * - `part`: a part of the wrong size, or parts too small or too many;
+ * - `offset`: a part that doesn't start where the file got to (`receivedBytes` says where);
+ * - `hash`: a part's bytes, or the whole file's parts, don't have the SHA-256 sent;
+ * - `status`: the file has all its parts already.
+ */
+export type UploadRefusal = "size" | "part" | "offset" | "hash" | "status";
+
+/** A part of an upload, or the whole upload, was refused. */
+export class ImportUploadRefusedError extends Error {
+	override name = "ImportUploadRefusedError";
+	readonly reason: UploadRefusal;
+	readonly details: Record<string, unknown>;
+	constructor(reason: UploadRefusal, message: string, details: Record<string, unknown>) {
+		super(message);
+		this.reason = reason;
+		this.details = details;
+	}
+}
+
+/** The file isn't ready for this: still uploading or being surveyed, refused, or for another source. */
+export class ImportFileNotReadyError extends Error {
+	override name = "ImportFileNotReadyError";
+	readonly status: string;
+	constructor(status: string) {
+		super("This file isn't ready to import: wait until it is surveyed, or upload it again.");
+		this.status = status;
+	}
+}

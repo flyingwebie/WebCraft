@@ -22,7 +22,7 @@ beforeAll(async () => {
 	await install.createSuperadmin();
 	const local = install.install;
 	const admin = await local.superadmin();
-	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await admin.api.languages.add({ siteId, code: "fr" });

@@ -1142,7 +1142,8 @@
 			"siteScriptBeforeConsent": "Aggiungere alle pagine dei Site uno script che funziona prima che i visitatori rispondano al banner dei consensi, inviando solo ciò che non richiede consenso, e fa di più quando accettano la categoria {category}",
 			"partitions": "Conservare {label} in parti mensili, ognuna eliminata quando supera il tempo per cui questa Install le conserva (ora {months, plural, one {# mese} other {# mesi}})",
 			"redirectRules": "Conservare le regole di reindirizzamento dei Site, che rispondono ai visitatori prima delle pagine dei Site",
-			"notFoundLog": "Conservare il registro 404 dei Site: i percorsi richiesti dai visitatori che non hanno una pagina, senza query string né chi li ha richiesti"
+			"notFoundLog": "Conservare il registro 404 dei Site: i percorsi richiesti dai visitatori che non hanno una pagina, senza query string né chi li ha richiesti",
+			"importSources": "Importare contenuti nei Site come Bozze da {sources}, creando Post Type, file Media e regole di reindirizzamento"
 		},
 		"roles": {
 			"staff": "lo Staff",

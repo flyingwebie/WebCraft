@@ -55,6 +55,8 @@ export type AdditionsView = {
 	notFoundLog: boolean;
 	/** Its jobs that run on a schedule: how often each runs. */
 	schedules: ("hour" | "day")[];
+	/** What it imports content from (SDK 1.7): its import sources' labels. */
+	importSources: string[];
 };
 
 export function consentView(
@@ -101,6 +103,7 @@ export function additionsView(module: LoadedModule, language: string): Additions
 			redirectRules: false,
 			notFoundLog: false,
 			schedules: [],
+			importSources: [],
 		};
 	}
 	const { manifest } = module;
@@ -114,5 +117,8 @@ export function additionsView(module: LoadedModule, language: string): Additions
 		redirectRules: module.redirects !== null,
 		notFoundLog: module.notFoundLog !== null,
 		schedules: module.schedules.map((schedule) => schedule.every),
+		importSources: [...module.importSources.values()].map((source) =>
+			wordsIn(source.label, language, manifest.adminLanguages),
+		),
 	};
 }

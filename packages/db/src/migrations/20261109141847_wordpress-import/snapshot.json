@@ -1,0 +1,562 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5df11414-be7a-4917-8da6-2cb0123e2041",
+  "prevIds": [
+    "8a4c9996-7b05-4683-989c-15739f04d704"
+  ],
+  "footprints": [
+    {
+      "statementType": "drop_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|uq|public.import_items.import_items_import_id_kind_source_id_unique",
+        "n|uq|public.import_items.import_items_import_id_kind_source_id_unique",
+        "e|uq|public.import_items.import_items_import_id_kind_source_id_unique",
+        "n|con|public.import_items.import_items_import_id_kind_source_id_unique",
+        "n|rel|public.import_items_import_id_kind_source_id_unique"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "e|col|public.import_items.import_id",
+        "e|col|public.import_items.kind",
+        "e|col|public.import_items.source_id"
+      ],
+      "sharedWrites": [
+        "e|uniqueness|public.import_items.import_id.kind.source_id"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "source"
+      ],
+      "writes": [
+        "s|col|public.import_files.source",
+        "n|col|public.import_files.source",
+        "e|col|public.import_files.source"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "status"
+      ],
+      "writes": [
+        "s|col|public.import_files.status",
+        "n|col|public.import_files.status",
+        "e|col|public.import_files.status"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "received_bytes"
+      ],
+      "writes": [
+        "s|col|public.import_files.received_bytes",
+        "n|col|public.import_files.received_bytes",
+        "e|col|public.import_files.received_bytes"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "part_bytes"
+      ],
+      "writes": [
+        "s|col|public.import_files.part_bytes",
+        "n|col|public.import_files.part_bytes",
+        "e|col|public.import_files.part_bytes"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "parts"
+      ],
+      "writes": [
+        "s|col|public.import_files.parts",
+        "n|col|public.import_files.parts",
+        "e|col|public.import_files.parts"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "preview"
+      ],
+      "writes": [
+        "s|col|public.import_files.preview",
+        "n|col|public.import_files.preview",
+        "e|col|public.import_files.preview"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_items",
+        "post_type_id"
+      ],
+      "writes": [
+        "s|col|public.import_items.post_type_id",
+        "n|col|public.import_items.post_type_id",
+        "e|col|public.import_items.post_type_id"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_run_changes",
+        "post_type_id"
+      ],
+      "writes": [
+        "s|col|public.import_run_changes.post_type_id",
+        "n|col|public.import_run_changes.post_type_id",
+        "e|col|public.import_run_changes.post_type_id"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_run_changes",
+        "rule_id"
+      ],
+      "writes": [
+        "s|col|public.import_run_changes.rule_id",
+        "n|col|public.import_run_changes.rule_id",
+        "e|col|public.import_run_changes.rule_id"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_run_changes",
+        "details"
+      ],
+      "writes": [
+        "s|col|public.import_run_changes.details",
+        "n|col|public.import_run_changes.details",
+        "e|col|public.import_run_changes.details"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|uq|public.import_items.import_items_import_id_kind_post_type_id_source_id_unique",
+        "n|uq|public.import_items.import_items_import_id_kind_post_type_id_source_id_unique",
+        "e|uq|public.import_items.import_items_import_id_kind_post_type_id_source_id_unique",
+        "n|con|public.import_items.import_items_import_id_kind_post_type_id_source_id_unique",
+        "n|rel|public.import_items_import_id_kind_post_type_id_source_id_unique"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|col|public.import_items.import_id",
+        "n|col|public.import_items.kind",
+        "n|col|public.import_items.post_type_id",
+        "n|col|public.import_items.source_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|fk|public.import_items.import_items_post_type_id_post_types_id_fkey",
+        "n|fk|public.import_items.import_items_post_type_id_post_types_id_fkey",
+        "e|fk|public.import_items.import_items_post_type_id_post_types_id_fkey",
+        "n|con|public.import_items.import_items_post_type_id_post_types_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|tbl|public.post_types",
+        "n|sch|public",
+        "n|col|public.import_items.post_type_id",
+        "n|col|public.post_types.id",
+        "e|uniqueness|public.post_types.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_changes"
+      ],
+      "writes": [
+        "s|fk|public.import_run_changes.import_run_changes_post_type_id_post_types_id_fkey",
+        "n|fk|public.import_run_changes.import_run_changes_post_type_id_post_types_id_fkey",
+        "e|fk|public.import_run_changes.import_run_changes_post_type_id_post_types_id_fkey",
+        "n|con|public.import_run_changes.import_run_changes_post_type_id_post_types_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public",
+        "n|tbl|public.post_types",
+        "n|sch|public",
+        "n|col|public.import_run_changes.post_type_id",
+        "n|col|public.post_types.id",
+        "e|uniqueness|public.post_types.id"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_files"
+      ],
+      "writes": [
+        "s|ck|public.import_files.import_files_status_known",
+        "n|ck|public.import_files.import_files_status_known",
+        "e|ck|public.import_files.import_files_status_known",
+        "n|con|public.import_files.import_files_status_known"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public",
+        "n|col|public.import_files.status"
+      ]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_changes"
+      ],
+      "writes": [
+        "s|ck|public.import_run_changes.import_run_changes_kind_known"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public",
+        "n|col|public.import_run_changes.kind",
+        "e|col|public.import_run_changes.kind"
+      ],
+      "sqlHash": "e85ea7600993cdea"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "source",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'csv'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "status",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'ready'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "received_bytes",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "part_bytes",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "parts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'[]'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "preview",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "post_type_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "post_type_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "rule_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "details",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_post_type_id_post_types_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "post_type_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "post_types",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_post_type_id_post_types_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "post_type_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "post_types",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_import_id_kind_post_type_id_source_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "import_id",
+          "kind",
+          "post_type_id",
+          "source_id"
+        ],
+        "nullsNotDistinct": true,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "import_files_status_known",
+        "value": "\"status\" in ('uploading', 'surveying', 'ready', 'refused')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"import_items\",\"import_items_import_id_kind_source_id_unique\"]"
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"import_run_changes\",\"import_run_changes_kind_known\"]",
+      "set": {
+        "value": "\"kind\" in ('entry', 'media', 'postType', 'field', 'redirect')"
+      }
+    }
+  ]
+}

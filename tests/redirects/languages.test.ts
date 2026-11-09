@@ -26,7 +26,7 @@ async function verify(names: string[]): Promise<void> {
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Village Bakery", slug: "village" })).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;

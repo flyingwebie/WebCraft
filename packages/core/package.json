@@ -24,6 +24,7 @@
 		"@webcraft/db": "workspace:*",
 		"@webcraft/module-forms": "workspace:*",
 		"@webcraft/module-redirects": "workspace:*",
+		"@webcraft/module-wordpress-import": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/module-site-analytics": "workspace:*",
 		"@webcraft/renderer": "workspace:*",

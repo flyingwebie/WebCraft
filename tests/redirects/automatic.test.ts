@@ -19,7 +19,7 @@ const rules = () => moduleApi<typeof redirects>(editor, "redirects").rules;
 beforeAll(async () => {
 	install = await createTestInstall();
 	admin = await install.superadmin();
-	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
