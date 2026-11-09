@@ -131,10 +131,15 @@ export function createSitePages(options: {
 }): SitePages {
 	const { database, config, data, storage } = options;
 	// Each Site's styles, built once per page cache generation: a publish that changes them raises it.
+	// The Sites used least recently go first when there are too many.
 	const built = new Map<string, { generation: number; styles: Promise<SiteStyles> }>();
 	const stylesOf = (host: SiteHost): Promise<SiteStyles> => {
 		const kept = built.get(host.site.id);
-		if (kept && kept.generation === host.cacheGeneration) return kept.styles;
+		if (kept && kept.generation === host.cacheGeneration) {
+			built.delete(host.site.id);
+			built.set(host.site.id, kept);
+			return kept.styles;
+		}
 		const styles = siteStyles(data.visitors(host.site));
 		// A request that read an older generation never replaces newer styles.
 		if (kept && kept.generation > host.cacheGeneration) return styles;
