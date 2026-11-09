@@ -7,7 +7,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { scheduledPublishesDue } from "@webcraft/core";
 
+import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { approveAiClient, connectMcp } from "../harness/mcp.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -684,5 +686,60 @@ describe("the worker", () => {
 				(line) => line.level === "warn" && line.msg.includes("ran late") && line.scheduleId === scheduled.id,
 			),
 		).toBe(true);
+	});
+});
+
+describe("API clients", () => {
+	test("a script with an API token schedules in two steps: a preview with a confirmation id, then the id", async () => {
+		const site = await newSite();
+		const { entry } = await staff.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Scripted",
+		});
+		const { secret } = await createApiToken(staff, { workspaceId, name: "Release script" });
+		const script = tokenClient(install, secret);
+		const item = { kind: "entry" as const, id: entry.id };
+		const at = inMinutes(20);
+
+		const first = (await script.api.publishing.schedule({ siteId: site.siteId, item, at })) as unknown as {
+			confirmation: { id: string };
+			preview: Record<string, unknown>;
+		};
+		expect(first.preview).toMatchObject({ at: at.toISOString(), item, name: "Scripted", firstPublish: true });
+		expect((await staff.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toEqual([]);
+
+		const second = await script.api.publishing.schedule({
+			siteId: site.siteId,
+			item,
+			at,
+			confirmation: first.confirmation.id,
+		});
+		expect(second).toMatchObject({ scheduled: { createdBy: { name: "Ada Staff", via: "Release script" } } });
+		await waitMinutes(20);
+		expect(await visit(site.live, "/blog/scripted")).toEqual({ status: 200, heading: "Scripted" });
+	});
+
+	test("an AI client schedules only when its person let it publish", async () => {
+		const owner = await install.createMember({ workspaceId, role: "owner" });
+		const names = async (token: string) => {
+			const client = await connectMcp(install, token);
+			const { tools } = await client.listTools();
+			await client.close();
+			return tools.map((tool) => tool.name);
+		};
+		const scheduling = [
+			"publishing_schedule",
+			"publishing_schedule_all",
+			"publishing_schedule_unpublish",
+			"publishing_reschedule",
+			"publishing_update_scheduled",
+		];
+		const writer = await approveAiClient(install, owner.browser, { workspaceId, mayPublish: false });
+		const writerTools = await names(writer.accessToken);
+		expect(writerTools).toEqual(expect.arrayContaining(["publishing_scheduled", "publishing_cancel_scheduled"]));
+		expect(scheduling.filter((name) => writerTools.includes(name))).toEqual([]);
+		const publisher = await approveAiClient(install, owner.browser, { workspaceId, mayPublish: true });
+		expect(await names(publisher.accessToken)).toEqual(expect.arrayContaining(scheduling));
 	});
 });
