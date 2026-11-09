@@ -10,6 +10,7 @@ import {
 	AccessNotHeldError,
 	AlreadyMemberError,
 	ConfirmationInvalidError,
+	EditFieldInvalidError,
 	EditModeUnavailableError,
 	EditPathInvalidError,
 	EmailAlwaysSentError,
@@ -341,6 +342,9 @@ export function toApiError(error: unknown): unknown {
 			data: { retryAfterSeconds: error.retryAfterSeconds },
 			cause: error,
 		});
+	}
+	if (error instanceof EditFieldInvalidError) {
+		return new ORPCError("EDIT_FIELD_INVALID", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof EditModeUnavailableError) {
 		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });

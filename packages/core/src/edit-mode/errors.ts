@@ -13,3 +13,14 @@ export class EditPathInvalidError extends Error {
 		super("Edit mode opens a path on the Site, such as /blog/fresh-bread.");
 	}
 }
+
+/**
+ * An edit request named something that can't be changed in place: an item that isn't the Globals or
+ * an Entry (`entry:<id>`), or a value that isn't a text or rich text Field (or the title).
+ */
+export class EditFieldInvalidError extends Error {
+	override name = "EditFieldInvalidError";
+	constructor() {
+		super("Only the title and text and rich text Fields can be changed in place.");
+	}
+}

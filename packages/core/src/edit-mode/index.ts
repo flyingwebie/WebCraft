@@ -13,8 +13,10 @@ import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.t
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+import { type RegionChange, type SavedRegion, saveRegion } from "./regions.ts";
 
-export { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+export type { EditItem, RegionChange, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */
 export const EDIT_LINK_LIFETIME_MS = 60 * 1000;
@@ -81,6 +83,11 @@ export type EditMode = {
 	checkHeaderToken(session: EditSession, token: string): Promise<boolean>;
 	/** Ends an Edit mode session: its cookie opens nothing any more. */
 	end(session: Pick<EditSession, "id">): Promise<void>;
+	/**
+	 * Saves a value typed in place to the Draft, through the same path as the admin. Refuses what
+	 * can't be changed in place (`EditFieldInvalidError`), and an Entry that isn't the Site's.
+	 */
+	save(session: EditSession, change: RegionChange): Promise<SavedRegion>;
 };
 
 export function createEditMode(options: {
@@ -223,6 +230,8 @@ export function createEditMode(options: {
 		async end(session) {
 			await db.delete(editSessions).where(eq(editSessions.id, session.id));
 		},
+
+		save: (session, change) => saveRegion(session.scope, change),
 	};
 }
 

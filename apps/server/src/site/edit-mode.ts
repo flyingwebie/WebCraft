@@ -1,3 +1,5 @@
+import { ORPCError } from "@orpc/server";
+import { toApiError } from "@webcraft/api";
 import {
 	EDIT_MODE_PATH,
 	type EditSession,
@@ -7,9 +9,10 @@ import {
 	RateLimitedError,
 	type SiteHost,
 } from "@webcraft/core";
+import { z } from "zod";
 
 import { clientAddress } from "../client-address.ts";
-import { plainText } from "../responses.ts";
+import { json, plainText } from "../responses.ts";
 import { EDIT_ASSETS_PATH, editBarAssets } from "./edit-bar/assets.ts";
 
 /**
@@ -29,6 +32,7 @@ export async function editModeEndpoint(
 		if (request.method !== "GET") return plainText(405, "Method Not Allowed", { allow: "GET" });
 		return enter(services, request, host, url.searchParams.get("token") ?? "");
 	}
+	if (rest.startsWith(EDIT_API_PREFIX)) return editRequest(services, request, host, rest.slice(EDIT_API_PREFIX.length));
 	if (url.pathname.startsWith(EDIT_ASSETS_PATH)) {
 		if (request.method !== "GET" && request.method !== "HEAD") {
 			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
@@ -36,6 +40,108 @@ export async function editModeEndpoint(
 		return assetFile(request, url.pathname.slice(EDIT_ASSETS_PATH.length));
 	}
 	return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
+}
+
+/** Where the editing bar sends edit requests, under `/_webcraft/edit/`: `api/<action>`. */
+const EDIT_API_PREFIX = "api/";
+
+/** The header edit requests carry the Edit mode session's header token in. */
+export const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
+
+/** What an edit request may do, by action: each gets the session and the request's JSON body. */
+const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
+	/** Saves a value typed in place to the Draft. */
+	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
+	/** Ends Edit mode for this browser: the cookie is cleared and opens nothing any more. */
+	end: async (services, session, _body, request) => {
+		await services.editMode.end(session);
+		const response = json(200, { ended: true });
+		response.headers.append("set-cookie", clearEditCookie(request));
+		return response;
+	},
+};
+
+type EditAction = (
+	services: InstallServices,
+	session: EditSession,
+	body: unknown,
+	request: Request,
+) => Promise<Response>;
+
+const regionChange = z.object({
+	item: z.string().max(100),
+	field: z.string().max(200),
+	value: z.string().max(200_000),
+});
+
+/** A body that isn't what the action takes. */
+class BadEditRequest extends Error {}
+
+function parse<Schema extends z.ZodType>(schema: Schema, body: unknown): z.infer<Schema> {
+	const parsed = schema.safeParse(body);
+	if (!parsed.success) throw new BadEditRequest("The request isn't what this action takes.");
+	return parsed.data;
+}
+
+/**
+ * An edit request from the editing bar (ADR 0022). Each one is checked from scratch: it must be a
+ * `POST` from the Site's own pages (its `Origin`, and `Sec-Fetch-Site` when the browser sends it),
+ * carry an edit cookie whose session still holds (the admin session it came from, the person's
+ * access to the Site, at most 8 hours), and that session's header token, which no other site can
+ * read. Refusals answer JSON with a code, as the Management API does.
+ */
+async function editRequest(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	action: string,
+): Promise<Response> {
+	if (request.method !== "POST") return plainText(405, "Method Not Allowed", { allow: "POST" });
+	if (!fromSitePages(request)) {
+		return json(403, { code: "EDIT_REQUEST_REFUSED", message: "Edit requests must come from the Site's own pages." });
+	}
+	const edit = await editSessionOf(services, request, host);
+	if (!edit.session) {
+		const ended = json(401, { code: "EDIT_MODE_ENDED", message: "Edit mode has ended. Open it again from the admin." });
+		if (edit.stale) ended.headers.append("set-cookie", clearEditCookie(request));
+		return ended;
+	}
+	const token = request.headers.get(EDIT_TOKEN_HEADER) ?? "";
+	if (!(await services.editMode.checkHeaderToken(edit.session, token))) {
+		return json(403, { code: "EDIT_REQUEST_REFUSED", message: "The request has no valid Edit mode token." });
+	}
+	const answer = Object.hasOwn(EDIT_ACTIONS, action) ? EDIT_ACTIONS[action] : undefined;
+	if (!answer) return json(404, { code: "NOT_FOUND", message: "There is no such edit request." });
+	try {
+		const contentType = request.headers.get("content-type") ?? "";
+		if (!/^application\/json(;|$)/i.test(contentType)) throw new BadEditRequest("Send the request as JSON.");
+		const body: unknown = await request.json().catch(() => {
+			throw new BadEditRequest("The request isn't valid JSON.");
+		});
+		return await answer(services, edit.session, body, request);
+	} catch (error) {
+		if (error instanceof BadEditRequest) return json(400, { code: "BAD_REQUEST", message: error.message });
+		const refusal = toApiError(error);
+		if (!(refusal instanceof ORPCError)) throw error;
+		return json(refusal.status, { code: refusal.code, message: refusal.message, data: refusal.data });
+	}
+}
+
+/**
+ * Whether a request comes from the Site's own pages: its `Origin` is the Site's, and the browser
+ * (when it says) calls it same-origin. Browsers send `Origin` with every `POST`, so a request without
+ * one doesn't come from a page in Edit mode.
+ */
+function fromSitePages(request: Request): boolean {
+	const fetchSite = request.headers.get("sec-fetch-site");
+	if (fetchSite !== null && fetchSite !== "same-origin") return false;
+	const origin = request.headers.get("origin");
+	if (!origin) return false;
+	try {
+		return new URL(origin).host === new URL(request.url).host;
+	} catch {
+		return false;
+	}
 }
 
 /**

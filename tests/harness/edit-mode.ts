@@ -56,8 +56,9 @@ export async function openEditMode(
 		if (found) token = found;
 		return response;
 	};
+	// The browser goes on to the page the link opens, as a browser following the redirect does.
+	await page(path);
 	const headerToken = async () => {
-		if (!token) await page(path);
 		if (!token) throw new Error("No page loaded in Edit mode carried a header token.");
 		return token;
 	};

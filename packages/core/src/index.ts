@@ -42,6 +42,8 @@ export {
 	EDIT_LINK_LIFETIME_MS,
 	EDIT_MODE_PATH,
 	EDIT_SESSION_LIFETIME_MS,
+	EditFieldInvalidError,
+	type EditItem,
 	type EditLink,
 	type EditMode,
 	EditModeUnavailableError,
@@ -49,6 +51,8 @@ export {
 	type EditSession,
 	type EnteredEditMode,
 	isEditPath,
+	type RegionChange,
+	type SavedRegion,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
