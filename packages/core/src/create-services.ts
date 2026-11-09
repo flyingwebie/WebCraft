@@ -2,6 +2,7 @@ import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createAccount, reportAccountLock } from "./account.ts";
+import { createApiTokens } from "./api-tokens.ts";
 import { listAuditEntries } from "./audit.ts";
 import { createBackups } from "./backups/service.ts";
 import { createCdns } from "./cdns/index.ts";
@@ -89,6 +90,7 @@ import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
 import { createSiteSearch } from "./search/service.ts";
 import {
+	apiTokenKey,
 	domainVerificationKey,
 	editModeSigningKey,
 	formTimeKey,
@@ -198,6 +200,8 @@ export async function createInstallServices(
 	// The Components of Modules: placed on Sites where their Module runs.
 	const componentSources = modules.components;
 	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };
+	const people = createPeople({ database, clock });
+	const apiTokens = createApiTokens({ database, clock, people, rateLimits, keyHash: await apiTokenKey(masterKey) });
 	const memberships = createMemberships({ database, clock });
 	const storage = createInstallStorage({
 		database,
@@ -242,7 +246,8 @@ export async function createInstallServices(
 		auth,
 		account: createAccount({ database, auth, clock }),
 		rateLimits,
-		people: createPeople({ database, clock }),
+		people,
+		apiTokens,
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,
 		masterKey: createMasterKeyBackup({ database, clock, log, fingerprint: await masterKey.fingerprint() }),

@@ -18,6 +18,8 @@
 			"@types/bun": "^1.4.3",
 			"@orpc/server": "^1.15.6",
 			"@orpc/client": "^1.15.6",
+			"@orpc/openapi": "^1.16.2",
+			"@orpc/zod": "^1.16.2",
 			"better-auth": "1.7.18",
 			"drizzle-orm": "1.0.0-rc.5",
 			"drizzle-kit": "1.0.0-rc.5",

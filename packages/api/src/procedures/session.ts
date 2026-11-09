@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 
-import { authEndpoint, procedure, rateLimited, setCookies, signedIn, withPerson } from "../context.ts";
+import { authEndpoint, inAdminSession, procedure, rateLimited, setCookies, withPerson } from "../context.ts";
 import { email, password } from "../inputs.ts";
 import { personView } from "../views.ts";
 
@@ -26,7 +26,7 @@ export const session = {
 	 * Confirms who the signed-in person is with their password, for this browser's session only:
 	 * Sensitive actions are allowed in it for the next 10 minutes.
 	 */
-	confirmIdentity: signedIn
+	confirmIdentity: inAdminSession
 		.use(rateLimited("auth"))
 		.input(z.object({ password }))
 		.handler(async ({ context, input }) => {

@@ -43,6 +43,8 @@ export const SENSITIVE_ACTIONS = {
 	"webhook.change": "sends Site data to an outside address",
 	/** A Site's CAPTCHA for its Forms: its secret key is a secret. */
 	"formCaptcha.change": "changes a secret",
+	/** Creating an API token: a credential that acts as the person, outside the admin. */
+	"apiToken.create": "creates a credential",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

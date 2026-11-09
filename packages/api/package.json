@@ -12,7 +12,9 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@orpc/openapi": "catalog:",
 		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/core": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",

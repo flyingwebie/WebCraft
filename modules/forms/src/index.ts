@@ -92,6 +92,7 @@ export const forms = defineModule({
 			/** A Site's Submissions, newest first: of one Form or all, in the inbox or the Spam folder. */
 			list: procedure({
 				permission: "submissions.view",
+				kind: "read",
 				input: z.object({
 					formId: z.uuid().optional(),
 					folder: z.enum(["inbox", "spam"]).default("inbox"),

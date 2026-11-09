@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { signedIn } from "../context.ts";
+import { inAdminSession } from "../context.ts";
 import { id } from "../inputs.ts";
 
 /** Edit mode (ADR 0022): opening a Site on its own domain to change its Content in place. */
@@ -13,7 +13,7 @@ export const editMode = {
 	 * With `safeMode`, it opens Safe mode: the pages run none of the Site's own scripts (ADR 0022), so a
 	 * broken script can't lock anyone out of editing.
 	 */
-	open: signedIn
+	open: inAdminSession
 		.input(z.object({ siteId: id, path: z.string().max(2000).default("/"), safeMode: z.boolean().default(false) }))
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "entry.edit");

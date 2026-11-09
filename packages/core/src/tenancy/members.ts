@@ -13,6 +13,7 @@ import {
 import { and, asc, eq, gt, inArray, isNotNull, or } from "drizzle-orm";
 
 import type { Email } from "../email/index.ts";
+import { revokeTokensOutOfReach } from "../api-tokens.ts";
 import { isUuid } from "../ids.ts";
 import { can, holdsAccess, type MemberAccess, personIdOf, type Reach } from "../permissions/can.ts";
 import { ASSIGNED_ROLES, isWorkspaceRole, WORKSPACE_ROLES, type WorkspaceRole } from "../permissions/roles.ts";
@@ -440,6 +441,8 @@ export function createMembers({ database, email }: { database: Database; email: 
 				if (!sameReach(from.sites, to.sites)) {
 					await tx.audit("member.changeSites", { ...about, from: from.sites, to: to.sites });
 				}
+				// Their API tokens for Sites they no longer reach end with the change.
+				await revokeTokensOutOfReach(tx.db, personId, tx.now(), byScope(tx));
 				return { membership, to };
 			});
 			const [person] = await db
@@ -470,9 +473,16 @@ export function createMembers({ database, email }: { database: Database; email: 
 					role: access.role,
 					sites: access.sites,
 				});
+				// Their API tokens for this Workspace end with the Membership.
+				await revokeTokensOutOfReach(tx.db, personId, tx.now(), byScope(tx));
 			});
 		},
 	};
+}
+
+/** Who acts in a scope, as revoking someone's API tokens records it. */
+function byScope(scope: WorkspaceScope) {
+	return { personId: personIdOf(scope.access.actor), via: scope.access.via };
 }
 
 function canSee(scope: WorkspaceScope, siteId: string): boolean {

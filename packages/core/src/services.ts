@@ -3,6 +3,7 @@ import type { Database } from "@webcraft/db";
 
 import type { Account } from "./account.ts";
 import type { AiProviders } from "./ai.ts";
+import type { ApiTokens } from "./api-tokens.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Backups } from "./backups/service.ts";
 import type { Cdns } from "./cdns/index.ts";
@@ -135,6 +136,8 @@ export type InstallServices = InstallPorts & {
 	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */
 	people: People;
+	/** API tokens: people's credentials for the Management API at `/api/v1`, and their limits. */
+	apiTokens: ApiTokens;
 	/** The setup wizard and its token. */
 	setup: InstallSetup;
 	/** Install settings › General. */

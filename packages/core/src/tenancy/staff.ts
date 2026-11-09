@@ -4,6 +4,7 @@ import { installRoles, invites, inviteWorkspaces, people, staffWorkspaces, works
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 
 import type { Email } from "../email/index.ts";
+import { revokeTokensOutOfReach } from "../api-tokens.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf, type Reach } from "../permissions/can.ts";
 import { ASSIGNED_ROLES, STAFF_ROLE } from "../permissions/roles.ts";
@@ -248,6 +249,11 @@ export function createStaff(options: StaffOptions): StaffService {
 						.values([...new Set(reach)].map((workspaceId) => ({ personId, workspaceId, createdAt: now })));
 				}
 				await tx.audit("staff.changeWorkspaces", { staffId: personId, workspaces: describeReach(reach) });
+				// Their API tokens for Workspaces they no longer reach end with the change.
+				await revokeTokensOutOfReach(tx.db, personId, tx.now(), {
+					personId: personIdOf(tx.access.actor),
+					via: tx.access.via,
+				});
 			});
 		},
 	};

@@ -23,6 +23,23 @@ export {
 	WORKSPACE_AI_KEY,
 } from "./ai.ts";
 export {
+	API_TOKEN_LIFETIMES,
+	API_TOKEN_LIMITS,
+	API_TOKEN_PREFIX,
+	type ApiAccess,
+	type ApiTokenLifetime,
+	ApiTokenInvalidError,
+	ApiTokenNotFoundError,
+	type ApiTokenOffer,
+	type ApiTokenProblem,
+	ApiTokenReadOnlyError,
+	type ApiTokens,
+	type ApiTokenUse,
+	type ApiTokenView,
+	DEFAULT_API_TOKEN_LIFETIME,
+	type NewApiToken,
+} from "./api-tokens.ts";
+export {
 	type AuditDetails,
 	type AuditEntry,
 	type AuditVia,
@@ -159,6 +176,7 @@ export {
 	type MemberAccess,
 	type ModuleActor,
 	type PersonActor,
+	type TokenActor,
 	permissionsOn,
 	type Reach,
 	type Resource,
@@ -197,6 +215,7 @@ export {
 	type RateLimitName,
 	type RateLimitRule,
 	type RateLimits,
+	type RateLimitTally,
 } from "./rate-limits.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";
