@@ -30,6 +30,7 @@ export {
 	notInArray,
 	or,
 	type SQL,
+	type SQLWrapper,
 	sum,
 } from "drizzle-orm";
 export {
@@ -150,3 +151,19 @@ export {
 } from "./submissions.ts";
 export { type ModuleMigration, moduleSchema, moduleSchemaName, siteColumns, workspaceColumns } from "./tables.ts";
 export { SDK_VERSION } from "./version.ts";
+export {
+	type ModuleWidget,
+	WIDGET_FILTERS,
+	WIDGET_SHAPES,
+	type WidgetCell,
+	type WidgetColumnKind,
+	type WidgetData,
+	type WidgetFilterName,
+	type WidgetFilters,
+	type WidgetOption,
+	type WidgetRequest,
+	type WidgetSetting,
+	type WidgetSettings,
+	type WidgetShape,
+	widget,
+} from "./widgets.ts";

@@ -27,7 +27,7 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.1.0" });
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });
 });
@@ -1222,6 +1222,221 @@ describe("Site analytics", () => {
 	isolation.refuses("m.site-analytics.settings.update", async (api, { siteId }) =>
 		(await analytics(api, siteId)).settings.update({ siteId, excludedRanges: ["203.0.113.0/24"] }),
 	);
+
+	let names = 0;
+	/** A Goal and a Funnel using it on a target's Site, made by the Superadmin. */
+	const goalIn = async (target: IsolationTarget) => {
+		const admin = await analytics((await install.superadmin()).api, target.siteId);
+		const { goal } = await admin.goals.create({
+			siteId: target.siteId,
+			name: `Goal ${++names}`,
+			definition: { kind: "event", event: "signup" },
+		});
+		return goal;
+	};
+	const funnelIn = async (target: IsolationTarget) => {
+		const admin = await analytics((await install.superadmin()).api, target.siteId);
+		const { funnel } = await admin.funnels.create({
+			siteId: target.siteId,
+			name: `Funnel ${++names}`,
+			steps: [
+				{ kind: "page", path: "/", match: "exact" },
+				{ kind: "page", path: "/thanks", match: "exact" },
+			],
+		});
+		return funnel;
+	};
+	isolation.refuses(
+		"m.site-analytics.goals.list",
+		async (api, { siteId }) => (await analytics(api, siteId)).goals.list({ siteId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.site-analytics.goals.create", async (api, { siteId }) =>
+		(await analytics(api, siteId)).goals.create({
+			siteId,
+			name: `Ours ${++names}`,
+			definition: { kind: "page", path: "/thanks", match: "exact" },
+		}),
+	);
+	isolation.refuses("m.site-analytics.goals.update", async (api, target) =>
+		(await analytics(api, target.siteId)).goals.update({
+			siteId: target.siteId,
+			goalId: (await goalIn(target)).id,
+			name: `Renamed ${++names}`,
+		}),
+	);
+	isolation.refuses("m.site-analytics.goals.delete", async (api, target) =>
+		(await analytics(api, target.siteId)).goals.delete({ siteId: target.siteId, goalId: (await goalIn(target)).id }),
+	);
+	isolation.refuses(
+		"m.site-analytics.funnels.list",
+		async (api, { siteId }) => (await analytics(api, siteId)).funnels.list({ siteId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.site-analytics.funnels.create", async (api, { siteId }) =>
+		(await analytics(api, siteId)).funnels.create({
+			siteId,
+			name: `Ours ${++names}`,
+			steps: [
+				{ kind: "page", path: "/", match: "exact" },
+				{ kind: "page", path: "/menu", match: "prefix" },
+			],
+		}),
+	);
+	isolation.refuses("m.site-analytics.funnels.update", async (api, target) =>
+		(await analytics(api, target.siteId)).funnels.update({
+			siteId: target.siteId,
+			funnelId: (await funnelIn(target)).id,
+			name: `Renamed ${++names}`,
+		}),
+	);
+	isolation.refuses("m.site-analytics.funnels.delete", async (api, target) =>
+		(await analytics(api, target.siteId)).funnels.delete({
+			siteId: target.siteId,
+			funnelId: (await funnelIn(target)).id,
+		}),
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.goals",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.goals({ siteId, ...day }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.funnel",
+		async (api, target) =>
+			(await analytics(api, target.siteId)).stats.funnel({
+				siteId: target.siteId,
+				...day,
+				funnel: (await funnelIn(target)).name,
+			}),
+		{ as: ["staff", "owner"] },
+	);
+});
+
+describe("Dashboards", () => {
+	/**
+	 * Calls a procedure on a Site's Dashboard and on a Workspace Dashboard: both must answer on our
+	 * Workspace, and both must be refused on theirs (one refusal alone fails the line).
+	 */
+	const onBoth = async (site: () => Promise<unknown>, workspace: () => Promise<unknown>) => {
+		const results = await Promise.allSettled([site(), workspace()]);
+		const refused = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+		if (refused.length === 1) throw new Error("Only one of a Site's and a Workspace's Dashboards was refused.");
+		if (refused[0]) throw refused[0].reason;
+	};
+	/** A Site Dashboard and a Workspace Dashboard in a target, each with a note, made by the Superadmin. */
+	const boardsIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const made = async (place: { siteId: string } | { workspaceId: string }) => {
+			const { dashboard } = await api.dashboards.create({ ...place, name: "Board" });
+			const { widgetId } = await api.dashboards.widgets.add({ ...place, dashboardId: dashboard.id, kind: "note" });
+			return { dashboardId: dashboard.id, widgetId };
+		};
+		return { site: await made({ siteId: target.siteId }), workspace: await made({ workspaceId: target.workspaceId }) };
+	};
+	/** Calls `call` on both kinds of Dashboard in a target, with a fresh Site and Workspace Dashboard. */
+	const both =
+		(
+			call: (
+				api: ApiClient,
+				place: { siteId: string } | { workspaceId: string },
+				board: { dashboardId: string; widgetId: string },
+			) => Promise<unknown>,
+		) =>
+		async (api: ApiClient, target: IsolationTarget) => {
+			const boards = await boardsIn(target);
+			await onBoth(
+				() => call(api, { siteId: target.siteId }, boards.site),
+				() => call(api, { workspaceId: target.workspaceId }, boards.workspace),
+			);
+		};
+	const places =
+		(call: (api: ApiClient, place: { siteId: string } | { workspaceId: string }) => Promise<unknown>) =>
+		async (api: ApiClient, target: IsolationTarget) =>
+			onBoth(
+				() => call(api, { siteId: target.siteId }),
+				() => call(api, { workspaceId: target.workspaceId }),
+			);
+
+	isolation.refuses(
+		"dashboards.catalog",
+		places((api, place) => api.dashboards.catalog(place)),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.options",
+		places((api, place) => api.dashboards.options({ ...place, kind: "site-analytics:totals", setting: "filter:goal" })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.list",
+		places((api, place) => api.dashboards.list(place)),
+		{ as: ["staff", "owner", "author"] },
+	);
+	isolation.refuses(
+		"dashboards.get",
+		both((api, place, board) => api.dashboards.get({ ...place, dashboardId: board.dashboardId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.create",
+		places((api, place) => api.dashboards.create({ ...place, name: "Ours" })),
+	);
+	isolation.refuses(
+		"dashboards.update",
+		both((api, place, board) => api.dashboards.update({ ...place, dashboardId: board.dashboardId, name: "Renamed" })),
+	);
+	isolation.refuses(
+		"dashboards.delete",
+		both((api, place, board) => api.dashboards.delete({ ...place, dashboardId: board.dashboardId })),
+	);
+	isolation.refuses(
+		"dashboards.saveAsTemplate",
+		both((api, place, board) =>
+			api.dashboards.saveAsTemplate({ ...place, dashboardId: board.dashboardId, name: "Kept" }),
+		),
+	);
+	isolation.refuses(
+		"dashboards.export",
+		both((api, place, board) => api.dashboards.export({ ...place, dashboardId: board.dashboardId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.widgets.add",
+		both((api, place, board) => api.dashboards.widgets.add({ ...place, dashboardId: board.dashboardId, kind: "note" })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.update",
+		both((api, place, board) => api.dashboards.widgets.update({ ...place, ...board, settings: { text: "Ours" } })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.move",
+		both((api, place, board) => api.dashboards.widgets.move({ ...place, ...board, x: 2, y: 1, w: 4, h: 3 })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.remove",
+		both((api, place, board) => api.dashboards.widgets.remove({ ...place, ...board })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.data",
+		both((api, place, board) => api.dashboards.widgets.data({ ...place, ...board })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.widgets.export",
+		both((api, place, board) => api.dashboards.widgets.export({ ...place, ...board })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("dashboardTemplates.delete", async (api, target) => {
+		const { api: admin } = await install.superadmin();
+		const { dashboard } = await admin.dashboards.create({ siteId: target.siteId, name: "Board" });
+		const { template } = await admin.dashboards.saveAsTemplate({
+			siteId: target.siteId,
+			dashboardId: dashboard.id,
+			name: "Template",
+		});
+		return api.dashboardTemplates.delete({ workspaceId: target.workspaceId, templateId: template.id });
+	});
 });
 
 /** A Module's procedures, from the person's Management API (`m.<module id>`). */

@@ -27,6 +27,9 @@ import {
 	ConsentBannerInvalidError,
 	ConsentRecordNotFoundError,
 	CsvRefusedError,
+	DashboardInvalidError,
+	DashboardNotFoundError,
+	DashboardTemplateNotFoundError,
 	DomainChangeRefusedError,
 	DomainInvalidError,
 	DomainNotFoundError,
@@ -126,6 +129,7 @@ import {
 	WebhookInvalidError,
 	WebhookNotFoundError,
 	WebhookRedeliveryRefusedError,
+	WidgetNotFoundError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
 import { isModuleError } from "@webcraft/module-sdk";
@@ -412,6 +416,23 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof DomainChangeRefusedError) {
 		return new ORPCError("DOMAIN_CHANGE_REFUSED", {
 			status: 409,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
+	}
+	if (error instanceof DashboardNotFoundError) {
+		return new ORPCError("DASHBOARD_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof WidgetNotFoundError) {
+		return new ORPCError("WIDGET_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof DashboardTemplateNotFoundError) {
+		return new ORPCError("DASHBOARD_TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof DashboardInvalidError) {
+		return new ORPCError("DASHBOARD_INVALID", {
+			status: 400,
 			message: error.message,
 			data: { problem: error.problem },
 			cause: error,

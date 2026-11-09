@@ -102,6 +102,7 @@ export * from "./content/index.ts";
 export { isWebCraftCookie, WEBCRAFT_COOKIE_PREFIX } from "./cookies.ts";
 export { type Countries, countriesFromFile, unknownCountries } from "./countries.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
+export * from "./dashboards/index.ts";
 export * from "./design-system/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
 export * from "./domains/index.ts";

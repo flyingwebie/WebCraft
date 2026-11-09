@@ -54,6 +54,7 @@ import type {
 	TemplateMarkup,
 } from "./content/index.ts";
 import type { Countries } from "./countries.ts";
+import type { Dashboards } from "./dashboards/index.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
 import type { Dns } from "./dns.ts";
 import type { Domains } from "./domains/index.ts";
@@ -272,6 +273,13 @@ export type InstallServices = InstallPorts & {
 	 * changing them takes `structure.edit`.
 	 */
 	webhooks: Webhooks;
+	/**
+	 * Dashboards (#103): a Site's, and Workspace Dashboards adding up its Sites, with their Widgets,
+	 * their data and CSV exports, and Dashboard templates. Staff build them (`dashboard.manage`), Staff
+	 * and Owners see them (`dashboard.view`), and everyone who works on the Site sees those shown to
+	 * everyone.
+	 */
+	dashboards: Dashboards;
 	/**
 	 * A Site's languages (Structure): the Default language and the others, their names, directions and
 	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.

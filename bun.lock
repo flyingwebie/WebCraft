@@ -50,6 +50,7 @@
         "@webcraft/module-forms": "workspace:*",
         "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
+        "@webcraft/module-site-analytics": "workspace:*",
         "@webcraft/renderer": "workspace:*",
         "@webcraft/ui": "workspace:*",
         "drizzle-orm": "catalog:",
@@ -111,7 +112,7 @@
     },
     "modules/site-analytics": {
       "name": "@webcraft/module-site-analytics",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "@webcraft/module-sdk": "workspace:*",
       },

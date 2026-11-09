@@ -40,6 +40,8 @@ describe("the role table", () => {
 				"member.manage",
 				"module.manage",
 				"quota.manage",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 			site: [
 				"module.manage",
@@ -53,6 +55,8 @@ describe("the role table", () => {
 				"media.upload",
 				"media.manage",
 				"import.run",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 		});
 	});
@@ -70,6 +74,8 @@ describe("the role table", () => {
 				"member.manage",
 				"module.manage",
 				"quota.manage",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 			site: [
 				"module.manage",
@@ -83,16 +89,18 @@ describe("the role table", () => {
 				"media.upload",
 				"media.manage",
 				"import.run",
+				"dashboard.manage",
+				"dashboard.view",
 			],
 		});
 	});
 
-	test("owner: manages Members and the staging password, publishes and deletes Entries, changes Form emails, imports CSV files, but never changes Structure or creates Sites", async () => {
+	test("owner: manages Members and the staging password, publishes and deletes Entries, changes Form emails, imports CSV files, sees Dashboards, but never changes Structure, builds Dashboards or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
-			workspace: ["audit.view", "workspace.view", "member.invite", "member.manage"],
+			workspace: ["audit.view", "workspace.view", "member.invite", "member.manage", "dashboard.view"],
 			site: [
 				"site.view",
 				"staging.manage",
@@ -103,6 +111,7 @@ describe("the role table", () => {
 				"media.upload",
 				"media.manage",
 				"import.run",
+				"dashboard.view",
 			],
 		});
 	});
@@ -196,6 +205,7 @@ describe("each role against Workspace and Site scope", () => {
 			"media.upload",
 			"media.manage",
 			"import.run",
+			"dashboard.view",
 		],
 		editor: [
 			"site.view",

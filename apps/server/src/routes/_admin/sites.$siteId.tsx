@@ -30,6 +30,11 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 				permissions.includes("structure.edit") || permissions.includes("formEmails.edit")
 					? (await api.forms.list({ siteId: params.siteId })).forms.map(({ id, name }) => ({ id, name }))
 					: [];
+			// Dashboards: Staff and Owners see them all; others only those shown to everyone.
+			const dashboards =
+				permissions.includes("dashboard.view") ||
+				permissions.includes("dashboard.manage") ||
+				(await api.dashboards.list({ siteId: params.siteId })).dashboards.length > 0;
 			const place: AdminPlace = {
 				level: "site",
 				workspace,
@@ -42,6 +47,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 				languages,
 				modulePermissions,
 				drafts,
+				dashboards,
 			};
 			return { place, site };
 		} catch (error) {
