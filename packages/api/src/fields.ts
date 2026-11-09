@@ -44,6 +44,7 @@ export const fieldInput: z.ZodType<FieldInput, FieldInput> = z.lazy(() =>
 		multiple: z.boolean().optional(),
 		postTypes: z.array(z.string().max(100)).max(100).optional(),
 		twoWay: z.boolean().optional(),
+		blocksOff: z.array(z.string().max(100)).max(100).optional(),
 		fields: z.array(fieldInput).max(MAX_FIELDS).optional(),
 	}),
 );

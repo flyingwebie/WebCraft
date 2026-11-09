@@ -117,6 +117,21 @@ describe("the default Design system", () => {
 		expect(base).toMatch(/\.wc-skip-link:not\(:focus\)\{[^}]*clip-path:inset\(50%\)/);
 	});
 
+	test("styles a body's callouts and videos, its only classes, with tones Staff can restyle", () => {
+		const base = /@layer base\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+		// The info tone follows the primary colour; the others have their own until a Site sets them.
+		expect(base).toContain("--wc-callout-info:var(--primary-60);");
+		expect(base).toMatch(
+			/--wc-callout-success:#[0-9a-f]{6};--wc-callout-warning:#[0-9a-f]{6};--wc-callout-danger:#[0-9a-f]{6}/,
+		);
+		expect(base).toMatch(/\.wc-callout\{[^}]*border-inline-start:[^}]*var\(--wc-callout-tone\)/);
+		for (const tone of ["success", "warning", "danger"]) {
+			expect(base).toContain(`.wc-callout[data-tone=${tone}]{--wc-callout-tone:var(--wc-callout-${tone})}`);
+		}
+		expect(base).toMatch(/\.wc-embed\{[^}]*aspect-ratio:16\/9/);
+		expect(base).toMatch(/\.wc-embed>a,\.wc-embed>iframe\{[^}]*inline-size:100%/);
+	});
+
 	test("respects reduced motion, and links in navigation are big enough to tap", () => {
 		expect(css).toMatch(/@media \(prefers-reduced-motion:reduce\)\{[^}]*transition-duration:0\.01ms!important/);
 		expect(css).toMatch(/nav a\{[^}]*min-block-size:24px/);

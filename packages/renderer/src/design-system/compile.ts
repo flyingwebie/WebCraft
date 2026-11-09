@@ -7,7 +7,7 @@
  * 2. `tokens`: every token as a custom property on `:root`, and the dark values when dark mode is on
  *    (following the device, or the theme toggle's choice in `data-wc-theme`);
  * 3. `base`: base styles of plain elements, the focus style (its custom properties set from tokens)
- *    and WebCraft's own page parts (the skip link, the theme toggle);
+ *    and WebCraft's own page parts (the skip link, the theme toggle, a body's callouts and videos);
  * 4. `classes`: the Classes some published element has, then their styles from each breakpoint up;
  * 5. `utilities`: the token utilities some published element has;
  * 6. `custom`: those Classes' own custom CSS, Components' (#63), then the Site-wide custom CSS.
@@ -56,6 +56,32 @@ const PAGE_PARTS = [
 	".wc-language-switcher a[aria-current]{font-weight:bolder}",
 ];
 
+/**
+ * A body's own hooks (ADR 0018), the only classes a body's HTML has: callouts (`wc-callout`, toned
+ * by `data-tone`) and videos (`wc-embed`, a 16:9 box holding the play link, then the player). Each
+ * tone's colour is a custom property Staff can set in the Site's custom CSS; the background is the
+ * tone mixed into the page's own background colour, so it follows dark values too.
+ */
+const BODY_PARTS = [
+	".wc-callout{--wc-callout-tone:var(--wc-callout-info);margin-block:1em;padding:0.75em 1em;border-inline-start:0.25em solid var(--wc-callout-tone);border-radius:0.25em;background-color:color-mix(in oklab,var(--wc-callout-tone) 12%,Canvas)}",
+	".wc-callout[data-tone=success]{--wc-callout-tone:var(--wc-callout-success)}",
+	".wc-callout[data-tone=warning]{--wc-callout-tone:var(--wc-callout-warning)}",
+	".wc-callout[data-tone=danger]{--wc-callout-tone:var(--wc-callout-danger)}",
+	".wc-callout>p{margin:0}",
+	".wc-embed{position:relative;margin-inline:0;margin-block:1em;aspect-ratio:16/9;background-color:CanvasText;color:Canvas}",
+	".wc-embed>a,.wc-embed>iframe{position:absolute;inset:0;inline-size:100%;block-size:100%;border:0}",
+	".wc-embed>a{display:flex;align-items:center;justify-content:center;gap:0.75em;padding:1em;color:inherit;text-align:center;text-decoration:underline}",
+	'.wc-embed>a::before{content:"";flex:none;border-block:0.75em solid transparent;border-inline-start:1.25em solid currentColor}',
+];
+
+/** The tones of a body's callouts: info follows the primary colour (while the Site has it). */
+function calloutTones(primary: string | undefined): string {
+	return [
+		`--wc-callout-info:${primary ? `var(${primary})` : "#2563eb"};`,
+		"--wc-callout-success:#15803d;--wc-callout-warning:#b45309;--wc-callout-danger:#b91c1c;",
+	].join("");
+}
+
 /** The stylesheet for a Design system and what its pages use. */
 export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse): string {
 	const names = designSystemNames(designSystem);
@@ -76,14 +102,16 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 	}
 
 	const focusColour = names.tokens.propertyOf({ token: tokens.focus.colour.colour, step: tokens.focus.colour.step });
+	const primary = names.tokens.propertyOf({ token: "colour-primary", step: "60" });
 	const baseRules = [
 		`:root{--wc-focus-color:var(${focusColour});--wc-focus-width:${tokens.focus.width}px;--wc-focus-offset:${tokens.focus.offset}px;}`,
+		`:root{${calloutTones(primary)}}`,
 	];
 	for (const target of BASE_TARGETS) {
 		const declarations = build(designSystem.baseStyles[target] ?? [], "declarations");
 		if (declarations) baseRules.push(`${target}{${declarations}}`);
 	}
-	baseRules.push(...PAGE_PARTS);
+	baseRules.push(...PAGE_PARTS, ...BODY_PARTS);
 
 	const used = designSystem.classes.filter((each) => use.classIds.has(each.id));
 	const classRules: string[] = [];

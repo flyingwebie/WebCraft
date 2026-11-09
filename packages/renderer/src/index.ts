@@ -4,6 +4,8 @@
  * a tree and its values into semantic HTML. It reads nothing itself: core finds the Entry and its
  * published Template and hands them over. It runs inside the web process.
  */
+export * from "./body/index.ts";
+export { VIDEO_SCRIPT } from "./body/video-script.ts";
 export {
 	type CommandNode,
 	RESERVED_COMMANDS,
@@ -160,4 +162,13 @@ export {
 	VOID_ELEMENTS,
 	valuePathsOf,
 } from "./tree.ts";
-export { type RichText, richText, type TemplateValue, type ValueReader } from "./values.ts";
+export {
+	type BodyValue,
+	bodyValue,
+	type RichText,
+	richText,
+	type TemplateValue,
+	type TocValue,
+	tocValue,
+	type ValueReader,
+} from "./values.ts";

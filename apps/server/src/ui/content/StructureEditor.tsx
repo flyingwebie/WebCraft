@@ -57,7 +57,7 @@ export function StructureEditor({
 }) {
 	const t = useT();
 	const router = useRouter();
-	const owner: FieldOwner = subject.kind === "globals" ? "globals" : "postType";
+	const owner: FieldOwner = subject.kind === "globals" ? "globals" : subject.builtIn === "page" ? "page" : "postType";
 	const initialSettings = subject.kind === "postType" ? { name: subject.name, urlPattern: subject.urlPattern } : null;
 	const [settings, setSettings] = useState<PostTypeSettings | null>(initialSettings);
 	const [drafts, setDrafts] = useState<FieldDraft[]>(() => draftsOf(subject.fields));
