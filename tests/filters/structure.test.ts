@@ -278,6 +278,44 @@ describe("building a Filter", () => {
 		});
 	});
 
+	test("Publish all lists a Filter's Draft with Structure, and publishes it after its Loop", async () => {
+		const { loop } = await staff.api.loops.create({
+			siteId,
+			name: "together",
+			source: "query",
+			query: { postTypes: ["products"] },
+		});
+		const { filter } = await staff.api.filters.create({
+			siteId,
+			name: "together",
+			loop: "together",
+			controls: CONTROLS,
+		});
+		const { drafts } = await staff.api.publishing.drafts({ siteId });
+		expect(drafts.find((draft) => draft.item.kind === "filter" && draft.item.id === filter.id)).toMatchObject({
+			group: "structure",
+			name: "together",
+			status: "new",
+			canPublish: true,
+		});
+
+		const items = [
+			{ kind: "filter", id: filter.id },
+			{ kind: "loop", id: loop.id },
+		] as const;
+		const preview = await staff.api.publishing.publishAll({ siteId, items: [...items] });
+		expect(preview.published).toBe(false);
+		if (preview.published) return;
+		expect(preview.preview.items.map((item) => item.item.kind)).toEqual(["loop", "filter"]);
+		const done = await staff.api.publishing.publishAll({
+			siteId,
+			items: [...items],
+			confirmation: preview.confirmation.id,
+		});
+		expect(done.published).toBe(true);
+		expect((await staff.api.filters.get({ siteId, filterId: filter.id })).filter.status).toBe("published");
+	});
+
 	test("Members can't see or change Filters: they are Structure", async () => {
 		await expect(owner.api.filters.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(owner.api.filters.create({ siteId, name: "members", loop: await newLoop() })).rejects.toMatchObject({
