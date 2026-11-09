@@ -23,6 +23,7 @@ import { Route as AdminSettingsAiRouteImport } from './routes/_admin/settings.ai
 import { Route as AdminSettingsBackupsRouteImport } from './routes/_admin/settings.backups'
 import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
+import { Route as AdminSettingsHistoryRouteImport } from './routes/_admin/settings.history'
 import { Route as AdminSettingsModulesRouteImport } from './routes/_admin/settings.modules'
 import { Route as AdminSettingsSecurityRouteImport } from './routes/_admin/settings.security'
 import { Route as AdminSettingsStorageRouteImport } from './routes/_admin/settings.storage'
@@ -38,6 +39,7 @@ import { Route as AdminSitesSiteIdConsentBannerRouteImport } from './routes/_adm
 import { Route as AdminSitesSiteIdDomainsRouteImport } from './routes/_admin/sites.$siteId.domains'
 import { Route as AdminSitesSiteIdEmailRouteImport } from './routes/_admin/sites.$siteId.email'
 import { Route as AdminSitesSiteIdGlobalsRouteImport } from './routes/_admin/sites.$siteId.globals'
+import { Route as AdminSitesSiteIdHistoryRouteImport } from './routes/_admin/sites.$siteId.history'
 import { Route as AdminSitesSiteIdImportsRouteImport } from './routes/_admin/sites.$siteId.imports'
 import { Route as AdminSitesSiteIdLanguagesRouteImport } from './routes/_admin/sites.$siteId.languages'
 import { Route as AdminSitesSiteIdLibrariesRouteImport } from './routes/_admin/sites.$siteId.libraries'
@@ -146,6 +148,11 @@ const AdminSettingsGeneralRoute = AdminSettingsGeneralRouteImport.update({
   path: '/settings/general',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsHistoryRoute = AdminSettingsHistoryRouteImport.update({
+  id: '/settings/history',
+  path: '/settings/history',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsModulesRoute = AdminSettingsModulesRouteImport.update({
   id: '/settings/modules',
   path: '/settings/modules',
@@ -223,6 +230,11 @@ const AdminSitesSiteIdEmailRoute = AdminSitesSiteIdEmailRouteImport.update({
 const AdminSitesSiteIdGlobalsRoute = AdminSitesSiteIdGlobalsRouteImport.update({
   id: '/globals',
   path: '/globals',
+  getParentRoute: () => AdminSitesSiteIdRoute,
+} as any)
+const AdminSitesSiteIdHistoryRoute = AdminSitesSiteIdHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => AdminSitesSiteIdRoute,
 } as any)
 const AdminSitesSiteIdImportsRoute = AdminSitesSiteIdImportsRouteImport.update({
@@ -462,6 +474,7 @@ export interface FileRoutesByFullPath {
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/settings/history': typeof AdminSettingsHistoryRoute
   '/settings/modules': typeof AdminSettingsModulesRoute
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
@@ -477,6 +490,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/sites/$siteId/email': typeof AdminSitesSiteIdEmailRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
+  '/sites/$siteId/history': typeof AdminSitesSiteIdHistoryRoute
   '/sites/$siteId/imports': typeof AdminSitesSiteIdImportsRouteWithChildren
   '/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/sites/$siteId/libraries': typeof AdminSitesSiteIdLibrariesRoute
@@ -529,6 +543,7 @@ export interface FileRoutesByTo {
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
+  '/settings/history': typeof AdminSettingsHistoryRoute
   '/settings/modules': typeof AdminSettingsModulesRoute
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
@@ -542,6 +557,7 @@ export interface FileRoutesByTo {
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/sites/$siteId/email': typeof AdminSitesSiteIdEmailRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
+  '/sites/$siteId/history': typeof AdminSitesSiteIdHistoryRoute
   '/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/sites/$siteId/libraries': typeof AdminSitesSiteIdLibrariesRoute
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
@@ -592,6 +608,7 @@ export interface FileRoutesById {
   '/_admin/settings/backups': typeof AdminSettingsBackupsRoute
   '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
+  '/_admin/settings/history': typeof AdminSettingsHistoryRoute
   '/_admin/settings/modules': typeof AdminSettingsModulesRoute
   '/_admin/settings/security': typeof AdminSettingsSecurityRoute
   '/_admin/settings/storage': typeof AdminSettingsStorageRoute
@@ -607,6 +624,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/_admin/sites/$siteId/email': typeof AdminSitesSiteIdEmailRoute
   '/_admin/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
+  '/_admin/sites/$siteId/history': typeof AdminSitesSiteIdHistoryRoute
   '/_admin/sites/$siteId/imports': typeof AdminSitesSiteIdImportsRouteWithChildren
   '/_admin/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/_admin/sites/$siteId/libraries': typeof AdminSitesSiteIdLibrariesRoute
@@ -662,6 +680,7 @@ export interface FileRouteTypes {
     | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
+    | '/settings/history'
     | '/settings/modules'
     | '/settings/security'
     | '/settings/storage'
@@ -677,6 +696,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/domains'
     | '/sites/$siteId/email'
     | '/sites/$siteId/globals'
+    | '/sites/$siteId/history'
     | '/sites/$siteId/imports'
     | '/sites/$siteId/languages'
     | '/sites/$siteId/libraries'
@@ -729,6 +749,7 @@ export interface FileRouteTypes {
     | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
+    | '/settings/history'
     | '/settings/modules'
     | '/settings/security'
     | '/settings/storage'
@@ -742,6 +763,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/domains'
     | '/sites/$siteId/email'
     | '/sites/$siteId/globals'
+    | '/sites/$siteId/history'
     | '/sites/$siteId/languages'
     | '/sites/$siteId/libraries'
     | '/sites/$siteId/media'
@@ -791,6 +813,7 @@ export interface FileRouteTypes {
     | '/_admin/settings/backups'
     | '/_admin/settings/email'
     | '/_admin/settings/general'
+    | '/_admin/settings/history'
     | '/_admin/settings/modules'
     | '/_admin/settings/security'
     | '/_admin/settings/storage'
@@ -806,6 +829,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/domains'
     | '/_admin/sites/$siteId/email'
     | '/_admin/sites/$siteId/globals'
+    | '/_admin/sites/$siteId/history'
     | '/_admin/sites/$siteId/imports'
     | '/_admin/sites/$siteId/languages'
     | '/_admin/sites/$siteId/libraries'
@@ -955,6 +979,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsGeneralRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/settings/history': {
+      id: '/_admin/settings/history'
+      path: '/settings/history'
+      fullPath: '/settings/history'
+      preLoaderRoute: typeof AdminSettingsHistoryRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/settings/modules': {
       id: '/_admin/settings/modules'
       path: '/settings/modules'
@@ -1058,6 +1089,13 @@ declare module '@tanstack/react-router' {
       path: '/globals'
       fullPath: '/sites/$siteId/globals'
       preLoaderRoute: typeof AdminSitesSiteIdGlobalsRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/sites/$siteId/history': {
+      id: '/_admin/sites/$siteId/history'
+      path: '/history'
+      fullPath: '/sites/$siteId/history'
+      preLoaderRoute: typeof AdminSitesSiteIdHistoryRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
     '/_admin/sites/$siteId/imports': {
@@ -1440,6 +1478,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdDomainsRoute: typeof AdminSitesSiteIdDomainsRoute
   AdminSitesSiteIdEmailRoute: typeof AdminSitesSiteIdEmailRoute
   AdminSitesSiteIdGlobalsRoute: typeof AdminSitesSiteIdGlobalsRoute
+  AdminSitesSiteIdHistoryRoute: typeof AdminSitesSiteIdHistoryRoute
   AdminSitesSiteIdImportsRoute: typeof AdminSitesSiteIdImportsRouteWithChildren
   AdminSitesSiteIdLanguagesRoute: typeof AdminSitesSiteIdLanguagesRoute
   AdminSitesSiteIdLibrariesRoute: typeof AdminSitesSiteIdLibrariesRoute
@@ -1468,6 +1507,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdDomainsRoute: AdminSitesSiteIdDomainsRoute,
   AdminSitesSiteIdEmailRoute: AdminSitesSiteIdEmailRoute,
   AdminSitesSiteIdGlobalsRoute: AdminSitesSiteIdGlobalsRoute,
+  AdminSitesSiteIdHistoryRoute: AdminSitesSiteIdHistoryRoute,
   AdminSitesSiteIdImportsRoute: AdminSitesSiteIdImportsRouteWithChildren,
   AdminSitesSiteIdLanguagesRoute: AdminSitesSiteIdLanguagesRoute,
   AdminSitesSiteIdLibrariesRoute: AdminSitesSiteIdLibrariesRoute,
@@ -1538,6 +1578,7 @@ interface AdminRouteChildren {
   AdminSettingsBackupsRoute: typeof AdminSettingsBackupsRoute
   AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
+  AdminSettingsHistoryRoute: typeof AdminSettingsHistoryRoute
   AdminSettingsModulesRoute: typeof AdminSettingsModulesRoute
   AdminSettingsSecurityRoute: typeof AdminSettingsSecurityRoute
   AdminSettingsStorageRoute: typeof AdminSettingsStorageRoute
@@ -1556,6 +1597,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminSettingsBackupsRoute: AdminSettingsBackupsRoute,
   AdminSettingsEmailRoute: AdminSettingsEmailRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
+  AdminSettingsHistoryRoute: AdminSettingsHistoryRoute,
   AdminSettingsModulesRoute: AdminSettingsModulesRoute,
   AdminSettingsSecurityRoute: AdminSettingsSecurityRoute,
   AdminSettingsStorageRoute: AdminSettingsStorageRoute,

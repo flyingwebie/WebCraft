@@ -18,6 +18,7 @@ import { type FormEvent, useRef, useState } from "react";
 import { getApi } from "../../ui/api.ts";
 import { StatusBadge } from "../../ui/content/DraftParts.tsx";
 import { errorMessage } from "../../ui/errors.ts";
+import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -81,14 +82,22 @@ function ComponentsPage() {
 								<TableCell>{t("components.pages", { count: component.usage.pages })}</TableCell>
 								<TableCell className="text-end">
 									{component.module ? null : (
-										<Link
-											to="/builder/$siteId/$"
-											params={{ siteId, _splat: `component/${component.id}` }}
-											className={buttonVariants({ variant: "outline", size: "sm" })}
-										>
-											{t("templates.open")}
-											<span className="sr-only">{t("templates.openNamed", { name: component.name })}</span>
-										</Link>
+										<span className="inline-flex flex-wrap justify-end gap-2">
+											<HistoryLink
+												siteId={siteId}
+												item={{ kind: "component", id: component.id }}
+												name={component.name}
+												size="sm"
+											/>
+											<Link
+												to="/builder/$siteId/$"
+												params={{ siteId, _splat: `component/${component.id}` }}
+												className={buttonVariants({ variant: "outline", size: "sm" })}
+											>
+												{t("templates.open")}
+												<span className="sr-only">{t("templates.openNamed", { name: component.name })}</span>
+											</Link>
+										</span>
 									)}
 								</TableCell>
 							</TableRow>

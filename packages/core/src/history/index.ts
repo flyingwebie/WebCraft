@@ -1,5 +1,6 @@
 import type { Database } from "@webcraft/db";
 import type { ComponentSources } from "../content/components.ts";
+import { can } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { draftLeft } from "./checkpoints.ts";
 import { type Comparison, compareWithDraft } from "./compare.ts";
@@ -12,7 +13,7 @@ import {
 	revisionsState,
 	type StoredCopy,
 } from "./copies.ts";
-import { type HistoryItem, type HistoryItemSummary, itemState } from "./items.ts";
+import { type HistoryItem, type HistoryItemSummary, historyEditPermission, itemState } from "./items.ts";
 import { type Restored, restoreCopy } from "./restore.ts";
 import { changeHistorySettings, type HistorySettings, readHistorySettings } from "./settings.ts";
 
@@ -58,6 +59,8 @@ export type HistoryPage = {
 	revisions: RevisionsState;
 	/** How long Revisions and Checkpoints are kept on this Install. */
 	retention: Omit<HistorySettings, "revisionsOn">;
+	/** Whether the person may restore into the item's Draft: whoever may change it. */
+	canRestore: boolean;
 };
 
 /**
@@ -101,7 +104,14 @@ export function createHistory(deps: { database: Database; componentSources: Comp
 			const state = await itemState(scope, item);
 			const page = await listCopies(scope, item, options);
 			const { revisionsOn: _, ...retention } = await readHistorySettings(scope.db);
-			return { item: state.summary, ...page, revisions: await revisionsState(scope, state), retention };
+			const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
+			return {
+				item: state.summary,
+				...page,
+				revisions: await revisionsState(scope, state),
+				retention,
+				canRestore: can(scope.access.actor, historyEditPermission(item), resource),
+			};
 		},
 		compare: (scope, item, ref, language) =>
 			compareWithDraft(scope, item, ref, { language, sources: deps.componentSources }),

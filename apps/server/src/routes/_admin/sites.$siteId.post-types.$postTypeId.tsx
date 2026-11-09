@@ -8,12 +8,15 @@ import { DataTab } from "../../ui/content/DataTab.tsx";
 import { SearchSettings } from "../../ui/content/SearchSettings.tsx";
 import { StructureEditor } from "../../ui/content/StructureEditor.tsx";
 import { errorCode } from "../../ui/errors.ts";
+import { PostTypeRevisions } from "../../ui/history/PostTypeRevisions.tsx";
 import { useT } from "../../ui/i18n.tsx";
 import { PostTypeSeoSettings } from "../../ui/seo/PostTypeSeoSettings.tsx";
 import { Tabs } from "../../ui/Tabs.tsx";
 
 /** Which tab is open: the Fields, the Data tab of its Entry template, its Site search settings or its SEO settings. */
-const search = z.object({ tab: z.enum(["fields", "data", "search", "seo"]).optional().catch(undefined) });
+const search = z.object({
+	tab: z.enum(["fields", "data", "search", "seo", "revisions"]).optional().catch(undefined),
+});
 
 /** One Post Type's settings and Fields (Structure), the Data tab of its Entry template, and its Site search settings. */
 export const Route = createFileRoute("/_admin/sites/$siteId/post-types/$postTypeId")({
@@ -81,10 +84,15 @@ function PostTypePage() {
 		label: t("postTypes.tabs.seo"),
 		panel: <PostTypeSeoSettings key={postType.id} postType={postType} siteId={siteId} />,
 	};
+	const revisionsTab = {
+		id: "revisions",
+		label: t("postTypes.tabs.revisions"),
+		panel: <PostTypeRevisions key={postType.id} postType={postType} siteId={siteId} />,
+	};
 	// Pages are arranged with a Page layout, so they have no Entry template to read the Data of.
 	const tabs =
 		postType.builtIn === "page"
-			? [{ id: "fields", label: t("postTypes.tabs.fields"), panel: editor(true) }, searchTab, seoTab]
+			? [{ id: "fields", label: t("postTypes.tabs.fields"), panel: editor(true) }, searchTab, seoTab, revisionsTab]
 			: [
 					{ id: "fields", label: t("postTypes.tabs.fields"), panel: editor(true) },
 					{
@@ -94,6 +102,7 @@ function PostTypePage() {
 					},
 					searchTab,
 					seoTab,
+					revisionsTab,
 				];
 	return (
 		<div className="grid min-w-0 content-start gap-6">
@@ -109,7 +118,9 @@ function PostTypePage() {
 					void navigate({
 						to: "/sites/$siteId/post-types/$postTypeId",
 						params: { siteId, postTypeId: postType.id },
-						search: { tab: id === "data" || id === "search" || id === "seo" ? id : undefined },
+						search: {
+							tab: id === "data" || id === "search" || id === "seo" || id === "revisions" ? id : undefined,
+						},
 						replace: true,
 					})
 				}
