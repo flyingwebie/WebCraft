@@ -33,8 +33,13 @@ function isParts(value: Resolved | undefined): value is Parts {
 
 /** The value a path names from `root`, or undefined when it names nothing. */
 export function resolvePath(root: Parts, path: string): TemplateValue {
-	let current: Resolved | undefined = root;
-	for (const name of path.split(".")) {
+	return resolveNames(root, path.split("."));
+}
+
+/** The value `names` pick from `start`, one part after another; undefined when they name nothing. */
+function resolveNames(start: Resolved, names: readonly string[]): TemplateValue {
+	let current: Resolved | undefined = start;
+	for (const name of names) {
 		current = step(current, name);
 		if (current === undefined) return undefined;
 	}
@@ -257,20 +262,17 @@ export function placementValues(
 	outer: ValueReader,
 	sources: PlacementSources,
 ): ValueReader {
-	const valueSources: ValueSources = { related: sources.related, site: sources.site };
-	const root: Parts = { text: null, part: (name) => (name === "site" ? sources.site : undefined) };
 	return (path) => {
 		const [head, key = "", ...rest] = path.split(".");
-		if (head === "site") return resolvePath(root, path);
+		if (head === "site") return resolveNames(sources.site, [key, ...rest]);
 		const prop = head === "props" ? props.find((candidate) => candidate.key === key) : undefined;
 		if (!prop) return undefined;
 		const argument = given.get(key);
 		if (argument?.kind === "bound") return outer([argument.path, ...rest].join("."));
 		const json = argument ? sources.read(prop, argument.text) : (prop.default as Json);
-		const value = fieldValue(prop, json, { ...valueSources, related: relatedOf(prop, sources.related) });
-		return resolvePath(
-			{ text: null, part: (name) => (name === "value" ? value : undefined) },
-			["value", ...rest].join("."),
+		return resolveNames(
+			fieldValue(prop, json, { site: sources.site, related: relatedOf(prop, sources.related) }),
+			rest,
 		);
 	};
 }

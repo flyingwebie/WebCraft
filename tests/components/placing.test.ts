@@ -504,3 +504,37 @@ describe("Components placing Components", () => {
 		expect(await page(kind, { title: "Still" })).toBe("<p>Read <span>in line</span></p>");
 	});
 });
+
+describe("size", () => {
+	test("a Template showing more than 100,000 nodes through its Components is refused", async () => {
+		// 9,000 nodes: a <ul> of 4,499 items, each an <li> holding its text.
+		const items = Array.from({ length: 4_499 }, (_, index) => `<li>${index}</li>`).join("");
+		await component("Long", [], `<ul>${items}</ul>`, { publish: false });
+		const kind = await postType();
+
+		await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: kind.postTypeId,
+			markup: "<Long />".repeat(11),
+		});
+		await expect(
+			staff.api.templates.saveEntryTemplateMarkup({
+				siteId,
+				postTypeId: kind.postTypeId,
+				markup: "<Long />".repeat(12),
+			}),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: {
+				problems: [
+					{
+						line: 1,
+						column: 89,
+						message:
+							"With its Components shown, this comes to more than 100,000 nodes: place fewer, or smaller, Components.",
+					},
+				],
+			},
+		});
+	});
+});
