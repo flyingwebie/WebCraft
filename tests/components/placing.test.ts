@@ -248,3 +248,146 @@ describe("a Component's Draft and publishing", () => {
 		});
 	});
 });
+
+describe("what a Placement can't be", () => {
+	let cardId: string;
+	let kind: { postTypeId: string; key: string };
+
+	beforeAll(async () => {
+		cardId = await component(
+			"Card",
+			[
+				{ key: "heading", label: "Heading", type: "text", required: true },
+				{ key: "count", label: "Count", type: "number", max: 9 },
+			],
+			"<div><h2>{{ props.heading }}</h2>{{ props.count }}</div>",
+		);
+		kind = await postType();
+	});
+
+	const save = (markup: string) =>
+		staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: kind.postTypeId, markup });
+	const refusals = async (markup: string) => {
+		const refusal = await save(markup).then(
+			() => undefined,
+			(error: { code?: string; data?: { problems?: unknown } }) => error,
+		);
+		expect(refusal?.code).toBe("TEMPLATE_MARKUP_INVALID");
+		return refusal?.data?.problems;
+	};
+
+	test("a copy's internals can't be edited on their own: a stored Placement holds only its Prop values", async () => {
+		const placement = {
+			type: "component",
+			component: cardId,
+			props: [{ name: "heading", value: [{ type: "text", text: "Hi" }] }],
+		};
+
+		for (const internals of [
+			{ children: [{ type: "text", text: "Mine" }] },
+			{ tree: { version: 1, nodes: [] } },
+			{ nodes: [] },
+		]) {
+			await expect(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: kind.postTypeId,
+					tree: { version: 1, nodes: [{ ...placement, ...internals }] } as never,
+				}),
+			).rejects.toMatchObject({
+				code: "TEMPLATE_INVALID",
+				data: {
+					problems: [
+						{
+							at: `nodes[0].${Object.keys(internals)[0]}`,
+							message: expect.stringContaining("the Component's elements are changed in the Component, for every copy"),
+						},
+					],
+				},
+			});
+		}
+	});
+
+	test("in markup a Placement holds nothing between its tags", async () => {
+		expect(await refusals('<Card heading="Hi">\n  <p>Mine</p>\n</Card>')).toEqual([
+			{ line: 1, column: 20, message: expect.stringContaining("<Card> holds nothing: write <Card … />") },
+		]);
+	});
+
+	test("names a Component the Site has, and only its Props, each as declared, once", async () => {
+		expect(await refusals('<Nope />\n<Card heading="Hi" colour="red" Count="2" heading="Again" />')).toEqual([
+			{ line: 1, column: 1, message: "There is no Component named Nope." },
+			{ line: 2, column: 20, message: "Card has no Prop named colour." },
+			{ line: 2, column: 33, message: "Card has no Prop named Count: Props are written as declared, count." },
+			{ line: 2, column: 43, message: "heading is given twice." },
+		]);
+	});
+
+	test("gives every required Prop, and fixed values its Props can hold", async () => {
+		expect(await refusals('<Card count="many" />\n<Card heading="Hi" count="12" />')).toEqual([
+			{ line: 1, column: 1, message: "Card needs heading: the Prop is required." },
+			{ line: 1, column: 14, message: "count: a number, such as 3 or 2.5." },
+			{ line: 2, column: 27, message: "count: At most 9." },
+		]);
+	});
+
+	test("reads only values its place has", async () => {
+		expect(await refusals('<Card heading="{{ nope }}" />')).toEqual([
+			{ line: 1, column: 19, message: "There is no value named nope here." },
+		]);
+	});
+
+	test("sits only where its Component's HTML can go", async () => {
+		expect(await refusals('<p><Card heading="Hi" /></p>')).toEqual([
+			{
+				line: 1,
+				column: 4,
+				message: "Card can't go here: <div> can't go inside <p>: a browser would end the paragraph before it.",
+			},
+		]);
+		await expect(
+			staff.api.templates.saveEntryTemplate({
+				siteId,
+				postTypeId: kind.postTypeId,
+				tree: {
+					version: 1,
+					nodes: [
+						{
+							type: "element",
+							tag: "p",
+							attributes: [],
+							classes: [],
+							children: [
+								{
+									type: "component",
+									component: cardId,
+									props: [{ name: "heading", value: [{ type: "text", text: "Hi" }] }],
+								},
+							],
+						},
+					],
+				} as never,
+			}),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_INVALID",
+			data: { problems: [{ at: "nodes[0].children[0]", message: expect.stringContaining("Card can't go here") }] },
+		});
+	});
+
+	test("names its Component by an id the Site has", async () => {
+		const unknown = "3f9a1c2b-7d4e-4f60-9a1c-2b7d4e5f6071";
+
+		await expect(
+			staff.api.templates.saveEntryTemplate({
+				siteId,
+				postTypeId: kind.postTypeId,
+				tree: { version: 1, nodes: [{ type: "component", component: unknown, props: [] }] } as never,
+			}),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_INVALID",
+			data: {
+				problems: [{ at: "nodes[0].component", message: `There is no Component with the id ${unknown} on this Site.` }],
+			},
+		});
+	});
+});
