@@ -127,7 +127,7 @@ export function moduleContext(
 		module: { id: module.id, version: manifest.version },
 		place: place as ModulePlace,
 		now: () => scope.now(),
-		data: moduleData(module, scope),
+		data: moduleData(module, scope, { inTransaction: afterCommit !== null }),
 		async audit(action, details) {
 			if (!AUDIT_ACTION.test(action)) {
 				throw new TypeError(`An Audit log action is <noun>.<verb>, such as note.add: not ${action}.`);

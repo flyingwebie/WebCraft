@@ -37,6 +37,7 @@ const answering = defineModule({
 			if (request.path === "/scripted") return { to: "javascript:alert(1)", status: 301 };
 			if (request.path === "/elsewhere") return { to: "//evil.example/x", status: 301 };
 			if (request.path === "/fine") return { to: "/landed", status: 302 };
+			if (request.path === "/self") return { to: "/self?again=1", status: 301 };
 			return null;
 		},
 	}),
@@ -134,6 +135,8 @@ describe("a Module's rules that fail", () => {
 		expect(performance.now() - started).toBeLessThan(3000);
 		expect((await install.request(`${SITE}/scripted`)).status).toBe(404);
 		expect((await install.request(`${SITE}/elsewhere`)).status).toBe(404);
+		// A target that is the request's own path, whatever query it adds, would loop in the browser.
+		expect((await install.request(`${SITE}/self`)).status).toBe(404);
 
 		const { lines } = await (await install.superadmin()).api.modules.log({ moduleId: "answering-rules", limit: 10 });
 		expect(lines.map((line) => line.message)).toEqual(

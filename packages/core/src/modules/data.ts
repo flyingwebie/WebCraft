@@ -23,7 +23,11 @@ export function placeQueries(scope: PlaceScope): ScopedQueries<WorkspaceTable, "
  * refused. A change to a table its Redirect rules read (SDK 1.4) clears the Site's page cache with
  * it, as the Site pipeline keeps their answers with the Site's pages.
  */
-export function moduleData(module: RunnableModule, scope: PlaceScope): ModuleData {
+export function moduleData(
+	module: RunnableModule,
+	scope: PlaceScope,
+	options: { inTransaction?: boolean } = {},
+): ModuleData {
 	const queries = placeQueries(scope);
 	const own = <Table extends ModuleTable>(table: Table): Table & WorkspaceTable => {
 		if (!module.tables.has(table)) {
@@ -40,9 +44,14 @@ export function moduleData(module: RunnableModule, scope: PlaceScope): ModuleDat
 	/** A new row: in a Site the Site is filled in; in a Workspace a Site table's row names its Site. */
 	const values = <Table extends ModuleTable>(table: Table, row: NewModuleRow<Table> | Partial<NewModuleRow<Table>>) =>
 		(scope.level === "site" && "siteId" in table ? { ...row, siteId: scope.site.id } : row) as never;
+	// In one transaction the Site's pages go once: nobody sees the change before it commits.
+	let cleared = false;
 	/** After a change to a table the Site pipeline keeps answers of: the Site's pages go, with the change. */
 	const changed = async <Result>(table: ModuleTable, result: Result, rows: number): Promise<Result> => {
-		if (rows > 0 && scope.level === "site" && module.redirects?.tables.includes(table)) await clearPageCache(scope);
+		if (rows === 0 || scope.level !== "site" || !module.redirects?.tables.includes(table)) return result;
+		if (cleared && options.inTransaction) return result;
+		await clearPageCache(scope);
+		cleared = true;
 		return result;
 	};
 	return {

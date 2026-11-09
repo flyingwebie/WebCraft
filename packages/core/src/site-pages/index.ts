@@ -636,9 +636,10 @@ export function createSitePages(options: {
 				languageOf: (path) => languageOf(site, path),
 			});
 			const location = target && addressFrom(site, host, target.to);
-			// A rule never sends a request to its own address.
+			// A rule never sends a request to its own address (whatever query it adds), which would loop.
+			const [there = ""] = (location ?? "").split(/[?#]/);
 			const answer =
-				target && location && location !== key.slice(host.origin.length) && location !== key
+				target && location && there !== key.slice(host.origin.length) && there !== key
 					? { location, status: target.status }
 					: null;
 			redirectAnswers.set(host, key, answer);
