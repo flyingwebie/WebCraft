@@ -11,6 +11,7 @@ import {
 	createJobQueue,
 	createLogger,
 	createSecrets,
+	type Edge,
 	ensureQueues,
 	FIRST_PARTY_MODULES,
 	type InstallPorts,
@@ -39,6 +40,7 @@ import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "
 import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
+import { createFakeTls, type FakeTls } from "./fake-tls.ts";
 
 export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
@@ -46,6 +48,7 @@ export type { FakeDns } from "./fake-dns.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
 export { createFakeS3, type FakeS3, type FakeS3Options } from "./fake-s3.ts";
+export type { FakeTls } from "./fake-tls.ts";
 export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
 
 /** The invite link in an invite email: `https://admin.test/invite?token=…`. Throws when there is none. */
@@ -76,6 +79,13 @@ export const TEST_SITES_DOMAIN = "sites.test";
  */
 export const TEST_MASTER_KEY = "test-master-key-0123456789abcdefghijklmnop";
 
+/**
+ * The public addresses of every test Install unless a test chooses others
+ * (`WEBCRAFT_PUBLIC_ADDRESSES`): an IPv4 and an IPv6 address from the ranges kept for documentation,
+ * so no test can ever reach a real server. The admin host resolves to them too.
+ */
+export const TEST_INSTALL_ADDRESSES = ["203.0.113.10", "2001:db8::10"] as const;
+
 /** Where a test Install's clock starts unless a test says otherwise: a Monday morning. */
 export const DEFAULT_TEST_TIME = new Date("2026-03-02T09:00:00.000Z");
 
@@ -94,6 +104,10 @@ export type TestInstallOptions = {
 	sitesDomain?: string | null;
 	/** `WEBCRAFT_ADMIN_HOST`: `TEST_ADMIN_HOST` unless given. */
 	adminHost?: string;
+	/** `WEBCRAFT_EDGE`: `caddy` unless given. */
+	edge?: Edge;
+	/** `WEBCRAFT_PUBLIC_ADDRESSES`: `TEST_INSTALL_ADDRESSES` unless given. */
+	publicAddresses?: readonly string[];
 	/**
 	 * The Modules the Install loads: this build's first-party Modules unless given, as web and
 	 * worker load them. Their migrations must already be in the database: every test database has
@@ -241,6 +255,14 @@ export type TestInstall = {
 	http: FakeHttp;
 	/** The Install's DNS: names resolve only to what a test answers (`dns.answer(name, addresses)`). */
 	dns: FakeDns;
+	/** The certificates hosts answer with over HTTPS (`tls.answer(name, { expiresAt })`); none unless given. */
+	tls: FakeTls;
+	/**
+	 * Points a domain at this Install, as its DNS records would: it resolves to the Install's first
+	 * address, every HTTP request to it reaches this Install's handler, and it answers HTTPS with a
+	 * certificate valid for 90 more days (or the one given; null for none).
+	 */
+	connectDomain(name: string, options?: { certificate?: { expiresAt: Date; trusted?: boolean } | null }): void;
 	clock: TestInstallClock;
 	/** Every log entry the Install wrote. */
 	logs: LogEntry[];
@@ -295,25 +317,33 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const mail = createFakeMailer();
 	const http = createFakeHttp();
 	const dns = createFakeDns();
+	const tls = createFakeTls();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
 	const adminOrigin = `https://${adminHost}`;
 	const sitesDomain = options.sitesDomain === undefined ? TEST_SITES_DOMAIN : options.sitesDomain;
+	const edge = options.edge ?? "caddy";
+	const publicAddresses = [...(options.publicAddresses ?? TEST_INSTALL_ADDRESSES)];
+	// The admin host resolves to the Install's addresses, as it does on a server.
+	if (publicAddresses.length > 0) dns.answer(adminHost, publicAddresses);
 	const env: Record<string, string> = {
 		DATABASE_URL: databaseUrl,
 		WEBCRAFT_ADMIN_HOST: adminHost,
 		...(sitesDomain ? { WEBCRAFT_SITES_DOMAIN: sitesDomain } : {}),
+		WEBCRAFT_EDGE: edge,
+		...(publicAddresses.length > 0 ? { WEBCRAFT_PUBLIC_ADDRESSES: publicAddresses.join(",") } : {}),
 		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
 		WEBCRAFT_STORAGE_DIR: storageDir,
 	};
 	const ports: InstallPorts = {
-		config: { databaseUrl, adminHost, adminOrigin, sitesDomain, storageDir },
+		config: { databaseUrl, adminHost, adminOrigin, sitesDomain, storageDir, edge, publicAddresses },
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
 		http: http.fetch,
 		dns: dns.resolver,
+		tls: tls.probe,
 		clock,
 		log,
 		// The real image processing the worker does (it isn't an edge, so it isn't faked).
@@ -480,6 +510,25 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		lastEmailTo,
 		http,
 		dns,
+		tls,
+		connectDomain(name, connectOptions = {}) {
+			const domain = name.toLowerCase();
+			dns.answer(domain, [publicAddresses[0] ?? "203.0.113.10"]);
+			const escaped = domain.replaceAll(".", "\\.");
+			http.respond("GET", new RegExp(`^https?://${escaped}(:\\d+)?/`), async (request) => {
+				const response = await handle(new Request(request.url, { headers: request.headers }));
+				return {
+					status: response.status,
+					body: new Uint8Array(await response.arrayBuffer()),
+					headers: Object.fromEntries(response.headers),
+				};
+			});
+			const certificate =
+				connectOptions.certificate === undefined
+					? { expiresAt: new Date(clock.now().getTime() + 90 * 24 * 60 * 60_000) }
+					: connectOptions.certificate;
+			tls.answer(domain, certificate);
+		},
 		clock,
 		logs,
 		async restart(restartOptions = {}) {

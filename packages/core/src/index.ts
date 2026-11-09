@@ -36,6 +36,8 @@ export {
 export {
 	adminOriginFor,
 	ConfigError,
+	EDGES,
+	type Edge,
 	type Environment,
 	type InstallConfig,
 	isDevelopmentHostname,
@@ -53,6 +55,7 @@ export { isWebCraftCookie, WEBCRAFT_COOKIE_PREFIX } from "./cookies.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./design-system/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
+export * from "./domains/index.ts";
 export {
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
@@ -248,3 +251,4 @@ export {
 	type WorkspaceRef,
 } from "./tenancy/staff.ts";
 export { WORKSPACE_NAME_MAX_LENGTH, type WorkspaceSummary } from "./tenancy/workspaces.ts";
+export { systemTls, type TlsCertificate, type TlsProbe } from "./tls.ts";

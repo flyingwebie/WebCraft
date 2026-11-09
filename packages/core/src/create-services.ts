@@ -55,6 +55,7 @@ import {
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
+import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
@@ -67,7 +68,12 @@ import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
-import { editModeSigningKey, type MasterKey, sessionSigningSecret } from "./secrets/master-key.ts";
+import {
+	domainVerificationKey,
+	editModeSigningKey,
+	type MasterKey,
+	sessionSigningSecret,
+} from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
@@ -199,6 +205,18 @@ export async function createInstallServices(
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
+		domains: createDomains({
+			config,
+			database,
+			data,
+			http: ports.http,
+			dns: ports.dns,
+			tls: ports.tls,
+			clock,
+			log,
+			email,
+			verificationKey: await domainVerificationKey(masterKey),
+		}),
 		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
 		languages: {
 			get: siteLanguages,

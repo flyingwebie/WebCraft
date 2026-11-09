@@ -21,6 +21,14 @@ beforeEach(() => {
 	install.http.reset();
 });
 
+/**
+ * Runs the sample jobs that are due. Moving the clock also brings scheduled jobs due (the domain
+ * checks run every minute), which these tests leave queued.
+ */
+function drainSampleJobs() {
+	return install.drainJobs({ only: ["sample.ping"] });
+}
+
 /** What the sample job logged, oldest first. */
 function pings() {
 	return install.logs
@@ -38,7 +46,7 @@ describe("the sample job", () => {
 		await install.jobs.send(samplePing, { url: "https://status.example.org/ping" });
 		expect(pings()).toEqual([]);
 
-		const report = await install.drainJobs();
+		const report = await drainSampleJobs();
 
 		expect(report.failed).toEqual([]);
 		expect(report.completed.map((run) => run.name)).toEqual(["sample.ping"]);
@@ -55,11 +63,11 @@ describe("the sample job", () => {
 		const inAnHour = new Date(install.clock.now().getTime() + 60 * MINUTE);
 		await install.jobs.send(samplePing, { url: "https://status.example.org/later" }, { startAfter: inAnHour });
 
-		expect((await install.drainJobs()).completed).toEqual([]);
+		expect((await drainSampleJobs()).completed).toEqual([]);
 
 		await install.clock.advance(60 * MINUTE);
 
-		expect((await install.drainJobs()).completed).toHaveLength(1);
+		expect((await drainSampleJobs()).completed).toHaveLength(1);
 		expect(pings().at(-1)).toMatchObject({ url: "https://status.example.org/later", status: 200 });
 	});
 
@@ -67,7 +75,7 @@ describe("the sample job", () => {
 		await install.jobs.send(samplePing, { url: "https://flaky.example.org/" });
 		const before = pings().length;
 
-		const first = await install.drainJobs();
+		const first = await drainSampleJobs();
 
 		expect(first.completed).toEqual([]);
 		expect(first.failed.map((run) => run.error?.message)).toEqual([
@@ -77,7 +85,7 @@ describe("the sample job", () => {
 
 		install.http.respond("GET", "https://flaky.example.org/", { body: "back" });
 		await install.clock.advance(MINUTE);
-		const retry = await install.drainJobs();
+		const retry = await drainSampleJobs();
 
 		expect(retry.completed).toHaveLength(1);
 		expect(pings().at(-1)).toMatchObject({ url: "https://flaky.example.org/", status: 200 });
