@@ -74,7 +74,13 @@
 		"PATH_TAKEN_BY_PAGE": "Una pagina pubblicata si trova a un indirizzo che questo schema di URL occuperebbe. Scegli un altro schema.",
 		"CONFIRMATION_EXPIRED": "La conferma è scaduta. Ricontrolla e conferma.",
 		"CONFIRMATION_CHANGED": "Qualcosa è cambiato da quando ti è stato chiesto. Ricontrolla e conferma.",
-		"PATH_TAKEN_BY_LANGUAGE": "Quell'indirizzo inizia con il prefisso di una lingua, che appartiene alle pagine di quella lingua. Scegli un altro slug o pattern URL."
+		"PATH_TAKEN_BY_LANGUAGE": "Quell'indirizzo inizia con il prefisso di una lingua, che appartiene alle pagine di quella lingua. Scegli un altro slug o pattern URL.",
+		"PATH_TAKEN_BY_ARCHIVE": "A quell'indirizzo è pubblicato il modello d'archivio di un tipo di contenuto. Scegli un altro slug, un'altra pagina genitore o un altro schema di URL.",
+		"ARCHIVE_UNAVAILABLE": "Questo tipo di contenuto non ha un modello d'archivio: le pagine non ne hanno, e uno schema di URL che inizia con lo slug non lascia un indirizzo da cui elencare.",
+		"LOOP_NOT_FOUND": "Questo sito non ha questo loop.",
+		"LOOP_INVALID": "Il loop non può essere salvato. Controlla le impostazioni segnalate.",
+		"LOOP_INCOMPLETE": "Compila i valori segnalati degli elementi del loop prima di pubblicare.",
+		"LOOP_NAME_TAKEN": "Un altro loop di questo sito ha già questo nome."
 	},
 	"roles": {
 		"superadmin": "Superadmin",

@@ -157,7 +157,9 @@ export class EntryIncompleteError extends Error {
 export type PathHolder =
 	| { kind: "postType"; id: string; name: string; urlPattern: string }
 	| { kind: "page"; id: string; title: string }
-	| { kind: "language"; code: string; name: string };
+	| { kind: "language"; code: string; name: string }
+	/** A Post Type's published Archive template, at its URL pattern's fixed address. */
+	| { kind: "archive"; postTypeId: string; name: string };
 
 /**
  * A path already belongs elsewhere: a Post Type's URL pattern owns every path it matches, Pages live
@@ -168,13 +170,20 @@ export class PathTakenError extends Error {
 	override name = "PathTakenError";
 	readonly path: string;
 	readonly by: PathHolder;
-	constructor(path: string, by: PathHolder) {
+	/** `taking` says what wanted the path: a URL pattern or a Page (the default), or an Archive template. */
+	constructor(path: string, by: PathHolder, taking: "pathOrPattern" | "archive" = "pathOrPattern") {
 		super(
-			by.kind === "postType"
-				? `The path ${path} belongs to ${by.name} (${by.urlPattern}): choose another slug or parent Page.`
-				: by.kind === "page"
-					? `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`
-					: `The path ${path} starts with the prefix of the Site's ${by.name} pages: choose another one.`,
+			taking === "archive"
+				? by.kind === "page"
+					? `The Archive template's address ${path} is where the Page ${by.title} is published: move the Page or change the URL pattern.`
+					: `The Archive template's address ${path} belongs elsewhere: change the URL pattern.`
+				: by.kind === "postType"
+					? `The path ${path} belongs to ${by.name} (${by.urlPattern}): choose another slug or parent Page.`
+					: by.kind === "page"
+						? `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`
+						: by.kind === "archive"
+							? `The path ${path} is where the Archive template of ${by.name} is published: choose another one.`
+							: `The path ${path} starts with the prefix of the Site's ${by.name} pages: choose another one.`,
 		);
 		this.path = path;
 		this.by = by;
@@ -250,8 +259,8 @@ export type ComponentUse =
 	| {
 			kind: "template";
 			id: string;
-			templateKind: "entry" | "site";
-			/** The Post Type an Entry template renders; null for the Site template. */
+			templateKind: "entry" | "site" | "archive";
+			/** The Post Type an Entry or Archive template belongs to; null for the Site template. */
 			postTypeId: string | null;
 			versions: ("draft" | "published")[];
 	  }
@@ -349,5 +358,22 @@ export class LoopNameTakenError extends Error {
 	constructor(loopName: string) {
 		super(`Another Loop of this Site is named ${loopName}: choose another name.`);
 		this.loopName = loopName;
+	}
+}
+
+/**
+ * A Post Type has no Archive template: the Page Post Type (`pages`: Pages are arranged with a Page
+ * layout), or one whose URL pattern starts with `{slug}`, leaving no fixed address to list from (`address`).
+ */
+export class ArchiveUnavailableError extends Error {
+	override name = "ArchiveUnavailableError";
+	readonly reason: "pages" | "address";
+	constructor(reason: "pages" | "address") {
+		super(
+			reason === "pages"
+				? "Pages have no Archive template: list them with a Loop."
+				: "An Archive template answers at its URL pattern's fixed parts before {slug}, and this one starts with {slug}.",
+		);
+		this.reason = reason;
 	}
 }

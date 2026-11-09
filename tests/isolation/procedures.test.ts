@@ -9,7 +9,7 @@ import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
-import { element, outlet, tree, value } from "../harness/trees.ts";
+import { element, outlet, text, tree, value } from "../harness/trees.ts";
 import type { sampleBoard } from "../modules/sample/board.ts";
 import type { sample } from "../modules/sample/index.ts";
 
@@ -185,6 +185,26 @@ describe("Templates", () => {
 	);
 	isolation.refuses("templates.saveSiteTemplateMarkup", (api, { siteId }) =>
 		api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" }),
+	);
+	isolation.refuses("templates.getArchiveTemplate", async (api, target) =>
+		api.templates.getArchiveTemplate({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveArchiveTemplate", async (api, target) =>
+		api.templates.saveArchiveTemplate({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			tree: tree(element("h2", [text("All posts")])),
+		}),
+	);
+	isolation.refuses("templates.getArchiveTemplateMarkup", async (api, target) =>
+		api.templates.getArchiveTemplateMarkup({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveArchiveTemplateMarkup", async (api, target) =>
+		api.templates.saveArchiveTemplateMarkup({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			markup: "<h2>All posts</h2>",
+		}),
 	);
 });
 

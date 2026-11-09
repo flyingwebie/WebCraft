@@ -11,6 +11,7 @@ import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
+import { archiveAt, checkArchiveAddressFree, publishedArchives } from "./archives.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import {
 	type ComponentSources,
@@ -287,6 +288,7 @@ async function pagePaths(
 	const before = new Map(moving.map((id) => [id, pathIn(tree, id)]));
 	tree.set(pageId, next);
 	const postTypes = await listPostTypes(scope);
+	const archives = await publishedArchives(scope, postTypes);
 	const changes: PathChange[] = [];
 	const visible = (parts: readonly string[]) => languagePath(languages, pathText(parts));
 	for (const id of moving) {
@@ -304,6 +306,14 @@ async function pagePaths(
 				urlPattern: owner.urlPattern,
 			});
 		}
+		const archive = archiveAt(archives, parts);
+		if (archive) {
+			throw new PathTakenError(visible(parts), {
+				kind: "archive",
+				postTypeId: archive.postType.id,
+				name: archive.postType.name,
+			});
+		}
 		const from = before.get(id);
 		if (from && pathText(from) !== pathText(parts)) {
 			changes.push({ entryId: id, language, from: visible(from), to: visible(parts) });
@@ -314,7 +324,10 @@ async function pagePaths(
 
 /** Publishes a Template; `publish` has taken the Components' lock, so what it may place holds still. */
 async function publishTemplate(scope: SiteScope, templateId: string, sources: ComponentSources): Promise<Published> {
+	// An Archive template takes its address: hold the Site's paths before any row.
+	await lockSitePaths(scope);
 	const row = await lockTemplate(scope, templateId);
+	if (row.kind === "archive") await checkArchiveAddressFree(scope, await getPostType(scope, row.postTypeId ?? ""));
 	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes,
 	// the published Components it places) may have changed since the Draft was saved.
 	const tree = await checkTemplateForPublish(scope, row, sources);

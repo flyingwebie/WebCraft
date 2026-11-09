@@ -74,7 +74,13 @@
 		"PATH_TAKEN_BY_PAGE": "A published Page is at an address this URL pattern would take. Choose another pattern.",
 		"CONFIRMATION_EXPIRED": "The confirmation expired. Look again and confirm.",
 		"CONFIRMATION_CHANGED": "Something changed since you were asked. Look again and confirm.",
-		"PATH_TAKEN_BY_LANGUAGE": "That address starts with a language's prefix: the prefix belongs to that language's pages. Choose another slug or URL pattern."
+		"PATH_TAKEN_BY_LANGUAGE": "That address starts with a language's prefix: the prefix belongs to that language's pages. Choose another slug or URL pattern.",
+		"PATH_TAKEN_BY_ARCHIVE": "That address is where a Post Type's Archive template is published. Choose another slug, parent Page or URL pattern.",
+		"ARCHIVE_UNAVAILABLE": "This Post Type has no Archive template: Pages have none, and a URL pattern that starts with the slug leaves no address to list from.",
+		"LOOP_NOT_FOUND": "There is no such Loop on this Site.",
+		"LOOP_INVALID": "The Loop can't be saved. Check the settings marked.",
+		"LOOP_INCOMPLETE": "Fill in the Loop items' values marked before publishing.",
+		"LOOP_NAME_TAKEN": "Another Loop of this Site already has this name."
 	},
 	"roles": {
 		"superadmin": "Superadmin",

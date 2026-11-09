@@ -38,6 +38,7 @@ import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { publishedArchives } from "./archives.ts";
 import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
 import {
 	ComponentFromModuleError,
@@ -684,7 +685,9 @@ export async function checkPublishedPlacements(
 			.filter((row) => row.published !== null)
 			.map((row) => ({
 				where:
-					row.kind === "site" ? "the Site template" : `the Entry template of ${postTypes.get(row.postTypeId ?? "")}`,
+					row.kind === "site"
+						? "the Site template"
+						: `the ${row.kind === "archive" ? "Archive" : "Entry"} template of ${postTypes.get(row.postTypeId ?? "")}`,
 				tree: row.published as ElementTree,
 				placedDepth: 0,
 			})),
@@ -738,7 +741,7 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			use: {
 				kind: "template" as const,
 				id: row.id,
-				templateKind: row.kind === "site" ? ("site" as const) : ("entry" as const),
+				templateKind: row.kind as "site" | "entry" | "archive",
 				postTypeId: row.postTypeId,
 				versions: [],
 			},
@@ -780,15 +783,19 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 	const withEntryTemplate = new Set(
 		templateRows.filter((row) => row.kind === "entry" && row.published !== null).map((row) => row.postTypeId),
 	);
-	/** Every published page: Entries whose Entry template is published, and Pages. */
-	const allPages = postTypes
-		.filter((postType) => isPagePostType(postType) || withEntryTemplate.has(postType.id))
-		.reduce((sum, postType) => sum + (publishedEntries.get(postType.id) ?? 0), 0);
+	/** Post Types whose published Archive template has an address: one more page each. */
+	const withArchive = new Set((await publishedArchives(scope, postTypes)).map((archive) => archive.postType.id));
+	/** Every published page: Entries whose Entry template is published, Pages, and Archive pages. */
+	const allPages =
+		postTypes
+			.filter((postType) => isPagePostType(postType) || withEntryTemplate.has(postType.id))
+			.reduce((sum, postType) => sum + (publishedEntries.get(postType.id) ?? 0), 0) + withArchive.size;
 
 	const pagesShowing = (componentId: string): number => {
 		const seen = new Set<string>([componentId]);
 		const stack = [componentId];
 		const postTypeIds = new Set<string>();
+		const archives = new Set<string>();
 		while (stack.length > 0) {
 			const id = stack.pop() as string;
 			for (const holder of publishedPlacers.get(id) ?? []) {
@@ -799,12 +806,16 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 					}
 				} else if (holder.use.templateKind === "site") {
 					return allPages;
+				} else if (holder.use.templateKind === "archive" && holder.use.postTypeId) {
+					if (withArchive.has(holder.use.postTypeId)) archives.add(holder.use.postTypeId);
 				} else if (holder.use.postTypeId) {
 					postTypeIds.add(holder.use.postTypeId);
 				}
 			}
 		}
-		return [...postTypeIds].reduce((sum, postTypeId) => sum + (publishedEntries.get(postTypeId) ?? 0), 0);
+		return (
+			[...postTypeIds].reduce((sum, postTypeId) => sum + (publishedEntries.get(postTypeId) ?? 0), 0) + archives.size
+		);
 	};
 	return (componentId) => ({ pages: pagesShowing(componentId), usedIn: directUses.get(componentId) ?? [] });
 }

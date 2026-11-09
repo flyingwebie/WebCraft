@@ -53,6 +53,11 @@ export function errorMessage(error: unknown): MessageKey {
 		case "LANGUAGE_INVALID":
 		case "LANGUAGE_TAKEN":
 		case "LANGUAGE_NOT_FOUND":
+		case "LOOP_NOT_FOUND":
+		case "LOOP_INVALID":
+		case "LOOP_INCOMPLETE":
+		case "LOOP_NAME_TAKEN":
+		case "ARCHIVE_UNAVAILABLE":
 			return `errors.${code}`;
 		case "POST_TYPE_TAKEN":
 			return (data as { field?: unknown } | undefined)?.field === "key"
@@ -64,7 +69,9 @@ export function errorMessage(error: unknown): MessageKey {
 				? "errors.PATH_TAKEN_BY_PAGE"
 				: kind === "language"
 					? "errors.PATH_TAKEN_BY_LANGUAGE"
-					: "errors.PATH_TAKEN_BY_POST_TYPE";
+					: kind === "archive"
+						? "errors.PATH_TAKEN_BY_ARCHIVE"
+						: "errors.PATH_TAKEN_BY_POST_TYPE";
 		}
 		case "CONFIRMATION_INVALID":
 			return data?.problem === "expired"

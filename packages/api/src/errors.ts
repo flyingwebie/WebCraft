@@ -9,6 +9,7 @@ import {
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
+	ArchiveUnavailableError,
 	ClassInUseError,
 	ClassNotFoundError,
 	ComponentFromModuleError,
@@ -224,6 +225,14 @@ export function toApiError(error: unknown): unknown {
 			status: 409,
 			message: error.message,
 			data: { path: error.path, by: error.by },
+			cause: error,
+		});
+	}
+	if (error instanceof ArchiveUnavailableError) {
+		return new ORPCError("ARCHIVE_UNAVAILABLE", {
+			status: 409,
+			message: error.message,
+			data: { reason: error.reason },
 			cause: error,
 		});
 	}

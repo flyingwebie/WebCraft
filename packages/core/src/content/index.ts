@@ -1,6 +1,8 @@
 // The content store (spec › Content store) and publishing: Post Types with their Fields, Entries
 // with a Draft and a published version, the Globals, Templates stored as element trees, and
 // publishing one item.
+
+export { archiveParts } from "./archives.ts";
 export {
 	type Component,
 	type ComponentDeletion,
@@ -40,6 +42,7 @@ export {
 	undoDraftChanges,
 } from "./entries.ts";
 export {
+	ArchiveUnavailableError,
 	ComponentFromModuleError,
 	ComponentInUseError,
 	ComponentInvalidError,
@@ -176,11 +179,15 @@ export {
 	setSpecialPage,
 } from "./special-pages.ts";
 export {
+	getArchiveTemplate,
+	getArchiveTemplateMarkup,
 	getEntryTemplate,
 	getEntryTemplateMarkup,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	type SavedTemplateMarkup,
+	saveArchiveTemplate,
+	saveArchiveTemplateMarkup,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
 	saveSiteTemplate,

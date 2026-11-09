@@ -11,6 +11,7 @@ import {
 	type PageAlternate,
 	type PageToRender,
 	type PlacementRenderer,
+	pageWords,
 	placementsIn,
 	renderPage,
 	type TemplateValue,
@@ -19,6 +20,7 @@ import {
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
+import { archiveAt, publishedArchives } from "../content/archives.ts";
 import {
 	type ComponentSources,
 	type ComponentVersion,
@@ -42,7 +44,7 @@ import {
 	type SiteLanguages,
 	siteLanguages,
 } from "../content/languages.ts";
-import { candidatePatterns, findPublishedPage, isPagePostType } from "../content/pages.ts";
+import { candidatePatterns, findPublishedPage, isPagePostType, pathText } from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { propValue } from "../content/props.ts";
 import {
@@ -64,7 +66,7 @@ import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
 import type { DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
-import { pageLoops } from "./loops.ts";
+import { pageHref, pageLoops } from "./loops.ts";
 import { relatedEntries, type ReadScope as ScopeToRead } from "./related.ts";
 
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
@@ -235,6 +237,13 @@ export function createSitePages(options: {
 
 		async render(host, pathname, editing, page = 1) {
 			const view = viewFor(data, host, editing, sources);
+			const archive = await locateArchive(view.scope, pathname);
+			if (archive) {
+				const rendered = await renderArchivePage(view, host, await stylesOf(host), archive, page);
+				if (page > 1 && !rendered.pagination) return { kind: "redirect", location: archive.path };
+				if (rendered.pagination && page > rendered.pagination.count) return null;
+				return { kind: "page", ...rendered };
+			}
 			const located = await locate(view.scope, pathname);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
@@ -253,6 +262,24 @@ export function createSitePages(options: {
 
 		async pageContent(host, pathname) {
 			const scope = data.visitors(host.site);
+			const archive = await locateArchive(scope, pathname);
+			if (archive) {
+				const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
+				const placed = await placedComponents(scope, [siteTemplate, archive.content], sources);
+				const trees = [siteTemplate, archive.content, ...[...placed.used.values()].map((version) => version.tree)];
+				return {
+					entryId: null,
+					language: archive.language.code,
+					languages: archivePlaces(archive).map(({ language, path }) => ({
+						code: language.code,
+						name: language.name,
+						path,
+						current: language.code === archive.language.code,
+					})),
+					readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
+					notFound: false,
+				};
+			}
 			const located = await locate(scope, pathname);
 			const place = located?.kind === "found" ? located : await notFoundPlace(scope, pathname);
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
@@ -374,6 +401,94 @@ async function locate(
 	}
 	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: languagePath(languages, "/") };
 	return { kind: "found", found, ...place };
+}
+
+/** An Archive page: the published Archive template at its Post Type's address, in the path's language. */
+type LocatedArchive = Place & {
+	postType: PostType;
+	content: ElementTree;
+	/** Its address in the page's language (`/fr/recipes`). */
+	path: string;
+	parts: readonly string[];
+};
+
+/**
+ * The published Archive template whose address a path is, in the language its prefix names (the
+ * Default language without one); undefined when there is none. Its address is fixed parts only, more
+ * specific than any URL pattern, and no Page can be published there.
+ */
+async function locateArchive(scope: ReadScope, pathname: string): Promise<LocatedArchive | undefined> {
+	const segments = pathSegments(pathname);
+	if (!segments || segments.length === 0 || isReservedPath(segments)) return undefined;
+	const site = await siteLanguages(scope);
+	const { languages, rest } = languageOfPath(site, segments);
+	if (rest.length === 0) return undefined;
+	const archive = archiveAt(await publishedArchives(scope, await listPostTypes(scope)), rest);
+	if (!archive) return undefined;
+	const row = await scope.first(
+		templates,
+		and(eq(templates.kind, "archive"), eq(templates.postTypeId, archive.postType.id), isNotNull(templates.published)),
+	);
+	if (!row) return undefined;
+	return {
+		site,
+		languages,
+		language: languageNamed(site, languages.language),
+		postType: archive.postType,
+		content: row.published as ElementTree,
+		parts: archive.parts,
+		path: languagePath(languages, pathText(archive.parts)),
+	};
+}
+
+/** An Archive page's address in each of the Site's languages: it is shown in all of them. */
+function archivePlaces(archive: LocatedArchive): { language: SiteLanguage; path: string }[] {
+	return archive.site.languages.map((language) => ({
+		language,
+		path: languagePath(
+			{ language: language.code, defaultLanguage: archive.site.defaultLanguage },
+			pathText(archive.parts),
+		),
+	}));
+}
+
+/**
+ * An Archive page: its Archive template in the Site template, titled with its Post Type's name (and
+ * the page's number past the first), with `hreflang` alternates to the same page in every language
+ * and the Language switcher's links to the Archive page there. Its Loops paginate.
+ */
+async function renderArchivePage(
+	view: View,
+	host: SiteHost,
+	styles: SiteStyles,
+	archive: LocatedArchive,
+	page: number,
+): Promise<RenderedPage> {
+	const alternates: PageAlternate[] = [];
+	const languageLinks: LanguageLink[] = [];
+	if (archive.site.languages.length > 1) {
+		for (const { language, path } of archivePlaces(archive)) {
+			alternates.push({ hreflang: language.code, href: `${host.origin}${pageHref(path, page)}` });
+			languageLinks.push({
+				code: language.code,
+				name: language.name,
+				direction: language.direction,
+				href: languageChoiceHref(path),
+				current: language.code === archive.language.code,
+			});
+		}
+		const fallback = alternates.find((alternate) => alternate.hreflang === archive.site.defaultLanguage);
+		if (fallback) alternates.push({ hreflang: "x-default", href: fallback.href });
+	}
+	const site = await siteParts(view, archive, host.site.name);
+	const root: Parts = { text: null, part: (name) => (name === "site" ? site : undefined) };
+	const name = archive.postType.name;
+	const title =
+		page > 1 ? `${name} · ${pageWords(archive.language.code).pageNumber.replace("{n}", String(page))}` : name;
+	return renderSitePage(view, host, styles, archive, {
+		page: { title, alternates, languageLinks, content: archive.content, values: (path) => resolvePath(root, path) },
+		loops: { current: null, page, path: archive.path },
+	});
 }
 
 /** Where a page's links to its other languages go: `hreflang` alternates, and the Language switcher's links. */
