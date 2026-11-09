@@ -64,7 +64,18 @@ export type RenderOptions = {
 	 * tree. Absent for the pages visitors get, which carry no such attributes.
 	 */
 	editRegion?: (value: ValueNode) => readonly (readonly [name: string, value: string])[] | undefined;
+	/**
+	 * Code mode's tags (ADR 0016): where the tree being rendered comes from, such as `content` (the
+	 * page's Entry template) or `site` (the Site template). Every element is tagged with it and its own
+	 * id as `data-wc-code="<source>#<id>"`, and a Component's elements with the Placements that show
+	 * them (`content/<placement id>#<id>`), so selecting an element on the page opens the Template or
+	 * Component it comes from. Absent for the pages visitors get, which carry no such attributes.
+	 */
+	codeSource?: string;
 };
+
+/** The attribute Code mode's tags are written in: see `RenderOptions.codeSource`. */
+export const CODE_ATTRIBUTE = "data-wc-code";
 
 /** Finds what a Placement shows: see `RenderOptions.component`. */
 export type PlacementRenderer = (
@@ -111,6 +122,9 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
+			if (options.codeSource !== undefined) {
+				attributes += ` ${CODE_ATTRIBUTE}="${escapeAttribute(`${options.codeSource}#${node.id}`)}"`;
+			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
 			let children = renderNodes(node.children, options, state);
 			// An HTML parser drops a newline right after <pre>; repeat it so the content stays as written.
@@ -154,8 +168,15 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 	const shown = options.component(node.component, props, options.values);
 	if (!shown) return "";
 	// Inside a Component its bindings read its Props and the Globals; it holds no outlet. Edit mode
-	// tags regions of the page's own Template: a Component's elements are the Component's.
-	const inner: RenderOptions = { ...options, values: shown.values, outlet: undefined, editRegion: undefined };
+	// tags regions of the page's own Template: a Component's elements are the Component's. Code mode
+	// tags them as the Component's, reached through this Placement.
+	const inner: RenderOptions = {
+		...options,
+		values: shown.values,
+		outlet: undefined,
+		editRegion: undefined,
+		codeSource: options.codeSource === undefined ? undefined : `${options.codeSource}/${node.id}`,
+	};
 	return renderNodes(shown.tree.nodes, inner, { depth: state.depth + 1, budget: state.budget });
 }
 
@@ -210,6 +231,7 @@ function mediaImage(node: ElementNode, media: MediaReader, options: RenderOption
 	const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 	const own: [string, string][] = classNames.length > 0 ? [["class", classNames.join(" ")]] : [];
 	for (const attribute of node.attributes) own.push([attribute.name, attributeText(attribute, options)]);
+	if (options.codeSource !== undefined) own.push([CODE_ATTRIBUTE, `${options.codeSource}#${node.id}`]);
 	return renderMediaImage(image, own, options.priorityImage);
 }
 

@@ -188,6 +188,29 @@ describe("Templates", () => {
 	);
 });
 
+describe("Scripts", () => {
+	/** The Site script of a target's Site, made once by the Superadmin. */
+	const siteScripts = new Map<string, Promise<string>>();
+	const siteScriptIn = (target: IsolationTarget) => {
+		let made = siteScripts.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				return (await api.scripts.saveDraft({ siteId: target.siteId, entryId: null, code: "1;" })).script.id;
+			})();
+			siteScripts.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses("scripts.get", (api, { siteId }) => api.scripts.get({ siteId, entryId: null }));
+	isolation.refuses("scripts.saveDraft", async (api, target) =>
+		api.scripts.saveDraft({ siteId: target.siteId, entryId: (await contentIn(target)).entryId, code: "1;" }),
+	);
+	isolation.refuses("scripts.publish", async (api, target) =>
+		api.scripts.publish({ siteId: target.siteId, scriptId: await siteScriptIn(target) }),
+	);
+});
+
 describe("Components", () => {
 	/** A name no other call has used. */
 	let names = 0;

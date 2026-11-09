@@ -23,3 +23,14 @@ export const workspaceRole = z.enum(WORKSPACE_ROLES);
 
 /** Which Sites of its Workspace a Membership reaches: `"all"`, including ones created later, or at least one chosen Site. */
 export const memberSites = z.union([z.literal("all"), z.array(id).min(1).max(1000)]);
+
+/**
+ * The version of the Draft a save was made from (as reading it answered `version`), or null when it
+ * was made while there was none. A save based on a version the Draft no longer has is refused with
+ * `CHANGED_MEANWHILE`, so it never overwrites someone else's save. Left out, a save replaces the Draft.
+ */
+export const basedOn = z
+	.string()
+	.regex(/^[0-9a-f]{16}$/)
+	.nullable()
+	.optional();

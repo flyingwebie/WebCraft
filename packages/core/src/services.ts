@@ -4,6 +4,7 @@ import type { Database } from "@webcraft/db";
 import type { Account } from "./account.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
+import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
 import type {
 	Component,
@@ -28,8 +29,10 @@ import type {
 	PostTypeChange,
 	Published,
 	PublishItem,
+	SaveBase,
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
+	Script,
 	SiteLanguages,
 	SpecialPages,
 	Template,
@@ -173,16 +176,26 @@ export type InstallServices = InstallPorts & {
 		entryTemplateMarkup(
 			scope: SiteScope,
 			postTypeId: string,
-		): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
-		/** Saves an Entry template's Draft from Template markup; inline styles become generated Classes. */
-		saveEntryTemplateMarkup(scope: SiteScope, postTypeId: string, markup: string): Promise<SavedTemplateMarkup>;
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/**
+		 * Saves an Entry template's Draft from Template markup; inline styles become generated Classes.
+		 * With `basedOn`, refused when the Draft changed since that version (`DraftChangedError`).
+		 */
+		saveEntryTemplateMarkup(
+			scope: SiteScope,
+			postTypeId: string,
+			markup: string,
+			base?: SaveBase,
+		): Promise<SavedTemplateMarkup>;
 		/** The Site template, or null while the Site has none (its pages show the built-in one). */
 		siteTemplate(scope: SiteScope): Promise<Template | null>;
 		saveSiteTemplate(scope: SiteScope, tree: unknown): Promise<Template>;
 		/** The Site template as Template markup (its Draft and published version), or null while it has none. */
-		siteTemplateMarkup(scope: SiteScope): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
-		/** Saves the Site template's Draft from Template markup; inline styles become generated Classes. */
-		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
+		siteTemplateMarkup(
+			scope: SiteScope,
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/** Saves the Site template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
+		saveSiteTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 	};
 	/**
 	 * A Site's languages (Structure): the Default language and the others, their names, directions and
@@ -220,17 +233,32 @@ export type InstallServices = InstallPorts & {
 		markup(
 			scope: SiteScope,
 			componentId: string,
-		): Promise<{ component: Component; markup: ComponentMarkup; usage: ComponentUsage }>;
-		/** Saves its Draft from Template markup (and new Props, when given); inline styles become generated Classes. */
+		): Promise<{ component: Component; markup: ComponentMarkup; version: string; usage: ComponentUsage }>;
+		/**
+		 * Saves its Draft from Template markup (and new Props, when given); inline styles become
+		 * generated Classes. With `basedOn`, refused when the Draft changed since that version.
+		 */
 		saveMarkup(
 			scope: SiteScope,
 			componentId: string,
 			input: { markup: string; props?: FieldInput[] },
+			base?: SaveBase,
 		): Promise<SavedComponentMarkup>;
 		/** Renames it: Template markup writes the new name everywhere at once. */
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
 		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
 		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
+	};
+	/**
+	 * The Site script and page scripts (ADR 0016): Structure with a Draft, published through
+	 * `publishing.publish` with `{ kind: "script" }`. Open the Site with `structure.edit`.
+	 */
+	scripts: {
+		/** The Site script (`entryId` null) or an Entry's page script; null while there is none. */
+		get(scope: SiteScope, entryId: string | null): Promise<Script | null>;
+		byId(scope: SiteScope, scriptId: string): Promise<Script>;
+		/** Saves its Draft, making it the first time; with `basedOn`, refused when it changed since. */
+		saveDraft(scope: SiteScope, entryId: string | null, code: string, base?: SaveBase): Promise<Script>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing
@@ -286,6 +314,11 @@ export type InstallServices = InstallPorts & {
 	 * own domain, each checked again with every request.
 	 */
 	editMode: EditMode;
+	/**
+	 * Code mode (ADR 0016): Staff in Edit mode edit the Template markup, CSS and scripts of what they
+	 * select on the page, saved to the Drafts. Open its Site with `codeMode.access(session)`.
+	 */
+	codeMode: CodeMode;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
 	/** Members of a Workspace: inviting them, their role and Sites, removing them, pending invites. */

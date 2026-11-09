@@ -22,6 +22,18 @@ export {
 } from "./audit.ts";
 export { type Clock, systemClock } from "./clock.ts";
 export {
+	type CodeMode,
+	type CodePreviewPage,
+	type CodeScript,
+	type CodeScripts,
+	type CodeSourceKind,
+	CodeSourceNotFoundError,
+	type MarkupChange,
+	type OpenedSource,
+	type SavedMarkup,
+	type Suggestions,
+} from "./code-mode/index.ts";
+export {
 	adminOriginFor,
 	ConfigError,
 	type Environment,
@@ -42,6 +54,8 @@ export { type CreateServicesOptions, createInstallServices } from "./create-serv
 export * from "./design-system/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
 export {
+	CODE_MODE_SCRIPT_PATH,
+	CODE_MODE_STYLESHEET_PATH,
 	EDIT_LINK_LIFETIME_MS,
 	EDIT_MODE_PATH,
 	EDIT_SESSION_LIFETIME_MS,

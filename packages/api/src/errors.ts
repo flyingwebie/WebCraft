@@ -11,12 +11,14 @@ import {
 	AlreadyMemberError,
 	ClassInUseError,
 	ClassNotFoundError,
+	CodeSourceNotFoundError,
 	ComponentFromModuleError,
 	ComponentInUseError,
 	ComponentInvalidError,
 	ComponentNameTakenError,
 	ComponentNotFoundError,
 	ConfirmationInvalidError,
+	DraftChangedError,
 	EditFieldInvalidError,
 	EditModeUnavailableError,
 	EditPathInvalidError,
@@ -56,6 +58,7 @@ import {
 	PostTypeNotFoundError,
 	PostTypeTakenError,
 	RateLimitedError,
+	ScriptNotFoundError,
 	SensitiveActionRefusedError,
 	SessionNotFoundError,
 	SetupClosedError,
@@ -114,6 +117,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof PageNotFoundError) {
 		return new ORPCError("PAGE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ScriptNotFoundError) {
+		return new ORPCError("SCRIPT_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof TemplateNotFoundError) {
 		return new ORPCError("TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });
@@ -478,6 +484,17 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EditModeUnavailableError) {
 		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof DraftChangedError) {
+		return new ORPCError("CHANGED_MEANWHILE", {
+			status: 409,
+			message: error.message,
+			data: { version: error.version },
+			cause: error,
+		});
+	}
+	if (error instanceof CodeSourceNotFoundError) {
+		return new ORPCError("CODE_SOURCE_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof EditPathInvalidError) {
 		return new ORPCError("EDIT_PATH_INVALID", { status: 400, message: error.message, cause: error });

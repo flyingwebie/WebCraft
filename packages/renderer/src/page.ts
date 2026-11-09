@@ -81,10 +81,15 @@ export type PageToRender = {
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
+	 * The Site's own scripts the page runs (ADR 0023): the Site script, then the page's, as paths of
+	 * files on the Site's domain, loaded with `defer` after everything else in `<head>`. Never inline.
+	 * They run in Edit mode too (ADR 0022); Safe mode (#99) leaves them out.
+	 */
+	scripts?: readonly string[];
+	/**
 	 * Renders the page for Edit mode (ADR 0022) rather than for visitors: never indexed, with WebCraft's
-	 * own files first in `<head>` and the editable regions tagged. Edit mode pages carry no script but
-	 * WebCraft's own: the Site's scripts (#99) are written only where this is absent or allows them,
-	 * and outside scripts never are.
+	 * own files first in `<head>` and the editable regions tagged. The Site's own scripts (`scripts`)
+	 * run there too (ADR 0022); outside scripts never do, and Safe mode (#99) runs none.
 	 */
 	editMode?: EditModePage;
 };
@@ -119,6 +124,12 @@ export type EditModePage = {
 	scripts: readonly string[];
 	/** WebCraft's own stylesheets, as paths on the Site's domain. */
 	stylesheets: readonly string[];
+	/**
+	 * Code mode (ADR 0016): every element is tagged with the Template or Component it comes from
+	 * (`RenderOptions.codeSource`: `content` for the page's content, `site` for the Site template)
+	 * instead of the editable regions, since selecting an element opens its code.
+	 */
+	code?: boolean;
 };
 
 /**
@@ -127,7 +138,8 @@ export type EditModePage = {
  * one <main> gets the id the skip link points at, and `tabindex="-1"` so following the link moves
  * focus there. The first Media image of the page's content loads eagerly with high priority; every
  * other Media image lazily. Pages link the Site's stylesheet and carry no inline styles and no inline
- * scripts: a page showing a theme toggle links its script file, and no other page has any script.
+ * scripts: a page showing a theme toggle links its script file, and the Site script and the page's
+ * script are files too.
  */
 export function renderPage(page: PageToRender): string {
 	const { site } = page;
@@ -155,7 +167,8 @@ export function renderPage(page: PageToRender): string {
 		component: page.component,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && ((value) => editMode.region(value, "content")),
+		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "content") : undefined,
+		codeSource: editMode?.code ? "content" : undefined,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
@@ -169,7 +182,8 @@ export function renderPage(page: PageToRender): string {
 		component: page.component,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && ((value) => editMode.region(value, "site")),
+		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
+		codeSource: editMode?.code ? "site" : undefined,
 	});
 	return [
 		"<!doctype html>",
@@ -186,6 +200,7 @@ export function renderPage(page: PageToRender): string {
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
+		...(page.scripts ?? []).map((src) => `<script src="${escapeAttribute(src)}" defer></script>`),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,

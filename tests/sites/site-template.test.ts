@@ -94,7 +94,11 @@ describe("a Site's own Site template", () => {
 
 	test("reads back as markup and as a tree, Draft and published, for Staff only", async () => {
 		const { siteId } = await siteWithPost();
-		expect(await staff.api.templates.getSiteTemplateMarkup({ siteId })).toEqual({ template: null, markup: null });
+		expect(await staff.api.templates.getSiteTemplateMarkup({ siteId })).toEqual({
+			template: null,
+			markup: null,
+			version: null,
+		});
 		expect(await staff.api.templates.getSiteTemplate({ siteId })).toEqual({ template: null });
 
 		const saved = await staff.api.templates.saveSiteTemplateMarkup({ siteId, markup });

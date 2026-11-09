@@ -40,6 +40,28 @@ export class PageNotFoundError extends Error {
 	}
 }
 
+/**
+ * A save named the version of the Draft it was based on, and the Draft has changed since: someone else
+ * saved it meanwhile. Nothing was saved; `version` is the Draft's version now (null while there is
+ * none), so the person can reload it, or save again over that version to overwrite it.
+ */
+export class DraftChangedError extends Error {
+	override name = "DraftChangedError";
+	readonly version: string | null;
+	constructor(version: string | null) {
+		super("Someone saved this Draft since you opened it: reload it, or overwrite it.");
+		this.version = version;
+	}
+}
+
+/** There is no such script on the Site: no Site script or page script with that id. */
+export class ScriptNotFoundError extends Error {
+	override name = "ScriptNotFoundError";
+	constructor() {
+		super("There is no such script on this Site.");
+	}
+}
+
 /** There is no such Template on the Site. */
 export class TemplateNotFoundError extends Error {
 	override name = "TemplateNotFoundError";

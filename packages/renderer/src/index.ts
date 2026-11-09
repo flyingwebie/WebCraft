@@ -101,7 +101,7 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
-export { type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
+export { CODE_ATTRIBUTE, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
 export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
@@ -141,6 +141,7 @@ export {
 	type CommentNode,
 	type ConditionBranch,
 	type ConditionNode,
+	childListsOf,
 	ELEMENT_TREE_VERSION,
 	type ElementNode,
 	type ElementTree,
