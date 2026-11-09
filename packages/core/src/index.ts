@@ -23,9 +23,12 @@ export {
 export { type Clock, systemClock } from "./clock.ts";
 export {
 	type CodeMode,
+	type CodePreviewPage,
 	type CodeSourceKind,
 	CodeSourceNotFoundError,
+	type MarkupChange,
 	type OpenedSource,
+	type SavedMarkup,
 	type Suggestions,
 } from "./code-mode/index.ts";
 export {

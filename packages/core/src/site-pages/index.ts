@@ -107,7 +107,26 @@ export type PageContent = {
  * (its Templates, the Components they place, the Design system), every element tagged with where it
  * comes from. Open `scope` with `structure.edit` for it.
  */
-export type PageEditing = { scope: SiteScope; head: Omit<EditModePage, "region" | "code">; code?: boolean };
+export type PageEditing = {
+	scope: SiteScope;
+	head: Omit<EditModePage, "region" | "code">;
+	code?: boolean;
+	/** In Code mode, unsaved changes to show in place of the Drafts, as Staff type them. */
+	preview?: CodePreview;
+};
+
+/**
+ * Unsaved changes Code mode previews (ADR 0016): one Template's or Component's tree read from the
+ * markup being typed, in place of its Draft, and the styles the page shows with (the Design system's
+ * Draft with what the changes would add to it).
+ */
+export type CodePreview = {
+	source?:
+		| { kind: "siteTemplate"; tree: ElementTree }
+		| { kind: "entryTemplate"; tree: ElementTree }
+		| { kind: "component"; id: string; version: ComponentVersion };
+	styles: SiteStyles;
+};
 
 /**
  * The Site side of the content store, for the web process's Site request pipeline: which Site a
@@ -181,8 +200,10 @@ export function createSitePages(options: {
 		return styles;
 	};
 	/** The styles a page is shown with: the published ones (built once per generation), or the Drafts' in Code mode. */
-	const viewStyles = (view: View): Promise<SiteStyles> =>
-		view.structure === "draft" ? draftStyles(view.scope) : stylesOf(view.host);
+	const viewStyles = async (view: View): Promise<SiteStyles> => {
+		if (view.structure !== "draft") return stylesOf(view.host);
+		return view.editing?.preview?.styles ?? draftStyles(view.scope);
+	};
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
@@ -443,7 +464,13 @@ async function publishedPage(
 async function renderEntryPage(view: View, host: SiteHost, styles: SiteStyles, found: FoundEntry): Promise<string> {
 	const { scope } = view;
 	const { postType, entry } = found;
-	const content = view.structure === "draft" ? found.contentDraft : found.content;
+	const previewed = view.editing?.preview?.source;
+	const content =
+		view.structure === "published"
+			? found.content
+			: previewed?.kind === "entryTemplate"
+				? previewed.tree
+				: found.contentDraft;
 	const language = host.defaultLanguage;
 	const languages = { language, defaultLanguage: host.defaultLanguage };
 	const draft = view.version === "draft";
@@ -512,15 +539,17 @@ async function renderSitePage(
 	const globalValues = globalsVersion(globalsRow, languages, view.version);
 	const site = globalsParts(globalValues.fields, globalValues.values);
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
-	const siteTemplate = view.structure === "draft" ? await draftSiteTemplate(scope) : await publishedSiteTemplate(scope);
-	const placed = await pageComponents(
-		scope,
-		[page.content, siteTemplate],
-		view.sources,
-		site,
-		languages,
-		view.structure,
-	);
+	const previewed = editing?.preview?.source;
+	const siteTemplate =
+		view.structure === "published"
+			? await publishedSiteTemplate(scope)
+			: previewed?.kind === "siteTemplate"
+				? previewed.tree
+				: await draftSiteTemplate(scope);
+	const placed = await pageComponents(scope, [page.content, siteTemplate], view.sources, site, languages, {
+		which: view.structure,
+		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
+	});
 	// The Media the page may show: `media:<id>` written in either template or a Component it places,
 	// and every media value the page reads (its content's, the Globals'). Ids that aren't the Site's
 	// ready Media find nothing.
@@ -560,8 +589,9 @@ async function placedComponents(
 	trees: readonly (ElementTree | undefined)[],
 	sources: ComponentSources,
 	which: "published" | "draft" = "published",
+	replace?: { id: string; version: ComponentVersion },
 ): Promise<{ catalogue: SiteComponents; used: Map<string, ComponentVersion> }> {
-	const catalogue = await siteComponents(scope, which, sources);
+	const catalogue = await siteComponents(scope, which, sources, { replace });
 	const used = new Map<string, ComponentVersion>();
 	const visit = (tree: ElementTree) => {
 		for (const placement of placementsIn(tree.nodes)) {
@@ -587,9 +617,9 @@ async function pageComponents(
 	sources: ComponentSources,
 	site: Parts,
 	languages: { language: string; defaultLanguage: string },
-	which: "published" | "draft",
+	shown: { which: "published" | "draft"; replace?: { id: string; version: ComponentVersion } },
 ): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
-	const { catalogue, used } = await placedComponents(scope, trees, sources, which);
+	const { catalogue, used } = await placedComponents(scope, trees, sources, shown.which, shown.replace);
 	const shownTrees = [...used.values()].map((version) => version.tree);
 	const related = await relatedOfProps(scope, [...trees, ...shownTrees], catalogue, languages);
 	return {

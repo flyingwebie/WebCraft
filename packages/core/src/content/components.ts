@@ -17,6 +17,7 @@ import { components, entries, globals, templates } from "@webcraft/db/schema";
 import {
 	type ComponentCatalogue,
 	componentsPlacedIn,
+	type DesignSystem,
 	type ElementTree,
 	ElementTreeInvalidError,
 	EXPRESSION_KEYWORDS,
@@ -45,9 +46,10 @@ import {
 	ComponentNotFoundError,
 	type ComponentUse,
 	type ContentProblem,
+	DraftChangedError,
 } from "./errors.ts";
 import { type FieldDefinition, type FieldInput, parseFields, storedFields } from "./fields.ts";
-import { sameJson } from "./json.ts";
+import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { isPagePostType } from "./pages.ts";
 import { listPostTypes, type PostType } from "./post-types.ts";
 import { readPropText } from "./props.ts";
@@ -130,6 +132,8 @@ export type ComponentDraftChange = { props?: FieldInput[]; tree?: unknown };
 export type SavedComponentMarkup = {
 	component: Component;
 	markup: string;
+	/** The Draft's version, which the next save names as `basedOn`. */
+	version: string;
 	notices: MarkupNotice[];
 	usage: ComponentUsage;
 };
@@ -244,11 +248,16 @@ export async function saveComponentMarkup(
 	componentId: string,
 	input: { markup: string; props?: FieldInput[] },
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	base: SaveBase = {},
 ): Promise<SavedComponentMarkup> {
 	const saved = await retryOnClassRace(() =>
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
 			const row = await lockComponent(tx, componentId, sources);
+			if (base.basedOn !== undefined) {
+				const version = componentVersion(storedVersion(row.draft));
+				if (version !== base.basedOn) throw new DraftChangedError(version);
+			}
 			const props = await nextProps(tx, row, input.props);
 			const context = await readContext(tx);
 			const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
@@ -260,10 +269,50 @@ export async function saveComponentMarkup(
 			});
 			await saveCreatedClasses(tx, classes);
 			const component = await writeDraft(tx, row, { props, tree });
-			return { component, markup: printMarkup(tree, classes, catalogue), notices };
+			return {
+				component,
+				markup: printMarkup(tree, classes, catalogue),
+				version: componentVersion(component.draft),
+				notices,
+			};
 		}),
 	);
 	return { ...saved, usage: (await usages(scope))(saved.component.id) };
+}
+
+/**
+ * Reads Template markup as saving a Component's Draft would (with its Draft's Props), without saving
+ * anything: the tree, notices, and the Design system's Draft with the generated Classes its inline
+ * styles would add. Code mode previews unsaved markup with it. Throws `TemplateMarkupInvalidError`.
+ */
+export async function readComponentMarkup(
+	scope: SiteScope,
+	componentId: string,
+	markup: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<{ tree: ElementTree; notices: MarkupNotice[]; designSystem: DesignSystem; version: ComponentVersion }> {
+	const component = await findComponent(scope, componentId, sources);
+	if (component.module) throw new ComponentFromModuleError();
+	const { props } = component.draft;
+	const catalogue = await siteComponents(scope, "draft", sources, { self: component.id });
+	const designSystem = await draftDesignSystem(scope);
+	const classes = classCatalogue(designSystem);
+	const { tree, notices } = parseTemplateMarkup(markup, {
+		...componentTreeRules(props, await readContext(scope), catalogue),
+		classNamed: classes.named,
+		classForStyle: classes.forStyle,
+	});
+	return {
+		tree,
+		notices,
+		designSystem: { ...designSystem, classes: [...designSystem.classes, ...classes.created] },
+		version: { props, tree },
+	};
+}
+
+/** A Component's Draft's version, from its Props and tree as stored (`draftVersion`). */
+export function componentVersion(draft: ComponentVersion): string {
+	return draftVersion(draft);
 }
 
 /** A Component as Template markup: its Draft and its published version (null until the first publish). */
@@ -271,12 +320,13 @@ export async function getComponentMarkup(
 	scope: SiteScope,
 	componentId: string,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
-): Promise<{ component: Component; markup: ComponentMarkup; usage: ComponentUsage }> {
+): Promise<{ component: Component; markup: ComponentMarkup; version: string; usage: ComponentUsage }> {
 	const component = await findComponent(scope, componentId, sources);
 	const classes = classCatalogue(await draftDesignSystem(scope));
 	const names = await siteComponents(scope, "draft", sources);
 	return {
 		component,
+		version: componentVersion(component.draft),
 		markup: {
 			draft: printMarkup(component.draft.tree, classes, names),
 			published: component.published ? printMarkup(component.published.tree, classes, names) : null,

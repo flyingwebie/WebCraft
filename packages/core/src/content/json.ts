@@ -22,3 +22,11 @@ export function stableJson(value: unknown): string {
 export function draftVersion(draft: unknown): string {
 	return contentHash(stableJson(draft));
 }
+
+/**
+ * How a save checks what it is based on: the version of the Draft it was made from (`draftVersion`),
+ * or null when it was made while there was none. A Draft whose version is another one by then was
+ * saved by someone else meanwhile: the save is refused (`DraftChangedError`). Left out, a save
+ * replaces whatever is there.
+ */
+export type SaveBase = { basedOn?: string | null };

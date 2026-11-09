@@ -7,16 +7,29 @@
  * the header token, as every edit request), and then opens the Site with `structure.edit` through the
  * data layer: Members in Edit mode never get it.
  */
+import type { MarkupNotice } from "@webcraft/renderer";
+
 import type { ComponentSources } from "../content/components.ts";
 import { draftStyles } from "../design-system/stylesheet.ts";
+import { EditPathInvalidError } from "../edit-mode/errors.ts";
 import type { EditSession } from "../edit-mode/index.ts";
-import type { PageContent, SiteHost } from "../site-pages/index.ts";
+import { isEditPath } from "../edit-mode/paths.ts";
+import type { PageEditing, SiteHost, SitePages } from "../site-pages/index.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
+import { type MarkupChange, previewMarkup, type SavedMarkup, saveMarkup } from "./markup.ts";
 import { type OpenedSource, openSource, readCodeRef, type SourceDeps } from "./sources.ts";
 
 export { CodeSourceNotFoundError } from "./errors.ts";
+export type { MarkupChange, SavedMarkup } from "./markup.ts";
 export type { CodeSourceKind, OpenedSource, Suggestions } from "./sources.ts";
+
+/** What a preview answers: the whole page, as Code mode shows it with the unsaved changes, and its stylesheet. */
+export type CodePreviewPage = {
+	html: string;
+	stylesheet: { hash: string; css: string };
+	notices: MarkupNotice[];
+};
 
 export type CodeMode = {
 	/**
@@ -34,17 +47,37 @@ export type CodeMode = {
 	 * markup, with its version, the breadcrumb, where it is used and what to suggest.
 	 */
 	open(scope: SiteScope, host: SiteHost, input: { path: string; ref: string | null }): Promise<OpenedSource>;
+	/**
+	 * The page at `path` as Code mode shows it with unsaved markup in place of its source's Draft
+	 * (rendered by the same parser as saving, never saved). `editing` is the page's Code mode
+	 * rendering, opened with `structure.edit`. Throws `TemplateMarkupInvalidError` for markup that
+	 * doesn't parse.
+	 */
+	preview(
+		host: SiteHost,
+		editing: PageEditing,
+		input: { path: string; markup?: MarkupChange },
+	): Promise<CodePreviewPage>;
+	/**
+	 * Saves markup to the Draft of the Template or Component a reference names, based on the version
+	 * it was opened at: refused with `DraftChangedError` when someone saved it meanwhile.
+	 */
+	save(
+		scope: SiteScope,
+		host: SiteHost,
+		input: { path: string; ref: string; markup: string; version: string | null },
+	): Promise<SavedMarkup>;
 };
 
 export function createCodeMode(options: {
 	data: DataLayer;
 	/** Where Modules' Components come from. */
 	sources: ComponentSources;
-	/** What a page shows from the content store (`SitePages.pageContent`). */
-	pageContent(host: SiteHost, pathname: string): Promise<PageContent>;
+	/** The Site's pages, as the Site pipeline renders them. */
+	pages: Pick<SitePages, "render" | "notFound" | "pageContent">;
 }): CodeMode {
-	const { data } = options;
-	const deps: SourceDeps = { sources: options.sources, pageContent: options.pageContent };
+	const { data, pages } = options;
+	const deps: SourceDeps = { sources: options.sources, pageContent: (host, path) => pages.pageContent(host, path) };
 	const access = (session: EditSession) => data.site(session.access, session.scope.site.id, "structure.edit");
 	return {
 		access,
@@ -62,9 +95,24 @@ export function createCodeMode(options: {
 		async open(scope, host, input) {
 			if (input.ref !== null) return openSource(scope, deps, host, input.path, readCodeRef(input.ref));
 			// The page's content first, when a Template renders it; else the Site template around it.
-			const content = await options.pageContent(host, input.path);
+			const content = await pages.pageContent(host, input.path);
 			const root = content.templatePostTypeId && !content.notFound ? "content" : "site";
 			return openSource(scope, deps, host, input.path, { root, placements: [], element: null });
 		},
+		async preview(host, editing, input) {
+			if (!isEditPath(input.path)) throw new EditPathInvalidError();
+			const { preview, notices } = await previewMarkup(editing.scope, deps, host, input.path, input.markup);
+			const shown: PageEditing = { ...editing, code: true, preview };
+			let answer = await pages.render(host, input.path, shown);
+			// The home page's own path shows the home page.
+			if (answer?.kind === "redirect") answer = await pages.render(host, answer.location, shown);
+			const html = answer?.kind === "page" ? answer.html : (await pages.notFound(host, shown)).html;
+			return {
+				html,
+				stylesheet: { hash: preview.styles.stylesheet.hash, css: preview.styles.stylesheet.css },
+				notices,
+			};
+		},
+		save: (scope, host, input) => saveMarkup(scope, deps, host, input),
 	};
 }

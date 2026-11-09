@@ -10,6 +10,7 @@ export {
 	type ComponentStatus,
 	type ComponentUsage,
 	type ComponentVersion,
+	componentVersion,
 	createComponent,
 	deleteComponent,
 	getComponent,
@@ -19,6 +20,7 @@ export {
 	type ModuleComponent,
 	type NewComponent,
 	NO_MODULE_COMPONENTS,
+	readComponentMarkup,
 	renameComponent,
 	type SavedComponentMarkup,
 	saveComponentDraft,
@@ -48,6 +50,7 @@ export {
 	ComponentNotFoundError,
 	type ComponentUse,
 	type ContentProblem,
+	DraftChangedError,
 	EntryIncompleteError,
 	EntryInvalidError,
 	EntryLinkedError,
@@ -94,6 +97,7 @@ export {
 	setGlobalFields,
 	undoGlobalsChanges,
 } from "./globals.ts";
+export { draftVersion, type SaveBase } from "./json.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
@@ -119,6 +123,7 @@ export {
 	getEntryTemplateMarkup,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
+	readTemplateMarkup,
 	type SavedTemplateMarkup,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
@@ -127,6 +132,7 @@ export {
 	type Template,
 	type TemplateKind,
 	type TemplateMarkup,
+	type TemplateMarkupTarget,
 	type TemplateStatus,
 } from "./templates.ts";
 export type { LanguageValue, Writer } from "./values.ts";

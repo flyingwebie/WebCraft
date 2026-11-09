@@ -18,6 +18,7 @@ import {
 	ComponentNameTakenError,
 	ComponentNotFoundError,
 	ConfirmationInvalidError,
+	DraftChangedError,
 	EditFieldInvalidError,
 	EditModeUnavailableError,
 	EditPathInvalidError,
@@ -457,6 +458,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EditModeUnavailableError) {
 		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof DraftChangedError) {
+		return new ORPCError("CHANGED_MEANWHILE", {
+			status: 409,
+			message: error.message,
+			data: { version: error.version },
+			cause: error,
+		});
 	}
 	if (error instanceof CodeSourceNotFoundError) {
 		return new ORPCError("CODE_SOURCE_NOT_FOUND", { status: 404, message: error.message, cause: error });

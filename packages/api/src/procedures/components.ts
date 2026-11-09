@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { signedIn } from "../context.ts";
 import { fieldInputs } from "../fields.ts";
-import { id } from "../inputs.ts";
+import { basedOn, id } from "../inputs.ts";
 
 /** The longest Template markup one save takes, in characters. */
 const MARKUP_MAX_LENGTH = 2_000_000;
@@ -76,12 +76,13 @@ export const components = {
 				componentId,
 				markup: z.string().max(MARKUP_MAX_LENGTH),
 				props: fieldInputs.optional(),
+				basedOn,
 			}),
 		)
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-			const { siteId: _, componentId: target, ...change } = input;
-			return context.services.components.saveMarkup(site, target, change);
+			const { siteId: _, componentId: target, basedOn: base, ...change } = input;
+			return context.services.components.saveMarkup(site, target, change, { basedOn: base });
 		}),
 
 	/**

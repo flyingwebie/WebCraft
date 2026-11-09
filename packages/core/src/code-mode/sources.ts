@@ -4,7 +4,6 @@
  * (`RenderOptions.codeSource`): `content` (the page's Entry template) or `site` (the Site template),
  * then the ids of the Placements that show it, then its own id: `content/<placement id>#<id>`.
  */
-import { components as componentRows } from "@webcraft/db/schema";
 import {
 	BUILT_IN_SITE_TEMPLATE,
 	childListsOf,
@@ -16,7 +15,6 @@ import {
 	TEMPLATE_COMMANDS,
 	type TreeNode,
 } from "@webcraft/renderer";
-import { eq } from "drizzle-orm";
 
 import {
 	type ComponentSources,
@@ -121,15 +119,15 @@ export async function resolveSource(
 		if (placement?.type !== "component") throw new CodeSourceNotFoundError();
 		const version = catalogue.version(placement.component);
 		if (!version) throw new CodeSourceNotFoundError();
+		// The Site's own Components have a Draft; a Module's changes with its Module.
 		const own = isUuid(placement.component);
-		const row = own ? await scope.first(componentRows, eq(componentRows.id, placement.component)) : undefined;
 		steps.push({
 			kind: "component",
 			id: placement.component,
 			name: catalogue.nameOf(placement.component) ?? null,
 			editable: own,
 			tree: version.tree,
-			draft: row?.draft ?? null,
+			draft: own ? version : null,
 			postTypeId: null,
 		});
 	}

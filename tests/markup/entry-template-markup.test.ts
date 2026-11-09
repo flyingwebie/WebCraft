@@ -147,6 +147,7 @@ describe("saving Template markup", () => {
 		expect(await staff.api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).toEqual({
 			template: saved.template,
 			markup: { draft: saved.markup, published: null },
+			version: saved.version,
 		});
 
 		await staff.api.templates.publish({ siteId, templateId: saved.template.id });
@@ -163,6 +164,7 @@ describe("saving Template markup", () => {
 		expect(await staff.api.templates.getEntryTemplateMarkup({ siteId, postTypeId: postType.id })).toEqual({
 			template: null,
 			markup: null,
+			version: null,
 		});
 	});
 

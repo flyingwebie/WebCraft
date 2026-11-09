@@ -25,6 +25,7 @@ import type {
 	PostTypeChange,
 	Published,
 	PublishItem,
+	SaveBase,
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
 	SpecialPages,
@@ -169,16 +170,26 @@ export type InstallServices = InstallPorts & {
 		entryTemplateMarkup(
 			scope: SiteScope,
 			postTypeId: string,
-		): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
-		/** Saves an Entry template's Draft from Template markup; inline styles become generated Classes. */
-		saveEntryTemplateMarkup(scope: SiteScope, postTypeId: string, markup: string): Promise<SavedTemplateMarkup>;
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/**
+		 * Saves an Entry template's Draft from Template markup; inline styles become generated Classes.
+		 * With `basedOn`, refused when the Draft changed since that version (`DraftChangedError`).
+		 */
+		saveEntryTemplateMarkup(
+			scope: SiteScope,
+			postTypeId: string,
+			markup: string,
+			base?: SaveBase,
+		): Promise<SavedTemplateMarkup>;
 		/** The Site template, or null while the Site has none (its pages show the built-in one). */
 		siteTemplate(scope: SiteScope): Promise<Template | null>;
 		saveSiteTemplate(scope: SiteScope, tree: unknown): Promise<Template>;
 		/** The Site template as Template markup (its Draft and published version), or null while it has none. */
-		siteTemplateMarkup(scope: SiteScope): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
-		/** Saves the Site template's Draft from Template markup; inline styles become generated Classes. */
-		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
+		siteTemplateMarkup(
+			scope: SiteScope,
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/** Saves the Site template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
+		saveSiteTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 	};
 	/**
 	 * Components: reusable element trees with Props, placed in Templates and other Components, with a
@@ -195,12 +206,16 @@ export type InstallServices = InstallPorts & {
 		markup(
 			scope: SiteScope,
 			componentId: string,
-		): Promise<{ component: Component; markup: ComponentMarkup; usage: ComponentUsage }>;
-		/** Saves its Draft from Template markup (and new Props, when given); inline styles become generated Classes. */
+		): Promise<{ component: Component; markup: ComponentMarkup; version: string; usage: ComponentUsage }>;
+		/**
+		 * Saves its Draft from Template markup (and new Props, when given); inline styles become
+		 * generated Classes. With `basedOn`, refused when the Draft changed since that version.
+		 */
 		saveMarkup(
 			scope: SiteScope,
 			componentId: string,
 			input: { markup: string; props?: FieldInput[] },
+			base?: SaveBase,
 		): Promise<SavedComponentMarkup>;
 		/** Renames it: Template markup writes the new name everywhere at once. */
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;

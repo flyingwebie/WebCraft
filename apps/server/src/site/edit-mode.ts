@@ -85,6 +85,20 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.open(scope, host, parse(codeSource, body)));
 	},
+	/**
+	 * The page as Code mode shows it with unsaved markup in place of its source's Draft, rendered by
+	 * the server through the same parser as saving; nothing is saved.
+	 */
+	"code/preview": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		const input = parse(codePreview, body);
+		return json(200, await services.codeMode.preview(host, await pageEditing(session, scope), input));
+	},
+	/** Saves markup to its Template's or Component's Draft, based on the version it was opened at. */
+	"code/save": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.save(scope, host, parse(codeSave, body)));
+	},
 	/** Turns Code mode off for this browser: its pages are Content editing's again. */
 	"code/stop": async (_services, _session, _body, request) => {
 		const response = json(200, { code: false });
@@ -135,6 +149,27 @@ const pagePath = z.object({ path: z.string().max(2000) });
 const codeRef = z.string().max(1000).nullable();
 
 const codeSource = z.object({ path: z.string().max(2000), ref: codeRef });
+
+/** The longest Template markup Code mode sends, in characters, as the Management API takes it. */
+const MARKUP_MAX_LENGTH = 2_000_000;
+
+/** A Draft's version as reading it answered, or null when there was none. */
+const draftVersion = z
+	.string()
+	.regex(/^[0-9a-f]{16}$/)
+	.nullable();
+
+const codePreview = z.object({
+	path: z.string().max(2000),
+	markup: z.object({ ref: z.string().max(1000), text: z.string().max(MARKUP_MAX_LENGTH) }).optional(),
+});
+
+const codeSave = z.object({
+	path: z.string().max(2000),
+	ref: z.string().max(1000),
+	markup: z.string().max(MARKUP_MAX_LENGTH),
+	version: draftVersion,
+});
 
 const pageChange = z.object({ path: z.string().max(2000), item: z.string().max(100), key: z.string().max(200) });
 
