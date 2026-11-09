@@ -60,6 +60,11 @@ export const sites = pgTable(
 		 * managers) or `reportOnly` (the strict policy reported, not enforced).
 		 */
 		cspMode: text("csp_mode").notNull().default("strict"),
+		/**
+		 * The CDN in front of the Site (`cloudflare`, `fastly`), or null. On connections from that CDN's
+		 * published address ranges (`cdn_ranges`), the visitor's address is the one in the CDN's own header.
+		 */
+		cdn: text("cdn"),
 		pageCacheGeneration: bigint("page_cache_generation", { mode: "number" }).notNull().default(0),
 		/**
 		 * Which version of WebCraft's search index the Site's index was last rebuilt for; 0 when a

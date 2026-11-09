@@ -1,3 +1,4 @@
+import { CDN_KEYS } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
@@ -17,15 +18,30 @@ export const domains = {
 	 * The Site's domains, the Primary domain first, then the Redirect domains, then the languages'
 	 * domains, each with its status and the DNS records to create; the Install's `edge`, which decides
 	 * the steps to take (on Coolify and Railway the domain is also added in the platform's panel); and
-	 * the Site's Staging address (`stagingUrl`, null without a sites domain).
+	 * the Site's Staging address (`stagingUrl`, null without a sites domain); and the CDN in front of
+	 * the Site (`cdn`, null for none; see `setCdn`).
 	 */
 	list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "site.view");
 		return {
 			...(await context.services.domains.list(site)),
 			stagingUrl: context.services.sites.stagingUrl(site.site),
+			cdn: await context.services.cdns.siteCdn(site),
 		};
 	}),
+
+	/**
+	 * Sets the CDN in front of the Site (`cloudflare`, `fastly`; null for none). With one set, a visitor
+	 * request that comes from the CDN's published address ranges counts as coming from the visitor the
+	 * CDN names in its own header (`CF-Connecting-IP`, `Fastly-Client-IP`), so rate limits keep counting
+	 * visitors. Applies at once; logged `cdn.change`. Answers the Site's CDN.
+	 */
+	setCdn: signedIn
+		.input(z.object({ siteId: id, cdn: z.enum(CDN_KEYS).nullable() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { cdn: await context.services.cdns.setSiteCdn(site, input.cdn) };
+		}),
 
 	/**
 	 * Adds a domain, and with `withPartner` its `www` partner (or, for `www.…`, the bare domain) as a

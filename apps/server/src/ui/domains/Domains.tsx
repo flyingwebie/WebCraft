@@ -1,5 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import type { DnsRecord, Edge, SiteDomain, SiteDomainList } from "@webcraft/core";
+import { CDN_KEYS, CDNS, type CdnKey } from "@webcraft/core/cdns";
 import { wwwPartnerOf } from "@webcraft/core/domain-partner";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
@@ -53,8 +54,8 @@ import { formatUtc, formatUtcDate } from "../format.ts";
 import { useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 
-/** What the screen shows: the Site's domains, the Install's edge, and the Staging address. */
-export type DomainsData = SiteDomainList & { stagingUrl: string | null };
+/** What the screen shows: the Site's domains, the Install's edge, the Staging address and the Site's CDN. */
+export type DomainsData = SiteDomainList & { stagingUrl: string | null; cdn: CdnKey | null };
 
 /** A language of the Site, by code, as the language domains card names it. */
 type LanguageNames = Readonly<Record<string, string>>;
@@ -168,6 +169,7 @@ export function DomainsPage({
 					</Card>
 				) : null}
 				<StagingAddress url={data.stagingUrl} />
+				<SiteCdn siteId={siteId} cdn={data.cdn} canEdit={canEdit} />
 				<p className="text-muted-foreground text-sm">{t("domains.appliesAtOnce")}</p>
 			</div>
 		</>
@@ -744,6 +746,85 @@ function CopyButton({ value }: { value: string }) {
 }
 
 /** The Staging address: the Site on the agency's own domain, never indexed. */
+/**
+ * The CDN in front of the Site: with one chosen, visitors' requests from the CDN's published addresses
+ * count as coming from the visitor the CDN names, so rate limits keep counting visitors. Staff choose
+ * it; everyone else who sees the Site sees which.
+ */
+function SiteCdn({ siteId, cdn, canEdit }: { siteId: string; cdn: CdnKey | null; canEdit: boolean }) {
+	const t = useT();
+	const router = useRouter();
+	const id = useId();
+	const [chosen, setChosen] = useState<string>(cdn ?? "none");
+	const [busy, setBusy] = useState(false);
+	const save = async (event: FormEvent) => {
+		event.preventDefault();
+		setBusy(true);
+		try {
+			const api = await getApi();
+			const next = CDN_KEYS.find((key) => key === chosen) ?? null;
+			await api.domains.setCdn({ siteId, cdn: next });
+			toast.success(next ? t("domains.cdnSaved", { name: CDNS[next].name }) : t("domains.cdnRemoved"));
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setBusy(false);
+		}
+	};
+	const label = (key: CdnKey) => t("domains.cdnOption", { name: CDNS[key].name, header: headerName(CDNS[key].header) });
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>
+					<h2 id={`${id}-title`}>{t("domains.cdnTitle")}</h2>
+				</CardTitle>
+				<CardDescription>{t("domains.cdnIntro")}</CardDescription>
+			</CardHeader>
+			<CardContent className="grid grid-cols-1 gap-4">
+				{canEdit ? (
+					<form onSubmit={save} className="grid grid-cols-1 gap-4">
+						<RadioGroup
+							value={chosen}
+							onValueChange={(value) => setChosen(String(value))}
+							aria-labelledby={`${id}-title`}
+						>
+							<Field orientation="horizontal">
+								<RadioGroupItem id={`${id}-none`} value="none" />
+								<FieldLabel htmlFor={`${id}-none`}>{t("domains.cdnNone")}</FieldLabel>
+							</Field>
+							{CDN_KEYS.map((key) => (
+								<Field key={key} orientation="horizontal">
+									<RadioGroupItem id={`${id}-${key}`} value={key} />
+									<FieldLabel htmlFor={`${id}-${key}`}>{label(key)}</FieldLabel>
+								</Field>
+							))}
+						</RadioGroup>
+						<p className="text-muted-foreground text-sm">{t("domains.cdnSteps")}</p>
+						<div>
+							<Button type="submit" variant="outline" size="sm" disabled={busy || chosen === (cdn ?? "none")}>
+								{t("domains.cdnSave")}
+							</Button>
+						</div>
+					</form>
+				) : (
+					<p className="text-sm">{cdn ? label(cdn) : t("domains.cdnNone")}</p>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+/** A header's name as people write it: `cf-connecting-ip` is `CF-Connecting-IP`. */
+function headerName(header: string): string {
+	return header
+		.split("-")
+		.map((part) =>
+			part === "ip" || part === "cf" ? part.toUpperCase() : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`,
+		)
+		.join("-");
+}
+
 function StagingAddress({ url }: { url: string | null }) {
 	const t = useT();
 	const address = url ? new URL(url).host : null;

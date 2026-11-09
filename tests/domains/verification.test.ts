@@ -160,6 +160,46 @@ describe("verifying a domain", () => {
 		expect(install.http.requests.filter((request) => request.url.includes("redirecting-bakery"))).toHaveLength(1);
 	});
 
+	test("a redirect to the same verify address over HTTPS is followed once: platforms answering plain HTTP with it (Railway's edge, Coolify's proxy) verify too", async () => {
+		const { siteId } = await siteWithDomain("upgrading-bakery.example");
+		install.connectDomain("upgrading-bakery.example");
+		install.http.respond("GET", /^http:\/\/upgrading-bakery\.example\//, (request) => ({
+			status: 301,
+			headers: { location: request.url.replace(/^http:/, "https:") },
+		}));
+
+		await after(MINUTE);
+
+		expect(await domainOf(siteId, "upgrading-bakery.example")).toMatchObject({ status: "active", problem: null });
+		const upgraded = install.http.requests.filter((request) =>
+			request.url.startsWith("https://upgrading-bakery.example/_webcraft/verify/"),
+		);
+		expect(upgraded).toHaveLength(1);
+		expect(upgraded[0]?.address).toBe(TEST_INSTALL_ADDRESSES[0]);
+	});
+
+	test("any other redirect, even over HTTPS on the same domain, is a wrong answer and isn't followed", async () => {
+		for (const [name, location] of [
+			["path-bakery.example", (url: string) => url.replace(/^http:/, "https:").replace("/verify/", "/verify/x")],
+			["port-bakery.example", (url: string) => url.replace(/^http:\/\/([^/]+)/, "https://$1:8443")],
+			["host-bakery.example", (url: string) => url.replace(/^http:\/\/[^/]+/, "https://elsewhere-cafe.example")],
+		] as const) {
+			const { siteId } = await siteWithDomain(name);
+			install.connectDomain(name);
+			install.http.respond("GET", new RegExp(`^http://${name.replaceAll(".", "\\.")}/`), (request) => ({
+				status: 302,
+				headers: { location: location(request.url) },
+			}));
+
+			await after(MINUTE);
+
+			expect(await domainOf(siteId, name)).toMatchObject({ status: "waiting", problem: "response" });
+			expect(
+				install.http.requests.filter((request) => request.url.startsWith("https://") && request.url.includes(name)),
+			).toEqual([]);
+		}
+	});
+
 	test("the Install never calls an address inside its network, unless it is the Install's own", async () => {
 		const inside = await siteWithDomain("intranet-bakery.example");
 		install.dns.answer("intranet-bakery.example", ["10.0.0.5"]);

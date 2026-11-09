@@ -1804,6 +1804,14 @@
 		"removed": "{name} was removed.",
 		"cancel": "Cancel",
 		"close": "Close",
+		"cdnTitle": "CDN in front of this Site",
+		"cdnIntro": "When visitors reach this Site through a CDN, choose it here. Requests from the CDN's published addresses then count as coming from the visitor the CDN names, so rate limits and spam limits keep counting visitors rather than the CDN.",
+		"cdnNone": "No CDN",
+		"cdnOption": "{name}: visitors named in {header}",
+		"cdnSteps": "Connect each domain with the CDN's proxy off. Once it is verified and has its certificate, turn the proxy on with full, strict TLS to the Site.",
+		"cdnSave": "Save CDN",
+		"cdnSaved": "{name} is in front of this Site.",
+		"cdnRemoved": "No CDN is in front of this Site.",
 		"appliesAtOnce": "Changes here apply at once: they aren't part of Publish all."
 	},
 	"webhooks": {

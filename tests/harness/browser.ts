@@ -31,6 +31,11 @@ export type TestBrowserOptions = {
 	address?: string | null;
 	/** The `User-Agent` the browser sends, if any. */
 	userAgent?: string;
+	/**
+	 * Headers every request carries, such as those a proxy in front of the Install adds
+	 * (`X-Forwarded-For`, `X-Real-IP`) or a client sends to pass itself off as someone else.
+	 */
+	headers?: Record<string, string>;
 };
 
 let addresses = 0;
@@ -62,6 +67,7 @@ export function createTestBrowser(
 	const request = async (input: string | URL | Request, init?: RequestInit) => {
 		const outgoing = input instanceof Request ? new Request(input, init) : new Request(String(input), init);
 		const headers = new Headers(outgoing.headers);
+		for (const [name, value] of Object.entries(options.headers ?? {})) headers.set(name, value);
 		if (cookies.size > 0) {
 			headers.set("cookie", Array.from(cookies, ([name, value]) => `${name}=${value}`).join("; "));
 		}
