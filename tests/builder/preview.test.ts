@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectNoInlineCode } from "../harness/site-safety.ts";
-import { element, outlet, text, tree, value } from "../harness/trees.ts";
+import { element, outlet, text, tree, value, withId } from "../harness/trees.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -62,16 +62,18 @@ const entryTemplate = () => ({ kind: "entryTemplate" as const, postTypeId });
 
 describe("an Entry template", () => {
 	test("shows the Entry saved last, every element tagged with its id, styled by the Draft's Classes", async () => {
-		const shown = tree({
-			...element("article", [
-				{ ...element("h1", [value("title")]), id: "title" },
-				{ ...element("p", [value("summary")]), id: "lead" },
-				{ ...element("p", [value("note")]), id: "empty" },
-				{ type: "component", id: "card", component: cardId, props: [] },
-			]),
-			id: "post",
-			classes: [introClassId],
-		});
+		const shown = tree(
+			withId(
+				"post",
+				element("article", [
+					withId("title", element("h1", [value("title")])),
+					withId("lead", element("p", [value("summary")])),
+					withId("empty", element("p", [value("note")])),
+					{ type: "component", id: "card", component: cardId, props: [] },
+				]),
+				{ classes: [introClassId] },
+			),
+		);
 
 		const { html, css } = await staff.api.builder.preview({ siteId, target: entryTemplate(), tree: shown });
 
@@ -89,7 +91,7 @@ describe("an Entry template", () => {
 	});
 
 	test("shows a one-off style as the generated Class it will become, saving nothing", async () => {
-		const shown = tree({ ...element("p", [text("Hi")]), id: "lead" });
+		const shown = tree(withId("lead", element("p", [text("Hi")])));
 
 		const { html, css } = await staff.api.builder.preview({
 			siteId,
@@ -111,7 +113,7 @@ describe("an Entry template", () => {
 			file: upload(await photo({ width: 400, height: 300 }), "loaf.jpg"),
 		});
 		await install.drainJobs();
-		const shown = tree({ ...element("img", [], { src: `media:${media.id}`, alt: "" }), id: "pic" });
+		const shown = tree(withId("pic", element("img", [], { src: `media:${media.id}`, alt: "" })));
 
 		const { html } = await staff.api.builder.preview({ siteId, target: entryTemplate(), tree: shown });
 
@@ -132,7 +134,7 @@ describe("an Entry template", () => {
 		await refused({ tree: tree(element("script", [text("alert(1)")])) }, "nodes[0].tag");
 		await refused({ tree: tree(element("p", [value("price")])) }, "nodes[0].children[0].path");
 		await refused(
-			{ tree: tree({ ...element("p"), id: "lead" }), styles: { lead: "background: url(javascript:alert(1))" } },
+			{ tree: tree(withId("lead", element("p"))), styles: { lead: "background: url(javascript:alert(1))" } },
 			"styles.lead",
 		);
 	});
@@ -141,8 +143,8 @@ describe("an Entry template", () => {
 describe("the Site template", () => {
 	test("shows a placeholder where each page's content goes, and Globals with no value as written", async () => {
 		const shown = tree(
-			{ ...element("header", [{ ...element("p", [value("site.phone")]), id: "phone" }]), id: "top" },
-			{ ...element("main", [outlet()]), id: "main" },
+			withId("top", element("header", [withId("phone", element("p", [value("site.phone")]))])),
+			withId("main", element("main", [outlet()])),
 		);
 
 		const { html } = await staff.api.builder.preview({ siteId, target: { kind: "siteTemplate" }, tree: shown });
@@ -154,7 +156,7 @@ describe("the Site template", () => {
 
 describe("a Component", () => {
 	test("reads a Prop the builder added before saving it, with its default", async () => {
-		const shown = tree({ ...element("p", [value("props.note")]), id: "n" });
+		const shown = tree(withId("n", element("p", [value("props.note")])));
 
 		const { html } = await staff.api.builder.preview({
 			siteId,

@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { element, text, tree, value } from "../harness/trees.ts";
+import { element, text, tree, value, withId } from "../harness/trees.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -42,11 +42,11 @@ const target = () => ({ kind: "entryTemplate" as const, postTypeId });
 
 describe("the builder's tree as Template markup", () => {
 	test("prints its layer labels and pending one-off styles, saving nothing", async () => {
-		const built = tree({
-			...element("section", [{ ...element("h2", [value("title")]), id: "heading", label: "Title" }]),
-			id: "hero",
-			label: "Hero",
-		});
+		const built = tree(
+			withId("hero", element("section", [withId("heading", element("h2", [value("title")]), { label: "Title" })]), {
+				label: "Hero",
+			}),
+		);
 
 		const { markup } = await staff.api.builder.markup({
 			siteId,
@@ -72,7 +72,7 @@ describe("the builder's tree as Template markup", () => {
 
 	test("is saved through the markup save: one-off styles become generated Classes, and the builder opens the same Draft", async () => {
 		const opened = await staff.api.builder.open({ siteId, target: target() });
-		const built = tree({ ...element("p", [text("Hi")]), id: "lead", classes: [] });
+		const built = tree(withId("lead", element("p", [text("Hi")]), { classes: [] }));
 		const { markup } = await staff.api.builder.markup({
 			siteId,
 			target: target(),
@@ -137,7 +137,7 @@ describe("a Component", () => {
 			{ key: "heading", label: "Heading", type: "text" as const, default: "A card" },
 			{ key: "note", label: "Note", type: "text" as const, default: "Fresh daily" },
 		];
-		const built = tree({ ...element("p", [value("props.note")]), id: "n" });
+		const built = tree(withId("n", element("p", [value("props.note")])));
 		const { markup } = await staff.api.builder.markup({
 			siteId,
 			target: { kind: "component", componentId: cardId },

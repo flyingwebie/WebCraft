@@ -95,6 +95,14 @@ export function element(
 	};
 }
 
+/**
+ * An element (or Placement) with the id a test refers to it by, and optionally its layer label and
+ * Classes, as the visual builder sends them.
+ */
+export function withId(id: string, node: TestNode, more: { label?: string; classes?: string[] } = {}): TestNode {
+	return { ...node, id, ...more } as TestNode;
+}
+
 export function text(content: string): TestNode {
 	return { type: "text", text: content };
 }
