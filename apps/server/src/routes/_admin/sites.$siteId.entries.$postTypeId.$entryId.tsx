@@ -61,7 +61,8 @@ function EntryPage() {
 	if (place.level !== "site") return null;
 	return (
 		<EntryEditor
-			key={`${entry.id}:${entry.language}`}
+			// A confirmed or AI-translated value changes the Draft from outside: the editor starts again from it.
+			key={`${entry.id}:${entry.language}:${String(entry.updatedAt)}`}
 			siteId={siteId}
 			postType={postType}
 			entry={entry}

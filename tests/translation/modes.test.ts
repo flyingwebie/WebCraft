@@ -162,7 +162,7 @@ describe("Translate now", () => {
 			{ code: "it", mode: "review", progress: 0 },
 			{ code: "fr", mode: "manual", progress: 0 },
 		]);
-		expect(before.key).toEqual({ inUse: "own", capReached: false });
+		expect(before.key).toEqual({ inUse: "own", capReached: false, capPercent: null });
 
 		await site.owner.api.translations.translateNow({ siteId: site.siteId, language: "it" });
 		await install.drainJobs();

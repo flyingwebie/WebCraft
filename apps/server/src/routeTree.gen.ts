@@ -19,6 +19,7 @@ import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
 import { Route as AdminAccountIndexRouteImport } from './routes/_admin/account.index'
 import { Route as AdminAccountApiTokensRouteImport } from './routes/_admin/account.api-tokens'
+import { Route as AdminSettingsAiRouteImport } from './routes/_admin/settings.ai'
 import { Route as AdminSettingsBackupsRouteImport } from './routes/_admin/settings.backups'
 import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
@@ -30,6 +31,7 @@ import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/worksp
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
 import { Route as BuilderSiteIdSplatRouteImport } from './routes/builder.$siteId.$'
 import { Route as AdminSitesSiteIdIndexRouteImport } from './routes/_admin/sites.$siteId.index'
+import { Route as AdminSitesSiteIdAiTranslationRouteImport } from './routes/_admin/sites.$siteId.ai-translation'
 import { Route as AdminSitesSiteIdComponentsRouteImport } from './routes/_admin/sites.$siteId.components'
 import { Route as AdminSitesSiteIdConsentBannerRouteImport } from './routes/_admin/sites.$siteId.consent-banner'
 import { Route as AdminSitesSiteIdDomainsRouteImport } from './routes/_admin/sites.$siteId.domains'
@@ -45,10 +47,13 @@ import { Route as AdminSitesSiteIdOutsideScriptsRouteImport } from './routes/_ad
 import { Route as AdminSitesSiteIdPostTypesRouteImport } from './routes/_admin/sites.$siteId.post-types'
 import { Route as AdminSitesSiteIdSeoRouteImport } from './routes/_admin/sites.$siteId.seo'
 import { Route as AdminSitesSiteIdTemplatesRouteImport } from './routes/_admin/sites.$siteId.templates'
+import { Route as AdminSitesSiteIdTranslationsRouteImport } from './routes/_admin/sites.$siteId.translations'
 import { Route as AdminSitesSiteIdWebhooksRouteImport } from './routes/_admin/sites.$siteId.webhooks'
 import { Route as AdminWorkspacesWorkspaceIdIndexRouteImport } from './routes/_admin/workspaces.$workspaceId.index'
+import { Route as AdminWorkspacesWorkspaceIdAiKeysRouteImport } from './routes/_admin/workspaces.$workspaceId.ai-keys'
 import { Route as AdminWorkspacesWorkspaceIdMembersRouteImport } from './routes/_admin/workspaces.$workspaceId.members'
 import { Route as AdminWorkspacesWorkspaceIdModulesRouteImport } from './routes/_admin/workspaces.$workspaceId.modules'
+import { Route as AdminWorkspacesWorkspaceIdProtectedTermsRouteImport } from './routes/_admin/workspaces.$workspaceId.protected-terms'
 import { Route as AdminSitesSiteIdEntriesPostTypeIdRouteImport } from './routes/_admin/sites.$siteId.entries.$postTypeId'
 import { Route as AdminSitesSiteIdFormsIndexRouteImport } from './routes/_admin/sites.$siteId.forms.index'
 import { Route as AdminSitesSiteIdFormsFormIdRouteImport } from './routes/_admin/sites.$siteId.forms.$formId'
@@ -116,6 +121,11 @@ const AdminAccountApiTokensRoute = AdminAccountApiTokensRouteImport.update({
   path: '/api-tokens',
   getParentRoute: () => AdminAccountRoute,
 } as any)
+const AdminSettingsAiRoute = AdminSettingsAiRouteImport.update({
+  id: '/settings/ai',
+  path: '/settings/ai',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSettingsBackupsRoute = AdminSettingsBackupsRouteImport.update({
   id: '/settings/backups',
   path: '/settings/backups',
@@ -172,6 +182,12 @@ const AdminSitesSiteIdIndexRoute = AdminSitesSiteIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSitesSiteIdRoute,
 } as any)
+const AdminSitesSiteIdAiTranslationRoute =
+  AdminSitesSiteIdAiTranslationRouteImport.update({
+    id: '/ai-translation',
+    path: '/ai-translation',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
 const AdminSitesSiteIdComponentsRoute =
   AdminSitesSiteIdComponentsRouteImport.update({
     id: '/components',
@@ -254,6 +270,12 @@ const AdminSitesSiteIdTemplatesRoute =
     path: '/templates',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminSitesSiteIdTranslationsRoute =
+  AdminSitesSiteIdTranslationsRouteImport.update({
+    id: '/translations',
+    path: '/translations',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
 const AdminSitesSiteIdWebhooksRoute =
   AdminSitesSiteIdWebhooksRouteImport.update({
     id: '/webhooks',
@@ -266,6 +288,12 @@ const AdminWorkspacesWorkspaceIdIndexRoute =
     path: '/',
     getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
   } as any)
+const AdminWorkspacesWorkspaceIdAiKeysRoute =
+  AdminWorkspacesWorkspaceIdAiKeysRouteImport.update({
+    id: '/ai-keys',
+    path: '/ai-keys',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
 const AdminWorkspacesWorkspaceIdMembersRoute =
   AdminWorkspacesWorkspaceIdMembersRouteImport.update({
     id: '/members',
@@ -276,6 +304,12 @@ const AdminWorkspacesWorkspaceIdModulesRoute =
   AdminWorkspacesWorkspaceIdModulesRouteImport.update({
     id: '/modules',
     path: '/modules',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
+const AdminWorkspacesWorkspaceIdProtectedTermsRoute =
+  AdminWorkspacesWorkspaceIdProtectedTermsRouteImport.update({
+    id: '/protected-terms',
+    path: '/protected-terms',
     getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
   } as any)
 const AdminSitesSiteIdEntriesPostTypeIdRoute =
@@ -390,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
+  '/settings/ai': typeof AdminSettingsAiRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
@@ -401,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
   '/account/': typeof AdminAccountIndexRoute
   '/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId/ai-translation': typeof AdminSitesSiteIdAiTranslationRoute
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
@@ -416,9 +452,12 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
   '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
+  '/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
   '/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
+  '/workspaces/$workspaceId/ai-keys': typeof AdminWorkspacesWorkspaceIdAiKeysRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
+  '/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
   '/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/sites/$siteId/entries/$postTypeId': typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
@@ -447,6 +486,7 @@ export interface FileRoutesByTo {
   '/staff': typeof AdminStaffRoute
   '/': typeof AdminIndexRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
+  '/settings/ai': typeof AdminSettingsAiRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
@@ -456,6 +496,7 @@ export interface FileRoutesByTo {
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
   '/account': typeof AdminAccountIndexRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId/ai-translation': typeof AdminSitesSiteIdAiTranslationRoute
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
@@ -468,9 +509,12 @@ export interface FileRoutesByTo {
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
   '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
+  '/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
   '/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
+  '/workspaces/$workspaceId/ai-keys': typeof AdminWorkspacesWorkspaceIdAiKeysRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
+  '/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/sites/$siteId/forms/$formId': typeof AdminSitesSiteIdFormsFormIdRoute
@@ -500,6 +544,7 @@ export interface FileRoutesById {
   '/_admin/staff': typeof AdminStaffRoute
   '/_admin/': typeof AdminIndexRoute
   '/_admin/account/api-tokens': typeof AdminAccountApiTokensRoute
+  '/_admin/settings/ai': typeof AdminSettingsAiRoute
   '/_admin/settings/backups': typeof AdminSettingsBackupsRoute
   '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -511,6 +556,7 @@ export interface FileRoutesById {
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
   '/_admin/account/': typeof AdminAccountIndexRoute
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/_admin/sites/$siteId/ai-translation': typeof AdminSitesSiteIdAiTranslationRoute
   '/_admin/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/_admin/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/_admin/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
@@ -526,9 +572,12 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
   '/_admin/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/_admin/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
+  '/_admin/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
   '/_admin/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
+  '/_admin/workspaces/$workspaceId/ai-keys': typeof AdminWorkspacesWorkspaceIdAiKeysRoute
   '/_admin/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/_admin/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
+  '/_admin/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
   '/_admin/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/_admin/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/_admin/sites/$siteId/entries/$postTypeId': typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
@@ -560,6 +609,7 @@ export interface FileRouteTypes {
     | '/email-log'
     | '/staff'
     | '/account/api-tokens'
+    | '/settings/ai'
     | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
@@ -571,6 +621,7 @@ export interface FileRouteTypes {
     | '/builder/$siteId/$'
     | '/account/'
     | '/workspaces/'
+    | '/sites/$siteId/ai-translation'
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
     | '/sites/$siteId/domains'
@@ -586,9 +637,12 @@ export interface FileRouteTypes {
     | '/sites/$siteId/post-types'
     | '/sites/$siteId/seo'
     | '/sites/$siteId/templates'
+    | '/sites/$siteId/translations'
     | '/sites/$siteId/webhooks'
+    | '/workspaces/$workspaceId/ai-keys'
     | '/workspaces/$workspaceId/members'
     | '/workspaces/$workspaceId/modules'
+    | '/workspaces/$workspaceId/protected-terms'
     | '/sites/$siteId/'
     | '/workspaces/$workspaceId/'
     | '/sites/$siteId/entries/$postTypeId'
@@ -617,6 +671,7 @@ export interface FileRouteTypes {
     | '/staff'
     | '/'
     | '/account/api-tokens'
+    | '/settings/ai'
     | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
@@ -626,6 +681,7 @@ export interface FileRouteTypes {
     | '/builder/$siteId/$'
     | '/account'
     | '/workspaces'
+    | '/sites/$siteId/ai-translation'
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
     | '/sites/$siteId/domains'
@@ -638,9 +694,12 @@ export interface FileRouteTypes {
     | '/sites/$siteId/outside-scripts'
     | '/sites/$siteId/seo'
     | '/sites/$siteId/templates'
+    | '/sites/$siteId/translations'
     | '/sites/$siteId/webhooks'
+    | '/workspaces/$workspaceId/ai-keys'
     | '/workspaces/$workspaceId/members'
     | '/workspaces/$workspaceId/modules'
+    | '/workspaces/$workspaceId/protected-terms'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/sites/$siteId/forms/$formId'
@@ -669,6 +728,7 @@ export interface FileRouteTypes {
     | '/_admin/staff'
     | '/_admin/'
     | '/_admin/account/api-tokens'
+    | '/_admin/settings/ai'
     | '/_admin/settings/backups'
     | '/_admin/settings/email'
     | '/_admin/settings/general'
@@ -680,6 +740,7 @@ export interface FileRouteTypes {
     | '/builder/$siteId/$'
     | '/_admin/account/'
     | '/_admin/workspaces/'
+    | '/_admin/sites/$siteId/ai-translation'
     | '/_admin/sites/$siteId/components'
     | '/_admin/sites/$siteId/consent-banner'
     | '/_admin/sites/$siteId/domains'
@@ -695,9 +756,12 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/post-types'
     | '/_admin/sites/$siteId/seo'
     | '/_admin/sites/$siteId/templates'
+    | '/_admin/sites/$siteId/translations'
     | '/_admin/sites/$siteId/webhooks'
+    | '/_admin/workspaces/$workspaceId/ai-keys'
     | '/_admin/workspaces/$workspaceId/members'
     | '/_admin/workspaces/$workspaceId/modules'
+    | '/_admin/workspaces/$workspaceId/protected-terms'
     | '/_admin/sites/$siteId/'
     | '/_admin/workspaces/$workspaceId/'
     | '/_admin/sites/$siteId/entries/$postTypeId'
@@ -799,6 +863,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAccountApiTokensRouteImport
       parentRoute: typeof AdminAccountRoute
     }
+    '/_admin/settings/ai': {
+      id: '/_admin/settings/ai'
+      path: '/settings/ai'
+      fullPath: '/settings/ai'
+      preLoaderRoute: typeof AdminSettingsAiRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/settings/backups': {
       id: '/_admin/settings/backups'
       path: '/settings/backups'
@@ -874,6 +945,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/sites/$siteId/'
       preLoaderRoute: typeof AdminSitesSiteIdIndexRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/sites/$siteId/ai-translation': {
+      id: '/_admin/sites/$siteId/ai-translation'
+      path: '/ai-translation'
+      fullPath: '/sites/$siteId/ai-translation'
+      preLoaderRoute: typeof AdminSitesSiteIdAiTranslationRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
     '/_admin/sites/$siteId/components': {
@@ -981,6 +1059,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdTemplatesRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/translations': {
+      id: '/_admin/sites/$siteId/translations'
+      path: '/translations'
+      fullPath: '/sites/$siteId/translations'
+      preLoaderRoute: typeof AdminSitesSiteIdTranslationsRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/sites/$siteId/webhooks': {
       id: '/_admin/sites/$siteId/webhooks'
       path: '/webhooks'
@@ -995,6 +1080,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWorkspacesWorkspaceIdIndexRouteImport
       parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
+    '/_admin/workspaces/$workspaceId/ai-keys': {
+      id: '/_admin/workspaces/$workspaceId/ai-keys'
+      path: '/ai-keys'
+      fullPath: '/workspaces/$workspaceId/ai-keys'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdAiKeysRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
     '/_admin/workspaces/$workspaceId/members': {
       id: '/_admin/workspaces/$workspaceId/members'
       path: '/members'
@@ -1007,6 +1099,13 @@ declare module '@tanstack/react-router' {
       path: '/modules'
       fullPath: '/workspaces/$workspaceId/modules'
       preLoaderRoute: typeof AdminWorkspacesWorkspaceIdModulesRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
+    '/_admin/workspaces/$workspaceId/protected-terms': {
+      id: '/_admin/workspaces/$workspaceId/protected-terms'
+      path: '/protected-terms'
+      fullPath: '/workspaces/$workspaceId/protected-terms'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdProtectedTermsRouteImport
       parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
     '/_admin/sites/$siteId/entries/$postTypeId': {
@@ -1236,6 +1335,7 @@ const AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren =
   )
 
 interface AdminSitesSiteIdRouteChildren {
+  AdminSitesSiteIdAiTranslationRoute: typeof AdminSitesSiteIdAiTranslationRoute
   AdminSitesSiteIdComponentsRoute: typeof AdminSitesSiteIdComponentsRoute
   AdminSitesSiteIdConsentBannerRoute: typeof AdminSitesSiteIdConsentBannerRoute
   AdminSitesSiteIdDomainsRoute: typeof AdminSitesSiteIdDomainsRoute
@@ -1251,6 +1351,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdPostTypesRoute: typeof AdminSitesSiteIdPostTypesRouteWithChildren
   AdminSitesSiteIdSeoRoute: typeof AdminSitesSiteIdSeoRoute
   AdminSitesSiteIdTemplatesRoute: typeof AdminSitesSiteIdTemplatesRoute
+  AdminSitesSiteIdTranslationsRoute: typeof AdminSitesSiteIdTranslationsRoute
   AdminSitesSiteIdWebhooksRoute: typeof AdminSitesSiteIdWebhooksRoute
   AdminSitesSiteIdIndexRoute: typeof AdminSitesSiteIdIndexRoute
   AdminSitesSiteIdEntriesPostTypeIdRoute: typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
@@ -1260,6 +1361,7 @@ interface AdminSitesSiteIdRouteChildren {
 }
 
 const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
+  AdminSitesSiteIdAiTranslationRoute: AdminSitesSiteIdAiTranslationRoute,
   AdminSitesSiteIdComponentsRoute: AdminSitesSiteIdComponentsRoute,
   AdminSitesSiteIdConsentBannerRoute: AdminSitesSiteIdConsentBannerRoute,
   AdminSitesSiteIdDomainsRoute: AdminSitesSiteIdDomainsRoute,
@@ -1275,6 +1377,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdPostTypesRoute: AdminSitesSiteIdPostTypesRouteWithChildren,
   AdminSitesSiteIdSeoRoute: AdminSitesSiteIdSeoRoute,
   AdminSitesSiteIdTemplatesRoute: AdminSitesSiteIdTemplatesRoute,
+  AdminSitesSiteIdTranslationsRoute: AdminSitesSiteIdTranslationsRoute,
   AdminSitesSiteIdWebhooksRoute: AdminSitesSiteIdWebhooksRoute,
   AdminSitesSiteIdIndexRoute: AdminSitesSiteIdIndexRoute,
   AdminSitesSiteIdEntriesPostTypeIdRoute:
@@ -1288,18 +1391,24 @@ const AdminSitesSiteIdRouteWithChildren =
   AdminSitesSiteIdRoute._addFileChildren(AdminSitesSiteIdRouteChildren)
 
 interface AdminWorkspacesWorkspaceIdRouteChildren {
+  AdminWorkspacesWorkspaceIdAiKeysRoute: typeof AdminWorkspacesWorkspaceIdAiKeysRoute
   AdminWorkspacesWorkspaceIdMembersRoute: typeof AdminWorkspacesWorkspaceIdMembersRoute
   AdminWorkspacesWorkspaceIdModulesRoute: typeof AdminWorkspacesWorkspaceIdModulesRoute
+  AdminWorkspacesWorkspaceIdProtectedTermsRoute: typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
   AdminWorkspacesWorkspaceIdIndexRoute: typeof AdminWorkspacesWorkspaceIdIndexRoute
   AdminWorkspacesWorkspaceIdMModuleIdSplatRoute: typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
 }
 
 const AdminWorkspacesWorkspaceIdRouteChildren: AdminWorkspacesWorkspaceIdRouteChildren =
   {
+    AdminWorkspacesWorkspaceIdAiKeysRoute:
+      AdminWorkspacesWorkspaceIdAiKeysRoute,
     AdminWorkspacesWorkspaceIdMembersRoute:
       AdminWorkspacesWorkspaceIdMembersRoute,
     AdminWorkspacesWorkspaceIdModulesRoute:
       AdminWorkspacesWorkspaceIdModulesRoute,
+    AdminWorkspacesWorkspaceIdProtectedTermsRoute:
+      AdminWorkspacesWorkspaceIdProtectedTermsRoute,
     AdminWorkspacesWorkspaceIdIndexRoute: AdminWorkspacesWorkspaceIdIndexRoute,
     AdminWorkspacesWorkspaceIdMModuleIdSplatRoute:
       AdminWorkspacesWorkspaceIdMModuleIdSplatRoute,
@@ -1315,6 +1424,7 @@ interface AdminRouteChildren {
   AdminEmailLogRoute: typeof AdminEmailLogRoute
   AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminSettingsAiRoute: typeof AdminSettingsAiRoute
   AdminSettingsBackupsRoute: typeof AdminSettingsBackupsRoute
   AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
@@ -1331,6 +1441,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminEmailLogRoute: AdminEmailLogRoute,
   AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminSettingsAiRoute: AdminSettingsAiRoute,
   AdminSettingsBackupsRoute: AdminSettingsBackupsRoute,
   AdminSettingsEmailRoute: AdminSettingsEmailRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,

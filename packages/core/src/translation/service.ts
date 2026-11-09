@@ -76,8 +76,11 @@ export type LanguageTranslations = {
 export type TranslationsOverview = {
 	defaultLanguage: { code: string; name: string };
 	languages: LanguageTranslations[];
-	/** Whether the Workspace has an AI key, which, and whether its cap stopped AI calls this month. */
-	key: { inUse: "own" | "shared" | null; capReached: boolean };
+	/**
+	 * Whether the Workspace has an AI key, which, whether its cap stopped AI calls this month, and the
+	 * share of the cap used (only for people who see costs; null without a cap).
+	 */
+	key: { inUse: "own" | "shared" | null; capReached: boolean; capPercent: number | null };
 	/** This month, for this Site: its AI calls and their cost (only for people who see costs), and the cache's share. */
 	usage: { month: string; calls: number; tokens: number; cost: number | null; cacheHits: number | null };
 };
@@ -474,7 +477,11 @@ export function createTranslations(options: TranslationsOptions): Translations {
 			return {
 				defaultLanguage: { code: site.defaultLanguage, name: from?.name ?? site.defaultLanguage },
 				languages,
-				key: { inUse: readiness.key, capReached: readiness.capReached },
+				key: {
+					inUse: readiness.key,
+					capReached: readiness.capReached,
+					capPercent: options.costs ? readiness.percent : null,
+				},
 				usage: {
 					month,
 					calls: Number(calls?.calls ?? 0),

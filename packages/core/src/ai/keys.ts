@@ -162,8 +162,11 @@ export type AiKeys = {
 		assign(scope: InstallScope, workspaceId: string, keyId: string | null, monthlyCap: number | null): Promise<void>;
 		setPrivateEndpoints(scope: InstallScope, on: boolean): Promise<void>;
 	};
-	/** Whether the Workspace has a key in use, and whether its cap still lets calls start this month. */
-	readiness(workspaceId: string): Promise<{ key: AiKeyKind | null; capReached: boolean }>;
+	/**
+	 * Whether the Workspace has a key in use, whether its cap still lets calls start this month, and
+	 * the share of the cap used (null without a cap).
+	 */
+	readiness(workspaceId: string): Promise<{ key: AiKeyKind | null; capReached: boolean; percent: number | null }>;
 	/**
 	 * Calls a provider for a Workspace (and Site) with the key it uses now. `estimate` is the most the
 	 * call is expected to use; it is reserved against the cap first. Throws `AiKeyMissingError`
@@ -865,10 +868,14 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
 
 		async readiness(workspaceId) {
 			const key = await keyInUse(database.db, workspaceId);
-			if (!key) return { key: null, capReached: false };
-			if (key.cap === null) return { key: key.kind, capReached: false };
+			if (!key) return { key: null, capReached: false, percent: null };
+			if (key.cap === null || key.cap <= 0) return { key: key.kind, capReached: false, percent: null };
 			const budget = await budgetOf(database.db, workspaceId, key.kind, monthOf(clock.now()));
-			return { key: key.kind, capReached: budget.spent + budget.reserved >= key.cap };
+			return {
+				key: key.kind,
+				capReached: budget.spent + budget.reserved >= key.cap,
+				percent: Math.floor((budget.spent / key.cap) * 100),
+			};
 		},
 
 		call,
