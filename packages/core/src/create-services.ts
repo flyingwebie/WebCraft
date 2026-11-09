@@ -3,6 +3,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
+import { createBackups } from "./backups/service.ts";
 import { createCdns } from "./cdns/index.ts";
 import { createCodeMode } from "./code-mode/index.ts";
 import { createConsent } from "./consent/index.ts";
@@ -111,6 +112,7 @@ import { createMemberships } from "./tenancy/memberships.ts";
 import { createSite, listSites } from "./tenancy/sites.ts";
 import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
+import { createUpdates } from "./updates.ts";
 import { createWebhooks } from "./webhooks/index.ts";
 
 export type CreateServicesOptions = {
@@ -382,5 +384,16 @@ export async function createInstallServices(
 		media,
 		imports: createImports({ storage, jobs: ports.jobs }),
 		modules,
+		backups: createBackups({
+			config,
+			database,
+			secrets: installSecrets,
+			http: ports.http,
+			clock,
+			log,
+			fingerprint: await masterKey.fingerprint(),
+			modules: options.modules ?? FIRST_PARTY_MODULES,
+		}),
+		updates: createUpdates({ database, feed: config.updateFeed, fetch: guardedFetch, clock, log }),
 	};
 }

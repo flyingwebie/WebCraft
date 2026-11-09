@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { moduleSchemas } from "@webcraft/core";
+import { coreJobs, jobQueues, moduleSchemas } from "@webcraft/core";
 import { runMigrations } from "@webcraft/db";
 import pg from "pg";
 
@@ -58,7 +58,7 @@ async function createTemplate(): Promise<string> {
 	const name = `${prefix()}tpl`;
 	await admin((client) => client.query(`CREATE DATABASE ${quote(name)}`));
 	try {
-		await runMigrations(urlFor(name), { modules: moduleSchemas(TEST_MODULES) });
+		await runMigrations(urlFor(name), { modules: moduleSchemas(TEST_MODULES), queues: jobQueues(coreJobs) });
 	} catch (error) {
 		await dropDatabase(name);
 		throw error;

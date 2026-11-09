@@ -19,6 +19,7 @@ import { PuzzleIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useT } from "../i18n.tsx";
+import { BackupFailingBanner } from "./BackupFailingBanner.tsx";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { ContextSwitcher } from "./ContextSwitcher.tsx";
 import type { ShellContext, SignedInPerson } from "./context.ts";
@@ -27,6 +28,7 @@ import { type AdminPlace, navigationFor, placeParams } from "./levels.ts";
 import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
 import { SmtpFailingBanner } from "./SmtpFailingBanner.tsx";
 import { ThemeSwitch } from "./ThemeSwitch.tsx";
+import { UpdateBanner } from "./UpdateBanner.tsx";
 import { UserMenu } from "./UserMenu.tsx";
 
 /**
@@ -60,6 +62,8 @@ export function AdminShell({
 				<main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
 					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
 					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
+					{shell.banners.backupFailing ? <BackupFailingBanner /> : null}
+					{shell.banners.update && place.level === "install" ? <UpdateBanner update={shell.banners.update} /> : null}
 					<div className={`mx-auto w-full flex-1 p-6 md:p-10 ${wide ? "max-w-screen-2xl" : "max-w-5xl"}`}>
 						{children}
 					</div>

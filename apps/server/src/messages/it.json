@@ -282,6 +282,7 @@
 			"libraries": "Librerie",
 			"imports": "Importazioni",
 			"seo": "SEO",
+			"backups": "Backup",
 			"siteEmail": "Email (SMTP)"
 		}
 	},
@@ -327,7 +328,18 @@
 		"defaultLanguage": "Lingua predefinita dell'admin",
 		"defaultLanguageHelp": "La lingua delle pagine senza accesso e di chiunque non ne abbia scelta una.",
 		"save": "Salva",
-		"saved": "Salvato."
+		"saved": "Salvato.",
+		"version": {
+			"heading": "Versione di WebCraft",
+			"running": "Questa Install usa WebCraft {version}.",
+			"newer": "È disponibile WebCraft {version}.",
+			"newest": "È la versione più recente.",
+			"checked": "Ultimo controllo {time}.",
+			"never": "Il feed delle versioni non è ancora stato controllato: il worker lo controlla una volta al giorno.",
+			"off": "Il controllo degli aggiornamenti è spento (WEBCRAFT_UPDATE_FEED=off).",
+			"problem": "L'ultimo controllo non ha potuto leggere il feed delle versioni.",
+			"notes": "Note di rilascio"
+		}
 	},
 	"securitySettings": {
 		"pageTitle": "Sicurezza",
@@ -3259,6 +3271,57 @@
 			"save": "Salva",
 			"saved": "Impostazioni SEO salvate.",
 			"notSaved": "Le impostazioni SEO non sono state salvate:"
+		}
+	},
+	"backupFailingBanner": {
+		"title": "L'ultimo Backup non è riuscito",
+		"body": "Il Backup più recente dell'Install non è stato scritto. Finché uno non riesce, un server perso o un aggiornamento da annullare non si possono recuperare da un Backup.",
+		"action": "Vai ai Backup"
+	},
+	"updateBanner": {
+		"title": "È disponibile WebCraft {version}",
+		"body": "Questa Install usa WebCraft {running}. Per aggiornare, cambia il tag dell'immagine e rifai il deploy: lo step di migrazione fa prima un Backup.",
+		"action": "Note di rilascio di {version}"
+	},
+	"backupSettings": {
+		"pageTitle": "Backup",
+		"heading": "Backup",
+		"intro": "Un Backup contiene l'intera Install: il database, i file tenuti sul disco locale (tranne le copie ridimensionate delle immagini, che vengono rifatte) e un manifest. Non contiene mai la Master key: conserva WEBCRAFT_SECRET_KEY altrove, perché un ripristino ne ha bisogno.",
+		"scheduled": "Fai un Backup ogni giorno",
+		"scheduledHelp": "Alle 01:11 UTC, dal worker. Si tiene il Backup più recente di ciascuno degli ultimi {daily} giorni e di ciascuna delle ultime {weekly} settimane; i Backup programmati più vecchi vengono rimossi. I Backup fatti da comando o prima delle migrazioni restano.",
+		"where": "Dove vanno i Backup",
+		"folder": "Cartella dei Backup",
+		"folderHelp": "Su questo server, in {directory} (WEBCRAFT_BACKUP_DIR). Copia i Backup anche fuori dal server.",
+		"s3": "Bucket compatibile S3",
+		"s3Help": "I Backup vanno in una cartella backups del bucket, caricati a parti. Prima di salvare, WebCraft scrive, legge e rimuove lì un piccolo file. Usa un bucket diverso da quello dei Media.",
+		"prefixHelp": "Facoltativa. Messa davanti alla cartella backups, così un bucket può contenere più Install.",
+		"save": "Salva",
+		"saved": "Salvato.",
+		"log": {
+			"heading": "Backup recenti",
+			"emptyTitle": "Ancora nessun Backup",
+			"emptyBody": "Il primo Backup programmato si fa stanotte; webcraft admin backup ne fa uno adesso.",
+			"when": "Fatto",
+			"reason": "Perché",
+			"status": "Stato",
+			"size": "Dimensione",
+			"where": "Dove",
+			"reasons": {
+				"scheduled": "Programmato",
+				"command": "Da comando",
+				"beforeMigrations": "Prima delle migrazioni"
+			},
+			"statuses": {
+				"running": "In corso",
+				"done": "Fatto",
+				"failed": "Non riuscito",
+				"removed": "Rimosso"
+			}
+		},
+		"restore": {
+			"heading": "Ripristino",
+			"body": "Un Backup si ripristina sul server, in un database vuoto, con la Master key che l'Install aveva allora. Ferma prima web e worker, poi esegui:",
+			"site": "Il ripristino riporta l'intera Install. Per spostare o copiare un solo Sito, usa invece l'esportazione del Sito."
 		}
 	},
 	"siteEmail": {

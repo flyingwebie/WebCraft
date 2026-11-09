@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
-// The `webcraft` command line. For now it has the server commands `admin migrate`,
-// `admin rotate-key` and `admin create-superadmin`; the generated remote commands, `login` and the
-// other server commands arrive with the CLI ticket.
+// The `webcraft` command line. For now it has the server commands `admin migrate`, `backup`,
+// `restore`, `check-update`, `rotate-key` and `create-superadmin`; the generated remote commands,
+// `login` and the other server commands arrive with the CLI ticket.
 import { readFile } from "node:fs/promises";
 import { EmailInUseError, InvalidEmailError, PasswordRefusedError } from "@webcraft/auth";
 import {
+	BackupBusyError,
+	BackupFailedError,
 	CONFIRM_FINGERPRINT_LENGTH,
 	ConfigError,
 	FIRST_PARTY_MODULES,
@@ -17,6 +19,7 @@ import {
 	moduleSchemas,
 	OLD_MASTER_KEY_VARIABLE,
 	parseMasterKey,
+	RestoreRefusedError,
 	replaceLostMasterKey,
 	rotateMasterKey,
 	SetupClosedError,
@@ -25,18 +28,33 @@ import {
 import {
 	assertSchemaCurrent,
 	DatabaseNotReadyError,
+	MigrationError,
 	ModuleMigrationError,
 	openDatabase,
-	runMigrations,
 } from "@webcraft/db";
 
+import { backupCommand, checkUpdateCommand, migrateCommand, type RestoreOptions, restoreCommand } from "./backups.ts";
 import { createSuperadmin, parseCreateSuperadminOptions } from "./create-superadmin.ts";
 
 const USAGE = `Usage: webcraft <command>
 
 Server commands (run on the server, with the Install's environment):
-  admin migrate      Apply pending database migrations and install or upgrade the job queue schema.
-                     Run it before starting a new version of web and worker.
+  admin migrate [--no-backup]
+                     Apply pending database migrations, each in its own transaction, install or
+                     upgrade the job queue schema and make its queues. Run it before starting a new
+                     version of web and worker. When anything is pending on an Install, it first
+                     takes a Backup (where Install settings › Backups says); --no-backup skips it.
+  admin backup [--to <file or folder>]
+                     Take a Backup now: one archive with the database, the files of local storage
+                     (but Media variants, which are made again) and a manifest. It goes where Install
+                     settings › Backups says, or to the file or folder given. It never holds the
+                     Master key.
+  admin restore <archive> [--force [--confirm <database name>]]
+                     Restore a whole Install from a Backup into an empty database. Stop web and
+                     worker first, and run it with the Master key the Install had then. --force
+                     replaces everything in a database that isn't empty, once its name is typed
+                     (asked on a terminal, or given with --confirm).
+  admin check-update Read the release feed now and say whether a newer WebCraft is out.
   admin rotate-key [--old-key-file <path>]
                      Re-encrypt every secret under a new Master key. Stop web and worker first.
                      WEBCRAFT_SECRET_KEY holds the new key; the key being replaced comes from
@@ -60,7 +78,11 @@ const EXPLAINED_ERRORS = [
 	DatabaseNotReadyError,
 	KeyRotationError,
 	MasterKeyMismatchError,
+	MigrationError,
 	ModuleMigrationError,
+	RestoreRefusedError,
+	BackupFailedError,
+	BackupBusyError,
 	SetupClosedError,
 	PasswordRefusedError,
 	InvalidEmailError,
@@ -73,8 +95,23 @@ async function main(args: string[]): Promise<number> {
 		process.stdout.write(USAGE);
 		return group ? 0 : 1;
 	}
-	if (group === "admin" && command === "migrate" && rest.length === 0) {
-		return migrate();
+	if (
+		group === "admin" &&
+		command === "migrate" &&
+		(rest.length === 0 || (rest.length === 1 && rest[0] === "--no-backup"))
+	) {
+		return migrateCommand(process.env, { backup: rest.length === 0 });
+	}
+	if (group === "admin" && command === "backup") {
+		const to = parseBackupOptions(rest);
+		if (to !== null) return backupCommand(process.env, { to: to || undefined });
+	}
+	if (group === "admin" && command === "restore") {
+		const options = parseRestoreOptions(rest);
+		if (options) return restoreCommand(process.env, options);
+	}
+	if (group === "admin" && command === "check-update" && rest.length === 0) {
+		return checkUpdateCommand(process.env);
 	}
 	if (group === "admin" && command === "rotate-key") {
 		const options = parseRotateKeyOptions(rest);
@@ -91,21 +128,31 @@ async function main(args: string[]): Promise<number> {
 	return 1;
 }
 
-async function migrate(): Promise<number> {
-	const report = await runMigrations(loadDatabaseUrl(process.env), { modules: moduleSchemas(FIRST_PARTY_MODULES) });
-	const applied = report.appliedMigrations;
-	process.stdout.write(
-		applied.length === 0
-			? "No migrations were pending.\n"
-			: `Applied ${applied.length} migration${applied.length === 1 ? "" : "s"}:\n${applied.map((name) => `  ${name}\n`).join("")}`,
-	);
-	const { from, to } = report.jobQueueSchema;
-	process.stdout.write(
-		from === to
-			? `The job queue schema is at version ${to}.\n`
-			: `The job queue schema went from ${from === null ? "not installed" : `version ${from}`} to version ${to}.\n`,
-	);
-	return 0;
+/** Reads `[--to <path>]`: the path, "" without one, null for anything else. */
+function parseBackupOptions(args: string[]): string | null {
+	if (args.length === 0) return "";
+	const [flag, value, ...more] = args;
+	if (more.length > 0) return null;
+	if (flag === "--to" && value) return value;
+	if (flag?.startsWith("--to=") && value === undefined && flag.length > 5) return flag.slice(5);
+	return null;
+}
+
+/** Reads `<archive> [--force [--confirm <database name>]]`; null for anything else. */
+function parseRestoreOptions(args: string[]): RestoreOptions | null {
+	let archive: string | undefined;
+	let force = false;
+	let confirm: string | undefined;
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index] ?? "";
+		if (arg === "--force") force = true;
+		else if (arg === "--confirm" && args[index + 1]) confirm = args[++index];
+		else if (arg.startsWith("--confirm=") && arg.length > 10) confirm = arg.slice(10);
+		else if (!arg.startsWith("-") && archive === undefined) archive = arg;
+		else return null;
+	}
+	if (archive === undefined || (confirm !== undefined && !force)) return null;
+	return { archive, force, confirm };
 }
 
 type RotateKeyOptions = { oldKeyFile?: string; oldKeyLost: boolean; confirmFingerprint?: string };

@@ -1,7 +1,9 @@
 // A fake S3-compatible bucket behind the fake outgoing HTTP: WebCraft's real S3 storage talks to it
 // through `services.http`, never the internet. It checks every request's AWS Signature Version 4
 // with its own implementation (node:crypto), so a request WebCraft signs wrongly is refused the way
-// a real bucket refuses it.
+// a real bucket refuses it. It takes multipart uploads (Backups go up that way) as S3 does: started
+// with `POST ?uploads`, a `PUT` per part, then `POST ?uploadId` with the parts' ETags, or a `DELETE
+// ?uploadId` that aborts it.
 import { createHash, createHmac } from "node:crypto";
 
 import type { FakeAnswer, FakeHttp, RecordedRequest } from "./fake-http.ts";
@@ -22,12 +24,15 @@ export type FakeS3 = FakeS3Options & {
 	readonly objects: ReadonlyMap<string, FakeS3Object>;
 	/** Every request the bucket received, with whether its signature held. */
 	readonly requests: readonly { method: string; key: string; signed: boolean }[];
+	/** Multipart uploads started and neither finished nor aborted. */
+	readonly openUploads: number;
 };
 
 /** Answers S3 requests for one bucket on the fake outgoing HTTP. */
 export function createFakeS3(http: FakeHttp, options: FakeS3Options): FakeS3 {
 	const objects = new Map<string, FakeS3Object>();
 	const requests: { method: string; key: string; signed: boolean }[] = [];
+	const uploads = new Map<string, { key: string; contentType: string | null; parts: Map<number, Uint8Array> }>();
 	const prefix = `${options.endpoint.replace(/\/$/, "")}/${options.bucket}/`;
 	const matcher = new RegExp(`^${escapeRegExp(prefix)}`);
 
@@ -37,6 +42,41 @@ export function createFakeS3(http: FakeHttp, options: FakeS3Options): FakeS3 {
 		const signed = signatureHolds(request, options);
 		requests.push({ method: request.method, key, signed });
 		if (!signed) return xmlError(403, "SignatureDoesNotMatch");
+		const uploadId = url.searchParams.get("uploadId");
+		if (request.method === "POST" && url.searchParams.has("uploads")) {
+			const id = crypto.randomUUID();
+			uploads.set(id, { key, contentType: request.headers.get("content-type"), parts: new Map() });
+			return xml(
+				200,
+				`<InitiateMultipartUploadResult><Key>${key}</Key><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`,
+			);
+		}
+		if (uploadId !== null) {
+			const upload = uploads.get(uploadId);
+			if (!upload || upload.key !== key) return xmlError(404, "NoSuchUpload");
+			if (request.method === "PUT") {
+				upload.parts.set(Number(url.searchParams.get("partNumber")), request.bytes);
+				return { status: 200, headers: { etag: `"${md5Hex(request.bytes)}"` } };
+			}
+			if (request.method === "DELETE") {
+				uploads.delete(uploadId);
+				return { status: 204 };
+			}
+			if (request.method === "POST") {
+				const listed = [...request.body.matchAll(/<PartNumber>(\d+)<\/PartNumber><ETag>([^<]+)<\/ETag>/g)];
+				const parts = listed.map(([, number, etag]) => ({ part: upload.parts.get(Number(number)), etag }));
+				if (
+					parts.length === 0 ||
+					parts.some(({ part, etag }) => !part || etag?.replaceAll("&quot;", '"') !== `"${md5Hex(part)}"`)
+				) {
+					return xmlError(400, "InvalidPart");
+				}
+				const body = Buffer.concat(parts.map(({ part }) => part ?? new Uint8Array()));
+				objects.set(key, { body: new Uint8Array(body), contentType: upload.contentType });
+				uploads.delete(uploadId);
+				return xml(200, `<CompleteMultipartUploadResult><Key>${key}</Key></CompleteMultipartUploadResult>`);
+			}
+		}
 		switch (request.method) {
 			case "PUT":
 				objects.set(key, { body: request.bytes, contentType: request.headers.get("content-type") });
@@ -75,8 +115,15 @@ export function createFakeS3(http: FakeHttp, options: FakeS3Options): FakeS3 {
 		}
 	};
 
-	for (const method of ["PUT", "GET", "HEAD", "DELETE"]) http.respond(method, matcher, answer);
-	return { ...options, objects, requests };
+	for (const method of ["PUT", "GET", "HEAD", "DELETE", "POST"]) http.respond(method, matcher, answer);
+	return {
+		...options,
+		objects,
+		requests,
+		get openUploads() {
+			return uploads.size;
+		},
+	};
 }
 
 /** Whether a request carries a valid AWS Signature Version 4 for the bucket's credentials. */
@@ -125,6 +172,18 @@ function signatureHolds(request: RecordedRequest, options: FakeS3Options): boole
 
 function hmac(key: string | Buffer, data: string): Buffer {
 	return createHmac("sha256", key).update(data).digest();
+}
+
+function md5Hex(data: Uint8Array): string {
+	return createHash("md5").update(data).digest("hex");
+}
+
+function xml(status: number, body: string): FakeAnswer {
+	return {
+		status,
+		body: `<?xml version="1.0" encoding="UTF-8"?>${body}`,
+		headers: { "content-type": "application/xml" },
+	};
 }
 
 function sha256Hex(data: string | Uint8Array): string {

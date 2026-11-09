@@ -5,7 +5,8 @@
 // 1. Makes sure Postgres answers at DATABASE_URL. Only when it doesn't, and DATABASE_URL points at
 //    this machine, it starts docker-compose.dev.yml with the same user, password and port.
 // 2. Creates the database named in DATABASE_URL if it doesn't exist yet.
-// 3. Runs the migrate step.
+// 3. Runs the migrate step (without the Backup it takes first on a server: a development database
+//    doesn't need one).
 // 4. Starts the web process (`vite dev` on Bun) and the worker (Node, restarting on changes).
 import { ConfigError, loadInstallConfig, loadMasterKey } from "@webcraft/core";
 import pg from "pg";
@@ -28,6 +29,7 @@ function info(message: string): void {
 const env = process.env;
 // Web runs in apps/server and the worker in the repo root: one storage folder for both.
 env.WEBCRAFT_STORAGE_DIR ||= `${ROOT}storage`;
+env.WEBCRAFT_BACKUP_DIR ||= `${ROOT}backups`;
 if (!env.DATABASE_URL) fail("DATABASE_URL is not set. Copy .env.example to .env (see docs/development.md).");
 // The same checks web and worker run when they start, so a bad setting is reported once, here.
 try {
@@ -45,7 +47,7 @@ if (!databaseName) fail("DATABASE_URL has no database name.");
 await checkNode();
 await ensurePostgres();
 await ensureDatabase();
-await runStep(["bun", "apps/cli/src/main.ts", "admin", "migrate"]);
+await runStep(["bun", "apps/cli/src/main.ts", "admin", "migrate", "--no-backup"]);
 await startProcesses();
 
 async function checkNode(): Promise<void> {

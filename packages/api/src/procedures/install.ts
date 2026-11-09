@@ -8,35 +8,49 @@ import { emailBranding, emailLog, smtp } from "./email.ts";
 /** A storage key part: letters, digits, dots, dashes and underscores. */
 const KEY_PART = "[A-Za-z0-9_][A-Za-z0-9._-]*";
 
+/** An S3-compatible bucket's settings, as Media storage and Backups take them. */
+const bucketSettings = {
+	endpoint: z.url({ protocol: /^https?$/ }).max(500),
+	region: z
+		.string()
+		.trim()
+		.min(1)
+		.max(64)
+		.regex(/^[a-z0-9-]+$/),
+	bucket: z
+		.string()
+		.trim()
+		.min(3)
+		.max(63)
+		.regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/),
+	/** Put in front of every key, so one bucket can hold several Installs; empty for none. */
+	prefix: z
+		.string()
+		.trim()
+		.max(200)
+		.regex(new RegExp(`^(${KEY_PART}(/${KEY_PART})*)?$`))
+		.default(""),
+	pathStyle: z.boolean().default(true),
+	accessKeyId: z.string().trim().min(1).max(200),
+	/** A new secret access key; absent keeps the one stored. */
+	secretAccessKey: z.string().min(1).max(500).optional(),
+};
+
+/** Install settings › Backups: whether the worker takes one every day, and where they go. */
+const backupChange = z.object({
+	scheduled: z.boolean(),
+	target: z.discriminatedUnion("kind", [
+		z.object({ kind: z.literal("folder") }),
+		z.object({ kind: z.literal("s3"), ...bucketSettings }),
+	]),
+});
+
 /** Where Media is stored: local disk, or an S3-compatible bucket with all its settings. */
 const storageChange = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("disk") }),
 	z.object({
 		kind: z.literal("s3"),
-		endpoint: z.url({ protocol: /^https?$/ }).max(500),
-		region: z
-			.string()
-			.trim()
-			.min(1)
-			.max(64)
-			.regex(/^[a-z0-9-]+$/),
-		bucket: z
-			.string()
-			.trim()
-			.min(3)
-			.max(63)
-			.regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/),
-		/** Put in front of every key, so one bucket can hold several Installs; empty for none. */
-		prefix: z
-			.string()
-			.trim()
-			.max(200)
-			.regex(new RegExp(`^(${KEY_PART}(/${KEY_PART})*)?$`))
-			.default(""),
-		pathStyle: z.boolean().default(true),
-		accessKeyId: z.string().trim().min(1).max(200),
-		/** A new secret access key; absent keeps the one stored. */
-		secretAccessKey: z.string().min(1).max(500).optional(),
+		...bucketSettings,
 	}),
 ]);
 
@@ -105,6 +119,30 @@ export const install = {
 			.handler(({ context, input }) =>
 				context.services.settings.setMediaMaxFileBytes(context.install, input.maxFileBytes),
 			),
+	},
+	/**
+	 * Install settings › Backups: the setting, the Backup log (newest first) and how Backups are doing.
+	 * Taking and restoring one are server commands (`webcraft admin backup`, `restore`).
+	 */
+	backups: {
+		get: onInstall("install.manage").handler(async ({ context }) => {
+			const { backups } = context.services;
+			const [settings, log, status] = await Promise.all([
+				backups.settings(),
+				backups.list({ limit: 30 }),
+				backups.status(),
+			]);
+			return { settings, backups: log, status };
+		}),
+		/** Changes whether Backups are taken every day and where they go; a bucket is checked first. */
+		update: onInstall("install.manage")
+			.use(sensitive("backups.change"))
+			.input(backupChange)
+			.handler(({ context, input }) => context.services.backups.change(context.install, input)),
+	},
+	/** The update check: this build's version and the newest release the feed listed, as last checked. */
+	updates: {
+		get: onInstall("install.manage").handler(({ context }) => context.services.updates.latest()),
 	},
 	/** The Install SMTP. */
 	smtp,

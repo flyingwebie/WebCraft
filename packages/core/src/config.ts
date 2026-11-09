@@ -51,7 +51,22 @@ export type InstallConfig = {
 	 * counts visits by country with; null when not set: every country is then unknown.
 	 */
 	countryFile: string | null;
+	/**
+	 * The Backups folder (`WEBCRAFT_BACKUP_DIR`, `backups` in the folder the process starts in unless
+	 * set): where Backups go while Install settings › Backups says "folder", and where
+	 * `webcraft admin backup` writes. On a server, a mounted volume the worker, the migrate step and
+	 * the web container (for the command) share.
+	 */
+	backupDir: string;
+	/**
+	 * Where the update check reads the newest WebCraft release (`WEBCRAFT_UPDATE_FEED`): the project's
+	 * latest-release JSON on GitHub unless set; null when set to `off`, which turns the check off.
+	 */
+	updateFeed: string | null;
 };
+
+/** The release feed the update check reads unless `WEBCRAFT_UPDATE_FEED` says otherwise. */
+export const DEFAULT_UPDATE_FEED = "https://api.github.com/repos/flyingwebie/WebCraft/releases/latest";
 
 /**
  * Which proxies in front of the web process are believed about whom they forwarded a request for:
@@ -89,7 +104,40 @@ export function loadInstallConfig(env: Environment): InstallConfig {
 		publicAddresses: loadPublicAddresses(env),
 		trustedProxies: loadTrustedProxies(env.WEBCRAFT_TRUSTED_PROXIES, edge),
 		countryFile: loadCountryFile(env),
+		backupDir: loadBackupDir(env),
+		updateFeed: loadUpdateFeed(env),
 	};
+}
+
+/** Reads `WEBCRAFT_BACKUP_DIR`: an absolute path, `backups` in the folder the process starts in unless set. */
+export function loadBackupDir(env: Environment): string {
+	const value = env.WEBCRAFT_BACKUP_DIR?.trim();
+	if (!value) return resolve(process.cwd(), "backups");
+	if (!isAbsolute(value)) {
+		throw new ConfigError(
+			`WEBCRAFT_BACKUP_DIR must be an absolute path, such as /var/lib/webcraft/backups (got "${value}").`,
+		);
+	}
+	return resolve(value);
+}
+
+/** Reads `WEBCRAFT_UPDATE_FEED`: an `https` address, `off`, or unset for the project's own feed. */
+export function loadUpdateFeed(env: Environment): string | null {
+	const value = env.WEBCRAFT_UPDATE_FEED?.trim();
+	if (!value) return DEFAULT_UPDATE_FEED;
+	if (value.toLowerCase() === "off") return null;
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		url = new URL("invalid:");
+	}
+	if (url.protocol !== "https:" || url.username || url.password) {
+		throw new ConfigError(
+			`WEBCRAFT_UPDATE_FEED must be an https address of a release feed, or off to turn the update check off (got "${value}").`,
+		);
+	}
+	return url.toString();
 }
 
 /** Development hostnames: the browser reaches them over plain HTTP on this machine. */
