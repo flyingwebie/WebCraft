@@ -5,7 +5,9 @@
 // demand (from Caddy's own local authority, as there is no public DNS here) and `/readyz` answers
 // through it; plain HTTP goes on to HTTPS except domain verification; an unknown hostname gets no
 // certificate; the admin renders; the web log prints the setup link; the worker works; the `webcraft`
-// command runs in the web container. It removes its project (and only its project) when it ends.
+// command runs in the web container; `webcraft admin backup` writes into the Backups volume, which the
+// worker shares; and, with web and worker stopped, `webcraft admin restore` puts that Backup back and
+// the Install comes up again. It removes its project (and only its project) when it ends.
 //
 //   bun run test:deploy                 build the images, then test
 //   bun run test:deploy --no-build      test images already built (WEBCRAFT_IMAGE, WEBCRAFT_VERSION)
@@ -227,6 +229,50 @@ try {
 		"the webcraft command runs in the web container",
 		cli.stdout,
 	);
+
+	const backup = await run([...compose, "exec", "-T", "web", "webcraft", "admin", "backup"]);
+	const archive = /Took a Backup: (\/var\/lib\/webcraft\/backups\/webcraft-backup-[^\s]+\.tar)/.exec(
+		backup.stdout,
+	)?.[1];
+	expect(archive, "`webcraft admin backup` writes an archive into the Backups volume", backup.stdout);
+	const listed = await run([...compose, "exec", "-T", "worker", "ls", "/var/lib/webcraft/backups"]);
+	expect(
+		listed.stdout.includes(archive?.split("/").at(-1) ?? "-"),
+		"the worker sees the same Backups folder",
+		listed.stdout,
+	);
+
+	await run([...compose, "stop", "web", "worker"]);
+	const restore = await run(
+		[
+			...compose,
+			"run",
+			"--rm",
+			"--no-deps",
+			"web",
+			"webcraft",
+			"admin",
+			"restore",
+			archive ?? "",
+			"--force",
+			"--confirm",
+			"webcraft",
+		],
+		{ quiet: true },
+	);
+	expect(
+		restore.code === 0 && restore.stdout.includes("Start web and worker."),
+		"`webcraft admin restore --force` puts the Backup back into the database",
+		`${restore.stdout}${restore.stderr}`,
+	);
+	await run([...compose, "start", "web", "worker"]);
+	const restartDeadline = Date.now() + READY_WITHIN_MS;
+	let again = await curl(`https://${ADMIN_HOST}/readyz`);
+	while (again.status !== 200 && Date.now() < restartDeadline) {
+		await Bun.sleep(2000);
+		again = await curl(`https://${ADMIN_HOST}/readyz`);
+	}
+	expect(again.status === 200, "the restored Install is ready again", `${again.status} ${again.body}`);
 
 	console.log(`\nThe Compose stack passed ${checks.length} checks.`);
 } catch (error) {

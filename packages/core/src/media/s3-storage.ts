@@ -17,7 +17,7 @@ export type S3Settings = {
 	accessKeyId: string;
 };
 
-type Options = {
+export type S3ClientOptions = {
 	settings: S3Settings;
 	http: OutgoingHttp;
 	clock: Clock;
@@ -25,11 +25,23 @@ type Options = {
 	withSecret<Result>(use: (secretAccessKey: string) => Promise<Result>): Promise<Result>;
 };
 
-/**
- * An S3-compatible bucket (AWS S3, Cloudflare R2, MinIO and others), spoken to through the Install's
- * outgoing HTTP with requests signed with AWS Signature Version 4.
- */
-export function s3Storage({ settings, http, clock, withSecret }: Options): StorageBackend {
+/** A request to a bucket: a method, a key and, optionally, query parameters, a body and headers. */
+export type S3Request = {
+	query?: Record<string, string>;
+	body?: Uint8Array;
+	headers?: Record<string, string>;
+};
+
+/** Signed requests to one bucket: what `s3Storage` and Backups to a bucket send. */
+export type S3Client = {
+	/** Where the bucket keeps `key`, such as `https://s3.example/bucket/prefix/key`. */
+	urlOf(key: string): string;
+	/** Sends one request signed with AWS Signature Version 4; `StorageError` when the bucket can't be reached. */
+	send(method: string, key: string, request?: S3Request): Promise<Response>;
+};
+
+/** Signs and sends requests to an S3-compatible bucket through the Install's outgoing HTTP. */
+export function s3Client({ settings, http, clock, withSecret }: S3ClientOptions): S3Client {
 	const endpoint = new URL(settings.endpoint);
 	const prefix = settings.prefix.replace(/^\/+|\/+$/g, "");
 
@@ -41,7 +53,7 @@ export function s3Storage({ settings, http, clock, withSecret }: Options): Stora
 			: `${endpoint.protocol}//${settings.bucket}.${endpoint.host}${base}/${path}`;
 	};
 
-	const send = (method: string, key: string, init: { body?: Uint8Array; headers?: Record<string, string> } = {}) =>
+	const send = (method: string, key: string, init: S3Request = {}) =>
 		withSecret(async (secretAccessKey) => {
 			const client = new AwsClient({
 				accessKeyId: settings.accessKeyId,
@@ -50,7 +62,9 @@ export function s3Storage({ settings, http, clock, withSecret }: Options): Stora
 				region: settings.region,
 			});
 			const body = init.body ?? new Uint8Array();
-			const request = await client.sign(urlOf(key), {
+			const url = new URL(urlOf(key));
+			for (const [name, value] of Object.entries(init.query ?? {})) url.searchParams.set(name, value);
+			const request = await client.sign(url.toString(), {
 				method,
 				body: init.body ? new Uint8Array(init.body) : undefined,
 				headers: { ...init.headers, "x-amz-content-sha256": await sha256Hex(body) },
@@ -63,11 +77,15 @@ export function s3Storage({ settings, http, clock, withSecret }: Options): Stora
 			}
 		});
 
-	const refused = async (response: Response, action: string) => {
-		const answer = await response.text().catch(() => "");
-		const code = /<Code>([^<]+)<\/Code>/.exec(answer)?.[1];
-		return new StorageError(`The bucket refused to ${action}: ${response.status}${code ? ` ${code}` : ""}.`);
-	};
+	return { urlOf, send };
+}
+
+/**
+ * An S3-compatible bucket (AWS S3, Cloudflare R2, MinIO and others), spoken to through the Install's
+ * outgoing HTTP with requests signed with AWS Signature Version 4.
+ */
+export function s3Storage(options: S3ClientOptions): StorageBackend {
+	const { send } = s3Client(options);
 
 	return {
 		kind: "s3",
@@ -102,6 +120,13 @@ export function s3Storage({ settings, http, clock, withSecret }: Options): Stora
 				throw new StorageError(`The bucket refused to remove a file: ${response.status}.`);
 		},
 	};
+}
+
+/** The error for a bucket's refusal, with its status and S3 error code. */
+export async function refused(response: Response, action: string): Promise<StorageError> {
+	const answer = await response.text().catch(() => "");
+	const code = /<Code>([^<]+)<\/Code>/.exec(answer)?.[1];
+	return new StorageError(`The bucket refused to ${action}: ${response.status}${code ? ` ${code}` : ""}.`);
 }
 
 /** A time as AWS Signature Version 4 writes it: `20260302T090000Z`. */

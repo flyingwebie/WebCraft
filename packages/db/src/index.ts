@@ -6,13 +6,21 @@ export {
 	type JobQueueOptions,
 } from "./job-queue.ts";
 export {
+	applyMigrationLevel,
 	assertSchemaCurrent,
 	checkSchema,
 	DatabaseNotReadyError,
+	type JobQueueDefinition,
+	lastMigratedVersion,
+	type MigrateOptions,
+	MigrationError,
+	type MigrationLevel,
 	type MigrationReport,
 	migrationsFolder,
+	readMigrationLevel,
 	runMigrations,
 	type SchemaCheck,
 	type SchemaOptions,
+	unknownMigrations,
 } from "./migrations.ts";
 export { ModuleMigrationError, type ModuleSchema, migrationChecksum } from "./module-migrations.ts";

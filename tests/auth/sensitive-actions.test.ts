@@ -45,6 +45,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"password.change": (api) => api.me.changePassword({ newPassword: TEST_PASSWORD }),
 	"leakedPasswordCheck.change": (api) => api.install.security.update({ leakedPasswordCheck: true }),
 	"storage.change": (api) => api.install.storage.update({ kind: "disk" }),
+	"backups.change": (api) => api.install.backups.update({ scheduled: true, target: { kind: "folder" } }),
 	"module.approve": (api) => api.modules.approve({ moduleId: "sample", version: "1.0.0" }),
 	"webhook.change": (api, { siteId }) =>
 		api.webhooks.add({ siteId, url: "https://hooks.agency.example/build", events: ["publish"] }),

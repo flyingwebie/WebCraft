@@ -2,20 +2,29 @@ import { createHash } from "node:crypto";
 import type pg from "pg";
 
 /**
- * Module migrations, as the `migrate` step applies them (ADR 0031): after WebCraft's own, all in
- * one transaction. Each Module keeps its tables in its own Postgres schema (`m_<id>`) and ships its
- * migrations as SQL; each runs once, recorded in `module_migrations` with a checksum. WebCraft
- * refuses, and the whole step rolls back, when a Module's migrations:
+ * Module migrations, as the `migrate` step applies them (ADR 0031): after WebCraft's own, each in
+ * its own transaction. Each Module keeps its tables in its own Postgres schema (`m_<id>`) and ships
+ * its migrations as SQL; each runs once, recorded in `module_migrations` with a checksum. WebCraft
+ * refuses a migration, rolling it back and stopping the step (the migrations before it stay
+ * applied), when it:
  *
- * - change anything outside its schema (WebCraft's tables, another Module's, roles, extensions),
- *   rows included, or read a table outside it other than `sites` and `workspaces` (which its
+ * - changes anything outside its schema (WebCraft's tables, another Module's, roles, extensions),
+ *   rows included, or reads a table outside it other than `sites` and `workspaces` (which its
  *   foreign keys point at);
+ *
+ * and, checked with the Module's last pending migration (and on every run), when the Module's
+ * migrations together:
+ *
  * - leave a table in its schema that it doesn't declare, a view, or a table that doesn't follow the
  *   tenant rule (a Site table's `(workspace_id, site_id)` points at `sites (workspace_id, id)`, a
  *   Workspace table's `workspace_id` at `workspaces (id)`, both deleting with them);
  * - miss a table or column the Module declares, or make a table it keeps in monthly partitions
  *   (SDK 1.4) without partitioning it by range on the declared column;
  * - changed, or lost, a migration that was applied before.
+ *
+ * A database can be ahead of a Module: after going back one WebCraft version, migrations the newer
+ * version applied are recorded but not in this build. They sort after every migration the build
+ * has, and are accepted (with the tables they made): the add-first rule keeps them working.
  *
  * The partitions of a partitioned table are WebCraft's to make and drop, not the migrations'.
  */
@@ -28,7 +37,7 @@ export type ModuleSchema = {
 	tables: readonly { name: string; kind: "site" | "workspace"; columns: readonly string[]; partitionedBy?: string }[];
 };
 
-/** A Module's migrations broke a rule: nothing was applied. */
+/** A Module's migrations broke a rule: the migration that did was rolled back. */
 export class ModuleMigrationError extends Error {
 	override name = "ModuleMigrationError";
 }
@@ -40,52 +49,78 @@ export function migrationChecksum(sql: string): string {
 	return createHash("sha256").update(sql).digest("hex");
 }
 
-/** Applies every Module's pending migrations, in one transaction. Answers what it applied, as `<module>/<name>`. */
-export async function applyModuleMigrations(pool: pg.Pool, modules: readonly ModuleSchema[]): Promise<string[]> {
+/**
+ * Applies every Module's pending migrations, each in its own transaction. Answers what it applied,
+ * as `<module>/<name>`. With `partial` (a restore rebuilding an older level), the Modules' tables
+ * aren't checked against what they declare: later migrations make the rest.
+ */
+export async function applyModuleMigrations(
+	client: Client,
+	modules: readonly ModuleSchema[],
+	options: { partial?: boolean } = {},
+): Promise<string[]> {
 	if (modules.length === 0) return [];
-	const client = await pool.connect();
 	const applied: string[] = [];
-	try {
-		await client.query("BEGIN");
-		for (const module of modules) {
-			for (const name of await migrateModule(client, module)) applied.push(`${module.moduleId}/${name}`);
+	for (const module of modules) {
+		for (const name of await migrateModule(client, module, options.partial === true)) {
+			applied.push(`${module.moduleId}/${name}`);
 		}
-		await client.query("COMMIT");
-		return applied;
-	} catch (error) {
-		await client.query("ROLLBACK").catch(() => {});
-		throw error;
-	} finally {
-		client.release();
 	}
+	return applied;
 }
 
 /** The Module migrations this build has that the database hasn't had, as `<module>/<name>`. */
-export async function pendingModuleMigrations(pool: pg.Pool, modules: readonly ModuleSchema[]): Promise<string[]> {
+export async function pendingModuleMigrations(
+	pool: pg.Pool | pg.PoolClient,
+	modules: readonly ModuleSchema[],
+): Promise<string[]> {
 	if (modules.length === 0) return [];
-	const exists = await pool.query<{ found: string | null }>("SELECT to_regclass('public.module_migrations') AS found");
-	const applied = new Set<string>();
-	if (exists.rows[0]?.found) {
-		const rows = await pool.query<{ module_id: string; name: string }>(
-			"SELECT module_id, name FROM public.module_migrations",
-		);
-		for (const row of rows.rows) applied.add(`${row.module_id}/${row.name}`);
-	}
-	return modules.flatMap((module) =>
-		module.migrations.map((migration) => `${module.moduleId}/${migration.name}`).filter((key) => !applied.has(key)),
-	);
+	const applied = await appliedModuleMigrations(pool);
+	return modules.flatMap((module) => {
+		const done = new Set(applied[module.moduleId] ?? []);
+		return module.migrations
+			.filter((migration) => !done.has(migration.name))
+			.map((migration) => `${module.moduleId}/${migration.name}`);
+	});
 }
 
-async function migrateModule(client: Client, module: ModuleSchema): Promise<string[]> {
+/** Every Module migration the database has had, by Module, oldest first. */
+export async function appliedModuleMigrations(pool: pg.Pool | pg.PoolClient): Promise<Record<string, string[]>> {
+	const exists = await pool.query<{ found: string | null }>("SELECT to_regclass('public.module_migrations') AS found");
+	const applied: Record<string, string[]> = {};
+	if (!exists.rows[0]?.found) return applied;
+	const rows = await pool.query<{ module_id: string; name: string }>(
+		"SELECT module_id, name FROM public.module_migrations ORDER BY module_id, name",
+	);
+	for (const row of rows.rows) {
+		const names = applied[row.module_id] ?? [];
+		names.push(row.name);
+		applied[row.module_id] = names;
+	}
+	return applied;
+}
+
+async function migrateModule(client: Client, module: ModuleSchema, partial: boolean): Promise<string[]> {
 	const { moduleId, schema } = module;
 	const recorded = await client.query<{ name: string; checksum: string }>(
 		"SELECT name, checksum FROM public.module_migrations WHERE module_id = $1",
 		[moduleId],
 	);
 	const byName = new Map(module.migrations.map((migration) => [migration.name, migration]));
+	const newest = module.migrations
+		.map((migration) => migration.name)
+		.sort()
+		.at(-1);
+	let ahead = false;
 	for (const row of recorded.rows) {
 		const migration = byName.get(row.name);
 		if (!migration) {
+			// A newer version of the Module applied it: the database is ahead of this build.
+			if (!partial && (newest === undefined || row.name > newest)) {
+				ahead = true;
+				continue;
+			}
+			if (partial) continue;
 			throw new ModuleMigrationError(
 				`The Module ${moduleId}'s migration ${row.name} was applied, but the Module no longer has it. Never remove a migration that shipped.`,
 			);
@@ -98,12 +133,13 @@ async function migrateModule(client: Client, module: ModuleSchema): Promise<stri
 	}
 	const done = new Set(recorded.rows.map((row) => row.name));
 	const pending = module.migrations.filter((migration) => !done.has(migration.name));
-	if (pending.length > 0) {
-		const before = await outsideDigest(client, schema);
-		await client.query(`CREATE SCHEMA IF NOT EXISTS ${ident(schema)}`);
-		const activity = await outsideActivity(client, schema);
-		await client.query(`SET LOCAL search_path TO ${ident(schema)}, public`);
-		for (const migration of pending) {
+	for (const [index, migration] of pending.entries()) {
+		await client.query("BEGIN");
+		try {
+			const before = await outsideDigest(client, schema);
+			await client.query(`CREATE SCHEMA IF NOT EXISTS ${ident(schema)}`);
+			const activity = await outsideActivity(client, schema);
+			await client.query(`SET LOCAL search_path TO ${ident(schema)}, public`);
 			try {
 				await client.query(migration.sql);
 			} catch (error) {
@@ -116,21 +152,27 @@ async function migrateModule(client: Client, module: ModuleSchema): Promise<stri
 				"INSERT INTO public.module_migrations (module_id, name, checksum, applied_at) VALUES ($1, $2, $3, now())",
 				[moduleId, migration.name, migrationChecksum(migration.sql)],
 			);
-		}
-		await client.query("SET LOCAL search_path TO DEFAULT");
-		const touched = touchedOutside(activity, await outsideActivity(client, schema));
-		if (touched) {
-			throw new ModuleMigrationError(
-				`The Module ${moduleId}'s migrations ${touched.how} ${touched.table}, outside its own schema, ${schema}. A Module only reads and changes its own tables.`,
-			);
-		}
-		if ((await outsideDigest(client, schema)) !== before) {
-			throw new ModuleMigrationError(
-				`The Module ${moduleId}'s migrations changed something outside its own schema, ${schema}. A Module only changes its own tables.`,
-			);
+			await client.query("SET LOCAL search_path TO DEFAULT");
+			const touched = touchedOutside(activity, await outsideActivity(client, schema));
+			if (touched) {
+				throw new ModuleMigrationError(
+					`The Module ${moduleId}'s migration ${migration.name} ${touched.how} ${touched.table}, outside its own schema, ${schema}. A Module only reads and changes its own tables.`,
+				);
+			}
+			if ((await outsideDigest(client, schema)) !== before) {
+				throw new ModuleMigrationError(
+					`The Module ${moduleId}'s migration ${migration.name} changed something outside its own schema, ${schema}. A Module only changes its own tables.`,
+				);
+			}
+			// The last one is checked with everything the Module's migrations made together.
+			if (!partial && index === pending.length - 1) await checkTables(client, module, ahead);
+			await client.query("COMMIT");
+		} catch (error) {
+			await client.query("ROLLBACK").catch(() => {});
+			throw error;
 		}
 	}
-	await checkTables(client, module);
+	if (pending.length === 0 && !partial) await checkTables(client, module, ahead);
 	return pending.map((migration) => migration.name);
 }
 
@@ -238,7 +280,7 @@ function touchedOutside(before: Activity, after: Activity): { how: "changed" | "
 }
 
 /** Every relation in the Module's schema is a table it declares, following the tenant rule, with its declared columns. */
-async function checkTables(client: Client, module: ModuleSchema): Promise<void> {
+async function checkTables(client: Client, module: ModuleSchema, ahead: boolean): Promise<void> {
 	const { moduleId, schema } = module;
 	const refuse = (message: string): never => {
 		throw new ModuleMigrationError(`The Module ${moduleId}: ${message}`);
@@ -250,9 +292,10 @@ async function checkTables(client: Client, module: ModuleSchema): Promise<void> 
 	);
 	const declared = new Map(module.tables.map((table) => [table.name, table]));
 	for (const relation of relations.rows) {
-		if (relation.kind !== "r" && relation.kind !== "p")
+		if (relation.kind !== "r" && relation.kind !== "p" && !ahead)
 			refuse(`${schema}.${relation.name} isn't a table; Modules keep tables only.`);
-		if (!declared.has(relation.name))
+		// A newer version's migrations may have made tables this build doesn't know yet.
+		if (!declared.has(relation.name) && !ahead)
 			refuse(`its migrations made the table ${schema}.${relation.name}, which it doesn't declare.`);
 	}
 	const present = new Set(relations.rows.map((relation) => relation.name));

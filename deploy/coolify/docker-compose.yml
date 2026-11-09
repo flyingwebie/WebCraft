@@ -22,9 +22,10 @@ services:
       timeout: 5s
       retries: 30
 
-  # The migrate step (ADR 0031): applies pending migrations, then stops. Web and worker wait for it.
-  # `exclude_from_hc` is Coolify's own key (plain Docker Compose refuses it): a step that stops on
-  # purpose doesn't make the resource unhealthy.
+  # The migrate step (ADR 0031): when migrations are pending it takes a Backup into the backups
+  # volume (it reads the same settings as web, and the storage volume), applies them, then stops. Web
+  # and worker wait for it. `exclude_from_hc` is Coolify's own key (plain Docker Compose refuses it):
+  # a step that stops on purpose doesn't make the resource unhealthy.
   migrate:
     image: ghcr.io/flyingwebie/webcraft-web:${WEBCRAFT_VERSION:-main}
     command: ["webcraft", "admin", "migrate"]
@@ -32,6 +33,14 @@ services:
     exclude_from_hc: true
     environment:
       DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/webcraft
+      WEBCRAFT_ADMIN_HOST: ${SERVICE_FQDN_WEB_3000}
+      WEBCRAFT_EDGE: coolify
+      WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
+      WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
+      WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+    volumes:
+      - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,9 +60,12 @@ services:
       WEBCRAFT_TRUSTED_PROXIES: ${WEBCRAFT_TRUSTED_PROXIES:-}
       WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
       WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
+      WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+      WEBCRAFT_UPDATE_FEED: ${WEBCRAFT_UPDATE_FEED:-}
       PORT: "3000"
     volumes:
       - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -70,8 +82,11 @@ services:
       WEBCRAFT_TRUSTED_PROXIES: ${WEBCRAFT_TRUSTED_PROXIES:-}
       WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
       WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
+      WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+      WEBCRAFT_UPDATE_FEED: ${WEBCRAFT_UPDATE_FEED:-}
     volumes:
       - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -80,3 +95,6 @@ volumes:
   postgres-data:
   # Media and other files while the Install's storage is local disk: web and worker share it.
   storage:
+  # Backups while they go to the Backups folder (the worker daily, the migrate step before it changes
+  # anything, `webcraft admin backup`). Copy them off the server too, or send Backups to a bucket.
+  backups:

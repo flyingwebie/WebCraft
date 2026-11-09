@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-# The worker (Node LTS, ADR 0006): the job queue, image processing, email, Webhooks, Domain checks.
+# The worker (Node LTS, ADR 0006): the job queue, image processing, email, Webhooks, Domain checks,
+# the daily Backup.
 # Built from the repo root:
 #
 #   docker build -f apps/worker/Dockerfile -t webcraft-worker .
@@ -27,9 +28,11 @@ LABEL org.opencontainers.image.title="WebCraft worker" \
 	org.opencontainers.image.version="${VERSION}"
 WORKDIR /app
 ENV NODE_ENV=production \
-	WEBCRAFT_STORAGE_DIR=/var/lib/webcraft/storage
+	WEBCRAFT_STORAGE_DIR=/var/lib/webcraft/storage \
+	WEBCRAFT_BACKUP_DIR=/var/lib/webcraft/backups
 COPY --from=runtime-files /app /app
-RUN install -d -o node -g node /var/lib/webcraft/storage
+# The Backups folder: the worker writes the daily Backup there while Backups go to a folder.
+RUN install -d -o node -g node /var/lib/webcraft/storage /var/lib/webcraft/backups
 USER node
-VOLUME /var/lib/webcraft/storage
+VOLUME ["/var/lib/webcraft/storage", "/var/lib/webcraft/backups"]
 CMD ["node", "apps/worker/src/main.ts"]

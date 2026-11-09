@@ -12,6 +12,7 @@ import {
 	createJobQueue,
 	createLogger,
 	createSecrets,
+	DEFAULT_UPDATE_FEED,
 	type Edge,
 	ensureQueues,
 	FIRST_PARTY_MODULES,
@@ -21,16 +22,23 @@ import {
 	type LogEntry,
 	loadTrustedProxies,
 	MASTER_KEY_VARIABLE,
+	type MigrateStepReport,
+	migrateStep,
 	moduleSchemas,
 	type NewMembership,
 	parseMasterKey,
+	type RestoreOptions,
+	type RestoreReport,
+	restoreBackup,
 	runJob,
 	type Secrets,
 	type SendResult,
 	type SystemEmail,
 	type SystemEmailType,
+	type TakenBackup,
+	type UpdateCheck,
 } from "@webcraft/core";
-import { createBoss, type MigrationReport, openDatabase, runMigrations } from "@webcraft/db";
+import { createBoss, openDatabase } from "@webcraft/db";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createWebHandler } from "@webcraft/server/handler";
 import { createImageProcessor } from "@webcraft/worker/images";
@@ -45,6 +53,7 @@ import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 import { createFakeTls, type FakeTls } from "./fake-tls.ts";
+import { TEST_MODULES } from "./modules.ts";
 
 export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
@@ -125,6 +134,8 @@ export type TestInstallOptions = {
 	maxImagePixels?: number;
 	/** How long Import from URL waits for a file: 30 seconds unless given (to test it without waiting). */
 	mediaImportTimeoutMs?: number;
+	/** `WEBCRAFT_UPDATE_FEED`: the project's own feed unless given; null for `off`. */
+	updateFeed?: string | null;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -164,6 +175,8 @@ export type TestInstall = {
 	 * a new, empty folder for each test Install, removed by `close()`.
 	 */
 	storageDir: string;
+	/** The Backups folder (`WEBCRAFT_BACKUP_DIR`): a new, empty folder for each test Install, removed by `close()`. */
+	backupDir: string;
 	/**
 	 * The environment a real process (the worker, the CLI) needs to run as this Install:
 	 * `DATABASE_URL`, `WEBCRAFT_ADMIN_HOST`, `WEBCRAFT_SECRET_KEY` and `WEBCRAFT_STORAGE_DIR`.
@@ -229,7 +242,7 @@ export type TestInstall = {
 		email?: string;
 	}): Promise<{ account: TestAccount; personId: string; browser: TestBrowser }>;
 	/** The job queue the Install uses, to enqueue a job the way the web process would. */
-	jobs: JobQueue;
+	readonly jobs: JobQueue;
 	/**
 	 * Runs every job that is due by the test clock, including the jobs those jobs enqueue, and the
 	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain. Give
@@ -295,7 +308,20 @@ export type TestInstall = {
 	 * Runs the `migrate` step on the Install's database, as `webcraft admin migrate` does: WebCraft's
 	 * pending migrations, then the Modules' (the Install's own Modules unless given).
 	 */
-	migrate(options?: { modules?: readonly ModuleDefinition[] }): Promise<MigrationReport>;
+	migrate(options?: { modules?: readonly ModuleDefinition[]; backup?: boolean }): Promise<MigrateStepReport>;
+	/**
+	 * Takes a Backup as `webcraft admin backup` does: where Install settings › Backups says, or into
+	 * the file or folder `to`.
+	 */
+	backup(options?: { to?: string }): Promise<TakenBackup>;
+	/**
+	 * Restores a Backup into this Install's database as `webcraft admin restore` does (with this
+	 * Install's Master key, storage and Modules), then starts the Install on it as web and worker
+	 * would, with a job queue. `replace` is `--force` with its typed confirmation.
+	 */
+	restore(archive: string, options?: Pick<RestoreOptions, "replace">): Promise<RestoreReport>;
+	/** Checks the release feed now, as `webcraft admin check-update` does. */
+	checkUpdate(): Promise<UpdateCheck>;
 	/** Stops the Install and drops its database. */
 	close(): Promise<void>;
 };
@@ -312,13 +338,15 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 
 	const { clock, jobQueueClock } = createTestClock(options.now ?? DEFAULT_TEST_TIME);
 	const storageDir = mkdtempSync(join(tmpdir(), "webcraft-storage-"));
+	const backupDir = mkdtempSync(join(tmpdir(), "webcraft-backups-"));
 	const logs: LogEntry[] = [];
 	const log = createLogger({ clock, write: (entry) => logs.push(entry) });
 	const database = openDatabase(databaseUrl, { maxConnections: 4, applicationName: "webcraft-tests" });
 
 	let boss: PgBoss | undefined;
-	if (mode === "migrated") {
-		boss = createBoss(databaseUrl, {
+	let started = mode;
+	const startJobQueue = async () => {
+		const queue = createBoss(databaseUrl, {
 			clock: jobQueueClock,
 			supervise: false,
 			schedule: false,
@@ -326,10 +354,12 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			max: 2,
 			application_name: "webcraft-tests",
 		});
-		boss.on("error", (error) => log.error("The job queue reported an error", { error }));
-		await boss.start();
-		await ensureQueues(boss, coreJobs);
-	}
+		queue.on("error", (error) => log.error("The job queue reported an error", { error }));
+		await queue.start();
+		await ensureQueues(queue, coreJobs);
+		return queue;
+	};
+	if (mode === "migrated") boss = await startJobQueue();
 
 	const mail = createFakeMailer();
 	const dns = createFakeDns();
@@ -355,6 +385,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		...(options.trustedProxies === undefined ? {} : { WEBCRAFT_TRUSTED_PROXIES: options.trustedProxies }),
 		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
 		WEBCRAFT_STORAGE_DIR: storageDir,
+		WEBCRAFT_BACKUP_DIR: backupDir,
 		WEBCRAFT_COUNTRY_FILE: countryFile,
 	};
 	const trustedProxies = loadTrustedProxies(options.trustedProxies, edge);
@@ -369,6 +400,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			publicAddresses,
 			trustedProxies,
 			countryFile,
+			backupDir,
+			updateFeed: options.updateFeed === undefined ? DEFAULT_UPDATE_FEED : options.updateFeed,
 		},
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
@@ -393,13 +426,13 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	let modules = options.modules ?? FIRST_PARTY_MODULES;
 	const start = async (masterKey: string) => {
 		const key = parseMasterKey(masterKey, MASTER_KEY_VARIABLE);
-		const started = await createInstallServices(ports, key, {
-			checkMasterKey: mode === "migrated",
+		const opened = await createInstallServices(ports, key, {
+			checkMasterKey: started === "migrated",
 			modules,
 			mediaImportTimeoutMs: options.mediaImportTimeoutMs,
 		});
-		if (mode === "migrated") await started.setup.announce();
-		return started;
+		if (started === "migrated") await opened.setup.announce();
+		return opened;
 	};
 	// Scheduled jobs come due by the test clock: the drain sends each one whose time came since then.
 	const schedulesCheckedAt = { time: clock.now() };
@@ -477,6 +510,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		sitesDomain,
 		databaseUrl,
 		storageDir,
+		backupDir,
 		env,
 		adminUrl: (path) => new URL(path, adminOrigin).toString(),
 		// A Request given keeps the client address it came from (`fromAddress`).
@@ -540,9 +574,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			const printed = logs.findLast((entry) => typeof entry.setupToken === "string");
 			return printed?.setupToken as string | undefined;
 		},
-		jobs: services.jobs,
+		get jobs() {
+			return services.jobs;
+		},
 		drainJobs: async (drainOptions = {}) => {
-			if (!boss) throw new Error(`An Install with an ${mode} database has no job queue to drain.`);
+			if (!boss) throw new Error(`An Install with an ${started} database has no job queue to drain.`);
 			// The 404 log's misses wait in the web process for a few seconds; the drain hands them over first.
 			await services.modules.flushMisses();
 			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt);
@@ -607,12 +643,53 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			env[MASTER_KEY_VARIABLE] = masterKey;
 		},
 		migrate: (migrateOptions = {}) =>
-			runMigrations(databaseUrl, { modules: moduleSchemas(migrateOptions.modules ?? modules) }),
+			migrateStep({
+				databaseUrl,
+				modules: migrateOptions.modules ?? modules,
+				takeBackup: migrateOptions.backup ? () => services.backups.take({ reason: "before-migrations" }) : null,
+			}),
+		backup: (backupOptions = {}) => services.backups.take({ reason: "command", ...backupOptions }),
+		async restore(archive, restoreOptions = {}) {
+			const masterKey = env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY;
+			// Web and worker are stopped for a restore: so is this Install's job queue.
+			await boss?.stop({ graceful: false, close: true });
+			boss = undefined;
+			let report: RestoreReport;
+			try {
+				report = await restoreBackup(
+					{
+						databaseUrl,
+						storageDir,
+						fingerprint: await parseMasterKey(masterKey, MASTER_KEY_VARIABLE).fingerprint(),
+						// Every test database has had the test suite's Modules' migrations, as this build's.
+						modules: moduleSchemas([
+							...modules,
+							...TEST_MODULES.filter((test) => !modules.some((own) => own.manifest.id === test.manifest.id)),
+						]),
+						log,
+						jobQueue: { clock: jobQueueClock },
+					},
+					archive,
+					restoreOptions,
+				);
+			} catch (error) {
+				// A refused restore changed nothing: the Install runs on as before.
+				if (started === "migrated") boss = await startJobQueue().catch(() => undefined);
+				throw error;
+			}
+			boss = await startJobQueue();
+			ports.jobs = createJobQueue(boss);
+			started = "migrated";
+			Object.assign(services, await start(masterKey));
+			return report;
+		},
+		checkUpdate: () => services.updates.check(),
 		async close() {
 			await boss?.stop({ graceful: false, close: true });
 			await database.close();
 			await testDatabase?.drop();
 			rmSync(storageDir, { recursive: true, force: true });
+			rmSync(backupDir, { recursive: true, force: true });
 		},
 	};
 }

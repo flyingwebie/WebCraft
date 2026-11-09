@@ -61,6 +61,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 		as: "staff",
 	},
 	{ name: "Install settings › Storage", path: "/settings/storage", as: "superadmin" },
+	{ name: "Install settings › Backups, with a failed one", path: "/settings/backups", as: "superadmin" },
 	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
 	{ name: "Install › Email log", path: "/email-log", as: "superadmin" },
 	{ name: "Your account", path: "/account", as: "superadmin" },

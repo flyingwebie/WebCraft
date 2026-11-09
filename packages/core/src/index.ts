@@ -29,6 +29,8 @@ export {
 	type NewAuditEntry,
 	recordAudit,
 } from "./audit.ts";
+export { openBackupForCommand } from "./backups/command.ts";
+export * from "./backups/index.ts";
 export * from "./cdns/index.ts";
 export { type Clock, systemClock } from "./clock.ts";
 export {
@@ -46,11 +48,13 @@ export {
 export {
 	adminOriginFor,
 	ConfigError,
+	DEFAULT_UPDATE_FEED,
 	EDGES,
 	type Edge,
 	type Environment,
 	type InstallConfig,
 	isDevelopmentHostname,
+	loadBackupDir,
 	loadDatabaseUrl,
 	loadInstallConfig,
 	loadTrustedProxies,
@@ -134,6 +138,7 @@ export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
 export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup.ts";
 export * from "./media/index.ts";
+export { type MigrateBackup, type MigrateStepReport, migrateStep } from "./migrate-step.ts";
 export * from "./modules/index.ts";
 export {
 	ADMIN_THEMES,
@@ -286,4 +291,13 @@ export {
 } from "./tenancy/staff.ts";
 export { WORKSPACE_NAME_MAX_LENGTH, type WorkspaceSummary } from "./tenancy/workspaces.ts";
 export { systemTls, type TlsCertificate, type TlsProbe } from "./tls.ts";
+export {
+	type Release,
+	UPDATE_CHECK_INTERVAL_MS,
+	type UpdateCheck,
+	type Updates,
+	updatesCheck,
+	updatesCheckSchedule,
+} from "./updates.ts";
+export { WEBCRAFT_VERSION } from "./version.ts";
 export * from "./webhooks/index.ts";
