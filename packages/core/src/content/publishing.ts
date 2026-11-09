@@ -29,6 +29,7 @@ import { type Findings, findingsInEveryLanguage, type Languages, linksIn } from 
 import { publishGlobals } from "./globals.ts";
 import { checkPathOutsidePrefixes } from "./language-paths.ts";
 import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
+import { publishLoop } from "./loops.ts";
 import { clearPageCache } from "./page-cache.ts";
 import {
 	checkPublishedParent,
@@ -57,6 +58,7 @@ export type PublishItem =
 	| { kind: "entry"; id: string }
 	| { kind: "template"; id: string }
 	| { kind: "component"; id: string }
+	| { kind: "loop"; id: string }
 	| { kind: "globals" }
 	| { kind: "designSystem" };
 
@@ -132,6 +134,8 @@ async function publishItem(scope: SiteScope, item: PublishItem, sources: Compone
 			return publishTemplate(scope, item.id, sources);
 		case "component":
 			return publishComponent(scope, item.id, sources);
+		case "loop":
+			return publishLoop(scope, item.id);
 		case "globals":
 			return publishGlobals(scope);
 		case "designSystem": {

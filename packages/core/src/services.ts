@@ -20,9 +20,13 @@ import type {
 	GlobalsChange,
 	LanguageChange,
 	LanguageRemoval,
+	Loop,
+	LoopDraftChange,
+	LoopItemsChange,
 	NewComponent,
 	NewEntry,
 	NewLanguage,
+	NewLoop,
 	NewPostType,
 	PostType,
 	PostTypeChange,
@@ -231,6 +235,21 @@ export type InstallServices = InstallPorts & {
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
 		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
 		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
+	};
+	/**
+	 * Loops: repeated parts of a Site placed in Templates and Components by name, with a Draft and a
+	 * published version (published through `publishing.publish` with `{ kind: "loop" }`). Structure:
+	 * open the Site with `structure.edit`; their Loop items are Content (`entry.edit`).
+	 */
+	loops: {
+		list(scope: SiteScope): Promise<Loop[]>;
+		/** One Loop, its Loop items in `language` (the Default language unless given). */
+		get(scope: SiteScope, loopId: string, language?: string): Promise<Loop>;
+		create(scope: SiteScope, input: NewLoop): Promise<Loop>;
+		/** Saves its Draft: where its items come from, its query, its Loop items' Fields. */
+		saveDraft(scope: SiteScope, loopId: string, change: LoopDraftChange): Promise<Loop>;
+		/** Saves its Loop items in its Draft, in one language: the whole list, in order. */
+		saveItems(scope: SiteScope, loopId: string, change: LoopItemsChange): Promise<Loop>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing

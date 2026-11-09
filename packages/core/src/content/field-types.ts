@@ -181,9 +181,10 @@ export type DefineContext = {
 	/**
 	 * Whose Fields these are: Globals can't hold Relationships, nor can a Module's Component's Props
 	 * (each Site has its own Post Types). A Component's Props are declared with the Field types. Only
-	 * a Post Type other than the Page Post Type (`page`) has a Body field.
+	 * a Post Type other than the Page Post Type (`page`) has a Body field. A Loop's own items (`loop`)
+	 * hold neither a Body field nor Relationships.
 	 */
-	owner: "postType" | "page" | "globals" | "component" | "moduleComponent";
+	owner: "postType" | "page" | "globals" | "component" | "moduleComponent" | "loop";
 };
 
 /** Reports a problem with a setting, at a path below the Field (`maxLength`, `options[1].value`). */
@@ -321,7 +322,9 @@ const body: FieldTypeSpec<BodyField> = {
 				"type",
 				context.owner === "page"
 					? "Pages are arranged with a Page layout, so they have no Body field."
-					: "Only a Post Type has a Body field.",
+					: context.owner === "loop"
+						? "Loop items have no Body field: a query Loop over a Post Type reads its Entries' bodies."
+						: "Only a Post Type has a Body field.",
 			);
 		}
 		const blocksOff: BlockType[] = [];
@@ -604,12 +607,14 @@ const email: FieldTypeSpec<EmailField> = {
 const relationship: FieldTypeSpec<RelationshipField> = {
 	...FIELD_TYPE_TRAITS.relationship,
 	settings(input, report, context) {
-		if (context.owner === "globals" || context.owner === "moduleComponent") {
+		if (context.owner === "globals" || context.owner === "moduleComponent" || context.owner === "loop") {
 			report(
 				"type",
 				context.owner === "globals"
 					? "Globals can't hold Relationships."
-					: "A Module's Component can't have Relationship Props: each Site has its own Post Types.",
+					: context.owner === "loop"
+						? "Loop items can't hold Relationships: a query Loop lists Entries."
+						: "A Module's Component can't have Relationship Props: each Site has its own Post Types.",
 			);
 			return { postTypes: [], multiple: false, twoWay: true, min: null, max: null };
 		}

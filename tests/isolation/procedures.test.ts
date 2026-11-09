@@ -227,6 +227,35 @@ describe("Components", () => {
 	);
 });
 
+describe("Loops", () => {
+	/** A name no other call has used. */
+	let names = 0;
+	const newName = () => `loop-${++names}`;
+	/** A new Loop of its own items in a target's Site, made by the Superadmin. */
+	const loopIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const fields = [{ key: "label", label: "Label", type: "text" as const }];
+		return (await api.loops.create({ siteId: target.siteId, name: newName(), source: "items", fields })).loop.id;
+	};
+
+	isolation.refuses("loops.list", (api, { siteId }) => api.loops.list({ siteId }));
+	isolation.refuses("loops.get", async (api, target) =>
+		api.loops.get({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+	isolation.refuses("loops.create", (api, { siteId }) =>
+		api.loops.create({ siteId, name: newName(), source: "query" }),
+	);
+	isolation.refuses("loops.saveDraft", async (api, target) =>
+		api.loops.saveDraft({ siteId: target.siteId, loopId: await loopIn(target), query: { limit: 5 } }),
+	);
+	isolation.refuses("loops.saveItems", async (api, target) =>
+		api.loops.saveItems({ siteId: target.siteId, loopId: await loopIn(target), items: [{ label: "One" }] }),
+	);
+	isolation.refuses("loops.publish", async (api, target) =>
+		api.loops.publish({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+});
+
 describe("Design system", () => {
 	/** A new Class in a target's Site's Design system, made by the Superadmin. */
 	const classIn = async (target: IsolationTarget) => {

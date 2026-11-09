@@ -310,3 +310,44 @@ export class LanguageNotFoundError extends Error {
 		super("The Site has no such language.");
 	}
 }
+
+/** The Site has no such Loop. */
+export class LoopNotFoundError extends Error {
+	override name = "LoopNotFoundError";
+	constructor() {
+		super("There is no such Loop on this Site.");
+	}
+}
+
+/**
+ * A Loop can't be saved or published: `problems` says what and where (`name`, `query.filters[1].value`,
+ * `fields[0].type`, `items[2].day`).
+ */
+export class LoopInvalidError extends Error {
+	override name = "LoopInvalidError";
+	readonly problems: readonly ContentProblem[];
+	constructor(problems: readonly ContentProblem[]) {
+		super(`The Loop can't be saved: ${describe(problems)}`);
+		this.problems = problems;
+	}
+}
+
+/** A Loop can't be published yet: required values of its Loop items are empty. */
+export class LoopIncompleteError extends Error {
+	override name = "LoopIncompleteError";
+	readonly missing: readonly string[];
+	constructor(missing: readonly string[]) {
+		super(`The Loop can't be published until these have a value: ${missing.join(", ")}.`);
+		this.missing = missing;
+	}
+}
+
+/** Another Loop of the Site already has the name: Template markup names one Loop by it. */
+export class LoopNameTakenError extends Error {
+	override name = "LoopNameTakenError";
+	readonly loopName: string;
+	constructor(loopName: string) {
+		super(`Another Loop of this Site is named ${loopName}: choose another name.`);
+		this.loopName = loopName;
+	}
+}

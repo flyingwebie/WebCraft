@@ -34,6 +34,10 @@ import {
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
+	LoopIncompleteError,
+	LoopInvalidError,
+	LoopNameTakenError,
+	LoopNotFoundError,
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
 	MediaInvalidError,
@@ -142,6 +146,33 @@ export function toApiError(error: unknown): unknown {
 			status: 409,
 			message: error.message,
 			data: { usedIn: error.usedIn },
+			cause: error,
+		});
+	}
+	if (error instanceof LoopNotFoundError) {
+		return new ORPCError("LOOP_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof LoopInvalidError) {
+		return new ORPCError("LOOP_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof LoopIncompleteError) {
+		return new ORPCError("LOOP_INCOMPLETE", {
+			status: 400,
+			message: error.message,
+			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof LoopNameTakenError) {
+		return new ORPCError("LOOP_NAME_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { name: error.loopName },
 			cause: error,
 		});
 	}
