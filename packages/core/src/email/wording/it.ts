@@ -137,14 +137,38 @@ export const it: EmailWording = {
 				action: { label: "Aprilo", path: itemPath },
 			};
 		},
-		"scheduled-publish-failed": ({ itemTitle, siteName, itemPath }) => ({
-			subject: `“${itemTitle}” non è stato pubblicato come programmato`,
-			heading: "Una pubblicazione programmata non è andata a buon fine",
-			paragraphs: [
-				`La pubblicazione programmata di “${itemTitle}” su ${siteName} non è andata a buon fine. Aprilo per vedere perché e pubblicalo di nuovo.`,
-			],
-			action: { label: "Aprilo", path: itemPath },
-		}),
+		"scheduled-publish-failed": ({ siteName, action, itemTitle, count, scheduledFor, reason, path }) => {
+			const named = itemTitle ? `“${itemTitle}”` : "un elemento";
+			const what =
+				action === "unpublish"
+					? `La pubblicazione programmata che doveva ritirare ${named} su ${siteName} alle ${scheduledFor} non è andata a buon fine: è ancora pubblicato.`
+					: count > 1
+						? `La pubblicazione programmata di ${count} elementi su ${siteName} alle ${scheduledFor} non è andata a buon fine, quindi nessuno è stato pubblicato: vanno online insieme o per niente.`
+						: `La pubblicazione programmata di ${named} su ${siteName} alle ${scheduledFor} non è andata a buon fine, quindi non è stato pubblicato.`;
+			const why: Record<typeof reason, string> = {
+				deleted: `${maiuscola(named)} è stato eliminato dopo essere stato programmato.`,
+				invalid: `${maiuscola(named)} ha valori che violano una regola, o valori obbligatori vuoti.`,
+				pathTaken: `L'indirizzo di ${named} è occupato da qualcosa pubblicato nel frattempo.`,
+				parentUnpublished: `La Pagina superiore di ${named} non è pubblicata.`,
+				structureChanged: `${maiuscola(named)} usa un Template, un Componente, un Campo o una Classe cambiati o eliminati dopo la programmazione.`,
+				access: "Non puoi più pubblicare su questo Sito.",
+				homePage: `${maiuscola(named)} è la home page del Sito, o una Pagina sopra di essa.`,
+				other: `${maiuscola(named)} non è stato possibile pubblicarlo.`,
+			};
+			return {
+				subject:
+					action === "unpublish"
+						? `${maiuscola(named)} non è stato ritirato come programmato`
+						: `${count > 1 ? `${count} elementi non sono stati pubblicati` : `${maiuscola(named)} non è stato pubblicato`} come programmato`,
+				heading: "Una pubblicazione programmata non è andata a buon fine",
+				paragraphs: [
+					what,
+					why[reason],
+					"Le bozze sono come prima. Aprile per correggere, poi pubblica o programma di nuovo.",
+				],
+				action: { label: "Apri", path },
+			};
+		},
 		"ai-key-cap": ({ workspaceName, percent, usagePath }) =>
 			percent === 100
 				? {
@@ -223,3 +247,8 @@ export const it: EmailWording = {
 		preferences: "Scegli quali email ricevere",
 	},
 };
+
+/** La prima lettera di una frase in maiuscolo. */
+function maiuscola(testo: string): string {
+	return testo.charAt(0).toUpperCase() + testo.slice(1);
+}

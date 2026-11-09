@@ -460,7 +460,10 @@ export async function publishAll(
  * Loops, Filters, Forms and their emails, Components (one before those placing it), Templates, scripts, the
  * Globals, the Consent banner's words, then Entries (a Page after its parent).
  */
-async function publishOrder(scope: SiteScope, chosen: readonly SiteDraft[]): Promise<SiteDraft[]> {
+async function publishOrder<Chosen extends { item: PublishItem }>(
+	scope: SiteScope,
+	chosen: readonly Chosen[],
+): Promise<Chosen[]> {
 	const rank: Record<PublishItem["kind"], number> = {
 		designSystem: 0,
 		loop: 1,
@@ -483,13 +486,26 @@ async function publishOrder(scope: SiteScope, chosen: readonly SiteDraft[]): Pro
 		scope,
 		chosen.flatMap((draft) => (draft.item.kind === "entry" ? [draft.item.id] : [])),
 	);
-	const within = (draft: SiteDraft) =>
+	const within = (draft: Chosen) =>
 		draft.item.kind === "component"
 			? componentOrder.indexOf(draft.item.id)
 			: draft.item.kind === "entry"
 				? entryOrder.indexOf(draft.item.id)
 				: 0;
 	return byKind.sort((a, b) => rank[a.item.kind] - rank[b.item.kind] || within(a) - within(b));
+}
+
+/**
+ * Items in the order they go live together (`publishOrder`), each as its Draft is now: what a Publish
+ * all set scheduled for later is stored in.
+ */
+export async function orderForPublish(scope: SiteScope, items: readonly PublishItem[]): Promise<PublishItem[]> {
+	return (
+		await publishOrder(
+			scope,
+			items.map((item) => ({ item })),
+		)
+	).map(({ item }) => item);
 }
 
 /** Components, each after the Components its Draft places (directly or not). */

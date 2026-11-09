@@ -222,14 +222,19 @@ export async function saveFormEmails(scope: SiteScope, formId: string, input: Fo
 
 /**
  * Publishes a Form's emails Draft: what a Submission sets off from now on. Part of `publish` (open the
- * Site with `formEmails.edit`); the Form's fields stay as they are.
+ * Site with `formEmails.edit`); the Form's fields stay as they are. `version`, when given, is
+ * published instead of the Draft (a Scheduled publish's).
  */
-export async function publishFormEmails(scope: SiteScope, formId: string): Promise<{ id: string; publishedAt: Date }> {
+export async function publishFormEmails(
+	scope: SiteScope,
+	formId: string,
+	version?: unknown,
+): Promise<{ id: string; publishedAt: Date }> {
 	const row = await lockForm(scope, formId);
 	const now = scope.now();
 	await scope.update(
 		forms,
-		{ emailsPublished: storedFormEmails(row.emailsDraft), emailsLastPublishedAt: now, updatedAt: now },
+		{ emailsPublished: storedFormEmails(version ?? row.emailsDraft), emailsLastPublishedAt: now, updatedAt: now },
 		eq(forms.id, row.id),
 	);
 	await scope.audit("formEmails.publish", { formEmailsId: row.id, formId: row.id, key: row.key, name: row.name });
@@ -291,10 +296,15 @@ export async function deleteForm(
 /**
  * Publishes a Form's Draft: what visitors fill in from now on. Part of `publish` (open the Site with
  * `structure.edit`), which clears the page cache. A redirect to a Page that has gone since is refused.
+ * `version`, when given, is published instead of the Draft (a Scheduled publish's).
  */
-export async function publishFormDraft(scope: SiteScope, formId: string): Promise<{ id: string; publishedAt: Date }> {
+export async function publishFormDraft(
+	scope: SiteScope,
+	formId: string,
+	version?: unknown,
+): Promise<{ id: string; publishedAt: Date }> {
 	const row = await lockForm(scope, formId);
-	const draft = storedFormVersion(row.draft);
+	const draft = storedFormVersion(version ?? row.draft);
 	if (draft.success.kind === "redirect" && !(await isPage(scope, draft.success.pageId))) {
 		throw new FormInvalidError([{ at: "success.pageId", message: "There is no such Page on this Site." }]);
 	}

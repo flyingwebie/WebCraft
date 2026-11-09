@@ -12,6 +12,8 @@ type Executor = Database["db"] | Transaction;
  * - `editMode`: Edit mode, on a Site's own domain.
  * - `token`: an API token (its name), through the Management API at `/api/v1` or the MCP server.
  * - `translation`: AI translation, writing on behalf of the person who asked for it (who published).
+ * - `scheduledPublish`: a Scheduled publish, which WebCraft runs at its time on behalf of the person
+ *   who scheduled it (the entry's person).
  * - `aiClient`: an AI client a person approved (its name as they approved it), through the MCP
  *   server at `/mcp`: shown as "<person> via <client>".
  *
@@ -24,6 +26,7 @@ export type AuditVia =
 	| { kind: "editMode" }
 	| { kind: "token"; name: string }
 	| { kind: "translation" }
+	| { kind: "scheduledPublish" }
 	| { kind: "aiClient"; name: string };
 
 /**
@@ -103,5 +106,6 @@ function viaOf(kind: string, name: string | null): AuditVia {
 	}
 	if (kind === "editMode") return { kind: "editMode" };
 	if (kind === "translation") return { kind: "translation" };
+	if (kind === "scheduledPublish") return { kind: "scheduledPublish" };
 	return { kind: "admin" };
 }

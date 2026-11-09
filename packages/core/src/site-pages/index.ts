@@ -76,6 +76,7 @@ import {
 } from "../content/render-values.ts";
 import { pageScripts, scriptFile } from "../content/scripts.ts";
 import { specialPageId } from "../content/special-pages.ts";
+import { isGonePath } from "../content/unpublishing.ts";
 import { canonicalPath, pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
@@ -307,6 +308,12 @@ export type SitePages = {
 	resolveHost(hostname: string): Promise<SiteHost | null>;
 	/** Whether `pathname` is the Site's search results page, in any of its languages (ADR 0021). */
 	isSearchPage(host: SiteHost, pathname: string): Promise<boolean>;
+	/**
+	 * Whether a path with no page is where an Entry was until it was unpublished (a Scheduled publish):
+	 * the Site answers it 410 Gone, with its 404 page, instead of 404. In the language the hostname and
+	 * the path name, as visitors find pages.
+	 */
+	gone(host: SiteHost, pathname: string): Promise<boolean>;
 	/** The language a path on a hostname is in, with its direction (the Default language when it names none). */
 	languageAt(host: SiteHost, pathname: string): Promise<{ code: string; direction: "ltr" | "rtl" }>;
 	/**
@@ -501,6 +508,15 @@ export function createSitePages(options: {
 			if (!searchPageId) return false;
 			const located = await locate(scope, host, pathname, false, drafts ? "draft" : "published");
 			return located?.kind === "found" && located.found.entry.id === searchPageId;
+		},
+
+		async gone(host, pathname) {
+			const segments = pathSegments(pathname);
+			if (!segments || isReservedPath(segments)) return false;
+			const scope = data.visitors(host.site);
+			const onHost = pathOnHost(await siteLanguages(scope), host, segments, false);
+			if (onHost.kind !== "path") return false;
+			return isGonePath(scope, onHost.languages.language, canonicalPath(onHost.rest));
 		},
 
 		async languageAt(host, pathname) {

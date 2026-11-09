@@ -244,6 +244,23 @@ export const PROCEDURES = {
 	"publishing.publishAll": write(
 		"Publishes the chosen Drafts of the Site together, after a preview and a confirmation.",
 	),
+	"publishing.scheduled": read(
+		"The Site's Scheduled publishes waiting for their time: what each publishes or unpublishes, when, and what changed since.",
+	),
+	"publishing.schedule": write(
+		"Schedules an item's Draft, as it is now, to be published at a time (API clients confirm a preview first).",
+	),
+	"publishing.scheduleAll": write(
+		"Schedules the chosen Drafts of the Site to be published together at a time, after a preview and a confirmation.",
+	),
+	"publishing.scheduleUnpublish": write(
+		"Schedules an Entry to unpublish at a time: its pages answer 410 Gone (API clients confirm a preview first).",
+	),
+	"publishing.reschedule": write("Changes when a Scheduled publish runs, keeping the versions it holds."),
+	"publishing.updateScheduled": write(
+		"Takes the current Drafts into a Scheduled publish (API clients confirm a preview first).",
+	),
+	"publishing.cancelScheduled": write("Cancels a Scheduled publish: nothing of it is published."),
 	"history.list": read(
 		"One page of an item's history: the Revisions its publishes saved and the Checkpoints of its Draft, newest first.",
 	),

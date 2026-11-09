@@ -343,6 +343,8 @@ async function visitorPage(
 		query: url.searchParams,
 	});
 	if (!answer) {
+		// Where an Entry was until it was unpublished: gone for good, not missing (and not a miss).
+		if (await services.sitePages.gone(host, pathname)) return gonePage(services, host, pathname);
 		// A path with no page: the Site's 404 log hears of it (a page past a paginated Loop's last isn't one).
 		if (number === 1 && !fragment) noteMiss(services, request, host);
 		return notFoundPage(services, host, pathname);
@@ -646,6 +648,26 @@ async function notFoundPage(services: InstallServices, host: SiteHost, pathname:
 			"content-type": "text/html; charset=utf-8",
 			"cache-control": showsDrafts(host) ? DRAFT_CACHE_CONTROL : "no-store",
 			"x-content-type-options": "nosniff",
+			...page.headers,
+			...addressHeaders(host),
+		},
+	});
+}
+
+/**
+ * A path where an Entry was until a Scheduled publish unpublished it: 410 Gone, so search engines drop
+ * it, with the Site's 404 page as its body. Like the 404 page, never kept, so publishing it again
+ * shows at once.
+ */
+async function gonePage(services: InstallServices, host: SiteHost, pathname: string): Promise<Response> {
+	const page = await services.sitePages.notFound(host, pathname);
+	return new Response(page.html, {
+		status: 410,
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store",
+			"x-content-type-options": "nosniff",
+			"x-robots-tag": "noindex",
 			...page.headers,
 			...addressHeaders(host),
 		},

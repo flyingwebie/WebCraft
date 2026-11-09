@@ -197,12 +197,12 @@ export async function restoreConsentTextDraft(scope: SiteScope, version: unknown
 /**
  * Publishes the words' Draft, inside `publish`'s transaction: refuses broken rules in any language
  * (`ConsentBannerInvalidError`), and makes a new banner version, which the Consent records made from
- * now on name.
+ * now on name. `version`, when given, is published instead of the Draft (a Scheduled publish's).
  */
-export async function publishConsentText(scope: SiteScope): Promise<Published> {
+export async function publishConsentText(scope: SiteScope, version?: unknown): Promise<Published> {
 	const row = await lockBanner(scope);
 	const site = await siteLanguages(scope);
-	const draft = storedVersion(row.draft);
+	const draft = storedVersion(version ?? row.draft);
 	const findings = findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
 		textFindings(draft.values, languages),
 	);
