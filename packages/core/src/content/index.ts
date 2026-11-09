@@ -118,3 +118,4 @@ export {
 	type TemplateStatus,
 } from "./templates.ts";
 export type { LanguageValue, Writer } from "./values.ts";
+export { isVisibleIn, publishedVisibleIn } from "./visibility.ts";

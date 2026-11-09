@@ -112,6 +112,7 @@ describe("values per language", () => {
 			title: "Pain frais",
 			slug: "fresh-bread",
 			parentId: null,
+			hiddenLanguages: [],
 			fields: {
 				summary: "Croustillant",
 				tagline: "Baked daily",

@@ -37,6 +37,7 @@ import { entryParts, globalsParts, type Parts, type RelatedEntry, resolvePath } 
 import { specialPageId } from "../content/special-pages.ts";
 import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
+import { isVisibleIn } from "../content/visibility.ts";
 import { type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
 import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
@@ -262,7 +263,8 @@ async function locate(
 			? home && (await publishedPage(scope, postTypes, home))
 			: ((await findPublishedEntry(scope, postTypes, rest, languages.language)) ??
 				(await findPage(scope, postTypes, rest, languages.language)));
-	if (!found) return null;
+	// An Entry hidden in the language has no page there.
+	if (!found || !isVisibleIn(storedVersion(found.entry.published), languages)) return null;
 	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: languagePath(languages, "/") };
 	return { kind: "found", found, ...place };
 }
@@ -275,8 +277,10 @@ async function alternatesOf(scope: ReadScope, host: SiteHost, located: Located):
 	const { site, found } = located;
 	if (site.languages.length < 2) return [];
 	const alternates: PageAlternate[] = [];
+	const published = storedVersion(found.entry.published);
 	for (const language of site.languages) {
 		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
+		if (!isVisibleIn(published, languages)) continue;
 		const address = (await publishedAddresses(scope, found.postType, [found.entry.id], languages)).get(found.entry.id);
 		if (address) alternates.push({ hreflang: language.code, href: `${host.origin}${address.path}` });
 	}
@@ -296,7 +300,9 @@ async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place 
 	const languages = { language: code, defaultLanguage: site.defaultLanguage };
 	const place = { site, languages, language: languageNamed(site, code) };
 	const chosen = await specialPageId(scope, "notFound");
-	const found = (chosen && (await publishedPage(scope, await listPostTypes(scope), chosen))) || undefined;
+	const page = (chosen && (await publishedPage(scope, await listPostTypes(scope), chosen))) || undefined;
+	// A 404 page hidden in the language leaves the built-in one there.
+	const found = page && isVisibleIn(storedVersion(page.entry.published), languages) ? page : undefined;
 	return { ...place, found };
 }
 
@@ -548,7 +554,10 @@ async function relatedEntries(
 ): Promise<Map<string, RelatedEntry>> {
 	const byId = new Map(found.postTypes.map((postType) => [postType.id, postType]));
 	const related = new Map<string, RelatedEntry>();
-	const rows = await publishedEntries(scope, [...new Set(ids)]);
+	// Entries hidden in the page's language have no place on it.
+	const rows = (await publishedEntries(scope, [...new Set(ids)])).filter((row) =>
+		isVisibleIn(storedVersion(row.published), languages),
+	);
 	const addresses = new Map<string, { slug: string; path: string }>();
 	for (const postType of found.postTypes) {
 		const own = rows.filter((row) => row.postTypeId === postType.id).map((row) => row.id);

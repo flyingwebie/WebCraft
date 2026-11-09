@@ -28,7 +28,7 @@ import {
 	writeFields,
 } from "./field-values.ts";
 import { sameJson } from "./json.ts";
-import { languagesFor, siteLanguages } from "./languages.ts";
+import { canonicalLanguage, languagesFor, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import {
 	checkDraftParent,
@@ -44,6 +44,7 @@ import { checkReferences, type LinkBack, linkingEntries, linksBack, saveLinks } 
 import { slugify } from "./slugs.ts";
 import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
 import { type EntryVersion, emptyVersion, readValue, storedVersion, type Writer, writeValue } from "./values.ts";
+import { hiddenLanguagesIn, withHiddenLanguages } from "./visibility.ts";
 
 export { sameJson } from "./json.ts";
 export { siteLanguages };
@@ -60,6 +61,8 @@ export type EntryValues = {
 	slug: string;
 	/** A Page's parent Page; null for a top-level Page and for every other Entry. */
 	parentId: string | null;
+	/** The Site languages the Entry is hidden in: it has no page and no place in lists there. */
+	hiddenLanguages: string[];
 	/** Every Field of the Post Type, by key, as its type gives it (see the Field types). */
 	fields: Record<string, Json>;
 };
@@ -106,6 +109,11 @@ export type DraftChange = {
 	 * moves, with every Page under it, when it is published.
 	 */
 	parentId?: string | null;
+	/**
+	 * Every Site language the Entry is hidden in (none: shown in all of them), shared by every
+	 * language. Hiding goes live when the Entry is published.
+	 */
+	hiddenLanguages?: string[];
 	/**
 	 * Values of the Post Type's Fields, by key, each as its type takes it; null or "" clears one. A
 	 * Group's value is its Fields' values by key (only those given change); a Repeater's is its whole
@@ -332,6 +340,16 @@ async function changeDraft(
 			if (change.parentId !== null) await checkDraftParent(scope, row, change.parentId, defaultLanguage, problems);
 			version = withParent(version, change.parentId, defaultLanguage, by);
 		}
+		if (change.hiddenLanguages !== undefined) {
+			const site = await siteLanguages(scope);
+			const hidden: string[] = [];
+			for (const code of change.hiddenLanguages) {
+				const known = site.languages.find((candidate) => candidate.code === canonicalLanguage(code));
+				if (known) hidden.push(known.code);
+				else problems.push({ at: "hiddenLanguages", message: `The Site has no language ${code}.` });
+			}
+			version = withHiddenLanguages(version, hidden, defaultLanguage, by);
+		}
 		if (change.fields !== undefined) {
 			const context: WriteContext = { ...languages, by, problems, references: [], newRowId: randomRowId };
 			version = {
@@ -551,6 +569,7 @@ export function entryValues(
 		title: readValue(version, { key: "title", ...languages }) ?? "",
 		slug: readValue(version, { key: "slug", ...languages }) ?? "",
 		parentId: parentIn(version, languages.defaultLanguage),
+		hiddenLanguages: hiddenLanguagesIn(version, languages.defaultLanguage),
 		fields: readFields(version.values, fields, languages),
 	};
 }

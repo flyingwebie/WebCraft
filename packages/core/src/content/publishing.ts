@@ -34,6 +34,7 @@ import { checkReferences, saveLinks } from "./relationships.ts";
 import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
 import { pathFor } from "./url-patterns.ts";
 import { type EntryVersion, ownValue, storedVersion } from "./values.ts";
+import { isVisibleIn } from "./visibility.ts";
 
 /**
  * One item to publish. Components and Forms join Entries, Templates, the Globals and the Design
@@ -198,15 +199,18 @@ function publishedSlug(
 }
 
 /**
- * What keeps a version from being published, in every language of the Site: each language's values
- * are checked (a language falls back to the Default language one Field at a time), and each problem is
+ * What keeps a version from being published, in every language of the Site it is shown in: each
+ * language's values are checked (a language falls back to the Default language one Field at a time), and each problem is
  * reported once, with its language when it isn't the Default language's.
  */
 function publishFindings(draft: EntryVersion, fields: readonly FieldDefinition[], site: SiteLanguages): Findings {
 	const all: Findings = { problems: [], missing: [], references: [] };
 	const seen = new Set<string>();
 	for (const language of site.languages) {
-		const found = versionFindings(draft, fields, { language: language.code, defaultLanguage: site.defaultLanguage });
+		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
+		// A language the Entry is hidden in shows none of its values.
+		if (!isVisibleIn(draft, languages)) continue;
+		const found = versionFindings(draft, fields, languages);
 		for (const problem of found.problems) {
 			const key = `${problem.at} ${problem.rule} ${problem.message}`;
 			if (seen.has(key)) continue;
