@@ -10,11 +10,10 @@ import type { OutgoingHttp } from "./http.ts";
  * - calls only `http` and `https` URLs without credentials in them, on the hosts allowed;
  * - resolves the host first and refuses loopback, private, link-local and other addresses that
  *   aren't on the public internet, then does the same after every redirect;
+ * - connects to the address it checked (outgoing HTTP's `connectTo`), never resolving the name
+ *   again, so a DNS answer that changes after the check (DNS rebinding) can't move the connection;
  * - follows at most 3 redirects (none for calls that carry a secret);
  * - gives up after a timeout, and refuses answers larger than a limit, reading the body in full.
- *
- * Outgoing HTTP resolves the name again when it connects; an HTTP adapter that connects to the
- * checked address (with Node's `lookup` hook) closes that gap in the worker.
  */
 export type GuardedFetch = (request: Request, options: GuardedFetchOptions) => Promise<Response>;
 

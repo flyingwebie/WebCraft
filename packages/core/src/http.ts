@@ -14,6 +14,3 @@ export type OutgoingHttpOptions = {
 	 */
 	connectTo?: string;
 };
-
-/** Outgoing HTTP over the runtime's own `fetch`. */
-export const fetchHttp: OutgoingHttp = (request) => fetch(request);
