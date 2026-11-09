@@ -89,7 +89,13 @@
 		"FORM_IN_USE": "The Form is placed in Templates or Components: take it out of them first.",
 		"CAPTCHA_INVALID": "The CAPTCHA can't be saved: fix what is marked.",
 		"LIBRARY_NOT_FOUND": "This Library is no longer on the Site. Reload the page.",
-		"OUTSIDE_SCRIPT_NOT_FOUND": "This outside script is no longer on the Site. Reload the page."
+		"OUTSIDE_SCRIPT_NOT_FOUND": "This outside script is no longer on the Site. Reload the page.",
+		"PATH_TAKEN_BY_ARCHIVE": "That address is where a Post Type's Archive template is published. Choose another slug, parent Page or URL pattern.",
+		"ARCHIVE_UNAVAILABLE": "This Post Type has no Archive template: Pages have none, and a URL pattern that starts with the slug leaves no address to list from.",
+		"LOOP_NOT_FOUND": "There is no such Loop on this Site.",
+		"LOOP_INVALID": "The Loop can't be saved. Check the settings marked.",
+		"LOOP_INCOMPLETE": "Fill in the Loop items' values marked before publishing.",
+		"LOOP_NAME_TAKEN": "Another Loop of this Site already has this name."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -238,6 +244,7 @@
 			"globals": "Globals",
 			"postTypes": "Post Types & Fields",
 			"staffOnly": "Staff only",
+			"loops": "Loops",
 			"forms": "Forms",
 			"libraries": "Libraries"
 		}
@@ -1207,13 +1214,22 @@
 			"presets": {
 				"hasValue": "Show when a value is set",
 				"isEmpty": "Show when a value is empty",
-				"ifElse": "Show one thing or another"
+				"ifElse": "Show one thing or another",
+				"loopEmpty": "Show when a Loop has no items",
+				"loopFirst": "Show on a Loop's first item",
+				"loopLast": "Show on a Loop's last item",
+				"loopOddEven": "Odd and even items",
+				"currentLanguage": "Show in one language",
+				"betweenDates": "Show between two dates",
+				"inRelationship": "Show when a list holds a value"
 			},
 			"commands": {
 				"if": "Condition",
 				"outlet": "Where each page's content goes",
 				"themeToggle": "Light and dark theme button",
 				"languageSwitcher": "Links to the page in each language",
+				"loop": "Loop: repeat for each item",
+				"pagination": "Links to a Loop's pages",
 				"consentSettings": "Cookie settings button (opens the Consent banner)"
 			},
 			"createClass": "Create Class “{name}”",
@@ -1746,7 +1762,9 @@
 			"postTypeNameLength": "A Post Type's name has 1 to {max} characters.",
 			"pageUrlPattern": "Pages are found by their parent Page and slug, so their URL pattern can't change.",
 			"urlPatternFormat": "A URL pattern is a path of fixed parts (lower-case letters, digits and dashes) and one {slug}, such as /blog/{slug}.",
-			"urlPatternParts": "A URL pattern has at most {max} parts."
+			"urlPatternParts": "A URL pattern has at most {max} parts.",
+			"bodyInLoop": "Loop items have no Body field: a query Loop over a Post Type reads its Entries' bodies.",
+			"relationshipInLoop": "Loop items can't hold Relationships: a query Loop lists Entries."
 		},
 		"requiredToPublish": "(needed to publish)",
 		"shared": "Shared",
@@ -2103,6 +2121,12 @@
 			"done": "Done",
 			"blocks": "Blocks people can add",
 			"blocksHelp": "Paragraphs are always on. A Block switched off can't be added; a body that already has one can't be published until it is removed."
+		},
+		"tabs": {
+			"label": "{name}",
+			"globalsLabel": "Globals",
+			"fields": "Fields",
+			"data": "Data"
 		}
 	},
 	"globals": {
@@ -2113,6 +2137,144 @@
 		"defineFields": "Define the Globals' Fields",
 		"publishHelp": "Publishing puts these values live on every page at once.",
 		"published": "The Globals are live."
+	},
+	"loops": {
+		"pageTitle": "Loops",
+		"listHeading": "Loops",
+		"none": "No Loops yet.",
+		"intro": "A Loop repeats the same markup for each of its items: Entries a query finds, or its own Loop items. Create one with the + button, then place it in a Template or Component by its name.",
+		"markupHint": "Place it in Template markup with {opening} … {closing}.",
+		"publish": "Publish",
+		"published": "The Loop is published.",
+		"save": "Save",
+		"saved": "The Loop's Draft is saved.",
+		"create": {
+			"open": "New Loop",
+			"close": "Close",
+			"title": "New Loop",
+			"intro": "Name the Loop as Template markup will write it. Its name never changes.",
+			"name": "Name",
+			"nameHelp": "Lower-case words joined by dashes, such as latest-posts.",
+			"nameRequired": "Give the Loop a name.",
+			"created": "The Loop {name} is created.",
+			"cancel": "Cancel",
+			"submit": "Create Loop"
+		},
+		"source": {
+			"heading": "Items come from",
+			"query": "A query",
+			"queryHelp": "Entries of one or more Post Types, filtered and sorted.",
+			"items": "Loop items",
+			"itemsHelp": "The Loop's own list, with Fields you define; clients change its items.",
+			"fieldHelp": "A Repeater or Relationship on the Entry needs no Loop: name it in markup, such as {example}."
+		},
+		"tabs": {
+			"label": "Loop",
+			"settings": "Settings",
+			"items": "Loop items",
+			"data": "Data"
+		},
+		"fields": {
+			"heading": "Loop items' Fields",
+			"intro": "Each Loop item has a value for every Field here."
+		},
+		"items": {
+			"heading": "Loop items",
+			"help": "Each item shows once where the Loop is placed, in this order.",
+			"noFields": "Add the Loop items' Fields on the Settings tab first.",
+			"missing": "Needs a value."
+		},
+		"query": {
+			"postTypes": "Post Types",
+			"filters": "Filters",
+			"match": "Show Entries matching",
+			"matchAll": "every filter",
+			"matchAny": "any filter",
+			"noFilters": "No filters: every published Entry of the Post Types.",
+			"addFilter": "Add filter",
+			"filterNumber": "Filter {number}",
+			"removeFilter": "Remove filter {number}",
+			"filterType": {
+				"field": "A Field's value",
+				"relationship": "A Relationship",
+				"date": "A date",
+				"status": "The status"
+			},
+			"field": "Field",
+			"operator": "Comparison",
+			"value": "Value",
+			"operators": {
+				"equals": "is",
+				"notEquals": "is not",
+				"contains": "contains",
+				"lessThan": "is less than",
+				"atMost": "is at most",
+				"greaterThan": "is more than",
+				"atLeast": "is at least",
+				"empty": "is empty",
+				"notEmpty": "is not empty"
+			},
+			"yes": "Yes",
+			"no": "No",
+			"relationship": "Relationship",
+			"relatedTo": "Points at",
+			"to": {
+				"current": "the current Entry",
+				"sharedWithCurrent": "what the current Entry points at",
+				"entries": "chosen Entries",
+				"label": "To"
+			},
+			"chosenEntries": "Chosen Entries",
+			"date": "Date",
+			"window": "Window",
+			"windows": {
+				"past": "in the past",
+				"future": "in the future",
+				"last": "within the last",
+				"next": "within the next",
+				"between": "between"
+			},
+			"amount": "Amount",
+			"unit": "Unit",
+			"units": {
+				"days": "days",
+				"weeks": "weeks",
+				"months": "months",
+				"years": "years"
+			},
+			"from": "From",
+			"statuses": "Statuses",
+			"sort": "Sort",
+			"newestFirst": "Newest published first.",
+			"sortBy": "Sort {number} by",
+			"direction": "Direction",
+			"ascending": "Ascending",
+			"descending": "Descending",
+			"removeSort": "Remove sort {number}",
+			"addSort": "Add sort",
+			"limit": "Limit",
+			"limitHelp": "How many items it shows (on each page), 1 to 100.",
+			"offset": "Offset",
+			"offsetHelp": "How many matching Entries it skips first.",
+			"paginate": "Paginate",
+			"paginateHelp": "On Archive templates and Pages only: show the items page by page, with {example} for the links.",
+			"excludeCurrent": "Exclude the current Entry",
+			"excludeCurrentHelp": "For \"more posts\" on an Entry template."
+		}
+	},
+	"data": {
+		"loopIntro": "The Loop's first item from the Draft, as its bindings read it. Copy a binding into Template markup.",
+		"entryTemplateIntro": "The Entry saved last, from its Draft, as this Post Type's Entry template reads it. Copy a binding into Template markup.",
+		"globalsIntro": "The Globals' Draft values, as every Template reads them. Copy a binding into Template markup.",
+		"language": "Language",
+		"itemHeading": "Data of {label}",
+		"noItemHeading": "No item yet",
+		"noItem": "There is nothing to show yet: add an Entry or a Loop item, or change the query.",
+		"bindingsHeading": "Bindings",
+		"copy": "Copy {binding}",
+		"copyShort": "Copy",
+		"copied": "Copied {binding}",
+		"copyFailed": "Couldn't copy {binding}: select it and copy it yourself."
 	},
 	"forms": {
 		"pageTitle": "Forms",
@@ -2150,6 +2312,7 @@
 		"notPlaced": "Not placed on any page yet.",
 		"placedOnSiteTemplate": "the Site template",
 		"placedOnEntryTemplate": "{name} (Entry template)",
+		"placedOnArchiveTemplate": "{name} (Archive template)",
 		"placedOnComponent": "{name} (Component)",
 		"saveDraft": "Save Draft",
 		"publish": "Publish Form",

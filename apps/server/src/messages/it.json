@@ -89,7 +89,13 @@
 		"FORM_IN_USE": "Il Form è inserito in Template o Componenti: toglilo prima da lì.",
 		"CAPTCHA_INVALID": "Il CAPTCHA non si può salvare: correggi ciò che è segnato.",
 		"LIBRARY_NOT_FOUND": "Questa libreria non è più nel sito. Ricarica la pagina.",
-		"OUTSIDE_SCRIPT_NOT_FOUND": "Questo script esterno non è più nel sito. Ricarica la pagina."
+		"OUTSIDE_SCRIPT_NOT_FOUND": "Questo script esterno non è più nel sito. Ricarica la pagina.",
+		"PATH_TAKEN_BY_ARCHIVE": "A quell'indirizzo è pubblicato il modello d'archivio di un tipo di contenuto. Scegli un altro slug, un'altra pagina genitore o un altro schema di URL.",
+		"ARCHIVE_UNAVAILABLE": "Questo tipo di contenuto non ha un modello d'archivio: le pagine non ne hanno, e uno schema di URL che inizia con lo slug non lascia un indirizzo da cui elencare.",
+		"LOOP_NOT_FOUND": "Questo sito non ha questo loop.",
+		"LOOP_INVALID": "Il loop non può essere salvato. Controlla le impostazioni segnalate.",
+		"LOOP_INCOMPLETE": "Compila i valori segnalati degli elementi del loop prima di pubblicare.",
+		"LOOP_NAME_TAKEN": "Un altro loop di questo sito ha già questo nome."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -238,6 +244,7 @@
 			"globals": "Globali",
 			"postTypes": "Tipi di contenuto e campi",
 			"staffOnly": "Solo staff",
+			"loops": "Loop",
 			"forms": "Form",
 			"libraries": "Librerie"
 		}
@@ -1207,13 +1214,22 @@
 			"presets": {
 				"hasValue": "Mostra quando un valore c'è",
 				"isEmpty": "Mostra quando un valore è vuoto",
-				"ifElse": "Mostra una cosa o un'altra"
+				"ifElse": "Mostra una cosa o un'altra",
+				"loopEmpty": "Mostra quando un loop non ha elementi",
+				"loopFirst": "Mostra sul primo elemento di un loop",
+				"loopLast": "Mostra sull'ultimo elemento di un loop",
+				"loopOddEven": "Elementi dispari e pari",
+				"currentLanguage": "Mostra in una lingua",
+				"betweenDates": "Mostra tra due date",
+				"inRelationship": "Mostra quando un elenco contiene un valore"
 			},
 			"commands": {
 				"if": "Condizione",
 				"outlet": "Dove va il contenuto di ogni pagina",
 				"themeToggle": "Pulsante per il tema chiaro e scuro",
 				"languageSwitcher": "Link alla pagina in ogni lingua",
+				"loop": "Loop: ripeti per ogni elemento",
+				"pagination": "Link alle pagine di un loop",
 				"consentSettings": "Pulsante delle impostazioni dei cookie (riapre il banner del consenso)"
 			},
 			"createClass": "Crea la classe “{name}”",
@@ -1746,7 +1762,9 @@
 			"postTypeNameLength": "Il nome di un tipo di contenuto ha da 1 a {max} caratteri.",
 			"pageUrlPattern": "Le pagine si trovano tramite la pagina genitore e lo slug, quindi il loro schema di URL non può cambiare.",
 			"urlPatternFormat": "Uno schema di URL è un percorso di parti fisse (lettere minuscole, cifre e trattini) e un {slug}, come /blog/{slug}.",
-			"urlPatternParts": "Uno schema di URL ha al massimo {max} parti."
+			"urlPatternParts": "Uno schema di URL ha al massimo {max} parti.",
+			"bodyInLoop": "Gli elementi di un loop non hanno un campo corpo: un loop con query su un tipo di contenuto legge il corpo dei suoi contenuti.",
+			"relationshipInLoop": "Gli elementi di un loop non possono avere relazioni: un loop con query elenca contenuti."
 		},
 		"requiredToPublish": "(necessario per pubblicare)",
 		"shared": "Condiviso",
@@ -2103,6 +2121,12 @@
 			"done": "Fatto",
 			"blocks": "Blocchi che si possono aggiungere",
 			"blocksHelp": "I paragrafi sono sempre attivi. Un blocco disattivato non si può aggiungere; un testo che lo contiene già non si può pubblicare finché non viene rimosso."
+		},
+		"tabs": {
+			"label": "{name}",
+			"globalsLabel": "Globali",
+			"fields": "Campi",
+			"data": "Dati"
 		}
 	},
 	"globals": {
@@ -2113,6 +2137,144 @@
 		"defineFields": "Definisci i campi globali",
 		"publishHelp": "Pubblicare mette subito online questi valori su ogni pagina.",
 		"published": "I valori globali sono online."
+	},
+	"loops": {
+		"pageTitle": "Loop",
+		"listHeading": "Loop",
+		"none": "Ancora nessun loop.",
+		"intro": "Un loop ripete lo stesso markup per ciascuno dei suoi elementi: i contenuti trovati da una query o i suoi elementi propri. Creane uno con il pulsante +, poi inseriscilo in un modello o in un componente con il suo nome.",
+		"markupHint": "Inseriscilo nel markup dei modelli con {opening} … {closing}.",
+		"publish": "Pubblica",
+		"published": "Il loop è pubblicato.",
+		"save": "Salva",
+		"saved": "La bozza del loop è salvata.",
+		"create": {
+			"open": "Nuovo loop",
+			"close": "Chiudi",
+			"title": "Nuovo loop",
+			"intro": "Dai al loop il nome con cui lo scriverà il markup dei modelli. Il nome non cambia mai.",
+			"name": "Nome",
+			"nameHelp": "Parole minuscole unite da trattini, come latest-posts.",
+			"nameRequired": "Dai un nome al loop.",
+			"created": "Il loop {name} è stato creato.",
+			"cancel": "Annulla",
+			"submit": "Crea loop"
+		},
+		"source": {
+			"heading": "Gli elementi provengono da",
+			"query": "Una query",
+			"queryHelp": "Contenuti di uno o più tipi di contenuto, filtrati e ordinati.",
+			"items": "Elementi del loop",
+			"itemsHelp": "L'elenco proprio del loop, con i campi che definisci; i clienti ne modificano gli elementi.",
+			"fieldHelp": "Un ripetitore o una relazione del contenuto non ha bisogno di un loop: indicalo nel markup, come {example}."
+		},
+		"tabs": {
+			"label": "Loop",
+			"settings": "Impostazioni",
+			"items": "Elementi del loop",
+			"data": "Dati"
+		},
+		"fields": {
+			"heading": "Campi degli elementi del loop",
+			"intro": "Ogni elemento del loop ha un valore per ciascun campo qui."
+		},
+		"items": {
+			"heading": "Elementi del loop",
+			"help": "Ogni elemento appare una volta dove si trova il loop, in quest'ordine.",
+			"noFields": "Aggiungi prima i campi degli elementi nella scheda Impostazioni.",
+			"missing": "Serve un valore."
+		},
+		"query": {
+			"postTypes": "Tipi di contenuto",
+			"filters": "Filtri",
+			"match": "Mostra i contenuti che soddisfano",
+			"matchAll": "tutti i filtri",
+			"matchAny": "almeno un filtro",
+			"noFilters": "Nessun filtro: tutti i contenuti pubblicati dei tipi scelti.",
+			"addFilter": "Aggiungi filtro",
+			"filterNumber": "Filtro {number}",
+			"removeFilter": "Rimuovi il filtro {number}",
+			"filterType": {
+				"field": "Il valore di un campo",
+				"relationship": "Una relazione",
+				"date": "Una data",
+				"status": "Lo stato"
+			},
+			"field": "Campo",
+			"operator": "Confronto",
+			"value": "Valore",
+			"operators": {
+				"equals": "è",
+				"notEquals": "non è",
+				"contains": "contiene",
+				"lessThan": "è minore di",
+				"atMost": "è al massimo",
+				"greaterThan": "è maggiore di",
+				"atLeast": "è almeno",
+				"empty": "è vuoto",
+				"notEmpty": "non è vuoto"
+			},
+			"yes": "Sì",
+			"no": "No",
+			"relationship": "Relazione",
+			"relatedTo": "Punta a",
+			"to": {
+				"current": "il contenuto corrente",
+				"sharedWithCurrent": "ciò a cui punta il contenuto corrente",
+				"entries": "contenuti scelti",
+				"label": "Al"
+			},
+			"chosenEntries": "Contenuti scelti",
+			"date": "Data",
+			"window": "Intervallo",
+			"windows": {
+				"past": "nel passato",
+				"future": "nel futuro",
+				"last": "negli ultimi",
+				"next": "nei prossimi",
+				"between": "tra"
+			},
+			"amount": "Quantità",
+			"unit": "Unità",
+			"units": {
+				"days": "giorni",
+				"weeks": "settimane",
+				"months": "mesi",
+				"years": "anni"
+			},
+			"from": "Dal",
+			"statuses": "Stati",
+			"sort": "Ordinamento",
+			"newestFirst": "Prima i pubblicati più di recente.",
+			"sortBy": "Ordina {number} per",
+			"direction": "Direzione",
+			"ascending": "Crescente",
+			"descending": "Decrescente",
+			"removeSort": "Rimuovi l'ordinamento {number}",
+			"addSort": "Aggiungi ordinamento",
+			"limit": "Limite",
+			"limitHelp": "Quanti elementi mostra (per pagina), da 1 a 100.",
+			"offset": "Scostamento",
+			"offsetHelp": "Quanti contenuti corrispondenti salta all'inizio.",
+			"paginate": "Pagina",
+			"paginateHelp": "Solo nei modelli d'archivio e nelle pagine: mostra gli elementi pagina per pagina, con {example} per i link.",
+			"excludeCurrent": "Escludi il contenuto corrente",
+			"excludeCurrentHelp": "Per «altri articoli» in un modello di contenuto."
+		}
+	},
+	"data": {
+		"loopIntro": "Il primo elemento del loop dalla bozza, come lo leggono i suoi binding. Copia un binding nel markup dei modelli.",
+		"entryTemplateIntro": "L'ultimo contenuto salvato, dalla sua bozza, come lo legge il modello di contenuto di questo tipo. Copia un binding nel markup dei modelli.",
+		"globalsIntro": "I valori della bozza dei globali, come li legge ogni modello. Copia un binding nel markup dei modelli.",
+		"language": "Lingua",
+		"itemHeading": "Dati di {label}",
+		"noItemHeading": "Ancora nessun elemento",
+		"noItem": "Non c'è ancora niente da mostrare: aggiungi un contenuto o un elemento del loop, o cambia la query.",
+		"bindingsHeading": "Binding",
+		"copy": "Copia {binding}",
+		"copyShort": "Copia",
+		"copied": "Copiato {binding}",
+		"copyFailed": "Impossibile copiare {binding}: selezionalo e copialo tu."
 	},
 	"forms": {
 		"pageTitle": "Form",
@@ -2150,6 +2312,7 @@
 		"notPlaced": "Non è ancora inserito in nessuna pagina.",
 		"placedOnSiteTemplate": "il Template del Site",
 		"placedOnEntryTemplate": "{name} (Template delle voci)",
+		"placedOnArchiveTemplate": "{name} (modello d'archivio)",
 		"placedOnComponent": "{name} (Componente)",
 		"saveDraft": "Salva la bozza",
 		"publish": "Pubblica il Form",

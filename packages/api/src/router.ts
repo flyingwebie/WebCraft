@@ -12,6 +12,7 @@ import { globals } from "./procedures/globals.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
 import { languages } from "./procedures/languages.ts";
+import { loops } from "./procedures/loops.ts";
 import { me } from "./procedures/me.ts";
 import { media } from "./procedures/media.ts";
 import { members } from "./procedures/members.ts";
@@ -48,6 +49,7 @@ export const apiRouter = {
 	templates,
 	components,
 	forms,
+	loops,
 	scripts,
 	libraries,
 	outsideScripts,

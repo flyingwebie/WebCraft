@@ -8,8 +8,6 @@ import { createInstallServices } from "./create-services.ts";
 import { systemDns } from "./dns.ts";
 import { createSmtpMailer } from "./email/smtp-mailer.ts";
 import type { OutgoingHttp } from "./http.ts";
-import { createBunHttp } from "./http-bun.ts";
-import { createNodeHttp } from "./http-node.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import { type ImageProcessor, imagesOnlyInWorker } from "./media/images.ts";
@@ -41,6 +39,12 @@ export type OpenInstallOptions = {
 	images?: ImageProcessor;
 	/** The Modules to load: the first-party Modules of this build unless given. */
 	modules?: readonly ModuleDefinition[];
+	/**
+	 * Outgoing HTTP on the process's runtime (ADR 0006), connecting each call the guarded fetcher
+	 * checked to the address it checked: the worker hands in `createNodeHttp()`, the web process its
+	 * Bun one.
+	 */
+	http: OutgoingHttp;
 };
 
 /**
@@ -69,7 +73,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 	// Built before the job queue starts, so a wrong Master key is refused first.
 	const services = await createInstallServices(
 		{
-			...realPorts(config, database, log, OUTGOING_HTTP[processName]()),
+			...realPorts(config, database, log, options.http),
 			jobs: createJobQueue(boss),
 			images: options.images ?? imagesOnlyInWorker,
 		},
@@ -95,8 +99,8 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 		return await createInstallServices(
 			{
-				// Server commands run on Bun, as the web process does.
-				...realPorts(config, database, log, createBunHttp()),
+				// Server commands make no call the guarded fetcher checks.
+				...realPorts(config, database, log, unpinnedHttp),
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
 				images: imagesOnlyInWorker,
 			},
@@ -108,13 +112,10 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 	}
 }
 
-/**
- * Each process's outgoing HTTP, on its own runtime (ADR 0006): both connect a call the guarded fetcher
- * checked to the address it checked.
- */
-const OUTGOING_HTTP: Record<InstallProcess, () => OutgoingHttp> = {
-	web: createBunHttp,
-	worker: createNodeHttp,
+/** Outgoing HTTP that can't pin a call to an address, for processes that never make such a call. */
+const unpinnedHttp: OutgoingHttp = (request, call) => {
+	if (call?.connectTo !== undefined) throw new Error("This process can't connect a call to a checked address.");
+	return fetch(request);
 };
 
 /** The real adapters every process uses; only outgoing HTTP and the job queue differ between them. */

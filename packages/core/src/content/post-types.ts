@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { checkPatternLeavesArchives } from "./archives.ts";
 import { type ContentProblem, PostTypeInvalidError, PostTypeNotFoundError, PostTypeTakenError } from "./errors.ts";
 import {
 	BUILT_IN_FIELDS,
@@ -81,6 +82,7 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 	return saving(() =>
 		scope.transaction(async (tx) => {
 			await lockSitePaths(tx);
+			await checkPatternLeavesArchives(tx, urlPattern);
 			await checkPatternLeavesPages(tx, urlPattern);
 			await checkPatternOutsidePrefixes(tx, urlPattern);
 			const now = tx.now();
@@ -121,6 +123,7 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 		scope.transaction(async (tx) => {
 			if (urlPattern !== existing.urlPattern) {
 				await lockSitePaths(tx);
+				await checkPatternLeavesArchives(tx, urlPattern, existing.id);
 				await checkPatternLeavesPages(tx, urlPattern);
 				await checkPatternOutsidePrefixes(tx, urlPattern, existing.id);
 			}

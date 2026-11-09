@@ -22,6 +22,7 @@ import {
 	ElementTreeInvalidError,
 	EXPRESSION_KEYWORDS,
 	expansionProblem,
+	type LoopCatalogue,
 	type MarkupNotice,
 	type PropInfo,
 	parseElementTree,
@@ -39,6 +40,7 @@ import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { NO_FORMS, type SiteForms, siteForms } from "../forms/forms.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { publishedArchives } from "./archives.ts";
 import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
 import {
 	ComponentFromModuleError,
@@ -52,6 +54,7 @@ import {
 } from "./errors.ts";
 import { type FieldDefinition, type FieldInput, parseFields, storedFields } from "./fields.ts";
 import { draftVersion, type SaveBase, sameJson } from "./json.ts";
+import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { listPostTypes, type PostType } from "./post-types.ts";
 import { readPropText } from "./props.ts";
@@ -525,12 +528,19 @@ export async function lockComponents(scope: Pick<SiteScope, "db" | "site">): Pro
 export type ComponentReadContext = {
 	postTypes: readonly PostType[];
 	globalFields: readonly FieldDefinition[];
+	/** The Loops of the Site its tree may name (`{{@loop latest-posts}}`). */
+	loops: LoopCatalogue;
 };
 
-export async function readContext(scope: Pick<SiteScope, "select" | "first">): Promise<ComponentReadContext> {
+/** What a Component's tree reads: the Loops' Drafts for a Draft being saved, their published versions for a publish. */
+export async function readContext(
+	scope: Pick<SiteScope, "select" | "first">,
+	version: "draft" | "published" = "draft",
+): Promise<ComponentReadContext> {
 	return {
 		postTypes: await listPostTypes(scope),
 		globalFields: storedFields((await scope.first(globals))?.fields),
+		loops: await loopCatalogue(scope, version),
 	};
 }
 
@@ -554,6 +564,7 @@ export function componentTreeRules(
 		refuseCommand: refuseSiteTemplateCommands,
 		components: catalogue,
 		forms: catalogue.forms,
+		loops: context.loops,
 		// A Component's tree is itself placed: what it places sits one level deeper.
 		placedDepth: 1,
 	};
@@ -734,7 +745,9 @@ export async function checkPublishedPlacements(
 			.filter((row) => row.published !== null)
 			.map((row) => ({
 				where:
-					row.kind === "site" ? "the Site template" : `the Entry template of ${postTypes.get(row.postTypeId ?? "")}`,
+					row.kind === "site"
+						? "the Site template"
+						: `the ${row.kind === "archive" ? "Archive" : "Entry"} template of ${postTypes.get(row.postTypeId ?? "")}`,
 				tree: row.published as ElementTree,
 				placedDepth: 0,
 			})),
@@ -788,7 +801,7 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			use: {
 				kind: "template" as const,
 				id: row.id,
-				templateKind: row.kind === "site" ? ("site" as const) : ("entry" as const),
+				templateKind: row.kind as "site" | "entry" | "archive",
 				postTypeId: row.postTypeId,
 				versions: [],
 			},
@@ -830,15 +843,19 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 	const withEntryTemplate = new Set(
 		templateRows.filter((row) => row.kind === "entry" && row.published !== null).map((row) => row.postTypeId),
 	);
-	/** Every published page: Entries whose Entry template is published, and Pages. */
-	const allPages = postTypes
-		.filter((postType) => isPagePostType(postType) || withEntryTemplate.has(postType.id))
-		.reduce((sum, postType) => sum + (publishedEntries.get(postType.id) ?? 0), 0);
+	/** Post Types whose published Archive template has an address: one more page each. */
+	const withArchive = new Set((await publishedArchives(scope, postTypes)).map((archive) => archive.postType.id));
+	/** Every published page: Entries whose Entry template is published, Pages, and Archive pages. */
+	const allPages =
+		postTypes
+			.filter((postType) => isPagePostType(postType) || withEntryTemplate.has(postType.id))
+			.reduce((sum, postType) => sum + (publishedEntries.get(postType.id) ?? 0), 0) + withArchive.size;
 
 	const pagesShowing = (componentId: string): number => {
 		const seen = new Set<string>([componentId]);
 		const stack = [componentId];
 		const postTypeIds = new Set<string>();
+		const archives = new Set<string>();
 		while (stack.length > 0) {
 			const id = stack.pop() as string;
 			for (const holder of publishedPlacers.get(id) ?? []) {
@@ -849,12 +866,16 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 					}
 				} else if (holder.use.templateKind === "site") {
 					return allPages;
+				} else if (holder.use.templateKind === "archive" && holder.use.postTypeId) {
+					if (withArchive.has(holder.use.postTypeId)) archives.add(holder.use.postTypeId);
 				} else if (holder.use.postTypeId) {
 					postTypeIds.add(holder.use.postTypeId);
 				}
 			}
 		}
-		return [...postTypeIds].reduce((sum, postTypeId) => sum + (publishedEntries.get(postTypeId) ?? 0), 0);
+		return (
+			[...postTypeIds].reduce((sum, postTypeId) => sum + (publishedEntries.get(postTypeId) ?? 0), 0) + archives.size
+		);
 	};
 	return (componentId) => ({ pages: pagesShowing(componentId), usedIn: directUses.get(componentId) ?? [] });
 }

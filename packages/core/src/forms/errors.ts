@@ -30,10 +30,10 @@ export class FormKeyTakenError extends Error {
 
 /** Where a Form is placed: a Template or Component whose Draft or published version holds `{{@form}}`. */
 export type FormPlacement = {
-	kind: "siteTemplate" | "entryTemplate" | "component";
+	kind: "siteTemplate" | "entryTemplate" | "archiveTemplate" | "component";
 	/** The Template's or Component's id. */
 	id: string;
-	/** The Component's name, or the Post Type's for an Entry template; null for the Site template. */
+	/** The Component's name, or the Post Type's for an Entry or Archive template; null for the Site template. */
 	name: string | null;
 };
 

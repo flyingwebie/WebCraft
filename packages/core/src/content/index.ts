@@ -1,6 +1,8 @@
 // The content store (spec › Content store) and publishing: Post Types with their Fields, Entries
 // with a Draft and a published version, the Globals, Templates stored as element trees, and
 // publishing one item.
+
+export { archiveParts } from "./archives.ts";
 export {
 	type Component,
 	type ComponentDeletion,
@@ -42,6 +44,7 @@ export {
 	undoDraftChanges,
 } from "./entries.ts";
 export {
+	ArchiveUnavailableError,
 	ComponentFromModuleError,
 	ComponentInUseError,
 	ComponentInvalidError,
@@ -61,6 +64,10 @@ export {
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
+	LoopIncompleteError,
+	LoopInvalidError,
+	LoopNameTakenError,
+	LoopNotFoundError,
 	PageHasChildrenError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
@@ -111,6 +118,37 @@ export {
 	siteLanguages,
 	type TextDirection,
 } from "./languages.ts";
+export {
+	DATE_UNITS,
+	DATE_WINDOWS,
+	type DateUnit,
+	type DateWindow,
+	ENTRY_STATUSES,
+	FIELD_OPERATORS,
+	type FieldOperator,
+	type LoopQuery,
+	type LoopSort,
+	QUERY_LIMITS,
+	type QueryFilter,
+	type QueryStatus,
+	RELATIONSHIP_TARGETS,
+	type RelationshipTarget,
+} from "./loop-queries.ts";
+export {
+	createLoop,
+	getLoop,
+	isLoopName,
+	LOOP_ITEMS_MAX,
+	type Loop,
+	type LoopDraftChange,
+	type LoopItemsChange,
+	type LoopSource,
+	type LoopVersionView,
+	listLoops,
+	type NewLoop,
+	saveLoopDraft,
+	saveLoopItems,
+} from "./loops.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
@@ -154,12 +192,16 @@ export {
 	setSpecialPage,
 } from "./special-pages.ts";
 export {
+	getArchiveTemplate,
+	getArchiveTemplateMarkup,
 	getEntryTemplate,
 	getEntryTemplateMarkup,
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	readTemplateMarkup,
 	type SavedTemplateMarkup,
+	saveArchiveTemplate,
+	saveArchiveTemplateMarkup,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
 	saveSiteTemplate,

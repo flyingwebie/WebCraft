@@ -90,8 +90,8 @@ export {
 } from "./guarded-fetch.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
-export { createBunHttp } from "./http-bun.ts";
 export { createNodeHttp } from "./http-node.ts";
+export { pinnedTarget } from "./http-pinned.ts";
 export {
 	type InstallProcess,
 	type OpenedParts,
@@ -195,6 +195,7 @@ export {
 	stagingHostname,
 	stagingUrl,
 } from "./site-pages/index.ts";
+export { MAX_PAGE_NUMBER, PAGE_PARAMETER, pageHref, pageNumberIn } from "./site-pages/loops.ts";
 export * from "./site-scripts/index.ts";
 export type {
 	Access,

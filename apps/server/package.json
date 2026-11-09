@@ -6,7 +6,8 @@
 	"description": "The web process (Bun): routes every request by hostname to the admin or to a Site.",
 	"type": "module",
 	"exports": {
-		"./handler": "./src/handler.ts"
+		"./handler": "./src/handler.ts",
+		"./outgoing-http": "./src/outgoing-http.ts"
 	},
 	"scripts": {
 		"dev": "bun --bun vite dev",

@@ -13,6 +13,7 @@ import {
 	type PageAlternate,
 	type PageToRender,
 	type PlacementRenderer,
+	pageWords,
 	placementsIn,
 	renderDocument,
 	SCRIPT_PATH,
@@ -23,6 +24,7 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
 import { pageConsent } from "../consent/banner.ts";
+import { archiveAt, publishedArchives } from "../content/archives.ts";
 import {
 	type ComponentSources,
 	type ComponentVersion,
@@ -47,10 +49,9 @@ import {
 	type SiteLanguages,
 	siteLanguages,
 } from "../content/languages.ts";
-import { candidatePatterns, findPublishedPage, isPagePostType } from "../content/pages.ts";
+import { candidatePatterns, findPublishedPage, isPagePostType, pathText } from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { propValue } from "../content/props.ts";
-import { publishedEntries } from "../content/relationships.ts";
 import {
 	entryParts,
 	globalsParts,
@@ -76,8 +77,10 @@ import { type LibraryFile, libraryFile, pageLibraries } from "../site-scripts/li
 import { outsideScriptCode, pageOutsideScripts } from "../site-scripts/outside-scripts.ts";
 import { type CspMode, editModePolicy, isCspMode, pagePolicyHeaders, readHost } from "../site-scripts/policy.ts";
 import { retiredScript } from "../site-scripts/retired.ts";
-import type { DataLayer, Site, SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import type { DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
+import { pageHref, pageLoops } from "./loops.ts";
+import { relatedEntries, type ReadScope as ScopeToRead } from "./related.ts";
 
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 
@@ -123,17 +126,39 @@ export type SiteHost = {
 export type LanguageChoice = { language: string; location: string };
 
 /**
- * A rendered page of a Site, with the security headers it is sent with (the Site's Content Security
- * Policy as the page needs it, or Edit mode's own) and the Forms it shows (numbered as their ids
- * are). Pages are cached with their headers, so a change to the policy clears the page cache.
+/**
+ * A rendered page of a Site, with the security headers it is sent with: the Site's Content Security
+ * Policy as the page needs it (a body's video players framed), or Edit mode's own. Pages are cached
+ * with them, so a change to the policy clears the page cache. `expiresAt` says until when it may be
+ * kept: null for as long as nothing is published; else the first moment time alone could change it
+ * (a Condition reading `now`, a Loop listing the last 12 months). `forms` are the Forms it shows,
+ * numbered as their ids are.
  */
-export type SitePage = { html: string; headers: Record<string, string>; forms?: readonly ShownForm[] };
+export type SitePage = {
+	html: string;
+	headers: Record<string, string>;
+	expiresAt: Date | null;
+	forms?: readonly ShownForm[];
+};
+
+/**
+ * What one answer of a page shows besides the page itself: what its Forms show (whether the page
+ * goes into the page cache, one visitor's state of one Form, the Form just sent), and which page of a
+ * paginated Loop visitors asked for (`?page=2`; the first when absent).
+ */
+export type RenderPageOptions = { forms?: PageFormsOptions; page?: number };
 
 /**
  * What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to
- * `/`; a language's path goes to its own domain, `keepQuery` then keeping the request's query).
+ * `/`; a language's path goes to its own domain, `keepQuery` then keeping the request's query; a page
+ * number on a page whose Loops don't paginate goes to the page itself).
  */
-export type SiteAnswer = ({ kind: "page" } & SitePage) | { kind: "redirect"; location: string; keepQuery?: boolean };
+export type SiteAnswer =
+	| ({ kind: "page" } & SitePage & {
+				/** The pages of the Loop that paginates on the page, when one does. */
+				pagination: { current: number; count: number } | null;
+			})
+	| { kind: "redirect"; location: string; keepQuery?: boolean };
 
 /** What a page shows from the content store: see `SitePages.pageContent`. */
 export type PageContent = {
@@ -198,9 +223,17 @@ export type SitePages = {
 	 * What `pathname` answers on the Site: the published Entry a Post Type's URL pattern finds there,
 	 * else the published Page at that path (the home page at `/`); null when there is none. With
 	 * `editing`, the page for Edit mode: the same page, showing the Drafts of its Content (its Entry and
-	 * the Globals) through the published Templates, its editable regions tagged.
+	 * the Globals) through the published Templates, its editable regions tagged. `options.page` is the
+	 * page of a paginated Loop visitors asked for (`?page=2`): Pages (and Archive pages) show it; a page
+	 * past the Loop's last is null, and one where no Loop paginates redirects to the page itself.
+	 * `options.forms` is what the page's Forms show in this answer.
 	 */
-	render(host: SiteHost, pathname: string, editing?: PageEditing, forms?: PageFormsOptions): Promise<SiteAnswer | null>;
+	render(
+		host: SiteHost,
+		pathname: string,
+		editing?: PageEditing,
+		options?: RenderPageOptions,
+	): Promise<SiteAnswer | null>;
 	/**
 	 * The Site's 404 page, for `pathname` with no page, in the path's language: the Page Staff chose,
 	 * once published, else the built-in one, in the Site template. With `editing`, for Edit mode, as
@@ -337,23 +370,61 @@ export function createSitePages(options: {
 			});
 		},
 
-		async render(host, pathname, editing, formOptions) {
+		async render(host, pathname, editing, options = {}) {
+			const page = options.page ?? 1;
 			const view = viewFor(data, host, editing, sources, {
 				pathname,
-				options: formOptions,
+				pageNumber: page,
+				options: options.forms,
 				forms,
 				moduleHosts,
 				moduleScripts,
 			});
+			const archive = await locateArchive(view.scope, host, pathname, editing !== undefined);
+			if (archive) {
+				const rendered = await renderArchivePage(view, host, await viewStyles(view), archive, page);
+				if (page > 1 && !rendered.pagination) return { kind: "redirect", location: archive.path };
+				if (rendered.pagination && page > rendered.pagination.count) return null;
+				return { kind: "page", ...rendered };
+			}
 			const located = await locate(view.scope, host, pathname, editing !== undefined);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
 			const extras = await languageExtras(view.scope, host, located, located.found);
-			return { kind: "page", ...(await renderEntryPage(view, host, await viewStyles(view), located, extras)) };
+			const path = canonicalPath(pathSegments(pathname) ?? []);
+			// Loops paginate on Pages; on an Entry's page they show their first page.
+			const paginates = isPagePostType(located.found.postType);
+			const rendered = await renderEntryPage(view, host, await viewStyles(view), located, extras, {
+				page: paginates ? page : null,
+				path,
+			});
+			if (page > 1 && !rendered.pagination) return { kind: "redirect", location: path };
+			if (rendered.pagination && page > rendered.pagination.count) return null;
+			return { kind: "page", ...rendered };
 		},
 
 		async pageContent(host, pathname) {
 			const scope = data.visitors(host.site);
+			const archive = await locateArchive(scope, host, pathname, true);
+			if (archive) {
+				const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
+				const placed = await placedComponents(scope, [siteTemplate, archive.content], sources);
+				const trees = [siteTemplate, archive.content, ...[...placed.used.values()].map((version) => version.tree)];
+				return {
+					entryId: null,
+					language: archive.language.code,
+					languages: archivePlaces(archive).map(({ language, path }) => ({
+						code: language.code,
+						name: language.name,
+						path,
+						current: language.code === archive.language.code,
+					})),
+					readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
+					notFound: false,
+					// Code mode opens Entry templates and the Site template so far; an Archive page's Template is a later step.
+					templatePostTypeId: null,
+				};
+			}
 			const located = await locate(scope, host, pathname, true);
 			const place = located?.kind === "found" ? located : await notFoundPlace(scope, host, pathname);
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
@@ -389,12 +460,16 @@ export function createSitePages(options: {
 			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
+			const path = canonicalPath(pathSegments(pathname) ?? []);
 			if (place.found) {
 				const located = { ...place, found: place.found };
-				return renderEntryPage(view, host, styles, located, { alternates: [], languageLinks });
+				return renderEntryPage(view, host, styles, located, { alternates: [], languageLinks }, { page: null, path });
 			}
 			const builtIn = builtInNotFoundPage(place.language.code);
-			return renderSitePage(view, host, styles, place, { ...builtIn, languageLinks, values: () => undefined });
+			return renderSitePage(view, host, styles, place, {
+				page: { ...builtIn, languageLinks, values: () => undefined },
+				loops: { current: null, page: null, path },
+			});
 		},
 
 		async formPage(host, pathname, formId, formOptions) {
@@ -409,10 +484,13 @@ export function createSitePages(options: {
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
 			return renderSitePage(view, host, styles, place, {
-				title: formWords(place.language.code).problemTitle,
-				languageLinks,
-				content: { version: 1, nodes: [{ type: "form", form: formId }] },
-				values: () => undefined,
+				page: {
+					title: formWords(place.language.code).problemTitle,
+					languageLinks,
+					content: { version: 1, nodes: [{ type: "form", form: formId }] },
+					values: () => undefined,
+				},
+				loops: { current: null, page: null, path: canonicalPath(pathSegments(pathname) ?? []) },
 			});
 		},
 
@@ -609,6 +687,106 @@ async function locate(
 	return { kind: "found", found, ...place };
 }
 
+/** An Archive page: the published Archive template at its Post Type's address, in the path's language. */
+type LocatedArchive = Place & {
+	postType: PostType;
+	content: ElementTree;
+	/** Its address in the page's language (`/fr/recipes`). */
+	path: string;
+	parts: readonly string[];
+};
+
+/**
+ * The published Archive template whose address a path is, in the language the hostname and the path
+ * name (`pathOnHost`); undefined when there is none, or when the path moved to another of the Site's
+ * addresses (`locate` answers that). Its address is fixed parts only, more specific than any URL
+ * pattern, and no Page can be published there.
+ */
+async function locateArchive(
+	scope: ReadScope,
+	host: SiteHost,
+	pathname: string,
+	editing: boolean,
+): Promise<LocatedArchive | undefined> {
+	const segments = pathSegments(pathname);
+	if (!segments || segments.length === 0 || isReservedPath(segments)) return undefined;
+	const site = await siteLanguages(scope);
+	const onHost = pathOnHost(site, host, segments, editing);
+	if (onHost.kind === "moved" || onHost.rest.length === 0) return undefined;
+	const { languages, rest } = onHost;
+	const archive = archiveAt(await publishedArchives(scope, await listPostTypes(scope)), rest);
+	if (!archive) return undefined;
+	const row = await scope.first(
+		templates,
+		and(eq(templates.kind, "archive"), eq(templates.postTypeId, archive.postType.id), isNotNull(templates.published)),
+	);
+	if (!row) return undefined;
+	return {
+		site,
+		languages,
+		language: languageNamed(site, languages.language),
+		postType: archive.postType,
+		content: row.published as ElementTree,
+		parts: archive.parts,
+		path: hostPath(host, languages, pathText(archive.parts)),
+	};
+}
+
+/** An Archive page's address in each of the Site's languages (it is shown in all of them), under each one's prefix. */
+function archivePlaces(archive: LocatedArchive): { language: SiteLanguage; path: string }[] {
+	return archive.site.languages.map((language) => ({
+		language,
+		path: languagePath(
+			{ language: language.code, defaultLanguage: archive.site.defaultLanguage },
+			pathText(archive.parts),
+		),
+	}));
+}
+
+/**
+ * An Archive page: its Archive template in the Site template, titled with its Post Type's name (and
+ * the page's number past the first), with `hreflang` alternates to the same page in every language
+ * (each at its own address, on this hostname or another of the Site's domains) and the Language
+ * switcher's links to the Archive page there. Its Loops paginate.
+ */
+async function renderArchivePage(
+	view: View,
+	host: SiteHost,
+	styles: SiteStyles,
+	archive: LocatedArchive,
+	page: number,
+): Promise<RenderedPage> {
+	const alternates: PageAlternate[] = [];
+	const languageLinks: LanguageLink[] = [];
+	if (archive.site.languages.length > 1) {
+		for (const { language, path } of archivePlaces(archive)) {
+			const there = placeOf(
+				host.addresses,
+				{ language: language.code, defaultLanguage: archive.site.defaultLanguage },
+				path,
+			);
+			const href = `${there.origin}${there.path}`;
+			alternates.push({ hreflang: language.code, href: `${there.origin}${pageHref(there.path, page)}` });
+			languageLinks.push({
+				code: language.code,
+				name: language.name,
+				direction: language.direction,
+				href: there.origin === host.origin ? languageChoiceHref(there.path) : href,
+				current: language.code === archive.language.code,
+			});
+		}
+		const fallback = alternates.find((alternate) => alternate.hreflang === archive.site.defaultLanguage);
+		if (fallback) alternates.push({ hreflang: "x-default", href: fallback.href });
+	}
+	const site = await siteParts(view, archive, host.site.name);
+	const root: Parts = { text: null, part: (name) => (name === "site" ? site : undefined) };
+	const title = pagedTitle(archive.postType.name, page, archive.language.code);
+	return renderSitePage(view, host, styles, archive, {
+		page: { title, alternates, languageLinks, content: archive.content, values: (path) => resolvePath(root, path) },
+		loops: { current: null, page, path: archive.path },
+	});
+}
+
 /** Where a page's links to its other languages go: `hreflang` alternates, and the Language switcher's links. */
 type LanguageExtras = { alternates: PageAlternate[]; languageLinks: LanguageLink[] };
 
@@ -729,7 +907,7 @@ async function notFoundPlace(
  * What rendering reads with: the read-only scope of a Site's visitors, or in Edit mode the Site
  * opened for the person editing. Routing (which Entry a path finds) is the same for both.
  */
-type ReadScope = Pick<VisitorScope, "select" | "first" | "count" | "where" | "db" | "site" | "now">;
+type ReadScope = ScopeToRead;
 
 /**
  * How a page is being viewed: by visitors (the published version of its Content and Structure), in
@@ -746,7 +924,11 @@ type View = {
 	editing?: PageEditing;
 	/** Where the Components of the Modules running on the Site come from. */
 	sources: ComponentSources;
-	/** The page's path on its hostname, which its Forms send back with what visitors fill in. */
+	/**
+	 * The page's address on its hostname, which its Forms send back with what visitors fill in: its
+	 * path, and `?page=N` past the first page of a paginated Loop, so a Form sent back with errors
+	 * shows that page again.
+	 */
 	page: string;
 	/** What this answer shows in the page's Forms (whether it is cached, one visitor's state of one Form). */
 	forms?: PageFormsOptions;
@@ -768,6 +950,8 @@ function viewFor(
 	sources: ComponentSources,
 	request: {
 		pathname: string;
+		/** Which page of a paginated Loop the answer shows; the first when absent. */
+		pageNumber?: number;
 		options?: PageFormsOptions;
 		forms: FormsOfSite;
 		moduleHosts: (site: Site) => Promise<string[]>;
@@ -778,7 +962,7 @@ function viewFor(
 	const common = {
 		host,
 		sources,
-		page: segments ? canonicalPath(segments) : "/",
+		page: pageHref(segments ? canonicalPath(segments) : "/", request.pageNumber ?? 1),
 		forms: request.options,
 		formsOf: request.forms,
 		moduleHosts: request.moduleHosts,
@@ -805,8 +989,9 @@ function editRegions(
 	entry: { id: string; fields: readonly FieldDefinition[] } | null,
 	globalFields: readonly FieldDefinition[],
 ): EditModePage["region"] {
-	return (value, template) => {
-		if (value.format) return undefined;
+	return (value, template, item) => {
+		// Inside a Loop, values are an item's (Loop items in place are #74), or repeat with every item.
+		if (value.format || item) return undefined;
 		if (value.path.startsWith("site.")) {
 			const key = value.path.slice("site.".length);
 			const editable = editableField(globalFields, key);
@@ -922,7 +1107,8 @@ async function renderEntryPage(
 	styles: SiteStyles,
 	located: Place & { found: FoundEntry },
 	extras: LanguageExtras,
-): Promise<SitePage> {
+	where: { page: number | null; path: string },
+): Promise<RenderedPage> {
 	const { scope } = view;
 	const { found, languages } = located;
 	const { postType, entry } = found;
@@ -950,7 +1136,7 @@ async function renderEntryPage(
 		publishedAt: entry.publishedAt,
 		lastPublishedAt: entry.lastPublishedAt,
 	};
-	const site = await siteParts(view, languages);
+	const site = await siteParts(view, located, host.site.name);
 	const related = await relatedEntries(
 		scope,
 		found.postTypes,
@@ -961,44 +1147,67 @@ async function renderEntryPage(
 		related,
 		site,
 	});
-	return renderSitePage(
-		view,
-		host,
-		styles,
-		located,
-		{ title: published.title, ...extras, content, values: (path) => resolvePath(root, path) },
+	// Past a Page's first page, its title says which, and its alternates are that page in each language.
+	const page = where.page ?? 1;
+	return renderSitePage(view, host, styles, located, {
+		page: {
+			title: pagedTitle(published.title, page, located.language.code),
+			alternates: extras.alternates.map((alternate) => ({ ...alternate, href: pageHref(alternate.href, page) })),
+			languageLinks: extras.languageLinks,
+			content,
+			values: (path) => resolvePath(root, path),
+		},
 		// Media values the content may read: its own, and its related Entries'.
-		[published.fields, [...related.values()].map((entry) => entry.values)],
-		{ id: entry.id, fields: postType.fields },
-	);
+		contentValues: [published.fields, [...related.values()].map((entry) => entry.values)],
+		entry: { id: entry.id, fields: postType.fields },
+		loops: { current: entry.id, ...where },
+	});
 }
 
-/** The Site's Globals as `site.x` reads them: published for visitors, the Draft in Edit mode. */
-async function siteParts(view: View, languages: Languages): Promise<Parts> {
-	const site = globalsVersion(await view.scope.first(globals), languages, view.version);
-	return globalsParts(site.fields, site.values);
+/** The Site's Globals as `site.x` reads them (published for visitors, the Draft in Edit mode), with the page's language. */
+async function siteParts(view: View, place: Place, name: string): Promise<Parts> {
+	const site = globalsVersion(await view.scope.first(globals), place.languages, view.version);
+	return globalsParts(site.fields, site.values, { language: place.language.code, name });
 }
+
+/** A page's title, with its number past the first page of its paginated Loop (`Recipes · Page 2`). */
+function pagedTitle(title: string, page: number, language: string): string {
+	return page > 1 ? `${title} · ${pageWords(language).pageNumber.replace("{n}", String(page))}` : title;
+}
+
+/** A page rendered, with until when it may be kept and the pages of its paginated Loop. */
+type RenderedPage = SitePage & { pagination: { current: number; count: number } | null };
 
 /**
  * A page of the Site in its Site template (the published one, or the built-in one), with the names
  * of its Classes and its stylesheet from the published Design system. The Site template reads the
- * Globals as `site.x`.
+ * Globals as `site.x`; both templates and the Components they place read the Loops of the Site
+ * they name, run once for the page (`pageLoops`).
  */
 async function renderSitePage(
 	view: View,
 	host: SiteHost,
 	styles: SiteStyles,
 	place: Place,
-	page: Pick<PageToRender, "title" | "alternates" | "languageLinks" | "content" | "values">,
-	contentValues: unknown = null,
-	/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
-	entry: { id: string; fields: readonly FieldDefinition[] } | null = null,
-): Promise<SitePage> {
+	options: {
+		page: Pick<PageToRender, "title" | "alternates" | "languageLinks" | "content" | "values">;
+		/** Values the content reads, for the Media it may show. */
+		contentValues?: unknown;
+		/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
+		entry?: { id: string; fields: readonly FieldDefinition[] } | null;
+		/** Where the page's Loops run: its Entry, which page of a paginated Loop, and its address. */
+		loops: { current: string | null; page: number | null; path: string };
+	},
+): Promise<RenderedPage> {
 	const { scope, editing } = view;
+	const { page } = options;
 	const { languages, language } = place;
 	const globalsRow = await scope.first(globals);
 	const globalValues = globalsVersion(globalsRow, languages, view.version);
-	const site = globalsParts(globalValues.fields, globalValues.values);
+	const site = globalsParts(globalValues.fields, globalValues.values, {
+		language: language.code,
+		name: host.site.name,
+	});
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
 	const previewed = editing?.preview?.source;
 	const siteTemplate =
@@ -1011,14 +1220,21 @@ async function renderSitePage(
 		which: view.structure,
 		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
 	});
+	// Loops show published Entries through their published versions, in Edit mode and Code mode too.
+	const loops = await pageLoops(
+		scope,
+		[page.content, siteTemplate, ...placed.trees],
+		{ ...options.loops, languages, version: "published" },
+		await listPostTypes(scope),
+	);
 	// The Media the page may show: `media:<id>` written in either template or a Component it places,
-	// and every media value the page reads (its content's, the Globals'). Ids that aren't the Site's
-	// ready Media find nothing.
+	// and every media value the page reads (its content's, the Globals', its Loops' items'). Ids that
+	// aren't the Site's ready Media find nothing.
 	const shown = await pageMedia(
 		scope,
 		[
 			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null, placed.trees])),
-			...uuidsIn(JSON.stringify([contentValues, globalValues.values])),
+			...uuidsIn(JSON.stringify([options.contentValues ?? null, globalValues.values, loops.values])),
 		],
 		languages,
 	);
@@ -1034,6 +1250,13 @@ async function renderSitePage(
 	});
 	// A page sent back with a Form's errors says so first in its title.
 	const invalid = view.forms?.state?.state.kind === "invalid";
+	let expiresAt = loops.changesAt;
+	const time = {
+		now: scope.now(),
+		changesAt(instant: Date) {
+			if (!expiresAt || instant < expiresAt) expiresAt = instant;
+		},
+	};
 	// Safe mode runs none of the Site's own scripts; outside scripts never run in Edit mode at all.
 	const ownScripts = !editing?.safe;
 	const rendered = renderDocument({
@@ -1046,7 +1269,7 @@ async function renderSitePage(
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
 		libraries: ownScripts ? await pageLibraries(scope) : [],
-		scripts: ownScripts ? await pageScripts(scope, entry?.id ?? null, view.structure) : [],
+		scripts: ownScripts ? await pageScripts(scope, options.entry?.id ?? null, view.structure) : [],
 		outsideScripts: await pageOutsideScripts(scope),
 		// Like outside scripts, Modules' Site scripts never run in Edit mode.
 		moduleScripts: editing
@@ -1060,18 +1283,20 @@ async function renderSitePage(
 		consent: editing ? undefined : await pageConsent(scope, languages),
 		editMode: editing && {
 			...editing.head,
-			region: editRegions(entry, storedFields(globalsRow?.fields)),
+			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields)),
 			code: view.structure === "draft",
 		},
 		component: placed.render,
 		form: forms.render,
 		formScripts: forms.outsideScripts,
+		loop: loops.run,
+		time,
 	});
 	const hosts = await policyHosts(view, forms.captchaHost);
 	const headers = editing
 		? { "content-security-policy": editModePolicy(hosts) }
 		: pagePolicyHeaders({ mode: host.cspMode, hosts, frames: rendered.frames });
-	return { html: rendered.html, headers, forms: forms.shown };
+	return { html: rendered.html, headers, expiresAt, pagination: loops.pagination, forms: forms.shown };
 }
 
 /**
@@ -1193,47 +1418,6 @@ async function publishedSiteTemplate(scope: ReadScope): Promise<ElementTree | un
 		and(eq(templates.kind, "site"), isNull(templates.postTypeId), isNotNull(templates.published)),
 	);
 	return (row?.published as ElementTree | null) ?? undefined;
-}
-
-/** The published Entries the page's Relationships point at, read in the page's language. */
-async function relatedEntries(
-	scope: ReadScope,
-	postTypes: readonly PostType[],
-	ids: readonly string[],
-	languages: Languages,
-): Promise<Map<string, RelatedEntry & { postTypeId: string }>> {
-	const byId = new Map(postTypes.map((postType) => [postType.id, postType]));
-	const related = new Map<string, RelatedEntry & { postTypeId: string }>();
-	// Entries hidden in the page's language have no place on it.
-	const rows = (await publishedEntries(scope, [...new Set(ids)])).filter((row) =>
-		isVisibleIn(storedVersion(row.published), languages),
-	);
-	const addresses = new Map<string, { slug: string; path: string }>();
-	for (const postType of postTypes) {
-		const own = rows.filter((row) => row.postTypeId === postType.id).map((row) => row.id);
-		for (const [id, address] of await publishedAddresses(scope, postType, own, languages)) addresses.set(id, address);
-	}
-	for (const row of rows) {
-		const postType = byId.get(row.postTypeId);
-		if (!postType) continue;
-		const values = entryValues(storedVersion(row.published), postType.fields, languages);
-		const address = addresses.get(row.id);
-		related.set(row.id, {
-			postTypeId: postType.id,
-			fields: postType.fields,
-			values: values.fields,
-			builtIns: {
-				title: values.title,
-				slug: address?.slug ?? values.slug,
-				url: address?.path ?? null,
-				createdAt: row.createdAt,
-				updatedAt: row.lastPublishedAt,
-				publishedAt: row.publishedAt,
-				lastPublishedAt: row.lastPublishedAt,
-			},
-		});
-	}
-	return related;
 }
 
 async function nameOf(scope: ReadScope, personId: string): Promise<string | null> {

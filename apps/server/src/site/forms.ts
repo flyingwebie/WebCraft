@@ -60,8 +60,12 @@ export async function formPost(
 				headers: { location: answer.location, ...NO_STORE, ...addressHeaders },
 			});
 		case "invalid": {
+			// The page the Form was sent from, again for this visitor: page N of a paginated Loop when it was.
 			const options = { state: { formId, instance: answer.instance, state: answer.state } };
-			const rendered = await services.sitePages.render(host, answer.page, undefined, options);
+			const rendered = await services.sitePages.render(host, answer.page, undefined, {
+				forms: options,
+				page: answer.pageNumber,
+			});
 			const page =
 				rendered?.kind === "page" &&
 				rendered.forms?.some((shown) => shown.formId === formId && shown.instance === answer.instance)
@@ -75,13 +79,15 @@ export async function formPost(
 }
 
 /**
- * The page a visitor goes on to once a Form showing its message was sent (`?wc-sent=<n>`): the page,
- * answered for them alone with the message in place of Form number `n`. Null for any other request.
+ * The page a visitor goes on to once a Form showing its message was sent (`?wc-sent=<n>`): the page
+ * (page `page` of a paginated Loop), answered for them alone with the message in place of Form
+ * number `n`. Null for any other request.
  */
 export async function sentPage(
 	services: InstallServices,
 	request: Request,
 	host: SiteHost,
+	page: number,
 	addressHeaders: Record<string, string>,
 ): Promise<Response | null> {
 	const url = new URL(request.url);
@@ -89,7 +95,7 @@ export async function sentPage(
 	if (sent === null) return null;
 	const instance = Number(sent);
 	if (!Number.isInteger(instance) || instance < 1 || instance > 1000) return null;
-	const answer = await services.sitePages.render(host, url.pathname, undefined, { sent: instance });
+	const answer = await services.sitePages.render(host, url.pathname, undefined, { forms: { sent: instance }, page });
 	if (answer?.kind !== "page") return null;
 	return formPage(200, answer, addressHeaders);
 }

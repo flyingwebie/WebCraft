@@ -33,6 +33,7 @@ import {
 import { checkExpression, type Expression, expressionPaths } from "./expressions.ts";
 import { checkFormat, type ValueFormat } from "./formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "./languages.ts";
+import { LOOP_STATS, type LoopCatalogue, rootScope, type ValueScope } from "./loops.ts";
 
 /** The version of the element tree format, stored in every tree. */
 export const ELEMENT_TREE_VERSION = 1;
@@ -95,6 +96,25 @@ export type ConsentSettingsNode = { type: "consentSettings" };
  * nothing placed. It renders the Form's published version where Forms run on the Site.
  */
 export type FormNode = { type: "form"; form: string };
+
+/**
+ * A Loop (`{{@loop source as alias}} … {{@empty}} … {{/loop}}`): `children` render once per item,
+ * reading the item as `alias.x` and its position as `loop.x`; `empty` renders when it has no items.
+ * `source` is a Loop of the Site, by name (`latest-posts`), or a list the place already reads, by
+ * its path (a Repeater or Relationship: `gallery`, `post.tags`, `props.lines`).
+ */
+export type LoopNode = {
+	type: "loop";
+	source: string;
+	/** What the items are called inside the Loop; `item` unless markup names them with `as`. */
+	alias: string;
+	children: TreeNode[];
+	/** What renders when the Loop has no items; null when there is no `{{@empty}}`. */
+	empty: TreeNode[] | null;
+};
+
+/** Pagination (`{{@pagination name}}`): links to the pages of a paginated Loop of the Site. */
+export type PaginationNode = { type: "pagination"; loop: string };
 
 export type Attribute = {
 	/** A lower-case attribute name. */
@@ -219,7 +239,8 @@ const REFUSED_ELEMENTS: Readonly<Record<string, string>> = {
 const TAG_NAME = /^[a-z][a-z0-9]*$/;
 const ATTRIBUTE_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ELEMENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const VALUE_PATH = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+/** A value's path: names joined by dots, a name being a Field key or a Loop's name with dashes (`latest-posts.count`). */
+const VALUE_PATH = /^[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*(?:\.[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*)*$/;
 
 /** The deepest a tree may nest, the most nodes it may hold and the longest text. */
 export const TREE_LIMITS = { depth: 64, nodes: 10_000, textLength: 100_000 } as const;
@@ -255,6 +276,7 @@ export function isElementId(id: string): boolean {
  */
 export function unknownValueMessage(path: string): string {
 	if (path.startsWith("item.")) return `${path}: item. values are read inside a Loop, and there is none here.`;
+	if (path.startsWith("loop.")) return `${path}: loop. values are read inside a Loop, and there is none here.`;
 	if (path.startsWith("props.")) return `${path}: props. values are read inside a Component, and this isn't one.`;
 	if (path.startsWith("site.")) return `There is no Global named ${path.slice(5)} on this Site.`;
 	return `There is no value named ${path} here.`;
@@ -513,6 +535,11 @@ export type ParseTreeOptions = {
 	components?: Pick<ComponentCatalogue, "byId">;
 	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
 	unknownValue?: (path: string) => string;
+	/**
+	 * The Loops of the Site the tree may name (`{{@loop latest-posts}}`, `latest-posts.count`); without
+	 * them a Loop's source can only be a list the tree reads.
+	 */
+	loops?: LoopCatalogue;
 	/** How deep the tree already sits in Components: 0 for a Template (the default), 1 for a Component's tree. */
 	placedDepth?: number;
 	/**
@@ -578,15 +605,15 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 	const problem = (at: string, message: string) => {
 		if (problems.length < MAX_PROBLEMS) problems.push({ at, message });
 	};
+	/** What bindings may read where the parse is: inside a Loop, its items too. */
+	let scope: ValueScope = rootScope(options);
 
 	const parsePath = (path: unknown, at: string): string | undefined => {
 		if (typeof path !== "string" || !VALUE_PATH.test(path)) {
 			problem(at, "A value's path is names joined by dots, such as title or summary.");
 			return undefined;
 		}
-		if (options.isKnownValue && !options.isKnownValue(path)) {
-			problem(at, (options.unknownValue ?? unknownValueMessage)(path));
-		}
+		if (scope.isKnownValue && !scope.isKnownValue(path)) problem(at, scope.unknownValue(path));
 		return path;
 	};
 
@@ -786,10 +813,19 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 				expression: (expression, here) =>
 					checkExpression(expression, here, {
 						problem,
-						isKnownValue: options.isKnownValue,
-						unknownValue: options.unknownValue,
+						isKnownValue: scope.isKnownValue,
+						unknownValue: scope.unknownValue,
 					}),
-				nodes: (children, here) => parseNodes(children, here, ancestors, depth + 1),
+				nodes: (children, here, inner) => {
+					const around = scope;
+					scope = inner ?? around;
+					try {
+						return parseNodes(children, here, ancestors, depth + 1);
+					} finally {
+						scope = around;
+					}
+				},
+				scope,
 				form: (formId, here) => {
 					if (typeof formId !== "string") {
 						problem(here, "A placed Form names its Form by id.");
@@ -971,6 +1007,28 @@ export function valuePathsOf(tree: ElementTree): string[] {
 	};
 	visit(tree.nodes);
 	return [...paths];
+}
+
+/**
+ * The names that may be Loops of the Site in a tree, in the order they come: each Loop's source that
+ * is a name alone (`latest-posts`, not `post.tags`), each `{{@pagination}}`'s Loop, and each `name`
+ * read as `name.count` or another of `LOOP_STATS`. A page runs the Loops of the Site among them.
+ */
+export function loopNamesIn(tree: ElementTree): string[] {
+	const names = new Set<string>();
+	const visit = (nodes: readonly TreeNode[]) => {
+		for (const node of nodes) {
+			if (node.type === "loop" && !node.source.includes(".")) names.add(node.source);
+			if (node.type === "pagination") names.add(node.loop);
+			for (const children of childListsOf(node)) visit(children);
+		}
+	};
+	visit(tree.nodes);
+	for (const path of valuePathsOf(tree)) {
+		const [name = "", stat, ...rest] = path.split(".");
+		if (rest.length === 0 && (LOOP_STATS as readonly string[]).includes(stat ?? "")) names.add(name);
+	}
+	return [...names];
 }
 
 const ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";

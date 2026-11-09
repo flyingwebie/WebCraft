@@ -9,7 +9,7 @@ import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
-import { element, outlet, tree, value } from "../harness/trees.ts";
+import { element, outlet, text, tree, value } from "../harness/trees.ts";
 
 import type { sampleBoard } from "../modules/sample/board.ts";
 import type { sample } from "../modules/sample/index.ts";
@@ -102,6 +102,9 @@ describe("Post Types", () => {
 	isolation.refuses("postTypes.update", async (api, target) =>
 		api.postTypes.update({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId, name: "Renamed" }),
 	);
+	isolation.refuses("postTypes.data", async (api, target) =>
+		api.postTypes.data({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
 });
 
 describe("Entries", () => {
@@ -146,6 +149,7 @@ describe("Globals", () => {
 	isolation.refuses("globals.setFields", (api, { siteId }) =>
 		api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] }),
 	);
+	isolation.refuses("globals.data", (api, { siteId }) => api.globals.data({ siteId }));
 	isolation.refuses("globals.saveDraft", (api, { siteId }) => api.globals.saveDraft({ siteId, fields: {} }), {
 		as: ["staff", "author"],
 	});
@@ -187,6 +191,26 @@ describe("Templates", () => {
 	);
 	isolation.refuses("templates.saveSiteTemplateMarkup", (api, { siteId }) =>
 		api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" }),
+	);
+	isolation.refuses("templates.getArchiveTemplate", async (api, target) =>
+		api.templates.getArchiveTemplate({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveArchiveTemplate", async (api, target) =>
+		api.templates.saveArchiveTemplate({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			tree: tree(element("h2", [text("All posts")])),
+		}),
+	);
+	isolation.refuses("templates.getArchiveTemplateMarkup", async (api, target) =>
+		api.templates.getArchiveTemplateMarkup({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveArchiveTemplateMarkup", async (api, target) =>
+		api.templates.saveArchiveTemplateMarkup({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			markup: "<h2>All posts</h2>",
+		}),
 	);
 });
 
@@ -382,6 +406,38 @@ describe("Forms", () => {
 		"m.forms.submissions.list",
 		(api, { siteId }) => moduleOf<typeof forms>(api, "forms").submissions.list({ siteId }),
 		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Loops", () => {
+	/** A name no other call has used. */
+	let names = 0;
+	const newName = () => `loop-${++names}`;
+	/** A new Loop of its own items in a target's Site, made by the Superadmin. */
+	const loopIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const fields = [{ key: "label", label: "Label", type: "text" as const }];
+		return (await api.loops.create({ siteId: target.siteId, name: newName(), source: "items", fields })).loop.id;
+	};
+
+	isolation.refuses("loops.list", (api, { siteId }) => api.loops.list({ siteId }));
+	isolation.refuses("loops.get", async (api, target) =>
+		api.loops.get({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+	isolation.refuses("loops.create", (api, { siteId }) =>
+		api.loops.create({ siteId, name: newName(), source: "query" }),
+	);
+	isolation.refuses("loops.saveDraft", async (api, target) =>
+		api.loops.saveDraft({ siteId: target.siteId, loopId: await loopIn(target), query: { limit: 5 } }),
+	);
+	isolation.refuses("loops.saveItems", async (api, target) =>
+		api.loops.saveItems({ siteId: target.siteId, loopId: await loopIn(target), items: [{ label: "One" }] }),
+	);
+	isolation.refuses("loops.data", async (api, target) =>
+		api.loops.data({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+	isolation.refuses("loops.publish", async (api, target) =>
+		api.loops.publish({ siteId: target.siteId, loopId: await loopIn(target) }),
 	);
 });
 

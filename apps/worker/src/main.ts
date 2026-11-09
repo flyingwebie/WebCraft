@@ -4,6 +4,7 @@ import {
 	coreJobs,
 	coreSchedules,
 	createLogger,
+	createNodeHttp,
 	type OpenedParts,
 	openInstall,
 	scheduleJobs,
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
 		opened: running,
 		// Only the worker processes images (ADR 0027).
 		images: createImageProcessor(),
+		http: createNodeHttp(),
 	});
 	// Schedules first: a stop signal that comes once jobs run then never lands in the middle of them.
 	await scheduleJobs(boss, coreSchedules);

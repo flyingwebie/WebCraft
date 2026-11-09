@@ -8,14 +8,20 @@
  *     or         := and ("or" and)*
  *     and        := not ("and" not)*
  *     not        := "not" not | comparison
- *     comparison := primary (("==" | "!=") primary)?
- *     primary    := path | "string" | number | true | false | "(" expression ")"
+ *     comparison := primary (operator primary)?
+ *     operator   := "==" | "!=" | "<" | "<=" | ">" | ">=" | "contains"
+ *     primary    := path | "string" | number | true | false | now | "(" expression ")"
  *
- * A path on its own passes when its value isn't empty. Loops extend the tests (compare, contains,
- * language, date window, Loop position) by adding operators and kinds here.
+ * A path on its own passes when its value isn't empty (`not summary` tests that it is empty). `==`
+ * and `!=` compare as `sameValue` does; `<`, `<=`, `>` and `>=` compare dates as dates, numbers as
+ * numbers and other text alphabetically (an empty side never passes); `contains` finds a value in a
+ * list, or text inside text whatever its case. `now` is the time the page is rendered, compared
+ * with a date: a date window (`now >= "2026-12-01" and now < "2027-01-01"`). The page's language is
+ * the value `site.language`; a Loop's position is `loop.first`, `loop.last`, `loop.odd`, `loop.even`,
+ * `loop.index` and `loop.count`.
  */
 import { textProblem, unknownValueMessage } from "./tree.ts";
-import { isPresent, sameValue, type TemplateValue } from "./values.ts";
+import { compareValues, holds, isPresent, sameValue, type TemplateValue, toDate } from "./values.ts";
 
 export type Expression =
 	| { type: "value"; path: string }
@@ -23,19 +29,34 @@ export type Expression =
 	| { type: "not"; operand: Expression }
 	| { type: "and"; left: Expression; right: Expression }
 	| { type: "or"; left: Expression; right: Expression }
+	| { type: "now" }
 	| { type: "compare"; operator: CompareOperator; left: Expression; right: Expression };
 
-/** How two values compare: equal or not. */
-export const COMPARE_OPERATORS = ["==", "!="] as const;
+/** How two values compare: equal or not, in order, or one holding the other. */
+export const COMPARE_OPERATORS = ["==", "!=", "<", "<=", ">", ">=", "contains"] as const;
 export type CompareOperator = (typeof COMPARE_OPERATORS)[number];
 
+/** Comparisons by order, which `now` takes part in. */
+const ORDER_OPERATORS: ReadonlySet<string> = new Set(["<", "<=", ">", ">="]);
+
 /** Words an expression gives a meaning of its own; a value with one of these names can't be tested. */
-export const EXPRESSION_KEYWORDS: ReadonlySet<string> = new Set(["and", "or", "not", "true", "false"]);
+export const EXPRESSION_KEYWORDS: ReadonlySet<string> = new Set([
+	"and",
+	"or",
+	"not",
+	"true",
+	"false",
+	"now",
+	"contains",
+]);
 
 /** The deepest an expression nests. */
 export const EXPRESSION_MAX_DEPTH = 32;
 
-const PATH = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+/** A name in a path: a Field key, or a Loop's name with dashes (`latest-posts.count`). */
+const NAME = "[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*";
+const PATH = new RegExp(`^${NAME}(?:\\.${NAME})*$`);
+const PATH_START = new RegExp(`^${NAME}(?:\\.${NAME})*`);
 /** A number as expressions write it: digits, with an optional sign and decimals. */
 const NUMBER = /^-?\d+(?:\.\d+)?$/;
 
@@ -46,7 +67,7 @@ type Token =
 	| { kind: "word"; text: string; offset: number }
 	| { kind: "string"; text: string; offset: number }
 	| { kind: "number"; text: string; offset: number }
-	| { kind: "symbol"; text: "(" | ")" | "==" | "!="; offset: number }
+	| { kind: "symbol"; text: "(" | ")" | "==" | "!=" | "<" | "<=" | ">" | ">="; offset: number }
 	| { kind: "end"; offset: number };
 
 /** Why an expression couldn't be read, and where in its text. */
@@ -74,9 +95,12 @@ function tokenize(text: string): Token[] {
 		if (char === "(" || char === ")") {
 			tokens.push({ kind: "symbol", text: char, offset });
 			index++;
-		} else if (text.startsWith("==", index) || text.startsWith("!=", index)) {
-			tokens.push({ kind: "symbol", text: text.slice(index, index + 2) as "==" | "!=", offset });
+		} else if (["==", "!=", "<=", ">="].some((symbol) => text.startsWith(symbol, index))) {
+			tokens.push({ kind: "symbol", text: text.slice(index, index + 2) as "==" | "!=" | "<=" | ">=", offset });
 			index += 2;
+		} else if (char === "<" || char === ">") {
+			tokens.push({ kind: "symbol", text: char, offset });
+			index++;
 		} else if (char === '"') {
 			let value = "";
 			index++;
@@ -103,7 +127,7 @@ function tokenize(text: string): Token[] {
 			tokens.push({ kind: "number", text: match, offset });
 			index += match.length;
 		} else if (/[A-Za-z_]/.test(char)) {
-			const match = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*/.exec(text.slice(index))?.[0] ?? "";
+			const match = PATH_START.exec(text.slice(index))?.[0] ?? "";
 			tokens.push({ kind: "word", text: match, offset });
 			index += match.length;
 		} else if (char === "=") {
@@ -169,9 +193,13 @@ export function readExpression(text: string): { expression: Expression } | { pro
 	const parseComparison = (depth: number): Expression => {
 		const left = parsePrimary(depth);
 		const next = peek();
-		if (next.kind === "symbol" && (next.text === "==" || next.text === "!=")) {
+		if (next.kind === "symbol" && next.text !== "(" && next.text !== ")") {
 			index++;
 			return { type: "compare", operator: next.text, left, right: parsePrimary(depth) };
+		}
+		if (isWord(next, "contains")) {
+			index++;
+			return { type: "compare", operator: "contains", left, right: parsePrimary(depth) };
 		}
 		return left;
 	};
@@ -185,6 +213,7 @@ export function readExpression(text: string): { expression: Expression } | { pro
 				return { type: "literal", value: canonicalNumber(Number(token.text)) };
 			case "word":
 				if (token.text === "true" || token.text === "false") return { type: "literal", value: token.text === "true" };
+				if (token.text === "now") return { type: "now" };
 				if (EXPRESSION_KEYWORDS.has(token.text)) return fail(token, `Expected a value before ${token.text}.`);
 				return { type: "value", path: token.text };
 			case "symbol":
@@ -206,10 +235,18 @@ export function readExpression(text: string): { expression: Expression } | { pro
 		const expression = parseOr(1);
 		const rest = peek();
 		if (rest.kind !== "end") {
-			fail(rest, `Expected and, or, == or != before ${rest.kind === "string" ? `"${rest.text}"` : rest.text}.`);
+			fail(
+				rest,
+				`Expected and, or, ==, !=, <, >, <=, >= or contains before ${rest.kind === "string" ? `"${rest.text}"` : rest.text}.`,
+			);
 		}
 		if (depthOf(expression) > EXPRESSION_MAX_DEPTH) {
 			return { problem: { offset: 0, message: `A test nests at most ${EXPRESSION_MAX_DEPTH} deep.` } };
+		}
+		const misplacedNow = nowProblem(expression, null);
+		if (misplacedNow) {
+			const at = /(?<![A-Za-z0-9_.-])now(?![A-Za-z0-9_-])/.exec(text);
+			return { problem: { offset: at?.index ?? 0, message: misplacedNow } };
 		}
 		return { expression };
 	} catch (error) {
@@ -239,6 +276,8 @@ function write(expression: Expression): { text: string; binding: number } {
 			return { text: expression.path, binding: BINDING.primary };
 		case "literal":
 			return { text: writeLiteral(expression.value), binding: BINDING.primary };
+		case "now":
+			return { text: "now", binding: BINDING.primary };
 		case "not":
 			return { text: `not ${at(expression.operand, BINDING.not)}`, binding: BINDING.not };
 		case "and":
@@ -316,6 +355,8 @@ export function checkExpression(input: unknown, at: string, options: CheckExpres
 				options.problem(`${here}.value`, "A literal is text, a number written with digits, true or false.");
 				return undefined;
 			}
+			case "now":
+				return { type: "now" };
 			case "not": {
 				const operand = check(raw.operand, `${here}.operand`, depth + 1);
 				return operand && { type: "not", operand };
@@ -337,11 +378,39 @@ export function checkExpression(input: unknown, at: string, options: CheckExpres
 				return left && right && { type: "compare", operator: operator as CompareOperator, left, right };
 			}
 			default:
-				options.problem(here, "A test is a value, a literal, not, and, or, or a comparison.");
+				options.problem(here, "A test is a value, a literal, now, not, and, or, or a comparison.");
 				return undefined;
 		}
 	};
-	return check(input, at, 1);
+	const checked = check(input, at, 1);
+	const misplacedNow = checked && nowProblem(checked, null);
+	if (misplacedNow) {
+		options.problem(at, misplacedNow);
+		return undefined;
+	}
+	return checked;
+}
+
+/**
+ * Why `now` is somewhere it means nothing, or undefined: `now` is the time the page is rendered,
+ * so it is only ever compared with a date (`now < "2027-01-01"`), never tested on its own.
+ */
+function nowProblem(expression: Expression, parent: Expression | null): string | undefined {
+	switch (expression.type) {
+		case "now":
+			return parent?.type === "compare" && parent.operator !== "contains"
+				? undefined
+				: 'now is compared with a date, such as now < "2027-01-01".';
+		case "value":
+		case "literal":
+			return undefined;
+		case "not":
+			return nowProblem(expression.operand, expression);
+		case "and":
+		case "or":
+		case "compare":
+			return nowProblem(expression.left, expression) ?? nowProblem(expression.right, expression);
+	}
 }
 
 /** The paths of the values an expression reads. */
@@ -350,6 +419,7 @@ export function expressionPaths(expression: Expression): string[] {
 		case "value":
 			return [expression.path];
 		case "literal":
+		case "now":
 			return [];
 		case "not":
 			return expressionPaths(expression.operand);
@@ -365,6 +435,7 @@ function depthOf(expression: Expression): number {
 	switch (expression.type) {
 		case "value":
 		case "literal":
+		case "now":
 			return 1;
 		case "not":
 			return 1 + depthOf(expression.operand);
@@ -383,26 +454,56 @@ function canonicalNumber(value: number): number {
 // ---------------------------------------------------------------------------------------------
 // Running an expression
 
-/** Whether an expression's test passes, reading values with `read`. */
-export function passes(expression: Expression, read: (path: string) => TemplateValue): boolean {
-	return isPresent(evaluate(expression, read));
+/**
+ * The time a page is rendered, for tests that read `now`, and where to note each later instant at
+ * which such a test could change its answer, so a kept page is rendered again by then.
+ */
+export type RenderTime = { now: Date; changesAt(instant: Date): void };
+
+/** Whether an expression's test passes, reading values with `read`; `now` reads `time` (nothing without it). */
+export function passes(expression: Expression, read: (path: string) => TemplateValue, time?: RenderTime): boolean {
+	return isPresent(evaluate(expression, read, time));
 }
 
-function evaluate(expression: Expression, read: (path: string) => TemplateValue): TemplateValue {
+function evaluate(expression: Expression, read: (path: string) => TemplateValue, time?: RenderTime): TemplateValue {
 	switch (expression.type) {
 		case "value":
 			return read(expression.path);
 		case "literal":
 			return expression.value;
+		case "now":
+			return time?.now;
 		case "not":
-			return !passes(expression.operand, read);
+			return !passes(expression.operand, read, time);
 		case "and":
-			return passes(expression.left, read) && passes(expression.right, read);
+			return passes(expression.left, read, time) && passes(expression.right, read, time);
 		case "or":
-			return passes(expression.left, read) || passes(expression.right, read);
+			return passes(expression.left, read, time) || passes(expression.right, read, time);
 		case "compare": {
-			const same = sameValue(evaluate(expression.left, read), evaluate(expression.right, read));
-			return expression.operator === "==" ? same : !same;
+			const left = evaluate(expression.left, read, time);
+			const right = evaluate(expression.right, read, time);
+			if (time && ORDER_OPERATORS.has(expression.operator)) {
+				// A test of now against a later date answers differently once that date comes.
+				const other = expression.left.type === "now" ? right : expression.right.type === "now" ? left : undefined;
+				const date = other === undefined ? undefined : toDate(other);
+				if (date && date.getTime() > time.now.getTime()) time.changesAt(date);
+			}
+			switch (expression.operator) {
+				case "==":
+					return sameValue(left, right);
+				case "!=":
+					return !sameValue(left, right);
+				case "contains":
+					return holds(left, right);
+				default: {
+					const order = compareValues(left, right);
+					if (order === undefined) return false;
+					if (expression.operator === "<") return order < 0;
+					if (expression.operator === "<=") return order <= 0;
+					if (expression.operator === ">") return order > 0;
+					return order >= 0;
+				}
+			}
 		}
 	}
 }

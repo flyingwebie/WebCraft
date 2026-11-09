@@ -1,13 +1,13 @@
 import { isIP } from "node:net";
 
-import type { OutgoingHttp } from "./http.ts";
-import { pinnedTarget } from "./http-pinned.ts";
+import { type OutgoingHttp, pinnedTarget } from "@webcraft/core";
 
 /** Bun's own `fetch` options for TLS (which Node's `fetch` doesn't have). */
 type BunFetchInit = RequestInit & { tls?: { serverName?: string; ca?: string } };
 
 /**
- * Outgoing HTTP for the web process and server commands, on Bun. A call pinned to an address goes to
+ * Outgoing HTTP for the web process, on Bun (it uses Bun's own `fetch` TLS options, so it lives here
+ * rather than in `packages/core`, which keeps to standard APIs: ADR 0006). A call pinned to an address goes to
  * that address as the URL's host (`https://203.0.113.10/…`), with the URL's host name in the `Host`
  * header and as Bun's TLS `serverName`, which Bun sends for SNI and checks the certificate against
  * (never against the address). Bun keeps a connection for reuse per address and server name, so a
