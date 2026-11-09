@@ -17,12 +17,14 @@ export {
 	type ComponentFound,
 	type ComponentInfo,
 	componentsPlacedIn,
+	expansionProblem,
 	isComponentInfo,
 	isComponentTag,
 	type PlacementNode,
 	type PropArgument,
 	type PropInfo,
 	type PropValue,
+	placementProblems,
 	placementsIn,
 } from "./components.ts";
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";

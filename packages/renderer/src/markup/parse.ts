@@ -80,6 +80,8 @@ export type ParseMarkupOptions = {
 	components?: ComponentCatalogue;
 	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
 	unknownValue?: (path: string) => string;
+	/** How deep the markup already sits in Components: 0 for a Template (the default), 1 for a Component's. */
+	placedDepth?: number;
 	/** Makes an id for an element written without one; random by default. */
 	newId?: () => string;
 };
@@ -214,6 +216,7 @@ class MarkupParser {
 					refuseCommand: this.options.refuseCommand,
 					components: this.options.components,
 					unknownValue: this.options.unknownValue,
+					placedDepth: this.options.placedDepth,
 					classIds: this.classIds,
 					newId: this.newId,
 				},
@@ -642,7 +645,13 @@ class MarkupParser {
 			this.problem(offset, found?.refused ?? `There is no Component named ${name}.`);
 			return undefined;
 		}
-		const boundary = boundaryProblem(found, ancestors, (id) => catalogue?.byId(id), this.boundaries);
+		const boundary = boundaryProblem(
+			found,
+			ancestors,
+			(id) => catalogue?.byId(id),
+			this.boundaries,
+			(this.options.placedDepth ?? 0) + 1,
+		);
 		if (boundary) this.problem(offset, boundary);
 		let id: string | undefined;
 		const props: PropValue[] = [];

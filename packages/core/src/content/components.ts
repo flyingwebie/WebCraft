@@ -18,11 +18,14 @@ import {
 	type ComponentCatalogue,
 	componentsPlacedIn,
 	type ElementTree,
+	ElementTreeInvalidError,
 	EXPRESSION_KEYWORDS,
+	expansionProblem,
 	type MarkupNotice,
 	type PropInfo,
 	parseElementTree,
 	parseTemplateMarkup,
+	placementProblems,
 	printTemplateMarkup,
 	refuseSiteTemplateCommands,
 } from "@webcraft/renderer";
@@ -432,6 +435,8 @@ export function componentTreeRules(
 				: undefined,
 		refuseCommand: refuseSiteTemplateCommands,
 		components: catalogue,
+		// A Component's tree is itself placed: what it places sits one level deeper.
+		placedDepth: 1,
 	};
 }
 
@@ -459,6 +464,8 @@ export type SiteComponents = ComponentCatalogue & {
 	nameOf(componentId: string): string | undefined;
 	/** The version a Placement shows: the Component's Props and tree in this version. */
 	version(componentId: string): ComponentVersion | undefined;
+	/** Whether a Component's tree places another, directly or through other Components. */
+	reaches(from: string, target: string): boolean;
 };
 
 type CatalogueEntry = { id: string; name: string; version: ComponentVersion | null };
@@ -473,15 +480,19 @@ export async function siteComponents(
 	scope: Pick<SiteScope | VisitorScope, "select" | "site">,
 	which: "draft" | "published",
 	sources: ComponentSources,
-	options: { self?: string } = {},
+	options: {
+		self?: string;
+		/** A version to see in place of one Component's: the one about to be published. */
+		replace?: { id: string; version: ComponentVersion };
+	} = {},
 ): Promise<SiteComponents> {
 	const rows = await scope.select(components);
-	const entries: CatalogueEntry[] = rows.map((row) => ({
-		id: row.id,
-		name: row.name,
-		version:
-			which === "draft" ? storedVersion(row.draft) : row.published === null ? null : storedVersion(row.published),
-	}));
+	const versionOf = (row: ComponentRow): ComponentVersion | null => {
+		if (row.id === options.replace?.id) return options.replace.version;
+		if (which === "draft") return storedVersion(row.draft);
+		return row.published === null ? null : storedVersion(row.published);
+	};
+	const entries: CatalogueEntry[] = rows.map((row) => ({ id: row.id, name: row.name, version: versionOf(row) }));
 	for (const component of await sources.moduleComponentsAt(scope.site)) {
 		// The Site's own Component keeps a name a Module's Component took later.
 		if (entries.some((entry) => entry.name === component.name)) continue;
@@ -535,7 +546,48 @@ export async function siteComponents(
 		byId: (id) => infoOf(byId.get(id)),
 		nameOf: (id) => byId.get(id)?.name,
 		version: (id) => byId.get(id)?.version ?? undefined,
+		reaches,
 	};
+}
+
+/**
+ * Checks, before a Component's new version is published, that every published Template and
+ * Component placing it (directly or through others) still holds HTML a browser keeps as it is, and
+ * stays within the size limits, once the new version shows there. Throws `ElementTreeInvalidError`
+ * saying where.
+ */
+export async function checkPublishedPlacements(
+	scope: SiteScope,
+	componentId: string,
+	next: ComponentVersion,
+	sources: ComponentSources,
+): Promise<void> {
+	const catalogue = await siteComponents(scope, "published", sources, { replace: { id: componentId, version: next } });
+	const postTypes = new Map((await listPostTypes(scope)).map((postType) => [postType.id, postType.name]));
+	const holders = [
+		...(await scope.select(templates))
+			.filter((row) => row.published !== null)
+			.map((row) => ({
+				where:
+					row.kind === "site" ? "the Site template" : `the Entry template of ${postTypes.get(row.postTypeId ?? "")}`,
+				tree: row.published as ElementTree,
+				placedDepth: 0,
+			})),
+		...(await scope.select(components))
+			.filter((row) => row.published !== null && row.id !== componentId)
+			.map((row) => ({ where: `the Component ${row.name}`, tree: storedVersion(row.published).tree, placedDepth: 1 })),
+	];
+	const showsIt = (placed: string) => placed === componentId || catalogue.reaches(placed, componentId);
+	const problems: { at: string; message: string }[] = [];
+	for (const holder of holders) {
+		if (!componentsPlacedIn(holder.tree).some(showsIt)) continue;
+		for (const { node, message } of placementProblems(holder.tree.nodes, catalogue.byId, holder.placedDepth)) {
+			if (showsIt(node.component)) problems.push({ at: "", message: `In ${holder.where}: ${message}` });
+		}
+		const tooBig = expansionProblem(holder.tree.nodes, catalogue.byId);
+		if (tooBig) problems.push({ at: "", message: `In ${holder.where}: ${tooBig.message}` });
+	}
+	if (problems.length > 0) throw new ElementTreeInvalidError(problems);
 }
 
 /** What reading and checking Placements needs to know about a Component's Props. */

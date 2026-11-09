@@ -391,3 +391,116 @@ describe("what a Placement can't be", () => {
 		});
 	});
 });
+
+describe("Components placing Components", () => {
+	test("a Component places others, passing its own Props on", async () => {
+		await component("Line", [{ key: "text", label: "Text", type: "text" }], "<li>{{ props.text }}</li>");
+		await component(
+			"Pair",
+			[
+				{ key: "first", label: "First", type: "text" },
+				{ key: "second", label: "Second", type: "text", default: "and more" },
+			],
+			'<ul><Line text="{{ props.first }}" /><Line text="{{ props.second }}" /></ul>',
+		);
+		const kind = await postType();
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: kind.postTypeId,
+			markup: '<Pair first="{{ title }}" />',
+		});
+		await staff.api.templates.publish({ siteId, templateId: saved.template.id });
+
+		expect(await page(kind, { title: "Rye" })).toBe("<ul><li>Rye</li><li>and more</li></ul>");
+	});
+
+	test("a Component never places itself, directly or through others", async () => {
+		const loopId = await component("Loop", [], "<p>Loop</p>", { publish: false });
+		await expect(
+			staff.api.components.saveMarkup({ siteId, componentId: loopId, markup: "<div><Loop /></div>" }),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: { problems: [{ line: 1, column: 6, message: "A Component can't place itself: Loop would never end." }] },
+		});
+
+		await component("Around", [], "<div><Loop /></div>", { publish: false });
+		await expect(
+			staff.api.components.saveMarkup({ siteId, componentId: loopId, markup: "<div><Around /></div>" }),
+		).rejects.toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: {
+				problems: [{ message: "Around places this Component, so placing it here would never end." }],
+			},
+		});
+	});
+
+	test("nor through what is published", async () => {
+		// Ping places Pong, and both are published; then Ping's Draft lets go of Pong.
+		const pongId = await component("Pong", [], "<p>Pong</p>");
+		const pingId = await component("Ping", [], "<div><Pong /></div>");
+		await staff.api.components.saveMarkup({ siteId, componentId: pingId, markup: "<p>Ping</p>" });
+		// Pong's Draft may place Ping now: Ping's Draft no longer places Pong.
+		await staff.api.components.saveMarkup({ siteId, componentId: pongId, markup: "<div><Ping /></div>" });
+
+		// Published, Ping still places Pong.
+		await expect(staff.api.components.publish({ siteId, componentId: pongId })).rejects.toMatchObject({
+			code: "TEMPLATE_INVALID",
+			data: { problems: [{ message: "Ping places this Component, so placing it here would never end." }] },
+		});
+	});
+
+	test("Components place Components at most 10 deep", async () => {
+		// Level11 is the innermost; LevelN places Level(N + 1).
+		await component("Level11", [], "<span>11</span>", { publish: false });
+		for (let level = 10; level >= 2; level--) {
+			await component(`Level${level}`, [], `<span><Level${level + 1} /></span>`, { publish: false });
+		}
+
+		await expect(component("Level1", [], "<span><Level2 /></span>", { publish: false })).rejects.toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: { problems: [{ message: "Components place Components at most 10 deep." }] },
+		});
+	});
+
+	test("a Component's HTML must fit where it is placed, inside other Components too", async () => {
+		await component("Block", [], "<div>Block</div>");
+		await expect(component("Para", [], "<p><Block /></p>", { publish: false })).rejects.toMatchObject({
+			code: "TEMPLATE_MARKUP_INVALID",
+			data: {
+				problems: [
+					{
+						line: 1,
+						column: 4,
+						message: "Block can't go here: <div> can't go inside <p>: a browser would end the paragraph before it.",
+					},
+				],
+			},
+		});
+	});
+
+	test("publishing a Component checks it still fits wherever it is placed and published", async () => {
+		const inlineId = await component("Inline", [], "<span>in line</span>");
+		const kind = await postType();
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: kind.postTypeId,
+			markup: "<p>Read <Inline /></p>",
+		});
+		await staff.api.templates.publish({ siteId, templateId: saved.template.id });
+		await component("Wrapper", [], "<p><Inline /></p>");
+
+		// On its own the new Draft is fine; where it is placed, a <div> can't go inside <p>.
+		await staff.api.components.saveMarkup({ siteId, componentId: inlineId, markup: "<div>a block</div>" });
+
+		const refusal = await staff.api.components.publish({ siteId, componentId: inlineId }).then(
+			() => undefined,
+			(error: { code?: string; data?: { problems?: { message: string }[] } }) => error,
+		);
+		expect(refusal?.code).toBe("TEMPLATE_INVALID");
+		expect(refusal?.data?.problems?.map((problem) => problem.message).sort()).toEqual([
+			"In the Component Wrapper: Inline can't go here: <div> can't go inside <p>: a browser would end the paragraph before it.",
+			`In the Entry template of Kind ${kinds}: Inline can't go here: <div> can't go inside <p>: a browser would end the paragraph before it.`,
+		]);
+		expect(await page(kind, { title: "Still" })).toBe("<p>Read <span>in line</span></p>");
+	});
+});

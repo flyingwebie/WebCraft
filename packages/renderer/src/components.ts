@@ -109,14 +109,17 @@ export function componentsPlacedIn(tree: ElementTree): string[] {
 
 /**
  * Why a Placement of `info` can't sit inside `ancestors` (outermost first): what the Component
- * shows there must still be HTML a browser keeps as it is (a <div> can't go inside <p>), and nest
- * no deeper than any tree may. Undefined when it can.
+ * shows there must still be HTML a browser keeps as it is (a <div> can't go inside <p>), nest no
+ * deeper than any tree may, and place Components no more than `COMPONENT_LIMITS.depth` deep
+ * (`depth` is how deep this Placement is: 1 in a Template, 2 in a Component's tree). Undefined when
+ * it can.
  */
 export function boundaryProblem(
 	info: ComponentInfo,
 	ancestors: readonly string[],
 	byId: ComponentCatalogue["byId"],
 	memo: Map<string, string | undefined> = new Map(),
+	depth = 1,
 ): string | undefined {
 	const visit = (
 		nodes: readonly TreeNode[],
@@ -142,7 +145,7 @@ export function boundaryProblem(
 					return `Components place Components at most ${COMPONENT_LIMITS.depth} deep.`;
 				const nested = byId(node.component);
 				if (!isComponentInfo(nested)) continue;
-				const key = `${nested.id}|${around.join(">")}`;
+				const key = `${nested.id}|${depth}|${around.join(">")}`;
 				if (!memo.has(key)) memo.set(key, visit(nested.tree.nodes, inner, depth + 1, where));
 				const found = memo.get(key);
 				if (found) return found;
@@ -155,7 +158,37 @@ export function boundaryProblem(
 		}
 		return undefined;
 	};
-	return visit(info.tree.nodes, [], 1, info.name);
+	return visit(info.tree.nodes, [], depth, info.name);
+}
+
+/**
+ * Every Placement in the nodes whose Component's HTML can't sit where it is (see `boundaryProblem`),
+ * with why. `placedDepth` is how deep the nodes already sit in Components: 0 for a Template, 1 for
+ * a Component's own tree.
+ */
+export function placementProblems(
+	nodes: readonly TreeNode[],
+	byId: ComponentCatalogue["byId"],
+	placedDepth = 0,
+): { node: PlacementNode; message: string }[] {
+	const problems: { node: PlacementNode; message: string }[] = [];
+	const memo = new Map<string, string | undefined>();
+	const visit = (list: readonly TreeNode[], ancestors: readonly string[]) => {
+		for (const node of list) {
+			if (node.type === "element") visit(node.children, [...ancestors, node.tag]);
+			else if (node.type === "condition") {
+				for (const branch of node.branches) visit(branch.children, ancestors);
+				if (node.otherwise) visit(node.otherwise, ancestors);
+			} else if (node.type === "component") {
+				const info = byId(node.component);
+				if (!isComponentInfo(info)) continue;
+				const problem = boundaryProblem(info, ancestors, byId, memo, placedDepth + 1);
+				if (problem) problems.push({ node, message: problem });
+			}
+		}
+	};
+	visit(nodes, []);
+	return problems;
 }
 
 /**

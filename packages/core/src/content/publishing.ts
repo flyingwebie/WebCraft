@@ -10,6 +10,7 @@ import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import {
 	type ComponentSources,
+	checkPublishedPlacements,
 	componentTreeRules,
 	lockComponent,
 	lockComponents,
@@ -248,6 +249,8 @@ async function publishComponent(scope: SiteScope, componentId: string, sources: 
 		...componentTreeRules(draft.props, await readContext(scope), catalogue),
 		classIds: ids,
 	});
+	// Every copy changes: each must still fit where it is placed and published.
+	await checkPublishedPlacements(scope, row.id, { props: draft.props, tree }, sources);
 	const now = scope.now();
 	await scope.update(
 		components,

@@ -488,6 +488,8 @@ export type ParseTreeOptions = {
 	components?: Pick<ComponentCatalogue, "byId">;
 	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
 	unknownValue?: (path: string) => string;
+	/** How deep the tree already sits in Components: 0 for a Template (the default), 1 for a Component's tree. */
+	placedDepth?: number;
 	/** Makes an id for an element that has none; random by default. */
 	newId?: () => string;
 };
@@ -777,7 +779,13 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			problem(`${at}.component`, found?.refused ?? `There is no Component with the id ${raw.component} on this Site.`);
 			return undefined;
 		}
-		const boundary = boundaryProblem(found, ancestors, (other) => options.components?.byId(other), boundaries);
+		const boundary = boundaryProblem(
+			found,
+			ancestors,
+			(other) => options.components?.byId(other),
+			boundaries,
+			(options.placedDepth ?? 0) + 1,
+		);
 		if (boundary) problem(at, boundary);
 		const props: PropValue[] = [];
 		if (!Array.isArray(raw.props)) {
