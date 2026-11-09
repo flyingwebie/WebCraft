@@ -22,6 +22,7 @@ import {
 	editSessionOf,
 	pageEditing,
 } from "./edit-mode.ts";
+import { languageChoiceResponse } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
 /** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
@@ -71,6 +72,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 				return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));
 			}
 			if (url.pathname.startsWith(SCRIPT_PATH)) return script(request, host, url.pathname.slice(SCRIPT_PATH.length));
+			const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
+			if (chosen) return chosen;
 			const segments = pathSegments(url.pathname);
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));

@@ -160,6 +160,8 @@ export {
 export {
 	canonicalPath,
 	isReservedPath,
+	LANGUAGE_CHOICE_PATH,
+	type LanguageChoice,
 	type PageContent,
 	type PageEditing,
 	pathSegments,

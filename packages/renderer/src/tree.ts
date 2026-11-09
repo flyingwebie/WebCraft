@@ -69,6 +69,9 @@ export type OutletNode = { type: "outlet" };
 /** The theme toggle (`{{@themeToggle}}`): a button switching the page between light and dark. */
 export type ThemeToggleNode = { type: "themeToggle" };
 
+/** The Language switcher (`{{@languageSwitcher}}`): links to the page in each of the Site's languages. */
+export type LanguageSwitcherNode = { type: "languageSwitcher" };
+
 export type Attribute = {
 	/** A lower-case attribute name. */
 	name: string;

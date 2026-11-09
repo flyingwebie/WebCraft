@@ -280,7 +280,7 @@ describe("generated trees", () => {
 	);
 	const containers = ["div", "section", "span", "em", "strong", "article", "aside", "blockquote", "pre", "nav"];
 	const voids = ["br", "hr", "img", "wbr"];
-	const { nodes } = fc.letrec((tie) => ({
+	const { node } = fc.letrec((tie) => ({
 		node: fc.oneof(
 			{ depthSize: "small", withCrossShrink: true },
 			textArb.map(text),
@@ -318,6 +318,8 @@ describe("generated trees", () => {
 		),
 		nodes: fc.array(tie("node"), { maxLength: 4 }),
 	}));
+	// The Language switcher renders a <nav>, so it goes where one can: here, at the top level.
+	const nodes = fc.array(fc.oneof(node, fc.constant({ type: "languageSwitcher" })), { maxLength: 4 });
 
 	test("print → save gives the same tree, and the same markup", async () => {
 		await fc.assert(

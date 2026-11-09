@@ -6,11 +6,9 @@ import {
 	type EditSession,
 	type InstallServices,
 	isAdminLanguage,
-	isDevelopmentHostname,
 	type PageEditing,
 	RateLimitedError,
 	type SiteHost,
-	WEBCRAFT_COOKIE_PREFIX,
 } from "@webcraft/core";
 import { z } from "zod";
 
@@ -18,6 +16,7 @@ import { clientAddress } from "../client-address.ts";
 import en from "../messages/en.json" with { type: "json" };
 import it from "../messages/it.json" with { type: "json" };
 import { json, plainText } from "../responses.ts";
+import { cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
 import { EDIT_ASSETS_PATH, editBarAssets } from "./edit-bar/assets.ts";
 
 /**
@@ -264,15 +263,6 @@ export function clearEditCookie(request: Request): string {
 	return editCookie(new URL(request.url).hostname, "", 0);
 }
 
-/** One cookie's value from a request's `Cookie` header. */
-function cookieValue(request: Request, name: string): string | undefined {
-	for (const part of (request.headers.get("cookie") ?? "").split(";")) {
-		const separator = part.indexOf("=");
-		if (separator > 0 && part.slice(0, separator).trim() === name) return part.slice(separator + 1).trim() || undefined;
-	}
-	return undefined;
-}
-
 /**
  * Follows an "Edit on site" link: uses it up, sets the edit cookie and sends the browser on to the
  * page, so the link's token never stays in the address bar or the history. A link that doesn't work
@@ -317,12 +307,10 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
  * WebCraft sets on a Site's domain, so Modules' Site routes never see it (`isWebCraftCookie`).
  */
 export function editCookieName(hostname: string): string {
-	const name = `${WEBCRAFT_COOKIE_PREFIX}.edit`;
-	return isDevelopmentHostname(hostname) ? name : `__Host-${name}`;
+	return siteCookieName(hostname, "edit");
 }
 
 /** The `Set-Cookie` line for the edit cookie: `HttpOnly`, `Secure` (but in development), `SameSite=Lax`. */
 function editCookie(hostname: string, value: string, maxAge: number): string {
-	const secure = isDevelopmentHostname(hostname) ? "" : "; Secure";
-	return `${editCookieName(hostname)}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly${secure}; SameSite=Lax`;
+	return siteCookie(hostname, "edit", value, maxAge);
 }

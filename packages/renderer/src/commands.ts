@@ -9,11 +9,18 @@
  * and Popups) are reserved: markup naming them is refused for now.
  */
 import { type Expression, passes, writeExpression } from "./expressions.ts";
-import type { ConditionBranch, ConditionNode, OutletNode, ThemeToggleNode, TreeNode } from "./tree.ts";
+import type {
+	ConditionBranch,
+	ConditionNode,
+	LanguageSwitcherNode,
+	OutletNode,
+	ThemeToggleNode,
+	TreeNode,
+} from "./tree.ts";
 import type { TemplateValue } from "./values.ts";
 
 /** The node kinds Template commands store. */
-export type CommandNode = ConditionNode | OutletNode | ThemeToggleNode;
+export type CommandNode = ConditionNode | OutletNode | ThemeToggleNode | LanguageSwitcherNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -50,6 +57,8 @@ export type RenderTools = {
 	outlet(): string;
 	/** The theme toggle, rendered: nothing when the Site has no dark mode. */
 	themeToggle(): string;
+	/** The Language switcher, rendered: nothing on a Site with one language. */
+	languageSwitcher(): string;
 };
 
 /** A section as it prints: `{{@<keyword> <argument>}}` then its children. */
@@ -234,8 +243,101 @@ const themeToggleCommand: TemplateCommand<ThemeToggleNode> = {
 	},
 };
 
+/** Elements whose content is text and inline elements only, where a <nav> can't go. */
+const PHRASING_ONLY = new Set([
+	"p",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"pre",
+	"span",
+	"abbr",
+	"b",
+	"bdi",
+	"bdo",
+	"cite",
+	"code",
+	"data",
+	"dfn",
+	"em",
+	"i",
+	"kbd",
+	"mark",
+	"q",
+	"ruby",
+	"rt",
+	"rp",
+	"s",
+	"samp",
+	"small",
+	"strong",
+	"sub",
+	"sup",
+	"time",
+	"u",
+	"var",
+	"caption",
+	"dt",
+	"figcaption",
+]);
+
+/**
+ * `{{@languageSwitcher}}`: the Language switcher, a list of links to the page in each of the Site's
+ * languages (to a language's home page where the page's Entry is hidden), the current one marked,
+ * each named in its own language. It renders as a <nav>, so it goes where one can, and renders
+ * nothing on a Site with one language.
+ */
+const languageSwitcherCommand: TemplateCommand<LanguageSwitcherNode> = {
+	name: "languageSwitcher",
+	nodeType: "languageSwitcher",
+	block: false,
+	branches: [],
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		if (section?.argument.trim()) {
+			const leading = section.argument.length - section.argument.trimStart().length;
+			tools.problem(section.argumentOffset + leading, "{{@languageSwitcher}} takes nothing: write it alone.");
+			return undefined;
+		}
+		return { type: "languageSwitcher" };
+	},
+
+	toMarkup() {
+		return [{ keyword: "languageSwitcher", argument: "", children: [] }];
+	},
+
+	check() {
+		return { type: "languageSwitcher" };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(_node, tools) {
+		return tools.languageSwitcher();
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => INTERACTIVE.has(tag) || PHRASING_ONLY.has(tag));
+		if (inside) return `{{@languageSwitcher}} is a list of links in a <nav>: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@languageSwitcher}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
 /** Every Template command there is. */
-export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [ifCommand, outletCommand, themeToggleCommand];
+export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
+	ifCommand,
+	outletCommand,
+	themeToggleCommand,
+	languageSwitcherCommand,
+];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
 export const RESERVED_COMMANDS: ReadonlySet<string> = new Set([

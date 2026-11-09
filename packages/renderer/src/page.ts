@@ -40,6 +40,11 @@ export type PageToRender = {
 	/** The page's own title; the document's title is `<title> · <Site name>`. */
 	title: string;
 	/**
+	 * What the Language switcher links to: the page in each of the Site's languages, in their order.
+	 * It shows nothing with fewer than two.
+	 */
+	languageLinks?: readonly LanguageLink[];
+	/**
 	 * The page in each of the Site's languages it exists in, as `hreflang` alternates (absolute
 	 * addresses), `x-default` last; none on a Site with one language.
 	 */
@@ -69,6 +74,12 @@ export type PageToRender = {
 	 */
 	editMode?: EditModePage;
 };
+
+/**
+ * One link of the Language switcher: a language's code, its name in its own words and its text
+ * direction, where the link goes, and whether it is the page's own language.
+ */
+export type LanguageLink = { code: string; name: string; direction: "ltr" | "rtl"; href: string; current: boolean };
 
 /** One `hreflang` alternate of a page: a BCP 47 tag (or `x-default`) and the absolute address there. */
 export type PageAlternate = { hreflang: string; href: string };
@@ -115,6 +126,7 @@ export function renderPage(page: PageToRender): string {
 		toggles++;
 		return `<button type="button" class="wc-theme-toggle" aria-pressed="false" hidden>${escapeText(pageWords(site.language).themeToggle)}</button>`;
 	};
+	const languageSwitcher = () => languageSwitcherHtml(page.languageLinks ?? [], site);
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
@@ -122,6 +134,7 @@ export function renderPage(page: PageToRender): string {
 		media: page.media,
 		priorityImage: { given: false },
 		themeToggle,
+		languageSwitcher,
 		editRegion: editMode && ((value) => editMode.region(value, "content")),
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
@@ -132,6 +145,7 @@ export function renderPage(page: PageToRender): string {
 		outlet: () => content,
 		extraAttributes: mainAttributes,
 		themeToggle,
+		languageSwitcher,
 		editRegion: editMode && ((value) => editMode.region(value, "site")),
 	});
 	return [
@@ -156,6 +170,23 @@ export function renderPage(page: PageToRender): string {
 		"</html>",
 		"",
 	].join("\n");
+}
+
+/**
+ * The Language switcher: a <nav> named in the page's language, holding a list with a link to the page
+ * in each language, each named in its own language (`lang`, and `dir` when it differs from the
+ * page's), the page's own language marked `aria-current`. Nothing with fewer than two languages.
+ */
+function languageSwitcherHtml(links: readonly LanguageLink[], site: PageToRender["site"]): string {
+	if (links.length < 2) return "";
+	const items = links.map((link) => {
+		let attributes = ` href="${escapeAttribute(link.href)}" hreflang="${escapeAttribute(link.code)}" lang="${escapeAttribute(link.code)}"`;
+		if (link.direction !== site.direction) attributes += ` dir="${link.direction}"`;
+		if (link.current) attributes += ' aria-current="true"';
+		return `<li><a${attributes}>${escapeText(link.name)}</a></li>`;
+	});
+	const label = escapeAttribute(pageWords(site.language).languages);
+	return `<nav class="wc-language-switcher" aria-label="${label}"><ul>${items.join("")}</ul></nav>`;
 }
 
 /** The page's stylesheet, and the colour schemes it supports when it has dark values. */
@@ -193,7 +224,14 @@ function mainAttributes(element: ElementNode): readonly (readonly [string, strin
 }
 
 /** The words WebCraft itself writes into Site pages, by language. */
-type PageWords = { skipLink: string; notFoundTitle: string; notFoundText: string; themeToggle: string };
+type PageWords = {
+	skipLink: string;
+	notFoundTitle: string;
+	notFoundText: string;
+	themeToggle: string;
+	/** The Language switcher's name. */
+	languages: string;
+};
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 	en: {
@@ -201,42 +239,49 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundTitle: "Page not found",
 		notFoundText: "There is no page at this address.",
 		themeToggle: "Dark theme",
+		languages: "Language",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
 		notFoundTitle: "Pagina non trovata",
 		notFoundText: "Non c'è nessuna pagina a questo indirizzo.",
 		themeToggle: "Tema scuro",
+		languages: "Lingua",
 	},
 	fr: {
 		skipLink: "Aller au contenu principal",
 		notFoundTitle: "Page introuvable",
 		notFoundText: "Il n’y a aucune page à cette adresse.",
 		themeToggle: "Thème sombre",
+		languages: "Langue",
 	},
 	de: {
 		skipLink: "Zum Hauptinhalt springen",
 		notFoundTitle: "Seite nicht gefunden",
 		notFoundText: "Unter dieser Adresse gibt es keine Seite.",
 		themeToggle: "Dunkles Design",
+		languages: "Sprache",
 	},
 	es: {
 		skipLink: "Ir al contenido principal",
 		notFoundTitle: "Página no encontrada",
 		notFoundText: "No hay ninguna página en esta dirección.",
 		themeToggle: "Tema oscuro",
+		languages: "Idioma",
 	},
 	pt: {
 		skipLink: "Ir para o conteúdo principal",
 		notFoundTitle: "Página não encontrada",
 		notFoundText: "Não há nenhuma página neste endereço.",
 		themeToggle: "Tema escuro",
+		languages: "Idioma",
 	},
 	nl: {
 		skipLink: "Naar de hoofdinhoud",
 		notFoundTitle: "Pagina niet gevonden",
 		notFoundText: "Er is geen pagina op dit adres.",
 		themeToggle: "Donker thema",
+		languages: "Taal",
 	},
 };
 

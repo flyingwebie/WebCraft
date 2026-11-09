@@ -27,6 +27,8 @@ export type RenderOptions = {
 	outlet?: () => string;
 	/** What `{{@themeToggle}}` shows. Nothing when absent. */
 	themeToggle?: () => string;
+	/** What `{{@languageSwitcher}}` shows. Nothing when absent. */
+	languageSwitcher?: () => string;
 	/**
 	 * Attributes WebCraft adds to an element, written after the element's own (such as the id of
 	 * the page's <main>, which the skip link points at); their values are escaped.
@@ -96,6 +98,7 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 		nodes: (children) => renderNodes(children, options),
 		outlet: () => options.outlet?.() ?? "",
 		themeToggle: () => options.themeToggle?.() ?? "",
+		languageSwitcher: () => options.languageSwitcher?.() ?? "",
 	});
 }
 
