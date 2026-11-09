@@ -28,9 +28,7 @@
 			"post": {
 				"operationId": "workspaces.list",
 				"summary": "Lists the Workspaces the caller reaches: an API token's own Workspace.",
-				"tags": [
-					"workspaces"
-				],
+				"tags": ["workspaces"],
 				"responses": {
 					"200": {
 						"description": "OK",
@@ -55,9 +53,7 @@
 			"post": {
 				"operationId": "workspaces.get",
 				"summary": "One Workspace, and the Permissions the caller holds in it.",
-				"tags": [
-					"workspaces"
-				],
+				"tags": ["workspaces"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -70,9 +66,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId"
-								]
+								"required": ["workspaceId"]
 							}
 						}
 					}
@@ -101,9 +95,7 @@
 			"post": {
 				"operationId": "workspaces.storage",
 				"summary": "The Workspace's Media storage: the bytes its Sites' Media takes and its quota.",
-				"tags": [
-					"workspaces"
-				],
+				"tags": ["workspaces"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -116,9 +108,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId"
-								]
+								"required": ["workspaceId"]
 							}
 						}
 					}
@@ -147,9 +137,7 @@
 			"post": {
 				"operationId": "workspaces.setQuota",
 				"summary": "Sets or removes the Workspace's Media storage quota (Staff only).",
-				"tags": [
-					"workspaces"
-				],
+				"tags": ["workspaces"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -174,10 +162,7 @@
 										]
 									}
 								},
-								"required": [
-									"workspaceId",
-									"quotaBytes"
-								]
+								"required": ["workspaceId", "quotaBytes"]
 							}
 						}
 					}
@@ -206,9 +191,7 @@
 			"post": {
 				"operationId": "sites.list",
 				"summary": "Lists the Sites of a Workspace the caller can see.",
-				"tags": [
-					"sites"
-				],
+				"tags": ["sites"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -221,9 +204,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId"
-								]
+								"required": ["workspaceId"]
 							}
 						}
 					}
@@ -252,9 +233,7 @@
 			"post": {
 				"operationId": "sites.get",
 				"summary": "One Site: its Workspace, the caller's Permissions on it, its Staging address and languages.",
-				"tags": [
-					"sites"
-				],
+				"tags": ["sites"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -267,9 +246,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -298,9 +275,7 @@
 			"post": {
 				"operationId": "sites.create",
 				"summary": "Creates a Site in a Workspace.",
-				"tags": [
-					"sites"
-				],
+				"tags": ["sites"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -322,11 +297,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"workspaceId",
-									"name",
-									"slug"
-								]
+								"required": ["workspaceId", "name", "slug"]
 							}
 						}
 					}
@@ -355,9 +326,7 @@
 			"post": {
 				"operationId": "postTypes.list",
 				"summary": "Lists a Site's Post Types.",
-				"tags": [
-					"postTypes"
-				],
+				"tags": ["postTypes"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -370,9 +339,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -401,9 +368,7 @@
 			"post": {
 				"operationId": "postTypes.get",
 				"summary": "One Post Type, with its Fields and the built-in Fields every Entry has.",
-				"tags": [
-					"postTypes"
-				],
+				"tags": ["postTypes"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -420,10 +385,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -452,9 +414,7 @@
 			"post": {
 				"operationId": "postTypes.create",
 				"summary": "Creates a Post Type with its URL pattern and Fields.",
-				"tags": [
-					"postTypes"
-				],
+				"tags": ["postTypes"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -610,10 +570,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -770,10 +727,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -804,19 +758,11 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									},
 									"searchable": {
@@ -833,19 +779,11 @@
 													"maxLength": 300
 												},
 												"weight": {
-													"enum": [
-														"A",
-														"B",
-														"C",
-														"D"
-													],
+													"enum": ["A", "B", "C", "D"],
 													"type": "string"
 												}
 											},
-											"required": [
-												"field",
-												"weight"
-											]
+											"required": ["field", "weight"]
 										}
 									},
 									"seo": {
@@ -907,11 +845,7 @@
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"name",
-									"urlPattern"
-								]
+								"required": ["siteId", "name", "urlPattern"]
 							}
 						}
 					}
@@ -940,9 +874,7 @@
 			"post": {
 				"operationId": "postTypes.update",
 				"summary": "Changes a Post Type's name, URL pattern, Fields, Site search or SEO settings; applies at once.",
-				"tags": [
-					"postTypes"
-				],
+				"tags": ["postTypes"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1098,10 +1030,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -1258,10 +1187,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -1292,19 +1218,11 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									},
 									"searchable": {
@@ -1321,19 +1239,11 @@
 													"maxLength": 300
 												},
 												"weight": {
-													"enum": [
-														"A",
-														"B",
-														"C",
-														"D"
-													],
+													"enum": ["A", "B", "C", "D"],
 													"type": "string"
 												}
 											},
-											"required": [
-												"field",
-												"weight"
-											]
+											"required": ["field", "weight"]
 										}
 									},
 									"seo": {
@@ -1395,10 +1305,7 @@
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -1427,9 +1334,7 @@
 			"post": {
 				"operationId": "postTypes.data",
 				"summary": "The Data tab of a Post Type's Entry template: an Entry's Draft values as bindings read them.",
-				"tags": [
-					"postTypes"
-				],
+				"tags": ["postTypes"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1455,10 +1360,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -1487,9 +1389,7 @@
 			"post": {
 				"operationId": "entries.list",
 				"summary": "Lists the Entries of a Post Type, with their Draft and published values.",
-				"tags": [
-					"entries"
-				],
+				"tags": ["entries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1511,10 +1411,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -1543,9 +1440,7 @@
 			"post": {
 				"operationId": "entries.get",
 				"summary": "One Entry: its built-in Fields, its Draft and its published version.",
-				"tags": [
-					"entries"
-				],
+				"tags": ["entries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1567,10 +1462,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId",
-									"entryId"
-								]
+								"required": ["siteId", "entryId"]
 							}
 						}
 					}
@@ -1599,9 +1491,7 @@
 			"post": {
 				"operationId": "entries.create",
 				"summary": "Creates an Entry of a Post Type, its values in the Draft.",
-				"tags": [
-					"entries"
-				],
+				"tags": ["entries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1719,11 +1609,7 @@
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId",
-									"title"
-								]
+								"required": ["siteId", "postTypeId", "title"]
 							}
 						}
 					}
@@ -1752,9 +1638,7 @@
 			"post": {
 				"operationId": "entries.saveDraft",
 				"summary": "Saves changes to an Entry's Draft.",
-				"tags": [
-					"entries"
-				],
+				"tags": ["entries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1871,10 +1755,7 @@
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"entryId"
-								]
+								"required": ["siteId", "entryId"]
 							}
 						}
 					}
@@ -1903,9 +1784,7 @@
 			"post": {
 				"operationId": "entries.delete",
 				"summary": "Deletes an Entry, after a preview of the links it removes and a confirmation.",
-				"tags": [
-					"entries"
-				],
+				"tags": ["entries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1926,10 +1805,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"entryId"
-								]
+								"required": ["siteId", "entryId"]
 							}
 						}
 					}
@@ -1959,9 +1835,7 @@
 			"post": {
 				"operationId": "entries.publish",
 				"summary": "Publishes an Entry's Draft (API clients confirm a preview first).",
-				"tags": [
-					"entries"
-				],
+				"tags": ["entries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -1982,10 +1856,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"entryId"
-								]
+								"required": ["siteId", "entryId"]
 							}
 						}
 					}
@@ -2015,9 +1886,7 @@
 			"post": {
 				"operationId": "globals.get",
 				"summary": "The Site's Globals: their Fields, Draft and published values.",
-				"tags": [
-					"globals"
-				],
+				"tags": ["globals"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2035,9 +1904,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -2066,9 +1933,7 @@
 			"post": {
 				"operationId": "globals.setFields",
 				"summary": "Sets the Globals' Fields; applies at once.",
-				"tags": [
-					"globals"
-				],
+				"tags": ["globals"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2212,10 +2077,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -2372,10 +2234,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -2406,26 +2265,15 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"fields"
-								]
+								"required": ["siteId", "fields"]
 							}
 						}
 					}
@@ -2454,9 +2302,7 @@
 			"post": {
 				"operationId": "globals.saveDraft",
 				"summary": "Saves changes to the Globals' Draft.",
-				"tags": [
-					"globals"
-				],
+				"tags": ["globals"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2482,10 +2328,7 @@
 										"additionalProperties": {}
 									}
 								},
-								"required": [
-									"siteId",
-									"fields"
-								]
+								"required": ["siteId", "fields"]
 							}
 						}
 					}
@@ -2514,9 +2357,7 @@
 			"post": {
 				"operationId": "globals.data",
 				"summary": "The Globals' Data tab: their Draft values as Templates read them.",
-				"tags": [
-					"globals"
-				],
+				"tags": ["globals"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2534,9 +2375,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -2565,9 +2404,7 @@
 			"post": {
 				"operationId": "globals.publish",
 				"summary": "Publishes the Globals' Draft (API clients confirm a preview first).",
-				"tags": [
-					"globals"
-				],
+				"tags": ["globals"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2584,9 +2421,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -2616,9 +2451,7 @@
 			"post": {
 				"operationId": "languages.list",
 				"summary": "Lists the Site's languages and its browser-language redirect setting.",
-				"tags": [
-					"languages"
-				],
+				"tags": ["languages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2631,9 +2464,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -2662,9 +2493,7 @@
 			"post": {
 				"operationId": "languages.add",
 				"summary": "Adds a language to the Site.",
-				"tags": [
-					"languages"
-				],
+				"tags": ["languages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2685,10 +2514,7 @@
 										"maxLength": 200
 									},
 									"direction": {
-										"enum": [
-											"ltr",
-											"rtl"
-										],
+										"enum": ["ltr", "rtl"],
 										"type": "string"
 									},
 									"domain": {
@@ -2703,10 +2529,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"code"
-								]
+								"required": ["siteId", "code"]
 							}
 						}
 					}
@@ -2735,9 +2558,7 @@
 			"post": {
 				"operationId": "languages.setDefault",
 				"summary": "Makes another language the Site's Default language, after a preview and a confirmation.",
-				"tags": [
-					"languages"
-				],
+				"tags": ["languages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2758,10 +2579,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"code"
-								]
+								"required": ["siteId", "code"]
 							}
 						}
 					}
@@ -2791,9 +2609,7 @@
 			"post": {
 				"operationId": "languages.remove",
 				"summary": "Removes a language, after a preview and a confirmation.",
-				"tags": [
-					"languages"
-				],
+				"tags": ["languages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2814,10 +2630,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"code"
-								]
+								"required": ["siteId", "code"]
 							}
 						}
 					}
@@ -2847,9 +2660,7 @@
 			"post": {
 				"operationId": "languages.setBrowserRedirect",
 				"summary": "Turns the browser-language redirect on or off.",
-				"tags": [
-					"languages"
-				],
+				"tags": ["languages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2865,10 +2676,7 @@
 										"type": "boolean"
 									}
 								},
-								"required": [
-									"siteId",
-									"browserLanguageRedirect"
-								]
+								"required": ["siteId", "browserLanguageRedirect"]
 							}
 						}
 					}
@@ -2897,9 +2705,7 @@
 			"post": {
 				"operationId": "languages.update",
 				"summary": "Changes a language's name, direction or domain.",
-				"tags": [
-					"languages"
-				],
+				"tags": ["languages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2920,10 +2726,7 @@
 										"maxLength": 200
 									},
 									"direction": {
-										"enum": [
-											"ltr",
-											"rtl"
-										],
+										"enum": ["ltr", "rtl"],
 										"type": "string"
 									},
 									"domain": {
@@ -2938,10 +2741,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"code"
-								]
+								"required": ["siteId", "code"]
 							}
 						}
 					}
@@ -2970,9 +2770,7 @@
 			"post": {
 				"operationId": "domains.list",
 				"summary": "Lists the Site's domains with their status and the DNS records to create.",
-				"tags": [
-					"domains"
-				],
+				"tags": ["domains"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -2985,9 +2783,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -3016,9 +2812,7 @@
 			"post": {
 				"operationId": "domains.setCdn",
 				"summary": "Sets the CDN in front of the Site.",
-				"tags": [
-					"domains"
-				],
+				"tags": ["domains"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3033,10 +2827,7 @@
 									"cdn": {
 										"anyOf": [
 											{
-												"enum": [
-													"cloudflare",
-													"fastly"
-												],
+												"enum": ["cloudflare", "fastly"],
 												"type": "string"
 											},
 											{
@@ -3045,10 +2836,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"cdn"
-								]
+								"required": ["siteId", "cdn"]
 							}
 						}
 					}
@@ -3077,9 +2865,7 @@
 			"post": {
 				"operationId": "domains.add",
 				"summary": "Adds a domain (and optionally its www partner) to the Site.",
-				"tags": [
-					"domains"
-				],
+				"tags": ["domains"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3100,10 +2886,7 @@
 										"default": false
 									}
 								},
-								"required": [
-									"siteId",
-									"name"
-								]
+								"required": ["siteId", "name"]
 							}
 						}
 					}
@@ -3132,9 +2915,7 @@
 			"post": {
 				"operationId": "domains.check",
 				"summary": "Checks a domain now.",
-				"tags": [
-					"domains"
-				],
+				"tags": ["domains"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3151,10 +2932,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"domainId"
-								]
+								"required": ["siteId", "domainId"]
 							}
 						}
 					}
@@ -3183,9 +2961,7 @@
 			"post": {
 				"operationId": "domains.makePrimary",
 				"summary": "Makes a verified domain the Primary domain.",
-				"tags": [
-					"domains"
-				],
+				"tags": ["domains"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3202,10 +2978,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"domainId"
-								]
+								"required": ["siteId", "domainId"]
 							}
 						}
 					}
@@ -3234,9 +3007,7 @@
 			"post": {
 				"operationId": "domains.remove",
 				"summary": "Removes a domain, after a preview and a confirmation.",
-				"tags": [
-					"domains"
-				],
+				"tags": ["domains"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3257,10 +3028,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"domainId"
-								]
+								"required": ["siteId", "domainId"]
 							}
 						}
 					}
@@ -3290,9 +3058,7 @@
 			"post": {
 				"operationId": "webhooks.list",
 				"summary": "Lists the Site's Webhooks and the events a Webhook can receive.",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3305,9 +3071,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -3336,9 +3100,7 @@
 			"post": {
 				"operationId": "webhooks.add",
 				"summary": "Adds a Webhook (Sensitive: admin only).",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3363,9 +3125,7 @@
 										"minItems": 1,
 										"maxItems": 2,
 										"items": {
-											"enum": [
-												"publish"
-											],
+											"enum": ["publish"],
 											"type": "string"
 										}
 									},
@@ -3374,11 +3134,7 @@
 										"maxLength": 300
 									}
 								},
-								"required": [
-									"siteId",
-									"url",
-									"events"
-								]
+								"required": ["siteId", "url", "events"]
 							}
 						}
 					}
@@ -3408,9 +3164,7 @@
 			"post": {
 				"operationId": "webhooks.update",
 				"summary": "Changes a Webhook's name, URL and events (Sensitive: admin only).",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3439,19 +3193,12 @@
 										"minItems": 1,
 										"maxItems": 2,
 										"items": {
-											"enum": [
-												"publish"
-											],
+											"enum": ["publish"],
 											"type": "string"
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"webhookId",
-									"url",
-									"events"
-								]
+								"required": ["siteId", "webhookId", "url", "events"]
 							}
 						}
 					}
@@ -3481,9 +3228,7 @@
 			"post": {
 				"operationId": "webhooks.changeSecret",
 				"summary": "Replaces a Webhook's signing secret (Sensitive: admin only).",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3504,10 +3249,7 @@
 										"maxLength": 300
 									}
 								},
-								"required": [
-									"siteId",
-									"webhookId"
-								]
+								"required": ["siteId", "webhookId"]
 							}
 						}
 					}
@@ -3537,9 +3279,7 @@
 			"post": {
 				"operationId": "webhooks.remove",
 				"summary": "Removes a Webhook, after a preview and a confirmation.",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3560,10 +3300,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"webhookId"
-								]
+								"required": ["siteId", "webhookId"]
 							}
 						}
 					}
@@ -3593,9 +3330,7 @@
 			"post": {
 				"operationId": "webhooks.deliveries",
 				"summary": "A Webhook's delivery log, newest first.",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3622,10 +3357,7 @@
 										"default": 20
 									}
 								},
-								"required": [
-									"siteId",
-									"webhookId"
-								]
+								"required": ["siteId", "webhookId"]
 							}
 						}
 					}
@@ -3654,9 +3386,7 @@
 			"post": {
 				"operationId": "webhooks.setEnabled",
 				"summary": "Switches a Webhook on or off.",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3676,11 +3406,7 @@
 										"type": "boolean"
 									}
 								},
-								"required": [
-									"siteId",
-									"webhookId",
-									"enabled"
-								]
+								"required": ["siteId", "webhookId", "enabled"]
 							}
 						}
 					}
@@ -3709,9 +3435,7 @@
 			"post": {
 				"operationId": "webhooks.test",
 				"summary": "Sends the Webhook a signed test event at once.",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3728,10 +3452,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"webhookId"
-								]
+								"required": ["siteId", "webhookId"]
 							}
 						}
 					}
@@ -3760,9 +3481,7 @@
 			"post": {
 				"operationId": "webhooks.redeliver",
 				"summary": "Queues a failed delivery again.",
-				"tags": [
-					"webhooks"
-				],
+				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3783,11 +3502,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"webhookId",
-									"deliveryId"
-								]
+								"required": ["siteId", "webhookId", "deliveryId"]
 							}
 						}
 					}
@@ -3816,9 +3531,7 @@
 			"post": {
 				"operationId": "templates.getEntryTemplate",
 				"summary": "A Post Type's Entry template as an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3835,10 +3548,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -3867,9 +3577,7 @@
 			"post": {
 				"operationId": "templates.saveEntryTemplate",
 				"summary": "Saves the Draft of a Post Type's Entry template from an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3887,10 +3595,7 @@
 									},
 									"tree": {}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -3919,9 +3624,7 @@
 			"post": {
 				"operationId": "templates.getEntryTemplateMarkup",
 				"summary": "A Post Type's Entry template as Template markup, Draft and published.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -3938,10 +3641,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -3970,9 +3670,7 @@
 			"post": {
 				"operationId": "templates.saveEntryTemplateMarkup",
 				"summary": "Saves the Draft of a Post Type's Entry template from Template markup.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4004,11 +3702,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId",
-									"markup"
-								]
+								"required": ["siteId", "postTypeId", "markup"]
 							}
 						}
 					}
@@ -4037,9 +3731,7 @@
 			"post": {
 				"operationId": "templates.getSiteTemplate",
 				"summary": "The Site template as an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4052,9 +3744,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -4083,9 +3773,7 @@
 			"post": {
 				"operationId": "templates.saveSiteTemplate",
 				"summary": "Saves the Draft of the Site template from an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4099,9 +3787,7 @@
 									},
 									"tree": {}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -4130,9 +3816,7 @@
 			"post": {
 				"operationId": "templates.getSiteTemplateMarkup",
 				"summary": "The Site template as Template markup, Draft and published.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4145,9 +3829,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -4176,9 +3858,7 @@
 			"post": {
 				"operationId": "templates.saveSiteTemplateMarkup",
 				"summary": "Saves the Draft of the Site template from Template markup.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4206,10 +3886,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"markup"
-								]
+								"required": ["siteId", "markup"]
 							}
 						}
 					}
@@ -4238,9 +3915,7 @@
 			"post": {
 				"operationId": "templates.getArchiveTemplate",
 				"summary": "A Post Type's Archive template as an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4257,10 +3932,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -4289,9 +3961,7 @@
 			"post": {
 				"operationId": "templates.saveArchiveTemplate",
 				"summary": "Saves the Draft of a Post Type's Archive template from an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4309,10 +3979,7 @@
 									},
 									"tree": {}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -4341,9 +4008,7 @@
 			"post": {
 				"operationId": "templates.getArchiveTemplateMarkup",
 				"summary": "A Post Type's Archive template as Template markup, Draft and published.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4360,10 +4025,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId"
-								]
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -4392,9 +4054,7 @@
 			"post": {
 				"operationId": "templates.saveArchiveTemplateMarkup",
 				"summary": "Saves the Draft of a Post Type's Archive template from Template markup.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4426,11 +4086,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"postTypeId",
-									"markup"
-								]
+								"required": ["siteId", "postTypeId", "markup"]
 							}
 						}
 					}
@@ -4459,9 +4115,7 @@
 			"post": {
 				"operationId": "templates.getSearchTemplate",
 				"summary": "The Search results template as an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4474,9 +4128,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -4505,9 +4157,7 @@
 			"post": {
 				"operationId": "templates.saveSearchTemplate",
 				"summary": "Saves the Draft of the Search results template from an element tree.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4521,9 +4171,7 @@
 									},
 									"tree": {}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -4552,9 +4200,7 @@
 			"post": {
 				"operationId": "templates.getSearchTemplateMarkup",
 				"summary": "The Search results template as Template markup, Draft and published.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4567,9 +4213,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -4598,9 +4242,7 @@
 			"post": {
 				"operationId": "templates.saveSearchTemplateMarkup",
 				"summary": "Saves the Draft of the Search results template from Template markup.",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4628,10 +4270,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"markup"
-								]
+								"required": ["siteId", "markup"]
 							}
 						}
 					}
@@ -4660,9 +4299,7 @@
 			"post": {
 				"operationId": "templates.publish",
 				"summary": "Publishes a Template's Draft (API clients confirm a preview first).",
-				"tags": [
-					"templates"
-				],
+				"tags": ["templates"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4683,10 +4320,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"templateId"
-								]
+								"required": ["siteId", "templateId"]
 							}
 						}
 					}
@@ -4716,9 +4350,7 @@
 			"post": {
 				"operationId": "components.list",
 				"summary": "Lists the Site's Components and those of its Modules, with where each is used.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4731,9 +4363,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -4762,9 +4392,7 @@
 			"post": {
 				"operationId": "components.get",
 				"summary": "One Component: its Draft and published Props and tree, and where it is used.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4789,10 +4417,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"componentId"
-								]
+								"required": ["siteId", "componentId"]
 							}
 						}
 					}
@@ -4821,9 +4446,7 @@
 			"post": {
 				"operationId": "components.create",
 				"summary": "Creates a Component with its name and Props.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -4971,10 +4594,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -5131,10 +4751,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -5165,26 +4782,15 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"name"
-								]
+								"required": ["siteId", "name"]
 							}
 						}
 					}
@@ -5213,9 +4819,7 @@
 			"post": {
 				"operationId": "components.saveDraft",
 				"summary": "Saves a Component's Draft: its Props and element tree.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -5371,10 +4975,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -5531,10 +5132,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -5565,27 +5163,16 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									},
 									"tree": {}
 								},
-								"required": [
-									"siteId",
-									"componentId"
-								]
+								"required": ["siteId", "componentId"]
 							}
 						}
 					}
@@ -5614,9 +5201,7 @@
 			"post": {
 				"operationId": "components.getMarkup",
 				"summary": "A Component as Template markup, Draft and published.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -5641,10 +5226,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"componentId"
-								]
+								"required": ["siteId", "componentId"]
 							}
 						}
 					}
@@ -5673,9 +5255,7 @@
 			"post": {
 				"operationId": "components.saveMarkup",
 				"summary": "Saves a Component's Draft from Template markup.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -5835,10 +5415,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -5995,10 +5572,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -6029,19 +5603,11 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									},
 									"basedOn": {
@@ -6056,11 +5622,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"componentId",
-									"markup"
-								]
+								"required": ["siteId", "componentId", "markup"]
 							}
 						}
 					}
@@ -6089,9 +5651,7 @@
 			"post": {
 				"operationId": "components.publish",
 				"summary": "Publishes a Component's Draft (API clients confirm a preview first).",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6120,10 +5680,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"componentId"
-								]
+								"required": ["siteId", "componentId"]
 							}
 						}
 					}
@@ -6153,9 +5710,7 @@
 			"post": {
 				"operationId": "components.rename",
 				"summary": "Renames a Component everywhere it is placed.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6184,11 +5739,7 @@
 										"maxLength": 200
 									}
 								},
-								"required": [
-									"siteId",
-									"componentId",
-									"name"
-								]
+								"required": ["siteId", "componentId", "name"]
 							}
 						}
 					}
@@ -6217,9 +5768,7 @@
 			"post": {
 				"operationId": "components.delete",
 				"summary": "Deletes a Component, after a confirmation.",
-				"tags": [
-					"components"
-				],
+				"tags": ["components"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6248,10 +5797,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"componentId"
-								]
+								"required": ["siteId", "componentId"]
 							}
 						}
 					}
@@ -6281,9 +5827,7 @@
 			"post": {
 				"operationId": "forms.list",
 				"summary": "Lists the Site's Forms, with where each is placed.",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6296,9 +5840,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -6327,9 +5869,7 @@
 			"post": {
 				"operationId": "forms.get",
 				"summary": "One Form: its Draft and published version.",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6346,10 +5886,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"formId"
-								]
+								"required": ["siteId", "formId"]
 							}
 						}
 					}
@@ -6378,9 +5915,7 @@
 			"post": {
 				"operationId": "forms.create",
 				"summary": "Creates a Form.",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6401,10 +5936,7 @@
 										"maxLength": 200
 									}
 								},
-								"required": [
-									"siteId",
-									"name"
-								]
+								"required": ["siteId", "name"]
 							}
 						}
 					}
@@ -6433,9 +5965,7 @@
 			"post": {
 				"operationId": "forms.saveDraft",
 				"summary": "Saves a Form's Draft: its fields, button, success and spam settings.",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6465,11 +5995,7 @@
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"formId",
-									"form"
-								]
+								"required": ["siteId", "formId", "form"]
 							}
 						}
 					}
@@ -6498,9 +6024,7 @@
 			"post": {
 				"operationId": "forms.publish",
 				"summary": "Publishes a Form's Draft (API clients confirm a preview first).",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6521,10 +6045,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"formId"
-								]
+								"required": ["siteId", "formId"]
 							}
 						}
 					}
@@ -6554,9 +6075,7 @@
 			"post": {
 				"operationId": "forms.rename",
 				"summary": "Changes a Form's name or key.",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6581,10 +6100,7 @@
 										"maxLength": 200
 									}
 								},
-								"required": [
-									"siteId",
-									"formId"
-								]
+								"required": ["siteId", "formId"]
 							}
 						}
 					}
@@ -6613,9 +6129,7 @@
 			"post": {
 				"operationId": "forms.captcha.get",
 				"summary": "The Site's CAPTCHA settings for its Forms (never its secret key).",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6628,9 +6142,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -6659,9 +6171,7 @@
 			"post": {
 				"operationId": "forms.captcha.set",
 				"summary": "Sets the Site's CAPTCHA (Sensitive: admin only).",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6692,10 +6202,7 @@
 										"maxLength": 4000
 									}
 								},
-								"required": [
-									"siteId",
-									"captcha"
-								]
+								"required": ["siteId", "captcha"]
 							}
 						}
 					}
@@ -6725,9 +6232,7 @@
 			"post": {
 				"operationId": "forms.delete",
 				"summary": "Deletes a Form, after a confirmation.",
-				"tags": [
-					"forms"
-				],
+				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6748,10 +6253,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"formId"
-								]
+								"required": ["siteId", "formId"]
 							}
 						}
 					}
@@ -6781,9 +6283,7 @@
 			"post": {
 				"operationId": "loops.list",
 				"summary": "Lists the Site's Loops.",
-				"tags": [
-					"loops"
-				],
+				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6796,9 +6296,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -6827,9 +6325,7 @@
 			"post": {
 				"operationId": "loops.get",
 				"summary": "One Loop: its Draft and published version, and its Loop items in a language.",
-				"tags": [
-					"loops"
-				],
+				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6851,10 +6347,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId",
-									"loopId"
-								]
+								"required": ["siteId", "loopId"]
 							}
 						}
 					}
@@ -6883,9 +6376,7 @@
 			"post": {
 				"operationId": "loops.create",
 				"summary": "Creates a Loop.",
-				"tags": [
-					"loops"
-				],
+				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -6902,10 +6393,7 @@
 										"maxLength": 200
 									},
 									"source": {
-										"enum": [
-											"query",
-											"items"
-										],
+										"enum": ["query", "items"],
 										"type": "string"
 									},
 									"query": {
@@ -7079,10 +6567,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -7239,10 +6724,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -7273,27 +6755,15 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"name",
-									"source"
-								]
+								"required": ["siteId", "name", "source"]
 							}
 						}
 					}
@@ -7322,9 +6792,7 @@
 			"post": {
 				"operationId": "loops.saveDraft",
 				"summary": "Saves a Loop's Draft: its source, query and Loop items' Fields.",
-				"tags": [
-					"loops"
-				],
+				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -7341,10 +6809,7 @@
 										"format": "uuid"
 									},
 									"source": {
-										"enum": [
-											"query",
-											"items"
-										],
+										"enum": ["query", "items"],
 										"type": "string"
 									},
 									"query": {
@@ -7518,10 +6983,7 @@
 																"maxLength": 200
 															}
 														},
-														"required": [
-															"value",
-															"label"
-														]
+														"required": ["value", "label"]
 													}
 												},
 												"multiple": {
@@ -7678,10 +7140,7 @@
 																			"maxLength": 200
 																		}
 																	},
-																	"required": [
-																		"value",
-																		"label"
-																	]
+																	"required": ["value", "label"]
 																}
 															},
 															"multiple": {
@@ -7712,26 +7171,15 @@
 																"items": {}
 															}
 														},
-														"required": [
-															"key",
-															"label",
-															"type"
-														]
+														"required": ["key", "label", "type"]
 													}
 												}
 											},
-											"required": [
-												"key",
-												"label",
-												"type"
-											]
+											"required": ["key", "label", "type"]
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"loopId"
-								]
+								"required": ["siteId", "loopId"]
 							}
 						}
 					}
@@ -7760,9 +7208,7 @@
 			"post": {
 				"operationId": "loops.saveItems",
 				"summary": "Saves a Loop's items in its Draft, in one language.",
-				"tags": [
-					"loops"
-				],
+				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -7796,11 +7242,7 @@
 										}
 									}
 								},
-								"required": [
-									"siteId",
-									"loopId",
-									"items"
-								]
+								"required": ["siteId", "loopId", "items"]
 							}
 						}
 					}
@@ -7829,9 +7271,7 @@
 			"post": {
 				"operationId": "loops.data",
 				"summary": "A Loop's Data tab: its first item as bindings read it.",
-				"tags": [
-					"loops"
-				],
+				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -7853,10 +7293,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId",
-									"loopId"
-								]
+								"required": ["siteId", "loopId"]
 							}
 						}
 					}
@@ -7885,9 +7322,7 @@
 			"post": {
 				"operationId": "loops.publish",
 				"summary": "Publishes a Loop's Draft (API clients confirm a preview first).",
-				"tags": [
-					"loops"
-				],
+				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -7908,10 +7343,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"loopId"
-								]
+								"required": ["siteId", "loopId"]
 							}
 						}
 					}
@@ -7941,9 +7373,7 @@
 			"post": {
 				"operationId": "scripts.get",
 				"summary": "The Site script or an Entry's page script.",
-				"tags": [
-					"scripts"
-				],
+				"tags": ["scripts"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -7967,10 +7397,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"entryId"
-								]
+								"required": ["siteId", "entryId"]
 							}
 						}
 					}
@@ -7999,9 +7426,7 @@
 			"post": {
 				"operationId": "scripts.saveDraft",
 				"summary": "Saves the Draft of the Site script or a page script.",
-				"tags": [
-					"scripts"
-				],
+				"tags": ["scripts"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8040,11 +7465,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"entryId",
-									"code"
-								]
+								"required": ["siteId", "entryId", "code"]
 							}
 						}
 					}
@@ -8073,9 +7494,7 @@
 			"post": {
 				"operationId": "scripts.publish",
 				"summary": "Publishes a script's Draft (API clients confirm a preview first).",
-				"tags": [
-					"scripts"
-				],
+				"tags": ["scripts"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8096,10 +7515,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"scriptId"
-								]
+								"required": ["siteId", "scriptId"]
 							}
 						}
 					}
@@ -8129,9 +7545,7 @@
 			"post": {
 				"operationId": "libraries.list",
 				"summary": "Lists the Site's Libraries in load order.",
-				"tags": [
-					"libraries"
-				],
+				"tags": ["libraries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8144,9 +7558,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -8175,9 +7587,7 @@
 			"post": {
 				"operationId": "libraries.add",
 				"summary": "Downloads a Library and adds it to the Site.",
-				"tags": [
-					"libraries"
-				],
+				"tags": ["libraries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8217,11 +7627,7 @@
 														]
 													}
 												},
-												"required": [
-													"source",
-													"packageName",
-													"version"
-												]
+												"required": ["source", "packageName", "version"]
 											},
 											{
 												"type": "object",
@@ -8234,18 +7640,12 @@
 														"maxLength": 2000
 													}
 												},
-												"required": [
-													"source",
-													"url"
-												]
+												"required": ["source", "url"]
 											}
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"library"
-								]
+								"required": ["siteId", "library"]
 							}
 						}
 					}
@@ -8274,9 +7674,7 @@
 			"post": {
 				"operationId": "libraries.checkUpdates",
 				"summary": "Asks the registry which of the Site's Libraries have newer versions.",
-				"tags": [
-					"libraries"
-				],
+				"tags": ["libraries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8289,9 +7687,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -8320,9 +7716,7 @@
 			"post": {
 				"operationId": "libraries.update",
 				"summary": "Updates a Library to another version.",
-				"tags": [
-					"libraries"
-				],
+				"tags": ["libraries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8343,10 +7737,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"libraryId"
-								]
+								"required": ["siteId", "libraryId"]
 							}
 						}
 					}
@@ -8375,9 +7766,7 @@
 			"post": {
 				"operationId": "libraries.remove",
 				"summary": "Removes a Library from the Site's pages (API clients confirm a preview first).",
-				"tags": [
-					"libraries"
-				],
+				"tags": ["libraries"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8398,10 +7787,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"libraryId"
-								]
+								"required": ["siteId", "libraryId"]
 							}
 						}
 					}
@@ -8431,9 +7817,7 @@
 			"post": {
 				"operationId": "outsideScripts.list",
 				"summary": "Lists the Site's outside scripts in load order.",
-				"tags": [
-					"outsideScripts"
-				],
+				"tags": ["outsideScripts"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8446,9 +7830,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -8477,9 +7859,7 @@
 			"post": {
 				"operationId": "outsideScripts.add",
 				"summary": "Adds an outside script.",
-				"tags": [
-					"outsideScripts"
-				],
+				"tags": ["outsideScripts"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8496,19 +7876,11 @@
 										"maxLength": 200
 									},
 									"placement": {
-										"enum": [
-											"head",
-											"bodyEnd"
-										],
+										"enum": ["head", "bodyEnd"],
 										"type": "string"
 									},
 									"consentCategory": {
-										"enum": [
-											"necessary",
-											"analytics",
-											"marketing",
-											"media"
-										],
+										"enum": ["necessary", "analytics", "marketing", "media"],
 										"type": "string"
 									},
 									"source": {
@@ -8524,10 +7896,7 @@
 														"maxLength": 2000
 													}
 												},
-												"required": [
-													"kind",
-													"url"
-												]
+												"required": ["kind", "url"]
 											},
 											{
 												"type": "object",
@@ -8540,21 +7909,12 @@
 														"maxLength": 200000
 													}
 												},
-												"required": [
-													"kind",
-													"snippet"
-												]
+												"required": ["kind", "snippet"]
 											}
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"name",
-									"placement",
-									"consentCategory",
-									"source"
-								]
+								"required": ["siteId", "name", "placement", "consentCategory", "source"]
 							}
 						}
 					}
@@ -8583,9 +7943,7 @@
 			"post": {
 				"operationId": "outsideScripts.update",
 				"summary": "Changes an outside script.",
-				"tags": [
-					"outsideScripts"
-				],
+				"tags": ["outsideScripts"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8606,19 +7964,11 @@
 										"maxLength": 200
 									},
 									"placement": {
-										"enum": [
-											"head",
-											"bodyEnd"
-										],
+										"enum": ["head", "bodyEnd"],
 										"type": "string"
 									},
 									"consentCategory": {
-										"enum": [
-											"necessary",
-											"analytics",
-											"marketing",
-											"media"
-										],
+										"enum": ["necessary", "analytics", "marketing", "media"],
 										"type": "string"
 									},
 									"source": {
@@ -8634,10 +7984,7 @@
 														"maxLength": 2000
 													}
 												},
-												"required": [
-													"kind",
-													"url"
-												]
+												"required": ["kind", "url"]
 											},
 											{
 												"type": "object",
@@ -8650,22 +7997,12 @@
 														"maxLength": 200000
 													}
 												},
-												"required": [
-													"kind",
-													"snippet"
-												]
+												"required": ["kind", "snippet"]
 											}
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"outsideScriptId",
-									"name",
-									"placement",
-									"consentCategory",
-									"source"
-								]
+								"required": ["siteId", "outsideScriptId", "name", "placement", "consentCategory", "source"]
 							}
 						}
 					}
@@ -8694,9 +8031,7 @@
 			"post": {
 				"operationId": "outsideScripts.remove",
 				"summary": "Removes an outside script.",
-				"tags": [
-					"outsideScripts"
-				],
+				"tags": ["outsideScripts"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8713,10 +8048,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"outsideScriptId"
-								]
+								"required": ["siteId", "outsideScriptId"]
 							}
 						}
 					}
@@ -8745,9 +8077,7 @@
 			"post": {
 				"operationId": "csp.get",
 				"summary": "The Site's Content Security Policy: its mode and allowed hosts.",
-				"tags": [
-					"csp"
-				],
+				"tags": ["csp"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8760,9 +8090,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -8791,9 +8119,7 @@
 			"post": {
 				"operationId": "csp.setMode",
 				"summary": "Changes how the Site's policy applies.",
-				"tags": [
-					"csp"
-				],
+				"tags": ["csp"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8806,18 +8132,11 @@
 										"format": "uuid"
 									},
 									"mode": {
-										"enum": [
-											"strict",
-											"relaxed",
-											"reportOnly"
-										],
+										"enum": ["strict", "relaxed", "reportOnly"],
 										"type": "string"
 									}
 								},
-								"required": [
-									"siteId",
-									"mode"
-								]
+								"required": ["siteId", "mode"]
 							}
 						}
 					}
@@ -8846,9 +8165,7 @@
 			"post": {
 				"operationId": "csp.addHost",
 				"summary": "Allows a host in the Site's policy.",
-				"tags": [
-					"csp"
-				],
+				"tags": ["csp"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8865,10 +8182,7 @@
 										"maxLength": 300
 									}
 								},
-								"required": [
-									"siteId",
-									"host"
-								]
+								"required": ["siteId", "host"]
 							}
 						}
 					}
@@ -8897,9 +8211,7 @@
 			"post": {
 				"operationId": "csp.removeHost",
 				"summary": "Removes an allowed host from the Site's policy.",
-				"tags": [
-					"csp"
-				],
+				"tags": ["csp"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8916,10 +8228,7 @@
 										"maxLength": 300
 									}
 								},
-								"required": [
-									"siteId",
-									"host"
-								]
+								"required": ["siteId", "host"]
 							}
 						}
 					}
@@ -8948,9 +8257,7 @@
 			"post": {
 				"operationId": "consentBanner.get",
 				"summary": "The Site's Consent banner: its mode, layout and words in a language.",
-				"tags": [
-					"consentBanner"
-				],
+				"tags": ["consentBanner"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -8968,9 +8275,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -8999,9 +8304,7 @@
 			"post": {
 				"operationId": "consentBanner.saveDraft",
 				"summary": "Saves changes to the Consent banner's words' Draft.",
-				"tags": [
-					"consentBanner"
-				],
+				"tags": ["consentBanner"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9027,10 +8330,7 @@
 										"additionalProperties": {}
 									}
 								},
-								"required": [
-									"siteId",
-									"fields"
-								]
+								"required": ["siteId", "fields"]
 							}
 						}
 					}
@@ -9059,9 +8359,7 @@
 			"post": {
 				"operationId": "consentBanner.publish",
 				"summary": "Publishes the Consent banner's words (API clients confirm a preview first).",
-				"tags": [
-					"consentBanner"
-				],
+				"tags": ["consentBanner"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9078,9 +8376,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -9110,9 +8406,7 @@
 			"post": {
 				"operationId": "consentBanner.setSettings",
 				"summary": "Changes how the Site asks for consent and how the banner shows.",
-				"tags": [
-					"consentBanner"
-				],
+				"tags": ["consentBanner"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9125,28 +8419,15 @@
 										"format": "uuid"
 									},
 									"mode": {
-										"enum": [
-											"optIn",
-											"optOut",
-											"none",
-											"outside"
-										],
+										"enum": ["optIn", "optOut", "none", "outside"],
 										"type": "string"
 									},
 									"layout": {
-										"enum": [
-											"bar",
-											"box",
-											"dialog"
-										],
+										"enum": ["bar", "box", "dialog"],
 										"type": "string"
 									}
 								},
-								"required": [
-									"siteId",
-									"mode",
-									"layout"
-								]
+								"required": ["siteId", "mode", "layout"]
 							}
 						}
 					}
@@ -9175,9 +8456,7 @@
 			"post": {
 				"operationId": "consentBanner.record",
 				"summary": "One of the Site's Consent records, by its id.",
-				"tags": [
-					"consentBanner"
-				],
+				"tags": ["consentBanner"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9194,10 +8473,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"recordId"
-								]
+								"required": ["siteId", "recordId"]
 							}
 						}
 					}
@@ -9226,9 +8502,7 @@
 			"post": {
 				"operationId": "seoSettings.get",
 				"summary": "The Site's SEO settings.",
-				"tags": [
-					"seoSettings"
-				],
+				"tags": ["seoSettings"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9241,9 +8515,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -9272,9 +8544,7 @@
 			"post": {
 				"operationId": "seoSettings.update",
 				"summary": "Changes the Site's SEO settings.",
-				"tags": [
-					"seoSettings"
-				],
+				"tags": ["seoSettings"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9316,10 +8586,7 @@
 										"type": "object",
 										"properties": {
 											"kind": {
-												"enum": [
-													"organization",
-													"localBusiness"
-												],
+												"enum": ["organization", "localBusiness"],
 												"type": "string"
 											},
 											"name": {
@@ -9388,9 +8655,7 @@
 										}
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -9419,9 +8684,7 @@
 			"post": {
 				"operationId": "designSystem.get",
 				"summary": "The Design system's Draft and published version.",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9434,9 +8697,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -9465,9 +8726,7 @@
 			"post": {
 				"operationId": "designSystem.saveDraft",
 				"summary": "Saves a change to the Design system's Draft.",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -9492,10 +8751,7 @@
 														"type": "number"
 													}
 												},
-												"required": [
-													"min",
-													"max"
-												]
+												"required": ["min", "max"]
 											},
 											"colours": {
 												"type": "array",
@@ -9531,9 +8787,7 @@
 																	"default": {}
 																}
 															},
-															"required": [
-																"base"
-															]
+															"required": ["base"]
 														},
 														"dark": {
 															"type": "object",
@@ -9562,19 +8816,14 @@
 																	"default": {}
 																}
 															},
-															"required": [
-																"base"
-															],
+															"required": ["base"],
 															"default": {
 																"base": null,
 																"steps": {}
 															}
 														}
 													},
-													"required": [
-														"name",
-														"light"
-													]
+													"required": ["name", "light"]
 												}
 											},
 											"space": {
@@ -9590,10 +8839,7 @@
 																"type": "number"
 															}
 														},
-														"required": [
-															"min",
-															"max"
-														]
+														"required": ["min", "max"]
 													},
 													"ratio": {
 														"type": "object",
@@ -9605,10 +8851,7 @@
 																"type": "number"
 															}
 														},
-														"required": [
-															"min",
-															"max"
-														]
+														"required": ["min", "max"]
 													},
 													"steps": {
 														"type": "array",
@@ -9639,10 +8882,7 @@
 																					"type": "number"
 																				}
 																			},
-																			"required": [
-																				"min",
-																				"max"
-																			]
+																			"required": ["min", "max"]
 																		},
 																		{
 																			"type": "null"
@@ -9651,18 +8891,11 @@
 																	"default": null
 																}
 															},
-															"required": [
-																"name",
-																"exponent"
-															]
+															"required": ["name", "exponent"]
 														}
 													}
 												},
-												"required": [
-													"base",
-													"ratio",
-													"steps"
-												]
+												"required": ["base", "ratio", "steps"]
 											},
 											"text": {
 												"type": "object",
@@ -9677,10 +8910,7 @@
 																"type": "number"
 															}
 														},
-														"required": [
-															"min",
-															"max"
-														]
+														"required": ["min", "max"]
 													},
 													"ratio": {
 														"type": "object",
@@ -9692,10 +8922,7 @@
 																"type": "number"
 															}
 														},
-														"required": [
-															"min",
-															"max"
-														]
+														"required": ["min", "max"]
 													},
 													"steps": {
 														"type": "array",
@@ -9726,10 +8953,7 @@
 																					"type": "number"
 																				}
 																			},
-																			"required": [
-																				"min",
-																				"max"
-																			]
+																			"required": ["min", "max"]
 																		},
 																		{
 																			"type": "null"
@@ -9738,18 +8962,11 @@
 																	"default": null
 																}
 															},
-															"required": [
-																"name",
-																"exponent"
-															]
+															"required": ["name", "exponent"]
 														}
 													}
 												},
-												"required": [
-													"base",
-													"ratio",
-													"steps"
-												]
+												"required": ["base", "ratio", "steps"]
 											},
 											"fonts": {
 												"type": "array",
@@ -9774,10 +8991,7 @@
 															}
 														}
 													},
-													"required": [
-														"name",
-														"family"
-													]
+													"required": ["name", "family"]
 												}
 											},
 											"radius": {
@@ -9801,23 +9015,14 @@
 																	"type": "number"
 																},
 																"unit": {
-																	"enum": [
-																		"px",
-																		"rem"
-																	],
+																	"enum": ["px", "rem"],
 																	"type": "string"
 																}
 															},
-															"required": [
-																"value",
-																"unit"
-															]
+															"required": ["value", "unit"]
 														}
 													},
-													"required": [
-														"name",
-														"value"
-													]
+													"required": ["name", "value"]
 												}
 											},
 											"shadows": {
@@ -9861,20 +9066,11 @@
 																		"default": false
 																	}
 																},
-																"required": [
-																	"offsetX",
-																	"offsetY",
-																	"blur",
-																	"spread",
-																	"color"
-																]
+																"required": ["offsetX", "offsetY", "blur", "spread", "color"]
 															}
 														}
 													},
-													"required": [
-														"name",
-														"layers"
-													]
+													"required": ["name", "layers"]
 												}
 											},
 											"breakpoints": {
@@ -9895,10 +9091,7 @@
 															"type": "number"
 														}
 													},
-													"required": [
-														"name",
-														"width"
-													]
+													"required": ["name", "width"]
 												}
 											},
 											"widths": {
@@ -9922,23 +9115,14 @@
 																	"type": "number"
 																},
 																"unit": {
-																	"enum": [
-																		"px",
-																		"rem"
-																	],
+																	"enum": ["px", "rem"],
 																	"type": "string"
 																}
 															},
-															"required": [
-																"value",
-																"unit"
-															]
+															"required": ["value", "unit"]
 														}
 													},
-													"required": [
-														"name",
-														"value"
-													]
+													"required": ["name", "value"]
 												}
 											},
 											"focus": {
@@ -9956,10 +9140,7 @@
 																"maxLength": 8
 															}
 														},
-														"required": [
-															"colour",
-															"step"
-														]
+														"required": ["colour", "step"]
 													},
 													"width": {
 														"type": "number"
@@ -9968,11 +9149,7 @@
 														"type": "number"
 													}
 												},
-												"required": [
-													"colour",
-													"width",
-													"offset"
-												]
+												"required": ["colour", "width", "offset"]
 											}
 										},
 										"required": [
@@ -10022,9 +9199,7 @@
 													"maxLength": 100000
 												}
 											},
-											"required": [
-												"name"
-											]
+											"required": ["name"]
 										}
 									},
 									"baseStyles": {
@@ -10046,9 +9221,7 @@
 										"type": "boolean"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -10077,9 +9250,7 @@
 			"post": {
 				"operationId": "designSystem.createClass",
 				"summary": "Adds a Class to the Design system's Draft.",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10115,10 +9286,7 @@
 										"maxLength": 100000
 									}
 								},
-								"required": [
-									"siteId",
-									"name"
-								]
+								"required": ["siteId", "name"]
 							}
 						}
 					}
@@ -10147,9 +9315,7 @@
 			"post": {
 				"operationId": "designSystem.updateClass",
 				"summary": "Renames or restyles a Class of the Draft.",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10189,10 +9355,7 @@
 										"maxLength": 100000
 									}
 								},
-								"required": [
-									"siteId",
-									"classId"
-								]
+								"required": ["siteId", "classId"]
 							}
 						}
 					}
@@ -10221,9 +9384,7 @@
 			"post": {
 				"operationId": "designSystem.deleteClass",
 				"summary": "Deletes a Class from the Draft (API clients confirm a preview first).",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10244,10 +9405,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"classId"
-								]
+								"required": ["siteId", "classId"]
 							}
 						}
 					}
@@ -10277,9 +9435,7 @@
 			"post": {
 				"operationId": "designSystem.exportTokens",
 				"summary": "The Design tokens as a DTCG file.",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10292,17 +9448,12 @@
 										"format": "uuid"
 									},
 									"version": {
-										"enum": [
-											"draft",
-											"published"
-										],
+										"enum": ["draft", "published"],
 										"type": "string",
 										"default": "draft"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -10331,9 +9482,7 @@
 			"post": {
 				"operationId": "designSystem.importTokens",
 				"summary": "Imports a DTCG file into the Design system's Draft.",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10353,10 +9502,7 @@
 										"additionalProperties": {}
 									}
 								},
-								"required": [
-									"siteId",
-									"tokens"
-								]
+								"required": ["siteId", "tokens"]
 							}
 						}
 					}
@@ -10385,9 +9531,7 @@
 			"post": {
 				"operationId": "designSystem.publish",
 				"summary": "Publishes the Design system's Draft (API clients confirm a preview first).",
-				"tags": [
-					"designSystem"
-				],
+				"tags": ["designSystem"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10404,9 +9548,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -10436,9 +9578,7 @@
 			"post": {
 				"operationId": "media.list",
 				"summary": "Lists files of the Site's Media library, or its Trash.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10469,12 +9609,7 @@
 										"maxLength": 200
 									},
 									"kind": {
-										"enum": [
-											"image",
-											"document",
-											"video",
-											"audio"
-										],
+										"enum": ["image", "document", "video", "audio"],
 										"type": "string"
 									},
 									"language": {
@@ -10493,9 +9628,7 @@
 										"maximum": 9007199254740991
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -10524,9 +9657,7 @@
 			"post": {
 				"operationId": "media.overview",
 				"summary": "What the Media library takes and holds.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10539,9 +9670,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -10570,9 +9699,7 @@
 			"post": {
 				"operationId": "media.get",
 				"summary": "One Media file, with its texts in a language.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10594,10 +9721,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId"
-								]
+								"required": ["siteId", "mediaId"]
 							}
 						}
 					}
@@ -10626,9 +9750,7 @@
 			"post": {
 				"operationId": "media.upload",
 				"summary": "Uploads a file to the Media library (multipart form data).",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10656,10 +9778,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"file"
-								]
+								"required": ["siteId", "file"]
 							}
 						},
 						"multipart/form-data": {
@@ -10686,10 +9805,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"file"
-								]
+								"required": ["siteId", "file"]
 							}
 						}
 					}
@@ -10718,9 +9834,7 @@
 			"post": {
 				"operationId": "media.update",
 				"summary": "Changes a file's texts, folder or Focal point.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10801,10 +9915,7 @@
 														"maximum": 100
 													}
 												},
-												"required": [
-													"x",
-													"y"
-												]
+												"required": ["x", "y"]
 											},
 											{
 												"type": "null"
@@ -10812,10 +9923,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId"
-								]
+								"required": ["siteId", "mediaId"]
 							}
 						}
 					}
@@ -10844,9 +9952,7 @@
 			"post": {
 				"operationId": "media.importUrl",
 				"summary": "Imports a file from a public address.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10875,10 +9981,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"url"
-								]
+								"required": ["siteId", "url"]
 							}
 						}
 					}
@@ -10907,9 +10010,7 @@
 			"post": {
 				"operationId": "media.replace",
 				"summary": "Gives a file a new one of the same kind, keeping its id and uses.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -10930,11 +10031,7 @@
 										"contentMediaType": "*/*"
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId",
-									"file"
-								]
+								"required": ["siteId", "mediaId", "file"]
 							}
 						},
 						"multipart/form-data": {
@@ -10954,11 +10051,7 @@
 										"contentMediaType": "*/*"
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId",
-									"file"
-								]
+								"required": ["siteId", "mediaId", "file"]
 							}
 						}
 					}
@@ -10987,9 +10080,7 @@
 			"post": {
 				"operationId": "media.usage",
 				"summary": "Every place a file is used on the Site.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11006,10 +10097,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId"
-								]
+								"required": ["siteId", "mediaId"]
 							}
 						}
 					}
@@ -11038,9 +10126,7 @@
 			"post": {
 				"operationId": "media.delete",
 				"summary": "Puts a file in the Trash, after a preview of where it is used and a confirmation.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11061,10 +10147,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId"
-								]
+								"required": ["siteId", "mediaId"]
 							}
 						}
 					}
@@ -11094,9 +10177,7 @@
 			"post": {
 				"operationId": "media.restore",
 				"summary": "Takes a file out of the Trash.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11113,10 +10194,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId"
-								]
+								"required": ["siteId", "mediaId"]
 							}
 						}
 					}
@@ -11145,9 +10223,7 @@
 			"post": {
 				"operationId": "media.deleteForever",
 				"summary": "Deletes a file in the Trash for good, after a confirmation.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11168,10 +10244,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"mediaId"
-								]
+								"required": ["siteId", "mediaId"]
 							}
 						}
 					}
@@ -11201,9 +10274,7 @@
 			"post": {
 				"operationId": "media.emptyTrash",
 				"summary": "Deletes every file in the Trash for good, after a preview and a confirmation.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11220,9 +10291,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -11252,9 +10321,7 @@
 			"post": {
 				"operationId": "media.folders.list",
 				"summary": "Lists the Media library's folders.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11267,9 +10334,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -11298,9 +10363,7 @@
 			"post": {
 				"operationId": "media.folders.create",
 				"summary": "Creates a Media folder.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11318,10 +10381,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"name"
-								]
+								"required": ["siteId", "name"]
 							}
 						}
 					}
@@ -11350,9 +10410,7 @@
 			"post": {
 				"operationId": "media.folders.rename",
 				"summary": "Renames a Media folder.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11374,11 +10432,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"folderId",
-									"name"
-								]
+								"required": ["siteId", "folderId", "name"]
 							}
 						}
 					}
@@ -11407,9 +10461,7 @@
 			"post": {
 				"operationId": "media.folders.delete",
 				"summary": "Deletes a Media folder; its files stay, in no folder.",
-				"tags": [
-					"media"
-				],
+				"tags": ["media"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11426,10 +10478,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"folderId"
-								]
+								"required": ["siteId", "folderId"]
 							}
 						}
 					}
@@ -11458,9 +10507,7 @@
 			"post": {
 				"operationId": "imports.uploadCsv",
 				"summary": "Uploads a CSV file for an Import (multipart form data).",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11477,10 +10524,7 @@
 										"contentMediaType": "*/*"
 									}
 								},
-								"required": [
-									"siteId",
-									"file"
-								]
+								"required": ["siteId", "file"]
 							}
 						},
 						"multipart/form-data": {
@@ -11496,10 +10540,7 @@
 										"contentMediaType": "*/*"
 									}
 								},
-								"required": [
-									"siteId",
-									"file"
-								]
+								"required": ["siteId", "file"]
 							}
 						}
 					}
@@ -11528,9 +10569,7 @@
 			"post": {
 				"operationId": "imports.preview",
 				"summary": "What a run of an Import would do with an uploaded file, without writing anything.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11594,19 +10633,11 @@
 															]
 														}
 													},
-													"required": [
-														"column",
-														"to"
-													]
+													"required": ["column", "to"]
 												}
 											}
 										},
-										"required": [
-											"postTypeId",
-											"language",
-											"match",
-											"columns"
-										]
+										"required": ["postTypeId", "language", "match", "columns"]
 									},
 									"importId": {
 										"anyOf": [
@@ -11620,11 +10651,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"fileId",
-									"settings"
-								]
+								"required": ["siteId", "fileId", "settings"]
 							}
 						}
 					}
@@ -11653,9 +10680,7 @@
 			"post": {
 				"operationId": "imports.list",
 				"summary": "Lists the Site's Imports.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11668,9 +10693,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -11699,9 +10722,7 @@
 			"post": {
 				"operationId": "imports.get",
 				"summary": "One Import, with its runs.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11718,10 +10739,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"importId"
-								]
+								"required": ["siteId", "importId"]
 							}
 						}
 					}
@@ -11750,9 +10768,7 @@
 			"post": {
 				"operationId": "imports.create",
 				"summary": "Creates an Import.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11820,27 +10836,14 @@
 															]
 														}
 													},
-													"required": [
-														"column",
-														"to"
-													]
+													"required": ["column", "to"]
 												}
 											}
 										},
-										"required": [
-											"postTypeId",
-											"language",
-											"match",
-											"columns"
-										]
+										"required": ["postTypeId", "language", "match", "columns"]
 									}
 								},
-								"required": [
-									"siteId",
-									"name",
-									"source",
-									"settings"
-								]
+								"required": ["siteId", "name", "source", "settings"]
 							}
 						}
 					}
@@ -11869,9 +10872,7 @@
 			"post": {
 				"operationId": "imports.update",
 				"summary": "Changes an Import's name or settings.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11940,25 +10941,14 @@
 															]
 														}
 													},
-													"required": [
-														"column",
-														"to"
-													]
+													"required": ["column", "to"]
 												}
 											}
 										},
-										"required": [
-											"postTypeId",
-											"language",
-											"match",
-											"columns"
-										]
+										"required": ["postTypeId", "language", "match", "columns"]
 									}
 								},
-								"required": [
-									"siteId",
-									"importId"
-								]
+								"required": ["siteId", "importId"]
 							}
 						}
 					}
@@ -11987,9 +10977,7 @@
 			"post": {
 				"operationId": "imports.start",
 				"summary": "Starts a run of an Import with an uploaded file.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12010,11 +10998,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"importId",
-									"fileId"
-								]
+								"required": ["siteId", "importId", "fileId"]
 							}
 						}
 					}
@@ -12043,9 +11027,7 @@
 			"post": {
 				"operationId": "imports.stop",
 				"summary": "Stops a run of an Import.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12062,10 +11044,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"runId"
-								]
+								"required": ["siteId", "runId"]
 							}
 						}
 					}
@@ -12094,9 +11073,7 @@
 			"post": {
 				"operationId": "imports.report",
 				"summary": "A run's progress and Import report.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12113,10 +11090,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId",
-									"runId"
-								]
+								"required": ["siteId", "runId"]
 							}
 						}
 					}
@@ -12145,9 +11119,7 @@
 			"post": {
 				"operationId": "imports.undo",
 				"summary": "Undoes a whole run, after a preview and a confirmation.",
-				"tags": [
-					"imports"
-				],
+				"tags": ["imports"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12168,10 +11140,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"runId"
-								]
+								"required": ["siteId", "runId"]
 							}
 						}
 					}
@@ -12201,9 +11170,7 @@
 			"post": {
 				"operationId": "pages.settings",
 				"summary": "Which Pages are the Site's home page, 404 page and search results page.",
-				"tags": [
-					"pages"
-				],
+				"tags": ["pages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12216,9 +11183,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -12247,9 +11212,7 @@
 			"post": {
 				"operationId": "pages.setHomePage",
 				"summary": "Chooses the Page that answers at /.",
-				"tags": [
-					"pages"
-				],
+				"tags": ["pages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12273,10 +11236,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"pageId"
-								]
+								"required": ["siteId", "pageId"]
 							}
 						}
 					}
@@ -12305,9 +11265,7 @@
 			"post": {
 				"operationId": "pages.setNotFoundPage",
 				"summary": "Chooses the Site's 404 page.",
-				"tags": [
-					"pages"
-				],
+				"tags": ["pages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12336,10 +11294,7 @@
 										"maxLength": 35
 									}
 								},
-								"required": [
-									"siteId",
-									"pageId"
-								]
+								"required": ["siteId", "pageId"]
 							}
 						}
 					}
@@ -12368,9 +11323,7 @@
 			"post": {
 				"operationId": "pages.setSearchPage",
 				"summary": "Chooses the Site's search results page.",
-				"tags": [
-					"pages"
-				],
+				"tags": ["pages"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12394,10 +11347,7 @@
 										]
 									}
 								},
-								"required": [
-									"siteId",
-									"pageId"
-								]
+								"required": ["siteId", "pageId"]
 							}
 						}
 					}
@@ -12426,9 +11376,7 @@
 			"post": {
 				"operationId": "members.list",
 				"summary": "Lists the Workspace's Members, pending invites and assigned Staff.",
-				"tags": [
-					"members"
-				],
+				"tags": ["members"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12441,9 +11389,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId"
-								]
+								"required": ["workspaceId"]
 							}
 						}
 					}
@@ -12472,9 +11418,7 @@
 			"post": {
 				"operationId": "members.invite",
 				"summary": "Invites a Member (Sensitive: admin only).",
-				"tags": [
-					"members"
-				],
+				"tags": ["members"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12491,11 +11435,7 @@
 										"maxLength": 320
 									},
 									"role": {
-										"enum": [
-											"owner",
-											"editor",
-											"author"
-										],
+										"enum": ["owner", "editor", "author"],
 										"type": "string"
 									},
 									"sites": {
@@ -12515,12 +11455,7 @@
 										]
 									}
 								},
-								"required": [
-									"workspaceId",
-									"email",
-									"role",
-									"sites"
-								]
+								"required": ["workspaceId", "email", "role", "sites"]
 							}
 						}
 					}
@@ -12550,9 +11485,7 @@
 			"post": {
 				"operationId": "members.resendInvite",
 				"summary": "Sends a pending Member invite again with a new link.",
-				"tags": [
-					"members"
-				],
+				"tags": ["members"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12569,10 +11502,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId",
-									"inviteId"
-								]
+								"required": ["workspaceId", "inviteId"]
 							}
 						}
 					}
@@ -12601,9 +11531,7 @@
 			"post": {
 				"operationId": "members.revokeInvite",
 				"summary": "Withdraws a pending Member invite.",
-				"tags": [
-					"members"
-				],
+				"tags": ["members"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12620,10 +11548,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId",
-									"inviteId"
-								]
+								"required": ["workspaceId", "inviteId"]
 							}
 						}
 					}
@@ -12652,9 +11577,7 @@
 			"post": {
 				"operationId": "members.changeAccess",
 				"summary": "Changes a Member's role and Sites (Sensitive: admin only).",
-				"tags": [
-					"members"
-				],
+				"tags": ["members"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12671,11 +11594,7 @@
 										"format": "uuid"
 									},
 									"role": {
-										"enum": [
-											"owner",
-											"editor",
-											"author"
-										],
+										"enum": ["owner", "editor", "author"],
 										"type": "string"
 									},
 									"sites": {
@@ -12695,12 +11614,7 @@
 										]
 									}
 								},
-								"required": [
-									"workspaceId",
-									"personId",
-									"role",
-									"sites"
-								]
+								"required": ["workspaceId", "personId", "role", "sites"]
 							}
 						}
 					}
@@ -12730,9 +11644,7 @@
 			"post": {
 				"operationId": "members.remove",
 				"summary": "Removes a Member from the Workspace (Sensitive: admin only).",
-				"tags": [
-					"members"
-				],
+				"tags": ["members"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12749,10 +11661,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId",
-									"personId"
-								]
+								"required": ["workspaceId", "personId"]
 							}
 						}
 					}
@@ -12782,9 +11691,7 @@
 			"post": {
 				"operationId": "modules.siteList",
 				"summary": "Lists a Site's Site-level Modules and whether each is on.",
-				"tags": [
-					"modules"
-				],
+				"tags": ["modules"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12797,9 +11704,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -12828,9 +11733,7 @@
 			"post": {
 				"operationId": "modules.workspaceList",
 				"summary": "Lists a Workspace's Workspace-level Modules and whether each is on.",
-				"tags": [
-					"modules"
-				],
+				"tags": ["modules"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12843,9 +11746,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"workspaceId"
-								]
+								"required": ["workspaceId"]
 							}
 						}
 					}
@@ -12874,9 +11775,7 @@
 			"post": {
 				"operationId": "modules.setOnSite",
 				"summary": "Switches a Site-level Module on or off on a Site.",
-				"tags": [
-					"modules"
-				],
+				"tags": ["modules"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12897,11 +11796,7 @@
 										"type": "boolean"
 									}
 								},
-								"required": [
-									"siteId",
-									"moduleId",
-									"on"
-								]
+								"required": ["siteId", "moduleId", "on"]
 							}
 						}
 					}
@@ -12930,9 +11825,7 @@
 			"post": {
 				"operationId": "modules.setOnWorkspace",
 				"summary": "Switches a Workspace-level Module on or off on a Workspace.",
-				"tags": [
-					"modules"
-				],
+				"tags": ["modules"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -12953,11 +11846,7 @@
 										"type": "boolean"
 									}
 								},
-								"required": [
-									"workspaceId",
-									"moduleId",
-									"on"
-								]
+								"required": ["workspaceId", "moduleId", "on"]
 							}
 						}
 					}
@@ -12986,9 +11875,7 @@
 			"post": {
 				"operationId": "modules.removeSiteData",
 				"summary": "Removes a Module's data from a Site, after a preview and a confirmation.",
-				"tags": [
-					"modules"
-				],
+				"tags": ["modules"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13010,10 +11897,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"siteId",
-									"moduleId"
-								]
+								"required": ["siteId", "moduleId"]
 							}
 						}
 					}
@@ -13043,9 +11927,7 @@
 			"post": {
 				"operationId": "modules.removeWorkspaceData",
 				"summary": "Removes a Module's data from a Workspace, after a preview and a confirmation.",
-				"tags": [
-					"modules"
-				],
+				"tags": ["modules"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13067,10 +11949,7 @@
 										"maxLength": 100
 									}
 								},
-								"required": [
-									"workspaceId",
-									"moduleId"
-								]
+								"required": ["workspaceId", "moduleId"]
 							}
 						}
 					}
@@ -13100,9 +11979,7 @@
 			"post": {
 				"operationId": "m.forms.submissions.list",
 				"summary": "Forms: submissions.list.",
-				"tags": [
-					"m.forms"
-				],
+				"tags": ["m.forms"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13115,10 +11992,7 @@
 										"format": "uuid"
 									},
 									"folder": {
-										"enum": [
-											"inbox",
-											"spam"
-										],
+										"enum": ["inbox", "spam"],
 										"type": "string",
 										"default": "inbox"
 									},
@@ -13133,9 +12007,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -13164,9 +12036,7 @@
 			"post": {
 				"operationId": "m.site-analytics.stats.totals",
 				"summary": "Site analytics: stats.totals.",
-				"tags": [
-					"m.site-analytics"
-				],
+				"tags": ["m.site-analytics"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13189,11 +12059,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"from",
-									"to",
-									"siteId"
-								]
+								"required": ["from", "to", "siteId"]
 							}
 						}
 					}
@@ -13222,9 +12088,7 @@
 			"post": {
 				"operationId": "m.site-analytics.stats.series",
 				"summary": "Site analytics: stats.series.",
-				"tags": [
-					"m.site-analytics"
-				],
+				"tags": ["m.site-analytics"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13243,10 +12107,7 @@
 										"x-native-type": "date"
 									},
 									"interval": {
-										"enum": [
-											"hour",
-											"day"
-										],
+										"enum": ["hour", "day"],
 										"type": "string"
 									},
 									"siteId": {
@@ -13254,12 +12115,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"from",
-									"to",
-									"interval",
-									"siteId"
-								]
+								"required": ["from", "to", "interval", "siteId"]
 							}
 						}
 					}
@@ -13288,9 +12144,7 @@
 			"post": {
 				"operationId": "m.site-analytics.stats.breakdown",
 				"summary": "Site analytics: stats.breakdown.",
-				"tags": [
-					"m.site-analytics"
-				],
+				"tags": ["m.site-analytics"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13336,12 +12190,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"from",
-									"to",
-									"dimension",
-									"siteId"
-								]
+								"required": ["from", "to", "dimension", "siteId"]
 							}
 						}
 					}
@@ -13370,9 +12219,7 @@
 			"post": {
 				"operationId": "m.site-analytics.stats.coverage",
 				"summary": "Site analytics: stats.coverage.",
-				"tags": [
-					"m.site-analytics"
-				],
+				"tags": ["m.site-analytics"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13385,9 +12232,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -13416,9 +12261,7 @@
 			"post": {
 				"operationId": "m.site-analytics.settings.get",
 				"summary": "Site analytics: settings.get.",
-				"tags": [
-					"m.site-analytics"
-				],
+				"tags": ["m.site-analytics"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13431,9 +12274,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -13462,9 +12303,7 @@
 			"post": {
 				"operationId": "m.site-analytics.settings.update",
 				"summary": "Site analytics: settings.update.",
-				"tags": [
-					"m.site-analytics"
-				],
+				"tags": ["m.site-analytics"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13486,10 +12325,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"excludedRanges",
-									"siteId"
-								]
+								"required": ["excludedRanges", "siteId"]
 							}
 						}
 					}
@@ -13518,9 +12354,7 @@
 			"post": {
 				"operationId": "m.redirects.rules.list",
 				"summary": "Redirects and 404 log: rules.list.",
-				"tags": [
-					"m.redirects"
-				],
+				"tags": ["m.redirects"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13539,9 +12373,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -13570,9 +12402,7 @@
 			"post": {
 				"operationId": "m.redirects.rules.add",
 				"summary": "Redirects and 404 log: rules.add.",
-				"tags": [
-					"m.redirects"
-				],
+				"tags": ["m.redirects"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13604,11 +12434,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"from",
-									"to",
-									"siteId"
-								]
+								"required": ["from", "to", "siteId"]
 							}
 						}
 					}
@@ -13637,9 +12463,7 @@
 			"post": {
 				"operationId": "m.redirects.rules.update",
 				"summary": "Redirects and 404 log: rules.update.",
-				"tags": [
-					"m.redirects"
-				],
+				"tags": ["m.redirects"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13674,10 +12498,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"ruleId",
-									"siteId"
-								]
+								"required": ["ruleId", "siteId"]
 							}
 						}
 					}
@@ -13706,9 +12527,7 @@
 			"post": {
 				"operationId": "m.redirects.rules.remove",
 				"summary": "Redirects and 404 log: rules.remove.",
-				"tags": [
-					"m.redirects"
-				],
+				"tags": ["m.redirects"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13725,10 +12544,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"ruleId",
-									"siteId"
-								]
+								"required": ["ruleId", "siteId"]
 							}
 						}
 					}
@@ -13757,9 +12573,7 @@
 			"post": {
 				"operationId": "m.redirects.notFound.list",
 				"summary": "Redirects and 404 log: notFound.list.",
-				"tags": [
-					"m.redirects"
-				],
+				"tags": ["m.redirects"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13782,9 +12596,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"siteId"
-								]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -13813,9 +12625,7 @@
 			"post": {
 				"operationId": "m.redirects.notFound.ignore",
 				"summary": "Redirects and 404 log: notFound.ignore.",
-				"tags": [
-					"m.redirects"
-				],
+				"tags": ["m.redirects"],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -13836,10 +12646,7 @@
 										"format": "uuid"
 									}
 								},
-								"required": [
-									"missId",
-									"siteId"
-								]
+								"required": ["missId", "siteId"]
 							}
 						}
 					}

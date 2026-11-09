@@ -577,7 +577,9 @@ describe("Languages", () => {
 	});
 	// Each call adds a language the Site doesn't have yet.
 	const newLanguages = ["nl", "sv", "da", "fi", "pl", "cs"];
-	isolation.refuses("languages.add", (api, { siteId }) => api.languages.add({ siteId, code: newLanguages.shift() ?? "el" }));
+	isolation.refuses("languages.add", (api, { siteId }) =>
+		api.languages.add({ siteId, code: newLanguages.shift() ?? "el" }),
+	);
 	isolation.refuses("languages.update", (api, { siteId }) =>
 		api.languages.update({ siteId, code: "en", name: "Inglese" }),
 	);

@@ -48,11 +48,12 @@ afterAll(async () => {
 
 describe("the document", () => {
 	test("is the checked-in document", async () => {
-		const served = `${JSON.stringify(document, null, "\t")}\n`;
-		if (process.env.WEBCRAFT_UPDATE_OPENAPI === "1") await writeFile(CHECKED_IN, served);
-		const checkedIn = await readFile(CHECKED_IN, "utf8").catch(() => "");
+		if (process.env.WEBCRAFT_UPDATE_OPENAPI === "1") {
+			await writeFile(CHECKED_IN, `${JSON.stringify(document, null, "\t")}\n`);
+		}
+		const checkedIn: unknown = JSON.parse(await readFile(CHECKED_IN, "utf8").catch(() => "null"));
 		// When this fails, the public API changed: run `bun run api:document` and review the diff.
-		expect(served).toBe(checkedIn);
+		expect(document).toEqual(checkedIn as Document);
 	});
 
 	test("describes calling each procedure with POST and an API token", () => {
