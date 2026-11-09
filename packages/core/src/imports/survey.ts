@@ -20,7 +20,7 @@ import { streamParts } from "./uploads.ts";
 export const SURVEY_SAMPLES = 20;
 
 /** The longest HTML value a sample keeps, in characters. */
-const SAMPLE_HTML_LENGTH = 100_000;
+const SAMPLE_HTML_LENGTH = 20_000;
 
 /** A key of a type's items: what its values are, how many items have it, and one of them. */
 export type SurveyKey = {

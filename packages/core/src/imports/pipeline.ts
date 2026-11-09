@@ -234,7 +234,8 @@ export async function resolveFinds(
 				item.problems.push({
 					column,
 					rule: "notFetched",
-					params: { ...(fetched.problem ?? {}), address: reading.file.slice(0, 300) },
+					// A source's files are listed by address in its report; a CSV cell is found by its row and column.
+					params: { ...(fetched.problem ?? {}), ...(reading.ref ? { address: reading.file.slice(0, 300) } : {}) },
 				});
 			}
 		}

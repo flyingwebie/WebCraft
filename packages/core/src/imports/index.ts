@@ -16,7 +16,7 @@ import { actingPerson, can } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import type { CsvSettings } from "./csv-source.ts";
 import { ImportFileNotFoundError } from "./errors.ts";
-import { type ImportFile, uploadCsv } from "./files.ts";
+import { IMPORT_FILE_LIFETIME_MS, type ImportFile, uploadCsv } from "./files.ts";
 import {
 	createImport,
 	getImport,
@@ -198,10 +198,15 @@ export function createImports(options: { storage: InstallStorage; jobs: JobQueue
 					and(eq(importFiles.id, fileId), eq(importFiles.uploadedBy, actingPerson(scope.access.actor))),
 				)
 			: undefined;
-		if (!row || row.source === "csv" || row.expiresAt.getTime() <= scope.now().getTime()) {
-			throw new ImportFileNotFoundError();
-		}
+		const now = scope.now().getTime();
+		if (!row || row.source === "csv" || row.expiresAt.getTime() <= now) throw new ImportFileNotFoundError();
 		await sourceFor(scope, modules, row.source);
+		// Using the file (its status, a sample, the preview) keeps it a day longer.
+		if (row.expiresAt.getTime() - now < IMPORT_FILE_LIFETIME_MS - 60 * 60_000) {
+			const expiresAt = new Date(now + IMPORT_FILE_LIFETIME_MS);
+			await scope.update(importFiles, { expiresAt }, eq(importFiles.id, row.id));
+			return { ...row, expiresAt };
+		}
 		return row;
 	};
 	const view = async (scope: SiteScope, row: typeof importFiles.$inferSelect): Promise<SourceFileView> => {

@@ -145,8 +145,8 @@ export async function undoRun(
 			removed: preview.removes,
 			restored: preview.restores,
 			trashed: preview.files,
-			rules: preview.rules,
-			postTypes: removedTypes,
+			...(preview.rules > 0 ? { rules: preview.rules } : {}),
+			...(removedTypes > 0 ? { postTypes: removedTypes } : {}),
 		});
 		return { undo: { undone: true, preview } as ImportUndo, rules: plan.rules };
 	});
