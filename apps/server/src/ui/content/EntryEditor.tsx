@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { ENTRY_TITLE_MAX_LENGTH } from "@webcraft/core/field-rules";
+import { ENTRY_TITLE_MAX_LENGTH, MAX_PAGE_DEPTH } from "@webcraft/core/field-rules";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import {
@@ -15,7 +15,7 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@webcraft/ui/components/input-group.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { ArrowLeftIcon, CircleAlertIcon, Trash2Icon, UploadIcon } from "lucide-react";
+import { ArrowLeftIcon, CircleAlertIcon, Trash2Icon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -25,9 +25,17 @@ import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { useAutosave } from "./autosave.ts";
-import { LanguageTabs, ProblemSummary, SaveStatusText, StatusBadge } from "./DraftParts.tsx";
+import {
+	DraftStatusCard,
+	LanguageTabs,
+	SaveErrorBanner,
+	SaveStatusText,
+	StatusBadge,
+	useDraftPublish,
+} from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
 import { type EntryView, type FieldValues, type Json, type PostTypeView, type Problem, problemsAt } from "./model.ts";
+import { pageTree, parentSlugs } from "./page-tree.ts";
 import { problemText } from "./problems.ts";
 import type { RelationshipTargets } from "./RelationshipPicker.tsx";
 
@@ -80,10 +88,7 @@ export function EntryEditor({
 	const [refused, setRefused] = useState<Problem[]>([]);
 	const [slugTaken, setSlugTaken] = useState(false);
 	const [saveError, setSaveError] = useState<MessageKey | null>(null);
-	const [publishError, setPublishError] = useState<string | null>(null);
-	const [publishing, setPublishing] = useState(false);
 	const [media, setMedia] = useState(knownMedia);
-	const summary = useRef<HTMLDivElement>(null);
 	const canPublish = permissions.includes("entry.publish");
 	const isPage = postType.builtIn === "page";
 
@@ -135,31 +140,17 @@ export function EntryEditor({
 		markShared: true,
 	};
 
-	const publish = async () => {
-		setPublishing(true);
-		setPublishError(null);
-		try {
-			if (!(await autosave.flush())) {
-				setPublishError(t("entries.editor.saveFirst"));
-				return;
-			}
+	const publishing = useDraftPublish({
+		flush: autosave.flush,
+		invalid: ["ENTRY_INVALID", "ENTRY_INCOMPLETE"],
+		publish: async () => {
 			const api = await getApi();
 			const { entry: published } = await api.entries.publish({ siteId, entryId: entry.id });
 			setEntry(published);
 			toast.success(t("entries.editor.published", { title: values.title || t("content.relationship.untitled") }));
 			await router.invalidate();
-		} catch (error) {
-			const code = errorCode(error);
-			if (code === "ENTRY_INVALID" || code === "ENTRY_INCOMPLETE") {
-				setPublishError(t("entries.editor.fixFirst"));
-				requestAnimationFrame(() => summary.current?.focus());
-			} else {
-				setPublishError(t(errorMessage(error)));
-			}
-		} finally {
-			setPublishing(false);
-		}
-	};
+		},
+	});
 
 	const titleProblems = problemsAt(problems, "title");
 	const slugProblems = problemsAt(problems, "slug");
@@ -203,23 +194,7 @@ export function EntryEditor({
 					})}
 				/>
 
-				{saveError ? (
-					<div
-						role="alert"
-						className="border-destructive/50 text-destructive flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"
-					>
-						<CircleAlertIcon className="size-4 shrink-0" aria-hidden="true" />
-						<span className="flex-1">{t(saveError)}</span>
-						<Button type="button" size="sm" variant="outline" onClick={() => void autosave.flush()}>
-							{t("entries.editor.retry")}
-						</Button>
-						{saveError === "errors.CHANGED_MEANWHILE" ? (
-							<Button type="button" size="sm" variant="outline" onClick={() => window.location.reload()}>
-								{t("entries.editor.reload")}
-							</Button>
-						) : null}
-					</div>
-				) : null}
+				{saveError ? <SaveErrorBanner error={saveError} onRetry={() => void autosave.flush()} /> : null}
 
 				<div className="grid gap-6">
 					<BuiltInValue
@@ -308,61 +283,24 @@ export function EntryEditor({
 			</div>
 
 			<div className="grid content-start gap-6">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("entries.editor.statusHeading")}</h2>
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-4">
-						<div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-							<StatusBadge status={entry.status} />
-							{entry.lastPublishedAt ? (
-								<span className="text-muted-foreground">
-									{t("entries.editor.liveSince", { date: formatUtc(entry.lastPublishedAt) })}
-								</span>
-							) : null}
-						</div>
-						<div className="flex flex-wrap gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								disabled={autosave.status === "saved"}
-								onClick={() => void autosave.flush()}
-							>
-								{t("entries.editor.saveDraft")}
-							</Button>
-							{canPublish ? (
-								<Button type="button" disabled={publishing} onClick={publish}>
-									<UploadIcon aria-hidden="true" />
-									{t("entries.editor.publish")}
-								</Button>
-							) : null}
-						</div>
+				<DraftStatusCard
+					status={entry.status}
+					lastPublishedAt={entry.lastPublishedAt}
+					autosave={autosave}
+					canPublish={canPublish}
+					publishing={publishing}
+					publishHelp="entries.editor.publishHelp"
+					problems={problems}
+					fields={postType.fields}
+					idPrefix="entry"
+					headingId="entry-problems-heading"
+				>
+					{entry.path ? (
 						<p className="text-muted-foreground text-sm">
-							{t(canPublish ? "entries.editor.publishHelp" : "entries.editor.authorHelp")}
+							{t("entries.editor.liveAt")} <span className="text-foreground font-mono">{entry.path}</span>
 						</p>
-						{publishError ? (
-							<p role="alert" className="text-destructive flex items-start gap-2 text-sm">
-								<CircleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-								{publishError}
-							</p>
-						) : null}
-						<div ref={summary} tabIndex={-1} className="outline-none">
-							<ProblemSummary
-								problems={problems}
-								fields={postType.fields}
-								idPrefix="entry"
-								headingId="entry-problems-heading"
-							/>
-						</div>
-						{entry.path ? (
-							<p className="text-muted-foreground text-sm">
-								{t("entries.editor.liveAt")} <span className="text-foreground font-mono">{entry.path}</span>
-							</p>
-						) : null}
-					</CardContent>
-				</Card>
+					) : null}
+				</DraftStatusCard>
 
 				<Card>
 					<CardHeader>
@@ -487,38 +425,14 @@ function patternPrefix(urlPattern: string): string {
 
 /** A Page's address up to its own slug: its parents' slugs (from their Drafts). */
 function pagePath(pages: readonly PageOption[], parentId: string | null): string {
-	const byId = new Map(pages.map((page) => [page.id, page]));
-	const parts: string[] = [];
-	let current = parentId ? byId.get(parentId) : undefined;
-	for (let depth = 0; current && depth < 12; depth++) {
-		parts.unshift(current.slug);
-		current = current.parentId ? byId.get(current.parentId) : undefined;
-	}
-	return `/${parts.map((part) => `${part}/`).join("")}`;
+	return `/${parentSlugs(pages, parentId)
+		.map((slug) => `${slug}/`)
+		.join("")}`;
 }
 
 /** The Pages that can be a Page's parent (not itself, not one under it), as a tree in order. */
 function parentOptions(pages: readonly PageOption[], self: string): (PageOption & { depth: number })[] {
-	const children = new Map<string | null, PageOption[]>();
-	for (const page of pages) {
-		const list = children.get(page.parentId) ?? [];
-		list.push(page);
-		children.set(page.parentId, list);
-	}
-	const known = new Set(pages.map((page) => page.id));
-	const roots = pages.filter((page) => page.parentId === null || !known.has(page.parentId));
-	const ordered: (PageOption & { depth: number })[] = [];
-	const visit = (page: PageOption, depth: number) => {
-		if (page.id === self || depth > 10) return;
-		ordered.push({ ...page, depth });
-		for (const child of (children.get(page.id) ?? []).sort(byTitle)) visit(child, depth + 1);
-	};
-	for (const root of roots.sort(byTitle)) visit(root, 0);
-	return ordered;
-}
-
-function byTitle(a: { title: string }, b: { title: string }): number {
-	return a.title.localeCompare(b.title);
+	return pageTree(pages, { skip: self, maxDepth: MAX_PAGE_DEPTH }).map(({ page, depth }) => ({ ...page, depth }));
 }
 
 /**

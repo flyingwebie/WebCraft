@@ -88,6 +88,9 @@ export const MAX_LINKED_ENTRIES = 200;
 /** The most rows a Repeater holds. */
 export const MAX_ROWS = 500;
 
+/** How deep Pages nest: a Page's path has at most this many parts. */
+export const MAX_PAGE_DEPTH = 10;
+
 /** The longest `pattern` setting (a regular expression in RE2 syntax), in characters. */
 export const PATTERN_MAX_LENGTH = 200;
 

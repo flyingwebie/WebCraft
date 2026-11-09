@@ -54,7 +54,6 @@ export const FIELD_TYPE_ICONS: { readonly [Type in FieldType]: LucideIcon } = {
 	repeater: ListOrderedIcon,
 };
 
-/** Who the Fields belong to: a Post Type's Entries, or the Globals (which hold no Relationships). */
 /** Whose Fields the builder shows: a Post Type's, the Page Post Type's or the Globals'. */
 export type FieldOwner = "postType" | "page" | "globals";
 
