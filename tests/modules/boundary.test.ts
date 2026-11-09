@@ -39,6 +39,15 @@ function specifiersIn(source: string): string[] {
 const FORBIDDEN =
 	/^(?:@webcraft\/(?!module-sdk(?:$|\/))|drizzle-orm(?:$|\/)|zod(?:$|\/)|pg(?:$|\/)|pg-boss(?:$|\/)|node:|bun(?:$|:)|(?:fs|net|http|https|child_process|dns|os|worker_threads|vm)(?:$|\/))/;
 
+/** Globals that would let a Module go around its context: the network, the environment, the runtime. */
+const FORBIDDEN_GLOBALS =
+	/(?<![\w.$])(?:(?:globalThis|global|process|Bun)\s*[.[]|(?:fetch|require)\s*\(|new\s+(?:XMLHttpRequest|WebSocket)\b)/;
+
+/** Source without its comments, so a comment naming `fetch(` isn't a use of it. */
+function withoutComments(source: string): string {
+	return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+}
+
 describe("every Module", () => {
 	const folders = moduleFolders();
 
@@ -54,6 +63,19 @@ describe("every Module", () => {
 					} else if (FORBIDDEN.test(specifier)) {
 						problems.push(`${where} imports ${specifier}`);
 					}
+				}
+			}
+		}
+		expect(problems).toEqual([]);
+	});
+
+	test("uses no global that reaches around its context", () => {
+		const problems: string[] = [];
+		for (const folder of folders) {
+			for (const file of sourceFiles(folder)) {
+				const lines = withoutComments(readFileSync(file, "utf8")).split("\n");
+				for (const [index, line] of lines.entries()) {
+					if (FORBIDDEN_GLOBALS.test(line)) problems.push(`${relative(ROOT, file)}:${index + 1}: ${line.trim()}`);
 				}
 			}
 		}

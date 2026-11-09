@@ -95,9 +95,9 @@ export type TestInstallOptions = {
 	/** `WEBCRAFT_ADMIN_HOST`: `TEST_ADMIN_HOST` unless given. */
 	adminHost?: string;
 	/**
-	 * The Modules the Install loads, as web and worker load the build's first-party Modules: none
-	 * unless given (this build has no first-party Modules yet). Their migrations must already be in
-	 * the database: the test databases have the sample Modules' (see `TEST_MODULES`).
+	 * The Modules the Install loads: this build's first-party Modules unless given, as web and
+	 * worker load them. Their migrations must already be in the database: every test database has
+	 * had `TEST_MODULES`' (the first-party Modules and the samples).
 	 */
 	modules?: readonly ModuleDefinition[];
 };

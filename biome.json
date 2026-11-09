@@ -124,7 +124,9 @@
 									"WebSocket": "A Module calls outside hosts with context.http, which checks them against its manifest.",
 									"process": "A Module never reads the server's environment: everything it needs comes through its context.",
 									"Bun": "A Module runs on Bun and Node alike, and later in a sandbox: it uses only its context.",
-									"require": "A Module imports nothing from WebCraft but @webcraft/module-sdk (ADR 0024)."
+									"require": "A Module imports nothing from WebCraft but @webcraft/module-sdk (ADR 0024).",
+									"globalThis": "A Module reaches nothing through the global object: everything it needs comes through its context.",
+									"global": "A Module reaches nothing through the global object: everything it needs comes through its context."
 								}
 							}
 						}

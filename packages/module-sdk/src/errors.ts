@@ -22,7 +22,7 @@ export class ModuleRefusedError extends Error {
 
 /**
  * An answer a Module's procedure gives on purpose, such as "that note doesn't exist": the API
- * answers it with `MODULE_ERROR`, this status and `data: { moduleId, code }`. Anything else a
+ * answers it with `MODULE_ERROR`, this status and `data: { code }`. Anything else a
  * procedure throws is a failure: it goes to the Module log and the API answers 500.
  */
 export class ModuleError extends Error {
