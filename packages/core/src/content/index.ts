@@ -90,10 +90,13 @@ export { type PathChange, type Published, type PublishItem, publish, publishPerm
 export type { LinkBack } from "./relationships.ts";
 export {
 	addLanguage,
+	type DefaultLanguageChange,
+	type DefaultLanguagePreview,
 	LANGUAGE_NAME_MAX_LENGTH,
 	type LanguageChange,
 	type NewLanguage,
 	setBrowserLanguageRedirect,
+	setDefaultLanguage,
 	updateLanguage,
 } from "./site-languages.ts";
 export {

@@ -470,3 +470,45 @@ export function randomRowId(): string {
 	const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 	return Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) => alphabet[byte % alphabet.length]).join("");
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Changing the Default language
+
+/**
+ * The values with every shared Field's value moved from the old Default language to the new one,
+ * where shared values are kept; Translatable fields keep their values in each language as they are.
+ * A shared Field without a value under the old Default language has none under the new one either.
+ */
+export function moveSharedValues(
+	values: StoredValues,
+	fields: readonly FieldDefinition[],
+	from: string,
+	to: string,
+): StoredValues {
+	const moved = { ...values };
+	for (const field of fields) {
+		const node = moved[field.key];
+		if (node === undefined) continue;
+		moved[field.key] = byKind<unknown>(field, {
+			group: (group) => ({ values: moveSharedValues(groupOf(node).values, group.fields, from, to) }),
+			repeater: (repeater) => ({
+				rows: rowsOf(node).map((row) => ({
+					id: row.id,
+					values: moveSharedValues(row.values, repeater.fields, from, to),
+				})),
+			}),
+			leaf: (leaf) => (leaf.translatable ? node : moveLanguage(node, from, to)),
+		});
+	}
+	return moved;
+}
+
+/** A value kept per language with the old Default language's value under the new one's key instead. */
+export function moveLanguage(node: unknown, from: string, to: string): Record<string, unknown> {
+	const byLanguage = { ...record(node) };
+	const value = byLanguage[from];
+	delete byLanguage[from];
+	if (value === undefined) delete byLanguage[to];
+	else byLanguage[to] = value;
+	return byLanguage;
+}

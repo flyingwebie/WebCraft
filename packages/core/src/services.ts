@@ -6,6 +6,7 @@ import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
 import type {
+	DefaultLanguageChange,
 	DraftChange,
 	Entry,
 	EntryDeletion,
@@ -183,6 +184,11 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope): Promise<SiteLanguages>;
 		add(scope: SiteScope, input: NewLanguage): Promise<SiteLanguages>;
 		update(scope: SiteScope, code: string, change: LanguageChange): Promise<SiteLanguages>;
+		/**
+		 * Makes another language the Default language, in two steps: without `confirmation` it answers
+		 * what would change and a confirmation id; with it, it goes ahead.
+		 */
+		setDefault(scope: SiteScope, code: string, confirmation?: string): Promise<DefaultLanguageChange>;
 		/** Turns the browser-language redirect on the home page on or off. */
 		setBrowserRedirect(scope: SiteScope, on: boolean): Promise<SiteLanguages>;
 	};

@@ -299,9 +299,7 @@ async function locate(
 	const segments = pathSegments(pathname);
 	if (!segments || isReservedPath(segments)) return null;
 	const site = await siteLanguages(scope);
-	const inLanguage = languageOfPath(site, segments);
-	if ("redirect" in inLanguage) return { kind: "redirect", location: canonicalPath(inLanguage.redirect) };
-	const { languages, rest } = inLanguage;
+	const { languages, rest, unprefixed } = languageOfPath(site, segments);
 	const place = { site, languages, language: languageNamed(site, languages.language) };
 	const postTypes = await listPostTypes(scope);
 	const home = await homePageId(scope);
@@ -312,7 +310,9 @@ async function locate(
 			: ((await findPublishedEntry(scope, postTypes, rest, languages.language)) ??
 				(await findPage(scope, postTypes, rest, languages.language)));
 	// An Entry hidden in the language has no page there.
-	if (!found || !isVisibleIn(storedVersion(found.entry.published), languages)) return null;
+	if (!found || !isVisibleIn(storedVersion(found.entry.published), languages)) {
+		return unprefixed ? { kind: "redirect", location: canonicalPath(unprefixed) } : null;
+	}
 	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: languagePath(languages, "/") };
 	return { kind: "found", found, ...place };
 }
@@ -379,9 +379,7 @@ async function languageChoice(data: DataLayer, host: SiteHost, pathname: string)
 	const segments = pathSegments(target);
 	if (!segments || isReservedPath(segments) || segments.some((segment) => segment.includes("/"))) return undefined;
 	const site = await siteLanguages(data.visitors(host.site));
-	const inLanguage = languageOfPath(site, segments);
-	const language = "languages" in inLanguage ? inLanguage.languages.language : site.defaultLanguage;
-	return { language, location: canonicalPath(segments) };
+	return { language: languageOfPath(site, segments).languages.language, location: canonicalPath(segments) };
 }
 
 /**
@@ -390,9 +388,8 @@ async function languageChoice(data: DataLayer, host: SiteHost, pathname: string)
  */
 async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place & { found?: FoundEntry }> {
 	const site = await siteLanguages(scope);
-	const inLanguage = languageOfPath(site, pathSegments(pathname) ?? []);
-	const code = "languages" in inLanguage ? inLanguage.languages.language : site.defaultLanguage;
-	const languages = { language: code, defaultLanguage: site.defaultLanguage };
+	const { languages } = languageOfPath(site, pathSegments(pathname) ?? []);
+	const code = languages.language;
 	const place = { site, languages, language: languageNamed(site, code) };
 	// The language's own 404 page, else the Site's; each once published and shown in the language.
 	const postTypes = await listPostTypes(scope);

@@ -43,6 +43,19 @@ export const languages = {
 		}),
 
 	/**
+	 * Makes another of the Site's languages its Default language, in two steps. The first call changes
+	 * nothing: it answers what would change (`preview`: how many published addresses change, how many
+	 * Entries have no title of their own in the new Default language) and a `confirmation` id, valid
+	 * for 5 minutes; calling again with it goes ahead and answers the addresses that changed.
+	 */
+	setDefault: signedIn
+		.input(z.object({ siteId: id, code, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return await context.services.languages.setDefault(site, input.code, input.confirmation);
+		}),
+
+	/**
 	 * Turns the browser-language redirect on or off: when on, a visitor's first request to the home
 	 * page goes on to the home page in the language their browser prefers. Off by default.
 	 */

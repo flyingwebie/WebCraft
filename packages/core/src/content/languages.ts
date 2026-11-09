@@ -143,20 +143,22 @@ export function languagePath(languages: Languages, path: string): string {
 /**
  * Which language a request path is in, and the path within that language: a first part naming
  * another language's prefix is that language (`/fr/blog/bread` is `/blog/bread` in French);
- * anything else is the Default language. The Default language's own prefix answers where its
- * address is (`/en/blog/bread` goes to `/blog/bread`), so its pages' old addresses keep working
- * after the Default language changes.
+ * anything else is the Default language. A path starting with the Default language's own prefix
+ * also gives the path without it (`unprefixed`): where nothing answers at the path itself, it goes
+ * on there (`/en/blog/bread` to `/blog/bread`), so a new Default language's old addresses keep working.
  */
 export function languageOfPath(
 	site: SiteLanguages,
 	segments: readonly string[],
-): { languages: Languages; rest: readonly string[] } | { redirect: readonly string[] } {
+): { languages: Languages; rest: readonly string[]; unprefixed?: readonly string[] } {
 	const [first, ...rest] = segments;
 	const defaultLanguage = site.defaultLanguage;
-	if (first !== undefined && first === prefixOf(defaultLanguage)) return { redirect: rest };
+	const languages = { language: defaultLanguage, defaultLanguage };
+	if (first !== undefined && first === prefixOf(defaultLanguage))
+		return { languages, rest: segments, unprefixed: rest };
 	const language = first === undefined ? undefined : site.languages.find((candidate) => candidate.prefix === first);
 	if (language) return { languages: { language: language.code, defaultLanguage }, rest };
-	return { languages: { language: defaultLanguage, defaultLanguage }, rest: segments };
+	return { languages, rest: segments };
 }
 
 /** The Site language with a code; the Default language when it has none by that code. */

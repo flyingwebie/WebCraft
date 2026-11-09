@@ -1,12 +1,17 @@
-import { siteLanguages as siteLanguageRows, sites } from "@webcraft/db/schema";
+import { entries, globals, siteLanguages as siteLanguageRows, sites } from "@webcraft/db/schema";
 import { directionOf } from "@webcraft/renderer";
-import { and, eq, max } from "drizzle-orm";
+import { and, eq, isNotNull, max } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { normaliseHostname } from "../hostnames.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { publishedAddresses } from "./entry-paths.ts";
 import { type ContentProblem, LanguageInvalidError, LanguageNotFoundError, LanguageTakenError } from "./errors.ts";
+import type { FieldDefinition } from "./field-types.ts";
+import { moveLanguage, moveSharedValues } from "./field-values.ts";
+import { storedFields } from "./fields.ts";
 import { checkPrefixFree, publishSlugsIn } from "./language-paths.ts";
 import {
 	canonicalLanguage,
@@ -18,6 +23,9 @@ import {
 } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { lockSitePaths } from "./pages.ts";
+import { listPostTypes } from "./post-types.ts";
+import type { PathChange } from "./publishing.ts";
+import { type EntryVersion, ownValue, storedVersion } from "./values.ts";
 
 /**
  * Changing a Site's languages (Structure: open the Site with `structure.edit`). Like every Site
@@ -176,4 +184,133 @@ export async function setBrowserLanguageRedirect(scope: SiteScope, on: boolean):
 		await tx.audit("browserLanguageRedirect.change", { on });
 		return siteLanguages(tx);
 	});
+}
+
+/** What changing the Default language would do, shown before it is confirmed. */
+export type DefaultLanguagePreview = {
+	from: string;
+	to: string;
+	/** How many published addresses change: every published page in both languages. */
+	changedPaths: number;
+	/**
+	 * How many Entries have no title of their own in the new Default language: with nothing to fall
+	 * back to, they show none there until one is written.
+	 */
+	withoutOwnTitle: number;
+};
+
+/** Changing the Default language: before it is confirmed, what it would do; after, what it did. */
+export type DefaultLanguageChange =
+	| { changed: false; preview: DefaultLanguagePreview; confirmation: Confirmation }
+	| { changed: true; settings: SiteLanguages; pathChanges: PathChange[] };
+
+/**
+ * Makes another of the Site's languages its Default language, in two steps: without a confirmation
+ * it changes nothing and answers what would change (the addresses, the Entries without a title of
+ * their own there) with a confirmation id; with it, it goes ahead. The new Default language loses its
+ * prefix and the old one gets one; shared values move to the new Default language, where they are
+ * kept, so they keep their value; Translatable fields now fall back to the new Default language.
+ * Every published address that changes is answered and logged as `pathChanges` (Redirect rules
+ * follow them); the new Default language's old addresses, under its old prefix, go on to the new
+ * ones. Refuses a language the Site doesn't have (`LanguageNotFoundError`), the current Default
+ * language (`LanguageInvalidError`), and a change that would put a prefix where an unprefixed page
+ * of the new Default language is (`PathTakenError`).
+ */
+export async function setDefaultLanguage(
+	scope: SiteScope,
+	code: string,
+	confirmation?: string,
+): Promise<DefaultLanguageChange> {
+	return scope.transaction(async (tx) => {
+		// Every prefix and unprefixed path moves: hold the Site's paths first.
+		await lockSitePaths(tx);
+		const current = await siteLanguages(tx);
+		const target = current.languages.find((language) => language.code === canonicalLanguage(code));
+		if (!target) throw new LanguageNotFoundError();
+		const from = current.defaultLanguage;
+		const to = target.code;
+		if (to === from)
+			throw new LanguageInvalidError([{ at: "code", message: `${to} is already the Default language.` }]);
+		// The new Default language's paths become unprefixed: no other language's prefix may start one.
+		for (const language of current.languages) {
+			if (language.code !== to) await checkPrefixFree(tx, prefixOf(language.code), to);
+		}
+		const pathChanges = await defaultLanguagePathChanges(tx, from, to);
+		const rows = await tx.db.select().from(entries).where(tx.where(entries)).for("update");
+		const request = {
+			action: "defaultLanguage.change",
+			target: to,
+			preview: {
+				from,
+				to,
+				changedPaths: pathChanges.length,
+				withoutOwnTitle: rows.filter((row) => !ownValue(storedVersion(row.draft), "title", to)).length,
+			},
+		};
+		if (confirmation === undefined) {
+			return { changed: false, preview: request.preview, confirmation: await askConfirmation(tx, request) };
+		}
+		await useConfirmation(tx, confirmation, request);
+
+		const fieldsOf = new Map((await listPostTypes(tx)).map((postType) => [postType.id, postType.fields]));
+		const move = (version: unknown, fields: readonly FieldDefinition[]): EntryVersion => {
+			const values = moveSharedValues(storedVersion(version).values, fields, from, to);
+			for (const key of SHARED_BUILT_INS) {
+				if (values[key] !== undefined) values[key] = moveLanguage(values[key], from, to);
+			}
+			return { values };
+		};
+		for (const row of rows) {
+			const fields = fieldsOf.get(row.postTypeId) ?? [];
+			await tx.update(
+				entries,
+				{ draft: move(row.draft, fields), published: row.published === null ? null : move(row.published, fields) },
+				eq(entries.id, row.id),
+			);
+		}
+		const [globalsRow] = await tx.db.select().from(globals).where(tx.where(globals)).for("update");
+		if (globalsRow) {
+			const fields = storedFields(globalsRow.fields);
+			await tx.update(
+				globals,
+				{
+					draft: move(globalsRow.draft, fields),
+					published: globalsRow.published === null ? null : move(globalsRow.published, fields),
+				},
+				eq(globals.id, globalsRow.id),
+			);
+		}
+		await tx.db
+			.update(sites)
+			.set({ defaultLanguage: to })
+			.where(and(eq(sites.id, tx.site.id), eq(sites.workspaceId, tx.site.workspaceId)));
+		await clearPageCache(tx);
+		await tx.audit("defaultLanguage.change", { from, to, changedPaths: pathChanges.length });
+		return { changed: true, settings: await siteLanguages(tx), pathChanges };
+	});
+}
+
+/** Built-in values every language shares, kept under the Default language beside `title` and `slug`. */
+const SHARED_BUILT_INS = ["parent", "hiddenLanguages"] as const;
+
+/**
+ * Every published address that changes when the Default language goes from `from` to `to`: each
+ * published Entry's in both languages (the old Default language gets its prefix, the new one loses
+ * its own). Other languages keep theirs.
+ */
+async function defaultLanguagePathChanges(scope: SiteScope, from: string, to: string): Promise<PathChange[]> {
+	const changes: PathChange[] = [];
+	const published = await scope.select(entries, isNotNull(entries.published));
+	for (const postType of await listPostTypes(scope)) {
+		const ids = published.filter((row) => row.postTypeId === postType.id).map((row) => row.id);
+		for (const language of [from, to]) {
+			const before = await publishedAddresses(scope, postType, ids, { language, defaultLanguage: from });
+			const after = await publishedAddresses(scope, postType, ids, { language, defaultLanguage: to });
+			for (const [entryId, address] of before) {
+				const next = after.get(entryId);
+				if (next && next.path !== address.path) changes.push({ entryId, language, from: address.path, to: next.path });
+			}
+		}
+	}
+	return changes;
 }

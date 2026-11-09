@@ -60,12 +60,13 @@ export async function checkPatternOutsidePrefixes(
 }
 
 /**
- * Refuses a new prefix the Site's Default language paths already start with: a published top-level
- * Page with that slug, a URL pattern starting with it, or a published Entry whose path does (a
- * pattern starting with `{slug}`). Answers `PathTakenError` naming what holds the path.
+ * Refuses a new prefix the unprefixed paths already start with (those of the Default language, or of
+ * `language`, about to become it): a published top-level Page with that slug, a URL pattern starting
+ * with it, or a published Entry whose path does (a pattern starting with `{slug}`). Answers
+ * `PathTakenError` naming what holds the path.
  */
-export async function checkPrefixFree(scope: SiteScope, prefix: string): Promise<void> {
-	const { defaultLanguage } = await siteLanguages(scope);
+export async function checkPrefixFree(scope: SiteScope, prefix: string, language?: string): Promise<void> {
+	const defaultLanguage = language ?? (await siteLanguages(scope)).defaultLanguage;
 	const path = `/${prefix}`;
 	for (const postType of await listPostTypes(scope)) {
 		if (isPagePostType(postType)) continue;

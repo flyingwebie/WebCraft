@@ -244,6 +244,12 @@ describe("Languages", () => {
 	isolation.refuses("languages.update", (api, { siteId }) =>
 		api.languages.update({ siteId, code: "en", name: "Inglese" }),
 	);
+	// Without a confirmation it only answers what the change would do.
+	isolation.refuses("languages.setDefault", async (api, target) => {
+		const admin = await install.superadmin();
+		await admin.api.languages.add({ siteId: target.siteId, code: "fr" }).catch(() => undefined);
+		return api.languages.setDefault({ siteId: target.siteId, code: "fr" });
+	});
 	isolation.refuses("languages.setBrowserRedirect", (api, { siteId }) =>
 		api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: true }),
 	);
