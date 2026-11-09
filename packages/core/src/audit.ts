@@ -8,11 +8,12 @@ type Executor = Database["db"] | Transaction;
  * How an action came in, recorded with every Audit log entry:
  * - `admin`: the admin, at `/api/rpc` (the setup wizard included).
  * - `command`: a server command, `webcraft admin <name>`.
+ * - `editMode`: Edit mode, on a Site's own domain.
  *
- * Later ways in add their kinds here: Edit mode, an API token (its name), an AI client (its name),
- * a Module (its id), and Impersonation ("<Staff> as <Member>").
+ * Later ways in add their kinds here: an API token (its name), an AI client (its name), a Module
+ * (its id), and Impersonation ("<Staff> as <Member>").
  */
-export type AuditVia = { kind: "admin" } | { kind: "command"; name: string };
+export type AuditVia = { kind: "admin" } | { kind: "command"; name: string } | { kind: "editMode" };
 
 /** Something changed, as the Audit log keeps it. Values are plain JSON; never put a secret's value here. */
 export type AuditDetails = Record<string, unknown>;
@@ -58,9 +59,15 @@ export async function listAuditEntries(executor: Executor, options: { limit: num
 		at: row.occurredAt,
 		action: row.action,
 		personId: row.personId,
-		via: row.via === "command" ? { kind: "command", name: row.viaName ?? "" } : { kind: "admin" },
+		via: viaOf(row.via, row.viaName),
 		workspaceId: row.workspaceId,
 		siteId: row.siteId,
 		details: (row.details ?? {}) as AuditDetails,
 	}));
+}
+
+function viaOf(kind: string, name: string | null): AuditVia {
+	if (kind === "command") return { kind: "command", name: name ?? "" };
+	if (kind === "editMode") return { kind: "editMode" };
+	return { kind: "admin" };
 }

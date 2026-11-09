@@ -211,7 +211,7 @@ export async function linkingEntries(
 }
 
 /** The published Entries with these ids, for rendering what Relationships point at. */
-export async function publishedEntries(scope: VisitorScope, ids: readonly string[]) {
+export async function publishedEntries(scope: Pick<VisitorScope, "select">, ids: readonly string[]) {
 	if (ids.length === 0) return [];
 	return scope.select(entries, and(inArray(entries.id, [...ids]), isNotNull(entries.published)));
 }

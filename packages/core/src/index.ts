@@ -38,6 +38,18 @@ export {
 } from "./confirmations.ts";
 export * from "./content/index.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
+export {
+	EDIT_LINK_LIFETIME_MS,
+	EDIT_MODE_PATH,
+	EDIT_SESSION_LIFETIME_MS,
+	type EditLink,
+	type EditMode,
+	EditModeUnavailableError,
+	EditPathInvalidError,
+	type EditSession,
+	type EnteredEditMode,
+	isEditPath,
+} from "./edit-mode/index.ts";
 export * from "./email/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export { fetchHttp, type OutgoingHttp } from "./http.ts";
@@ -126,6 +138,7 @@ export {
 export {
 	canonicalPath,
 	isReservedPath,
+	type PageEditing,
 	pathSegments,
 	reservedSlugs,
 	type SiteAnswer,

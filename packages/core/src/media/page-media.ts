@@ -15,7 +15,7 @@ import { readText, storedTexts } from "./texts.ts";
  * visitors can get (ready) are found.
  */
 export async function pageMedia(
-	scope: VisitorScope,
+	scope: Pick<VisitorScope, "select">,
 	ids: readonly string[],
 	languages: { language: string; defaultLanguage: string },
 ): Promise<Map<string, PageMedia>> {

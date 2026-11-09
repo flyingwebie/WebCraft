@@ -23,6 +23,7 @@ import type {
 	Template,
 	TemplateMarkup,
 } from "./content/index.ts";
+import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
@@ -186,6 +187,11 @@ export type InstallServices = InstallPorts & {
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
+	/**
+	 * Edit mode (ADR 0022): "Edit on site" links, and the Edit mode sessions they start on a Site's
+	 * own domain, each checked again with every request.
+	 */
+	editMode: EditMode;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
 	/** Members of a Workspace: inviting them, their role and Sites, removing them, pending invites. */

@@ -153,13 +153,18 @@ export async function publishGlobals(scope: SiteScope): Promise<Published> {
 	return { kind: "globals", id: row.id, publishedAt: now, pathChanges: [] };
 }
 
-/** The Site's published Globals: their Fields and published values (empty while never published). */
-export function publishedGlobals(
+/**
+ * The Site's Globals as one version shows them: their Fields and the published values (empty while
+ * never published) for visitors, or the Draft's in Edit mode.
+ */
+export function globalsVersion(
 	row: GlobalsRow | undefined,
 	languages: { language: string; defaultLanguage: string },
+	version: "published" | "draft" = "published",
 ) {
 	const fields = storedFields(row?.fields);
-	const values = row?.published ? readFields(storedVersion(row.published).values, fields, languages) : {};
+	const stored = version === "draft" ? row?.draft : row?.published;
+	const values = stored ? readFields(storedVersion(stored).values, fields, languages) : {};
 	return { fields, values };
 }
 
