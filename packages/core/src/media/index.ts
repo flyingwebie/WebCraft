@@ -41,6 +41,7 @@ export {
 export { mediaProcess, mediaVariants } from "./jobs.ts";
 export { MEDIA_KINDS, type MediaKind } from "./kinds.ts";
 export {
+	type FocalPoint,
 	MEDIA_FOLDER_NAME_MAX_LENGTH,
 	type MediaChange,
 	type MediaDeletion,

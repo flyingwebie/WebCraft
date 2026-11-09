@@ -6,7 +6,7 @@ import { isUuid } from "../ids.ts";
 import type { VisitorScope } from "../tenancy/data-layer.ts";
 import { VARIANT_FORMATS } from "./images.ts";
 import type { MediaKind } from "./kinds.ts";
-import { originalUrl, variantsOf } from "./library.ts";
+import { focalPointOf, originalUrl, variantsOf } from "./library.ts";
 import { readText, storedTexts } from "./texts.ts";
 
 /**
@@ -48,6 +48,7 @@ export async function pageMedia(
 			url,
 			width: row.width,
 			height: row.height,
+			focalPoint: focalPointOf(row),
 			alt: readText(storedTexts(row.texts), "alt", languages),
 			caption: readText(storedTexts(row.texts), "caption", languages),
 			sources: VARIANT_FORMATS.map((format) => ({

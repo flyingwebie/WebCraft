@@ -78,7 +78,7 @@ export const media = {
 		}),
 
 	/**
-	 * Changes a file's title, alt text or caption (in a language), or its folder. Your own uploads with
+	 * Changes a file's title, alt text or caption (in a language), its folder, or an image's Focal point. Your own uploads with
 	 * `media.upload`; every file with `media.manage`. Live at once: pages showing it change too.
 	 */
 	update: signedIn
@@ -91,6 +91,11 @@ export const media = {
 				alt: mediaText(MEDIA_TEXT_MAX_LENGTH.alt).optional(),
 				caption: mediaText(MEDIA_TEXT_MAX_LENGTH.caption).optional(),
 				folderId: id.nullable().optional(),
+				/** An image's Focal point, as whole percentages of its width and height; null clears it. */
+				focalPoint: z
+					.object({ x: z.number().int().min(0).max(100), y: z.number().int().min(0).max(100) })
+					.nullable()
+					.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {

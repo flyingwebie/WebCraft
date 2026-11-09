@@ -15,6 +15,8 @@ export type PageMedia = {
 	url: string;
 	width: number | null;
 	height: number | null;
+	/** The image's Focal point, as percentages of its width and height; null or absent when none is set. */
+	focalPoint?: { x: number; y: number } | null;
 	/** The Media library's alt text in the page's language, or null when it has none. */
 	alt: string | null;
 	/** The Media library's caption in the page's language (a Body's image shows it), or null when it has none. */
@@ -22,6 +24,30 @@ export type PageMedia = {
 	/** The variants by format, AVIF first; empty until the worker made them. */
 	sources: { type: string; candidates: { url: string; width: number }[] }[];
 };
+
+/**
+ * The Focal point on pages: a fixed set of WebCraft's own classes, so pages keep their strict policy
+ * (no inline styles). `wc-focus` sets `object-position` from `--wc-fx` and `--wc-fy`, which
+ * `wc-fx-<n>` and `wc-fy-<n>` set in steps of `FOCAL_POINT_STEP` percent; the Site's stylesheet
+ * holds them all in its base layer, so a Class Staff give the image can still position it.
+ */
+export const FOCAL_POINT_STEP = 5;
+
+/** The classes placing an image's Focal point, to the nearest step; none when it has none. */
+export function focalPointClasses(point: { x: number; y: number } | null | undefined): string[] {
+	if (!point) return [];
+	const step = (value: number) => Math.min(100, Math.max(0, Math.round(value / FOCAL_POINT_STEP) * FOCAL_POINT_STEP));
+	return ["wc-focus", `wc-fx-${step(point.x)}`, `wc-fy-${step(point.y)}`];
+}
+
+/** The base-layer rules behind `focalPointClasses`. */
+export function focalPointRules(): string[] {
+	const rules = [".wc-focus{object-position:var(--wc-fx,50%) var(--wc-fy,50%)}"];
+	for (let value = 0; value <= 100; value += FOCAL_POINT_STEP) {
+		rules.push(`.wc-fx-${value}{--wc-fx:${value}%}`, `.wc-fy-${value}{--wc-fy:${value}%}`);
+	}
+	return rules;
+}
 
 /** Finds a Media item of the page's Site by id; undefined for one it doesn't have (or isn't ready). */
 export type MediaReader = (id: string) => PageMedia | undefined;
@@ -72,8 +98,8 @@ export function renderMediaImage(image: PageMedia, own: readonly [string, string
 	if (priority) priority.given = true;
 
 	const attributes: [string, string][] = [];
-	const className = given.get("class");
-	if (className !== undefined) attributes.push(["class", className]);
+	const classes = [...(given.get("class") ?? "").split(/\s+/).filter(Boolean), ...focalPointClasses(image.focalPoint)];
+	if (classes.length > 0) attributes.push(["class", classes.join(" ")]);
 	attributes.push(["src", image.url], ["alt", given.get("alt") ?? image.alt ?? ""]);
 	if (width && height) attributes.push(["width", String(width)], ["height", String(height)]);
 	const loading = given.get("loading") ?? (first ? "eager" : "lazy");

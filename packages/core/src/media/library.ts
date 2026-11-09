@@ -77,6 +77,8 @@ export type MediaItem = {
 	/** When it went to the Trash, and when it will be deleted for good; null while it is in the library. */
 	trashedAt: Date | null;
 	purgeAt: Date | null;
+	/** An image's Focal point, shared by every language; null when none is set (pages centre it). */
+	focalPoint: FocalPoint | null;
 	/** Whether a new file (Replace file) is waiting for the worker; the current one is served until then. */
 	replacing: boolean;
 	/** Why the worker refused the file, or the file meant to replace it (the item kept its own); null otherwise. */
@@ -118,7 +120,12 @@ export type MediaChange = {
 	caption?: string | null;
 	/** Files it into a folder; null for none. */
 	folderId?: string | null;
+	/** An image's Focal point, as percentages of its width and height (whole numbers, 0 to 100); null clears it. */
+	focalPoint?: FocalPoint | null;
 };
+
+/** The spot of an image that must stay visible, as percentages of its width and height from its top left. */
+export type FocalPoint = { x: number; y: number };
 
 export type MediaFolder = { id: string; name: string; count: number; createdAt: Date };
 
@@ -459,6 +466,19 @@ export function createMediaLibrary(options: {
 					texts = writeText(texts, key, language, next, { kind: "person", personId });
 					changed.push(key);
 				}
+				let focal = { focalX: row.focalX, focalY: row.focalY };
+				if (change.focalPoint !== undefined) {
+					if (change.focalPoint !== null && row.kind !== "image") {
+						throw new MediaInvalidError([{ at: "focalPoint", message: "Only images have a Focal point." }]);
+					}
+					const next = change.focalPoint
+						? { focalX: change.focalPoint.x, focalY: change.focalPoint.y }
+						: { focalX: null, focalY: null };
+					if (next.focalX !== row.focalX || next.focalY !== row.focalY) {
+						focal = next;
+						changed.push("focalPoint");
+					}
+				}
 				let folderId = row.folderId;
 				if (change.folderId !== undefined) {
 					const next = change.folderId === null ? null : (await findFolder(tx, change.folderId)).id;
@@ -468,9 +488,9 @@ export function createMediaLibrary(options: {
 					}
 				}
 				if (changed.length === 0) return;
-				await tx.update(media, { texts, folderId, updatedAt: tx.now() }, eq(media.id, row.id));
+				await tx.update(media, { texts, folderId, ...focal, updatedAt: tx.now() }, eq(media.id, row.id));
 				await tx.audit("media.update", { mediaId: row.id, changed });
-				// Texts such as alt text show on published pages: they change at once, with no Draft.
+				// Texts such as alt text, and the Focal point, show on published pages: they change at once, with no Draft.
 				if (changed.some((key) => key !== "folder")) await clearPageCache(tx);
 			});
 			return get(scope, mediaId, language);
@@ -786,6 +806,7 @@ async function views(
 			uploadedBy: row.uploadedBy && uploader !== undefined ? { id: row.uploadedBy, name: uploader } : null,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
+			focalPoint: focalPointOf(row),
 			trashedAt: row.trashedAt,
 			purgeAt: row.trashedAt ? new Date(row.trashedAt.getTime() + TRASH_LIFETIME_MS) : null,
 			replacing: row.status === "ready" && own.some((file) => file.role === "upload"),
@@ -793,6 +814,11 @@ async function views(
 			canEdit: manages || row.uploadedBy === personId,
 		};
 	});
+}
+
+/** An item's Focal point, or null. */
+export function focalPointOf(row: Pick<MediaRow, "focalX" | "focalY">): FocalPoint | null {
+	return row.focalX === null || row.focalY === null ? null : { x: row.focalX, y: row.focalY };
 }
 
 /** The URL of a ready item's original (its current one: not one Replace file put aside). */

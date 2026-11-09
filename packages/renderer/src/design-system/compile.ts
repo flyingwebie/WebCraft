@@ -15,7 +15,7 @@
  * Later layers win whatever their selectors, so nobody needs `!important`.
  */
 import { createHash } from "node:crypto";
-
+import { focalPointRules } from "../media.ts";
 import { buildCss, type CssKind, type CssText } from "./css.ts";
 import { BASE_TARGETS, type DesignSystem, designSystemNames } from "./document.ts";
 
@@ -143,7 +143,7 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		const declarations = build(designSystem.baseStyles[target] ?? [], "declarations");
 		if (declarations) baseRules.push(`${target}{${declarations}}`);
 	}
-	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS);
+	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS, ...focalPointRules());
 
 	const used = designSystem.classes.filter((each) => use.classIds.has(each.id));
 	const classRules: string[] = [];
