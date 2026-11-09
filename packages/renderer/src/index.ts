@@ -10,6 +10,21 @@ export {
 	TEMPLATE_COMMANDS,
 	type TemplateCommand,
 } from "./commands.ts";
+export {
+	boundaryProblem,
+	COMPONENT_LIMITS,
+	type ComponentCatalogue,
+	type ComponentFound,
+	type ComponentInfo,
+	componentsPlacedIn,
+	isComponentInfo,
+	isComponentTag,
+	type PlacementNode,
+	type PropArgument,
+	type PropInfo,
+	type PropValue,
+	placementsIn,
+} from "./components.ts";
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 export {
 	COMPARE_OPERATORS,
@@ -28,7 +43,7 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
-export { type RenderOptions, renderTree } from "./html.ts";
+export { type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
 export { type PrintMarkupOptions, printTemplateMarkup } from "./markup/print.ts";

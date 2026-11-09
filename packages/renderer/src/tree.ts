@@ -12,7 +12,8 @@
  *   lands;
  * - a comment: kept for the people who build the Site, never sent to visitors;
  * - a Template command's node, such as a Condition or the Site template's content outlet
- *   (`commands.ts`).
+ *   (`commands.ts`);
+ * - a Placement: a Component placed here, with its own Prop values (`components.ts`).
  *
  * Attributes are a list, not an object, because Postgres `jsonb` doesn't keep the order of keys and
  * a round trip must lose nothing. A canonical tree never has two text nodes side by side, nor empty
@@ -20,6 +21,15 @@
  * old trees can't be read as bumps `ELEMENT_TREE_VERSION`.
  */
 import { type CommandNode, commandForNode } from "./commands.ts";
+import {
+	boundaryProblem,
+	type ComponentCatalogue,
+	expansionProblem,
+	isComponentInfo,
+	PLACEMENT_INTERNALS,
+	type PlacementNode,
+	type PropValue,
+} from "./components.ts";
 import { checkExpression, type Expression, expressionPaths } from "./expressions.ts";
 import { checkFormat, type ValueFormat } from "./formatters.ts";
 
@@ -31,7 +41,7 @@ export type ElementTree = {
 	nodes: TreeNode[];
 };
 
-export type TreeNode = ElementNode | TextNode | ValueNode | CommentNode | CommandNode;
+export type TreeNode = ElementNode | TextNode | ValueNode | CommentNode | CommandNode | PlacementNode;
 
 export type ElementNode = {
 	type: "element";
@@ -471,6 +481,13 @@ export type ParseTreeOptions = {
 	 * `{{@outlet}}`), reporting each problem on the node it is about, or on the tree.
 	 */
 	checkTree?: TreeCheck;
+	/**
+	 * The Components the tree may place (by id), with their Props and trees. Every Placement is
+	 * refused when absent.
+	 */
+	components?: Pick<ComponentCatalogue, "byId">;
+	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
+	unknownValue?: (path: string) => string;
 	/** Makes an id for an element that has none; random by default. */
 	newId?: () => string;
 };
@@ -523,7 +540,9 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			problem(at, "A value's path is names joined by dots, such as title or summary.");
 			return undefined;
 		}
-		if (options.isKnownValue && !options.isKnownValue(path)) problem(at, unknownValueMessage(path));
+		if (options.isKnownValue && !options.isKnownValue(path)) {
+			problem(at, (options.unknownValue ?? unknownValueMessage)(path));
+		}
 		return path;
 	};
 
@@ -607,6 +626,26 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		return parsed;
 	};
 
+	/** A stored element or Placement id: filled in when missing, refused when malformed or taken. */
+	const parseId = (id: unknown, at: string): string | undefined => {
+		if (id === undefined || id === null) {
+			let made = newId();
+			while (ids.has(made)) made = newId();
+			ids.add(made);
+			return made;
+		}
+		if (typeof id !== "string" || !ELEMENT_ID.test(id)) {
+			problem(at, "An element id is 1 to 64 letters, digits, dashes and underscores.");
+			return undefined;
+		}
+		if (ids.has(id)) {
+			problem(at, `The id ${id} is used by another element.`);
+			return undefined;
+		}
+		ids.add(id);
+		return id;
+	};
+
 	const parseNodes = (nodes: unknown, at: string, ancestors: readonly string[], depth: number): TreeNode[] => {
 		if (!Array.isArray(nodes)) {
 			problem(at, "Nodes must be a list.");
@@ -660,6 +699,8 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			}
 			case "element":
 				return parseElement(raw, at, ancestors, depth);
+			case "component":
+				return parsePlacement(raw, at, ancestors);
 		}
 		const command = commandForNode(raw.type);
 		if (command) {
@@ -671,11 +712,15 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			return command.check(raw, at, {
 				problem,
 				expression: (expression, here) =>
-					checkExpression(expression, here, { problem, isKnownValue: options.isKnownValue }),
+					checkExpression(expression, here, {
+						problem,
+						isKnownValue: options.isKnownValue,
+						unknownValue: options.unknownValue,
+					}),
 				nodes: (children, here) => parseNodes(children, here, ancestors, depth + 1),
 			});
 		}
-		problem(at, "A node is an element, text, a value, a comment or a Template command.");
+		problem(at, "A node is an element, text, a value, a comment, a Template command or a Placement.");
 		return undefined;
 	};
 
@@ -692,22 +737,13 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			problem(`${at}.tag`, tag ? refused : `There is no element named ${String(element.tag)} in Templates.`);
 			return undefined;
 		}
-		let id = element.id;
-		if (id === undefined || id === null) {
-			id = newId();
-		} else if (typeof id !== "string" || !ELEMENT_ID.test(id)) {
-			problem(`${at}.id`, "An element id is 1 to 64 letters, digits, dashes and underscores.");
-			return undefined;
-		} else if (ids.has(id)) {
-			problem(`${at}.id`, `The id ${id} is used by another element.`);
-			return undefined;
-		}
-		ids.add(id as string);
+		const id = parseId(element.id, `${at}.id`);
+		if (id === undefined) return undefined;
 		const children = parseNodes(element.children ?? [], `${at}.children`, [...ancestors, tag], depth + 1);
 		if (VOID_ELEMENTS.has(tag) && children.length > 0) problem(`${at}.children`, `${tag} can't have children.`);
 		return {
 			type: "element",
-			id: id as string,
+			id,
 			tag,
 			attributes: parseAttributes(element.attributes ?? [], `${at}.attributes`),
 			classes: parseClasses(element.classes ?? [], `${at}.classes`),
@@ -715,9 +751,82 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		};
 	};
 
+	/** Boundary checks already made, by Component and where it sits. */
+	const boundaries = new Map<string, string | undefined>();
+
+	/**
+	 * A Placement: its id, its Component and its own Prop values, nothing more (a copy's internals
+	 * can't be edited on their own). Each value is fixed text and values read where it is placed;
+	 * fixed text must be one its Prop can hold, and every required Prop needs a value.
+	 */
+	const parsePlacement = (
+		raw: Record<string, unknown>,
+		at: string,
+		ancestors: readonly string[],
+	): PlacementNode | undefined => {
+		for (const key of Object.keys(raw)) {
+			if (!["type", "id", "component", "props"].includes(key)) problem(`${at}.${key}`, PLACEMENT_INTERNALS);
+		}
+		const id = parseId(raw.id, `${at}.id`);
+		if (typeof raw.component !== "string") {
+			problem(`${at}.component`, "A Placement names its Component by id.");
+			return undefined;
+		}
+		const found = options.components?.byId(raw.component);
+		if (!isComponentInfo(found)) {
+			problem(`${at}.component`, found?.refused ?? `There is no Component with the id ${raw.component} on this Site.`);
+			return undefined;
+		}
+		const boundary = boundaryProblem(found, ancestors, (other) => options.components?.byId(other), boundaries);
+		if (boundary) problem(at, boundary);
+		const props: PropValue[] = [];
+		if (!Array.isArray(raw.props)) {
+			problem(`${at}.props`, "A Placement's props are a list of its Prop values.");
+		} else {
+			raw.props.forEach((entry: unknown, index) => {
+				const here = `${at}.props[${index}]`;
+				const { name, value } = (entry ?? {}) as { name?: unknown; value?: unknown };
+				const prop = found.props.find((candidate) => candidate.key === name);
+				if (typeof name !== "string" || !prop) {
+					problem(`${here}.name`, `${found.name} has no Prop named ${String(name)}.`);
+					return;
+				}
+				if (props.some((given) => given.name === name)) {
+					problem(`${here}.name`, `${name} is given twice.`);
+					return;
+				}
+				if (!Array.isArray(value)) {
+					problem(`${here}.value`, "A Prop's value is a list of text and values.");
+					return;
+				}
+				const parts = canonicalNodes(
+					value
+						.map((part: unknown, partIndex) => parsePart(part, `${here}.value[${partIndex}]`))
+						.filter((part): part is AttributePart => part !== undefined),
+				);
+				if (parts.every((part) => part.type === "text")) {
+					const refused = prop.check(parts.map((part) => (part.type === "text" ? part.text : "")).join(""));
+					if (refused) problem(`${here}.value`, `${name}: ${refused}`);
+				}
+				props.push({ name, value: parts });
+			});
+		}
+		for (const prop of found.props) {
+			if (prop.required && !props.some((given) => given.name === prop.key)) {
+				problem(`${at}.props`, `${found.name} needs ${prop.key}: the Prop is required.`);
+			}
+		}
+		return id === undefined ? undefined : { type: "component", id, component: found.id, props };
+	};
+
 	const { version, nodes } = (input ?? {}) as { version?: unknown; nodes?: unknown };
 	if (version !== ELEMENT_TREE_VERSION) problem("version", `The element tree version is ${ELEMENT_TREE_VERSION}.`);
 	const tree: ElementTree = { version: ELEMENT_TREE_VERSION, nodes: parseNodes(nodes, "nodes", [], 1) };
+	if (problems.length === 0 && options.components) {
+		const components = options.components;
+		const tooBig = expansionProblem(tree.nodes, (id) => components.byId(id));
+		if (tooBig) problem(where.get(tooBig.node) ?? "nodes", tooBig.message);
+	}
 	if (problems.length === 0) {
 		options.checkTree?.(tree.nodes, (node, message) => problem((node && where.get(node)) || "nodes", message));
 	}
@@ -731,7 +840,8 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 /** The lists of children a node holds: an element's children, each branch of a command. */
 export function childListsOf(node: TreeNode): readonly (readonly TreeNode[])[] {
 	if (node.type === "element") return [node.children];
-	if (node.type === "text" || node.type === "value" || node.type === "comment") return [];
+	// A Placement holds nothing: its Component's elements are the Component's own.
+	if (node.type === "text" || node.type === "value" || node.type === "comment" || node.type === "component") return [];
 	const command = commandForNode(node.type);
 	return command ? command.children(node) : [];
 }
@@ -744,7 +854,10 @@ export function* elementsOf(nodes: readonly TreeNode[]): Generator<ElementNode> 
 	}
 }
 
-/** The path of every binding in the tree (in text, attributes and Conditions' tests), each once. */
+/**
+ * The path of every binding in the tree (in text, attributes, Conditions' tests and Placements' Prop
+ * values, which read where they are placed), each once.
+ */
 export function valuePathsOf(tree: ElementTree): string[] {
 	const paths = new Set<string>();
 	const visit = (nodes: readonly TreeNode[]) => {
@@ -757,6 +870,11 @@ export function valuePathsOf(tree: ElementTree): string[] {
 			}
 			if (node.type === "condition") {
 				for (const branch of node.branches) for (const path of expressionPaths(branch.test)) paths.add(path);
+			}
+			if (node.type === "component") {
+				for (const prop of node.props) {
+					for (const part of prop.value) if (part.type === "value") paths.add(part.path);
+				}
 			}
 			for (const children of childListsOf(node)) visit(children);
 		}

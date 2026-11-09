@@ -13,6 +13,7 @@ import { and, eq, getTableName, isNull } from "drizzle-orm";
 
 import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { type ComponentSources, NO_MODULE_COMPONENTS } from "../content/components.ts";
 import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
@@ -124,6 +125,8 @@ export type ModuleHost = {
 	readonly registry: ModuleRegistry;
 	/** What the `migrate` step and the schema check need to know about this Install's Modules. */
 	readonly schemas: ModuleSchema[];
+	/** The Components Modules declare: their names, and those that may be placed on a Site (where the Module runs). */
+	readonly components: ComponentSources;
 	/** Every Module of this build, for the Superadmin (open the Install with `module.approve`). */
 	list(scope: InstallScope, language: string): Promise<ModuleView[]>;
 	/**
@@ -294,6 +297,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 	return {
 		registry,
 		schemas: moduleSchemas(modules),
+		components: NO_MODULE_COMPONENTS,
 
 		async list(_scope, language) {
 			const approved = await approvals();

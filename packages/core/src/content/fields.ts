@@ -94,9 +94,16 @@ export const FIELD_HELP_MAX_LENGTH = 500;
 export function parseFields(
 	inputs: readonly FieldInput[],
 	problems: ContentProblem[],
-	context: DefineContext & { reservedKeys: ReadonlySet<string> },
+	context: DefineContext & {
+		reservedKeys: ReadonlySet<string>;
+		/** What the top-level list is called in problems: `fields` (a Post Type's, the Globals') or `props` (a Component's). */
+		listName?: "fields" | "props";
+	},
 	existing: readonly FieldDefinition[] = [],
 ): FieldDefinition[] {
+	const listName = context.listName ?? "fields";
+	/** Props are declared with the Field types; problems about the top-level list name what they are. */
+	const word = (depth: number) => (depth === 1 && listName === "props" ? "Prop" : "Field");
 	let count = 0;
 	const parseList = (
 		list: readonly FieldInput[],
@@ -120,17 +127,17 @@ export function parseFields(
 			if (!FIELD_KEY.test(key)) {
 				report(
 					"key",
-					"A Field key starts with a lower-case letter, then letters, digits and underscores (at most 64).",
+					`A ${word(depth)} key starts with a lower-case letter, then letters, digits and underscores (at most 64).`,
 				);
 			} else if (reserved.has(key.toLowerCase())) {
 				report("key", `${key} is kept for WebCraft; choose another key.`);
 			} else if (seen.has(key.toLowerCase())) {
-				report("key", `Two Fields have the key ${key}.`);
+				report("key", `Two ${word(depth)}s have the key ${key}.`);
 			}
 			seen.add(key.toLowerCase());
 			const label = typeof input.label === "string" ? input.label.trim() : "";
 			if (!label || label.length > FIELD_LABEL_MAX_LENGTH) {
-				report("label", `A Field's label has 1 to ${FIELD_LABEL_MAX_LENGTH} characters.`);
+				report("label", `A ${word(depth)}'s label has 1 to ${FIELD_LABEL_MAX_LENGTH} characters.`);
 			}
 			const help = typeof input.help === "string" ? input.help.trim() : "";
 			if (help.length > FIELD_HELP_MAX_LENGTH)
@@ -139,7 +146,7 @@ export function parseFields(
 			if (!isFieldType(input.type)) report("type", `There is no Field type ${String(input.type)}.`);
 			const previous = before.find((field) => field.key === key);
 			if (previous && previous.type !== input.type) {
-				report("type", `${key} is a ${previous.type} Field; a Field keeps its type.`);
+				report("type", `${key} is a ${previous.type} ${word(depth)}; a ${word(depth)} keeps its type.`);
 			}
 
 			const spec = FIELD_TYPE_SPECS[type];
@@ -185,7 +192,7 @@ export function parseFields(
 			return field;
 		});
 	};
-	return parseList(inputs, "fields", 1, existing);
+	return parseList(inputs, listName, 1, existing);
 }
 
 /** Checks a Field's default against its own type and rules. Only some types have one. */

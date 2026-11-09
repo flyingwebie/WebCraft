@@ -4,9 +4,12 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import {
+	createComponent,
 	createEntry,
 	createPostType,
 	deleteEntry,
+	getComponent,
+	getComponentMarkup,
 	getEntry,
 	getEntryTemplate,
 	getEntryTemplateMarkup,
@@ -15,9 +18,12 @@ import {
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	getSpecialPages,
+	listComponents,
 	listEntries,
 	listPostTypes,
 	publish,
+	saveComponentDraft,
+	saveComponentMarkup,
 	saveDraft,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
@@ -112,6 +118,8 @@ export async function createInstallServices(
 		modules: options.modules ?? FIRST_PARTY_MODULES,
 	});
 	listeners.afterAudit = modules.afterAudit;
+	// The Components of Modules: placed on Sites where their Module runs.
+	const componentSources = modules.components;
 	const memberships = createMemberships({ database, clock });
 	const storage = createInstallStorage({
 		database,
@@ -154,6 +162,14 @@ export async function createInstallServices(
 			saveSiteTemplate,
 			siteTemplateMarkup: getSiteTemplateMarkup,
 			saveSiteTemplateMarkup,
+		},
+		components: {
+			list: (scope) => listComponents(scope, componentSources),
+			get: (scope, componentId) => getComponent(scope, componentId, componentSources),
+			create: (scope, input) => createComponent(scope, input, componentSources),
+			saveDraft: (scope, componentId, change) => saveComponentDraft(scope, componentId, change, componentSources),
+			markup: (scope, componentId) => getComponentMarkup(scope, componentId, componentSources),
+			saveMarkup: (scope, componentId, input) => saveComponentMarkup(scope, componentId, input, componentSources),
 		},
 		pages: {
 			settings: getSpecialPages,

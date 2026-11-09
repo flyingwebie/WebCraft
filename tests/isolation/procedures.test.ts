@@ -188,6 +188,36 @@ describe("Templates", () => {
 	);
 });
 
+describe("Components", () => {
+	/** A name no other call has used. */
+	let names = 0;
+	const newName = () => `Card${++names}`;
+	/** A new Component in a target's Site, made by the Superadmin. */
+	const componentIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.components.create({ siteId: target.siteId, name: newName() })).component.id;
+	};
+
+	isolation.refuses("components.list", (api, { siteId }) => api.components.list({ siteId }));
+	isolation.refuses("components.get", async (api, target) =>
+		api.components.get({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+	isolation.refuses("components.create", (api, { siteId }) => api.components.create({ siteId, name: newName() }));
+	isolation.refuses("components.saveDraft", async (api, target) =>
+		api.components.saveDraft({
+			siteId: target.siteId,
+			componentId: await componentIn(target),
+			tree: tree(element("p")),
+		}),
+	);
+	isolation.refuses("components.getMarkup", async (api, target) =>
+		api.components.getMarkup({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+	isolation.refuses("components.saveMarkup", async (api, target) =>
+		api.components.saveMarkup({ siteId: target.siteId, componentId: await componentIn(target), markup: "<p>Hi</p>" }),
+	);
+});
+
 describe("Pages", () => {
 	/** A Page in a target's Site, made by the Superadmin. */
 	const pageIn = async (target: IsolationTarget) => {

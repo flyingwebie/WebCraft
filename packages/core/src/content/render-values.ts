@@ -1,4 +1,4 @@
-import { richText, type TemplateValue } from "@webcraft/renderer";
+import { type PropArgument, richText, type TemplateValue, type ValueReader } from "@webcraft/renderer";
 
 import type { FieldDefinition, Json, LinkValue } from "./field-types.ts";
 import { BUILT_IN_FIELDS } from "./fields.ts";
@@ -12,7 +12,9 @@ import { BUILT_IN_FIELDS } from "./fields.ts";
  *   (`team.name`: every row's name), a link's `url` or `text`, a select's `value` or `label`;
  * - what a Relationship points at, one level deep: its published Entries' built-in Fields, `url`
  *   and Fields (`category.title`, `category.url`, `authors.name`), unpublished Entries left out;
- * - `site.x`: the Site's published Globals (`site.phone`, `site.address.city`).
+ * - `site.x`: the Site's published Globals (`site.phone`, `site.address.city`);
+ * - inside a Component, `props.x`: the Placement's Prop values, read through each Prop's Field type
+ *   (`props.link.url`), or the value a Prop passes on from where it is placed.
  *
  * On its own, a select shows its label, a link its text (or address), a Relationship its Entries'
  * titles, rich text its cleaned HTML; Groups and Repeater rows show nothing. A path through a list
@@ -197,9 +199,28 @@ export function knownValues(options: {
 	const builtIns = new Set<string>(BUILT_IN_FIELDS);
 	const own = fieldsShape(options.fields, options.postTypes);
 	const site = fieldsShape(options.globalFields, null);
-	const root: Shape = {
+	return pathsUnder({
 		part: (name) => (builtIns.has(name) ? LEAF : name === "site" ? site : own.part(name)),
-	};
+	});
+}
+
+/**
+ * What a Component's tree may read: its Props as `props.x` (and their parts, as for Fields:
+ * `props.link.url`, `props.category.title`) and the Globals as `site.x`. Nothing of the Entry it
+ * may be placed on: what it shows of one comes in through its Props.
+ */
+export function componentKnownValues(options: {
+	props: readonly FieldDefinition[];
+	postTypes: readonly { key: string; fields: readonly FieldDefinition[] }[];
+	globalFields: readonly FieldDefinition[];
+}): (path: string) => boolean {
+	const props = fieldsShape(options.props, options.postTypes);
+	const site = fieldsShape(options.globalFields, null);
+	return pathsUnder({ part: (name) => (name === "props" ? props : name === "site" ? site : undefined) });
+}
+
+/** Whether a path names something under `root`. */
+function pathsUnder(root: Shape): (path: string) => boolean {
 	return (path) => {
 		let shape: Shape | undefined = root;
 		for (const name of path.split(".")) {
@@ -208,6 +229,56 @@ export function knownValues(options: {
 		}
 		return true;
 	};
+}
+
+// ---------------------------------------------------------------------------------------------------
+// What a Placement's Component reads
+
+/** What reading a Placement's Props needs besides the Placement itself. */
+export type PlacementSources = {
+	/** The Site's published Globals, for `site.x`. */
+	site: Parts;
+	/** The published Entries Relationship Props point at, by id, with their Post Type's key. */
+	related: ReadonlyMap<string, RelatedEntry & { postTypeKey: string }>;
+	/** A Prop's value from fixed text, through its Field type; null when the text isn't one it holds. */
+	read(prop: FieldDefinition, text: string): Json;
+};
+
+/**
+ * What a Component's bindings read where it is placed: `props.x` from the Placement's Prop values,
+ * `site.x` from the Globals. A Prop the Placement doesn't give has its default. A Prop given as one
+ * value (`heading="{{ title }}"`) reads that value where the Component is placed, parts and all
+ * (`props.category.title` reads `category.title` there); fixed text is read through the Prop's Field
+ * type, as a Field's value is.
+ */
+export function placementValues(
+	props: readonly FieldDefinition[],
+	given: ReadonlyMap<string, PropArgument>,
+	outer: ValueReader,
+	sources: PlacementSources,
+): ValueReader {
+	const valueSources: ValueSources = { related: sources.related, site: sources.site };
+	const root: Parts = { text: null, part: (name) => (name === "site" ? sources.site : undefined) };
+	return (path) => {
+		const [head, key = "", ...rest] = path.split(".");
+		if (head === "site") return resolvePath(root, path);
+		const prop = head === "props" ? props.find((candidate) => candidate.key === key) : undefined;
+		if (!prop) return undefined;
+		const argument = given.get(key);
+		if (argument?.kind === "bound") return outer([argument.path, ...rest].join("."));
+		const json = argument ? sources.read(prop, argument.text) : (prop.default as Json);
+		const value = fieldValue(prop, json, { ...valueSources, related: relatedOf(prop, sources.related) });
+		return resolvePath(
+			{ text: null, part: (name) => (name === "value" ? value : undefined) },
+			["value", ...rest].join("."),
+		);
+	};
+}
+
+/** The Entries a Relationship Prop may show: published ones of its Post Types. */
+function relatedOf(prop: FieldDefinition, related: PlacementSources["related"]): ReadonlyMap<string, RelatedEntry> {
+	if (prop.type !== "relationship") return related;
+	return new Map([...related].filter(([, entry]) => prop.postTypes.includes(entry.postTypeKey)));
 }
 
 /** `postTypes` is null where Relationships aren't followed. */
