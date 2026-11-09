@@ -708,8 +708,7 @@ export function editingBar(config: EditingBarConfig): void {
 			});
 		}
 		doc.addEventListener("selectionchange", () => {
-			const range = doc.getSelection()?.rangeCount ? doc.getSelection()?.getRangeAt(0) : undefined;
-			if (range && current?.contains(range.commonAncestorContainer)) selection = range.cloneRange();
+			rememberSelection();
 			if (current?.dataset.wcType === "richText") updatePressed();
 		});
 		const reposition = () => {
@@ -774,6 +773,8 @@ export function editingBar(config: EditingBarConfig): void {
 		}
 		if (event.key === "F10" && event.altKey) {
 			event.preventDefault();
+			// The selection as it is now: a "selectionchange" for it may not have come yet.
+			rememberSelection();
 			toolbarDismissed = false;
 			showToolbar(region);
 			toolbar.querySelector<HTMLElement>('button[tabindex="0"]')?.focus();
@@ -1011,6 +1012,13 @@ export function editingBar(config: EditingBarConfig): void {
 			}
 			toolbar.querySelector(`[data-tool="${name}"]`)?.setAttribute("aria-pressed", String(on));
 		}
+	}
+
+	/** Keeps the selection in the text being edited, for the toolbar's tools to act on. */
+	function rememberSelection(): void {
+		const chosen = doc.getSelection();
+		const range = chosen?.rangeCount ? chosen.getRangeAt(0) : undefined;
+		if (range && current?.contains(range.commonAncestorContainer)) selection = range.cloneRange();
 	}
 
 	/** Runs an editing command on the text being edited, its selection put back first. */
