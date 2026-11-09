@@ -228,7 +228,14 @@ export function FieldSettingsPanel({
 			{traits.hasDefault ? (
 				<div className="grid gap-2 border-t pt-5">
 					<FieldValue
-						field={{ ...field, label: t("postTypes.settings.default"), help: "", required: false } as FieldDefinition}
+						field={
+							{
+								...field,
+								label: t("postTypes.settings.default"),
+								help: t("postTypes.settings.defaultHelp"),
+								required: false,
+							} as FieldDefinition
+						}
 						value={(field.default as Json) ?? emptyValue(field)}
 						onChange={(value) =>
 							update({ default: value === "" || (Array.isArray(value) && value.length === 0) ? null : value })
@@ -236,9 +243,7 @@ export function FieldSettingsPanel({
 						path="default"
 						context={defaultContext(siteId, defaultLanguage)}
 					/>
-					<p id="setting-default-help" className="text-muted-foreground text-sm">
-						{t("postTypes.settings.defaultHelp")}
-					</p>
+
 					<SettingNotes id="setting-default" problems={at("default")} />
 				</div>
 			) : null}
