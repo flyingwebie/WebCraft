@@ -1,0 +1,80 @@
+# WebCraft on Coolify: web, worker, the migrate step and Postgres 18. Coolify's own proxy answers HTTPS
+# and issues every certificate, so there is no Caddy here (ADR 0015). Coolify fills in its generated
+# variables: the web service's domain (SERVICE_FQDN_WEB_3000, routed to port 3000), the Postgres user
+# and password, and the Master key. Every step is in docs/deploy/coolify.md.
+#
+# Updating: change WEBCRAFT_VERSION in Coolify's environment variables and redeploy. The `migrate` step
+# runs first, and web and worker start only once it has finished (ADR 0031).
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SERVICE_USER_POSTGRES}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: webcraft
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d webcraft"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # The migrate step (ADR 0031): applies pending migrations, then stops. Web and worker wait for it.
+  migrate:
+    image: ghcr.io/flyingwebie/webcraft-web:${WEBCRAFT_VERSION:-main}
+    command: ["webcraft", "admin", "migrate"]
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/webcraft
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/flyingwebie/webcraft-web:${WEBCRAFT_VERSION:-main}
+    restart: unless-stopped
+    environment:
+      # Coolify routes the web service's domains to port 3000; the first one is the admin host.
+      SERVICE_FQDN_WEB_3000:
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/webcraft
+      WEBCRAFT_ADMIN_HOST: ${SERVICE_FQDN_WEB_3000}
+      WEBCRAFT_SITES_DOMAIN: ${WEBCRAFT_SITES_DOMAIN:-}
+      WEBCRAFT_EDGE: coolify
+      WEBCRAFT_PUBLIC_ADDRESSES: ${WEBCRAFT_PUBLIC_ADDRESSES:-}
+      # Unset: the private ranges, where Coolify's proxy reaches the web process on the server.
+      WEBCRAFT_TRUSTED_PROXIES: ${WEBCRAFT_TRUSTED_PROXIES:-}
+      WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
+      WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
+      PORT: "3000"
+    volumes:
+      - storage:/var/lib/webcraft/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: ghcr.io/flyingwebie/webcraft-worker:${WEBCRAFT_VERSION:-main}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/webcraft
+      WEBCRAFT_ADMIN_HOST: ${SERVICE_FQDN_WEB_3000}
+      WEBCRAFT_SITES_DOMAIN: ${WEBCRAFT_SITES_DOMAIN:-}
+      WEBCRAFT_EDGE: coolify
+      WEBCRAFT_PUBLIC_ADDRESSES: ${WEBCRAFT_PUBLIC_ADDRESSES:-}
+      WEBCRAFT_TRUSTED_PROXIES: ${WEBCRAFT_TRUSTED_PROXIES:-}
+      WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
+      WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
+    volumes:
+      - storage:/var/lib/webcraft/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  # Media and other files while the Install's storage is local disk: web and worker share it.
+  storage:
