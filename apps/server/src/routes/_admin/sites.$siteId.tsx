@@ -6,14 +6,18 @@ import type { AdminPlace } from "../../ui/shell/levels.ts";
 
 /**
  * The Site level: every page below is about one Site. Loads the Site, its Workspace, the person's
- * Permissions on it and the Workspace's other Sites they reach (for the context switcher). A Site
- * the person can't reach is "not found".
+ * Permissions on it, its Post Types (the sidebar lists their Entries) and languages, and the
+ * Workspace's other Sites they reach (for the context switcher). A Site the person can't reach is
+ * "not found".
  */
 export const Route = createFileRoute("/_admin/sites/$siteId")({
 	beforeLoad: async ({ params }) => {
 		const api = await getApi();
 		try {
-			const { site, workspace, permissions, modulePages } = await api.sites.get({ siteId: params.siteId });
+			const [{ site, workspace, permissions, modulePages, languages }, { postTypes }] = await Promise.all([
+				api.sites.get({ siteId: params.siteId }),
+				api.postTypes.list({ siteId: params.siteId }),
+			]);
 			const { sites } = await api.sites.list({ workspaceId: workspace.id });
 			const place: AdminPlace = {
 				level: "site",
@@ -22,6 +26,8 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 				sites: sites.map(({ id, name, slug }) => ({ id, name, slug })),
 				permissions,
 				modulePages,
+				postTypes: postTypes.map(({ id, name, builtIn }) => ({ id, name, builtIn })),
+				languages,
 			};
 			return { place, site };
 		} catch (error) {

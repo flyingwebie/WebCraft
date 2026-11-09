@@ -9,7 +9,8 @@
 		".": "./src/index.ts",
 		"./admin-languages": "./src/admin-languages.ts",
 		"./email-branding": "./src/email/branding-rules.ts",
-		"./media-kinds": "./src/media/kinds.ts"
+		"./media-kinds": "./src/media/kinds.ts",
+		"./field-rules": "./src/content/field-rules.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

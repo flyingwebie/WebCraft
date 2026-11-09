@@ -37,7 +37,7 @@ export async function expectNoAxeViolations(page: Page, where: string, skipRules
 	expect({ where, violations }).toEqual({ where, violations: [] });
 }
 
-type FocusStop = { index: number; label: string; visibleFocus: boolean; inside: boolean };
+type FocusStop = { index: number; label: string; visibleFocus: boolean; inside: boolean; segmented: boolean };
 
 /**
  * The keyboard reaches everything on the page, in the order it appears, with a visible focus
@@ -54,7 +54,14 @@ export async function expectKeyboardUsable(page: Page, where: string): Promise<v
 	for (let press = 0; press <= tabbable.count; press++) {
 		await page.keyboard.press("Tab");
 		await nextPaint(page);
-		stops.push(await currentStop(page));
+		let stop = await currentStop(page);
+		// A date or time box takes one Tab per part (day, month, year, hours…) before focus moves on.
+		for (let part = 0; part < 8 && stop.segmented && stop.index === stops.at(-1)?.index; part++) {
+			await page.keyboard.press("Tab");
+			await nextPaint(page);
+			stop = await currentStop(page);
+		}
+		stops.push(stop);
 	}
 	const visited = stops.slice(0, tabbable.count);
 	const after = stops[tabbable.count];
@@ -229,7 +236,9 @@ async function currentStop(page: Page): Promise<FocusStop> {
 		// Focus inside a shadow root shows as its host on the document: follow it down.
 		let element = document.activeElement as HTMLElement | null;
 		while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement as HTMLElement;
-		if (!element || element === document.body) return { index: -1, label: "(page)", visibleFocus: true, inside: false };
+		if (!element || element === document.body) {
+			return { index: -1, label: "(page)", visibleFocus: true, inside: false, segmented: false };
+		}
 		const style = getComputedStyle(element);
 		const outline = style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
 		const ring = style.boxShadow !== "none" && style.boxShadow !== "";
@@ -238,6 +247,9 @@ async function currentStop(page: Page): Promise<FocusStop> {
 			label: (element.getAttribute("aria-label") ?? element.textContent ?? element.id).trim().replace(/\s+/g, " "),
 			visibleFocus: outline || ring,
 			inside: true,
+			segmented: element.matches(
+				"input[type=date], input[type=time], input[type=datetime-local], input[type=month], input[type=week]",
+			),
 		};
 	});
 }
