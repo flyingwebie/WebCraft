@@ -167,7 +167,6 @@
         "aws4fetch": "1.0.20",
         "drizzle-orm": "catalog:",
         "nodemailer": "^10.4.0",
-        "pg": "catalog:",
         "pg-boss": "catalog:",
         "pg-copy-streams": "7.0.0",
         "re2js": "^2.9.1",

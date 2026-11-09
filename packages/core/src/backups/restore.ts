@@ -5,10 +5,10 @@ import {
 	type JobQueueOptions,
 	type MigrationReport,
 	type ModuleSchema,
+	openDatabase,
 	runMigrations,
 	unknownMigrations,
 } from "@webcraft/db";
-import pg from "pg";
 import semver from "semver";
 import { importsRun } from "../imports/runs.ts";
 import { createJobQueue } from "../jobs/define.ts";
@@ -100,8 +100,8 @@ export async function readBackupManifest(archive: string): Promise<BackupManifes
 
 /** What the database a restore would go into holds. */
 export async function inspectDatabase(databaseUrl: string): Promise<DatabaseContents> {
-	const client = new pg.Client({ connectionString: databaseUrl, application_name: "webcraft-restore" });
-	await client.connect();
+	const opened = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-restore" });
+	const client = await opened.pool.connect();
 	try {
 		const { rows } = await client.query<{ name: string; tables: string }>(
 			`SELECT current_database() AS name, (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -119,7 +119,8 @@ export async function inspectDatabase(databaseUrl: string): Promise<DatabaseCont
 			processes: processes.rows.map((row) => row.name),
 		};
 	} finally {
-		await client.end();
+		client.release();
+		await opened.close();
 	}
 }
 
@@ -167,8 +168,8 @@ export async function restoreBackup(
 	step(`Rebuilding the database as it was (${manifest.migrations.core.length} migrations of WebCraft's)`);
 	await applyMigrationLevel(context.databaseUrl, manifest.migrations, { modules: context.modules });
 
-	const client = new pg.Client({ connectionString: context.databaseUrl, application_name: "webcraft-restore" });
-	await client.connect();
+	const opened = openDatabase(context.databaseUrl, { maxConnections: 1, applicationName: "webcraft-restore" });
+	const client = await opened.pool.connect();
 	let rows = 0;
 	let tables = 0;
 	let files = 0;
@@ -215,7 +216,8 @@ export async function restoreBackup(
 			throw error;
 		}
 	} finally {
-		await client.end();
+		client.release();
+		await opened.close();
 	}
 	if (tables !== manifest.database.tables.length) {
 		throw notABackup(`it holds ${tables} of the ${manifest.database.tables.length} tables its manifest lists`);
@@ -266,8 +268,8 @@ function assertRestorable(manifest: BackupManifest, context: RestoreContext): vo
 
 /** Deletes every table, sequence, function and type of the database's own schemas, and its other schemas. */
 async function emptyDatabase(databaseUrl: string): Promise<void> {
-	const client = new pg.Client({ connectionString: databaseUrl, application_name: "webcraft-restore" });
-	await client.connect();
+	const opened = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-restore" });
+	const client = await opened.pool.connect();
 	try {
 		await client.query("BEGIN");
 		const schemas = await client.query<{ name: string }>(
@@ -309,7 +311,8 @@ async function emptyDatabase(databaseUrl: string): Promise<void> {
 		await client.query("ROLLBACK").catch(() => {});
 		throw error;
 	} finally {
-		await client.end();
+		client.release();
+		await opened.close();
 	}
 }
 
@@ -323,8 +326,8 @@ async function afterRestore(
 	manifest: BackupManifest,
 	jobQueue: JobQueueOptions = {},
 ): Promise<RestoreReport["queued"]> {
-	const client = new pg.Client({ connectionString: databaseUrl, application_name: "webcraft-restore" });
-	await client.connect();
+	const opened = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-restore" });
+	const client = await opened.pool.connect();
 	let variants: { site_id: string; media_id: string }[];
 	let uploads: { site_id: string; media_id: string }[];
 	let runs: { site_id: string; id: string }[];
@@ -366,7 +369,8 @@ async function afterRestore(
 		await client.query("ROLLBACK").catch(() => {});
 		throw error;
 	} finally {
-		await client.end();
+		client.release();
+		await opened.close();
 	}
 	const boss = createBoss(databaseUrl, {
 		...jobQueue,

@@ -55,10 +55,25 @@ export async function migrateCommand(env: Environment, options: { backup: boolea
 	const report = await migrateStep({
 		databaseUrl: loadDatabaseUrlOnly(env),
 		modules: FIRST_PARTY_MODULES,
-		takeBackup: options.backup ? () => backUp(env, { reason: "before-migrations" }) : null,
+		takeBackup: options.backup ? () => backUpBeforeMigrations(env) : null,
 	});
 	process.stdout.write(migrateReport(report));
 	return 0;
+}
+
+/**
+ * The Backup the migrate step takes first. It reads the same settings as web and worker; without
+ * them it says how to go on.
+ */
+async function backUpBeforeMigrations(env: Environment): Promise<TakenBackup> {
+	try {
+		return await backUp(env, { reason: "before-migrations" });
+	} catch (error) {
+		if (!(error instanceof ConfigError)) throw error;
+		throw new ConfigError(
+			`Migrations are pending, so the migrate step takes a Backup first, which needs the Install's settings: ${error.message} Give the migrate step the same environment as web and worker (and the storage and Backups volumes), or run \`webcraft admin migrate --no-backup\` to go on without a Backup.`,
+		);
+	}
 }
 
 /** The migrate step needs only `DATABASE_URL`, unless it takes a Backup (which reads the rest). */

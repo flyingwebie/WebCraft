@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { WEBCRAFT_VERSION } from "@webcraft/core";
 import type redirects from "@webcraft/module-redirects";
 
+import { analyticsApi, analyticsVisitor, dayOf, liveSite } from "../harness/analytics.ts";
 import { photo, upload } from "../harness/images.ts";
 import {
 	createTestInstall,
@@ -32,6 +33,8 @@ let mediaId: string;
 let importId: string;
 let archive: string;
 let original: { url: string; bytes: Uint8Array<ArrayBuffer> };
+let staffAccount: TestAccount;
+let analyticsSiteId: string;
 
 beforeAll(async () => {
 	folder = await mkdtemp(join(tmpdir(), "webcraft-backup-test-"));
@@ -39,9 +42,12 @@ beforeAll(async () => {
 	superadmin = await source.createSuperadmin();
 	const admin = await source.superadmin();
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
 	const workspaceId = (await source.createWorkspace("Acme Ltd")).id;
 	siteId = (await source.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
-	const staff = (await source.createStaff({ workspaces: [workspaceId] })).browser;
+	const staffMember = await source.createStaff({ workspaces: [workspaceId] });
+	const staff = staffMember.browser;
+	staffAccount = staffMember.account;
 	const editor = await source.createMember({ workspaceId, role: "editor" });
 	editorAccount = editor.account;
 
@@ -82,6 +88,12 @@ beforeAll(async () => {
 		"Name\nRye loaf\nSpelt loaf\n",
 	));
 
+	// Site analytics keeps its raw events in a table of monthly partitions: one visit makes this month's.
+	const counted = await liveSite(source, staff, workspaceId, "counted.example");
+	analyticsSiteId = counted.siteId;
+	await staff.api.consentBanner.setSettings({ siteId: counted.siteId, mode: "none", layout: "bar" });
+	expect((await analyticsVisitor(source, counted.origin).view("/")).status).toBeLessThan(300);
+
 	archive = (await source.backup({ to: folder })).location;
 	restored = await createTestInstall({ database: "empty" });
 });
@@ -115,6 +127,9 @@ describe("a Backup", () => {
 		expect(manifest.modules).toContainEqual({ id: "redirects", version: "1.0.0" });
 		expect(manifest.migrations.core.length).toBeGreaterThan(30);
 		expect(manifest.migrations.modules.redirects).toEqual(["0001-rules-and-misses"]);
+		expect(manifest.database.partitions).toContainEqual(
+			expect.objectContaining({ parent: "m_site_analytics.events", name: "events_2026_03" }),
+		);
 		expect(manifest.masterKey.fingerprint).toMatch(/^[0-9a-f]{64}$/);
 		expect(readFileSync(archive).includes(Buffer.from(TEST_MASTER_KEY))).toBe(false);
 	});
@@ -181,6 +196,15 @@ describe("restored into a fresh database", () => {
 		const moved = await restored.request(`${SITE}/old-bread`);
 		expect(moved.status).toBe(301);
 		expect(moved.headers.get("location")).toBe("/blog/fresh-bread");
+	});
+
+	test("a Module's monthly partitions come back with their rows", async () => {
+		const staff = await restored.signIn(staffAccount);
+		const { totals } = await analyticsApi(staff).stats.totals({
+			siteId: analyticsSiteId,
+			...dayOf(restored.clock.now()),
+		});
+		expect(totals.pageviews).toBe(1);
 	});
 
 	test("Imports come back with their Import reports", async () => {
