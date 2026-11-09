@@ -448,6 +448,14 @@ _Avoid_: God mode, dev mode, developer tools
 Edit mode with none of the Site's own scripts running, so a broken script can never lock anyone out of editing.
 _Avoid_: Recovery mode, scriptless mode, debug mode
 
+**Site script**:
+A script that runs on every page of a Site: the one Staff write for the whole Site in Code mode, or one a Module adds. Like every script on a Site, it is a file served from the Site's own domain, never written into the page.
+_Avoid_: Global script, custom code, header code
+
+**Page script**:
+A script Staff write in Code mode for one page, which runs there only, after the Site script. Both are Structure, with a Draft, published like a Template.
+_Avoid_: Inline script, page code
+
 **Library**:
 A ready-made script package, such as an animation library, that Staff add to a Site at a fixed version. WebCraft keeps its own copy and serves it from the Site, so it never changes unless Staff update it.
 _Avoid_: Package, dependency, vendor script, CDN script
