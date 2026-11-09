@@ -126,7 +126,7 @@ describe("uploading an export file", () => {
 				fileId: file.id,
 				offset: 2 * file.partBytes,
 				sha256: createHash("sha256").update(third).digest("hex"),
-				part: new Blob([third]),
+				part: new File([third], "part"),
 			}),
 		).rejects.toMatchObject({
 			code: "IMPORT_UPLOAD_REFUSED",
@@ -138,7 +138,7 @@ describe("uploading an export file", () => {
 			fileId: file.id,
 			offset: 0,
 			sha256: firstHash,
-			part: new Blob([first]),
+			part: new File([first], "part"),
 		});
 
 		const hashes = await sendParts(staff.api, siteId, file, bytes, file.partBytes);
@@ -164,7 +164,7 @@ describe("uploading an export file", () => {
 				fileId: file.id,
 				offset: 0,
 				sha256: "0".repeat(64),
-				part: new Blob([bytes.slice(0, file.partBytes)]),
+				part: new File([bytes.slice(0, file.partBytes)], "part"),
 			}),
 		).rejects.toMatchObject({ code: "IMPORT_UPLOAD_REFUSED", data: { reason: "hash" } });
 		await expect(

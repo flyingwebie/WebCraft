@@ -41,7 +41,7 @@ export async function sendParts(
 		const hash = sha256(part);
 		hashes.push(hash);
 		if (offset < from) continue;
-		await api.imports.uploadPart({ siteId, fileId: file.id, offset, sha256: hash, part: new Blob([part]) });
+		await api.imports.uploadPart({ siteId, fileId: file.id, offset, sha256: hash, part: new File([part], "part") });
 	}
 	return hashes;
 }

@@ -130,7 +130,7 @@ export function SourceImportFlow({
 			setFile(view);
 			const hashes: Uint8Array[] = [];
 			for (let offset = 0; offset < chosen.size; offset += view.partBytes) {
-				const part = chosen.slice(offset, offset + view.partBytes);
+				const part = new File([chosen.slice(offset, offset + view.partBytes)], "part");
 				const bytes = new Uint8Array(await part.arrayBuffer());
 				const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
 				hashes.push(hash);
