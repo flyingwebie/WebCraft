@@ -12,11 +12,13 @@ import {
 	createLogger,
 	createSecrets,
 	ensureQueues,
+	FIRST_PARTY_MODULES,
 	type InstallPorts,
 	type InstallServices,
 	type JobQueue,
 	type LogEntry,
 	MASTER_KEY_VARIABLE,
+	moduleSchemas,
 	type NewMembership,
 	parseMasterKey,
 	runJob,
@@ -25,7 +27,8 @@ import {
 	type SystemEmail,
 	type SystemEmailType,
 } from "@webcraft/core";
-import { createBoss, openDatabase } from "@webcraft/db";
+import { createBoss, type MigrationReport, openDatabase, runMigrations } from "@webcraft/db";
+import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createWebHandler } from "@webcraft/server/handler";
 import { createImageProcessor } from "@webcraft/worker/images";
 import type { PgBoss } from "pg-boss";
@@ -33,11 +36,13 @@ import type { PgBoss } from "pg-boss";
 import { createTestBrowser, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
+import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 
 export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
+export type { FakeDns } from "./fake-dns.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
 export { createFakeS3, type FakeS3, type FakeS3Options } from "./fake-s3.ts";
@@ -89,6 +94,12 @@ export type TestInstallOptions = {
 	sitesDomain?: string | null;
 	/** `WEBCRAFT_ADMIN_HOST`: `TEST_ADMIN_HOST` unless given. */
 	adminHost?: string;
+	/**
+	 * The Modules the Install loads, as web and worker load the build's first-party Modules: none
+	 * unless given (this build has no first-party Modules yet). Their migrations must already be in
+	 * the database: the test databases have the sample Modules' (see `TEST_MODULES`).
+	 */
+	modules?: readonly ModuleDefinition[];
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -226,6 +237,8 @@ export type TestInstall = {
 	 * range service answers that no password is leaked unless a test answers it otherwise.
 	 */
 	http: FakeHttp;
+	/** The Install's DNS: names resolve only to what a test answers (`dns.answer(name, addresses)`). */
+	dns: FakeDns;
 	clock: TestInstallClock;
 	/** Every log entry the Install wrote. */
 	logs: LogEntry[];
@@ -233,9 +246,15 @@ export type TestInstall = {
 	 * Starts the Install again, with another Master key when given, as web and worker do after their
 	 * `WEBCRAFT_SECRET_KEY` changes, running the same start-up checks (and printing a new setup token
 	 * when the Install has no Superadmin). When the check refuses the key, this rejects with the same
-	 * error and the Install keeps running as before.
+	 * error and the Install keeps running as before. `modules` starts it with other Modules, as a
+	 * new version of WebCraft with other versions of its Modules would.
 	 */
-	restart(options?: { masterKey?: string }): Promise<void>;
+	restart(options?: { masterKey?: string; modules?: readonly ModuleDefinition[] }): Promise<void>;
+	/**
+	 * Runs the `migrate` step on the Install's database, as `webcraft admin migrate` does: WebCraft's
+	 * pending migrations, then the Modules' (the Install's own Modules unless given).
+	 */
+	migrate(options?: { modules?: readonly ModuleDefinition[] }): Promise<MigrationReport>;
 	/** Stops the Install and drops its database. */
 	close(): Promise<void>;
 };
@@ -273,6 +292,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 
 	const mail = createFakeMailer();
 	const http = createFakeHttp();
+	const dns = createFakeDns();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
@@ -291,6 +311,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
 		http: http.fetch,
+		dns: dns.resolver,
 		clock,
 		log,
 		// The real image processing the worker does (it isn't an edge, so it isn't faked).
@@ -300,9 +321,10 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	 * Starts the services as the web process does: the Master key check (web and worker never start
 	 * on a database that is behind), then the setup token when the Install has no Superadmin.
 	 */
+	let modules = options.modules ?? FIRST_PARTY_MODULES;
 	const start = async (masterKey: string) => {
 		const key = parseMasterKey(masterKey, MASTER_KEY_VARIABLE);
-		const started = await createInstallServices(ports, key, { checkMasterKey: mode === "migrated" });
+		const started = await createInstallServices(ports, key, { checkMasterKey: mode === "migrated", modules });
 		if (mode === "migrated") await started.setup.announce();
 		return started;
 	};
@@ -453,14 +475,24 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		mail,
 		lastEmailTo,
 		http,
+		dns,
 		clock,
 		logs,
 		async restart(restartOptions = {}) {
 			const masterKey = restartOptions.masterKey ?? env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY;
-			Object.assign(services, await start(masterKey));
+			const before = modules;
+			modules = restartOptions.modules ?? modules;
+			try {
+				Object.assign(services, await start(masterKey));
+			} catch (error) {
+				modules = before;
+				throw error;
+			}
 			secrets = secretStore(masterKey);
 			env[MASTER_KEY_VARIABLE] = masterKey;
 		},
+		migrate: (migrateOptions = {}) =>
+			runMigrations(databaseUrl, { modules: moduleSchemas(migrateOptions.modules ?? modules) }),
 		async close() {
 			await boss?.stop({ graceful: false, close: true });
 			await database.close();

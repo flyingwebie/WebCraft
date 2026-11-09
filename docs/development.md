@@ -11,11 +11,13 @@ A Bun-workspaces monorepo, scaffolded once with Better-T-Stack (TanStack Start, 
 | `apps/server` | The web process. One request handler routes every request by hostname: the admin host to the admin side (the TanStack Start admin, `/healthz`, `/readyz`, the Management API at `/api/rpc`, later `/api/v1`, `/mcp`, OAuth and the Caddy ask endpoint), every other hostname to the Site pipeline. | Bun 1.4 |
 | `apps/worker` | The worker: runs pg-boss jobs, including image processing (the only process that loads the image library). | Node LTS |
 | `apps/cli` | The `webcraft` command (`webcraft admin migrate`, `rotate-key` and `create-superadmin` for now). | Bun |
-| `packages/core` | Domain modules (the permission check and the list of Sensitive actions, the tenant data layer, Workspaces, Sites, Staff, the Audit log, the content store and publishing, the Site side of rendering, the Media library and storage, secrets, setup, people and their own account, Install settings, rate limits, the Master key banner, email) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, `Logger`, image processing, job definitions, `InstallServices`. | both |
+| `packages/core` | Domain modules (the permission check and the list of Sensitive actions, the tenant data layer, Workspaces, Sites, Staff, the Audit log, the content store and publishing, the Site side of rendering, the Media library and storage, secrets, setup, people and their own account, Install settings, rate limits, the Master key banner, email, the guarded fetcher, the Module host) and the ports every process shares: `Clock`, `Mailer`, outgoing HTTP, DNS, `Logger`, image processing, job definitions, `InstallServices`. | both |
 | `packages/db` | Postgres: Drizzle schema and migrations, connections, the migrate step, the schema check, the pg-boss job queue. | both |
 | `packages/auth` | WebCraft's auth interface (`Auth`): signing in and out, sessions, the recent identity check, lockout, creating people, password rules and the leaked-password check. Better Auth sits behind it; no other package imports Better Auth. | both |
 | `packages/api` | The Management API: oRPC procedures, served to the admin at `/api/rpc`. | both |
 | `packages/mcp` | The MCP server, generated from the API (placeholder). | both |
+| `packages/module-sdk` | `@webcraft/module-sdk`, the Module SDK: the one versioned package a Module may import from WebCraft (see "Modules"). | both |
+| `modules/*` | First-party Modules, one workspace package each, importing only the Module SDK (none yet). | both |
 | `packages/renderer` | Element trees (the stored form of Templates), Template markup (their lossless text view: parse, check, print), Conditions' expressions, formatters, the rich text cleaner and the renderer that turns trees into HTML. It reads nothing itself. | both |
 | `packages/ui` | shadcn components for the admin (preset `b1Fk3bmIS`) and its theme. | browser |
 | `packages/config` | The shared `tsconfig.base.json`. | |
@@ -119,7 +121,7 @@ An Install holds Workspaces (one per client), and each Workspace holds Sites. Th
 
 - **`PERMISSIONS`** (`roles.ts`) names every Permission and the levels it is checked at: the Install, a Workspace or a Site (`entry.publish` is checked on a Site, `site.create` on a Workspace, `workspace.create` on the Install).
 - **`ROLES`** is the role table: each built-in role (`superadmin`, `staff`, `owner`, `editor`, `author`) is a Permission set, plus what it reaches: the whole Install, the Workspaces its holder is assigned to (Staff), or one Workspace and the Sites its Membership names (Members). Roles are stored as text keys (`install_roles.role`, `memberships.role`); an unknown key grants nothing. Which Workspaces Staff reach (`install_roles.all_workspaces`, `staff_workspaces`) and which Sites a Membership reaches (`memberships.all_sites`, `membership_sites`) are kept apart from the role.
-- **`can(actor, permission, resource)`** answers whether an actor may do something; `permissionsOn(actor, resource)` lists what they may do there (the admin reads these lists to decide what to show). Only person actors exist so far; API tokens, OAuth grants and Modules become more kinds of `Actor`, each limited by what stands behind it.
+- **`can(actor, permission, resource)`** answers whether an actor may do something; `permissionsOn(actor, resource)` lists what they may do there (the admin reads these lists to decide what to show). Actors are people (`PersonActor`) and Modules acting by themselves (`ModuleActor`: in one Site or Workspace where they run, holding `site.view`/`workspace.view` there and the Permissions they add; see "Modules"); API tokens and OAuth grants become more kinds of `Actor`, each limited by what stands behind it. Code that only a person may do (confirming, writing a value that records its writer) takes `actingPerson(actor)`, which refuses any other kind. A Permission a Module adds is passed to `can()` as an `AddedPermission` (its key, level and the built-in roles holding it).
 - **Media**: `media.upload` uploads to a Site's Media library and changes your own uploads (every role on a Site it reaches); `media.manage` changes every file and the folders (Staff, Owners and Editors, not Authors). Seeing the library needs only `site.view`.
 - **Adding a Permission**: add it to `PERMISSIONS` with its level, add it to the roles that hold it, and change the role's row in `tests/permissions/roles.test.ts` (one test per role). Never check a role name in code: check a Permission.
 - **Nobody grants more than they hold**: `holdsAccess(actor, workspaceId, { role, sites })` answers whether an actor holds at least the access a Membership gives: every Permission of the role on the Workspace, and on every Site it reaches (`"all"` means every Site, including later ones, so only someone reaching every Site holds it). Inviting a Member or changing a Member's access needs it for the new access; changing or removing a Member, or resending or revoking their invite, needs it for the access they have now. It compares Permission sets, never role names.
@@ -168,7 +170,7 @@ create: signedIn
 
 A Sensitive action (`GLOSSARY.md`) needs a password, passkey or 2FA check within the last 10 minutes, in the admin session the request comes with, and is never available to API tokens or OAuth grants (ADR 0030).
 
-- **The list** is `SENSITIVE_ACTIONS` in `packages/core/src/permissions/sensitive.ts`, one place for every Sensitive action with the reason it is one. So far: `installSmtp.change`, `staff.invite`, `staff.changeWorkspaces`, `member.invite`, `member.changeAccess`, `member.remove`, `masterKey.confirmStored`, `password.change`, `leakedPasswordCheck.change` and `storage.change`.
+- **The list** is `SENSITIVE_ACTIONS` in `packages/core/src/permissions/sensitive.ts`, one place for every Sensitive action with the reason it is one. So far: `installSmtp.change`, `staff.invite`, `staff.changeWorkspaces`, `member.invite`, `member.changeAccess`, `member.remove`, `masterKey.confirmStored`, `password.change`, `leakedPasswordCheck.change`, `storage.change` and `module.approve`.
 - **The gate** is the `sensitive(action)` middleware (`packages/api/src/context.ts`), which calls `assertSensitiveActionAllowed(access, action, now)` from core. Put it after the permission check, so nobody is asked to confirm something they may not do:
 
   ```ts
@@ -190,8 +192,9 @@ A Sensitive action (`GLOSSARY.md`) needs a password, passkey or 2FA check within
 
 The Audit log is one append-only table (`audit_log`; triggers refuse updates and truncation). `recordAudit` (`packages/core/src/audit.ts`) is the only function that writes it; code calls it through `scope.audit(action, details)`, which fills in who, when, how (`via`), the Workspace and the Site. An Install scope's `audit` takes the Workspace (and Site) the action concerns as a third argument, a Workspace scope's the Site.
 
-- **Actions** are `<noun>.<verb>`: `install.claim`, `superadmin.create`, `masterKey.confirmStored`, `workspace.create`, `site.create`, `staff.invite`, `staff.revokeInvite`, `staff.join`, `staff.changeWorkspaces`, `member.invite`, `member.resendInvite`, `member.revokeInvite`, `member.join`, `member.changeRole`, `member.changeSites`, `member.remove`, `postType.create`, `postType.update`, `entry.publish`, `entry.delete`, `template.publish`, `globals.update`, `globals.publish`, `homePage.change`, `notFoundPage.change`, `installSmtp.change`, `leakedPasswordCheck.change`, `storage.change`, `media.upload`, `media.update`, `mediaFolder.create`, `mediaFolder.rename`, `mediaFolder.delete`, `password.change`, `session.revoke`, `session.revokeOthers` and `account.lock`. Saving a Draft isn't logged; publishing and deleting are. Install-level actions about a person's own account (their password, their sessions) are recorded with the core function `recordAudit` and no Workspace; `account.lock` has no person who acted (WebCraft locked it) and names the locked person in its details.
-- **How** (`AuditVia`): `admin` for `/api/rpc`, `command` with the command's name for `webcraft admin …`. Later kinds: Edit mode, an API token's name, an AI client's name, a Module, Impersonation.
+- **Actions** are `<noun>.<verb>`: `install.claim`, `superadmin.create`, `masterKey.confirmStored`, `workspace.create`, `site.create`, `staff.invite`, `staff.revokeInvite`, `staff.join`, `staff.changeWorkspaces`, `member.invite`, `member.resendInvite`, `member.revokeInvite`, `member.join`, `member.changeRole`, `member.changeSites`, `member.remove`, `postType.create`, `postType.update`, `entry.publish`, `entry.delete`, `template.publish`, `globals.update`, `globals.publish`, `homePage.change`, `notFoundPage.change`, `installSmtp.change`, `leakedPasswordCheck.change`, `storage.change`, `media.upload`, `media.update`, `mediaFolder.create`, `mediaFolder.rename`, `mediaFolder.delete`, `password.change`, `session.revoke`, `session.revokeOthers`, `account.lock`, `module.approve`, `module.withdraw`, `module.switchOn`, `module.switchOff` and `module.removeData`; a Module's own actions are named under its id (`sample.note.add`). Saving a Draft isn't logged; publishing and deleting are. Install-level actions about a person's own account (their password, their sessions) are recorded with the core function `recordAudit` and no Workspace; `account.lock` has no person who acted (WebCraft locked it) and names the locked person in its details.
+- **How** (`AuditVia`): `admin` for `/api/rpc`, `command` with the command's name for `webcraft admin …`, `module` with the Module's id when a Module acts by itself (a job, an event, a Site route; no person). A person calling a Module's procedure is recorded `admin`, with the Module's action name. Later kinds: Edit mode, an API token's name, an AI client's name, Impersonation.
+- **After the commit**: the data layer hands every entry a scope writes to `afterAudit` once it is saved (when the scope's outermost transaction commits; never when it rolls back). The Module host turns some into Modules' events.
 - **Details** are plain JSON about what changed (a name, an email address); never a secret's value.
 - `audit.list` gives the Superadmin the newest entries; the screens and the Staff and Owner views come with the Audit log screens.
 
@@ -288,7 +291,7 @@ A Relationship value is a list of Entry ids inside a version. `entry_links` also
 
 ### Two-step confirmation
 
-`askConfirmation` and `useConfirmation` (`packages/core/src/confirmations.ts`, table `confirmations`) are how destructive procedures confirm (spec › Management API): the first call works out a preview and asks; the second works it out again inside the transaction that goes ahead and uses the id. A confirmation is for one person, one action and one target, lasts 5 minutes (`CONFIRMATION_LIFETIME_MS`), works once, and only while the preview is unchanged. Otherwise the API answers `CONFIRMATION_INVALID` with `data.problem`: `unknown`, `expired` or `changed`. Publish all, emptying Trash and deleting Structure are to use the same two functions.
+`askConfirmation` and `useConfirmation` (`packages/core/src/confirmations.ts`, table `confirmations`) are how destructive procedures confirm (spec › Management API): the first call works out a preview and asks; the second works it out again inside the transaction that goes ahead and uses the id. A confirmation is for one person, one action and one target, lasts 5 minutes (`CONFIRMATION_LIFETIME_MS`), works once, and only while the preview is unchanged. Otherwise the API answers `CONFIRMATION_INVALID` with `data.problem`: `unknown`, `expired` or `changed`. They take a Site scope or a Workspace scope (a Workspace's confirmations have no Site), such as removing a Workspace-level Module's data. Publish all, emptying Trash and deleting Structure are to use the same two functions.
 
 ### Globals
 
@@ -314,8 +317,8 @@ Revisions (#67), Publish all (#68), Scheduled publish (#69), Review (#70), Webho
 `apps/server/src/site/pipeline.ts` answers every hostname other than the admin host (ADR 0004):
 
 1. **Hostname → Site** (`services.sitePages.resolveHost`): a Staging address, `<site slug>.<WEBCRAFT_SITES_DOMAIN>`, compared in lower case without a trailing dot. Anything else gets the unbranded 404. Primary, Redirect and language domains (#82, #80) join here. The admin host never resolves to a Site, and no Site slug can make a Staging address equal to it (`reservedSlugs`).
-2. **Only `GET` and `HEAD`** for now (405 otherwise); Form posts come with their reserved paths.
-3. **Paths the Install keeps** (`isReservedPath`): every path whose first part starts with `_` (`/_webcraft/…`, `/_media/…`, `/_content/v1/…`, `/_wc/m/<module>/…`) and every path naming a file, with a dot in a part (`/sitemap.xml`, `/robots.txt`, `/llms.txt`, Markdown copies such as `/about.md`). No slug or URL pattern part can start with `_` or hold a dot, so no Page or Entry is ever there. Each feature answers its own (add its step here), before Entry routing and never kept as pages: Media files at `/_media/<hash>-<name>.<ext>` (see "Media"). The rest get the plain 404 until their features come.
+2. **Only `GET` and `HEAD`** for now (405 otherwise), except where a reserved path's feature takes more (a Module's Site routes); Form posts come with their reserved paths.
+3. **Paths the Install keeps** (`isReservedPath`): every path whose first part starts with `_` (`/_webcraft/…`, `/_media/…`, `/_content/v1/…`, `/_wc/m/<module>/…`) and every path naming a file, with a dot in a part (`/sitemap.xml`, `/robots.txt`, `/llms.txt`, Markdown copies such as `/about.md`). No slug or URL pattern part can start with `_` or hold a dot, so no Page or Entry is ever there. Each feature answers its own (add its step here), before Entry routing and never kept as pages: Media files at `/_media/<hash>-<name>.<ext>` (see "Media"); Modules' Site routes at `/_wc/m/<route prefix>/…`, which go to the Module host (`services.modules.answerSiteRoute`) and are answered where the Module runs, with any method it declares (see "Modules"). The rest get the plain 404 until their features come.
 4. **Page cache lookup** by normalised URL (`canonicalPath`): decoded path segments, no trailing slash, no query parameters (none changes a page yet; Filters will keep theirs, sorted).
 5. **Render on a miss** (`services.sitePages.render`): the published Entry whose Post Type's URL pattern and published slug match, through its published Entry template (an Entry whose Entry template isn't published has no page yet); else the published Page at that path; at `/`, the home page. Every page renders inside the Site template. The page is kept in the cache. The home page's own path answers a 301 to `/`.
 6. **Answer** with `Content-Type: text/html`, `Cache-Control: public, max-age=0, must-revalidate` (browsers and proxies revalidate every time, since a publish must show at once), a strong `ETag` (SHA-256 of the HTML; `If-None-Match` gets 304), `X-Cache: HIT` or `MISS`, and on a Staging address `X-Robots-Tag: noindex`.
@@ -449,6 +452,7 @@ Migrations are drizzle-kit files in `packages/db/src/migrations`, applied by the
 - Hand-written SQL (functions, triggers, data fixes) goes in its own custom migration: `bun run db:generate --custom --name=<what-it-does>`. Keeping it separate means a regenerated schema migration never loses it.
 - Every change keeps the previous version working on the new schema: add first, remove in a later release. There are no down-migrations.
 - `webcraft admin migrate` applies pending migrations in one transaction, then installs or upgrades the job queue (pg-boss) schema. Web and worker check both at start-up and refuse to run on a database that is behind; `/readyz` reports the same check.
+- **Module migrations** run in the same step, after WebCraft's own (see "Modules › Tables and migrations"): each Module's pending SQL in its own schema, all in one transaction, recorded in `module_migrations` with a checksum. The schema check counts a pending Module migration as behind. `runMigrations`, `checkSchema` and `assertSchemaCurrent` take the build's Modules as `{ modules: moduleSchemas(FIRST_PARTY_MODULES) }`; `services.modules.schemas` holds the Install's.
 - When two branches both add migrations, keep the integration branch's and regenerate yours on top with `bun run db:generate`. Git often merges two such migrations without a conflict, but both were generated from the same parent, so the newer snapshot misses the other's tables and the next `db:generate` would write them again. `tests/db/migration-chain.test.ts` fails when that happens: delete your migration's folder and generate it again (a custom one: recreate it with `--custom` and paste its SQL back).
 
 ## Jobs
@@ -461,7 +465,7 @@ Jobs are defined with `defineJob({ name, payload, queue, run })` (in `packages/c
 - `run(payload, services)` gets the same `InstallServices` as the web process: use `services.clock`, `services.http` and `services.log`, never `Date.now()`, `fetch` or `console` directly. To email someone, send a System email (see "Email"); never call `services.mailer`.
 - Enqueue with `services.jobs.send(job, payload, { startAfter })`.
 - A job that works on one Site's data opens it with `services.data.background(siteId)` (see "The tenant data layer"); `media.process` and `media.variants` are the examples.
-- **Scheduled jobs**: `defineSchedule({ job, cron, payload })`, listed in `coreSchedules` (so far the daily `email.purge-log` and `rate-limits.purge`). `cron` is read in UTC (`17 3 * * *` is every day at 03:17). The worker registers every listed schedule when it starts (and removes ones no longer listed); when it was down at a due time, the job runs once when it is back. The test harness's `drainJobs()` sends each scheduled job whose time came by the test clock since the last drain.
+- **Scheduled jobs**: `defineSchedule({ job, cron, payload })`, listed in `coreSchedules` (so far the daily `email.purge-log`, `rate-limits.purge` and `modules.purge-log`). `cron` is read in UTC (`17 3 * * *` is every day at 03:17). The worker registers every listed schedule when it starts (and removes ones no longer listed); when it was down at a due time, the job runs once when it is back. The test harness's `drainJobs()` sends each scheduled job whose time came by the test clock since the last drain.
 
 ## Email
 
@@ -540,6 +544,101 @@ Secrets can't be recovered without their Master key, and web and worker refuse t
 3. `webcraft admin rotate-key --old-key-lost --confirm-fingerprint <first 12 characters of that fingerprint>` deletes them and makes the new key the next key version. Typing the fingerprint proves you read the listing for this Install; a bare "yes" would not. It refuses when `WEBCRAFT_SECRET_KEY` is still the current key.
 4. Start web and worker, and set the listed secrets again.
 
+## Outgoing calls and the guarded fetcher
+
+`services.http` (`OutgoingHttp`) is WebCraft's one way to other servers: a plain `(Request) => Promise<Response>`, faked in tests. Calls to hosts someone else chose (a Module's outside hosts; later Import from URL, Webhooks, the WordPress import) go through the **guarded fetcher** on top of it (`createGuardedFetch({ http, dns })`, `packages/core/src/guarded-fetch.ts`):
+
+- only `http` and `https` URLs without credentials, on the hosts allowed (`allowedHosts`);
+- the host is resolved first through the `Dns` port (`services.dns`; `systemDns` in the processes, `install.dns` in tests) and refused when any address is loopback, private, link-local, shared (CGNAT), multicast, reserved, documentation or benchmarking space (`isPublicAddress`, IPv4 and IPv6, IPv4 inside IPv6 and NAT64 included); the same after every redirect;
+- at most 3 redirects (`maxRedirects: 0` hands a redirect back without following it); 303, and 301/302 after a POST, become a GET;
+- a timeout (10 s by default, 30 s at most) and a size limit (5 MB, 20 MB at most): the body is read in full, and a larger one is refused.
+
+Refusals throw `GuardedFetchError` with `problem` (`scheme`, `host`, `address`, `redirects`, `timeout`, `size`, `unreachable`). Outgoing HTTP resolves the name again when it connects; an HTTP adapter that connects to the checked address (Node's `lookup` hook, in the worker) closes that gap later.
+
+## Modules
+
+A Module is a self-contained feature that reaches WebCraft only through the Module SDK (ADRs 0012, 0024). v1 loads first-party Modules only, in the same process as Core; the boundary is built so that a sandbox later changes the runtime, not the API.
+
+### The SDK and the boundary
+
+`@webcraft/module-sdk` (`packages/module-sdk`) is the public, versioned contract (`SDK_VERSION`, the same as its package version; additions raise the minor version, a change that could break a Module the major one). It holds the manifest schema, `defineModule`, `procedure`, `siteRoute`, `job`, the table helpers, the event catalogue, the context types Module code gets, `ModuleError` and `ModuleRefusedError`, and re-exports what Modules need of Drizzle (column builders and comparison operators, never raw `sql`) and Zod, so every Module uses WebCraft's versions.
+
+- **A Module imports nothing from WebCraft but the SDK**, and nothing that reaches around it: no `@webcraft/*` package, no Drizzle, Zod, `pg` or `pg-boss` of its own, no `node:` or `bun` modules, no `fetch`, `process` or `Bun` globals. Biome refuses them in `modules/**` and `tests/modules/sample/**`; `tests/modules/boundary.test.ts` scans every Module's imports and `package.json` too. A real Module package depends only on `@webcraft/module-sdk` (and its own outside packages), and Bun's isolated installs then can't resolve anything else of WebCraft's.
+- **First-party Modules** are workspace packages, `modules/<id>`, each default-exporting a `defineModule(…)`, listed in `FIRST_PARTY_MODULES` (`packages/core/src/modules/first-party.ts`). Web, worker and the `migrate` step all load that list (`openInstall({ modules })` defaults to it).
+- **The sample Module** (`tests/modules/sample/index.ts`, with the Workspace-level `board.ts`) uses every extension point and is the Module the host's tests drive; copy its shape.
+
+### The manifest
+
+```ts
+export default defineModule({
+	manifest: {
+		id: "sample",                                    // lower-case words joined by dashes
+		name: { en: "Sample notes", it: "Note di esempio" },
+		description: { en: "…", it: "…" },
+		version: "1.0.0",
+		sdk: "^1.0.0",                                   // the SDK versions it works with
+		level: "site",                                   // switched per Site, or "workspace"
+		onByDefault: true,                               // on wherever Staff haven't switched it off
+		adminLanguages: ["en", "it"],                    // every label in each; the first is the fallback
+		permissions: [{ key: "notes.edit", label: { en: "Write notes", it: "…" }, roles: ["staff", "owner", "editor"] }],
+		uses: ["email"],                                 // WebCraft services it uses
+		outsideHosts: ["hooks.sample.example"],          // the only hosts it may call
+		routePrefix: "sample",                           // its Site routes: /_wc/m/sample/…
+		siteScript: null,                                // or the Consent category of the script it adds
+	},
+	// tables, migrations, procedures, siteRoutes, adminPages, events, jobs
+});
+```
+
+The manifest is checked with Zod (`moduleManifestSchema`), and the whole definition against the SDK's rules, when the Install loads it (`loadModules` in `packages/core/src/modules/registry.ts`): the SDK range must include `SDK_VERSION`; ids and route prefixes are unique; labels come in exactly the declared languages; a procedure or admin page names a Permission the Module adds or one of WebCraft's checked at its level; tables are in the Module's own schema and follow the tenant rule; migrations sort oldest first; Site routes need a route prefix and a Site-level Module; events are in the catalogue; unknown extension points are refused. A Module that breaks a rule is listed on the Modules screen as `cannot-run`, with the reason, and never runs; the rest of the Install runs on.
+
+### Approval (the consent screen)
+
+Nothing a Module asks for is granted until the Superadmin approves it on Install settings › Modules (`modules.list`, `modules.approve`; Permission `module.approve`, held by the Superadmin only). Approving is a Sensitive action (`module.approve`) and is recorded in the Audit log with what it granted.
+
+- **What a Module asks for** is a list of consent items (`consentItems`): `permission:<key>:<role>` for each role it gives one of its Permissions, `use:email`, `host:<host>`, `script:<category>`. The consent screen shows them in WebCraft's own words (the admin's message files, English and Italian), never the Module's, so a Module can't word what it asks for itself; only its Permissions' labels are its own.
+- **An approval** (`module_approvals`) stores the version approved and the items granted. A later version that asks for nothing more runs on it; one that asks for more is `update-waiting`: off everywhere (its switches and data kept) until the Superadmin approves it, the new items marked. Only one version of a first-party Module's code exists in a build, so "held at the approved version" means off until approved.
+- `modules.approve` names the version the screen showed: another version answers `MODULE_CHANGED`. `modules.withdraw` takes a Module back to waiting, off everywhere, data kept.
+- **The setup wizard** ends with the Modules step: the Modules waiting for approval, ticked (all Modules WebCraft loads are first-party), each with what it asks for.
+
+### Switches and removing data
+
+Staff switch Site-level Modules on each Site and Workspace-level Modules on each Workspace (`modules.siteList`, `modules.setOnSite`, `modules.workspaceList`, `modules.setOnWorkspace`; Permission `module.manage`, held by Staff and the Superadmin). The switch is a row of `module_switches` (a Workspace table); without one, the Module's `onByDefault` applies, to later Sites too. A Module **runs** at a place when it is approved for this version and switched on there; only approved Modules can be switched on. Switching off keeps the Module's data.
+
+**Removing a Module's data** (`modules.removeSiteData`, `modules.removeWorkspaceData`) takes two calls, through `askConfirmation`/`useConfirmation`: the first answers how many rows of each of its tables and how many of its secrets would go, and a confirmation id; the second deletes them (tables in reverse order of the definition's list, so list parents first), removes its secrets there and switches it off. It is logged as `module.removeData`.
+
+### Extension points
+
+- **Tables and migrations.** A Module's tables live in its own Postgres schema, `m_<id>` (dashes become underscores), declared with `moduleSchema(id).table(name, { ...siteColumns(), … })` (or `workspaceColumns()`). A Site table has `workspace_id` and `site_id` with `FOREIGN KEY (workspace_id, site_id) REFERENCES sites (workspace_id, id) ON DELETE CASCADE`; a Workspace table `workspace_id` with `REFERENCES workspaces (id) ON DELETE CASCADE`. Site-level Modules have Site tables only. Migrations are SQL in the definition (`{ name, sql }`, names sorting oldest first), run once each by the `migrate` step after WebCraft's own, with the Module's schema first on the search path. The step refuses, rolling everything back: a migration that changes anything outside the Module's schema (compared before and after through Postgres's catalog), a table or view the Module doesn't declare, a table without its tenant key, a declared table or column the migrations never made (checked on every run, so the TypeScript and the SQL can't drift), and a migration that changed or disappeared after it was applied (by checksum). Never change a shipped migration: add one. The schema check counts pending Module migrations, so web and worker refuse to start until `migrate` ran them.
+- **API procedures**, by name and in groups, become `m.<module id>.<name>` in the Management API (`adminRouter(services)` in `packages/api/src/module-router.ts`, built from the Install's Modules, served at `/api/rpc` and to the admin's own pages). Each takes `siteId` (Site-level) or `workspaceId` besides its own input, runs only where the Module runs (`MODULE_NOT_FOUND` otherwise), through `can()` with the Permission it names (`FORBIDDEN` with `data.permission`). A `ModuleError` it throws is its answer (`MODULE_ERROR` with its status and `data.code`); anything else is a failure: it goes to the Module log and the API answers `MODULE_FAILED` (500).
+- **Permissions** a Module adds are named under its id (`sample.notes.edit`), checked at its level, and held by the Superadmin and the built-in roles it lists (ADR 0028).
+- **Site routes** answer `/_wc/m/<route prefix>/<path>` on Sites where the Module runs: declared paths (`/notes`, `/notes/:id`) and methods only (405 with `Allow` for another method on a declared path, HEAD for GET routes), never cached as pages (`Cache-Control: no-store` unless the route sets its own), `X-Robots-Tag: noindex` on Staging addresses like every Site answer. A route that throws answers the plain 500 and goes to the Module log.
+- **Admin pages** (`adminPages: [{ path, label, permission }]`) join the sidebar of the Sites (or Workspaces) where the Module runs, for people holding their Permission (`sites.get` and `workspaces.get` answer them as `modulePages`), at `/sites/<id>/m/<module id>/<path>`. Their screens are registered in the admin's `MODULE_PAGES` (`apps/server/src/ui/modules/pages.tsx`) by the first-party Module that ships one; without one the page says so.
+- **Events.** Modules react afterwards, as background jobs (ADR 0024): an Audit log entry the catalogue maps (`entry.publish` → `entry.published`, `entry.delete` → `entry.deleted`, `template.publish`, `globals.publish`) queues a `modules.event` job for each Module with a handler, once the change commits. The job runs only if the Module still runs there. Saving and publishing never wait for a Module and never fail because of one.
+- **Jobs** of the Module's own (`jobs: { remind: job({ payload, run }) }`), queued with `context.jobs.send(name, payload, { delaySeconds })`, run as `modules.job` in the place they were queued from; payloads are JSON, checked when sent and when run.
+- **Seams for later tickets**: `structurePresets` (#110), `blockTypes` (#103), `components` (#63) and `widgets` are declared in the definition type and refused until their SDK version.
+
+### What Module code gets
+
+Procedures, Site routes, events and jobs get a `ModuleContext` (`packages/core/src/modules/runtime.ts`), limited to one place and to what the manifest declares; anything else throws `ModuleRefusedError` with a `reason` (`permission`, `table`, `host`, `use`, `job`, `secret`, `email`):
+
+- `data`: its own tables in the place, through the data layer (`select`, `first`, `count`, `insert`, `update`, `delete`); the Workspace and Site are filled in, and any other table is refused. `transaction(work)` runs table changes and Audit log entries together.
+- `audit(action, details)`: recorded under the Module's id. In a procedure the person acted (`via: admin`); elsewhere the Module did (`via: module`, no person).
+- `email.send(message)` (needs `uses: ["email"]`): the `module-message` System email (a work email people can turn off), in the Module's words for each recipient's Admin language (else its first), in the built-in layout, recorded in the Email log.
+- `http(url, options)`: the guarded fetcher, to its declared hosts only.
+- `secrets`: `set`, `describe`, `remove` its own secrets in the place (stored as `module:<id>:<name>`), and `placeholder(name)`, which WebCraft replaces with the value inside an outgoing call (URL, header or body) to a declared host; Module code never sees a value, and a call carrying a secret never follows a redirect.
+- `jobs.send`, `log.info/warn/error` (the Module log), `now()`, `module`, `place`; a procedure also gets `person` and `can(permission)`.
+
+When a Module acts by itself it is a `ModuleActor` for `can()`, opening its place through the data layer like anyone.
+
+### The Module log
+
+`module_log` keeps what Modules wrote and every failure while they ran (a procedure, Site route, event or job that threw, an event that couldn't be queued), with the Workspace, Site and details (never a stack or a secret), 90 days (`modules.purge-log`, daily). The Superadmin reads it on Install settings › Modules (`modules.log`). A failed event or job is tried twice more; a refusal is logged and never retried, since the Module must change.
+
+### Testing Modules
+
+`createTestInstall({ modules: [sample, sampleBoard] })` loads Modules; every test database has had `TEST_MODULES`' migrations. `moduleApi<typeof sample>(browser, "sample")` (`tests/harness/modules.ts`) calls a Module's procedures, typed from its definition (`ModuleApi` in the SDK). `install.restart({ modules })` runs another version; `install.migrate()` runs the `migrate` step. Tests are in `tests/modules/`.
+
 ## Signing in and the setup wizard
 
 - **`@webcraft/auth`** is the only way into sign-in: `services.auth.signIn`, `session(headers)`, `signOut`, `createPerson` (inside the caller's transaction). Better Auth 1.7.18 (pinned in the root `package.json` catalog) sits behind it in `packages/auth/src/auth.ts`; no other package imports it. Its own HTTP endpoints are not served: WebCraft's procedures call it. When you upgrade it, read its security advisories and keep the version exact.
@@ -565,7 +664,7 @@ The admin is a TanStack Start app in `apps/server/src/routes` (file routes) and 
 - **Light and dark**: `<html class="light|dark">` when a person chose, no class to follow the device (`prefers-color-scheme`); the `dark:` variant and the colour variables in `packages/ui/src/styles/globals.css` handle all three.
 - **Levels and the sidebar**: `ui/shell/levels.ts` holds each level's sidebar groups and items (`label`, `icon`, `to`, `requires`: the Permission that shows it). A group can carry `requires` too: the Site level's Structure group, when it comes, requires `structure.edit`, so Members see Content items only. The levels are the Install, a Workspace and a Site: pages under `routes/_admin/workspaces.$workspaceId.tsx` are at the Workspace level and pages under `routes/_admin/sites.$siteId.tsx` at the Site level. Those two routes load the Workspace or Site and the person's Permissions there, and set `place` in the route context; the sidebar, the breadcrumbs (the Workspace's and Site's names first) and the context switcher read it. A page reads `Route.useRouteContext().place.permissions` to decide what to offer, never a role name. A page sets its breadcrumb with `staticData: { crumb: "<message key>" }`.
 - **Pages** inside the shell are routes under `routes/_admin/` (signed in only). Start a page with `PageHeader`; use the shadcn components from `@webcraft/ui/components/*`.
-- **The setup wizard's steps** are the list in `ui/setup/steps.tsx`: each has a title, a hint, a stage and a panel. After `two-factor` comes `email` (the Install SMTP, which can be skipped); the Modules step goes after it, as a `continue` step. The last step finishes setup.
+- **The setup wizard's steps** are the list in `ui/setup/steps.tsx`: each has a title, a hint, a stage and a panel. After `two-factor` comes `email` (the Install SMTP, which can be skipped), then `modules` (approving the first-party Modules, ticked). The last step finishes setup.
 - **Times** are shown in UTC with `formatUtc`, and days with `formatUtcDate` (`ui/format.ts`), in one fixed form: the server renders pages first, and its date formatting differs from the browser's in small ways, which breaks hydration.
 - **shadcn components** come from preset `b1Fk3bmIS` (`style: base-vega`, zinc, RTL on, see `packages/ui/components.json`). Add one with `bunx shadcn add <name>` in `packages/ui`, then run `bun run lint`: generated code sometimes fails the accessibility rules; fix the component (several are marked `WebCraft:`) rather than switching a rule off, and give every visible or screen-reader string a prop so it can be translated.
 
@@ -598,10 +697,12 @@ Tests live in `tests/`, grouped by area, and run with `bun run test` from the re
 | `install.http` | The fake outgoing HTTP: `respond(method, url or RegExp, { status, body, headers } or a function)`; bodies may be text or bytes, and each recorded request has `body` (text) and `bytes`; `requests` holds every call. A request nobody prepared an answer for fails like an unreachable server. The leaked-password range service (`LEAKED_PASSWORD_RANGE`) answers that no password is leaked unless a test answers it otherwise; `reset()` forgets that answer too, so the lookup is then unreachable. |
 | `install.clock` | Time stands still until `advance(ms)` or `set(date)`. The job queue reads the same time inside Postgres, so a job sent with `startAfter` in an hour runs only after `advance` passes it, and retries wait for their delay. `advance` jumps like a process that slept, so moving days ahead is quick. Sessions expire by this clock too. Starts at `2026-03-02T09:00:00Z` unless you pass `{ now }`. |
 | `install.logs` | Every log entry the Install wrote. |
-| `install.restart({ masterKey? })` | Starts the Install again, as web and worker do (with another Master key when given), running their start-up checks and printing a new setup token while there's no Superadmin. |
+| `install.dns` | The fake DNS the guarded fetcher asks: `answer(name, addresses)`; any other name doesn't resolve. `lookups` holds every name asked. |
+| `install.restart({ masterKey?, modules? })` | Starts the Install again, as web and worker do (with another Master key, or other Modules, such as a new version of one, when given), running their start-up checks and printing a new setup token while there's no Superadmin. |
+| `install.migrate({ modules? })` | Runs the `migrate` step on the Install's database as `webcraft admin migrate` does, with the Install's Modules (or the ones given), and answers what it applied. |
 | `install.close()` | Stops the Install and drops its database. |
 
-`createTestInstall({ database: "empty" })` gives an Install whose database nobody migrated, and `{ database: "unreachable" }` one whose database doesn't answer. Every test Install starts with the Master key `TEST_MASTER_KEY` unless you pass `{ masterKey }`; tests never use the key in `.env`. Its sites domain is `sites.test` (`TEST_SITES_DOMAIN`) unless you pass `{ sitesDomain }` (`null` for none), and its admin host `admin.test` unless you pass `{ adminHost }`.
+`createTestInstall({ database: "empty" })` gives an Install whose database nobody migrated, and `{ database: "unreachable" }` one whose database doesn't answer. Every test Install starts with the Master key `TEST_MASTER_KEY` unless you pass `{ masterKey }`; tests never use the key in `.env`. Its sites domain is `sites.test` (`TEST_SITES_DOMAIN`) unless you pass `{ sitesDomain }` (`null` for none), and its admin host `admin.test` unless you pass `{ adminHost }`. It loads no Modules unless you pass `{ modules }` (this build has no first-party Modules yet); every test database has had the migrations of the test suite's Modules (`TEST_MODULES` in `tests/harness/modules.ts`).
 
 `tests/harness/images.ts` makes small images inside the tests (never files copied from anywhere): `photo({ width, height, format, orientation, camera })` (red left half, blue right half, so turning it shows; `camera: true` adds a camera make and GPS data), `heicPhoto` (through `sips` on macOS or `heif-enc` where libheif's tools are installed, as CI does; `canMakeHeic` says whether this machine can), `pdf()`, `upload(bytes, name, type)` for a browser-like `File`, and `imageInfo` / `pixel` to look at what the Install serves.
 
@@ -644,7 +745,7 @@ isolation.refuses("sites.list", (api, { workspaceId }) => api.sites.list({ works
 
 `as` names who calls it (Staff assigned to that one Workspace by default, or a Member of it). The helper is `workspaceIsolation` in `tests/harness/isolation.ts`.
 
-**Seam 2** is a real browser, for accessibility (and later the editors). `tests/browser/harness.ts` starts a test Install served by the production web process (`bun run build` first) on `http://admin.localhost:<port>`, with Sites' Staging addresses on `http://<site slug>.sites.localhost:<port>` (`browserInstall.siteUrl(slug, path)`), and Chromium through Playwright; `tests/browser/checks.ts` holds the checks; files are named `*.browser.ts` so `bun test` leaves them out, and `bun run test:browser` runs them. Every check runs with the device set to light and to dark (the admin follows the device).
+**Seam 2** is a real browser, for accessibility (and later the editors). `tests/browser/harness.ts` starts a test Install served by the production web process (`bun run build` first; started through `tests/browser/web.ts`, which hands it the test suite's Modules) on `http://admin.localhost:<port>`, with Sites' Staging addresses on `http://<site slug>.sites.localhost:<port>` (`browserInstall.siteUrl(slug, path)`), and Chromium through Playwright; `tests/browser/checks.ts` holds the checks; files are named `*.browser.ts` so `bun test` leaves them out, and `bun run test:browser` runs them. Every check runs with the device set to light and to dark (the admin follows the device).
 
 - `expectAccessibleScreen(page, where)`: axe-core finds no violation of WCAG 2.0, 2.1 or 2.2 at A or AA, nor of its best practices; the first Tab reaches "Skip to main content" and following it moves focus into the `<main>` it points at; Tab visits every link, button and field in page order, each with a visible focus indicator; no positive `tabindex`; Tab always moves on (no traps); the page logged no errors.
 - `expectOverlayUsable(page, trigger, "menu" | "dialog", where)`: opens a menu or dialog from the keyboard, checks it with axe, and Escape closes it with focus back on the trigger.

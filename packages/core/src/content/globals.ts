@@ -1,6 +1,6 @@
 import { globals } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
-
+import { actingPerson } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { siteLanguages } from "./entries.ts";
 import { type ContentProblem, GlobalsIncompleteError, GlobalsInvalidError } from "./errors.ts";
@@ -218,5 +218,5 @@ function checkLanguage(language: string | undefined, defaultLanguage: string): s
 }
 
 function writerOf(scope: Pick<SiteScope, "access">): Writer {
-	return { kind: "person", personId: scope.access.actor.personId };
+	return { kind: "person", personId: actingPerson(scope.access.actor) };
 }

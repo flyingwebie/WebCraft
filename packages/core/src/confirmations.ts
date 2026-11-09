@@ -1,9 +1,10 @@
 import { confirmations } from "@webcraft/db/schema";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, isNull, lt } from "drizzle-orm";
 
 import { sameJson } from "./content/json.ts";
 import { isUuid } from "./ids.ts";
-import type { SiteScope } from "./tenancy/data-layer.ts";
+import { actingPerson } from "./permissions/can.ts";
+import type { SiteScope, WorkspaceScope } from "./tenancy/data-layer.ts";
 
 /**
  * Two-step confirmation for destructive procedures (spec › Management API). The first call answers
@@ -56,19 +57,32 @@ export class ConfirmationInvalidError extends Error {
 	}
 }
 
-/** Asks the person to confirm `request`: answers the id they send back to go ahead. */
-export async function askConfirmation(scope: SiteScope, request: ConfirmationRequest): Promise<Confirmation> {
+/**
+ * Asks the person to confirm `request`, in a Site or in a Workspace as a whole: answers the id they
+ * send back to go ahead.
+ */
+export async function askConfirmation(
+	scope: SiteScope | WorkspaceScope,
+	request: ConfirmationRequest,
+): Promise<Confirmation> {
 	const now = scope.now();
-	// Expired confirmations of the Site are of no use to anyone.
-	await scope.delete(confirmations, lt(confirmations.expiresAt, now));
-	const row = await scope.insert(confirmations, {
-		personId: scope.access.actor.personId,
+	const personId = actingPerson(scope.access.actor);
+	// Expired confirmations of the Site (or Workspace) are of no use to anyone.
+	if (scope.level === "site") await scope.delete(confirmations, lt(confirmations.expiresAt, now));
+	else await scope.delete(confirmations, lt(confirmations.expiresAt, now));
+	const values = {
+		personId,
 		action: request.action,
 		target: request.target,
 		preview: request.preview ?? null,
 		createdAt: now,
 		expiresAt: new Date(now.getTime() + CONFIRMATION_LIFETIME_MS),
-	});
+	};
+	// A Workspace scope's confirmation has no Site.
+	const row =
+		scope.level === "site"
+			? await scope.insert(confirmations, values)
+			: await scope.insert(confirmations, { ...values, siteId: null });
 	return { id: row.id, expiresAt: row.expiresAt };
 }
 
@@ -77,19 +91,22 @@ export async function askConfirmation(scope: SiteScope, request: ConfirmationReq
  * transaction that goes ahead, after working out the preview again; it is used up when that
  * transaction commits.
  */
-export async function useConfirmation(scope: SiteScope, id: string, request: ConfirmationRequest): Promise<void> {
+export async function useConfirmation(
+	scope: SiteScope | WorkspaceScope,
+	id: string,
+	request: ConfirmationRequest,
+): Promise<void> {
 	const [row] = isUuid(id)
 		? await scope.db
 				.delete(confirmations)
 				.where(
-					scope.where(
-						confirmations,
-						and(
-							eq(confirmations.id, id),
-							eq(confirmations.personId, scope.access.actor.personId),
-							eq(confirmations.action, request.action),
-							eq(confirmations.target, request.target),
-						),
+					and(
+						scope.level === "site" ? scope.where(confirmations) : scope.where(confirmations),
+						scope.level === "site" ? undefined : isNull(confirmations.siteId),
+						eq(confirmations.id, id),
+						eq(confirmations.personId, actingPerson(scope.access.actor)),
+						eq(confirmations.action, request.action),
+						eq(confirmations.target, request.target),
 					),
 				)
 				.returning()

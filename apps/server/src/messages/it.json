@@ -43,7 +43,14 @@
 		"MEDIA_TYPE_REFUSED_SVG": "Non è ancora possibile caricare file SVG.",
 		"MEDIA_TOO_LARGE": "I file possono essere al massimo di 50 MB.",
 		"MEDIA_INVALID": "Questa modifica non può essere salvata. Controlla quello che hai inserito.",
-		"STORAGE_UNREACHABLE": "WebCraft non è riuscito a scrivere, leggere e rimuovere un file in questo bucket. Controlla endpoint, regione, bucket e chiavi."
+		"STORAGE_UNREACHABLE": "WebCraft non è riuscito a scrivere, leggere e rimuovere un file in questo bucket. Controlla endpoint, regione, bucket e chiavi.",
+		"MODULE_NOT_FOUND": "Questo Modulo non esiste o qui non è attivo.",
+		"MODULE_CHANGED": "Questa Install ora usa un'altra versione del Modulo. Controlla di nuovo che cosa chiede.",
+		"MODULE_CANNOT_RUN": "WebCraft non può far funzionare questo Modulo: il motivo è nella schermata Moduli.",
+		"MODULE_NOT_APPROVED": "Il Superadmin non ha ancora approvato questo Modulo, quindi non si può attivare.",
+		"MODULE_FAILED": "Il Modulo non è riuscito a farlo. Il Superadmin può vederne il motivo nel registro del Modulo.",
+		"MODULE_ERROR": "Il Modulo ha rifiutato questa operazione.",
+		"CONFIRMATION_INVALID": "Qualcosa è cambiato o la conferma è scaduta. Controlla di nuovo e conferma."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -111,6 +118,19 @@
 				"skip": "Salta per ora",
 				"save": "Salva e continua",
 				"saveAndFinish": "Salva e concludi"
+			},
+			"modules": {
+				"title": "Moduli",
+				"hint": "Funzioni incluse da approvare",
+				"heading": "Approva i Moduli",
+				"intro": "I Moduli sono funzioni incluse in WebCraft, come i Form o le statistiche dei Site. Ciascuno funziona solo dopo che hai approvato ciò che chiede. Sono selezionati: deseleziona quelli che non vuoi ancora.",
+				"later": "Potrai approvare o ritirare i Moduli più tardi in Impostazioni dell'Install › Moduli.",
+				"none": "Questa versione di WebCraft non ha Moduli in attesa di approvazione.",
+				"details": "Che cosa chiede {name}",
+				"approveAndContinue": "Approva e continua",
+				"approveAndFinish": "Approva e termina",
+				"continue": "Continua",
+				"finish": "Termina la configurazione"
 			}
 		},
 		"finish": "Termina la configurazione",
@@ -166,7 +186,9 @@
 			"siteGroup": "Site",
 			"members": "Membri",
 			"media": "Media",
-			"storage": "Archiviazione"
+			"storage": "Archiviazione",
+			"modules": "Moduli",
+			"modulePagesGroup": "Pagine dei Moduli"
 		}
 	},
 	"masterKeyBanner": {
@@ -496,6 +518,10 @@
 			"name": "Limite della chiave AI condivisa",
 			"description": "Quando un Workspace ha usato l'80% o tutto il limite mensile sulla chiave AI condivisa."
 		},
+		"module-message": {
+			"name": "Email dei Moduli",
+			"description": "Le email che ti inviano i Moduli di questa Install."
+		},
 		"domain-unreachable": {
 			"name": "Dominio non raggiungibile",
 			"description": "Quando il Domain check non riesce a raggiungere il dominio di un Site."
@@ -809,6 +835,131 @@
 			"password": "Password",
 			"signIn": "Accedi ed entra",
 			"submit": "Entra in {workspace}"
+		}
+	},
+	"modules": {
+		"pageTitle": "Moduli",
+		"heading": "Moduli",
+		"intro": "Funzioni che si collegano a WebCraft tramite l'SDK dei Moduli. Un Modulo funziona solo dopo che hai approvato ciò che chiede; poi lo Staff lo attiva o lo disattiva su ogni Site o Workspace.",
+		"empty": "Questa versione di WebCraft non ha Moduli.",
+		"columns": {
+			"module": "Modulo",
+			"version": "Versione",
+			"status": "Stato",
+			"actions": "Azioni"
+		},
+		"level": {
+			"site": "Attivato su ogni Site",
+			"workspace": "Attivato su ogni Workspace"
+		},
+		"status": {
+			"approved": "Approvato",
+			"waiting": "In attesa di approvazione",
+			"update-waiting": "Aggiornamento in attesa di approvazione",
+			"cannot-run": "Non può funzionare"
+		},
+		"approvedVersion": "Approvato per la versione {version}",
+		"cannotRun": "WebCraft non può farlo funzionare: {problem}",
+		"review": "Esamina e approva",
+		"reviewOf": "Esamina e approva {name}",
+		"withdraw": "Ritira l'approvazione",
+		"withdrawOf": "Ritira l'approvazione di {name}",
+		"withdrawn": "{name} è disattivato ovunque finché non lo approvi di nuovo. I suoi dati restano.",
+		"showLog": "Registro del Modulo",
+		"showLogOf": "Registro del Modulo {name}",
+		"consent": {
+			"title": "Approva {name} {version}",
+			"updateTitle": "{name} {version} chiede di più",
+			"intro": "Leggi che cosa chiede questo Modulo. Una volta approvato, funziona ovunque lo Staff lo attivi.",
+			"updateIntro": "Questa versione chiede più di quanto hai approvato per la versione {version}: le novità sono segnate. Finché non la approvi, il Modulo è disattivato ovunque e i suoi dati restano.",
+			"asks": "Che cosa chiede",
+			"adds": "Che cosa aggiunge",
+			"asksNothing": "Niente oltre ai propri dati.",
+			"new": "Nuovo",
+			"permission": "{roles} possono: {label}",
+			"permissionSuperadminOnly": "Solo il Superadmin può: {label}",
+			"superadmin": "il Superadmin",
+			"useEmail": "Inviare email con le impostazioni email di questa Install",
+			"host": "Collegarsi a {host}",
+			"siteScript": "Aggiungere uno script alle pagine dei Site, che i visitatori possono rifiutare nella categoria {category}",
+			"siteRoutes": "Rispondere ai visitatori su {path} nei Site dove è attivo",
+			"adminPages": "Aggiungere pagine all'admin: {pages}",
+			"tables": "Tenere i propri dati su ogni {level, select, site {Site} other {Workspace}}",
+			"events": "Agire dopo che {events}",
+			"addsNothing": "Nient'altro.",
+			"where": "Dove funziona",
+			"onByDefault": "Lo Staff lo attiva su ogni {level, select, site {Site} other {Workspace}}. Parte attivo ovunque non sia stato disattivato.",
+			"offByDefault": "Lo Staff lo attiva su ogni {level, select, site {Site} other {Workspace}}. Parte disattivato finché non viene attivato.",
+			"approve": "Approva",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"approved": "{name} {version} è approvato."
+		},
+		"roles": {
+			"staff": "lo Staff",
+			"owner": "gli Owner",
+			"editor": "gli Editor",
+			"author": "gli Author"
+		},
+		"and": "e",
+		"categories": {
+			"necessary": "Necessari",
+			"analytics": "Statistiche",
+			"marketing": "Marketing",
+			"media": "Contenuti multimediali"
+		},
+		"events": {
+			"entryPublished": "una Entry viene pubblicata",
+			"entryDeleted": "una Entry viene eliminata",
+			"templatePublished": "un Template viene pubblicato",
+			"globalsPublished": "i Globals vengono pubblicati"
+		},
+		"log": {
+			"title": "Registro del Modulo {name}",
+			"description": "Ciò che il Modulo ha scritto e ciò che è andato storto mentre funzionava, dal più recente.",
+			"empty": "Il registro è ancora vuoto.",
+			"close": "Chiudi",
+			"levels": {
+				"info": "Informazione",
+				"warn": "Avviso",
+				"error": "Errore"
+			}
+		},
+		"place": {
+			"pageTitle": "Moduli",
+			"siteHeading": "Moduli di questo Site",
+			"workspaceHeading": "Moduli di questo Workspace",
+			"siteIntro": "Attiva o disattiva i Moduli per questo Site. Disattivarne uno ne conserva i dati; rimuoverne i dati li elimina.",
+			"workspaceIntro": "Attiva o disattiva i Moduli per questo Workspace. Disattivarne uno ne conserva i dati; rimuoverne i dati li elimina.",
+			"siteEmpty": "In questa versione di WebCraft nessun Modulo si attiva sui singoli Site.",
+			"workspaceEmpty": "In questa versione di WebCraft nessun Modulo si attiva sui singoli Workspace.",
+			"on": "Attivo",
+			"siteSwitch": "{name} su questo Site",
+			"workspaceSwitch": "{name} in questo Workspace",
+			"waiting": "In attesa dell'approvazione del Superadmin",
+			"cannotSwitchOn": "Si potrà attivare quando il Superadmin lo avrà approvato.",
+			"switchedOn": "{name} è attivo.",
+			"switchedOff": "{name} è disattivato. I suoi dati restano.",
+			"removeData": "Rimuovi i dati",
+			"removeDataOf": "Rimuovi i dati di {name}"
+		},
+		"remove": {
+			"title": "Rimuovere i dati di {name}?",
+			"siteBody": "Questo elimina tutto ciò che {name} tiene per questo Site e lo disattiva qui. Non si può annullare.",
+			"workspaceBody": "Questo elimina tutto ciò che {name} tiene per questo Workspace e lo disattiva qui. Non si può annullare.",
+			"what": "Che cosa verrà eliminato",
+			"rows": "{table}: {rows, plural, one {# riga} other {# righe}}",
+			"secrets": "{count, plural, one {# segreto} other {# segreti}}",
+			"nothing": "{name} non tiene dati qui. Rimuoverli lo disattiva.",
+			"confirm": "Rimuovi i dati",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"removed": "I dati di {name} sono stati rimossi.",
+			"loading": "Calcolo di ciò che verrebbe eliminato…"
+		},
+		"page": {
+			"heading": "Questa pagina non è disponibile",
+			"body": "In questa versione dell'admin il Modulo non ha una schermata per questa pagina."
 		}
 	}
 }

@@ -484,6 +484,14 @@ _Avoid_: Kernel, platform, base
 The one published, versioned package a Module may use to reach WebCraft. It is the "public Module boundary" named in the licence.
 _Avoid_: Plugin API, hooks, extension API
 
+**Consent screen**:
+Where the Superadmin reads, in WebCraft's own words, everything a Module asks for (the Permissions it gives roles, the outside hosts it calls, sending email, a Site script) and approves it. A Module runs only once approved, and an update that asks for more waits, switched off, until it is approved again.
+_Avoid_: Permission prompt, install dialog. Not the Consent banner, which asks visitors.
+
+**Module log**:
+The record of what each Module wrote and of everything that went wrong while it ran, such as a background job that failed, kept for 90 days and read by the Superadmin.
+_Avoid_: Error log (that is the Install's unexpected failures), Audit log (that is who did what)
+
 **Impersonation**:
 Superadmin or Staff acting in the admin as a particular Staff member or Member, for a limited time, with every action recorded under both names.
 _Avoid_: View as, log in as, masquerade

@@ -8,6 +8,7 @@ import { invites } from "./procedures/invites.ts";
 import { me } from "./procedures/me.ts";
 import { media } from "./procedures/media.ts";
 import { members } from "./procedures/members.ts";
+import { modules } from "./procedures/modules.ts";
 import { pages } from "./procedures/pages.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { session } from "./procedures/session.ts";
@@ -40,6 +41,7 @@ export const apiRouter = {
 	staff,
 	invites,
 	audit,
+	modules,
 };
 
 export type ApiRouter = typeof apiRouter;

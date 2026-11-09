@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import type { Clock } from "../clock.ts";
 import type { OutgoingHttp } from "../http.ts";
 import type { Logger } from "../log.ts";
+import { actingPerson } from "../permissions/can.ts";
 import type { SecretDescription, Secrets } from "../secrets/store.ts";
 import type { InstallScope } from "../tenancy/data-layer.ts";
 import { StorageUnreachableError } from "./errors.ts";
@@ -113,7 +114,7 @@ export function createInstallStorage({ database, secrets, http, clock, log, dire
 
 		async change(scope, change) {
 			const now = clock.now();
-			const personId = scope.access.actor.personId;
+			const personId = actingPerson(scope.access.actor);
 			if (change.kind === "s3") {
 				const { kind: _, secretAccessKey, ...s3 } = change;
 				const stored = (await secrets.describe(STORAGE_S3_SECRET)).set;

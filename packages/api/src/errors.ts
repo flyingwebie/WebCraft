@@ -28,6 +28,11 @@ import {
 	MediaTooLargeError,
 	MediaTypeRefusedError,
 	MemberNotFoundError,
+	ModuleCannotRunError,
+	ModuleChangedError,
+	ModuleFailedError,
+	ModuleNotApprovedError,
+	ModuleNotFoundError,
 	PageHasChildrenError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
@@ -52,6 +57,7 @@ import {
 	TemplateNotFoundError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
+import { ModuleError } from "@webcraft/module-sdk";
 import { ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
 
 /**
@@ -239,6 +245,34 @@ export function toApiError(error: unknown): unknown {
 			data: { problem: error.problem },
 			cause: error,
 		});
+	}
+	if (error instanceof ModuleError) {
+		return new ORPCError("MODULE_ERROR", {
+			status: error.status,
+			message: error.message,
+			data: { code: error.code },
+			cause: error,
+		});
+	}
+	if (error instanceof ModuleNotFoundError) {
+		return new ORPCError("MODULE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ModuleChangedError) {
+		return new ORPCError("MODULE_CHANGED", {
+			status: 409,
+			message: error.message,
+			data: { version: error.version },
+			cause: error,
+		});
+	}
+	if (error instanceof ModuleCannotRunError) {
+		return new ORPCError("MODULE_CANNOT_RUN", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof ModuleNotApprovedError) {
+		return new ORPCError("MODULE_NOT_APPROVED", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof ModuleFailedError) {
+		return new ORPCError("MODULE_FAILED", { status: 500, message: error.message, cause: error });
 	}
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });

@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUuid } from "../ids.ts";
+import { actingPerson } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	type ContentProblem,
@@ -412,7 +413,7 @@ function checkLanguage(language: string | undefined, defaultLanguage: string): s
 }
 
 function writerOf(scope: Pick<SiteScope, "access">): Writer {
-	return { kind: "person", personId: scope.access.actor.personId };
+	return { kind: "person", personId: actingPerson(scope.access.actor) };
 }
 
 /**
