@@ -12,13 +12,16 @@ import type {
 	FieldInput,
 	Globals,
 	GlobalsChange,
+	LanguageChange,
 	NewEntry,
+	NewLanguage,
 	NewPostType,
 	PostType,
 	PostTypeChange,
 	Published,
 	PublishItem,
 	SavedTemplateMarkup,
+	SiteLanguages,
 	SpecialPages,
 	Template,
 	TemplateMarkup,
@@ -171,6 +174,15 @@ export type InstallServices = InstallPorts & {
 		siteTemplateMarkup(scope: SiteScope): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
 		/** Saves the Site template's Draft from Template markup; inline styles become generated Classes. */
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
+	};
+	/**
+	 * A Site's languages (Structure): the Default language and the others, their names, directions and
+	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.
+	 */
+	languages: {
+		get(scope: SiteScope): Promise<SiteLanguages>;
+		add(scope: SiteScope, input: NewLanguage): Promise<SiteLanguages>;
+		update(scope: SiteScope, code: string, change: LanguageChange): Promise<SiteLanguages>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing

@@ -285,9 +285,11 @@ export const confirmations = pgTable(
 );
 
 /**
- * The Pages a Site gives a special job: `home` answers at `/`, and `notFound` answers every path with
- * no page, with status 404. Staff choose them (Structure); a Page that is deleted gives its job up,
- * and the Site falls back to no home page and the built-in 404 page.
+ * The Pages a Site gives a special job: `home` answers at `/` (and at each language's prefix), and
+ * `notFound` answers every path with no page, with status 404. Staff choose them (Structure); a Page
+ * that is deleted gives its job up, and the Site falls back to no home page and the built-in 404 page.
+ * A 404 page may be chosen for one language (`language`); the one without a language answers in the
+ * others.
  */
 export const specialPages = pgTable(
 	"special_pages",
@@ -296,11 +298,15 @@ export const specialPages = pgTable(
 		siteId: uuid("site_id").notNull(),
 		/** The Page's job: `home` or `notFound`. */
 		role: text("role").notNull(),
+		/** The language the Page has its job in; null for every language without one of its own. */
+		language: text("language"),
 		/** The Page, an Entry of the Site's Page Post Type. */
 		entryId: uuid("entry_id").notNull(),
 	},
 	(table) => [
-		primaryKey({ columns: [table.siteId, table.role] }),
+		unique("special_pages_site_id_role_language_unique")
+			.on(table.siteId, table.role, table.language)
+			.nullsNotDistinct(),
 		foreignKey({
 			name: "special_pages_site_fkey",
 			columns: [table.workspaceId, table.siteId],

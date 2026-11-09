@@ -186,3 +186,35 @@ export class PageParentUnpublishedError extends Error {
 function describe(problems: readonly ContentProblem[]): string {
 	return problems.map((problem) => `${problem.at}: ${problem.message}`).join("; ");
 }
+
+/** A language's settings can't be saved: `problems` says what and where (`code`, `name`, `direction`, `domain`). */
+export class LanguageInvalidError extends Error {
+	override name = "LanguageInvalidError";
+	readonly problems: readonly ContentProblem[];
+	constructor(problems: readonly ContentProblem[]) {
+		super(`The language can't be saved: ${describe(problems)}`);
+		this.problems = problems;
+	}
+}
+
+/** The Site already has the language, or another language on the Install already has the domain. */
+export class LanguageTakenError extends Error {
+	override name = "LanguageTakenError";
+	readonly field: "code" | "domain";
+	constructor(field: "code" | "domain") {
+		super(
+			field === "code"
+				? "The Site already has this language."
+				: "Another language on this Install already has this domain.",
+		);
+		this.field = field;
+	}
+}
+
+/** The Site has no such language. */
+export class LanguageNotFoundError extends Error {
+	override name = "LanguageNotFoundError";
+	constructor() {
+		super("The Site has no such language.");
+	}
+}

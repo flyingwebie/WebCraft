@@ -236,6 +236,16 @@ describe("Pages", () => {
 	);
 });
 
+describe("Languages", () => {
+	isolation.refuses("languages.list", (api, { siteId }) => api.languages.list({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("languages.add", (api, { siteId }) => api.languages.add({ siteId, code: "fr" }));
+	isolation.refuses("languages.update", (api, { siteId }) =>
+		api.languages.update({ siteId, code: "en", name: "Inglese" }),
+	);
+});
+
 describe("Edit mode", () => {
 	isolation.refuses("editMode.open", (api, { siteId }) => api.editMode.open({ siteId, path: "/" }), {
 		as: ["staff", "author"],

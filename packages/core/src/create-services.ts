@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import {
+	addLanguage,
 	createEntry,
 	createPostType,
 	deleteEntry,
@@ -26,6 +27,8 @@ import {
 	saveSiteTemplateMarkup,
 	setGlobalFields,
 	setSpecialPage,
+	siteLanguages,
+	updateLanguage,
 	updatePostType,
 } from "./content/index.ts";
 import {
@@ -166,6 +169,11 @@ export async function createInstallServices(
 			saveSiteTemplate,
 			siteTemplateMarkup: getSiteTemplateMarkup,
 			saveSiteTemplateMarkup,
+		},
+		languages: {
+			get: siteLanguages,
+			add: (scope, input) => addLanguage({ config }, scope, input),
+			update: (scope, code, change) => updateLanguage({ config }, scope, code, change),
 		},
 		pages: {
 			settings: getSpecialPages,

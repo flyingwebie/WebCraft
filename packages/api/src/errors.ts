@@ -26,6 +26,9 @@ import {
 	IdentityCheckRequiredError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
+	LanguageInvalidError,
+	LanguageNotFoundError,
+	LanguageTakenError,
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
 	MediaInvalidError,
@@ -187,6 +190,25 @@ export function toApiError(error: unknown): unknown {
 			data: { missing: error.missing },
 			cause: error,
 		});
+	}
+	if (error instanceof LanguageInvalidError) {
+		return new ORPCError("LANGUAGE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof LanguageTakenError) {
+		return new ORPCError("LANGUAGE_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { field: error.field },
+			cause: error,
+		});
+	}
+	if (error instanceof LanguageNotFoundError) {
+		return new ORPCError("LANGUAGE_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof ConfirmationInvalidError) {
 		return new ORPCError("CONFIRMATION_INVALID", {

@@ -25,6 +25,9 @@ export {
 	EntrySlugTakenError,
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
+	LanguageInvalidError,
+	LanguageNotFoundError,
+	LanguageTakenError,
 	PageHasChildrenError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
@@ -64,6 +67,14 @@ export {
 	setGlobalFields,
 	undoGlobalsChanges,
 } from "./globals.ts";
+export {
+	canonicalLanguage,
+	languageName,
+	type SiteLanguage,
+	type SiteLanguages,
+	siteLanguages,
+	type TextDirection,
+} from "./languages.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
@@ -77,6 +88,13 @@ export {
 } from "./post-types.ts";
 export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
 export type { LinkBack } from "./relationships.ts";
+export {
+	addLanguage,
+	LANGUAGE_NAME_MAX_LENGTH,
+	type LanguageChange,
+	type NewLanguage,
+	updateLanguage,
+} from "./site-languages.ts";
 export {
 	type ChosenPage,
 	getSpecialPages,

@@ -1,0 +1,379 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "bac7a1ee-3bcc-4305-b75b-aaff5261d0ca",
+  "prevIds": [
+    "10fc9a8e-1217-4495-80d6-8ffc140e83d5"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "site_languages"
+      ],
+      "writes": [
+        "s|tbl|public.site_languages",
+        "n|tbl|public.site_languages",
+        "e|tbl|public.site_languages",
+        "n|rel|public.site_languages",
+        "n|type|public.site_languages",
+        "n|rel|public.site_languages_pkey",
+        "n|rel|public.site_languages_domain_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "drop_pk",
+      "statementTarget": [
+        "table",
+        "public",
+        "special_pages"
+      ],
+      "writes": [
+        "s|pk|public.special_pages",
+        "n|pk|public.special_pages",
+        "e|pk|public.special_pages",
+        "n|con|public.special_pages.special_pages_pkey",
+        "n|rel|public.special_pages_pkey"
+      ],
+      "reads": [
+        "n|tbl|public.special_pages",
+        "n|sch|public",
+        "e|col|public.special_pages.site_id",
+        "e|col|public.special_pages.role"
+      ],
+      "sharedWrites": [
+        "e|uniqueness|public.special_pages.role.site_id"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "special_pages",
+        "language"
+      ],
+      "writes": [
+        "s|col|public.special_pages.language",
+        "n|col|public.special_pages.language",
+        "e|col|public.special_pages.language"
+      ],
+      "reads": [
+        "n|tbl|public.special_pages",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "sites",
+        "browser_language_redirect"
+      ],
+      "writes": [
+        "s|col|public.sites.browser_language_redirect",
+        "n|col|public.sites.browser_language_redirect",
+        "e|col|public.sites.browser_language_redirect"
+      ],
+      "reads": [
+        "n|tbl|public.sites",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "special_pages"
+      ],
+      "writes": [
+        "s|uq|public.special_pages.special_pages_site_id_role_language_unique",
+        "n|uq|public.special_pages.special_pages_site_id_role_language_unique",
+        "e|uq|public.special_pages.special_pages_site_id_role_language_unique",
+        "n|con|public.special_pages.special_pages_site_id_role_language_unique",
+        "n|rel|public.special_pages_site_id_role_language_unique"
+      ],
+      "reads": [
+        "n|tbl|public.special_pages",
+        "n|sch|public",
+        "n|col|public.special_pages.site_id",
+        "n|col|public.special_pages.role",
+        "n|col|public.special_pages.language"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "site_languages"
+      ],
+      "writes": [
+        "s|fk|public.site_languages.site_languages_site_fkey",
+        "n|fk|public.site_languages.site_languages_site_fkey",
+        "e|fk|public.site_languages.site_languages_site_fkey",
+        "n|con|public.site_languages.site_languages_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.site_languages",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.site_languages.workspace_id",
+        "n|col|public.site_languages.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "site_languages",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "special_pages",
+        "name": "language",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "code",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "direction",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "domain",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "position",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "sites",
+        "name": "browser_language_redirect",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "site_languages_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "site_languages_pkey",
+        "columns": [
+          "site_id",
+          "code"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "special_pages",
+        "name": "special_pages_site_id_role_language_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "role",
+          "language"
+        ],
+        "nullsNotDistinct": true,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_languages",
+        "name": "site_languages_domain_unique",
+        "nameExplicit": true,
+        "columns": [
+          "domain"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "pks\u0000[\"public\",\"special_pages\",\"special_pages_pkey\"]"
+    }
+  ]
+}
