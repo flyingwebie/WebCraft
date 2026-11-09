@@ -53,6 +53,11 @@ export const PERMISSIONS = {
 	"media.upload": ["site"],
 	/** Change every file in the Site's Media library, and its folders. */
 	"media.manage": ["site"],
+	/**
+	 * Bring outside content into a Site as Drafts: create and run Imports, stop and undo Import runs,
+	 * and read Import reports (Staff, Owners and Editors; a source can ask for more, such as Staff only).
+	 */
+	"import.run": ["site"],
 } as const satisfies Record<string, readonly Level[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -100,6 +105,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"entry.delete",
 			"media.upload",
 			"media.manage",
+			"import.run",
 		],
 	},
 	owner: {
@@ -115,6 +121,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"entry.delete",
 			"media.upload",
 			"media.manage",
+			"import.run",
 		],
 	},
 	editor: {
@@ -127,6 +134,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"entry.delete",
 			"media.upload",
 			"media.manage",
+			"import.run",
 		],
 	},
 	author: {
