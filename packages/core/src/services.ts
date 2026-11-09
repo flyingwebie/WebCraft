@@ -192,8 +192,11 @@ export type InstallServices = InstallPorts & {
 		settings(scope: SiteScope): Promise<SpecialPages>;
 		/** Chooses the home page, or none with null; it applies at once. */
 		setHomePage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
-		/** Chooses the 404 page, or the built-in one with null; it applies at once. */
-		setNotFoundPage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
+		/**
+		 * Chooses the 404 page, or the built-in one with null; with a language, the 404 page of that
+		 * language alone (null: the Site's answers there). It applies at once.
+		 */
+		setNotFoundPage(scope: SiteScope, pageId: string | null, language?: string): Promise<SpecialPages>;
 	};
 	/**
 	 * Each Site's Design system (ADR 0009): tokens, Classes, base styles, custom CSS and dark mode,

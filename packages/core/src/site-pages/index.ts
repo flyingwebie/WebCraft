@@ -291,7 +291,7 @@ async function alternatesOf(scope: ReadScope, host: SiteHost, located: Located):
 
 /**
  * The 404 page for a path: in the path's language (the Default language when it names none), the
- * Page Staff chose, once published; no Page for the built-in one.
+ * Page Staff chose for that language or else for the Site, once published; no Page for the built-in one.
  */
 async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place & { found?: FoundEntry }> {
 	const site = await siteLanguages(scope);
@@ -299,11 +299,13 @@ async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place 
 	const code = "languages" in inLanguage ? inLanguage.languages.language : site.defaultLanguage;
 	const languages = { language: code, defaultLanguage: site.defaultLanguage };
 	const place = { site, languages, language: languageNamed(site, code) };
-	const chosen = await specialPageId(scope, "notFound");
-	const page = (chosen && (await publishedPage(scope, await listPostTypes(scope), chosen))) || undefined;
-	// A 404 page hidden in the language leaves the built-in one there.
-	const found = page && isVisibleIn(storedVersion(page.entry.published), languages) ? page : undefined;
-	return { ...place, found };
+	// The language's own 404 page, else the Site's; each once published and shown in the language.
+	const postTypes = await listPostTypes(scope);
+	for (const chosen of [await specialPageId(scope, "notFound", code), await specialPageId(scope, "notFound")]) {
+		const page = chosen && (await publishedPage(scope, postTypes, chosen));
+		if (page && isVisibleIn(storedVersion(page.entry.published), languages)) return { ...place, found: page };
+	}
+	return place;
 }
 
 /**

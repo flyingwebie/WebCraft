@@ -58,7 +58,11 @@ describe("the home page", () => {
 		expect((await visit(site, "/")).status).toBe(404);
 
 		const { settings } = await staff.api.pages.setHomePage({ siteId: site.siteId, pageId: welcome });
-		expect(settings).toEqual({ homePage: { id: welcome, title: "Welcome" }, notFoundPage: null });
+		expect(settings).toEqual({
+			homePage: { id: welcome, title: "Welcome" },
+			notFoundPage: null,
+			languageNotFoundPages: {},
+		});
 		expect((await visit(site, "/")).status).toBe(404);
 
 		await editor.api.entries.publish({ siteId: site.siteId, entryId: welcome });

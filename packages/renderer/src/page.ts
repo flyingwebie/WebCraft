@@ -208,6 +208,36 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "Non c'è nessuna pagina a questo indirizzo.",
 		themeToggle: "Tema scuro",
 	},
+	fr: {
+		skipLink: "Aller au contenu principal",
+		notFoundTitle: "Page introuvable",
+		notFoundText: "Il n’y a aucune page à cette adresse.",
+		themeToggle: "Thème sombre",
+	},
+	de: {
+		skipLink: "Zum Hauptinhalt springen",
+		notFoundTitle: "Seite nicht gefunden",
+		notFoundText: "Unter dieser Adresse gibt es keine Seite.",
+		themeToggle: "Dunkles Design",
+	},
+	es: {
+		skipLink: "Ir al contenido principal",
+		notFoundTitle: "Página no encontrada",
+		notFoundText: "No hay ninguna página en esta dirección.",
+		themeToggle: "Tema oscuro",
+	},
+	pt: {
+		skipLink: "Ir para o conteúdo principal",
+		notFoundTitle: "Página não encontrada",
+		notFoundText: "Não há nenhuma página neste endereço.",
+		themeToggle: "Tema escuro",
+	},
+	nl: {
+		skipLink: "Naar de hoofdinhoud",
+		notFoundTitle: "Pagina niet gevonden",
+		notFoundText: "Er is geen pagina op dit adres.",
+		themeToggle: "Donker thema",
+	},
 };
 
 /**
