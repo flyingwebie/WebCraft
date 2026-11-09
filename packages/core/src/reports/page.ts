@@ -107,6 +107,8 @@ th{font-weight:600}
 td.n,th.n{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap}
 td.t{overflow-wrap:anywhere}
 svg.chart{width:100%;height:auto;display:block;margin-bottom:.5rem}
+.legend{display:flex;flex-wrap:wrap;gap:1rem;list-style:none;margin:0 0 .5rem;padding:0;font-size:.85rem}
+.legend li{display:flex;align-items:center;gap:.4rem}
 .axis{stroke:var(--border);fill:none}
 .label{fill:var(--muted);font-size:11px}
 .line{fill:none;stroke-width:2}
@@ -424,14 +426,21 @@ function seriesHtml(
 		)
 		.map((text) => `<p>${escapeText(text)}</p>`)
 		.join("");
-	const head = `<tr><th scope="col">${escapeText(hourly ? words.hour : words.day)}</th>${lines.map((line) => `<th scope="col" class="n">${escapeText(line.label)}</th>`).join("")}</tr>`;
+	const head = `<tr><th scope="col">${escapeText(hourly ? words.hourColumn : words.dayColumn)}</th>${lines.map((line) => `<th scope="col" class="n">${escapeText(line.label)}</th>`).join("")}</tr>`;
 	const rows = points
 		.map(
 			(point) =>
 				`<tr><th scope="row">${escapeText(stamp(point.start))}</th>${lines.map((line) => `<td class="n">${escapeText(numberText(point.values[line.key] ?? 0, lang))}</td>`).join("")}</tr>`,
 		)
 		.join("");
-	return `${svg}${totals}<div class="scroll"><table aria-labelledby="${id}"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+	// Which line is which, by its colour, dash and marker together (never colour alone).
+	const legend = `<ul class="legend" aria-hidden="true">${lines
+		.map(
+			(line, index) =>
+				`<li><svg viewBox="0 0 28 10" width="28" height="10" focusable="false"><path class="line l${index}" d="M1 5 L27 5"/>${marker(index, 14, 5)}</svg>${escapeText(line.label)}</li>`,
+		)
+		.join("")}</ul>`;
+	return `${svg}${legend}${totals}<div class="scroll"><table aria-labelledby="${id}"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function marker(index: number, x: number, y: number): string {

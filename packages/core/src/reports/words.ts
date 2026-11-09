@@ -25,6 +25,9 @@ export type ReportWords = {
 	seriesTotal: string;
 	day: string;
 	hour: string;
+	/** The heading of a series' table column: its days, or its hours. */
+	dayColumn: string;
+	hourColumn: string;
 	step: string;
 	count: string;
 	madeWith: string;
@@ -86,6 +89,8 @@ const en: ReportWords = {
 	seriesTotal: "Total {label}: {total}",
 	day: "day",
 	hour: "hour",
+	dayColumn: "Day",
+	hourColumn: "Hour",
 	step: "Step",
 	count: "Count",
 	madeWith: "Made with WebCraft",
@@ -165,6 +170,8 @@ const it: ReportWords = {
 	seriesTotal: "Totale {label}: {total}",
 	day: "giorno",
 	hour: "ora",
+	dayColumn: "Giorno",
+	hourColumn: "Ora",
 	step: "Passo",
 	count: "Numero",
 	madeWith: "Creato con WebCraft",
