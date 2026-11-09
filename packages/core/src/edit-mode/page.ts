@@ -185,7 +185,7 @@ async function pageItems(
 		...(content.entryId ? [{ kind: "entry", id: content.entryId } as const] : []),
 		...(content.readsGlobals ? [{ kind: "globals" } as const] : []),
 	];
-	return { content, items, changes: await changesOf(editing.scope, items, editing.personId) };
+	return { content, items, changes: await changesOf(editing.scope, items, editing.personId, content.language) };
 }
 
 function nameOf(item: EditItem): string {
@@ -196,7 +196,12 @@ function nameOf(item: EditItem): string {
 const BUILT_IN_KEYS = ["title", "slug", "parent"] as const;
 
 /** Every stored value of the items whose Draft differs from what is published. */
-async function changesOf(scope: SiteScope, items: readonly EditItem[], you: string): Promise<PageChange[]> {
+async function changesOf(
+	scope: SiteScope,
+	items: readonly EditItem[],
+	you: string,
+	language: string,
+): Promise<PageChange[]> {
 	const found: (Omit<PageChange, "by"> & { writer: string | null })[] = [];
 	const { defaultLanguage } = await siteLanguages(scope);
 	for (const item of items) {
@@ -228,7 +233,8 @@ async function changesOf(scope: SiteScope, items: readonly EditItem[], you: stri
 				key,
 				label: field?.label ?? (builtIns.includes(key) ? null : key),
 				type: field?.type ?? (key === "parent" ? "parent" : "text"),
-				writer: writerOf(draft[key], defaultLanguage),
+				// Who wrote it in the page's language; a shared value is kept under the Default language.
+				writer: writerOf(draft[key], language) ?? writerOf(draft[key], defaultLanguage),
 			});
 		}
 	}
