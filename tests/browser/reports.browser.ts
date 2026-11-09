@@ -59,8 +59,12 @@ beforeAll(async () => {
 	await api.dashboards.widgets.add({ siteId, dashboardId, kind: "site-analytics:totals" });
 	await api.dashboards.widgets.add({ siteId, dashboardId, kind: "site-analytics:trend" });
 	await api.dashboards.widgets.add({ siteId, dashboardId, kind: "site-analytics:top-pages" });
-	openUrl = (await api.shareLinks.create({ siteId, dashboardId, name: "For the client", language: "en" })).url;
-	lockedUrl = (await api.shareLinks.create({ siteId, dashboardId, name: "For the board", password: PASSWORD })).url;
+	// Made through the Install in the test process, whose sites domain differs: the same link on the web process's.
+	const served = (url: string) => install.siteUrl("share", new URL(url).pathname);
+	openUrl = served((await api.shareLinks.create({ siteId, dashboardId, name: "For the client", language: "en" })).url);
+	lockedUrl = served(
+		(await api.shareLinks.create({ siteId, dashboardId, name: "For the board", password: PASSWORD })).url,
+	);
 
 	const { report } = await api.reports.create({
 		siteId,
@@ -113,7 +117,7 @@ for (const theme of THEMES) {
 			const page = await open(reportsPath());
 			await page.getByRole("heading", { name: "Reports of Overview", level: 1 }).waitFor();
 			await page.getByRole("heading", { name: "History of Weekly results" }).waitFor();
-			await page.getByRole("button", { name: "Review" }).waitFor();
+			await page.getByRole("link", { name: "Review" }).waitFor();
 
 			await expectAccessibleScreen(page, `Reports (${theme})`);
 		});

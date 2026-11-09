@@ -68,7 +68,7 @@ export async function shareAnswer(services: InstallServices, request: Request): 
 	if (link.passwordHash) {
 		const cookie = cookieValue(request, siteCookieName(url.hostname, cookieName));
 		if (!cookie || !(await services.shareLinks.passwordAccess(link, cookie))) {
-			const answer = page(request, sharePasswordPage({ language: link.language }), 401);
+			const answer = page(request, sharePasswordPage({ language: link.language, action: url.pathname }), 401);
 			if (cookie) answer.headers.append("set-cookie", siteCookie(url.hostname, cookieName, "", 0));
 			return answer;
 		}
@@ -119,12 +119,19 @@ async function passwordPost(
 	const perLink =
 		perAddress && (await services.rateLimits.count(`share-password:${link.id}`, SHARE_PASSWORD_LINK_LIMIT));
 	if (!perAddress || !perLink) {
-		const refused = page(request, sharePasswordPage({ language: link.language, problem: "tooMany" }), 429);
+		const refused = page(
+			request,
+			sharePasswordPage({ language: link.language, action: new URL(request.url).pathname, problem: "tooMany" }),
+			429,
+		);
 		refused.headers.set("retry-after", String(SHARE_PASSWORD_RATE_LIMIT.windowMs / 1000));
 		return refused;
 	}
 	const access = await services.shareLinks.tryPassword(link, new URLSearchParams(body).get("password") ?? "");
-	if (!access) return page(request, sharePasswordPage({ language: link.language, problem: "wrong" }), 403);
+	if (!access) {
+		const action = new URL(request.url).pathname;
+		return page(request, sharePasswordPage({ language: link.language, action, problem: "wrong" }), 403);
+	}
 	const url = new URL(request.url);
 	const maxAge = Math.max(0, Math.floor((access.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
 	const answer = new Response(null, { status: 303, headers: { location: url.pathname, ...PRIVATE } });
@@ -144,12 +151,16 @@ function page(request: Request, html: string, status: number): Response {
 	});
 }
 
-/** Whether a post comes from the address's own page: its `Origin`, and the browser calling it same-origin. */
+/**
+ * Whether a post comes from the address's own page: the browser calls it same-origin, and its `Origin`
+ * is the address. The page sends no referrer (its address holds the token), so browsers send
+ * `Origin: null` with its form: then the browser's `Sec-Fetch-Site` alone says.
+ */
 function fromItself(request: Request): boolean {
 	const fetchSite = request.headers.get("sec-fetch-site");
 	if (fetchSite !== null && fetchSite !== "same-origin") return false;
 	const origin = request.headers.get("origin");
-	if (!origin) return fetchSite === "same-origin";
+	if (!origin || origin === "null") return fetchSite === "same-origin";
 	try {
 		return new URL(origin).host === new URL(request.url).host;
 	} catch {

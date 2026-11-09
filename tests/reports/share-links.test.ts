@@ -132,6 +132,16 @@ describe("a Share link", () => {
 			).status,
 		).toBe(403);
 
+		// Its page sends no referrer, so browsers say `Origin: null`: their Sec-Fetch-Site says where it came from.
+		expect((await givePassword(url, "not it either", { origin: "null" })).status).toBe(403);
+		expect(await (await givePassword(url, "not it either", { origin: "null" })).text()).toContain("That isn't the password.");
+		const forged = await open(url, {
+			method: "POST",
+			headers: { "content-type": "application/x-www-form-urlencoded", origin: "null" },
+			body: "password=guess",
+		});
+		expect(await forged.text()).toBe("Forbidden");
+
 		const right = await givePassword(url, "the client's password");
 		expect(right.status).toBe(303);
 		expect(right.headers.get("location")).toBe(new URL(url).pathname);

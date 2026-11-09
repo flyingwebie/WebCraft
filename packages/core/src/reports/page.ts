@@ -554,7 +554,7 @@ function plainPage(language: string, title: string, body: string): string {
  * The page a Share link with a password shows until the password is given: a form posting to the
  * link itself. It names nothing of the Dashboard, its Site or its brand.
  */
-export function sharePasswordPage(input: { language: string; problem?: "wrong" | "tooMany" }): string {
+export function sharePasswordPage(input: { language: string; action: string; problem?: "wrong" | "tooMany" }): string {
 	const words = reportWords(input.language).password;
 	const problem = input.problem === "wrong" ? words.wrong : input.problem === "tooMany" ? words.tooMany : null;
 	const title = `${problem ? `${words.errorPrefix} ` : ""}${words.title}`;
@@ -564,7 +564,7 @@ export function sharePasswordPage(input: { language: string; problem?: "wrong" |
 		[
 			`<h1>${escapeText(words.title)}</h1>`,
 			`<p id="password-help">${escapeText(words.help)}</p>`,
-			'<form method="post" class="explore" novalidate>',
+			`<form method="post" action="${escapeAttribute(input.action)}" class="explore" novalidate>`,
 			problem ? `<p class="problem" id="password-problem" role="alert">${escapeText(problem)}</p>` : "",
 			`<label for="password">${escapeText(words.label)}</label>`,
 			`<input id="password" name="password" type="password" autocomplete="current-password" required maxlength="200" aria-describedby="${problem ? "password-problem password-help" : "password-help"}"${problem ? ' aria-invalid="true" autofocus' : ""}>`,
