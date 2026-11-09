@@ -83,7 +83,7 @@ type Row<Table extends PgTable> = InferSelectModel<Table>;
  */
 type NewRow<Table extends PgTable, Filled extends string> = Omit<InferInsertModel<Table>, Filled>;
 
-export type SelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: number };
+export type SelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: number; offset?: number };
 
 /**
  * Queries on tenant tables, limited to one scope. `where` is the extra condition, if any; the scope
@@ -417,6 +417,7 @@ function scopedQueries<Table extends WorkspaceTable, Filled extends string>(
 			.$dynamic();
 		if (options.orderBy?.length) query = query.orderBy(...options.orderBy);
 		if (options.limit !== undefined) query = query.limit(options.limit);
+		if (options.offset !== undefined && options.offset > 0) query = query.offset(options.offset);
 		return query as unknown as Promise<unknown[]>;
 	};
 	return {
@@ -425,7 +426,7 @@ function scopedQueries<Table extends WorkspaceTable, Filled extends string>(
 			return (await select(table, where(table, extra), options)) as Row<typeof table>[];
 		},
 		async first(table, extra, options = {}) {
-			const [row] = await select(table, where(table, extra), { ...options, limit: 1 });
+			const [row] = await select(table, where(table, extra), { ...options, limit: 1, offset: 0 });
 			return row as Row<typeof table> | undefined;
 		},
 		async count(table, extra) {

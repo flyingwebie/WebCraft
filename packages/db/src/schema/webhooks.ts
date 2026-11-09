@@ -60,8 +60,11 @@ export const webhookDeliveries = pgTable(
 		webhookId: uuid("webhook_id").notNull(),
 		/** The event, such as `publish`, or `test` for a test send. */
 		event: text("event").notNull(),
-		/** The JSON body, as sent. It holds no secret and no Content values. */
+		/** The JSON body, as sent. It holds no secret, and no Content values but a Submission's (`formSubmitted`). */
 		body: text("body").notNull(),
+		/** What it is about, for that item's own delivery log: `submission` and its id for `formSubmitted`. */
+		relatedKind: text("related_kind"),
+		relatedId: text("related_id"),
 		/** A test send: sent once, at once, never retried and never counted as a failure. */
 		test: boolean("test").notNull().default(false),
 		/** `queued`, `retrying`, `delivered` or `failed`. */
@@ -91,6 +94,7 @@ export const webhookDeliveries = pgTable(
 		}).onDelete("cascade"),
 		index("webhook_deliveries_webhook_created_idx").on(table.webhookId, table.createdAt.desc(), table.id.desc()),
 		index("webhook_deliveries_created_at_idx").on(table.createdAt),
+		index("webhook_deliveries_related_idx").on(table.siteId, table.relatedKind, table.relatedId),
 		check("webhook_deliveries_status_known", sql`${table.status} in ('queued', 'retrying', 'delivered', 'failed')`),
 	],
 );

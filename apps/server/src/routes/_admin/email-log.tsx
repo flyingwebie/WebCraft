@@ -139,7 +139,11 @@ function EmailLogRow({ line }: { line: Line }) {
 			<td className="px-3 py-2 whitespace-nowrap">{line.recipient}</td>
 			<td className="min-w-56 px-3 py-2">{line.subject}</td>
 			<td className="px-3 py-2 whitespace-nowrap">
-				{line.smtp === "install" ? t("emailLog.smtp.install") : t("emailLog.smtp.none")}
+				{line.smtp === "install"
+					? t("emailLog.smtp.install")
+					: line.smtp === "site"
+						? t("emailLog.smtp.site")
+						: t("emailLog.smtp.none")}
 			</td>
 			<td className="px-3 py-2">
 				<StatusBadge status={line.status} />
@@ -189,5 +193,13 @@ function RelatedLink({ related }: { related: Line["related"] }) {
 			</Link>
 		);
 	}
+	if (related?.kind === "site-smtp") {
+		return (
+			<Link to="/sites/$siteId/email" params={{ siteId: related.id }} className="underline-offset-4 hover:underline">
+				{t("emailLog.related.siteSmtp")}
+			</Link>
+		);
+	}
+	if (related?.kind === "submission") return <span>{t("emailLog.related.submission")}</span>;
 	return null;
 }

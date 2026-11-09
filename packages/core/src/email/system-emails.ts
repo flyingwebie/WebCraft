@@ -6,12 +6,14 @@ import { and, eq, inArray } from "drizzle-orm";
 import { type AdminLanguageCode, adminLanguageDirection, isAdminLanguage } from "../admin-languages.ts";
 import type { InstallConfig } from "../config.ts";
 import type { InstallSettings } from "../install-settings.ts";
+import type { SecretRef } from "../secrets/refs.ts";
 import type { EmailBranding, InstallBranding } from "./branding.ts";
 import { canTurnOff, SYSTEM_EMAIL_TYPES, type SystemEmailData, type SystemEmailType } from "./catalogue.ts";
 import type { RelatedItem } from "./email-log.ts";
 import { checkSettings, INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
 import { renderEmail } from "./layout.ts";
 import { emailOf, type OutboxPorts, queueEmail, send } from "./outbox.ts";
+import type { SiteMailRoute } from "./site-mail.ts";
 import { en } from "./wording/en.ts";
 import { it } from "./wording/it.ts";
 import type { EmailContent, EmailWording } from "./wording/types.ts";
@@ -35,6 +37,12 @@ export type SystemEmail<Type extends SystemEmailType = SystemEmailType> = {
 	data: SystemEmailData<Type>;
 	/** What it is about, linked from the Email log. */
 	related?: RelatedItem;
+	/**
+	 * The Site whose mail it is (a Site-level Module's email): it goes out as the Site's mail does,
+	 * through the Site's own server when it has one, else the Install SMTP, under the Site's sender name
+	 * and with its reply-to. Absent for the Install's own emails.
+	 */
+	site?: { id: string; route: SiteMailRoute };
 };
 
 /**
@@ -104,17 +112,19 @@ export function createSystemEmailSender(options: SenderOptions) {
 					continue;
 				}
 				const rendered = render(brand, email.type, data, addressee.language, addressee.personId !== null);
+				const site = email.site;
 				const { emailId, status } = await queueEmail(options, {
 					type: email.type,
 					to: addressee.email,
 					personId: addressee.personId,
-					fromName: rendered.fromName,
+					fromName: site ? site.route.fromName : rendered.fromName,
 					subject: rendered.subject,
 					text: rendered.text,
 					html: rendered.html,
 					headers: SYSTEM_HEADERS,
-					smtp: { kind: "install" },
+					smtp: site ? site.route.smtp : { kind: "install" },
 					related: email.related ?? null,
+					...(site ? { siteId: site.id, replyTo: site.route.replyTo } : {}),
 				});
 				results.push({ recipient: addressee.email, status, emailId });
 			}
@@ -133,11 +143,23 @@ export function createSystemEmailSender(options: SenderOptions) {
 			smtp: SmtpSettings;
 			password?: string;
 			personId: string;
+			/**
+			 * A Site's mail settings being tried: its sender name and reply-to, which server they name
+			 * (`site`: its own, whose stored password is `password`; `install`: the Install SMTP).
+			 */
+			site?: {
+				id: string;
+				fromName: string;
+				replyTo: string | null;
+				smtp: "site" | "install";
+				password: SecretRef;
+			};
 		}): Promise<TestEmailResult> {
 			const to = normaliseEmail(test.to);
 			assertValidEmail(to);
 			const smtp = checkSettings(test.smtp);
 			const rendered = render(await branding.resolve(), "smtp-test", {}, test.language, false);
+			const site = test.site;
 			const now = clock.now();
 			const [row] = await database.db
 				.insert(emailLog)
@@ -147,18 +169,22 @@ export function createSystemEmailSender(options: SenderOptions) {
 					recipient: to,
 					personId: null,
 					subject: rendered.subject,
-					smtp: "install",
+					smtp: site?.smtp ?? "install",
+					siteId: site?.id ?? null,
 					status: "queued",
 					nextAttemptAt: now,
-					relatedKind: "install-smtp",
-					relatedId: "install",
+					relatedKind: site ? "site-smtp" : "install-smtp",
+					relatedId: site?.id ?? "install",
 				})
 				.returning({ id: emailLog.id });
 			if (!row) throw new Error("The Email log did not take the test email.");
+			const message = site
+				? { to, ...rendered, fromName: site.fromName, replyTo: site.replyTo, headers: SYSTEM_HEADERS }
+				: { to, ...rendered, headers: SYSTEM_HEADERS };
 			const outcome = await send(
 				options,
-				{ settings: smtp, password: INSTALL_SMTP_PASSWORD },
-				emailOf({ to, ...rendered, headers: SYSTEM_HEADERS }, smtp),
+				{ settings: smtp, password: site?.password ?? INSTALL_SMTP_PASSWORD },
+				emailOf(message, smtp),
 				test.password,
 			);
 			await database.db

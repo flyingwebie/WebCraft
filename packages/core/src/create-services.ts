@@ -77,6 +77,7 @@ import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
+import { createSubmissionActions } from "./forms/kept.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
 import { createImports } from "./imports/index.ts";
 import { createInstallSettings, MEDIA_MAX_FILE_BYTES } from "./install-settings.ts";
@@ -143,7 +144,19 @@ export async function createInstallServices(
 	const store = options.checkMasterKey === false ? createSecrets(secretsOptions) : await openSecrets(secretsOptions);
 	const settings = createInstallSettings(database);
 	const installSecrets = installSecretsOnly(store);
-	const email = createEmail({ ...ports, secrets: installSecrets, settings });
+	// The Module host and Webhooks hear of every Audit log entry once its change is saved: Modules
+	// react to some, and a publish fires the Site's Webhooks.
+	const listeners: { afterAudit: ModuleHost["afterAudit"][] } = { afterAudit: [] };
+	const data = createDataLayer({
+		database,
+		clock,
+		secrets: store,
+		afterAudit: async (entry) => {
+			for (const listener of listeners.afterAudit) await listener(entry);
+		},
+	});
+	// Email reads the Install SMTP's password and a Site's own server's, each only for its send.
+	const email = createEmail({ ...ports, secrets: store, settings, data });
 	const auth = createAuth({
 		database,
 		clock,
@@ -158,17 +171,6 @@ export async function createInstallServices(
 			}),
 		],
 		onAccountLocked: reportAccountLock({ database, clock, email }),
-	});
-	// The Module host and Webhooks hear of every Audit log entry once its change is saved: Modules
-	// react to some, and a publish fires the Site's Webhooks.
-	const listeners: { afterAudit: ModuleHost["afterAudit"][] } = { afterAudit: [] };
-	const data = createDataLayer({
-		database,
-		clock,
-		secrets: store,
-		afterAudit: async (entry) => {
-			for (const listener of listeners.afterAudit) await listener(entry);
-		},
 	});
 	const guardedFetch = createGuardedFetch({ http: ports.http, dns: ports.dns });
 	const webhooks = createWebhooks({
@@ -192,6 +194,8 @@ export async function createInstallServices(
 		clock,
 		log,
 		modules: options.modules ?? FIRST_PARTY_MODULES,
+		// What follows a kept Form Submission: its Notifications, Auto-reply and Webhooks.
+		submissionActions: createSubmissionActions({ data, email, webhooks, clock, log }),
 		rateLimits,
 		countries: ports.countries,
 		visitorIdKey: await visitorIdKey(masterKey),

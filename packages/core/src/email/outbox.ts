@@ -1,5 +1,5 @@
 import type { Database } from "@webcraft/db";
-import { emailLog, installSmtp, smtpHealth } from "@webcraft/db/schema";
+import { emailLog, installSmtp, siteSmtp, smtpHealth } from "@webcraft/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -8,15 +8,28 @@ import { defineJob, type JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
 import type { SecretRef } from "../secrets/refs.ts";
 import { SecretNotSetError, type Secrets } from "../secrets/store.ts";
+import type { DataLayer } from "../tenancy/data-layer.ts";
 import type { EmailLogSmtp, RelatedItem } from "./email-log.ts";
 import { FAILING_AFTER, INSTALL_SMTP, INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
 import { type Mailer, type MailerReceipt, type OutgoingEmail, SmtpDeliveryError } from "./mailer.ts";
 
 /**
- * Which SMTP server an email goes through, chosen per email. System emails always use the Install
- * SMTP; Site mail will choose `{ kind: "site", … }`, the Site's own server.
+ * Which SMTP server an email goes through, chosen per email. System emails use the Install SMTP; a
+ * Site's mail uses the Site's own server when it has one (`{ kind: "site", siteId }`). A Site that went
+ * back to the Install SMTP after an email was queued sends it through the Install SMTP. A Site's server
+ * that fails never hands its email to the Install SMTP: it is retried, then Failed.
  */
-export type SmtpChoice = { kind: "install" };
+export type SmtpChoice = { kind: "install" } | { kind: "site"; siteId: string };
+
+/** The key of a Site's own server in the health table: `site:<site id>`. */
+export function siteSmtpKey(siteId: string): string {
+	return `site:${siteId}`;
+}
+
+/** A Site's own server's password: a secret of the Site. */
+export function siteSmtpPassword(site: { workspaceId: string; id: string }) {
+	return { owner: { kind: "site", workspaceId: site.workspaceId, siteId: site.id }, name: "smtp.password" } as const;
+}
 
 /** An email ready to go: rendered and addressed, without its From address (that comes from the SMTP). */
 export type OutboxEmail = {
@@ -32,15 +45,27 @@ export type OutboxEmail = {
 	headers: Record<string, string>;
 	smtp: SmtpChoice;
 	related: RelatedItem | null;
+	/** The Site whose mail it is, for the Email log; null for the Install's own emails. */
+	siteId?: string | null;
+	/**
+	 * Where replies go: an address, or null for none. Absent, the SMTP server's reply-to applies (System
+	 * emails); a Site's mail always says, so the Install SMTP's reply-to never reaches it.
+	 */
+	replyTo?: string | null;
 };
 
 export type OutboxPorts = {
 	database: Database;
 	jobs: JobQueue;
 	mailer: Mailer;
+	/** Every secret: a send reads only the password of the SMTP it goes through (the Install's or its Site's). */
 	secrets: Secrets;
 	clock: Clock;
 	log: Logger;
+	/** The data layer, for a Site's own server: read for the Site the queued email names. */
+	data?: DataLayer;
+	/** Told once when a server becomes Failing (its third failed send in a row), with its last answer. */
+	onFailing?(smtp: string, lastResponse: string): Promise<void>;
 };
 
 /** How long a failing email is retried, counted from when it was queued. */
@@ -70,7 +95,7 @@ export async function queueEmail(
 ): Promise<{ emailId: string; status: "queued" | "logged" }> {
 	const { database, clock, jobs } = ports;
 	const now = clock.now();
-	const smtp = await resolveSmtp(database, email.smtp);
+	const smtp = await resolveSmtp(ports, email.smtp);
 	const [row] = await database.db
 		.insert(emailLog)
 		.values({
@@ -79,7 +104,8 @@ export async function queueEmail(
 			recipient: email.to,
 			personId: email.personId,
 			subject: email.subject,
-			smtp: smtp ? smtpLabel(email.smtp) : "none",
+			smtp: smtp ? smtp.label : "none",
+			siteId: email.siteId ?? null,
 			status: smtp ? "queued" : "logged",
 			nextAttemptAt: smtp ? now : null,
 			relatedKind: email.related?.kind ?? null,
@@ -100,7 +126,10 @@ export async function queueEmail(
 	return { emailId: row.id, status: "queued" };
 }
 
-const smtpChoice = z.object({ kind: z.literal("install") });
+const smtpChoice = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("install") }),
+	z.object({ kind: z.literal("site"), siteId: z.uuid() }),
+]);
 
 const message = z.object({
 	type: z.string(),
@@ -110,6 +139,7 @@ const message = z.object({
 	text: z.string(),
 	html: z.string(),
 	headers: z.record(z.string(), z.string()),
+	replyTo: z.string().nullable().optional(),
 });
 
 type Message = z.infer<typeof message>;
@@ -130,13 +160,14 @@ export const emailSend = defineJob({
 	}),
 	queue: { retryLimit: 3, retryDelay: 60, retryBackoff: true, expireInSeconds: 300, deleteAfterSeconds: 3600 },
 	async run(payload, services) {
-		await attemptDelivery(services, payload);
+		await services.email.deliver(payload);
 	},
 });
 
-type Attempt = z.infer<typeof emailSend.payload>;
+export type EmailAttempt = z.infer<typeof emailSend.payload>;
 
-async function attemptDelivery(ports: OutboxPorts, attempt: Attempt): Promise<void> {
+/** One attempt to send one queued email (the `email.send` job). */
+export async function attemptDelivery(ports: OutboxPorts, attempt: EmailAttempt): Promise<void> {
 	const { database, clock, log } = ports;
 	const { db } = database;
 	const [row] = await db.select().from(emailLog).where(eq(emailLog.id, attempt.emailId));
@@ -144,13 +175,15 @@ async function attemptDelivery(ports: OutboxPorts, attempt: Attempt): Promise<vo
 	if (!row || (row.status !== "queued" && row.status !== "retrying") || row.attempts >= attempt.attempt) return;
 	const thisRow = and(eq(emailLog.id, row.id), eq(emailLog.attempts, attempt.attempt - 1));
 
-	const smtp = await resolveSmtp(database, attempt.smtp);
+	const smtp = await resolveSmtp(ports, attempt.smtp);
 	if (!smtp) {
 		// Its SMTP was removed after the email was queued.
 		writeToLog(log, row.id, attempt.message);
 		await db.update(emailLog).set({ status: "logged", smtp: "none", nextAttemptAt: null }).where(thisRow);
 		return;
 	}
+	// A Site that went back to the Install SMTP since: the Email log says which server it went through.
+	if (row.smtp !== smtp.label) await db.update(emailLog).set({ smtp: smtp.label }).where(thisRow);
 
 	const attemptedAt = clock.now();
 	// Delivery is at least once: if the server takes the email but recording that fails, the job is
@@ -194,7 +227,14 @@ async function attemptDelivery(ports: OutboxPorts, attempt: Attempt): Promise<vo
 		return;
 	}
 
-	await recordFailure(ports, smtp.key, outcome.response);
+	const nowFailing = await recordFailure(ports, smtp.key, outcome.response);
+	if (nowFailing && ports.onFailing) {
+		try {
+			await ports.onFailing(smtp.key, outcome.response);
+		} catch (error) {
+			log.error("Those to tell of a Failing SMTP server couldn't be told", { smtp: smtp.key, error });
+		}
+	}
 	const next = nextAttemptAt(row.createdAt, attemptedAt, attempts);
 	if (next) await ports.jobs.send(emailSend, { ...attempt, attempt: attempts + 1 }, { startAfter: next });
 	await db
@@ -217,27 +257,51 @@ async function attemptDelivery(ports: OutboxPorts, attempt: Attempt): Promise<vo
 	}
 }
 
-/** An SMTP server, ready for a send: its key (for its health record), settings and password. */
-export type ResolvedSmtp = { key: string; settings: SmtpSettings; password: SecretRef };
+/**
+ * An SMTP server, ready for a send: its key (for its health record), the Email log's name for it,
+ * its settings and its password.
+ */
+export type ResolvedSmtp = { key: string; label: EmailLogSmtp; settings: SmtpSettings; password: SecretRef };
 
-async function resolveSmtp(database: Database, choice: SmtpChoice): Promise<ResolvedSmtp | null> {
-	switch (choice.kind) {
-		case "install": {
-			const [row] = await database.db.select().from(installSmtp).where(eq(installSmtp.id, 1));
-			if (!row) return null;
-			const { host, port, username, fromAddress, replyTo } = row;
-			const security = row.security as SmtpSettings["security"];
-			return {
-				key: INSTALL_SMTP,
-				settings: { host, port, security, username, fromAddress, replyTo },
-				password: INSTALL_SMTP_PASSWORD,
-			};
-		}
+/** The server an email goes through now: null when there is none (it is written to the log instead). */
+export async function resolveSmtp(
+	ports: Pick<OutboxPorts, "database" | "data">,
+	choice: SmtpChoice,
+): Promise<ResolvedSmtp | null> {
+	if (choice.kind === "site") {
+		const server = ports.data ? await siteServer(ports.data, choice.siteId) : null;
+		if (server) return server;
 	}
+	const [row] = await ports.database.db.select().from(installSmtp).where(eq(installSmtp.id, 1));
+	if (!row) return null;
+	const { host, port, username, fromAddress, replyTo } = row;
+	const security = row.security as SmtpSettings["security"];
+	return {
+		key: INSTALL_SMTP,
+		label: "install",
+		settings: { host, port, security, username, fromAddress, replyTo },
+		password: INSTALL_SMTP_PASSWORD,
+	};
 }
 
-function smtpLabel(choice: SmtpChoice): EmailLogSmtp {
-	return choice.kind;
+/** A Site's own server, when it has one. */
+async function siteServer(data: DataLayer, siteId: string): Promise<ResolvedSmtp | null> {
+	const scope = await data.background(siteId);
+	const row = scope ? await scope.first(siteSmtp) : undefined;
+	if (!scope || !row?.host || row.port === null || !row.security || !row.fromAddress) return null;
+	return {
+		key: siteSmtpKey(scope.site.id),
+		label: "site",
+		settings: {
+			host: row.host,
+			port: row.port,
+			security: row.security as SmtpSettings["security"],
+			username: row.username,
+			fromAddress: row.fromAddress,
+			replyTo: row.replyTo,
+		},
+		password: siteSmtpPassword(scope.site),
+	};
 }
 
 type Outcome = { ok: true; response: string } | { ok: false; response: string; recipientRejected: boolean };
@@ -249,7 +313,7 @@ type Outcome = { ok: true; response: string } | { ok: false; response: string; r
  */
 export async function send(
 	ports: Pick<OutboxPorts, "mailer" | "secrets" | "log">,
-	smtp: Omit<ResolvedSmtp, "key">,
+	smtp: Pick<ResolvedSmtp, "settings" | "password">,
 	email: OutgoingEmail,
 	typedPassword?: string,
 ): Promise<Outcome> {
@@ -282,12 +346,16 @@ export async function send(
 	}
 }
 
-/** The email as the SMTP server gets it: From and Reply-To come from the server's settings. */
+/**
+ * The email as the SMTP server gets it: From comes from the server's settings, and Reply-To from the
+ * email when it says (a Site's mail always does), else from the server's settings.
+ */
 export function emailOf(message: Omit<Message, "type">, settings: SmtpSettings): OutgoingEmail {
+	const replyTo = message.replyTo !== undefined ? message.replyTo : settings.replyTo;
 	return {
 		from: { name: message.fromName, address: settings.fromAddress },
 		to: message.to,
-		...(settings.replyTo ? { replyTo: settings.replyTo } : {}),
+		...(replyTo ? { replyTo } : {}),
 		subject: message.subject,
 		text: message.text,
 		html: message.html,
@@ -303,7 +371,16 @@ function messageIdOf(emailId: string, settings: SmtpSettings): string {
 
 function messageOf(email: OutboxEmail): Message {
 	const { type, to, fromName, subject, text, html, headers } = email;
-	return { type, to, fromName, subject, text, html, headers };
+	return {
+		type,
+		to,
+		fromName,
+		subject,
+		text,
+		html,
+		headers,
+		...(email.replyTo !== undefined ? { replyTo: email.replyTo } : {}),
+	};
 }
 
 function writeToLog(log: Logger, emailId: string, email: { type: string; to: string; subject: string; text: string }) {
@@ -329,12 +406,15 @@ async function recordSuccess(ports: Pick<OutboxPorts, "database" | "clock" | "lo
 	if (before.failingSince) log.info("The SMTP server works again: it is no longer Failing", { smtp });
 }
 
-/** A send failed: one more failure in a row; the third makes the server Failing, which is logged. */
+/**
+ * A send failed: one more failure in a row; the third makes the server Failing, which is logged.
+ * Answers whether this failure made it Failing.
+ */
 async function recordFailure(
 	ports: Pick<OutboxPorts, "database" | "clock" | "log">,
 	smtp: string,
 	response: string,
-): Promise<void> {
+): Promise<boolean> {
 	const { database, clock, log } = ports;
 	const now = clock.now();
 	const [after] = await database.db
@@ -363,5 +443,7 @@ async function recordFailure(
 			failuresInARow: after.failuresInARow,
 			lastResponse: response,
 		});
+		return true;
 	}
+	return false;
 }

@@ -100,9 +100,16 @@ export type Webhooks = {
 	/**
 	 * Queues an event on a Site for every Webhook that is on and receives it. Call it once the change
 	 * the event is about is saved (never inside its transaction); `data` holds no secret, and no
-	 * Content values unless the spec says so. Forms' `formSubmitted` (#89) is queued this way.
+	 * Content values unless the spec says so. Forms' `formSubmitted` is queued this way, `related` to
+	 * its Submission, whose own delivery log lists it.
 	 */
-	queueEvent(place: { siteId: string }, event: WebhookEvent, data: Record<string, unknown>, at: Date): Promise<void>;
+	queueEvent(
+		place: { siteId: string },
+		event: WebhookEvent,
+		data: Record<string, unknown>,
+		at: Date,
+		related?: { kind: string; id: string },
+	): Promise<void>;
 	/** Hears every Audit log entry once its change is saved, and queues the `publish` event for a publish. */
 	afterAudit(entry: RecordedAuditEntry): Promise<void>;
 	/** For the worker: one attempt of a delivery. */
@@ -121,7 +128,8 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 		...options,
 		onFinished: (scope, webhook, delivered) => countFinished(options, scope, webhook, delivered),
 	};
-	const queue: Webhooks["queueEvent"] = (place, event, data, at) => queueEvent(ports, place, event, data, at);
+	const queue: Webhooks["queueEvent"] = (place, event, data, at, related) =>
+		queueEvent(ports, place, event, data, at, related);
 	return {
 		list: listWebhooks,
 		add: addWebhook,

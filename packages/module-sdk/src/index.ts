@@ -59,6 +59,7 @@ export {
 } from "./component.ts";
 export type {
 	AggregateRow,
+	ModuleConfirmations,
 	ModuleContext,
 	ModuleData,
 	ModuleEmail,
@@ -121,9 +122,13 @@ export {
 	redirectRules,
 } from "./redirects.ts";
 export {
+	AUTO_REPLY_WINDOW_HOURS,
 	type FormSubmission,
+	type KeptSubmission,
 	type ModuleSchedule,
+	type ModuleSubmissions,
 	type SpamReason,
+	type SubmissionDelivery,
 	type SubmissionReceiver,
 	type SubmissionValue,
 	submissionReceiver,

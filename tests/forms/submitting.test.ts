@@ -24,7 +24,7 @@ async function kept(folder: "inbox" | "spam" = "inbox") {
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.0.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
