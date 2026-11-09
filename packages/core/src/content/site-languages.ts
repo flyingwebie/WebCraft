@@ -7,7 +7,15 @@ import { isUniqueViolation } from "../db-errors.ts";
 import { normaliseHostname } from "../hostnames.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, LanguageInvalidError, LanguageNotFoundError, LanguageTakenError } from "./errors.ts";
-import { canonicalLanguage, languageName, type SiteLanguages, siteLanguages, type TextDirection } from "./languages.ts";
+import { checkPrefixFree, publishSlugsIn } from "./language-paths.ts";
+import {
+	canonicalLanguage,
+	languageName,
+	prefixOf,
+	type SiteLanguages,
+	siteLanguages,
+	type TextDirection,
+} from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { lockSitePaths } from "./pages.ts";
 
@@ -54,6 +62,7 @@ export async function addLanguage(deps: LanguageDeps, scope: SiteScope, input: N
 			await lockSitePaths(tx);
 			const current = await siteLanguages(tx);
 			if (current.languages.some((language) => language.code === code)) throw new LanguageTakenError("code");
+			await checkPrefixFree(tx, prefixOf(code));
 			const [last] = await tx.db
 				.select({ position: max(siteLanguageRows.position) })
 				.from(siteLanguageRows)
@@ -67,6 +76,7 @@ export async function addLanguage(deps: LanguageDeps, scope: SiteScope, input: N
 				position: (last?.position ?? 0) + 1,
 				createdAt: tx.now(),
 			});
+			await publishSlugsIn(tx, code, current.defaultLanguage);
 			await clearPageCache(tx);
 			await tx.audit("language.add", { code, name, direction, domain });
 			return siteLanguages(tx);

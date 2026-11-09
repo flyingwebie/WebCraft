@@ -150,14 +150,19 @@ export class EntryIncompleteError extends Error {
 	}
 }
 
-/** What holds a path on a Site: a Post Type's URL pattern, or a published Page. */
+/**
+ * What holds a path on a Site: a Post Type's URL pattern, a published Page, or a language, whose
+ * prefix starts its pages' paths.
+ */
 export type PathHolder =
 	| { kind: "postType"; id: string; name: string; urlPattern: string }
-	| { kind: "page"; id: string; title: string };
+	| { kind: "page"; id: string; title: string }
+	| { kind: "language"; code: string; name: string };
 
 /**
- * A path already belongs elsewhere: a Post Type's URL pattern owns every path it matches, and Pages
- * live outside them, so a path never belongs to both.
+ * A path already belongs elsewhere: a Post Type's URL pattern owns every path it matches, Pages live
+ * outside them, and each language other than the Default language owns every path under its prefix,
+ * so a path never belongs to two of them.
  */
 export class PathTakenError extends Error {
 	override name = "PathTakenError";
@@ -167,7 +172,9 @@ export class PathTakenError extends Error {
 		super(
 			by.kind === "postType"
 				? `The path ${path} belongs to ${by.name} (${by.urlPattern}): choose another slug or parent Page.`
-				: `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`,
+				: by.kind === "page"
+					? `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`
+					: `The path ${path} starts with the prefix of the Site's ${by.name} pages: choose another one.`,
 		);
 		this.path = path;
 		this.by = by;

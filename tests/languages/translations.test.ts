@@ -313,3 +313,101 @@ describe("addresses per language", () => {
 		expect(response.headers.get("location")).toBe("/blog/fresh-bread");
 	});
 });
+
+describe("adding a language", () => {
+	test("published Entries and Pages answer in it at once, at their Default language slugs, until they get their own", async () => {
+		const site = await newSite([]);
+		const entryId = await freshBread(site);
+		await editor.api.entries.publish({ siteId: site.siteId, entryId });
+		const { entry: about } = await editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.pagesId,
+			title: "About",
+		});
+		await editor.api.entries.publish({ siteId: site.siteId, entryId: about.id });
+		expect((await visit(site, "/fr/blog/fresh-bread")).status).toBe(404);
+
+		await staff.api.languages.add({ siteId: site.siteId, code: "fr" });
+
+		const french = await visit(site, "/fr/blog/fresh-bread");
+		expect(french.status).toBe(200);
+		expect(french.html_).toBe('<html lang="fr" dir="ltr">');
+		expect((await visit(site, "/fr/about")).status).toBe(200);
+		expect((await editor.api.entries.get({ siteId: site.siteId, entryId, language: "fr" })).entry.path).toBe(
+			"/fr/blog/fresh-bread",
+		);
+	});
+
+	test("its prefix can't be a path the Site already answers", async () => {
+		const site = await newSite([]);
+		const { entry: page } = await editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.pagesId,
+			title: "Fr",
+		});
+		await editor.api.entries.publish({ siteId: site.siteId, entryId: page.id });
+		await expect(staff.api.languages.add({ siteId: site.siteId, code: "fr" })).rejects.toMatchObject({
+			code: "PATH_TAKEN",
+			data: { path: "/fr", by: { kind: "page", id: page.id } },
+		});
+
+		const { postType } = await staff.api.postTypes.create({
+			siteId: site.siteId,
+			name: "Recettes",
+			urlPattern: "/de/{slug}",
+		});
+		await expect(staff.api.languages.add({ siteId: site.siteId, code: "de" })).rejects.toMatchObject({
+			code: "PATH_TAKEN",
+			data: { path: "/de", by: { kind: "postType", id: postType.id } },
+		});
+
+		const { postType: topLevel } = await staff.api.postTypes.create({
+			siteId: site.siteId,
+			name: "Specials",
+			urlPattern: "/{slug}/today",
+		});
+		const { entry: special } = await editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: topLevel.id,
+			title: "It",
+		});
+		await editor.api.entries.publish({ siteId: site.siteId, entryId: special.id });
+		await expect(staff.api.languages.add({ siteId: site.siteId, code: "it" })).rejects.toMatchObject({
+			code: "PATH_TAKEN",
+			data: { path: "/it/today", by: { kind: "postType", id: topLevel.id } },
+		});
+	});
+
+	test("its prefix stays the language's: no Page, Entry or URL pattern can take it", async () => {
+		const site = await newSite(["fr"]);
+		const { entry: page } = await editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.pagesId,
+			title: "Fr",
+		});
+		const language = { kind: "language", code: "fr", name: "Français" };
+
+		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: page.id })).rejects.toMatchObject({
+			code: "PATH_TAKEN",
+			data: { path: "/fr", by: language },
+		});
+		await expect(
+			staff.api.postTypes.create({ siteId: site.siteId, name: "Recettes", urlPattern: "/fr/{slug}" }),
+		).rejects.toMatchObject({ code: "PATH_TAKEN", data: { path: "/fr", by: language } });
+		const { postType } = await staff.api.postTypes.create({
+			siteId: site.siteId,
+			name: "Specials",
+			urlPattern: "/{slug}/today",
+		});
+		const { entry } = await editor.api.entries.create({ siteId: site.siteId, postTypeId: postType.id, title: "Fr" });
+		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject({
+			code: "PATH_TAKEN",
+			data: { path: "/fr/today", by: language },
+		});
+		// Under the prefix, and in other languages, the same slug is fine.
+		await editor.api.entries.saveDraft({ siteId: site.siteId, entryId: page.id, slug: "francais" });
+		await editor.api.entries.saveDraft({ siteId: site.siteId, entryId: page.id, language: "fr", slug: "fr" });
+		await editor.api.entries.publish({ siteId: site.siteId, entryId: page.id });
+		expect((await visit(site, "/fr/fr")).status).toBe(200);
+	});
+});

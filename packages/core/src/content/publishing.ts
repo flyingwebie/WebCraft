@@ -14,6 +14,7 @@ import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTaken
 import type { FieldDefinition } from "./field-types.ts";
 import { type Findings, type Languages, linksIn } from "./field-values.ts";
 import { publishGlobals } from "./globals.ts";
+import { checkPathOutsidePrefixes } from "./language-paths.ts";
 import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import {
@@ -138,8 +139,8 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 	for (const { languages, slug } of slugs) {
 		paths.push(
 			isPagePostType(postType)
-				? await pagePaths(scope, postType, row.id, { parentId, slug }, languages)
-				: await entryPaths(scope, postType, row.id, slug, languages),
+				? await pagePaths(scope, postType, row.id, { parentId, slug }, languages, site)
+				: await entryPaths(scope, postType, row.id, slug, languages, site),
 		);
 	}
 	const pathChanges = paths.flatMap((path) => path.changes);
@@ -233,6 +234,7 @@ async function entryPaths(
 	entryId: string,
 	slug: string,
 	languages: Languages,
+	site: SiteLanguages,
 ): Promise<NewPaths> {
 	const before = await scope.first(
 		publishedSlugs,
@@ -243,6 +245,8 @@ async function entryPaths(
 		return path === null ? null : languagePath(languages, path);
 	};
 	const path = pathOf(slug) ?? "";
+	// The Default language's paths stay out of the other languages' prefixes.
+	if (languages.language === languages.defaultLanguage) checkPathOutsidePrefixes(site, path.split("/").slice(1), path);
 	const from = before ? pathOf(before.slug) : null;
 	return {
 		path,
@@ -262,6 +266,7 @@ async function pagePaths(
 	pageId: string,
 	next: { parentId: string | null; slug: string },
 	languages: Languages,
+	site: SiteLanguages,
 ): Promise<NewPaths> {
 	const { language } = languages;
 	const tree = await publishedPageTree(scope, pages.id, language);
@@ -277,6 +282,7 @@ async function pagePaths(
 		if (parts.length > MAX_PAGE_DEPTH) {
 			throw new EntryInvalidError([{ at: "parentId", message: `Pages nest at most ${MAX_PAGE_DEPTH} deep.` }]);
 		}
+		if (languages.language === languages.defaultLanguage) checkPathOutsidePrefixes(site, parts, visible(parts));
 		const owner = patternOwning(postTypes, parts);
 		if (owner) {
 			throw new PathTakenError(visible(parts), {
