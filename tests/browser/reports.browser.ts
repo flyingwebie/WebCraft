@@ -188,7 +188,8 @@ for (const theme of THEMES) {
 			await page.keyboard.press("Enter");
 			await page.getByRole("alert").waitFor();
 			expect(await page.title()).toStartWith("Error:");
-			expect(await page.evaluate(() => document.activeElement?.id)).toBe("password");
+			// Autofocus lands just after the page loads.
+			await page.waitForFunction(() => document.activeElement?.id === "password", undefined, { timeout: 5000 });
 			await expectAccessibleScreen(page, `Share link password, wrong (${theme})`);
 		});
 	});
