@@ -32,6 +32,7 @@ import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTaken
 import type { FieldDefinition } from "./field-types.ts";
 import { type Findings, findingsInEveryLanguage, type Languages, linksIn } from "./field-values.ts";
 import { publishGlobals } from "./globals.ts";
+import { itemPermission } from "./item-permission.ts";
 import { checkPathOutsidePrefixes } from "./language-paths.ts";
 import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
 import { publishLoop } from "./loops.ts";
@@ -89,10 +90,7 @@ export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Da
  * `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
-	if (item.kind === "formEmails") return "formEmails.edit";
-	return item.kind === "entry" || item.kind === "globals" || item.kind === "consentBanner"
-		? "entry.publish"
-		: "structure.edit";
+	return itemPermission(item.kind, "entry.publish");
 }
 
 /** Items whose publish can change the Site's stylesheet: what it is built from (element trees' Classes). */
