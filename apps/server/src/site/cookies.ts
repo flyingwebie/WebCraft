@@ -26,3 +26,12 @@ export function cookieValue(request: Request, name: string): string | undefined 
 	}
 	return undefined;
 }
+
+/**
+ * The `Set-Cookie` line for a WebCraft cookie the page's own scripts read (the visitor's consent
+ * choice): as `siteCookie`, but not `HttpOnly`.
+ */
+export function siteScriptCookie(hostname: string, what: string, value: string, maxAge: number): string {
+	const secure = isDevelopmentHostname(hostname) ? "" : "; Secure";
+	return `${siteCookieName(hostname, what)}=${value}; Path=/; Max-Age=${maxAge}${secure}; SameSite=Lax`;
+}

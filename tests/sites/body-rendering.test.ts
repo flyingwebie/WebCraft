@@ -28,6 +28,8 @@ beforeAll(async () => {
 	siteId = (await install.createSite(workspaceId, { name: "Bakery", slug: "bakery" })).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
+	// These tests are about the body itself: no Consent banner holds its videos back (tests/consent/).
+	await staff.api.consentBanner.setSettings({ siteId, mode: "none", layout: "bar" });
 	topicsId = (
 		await staff.api.postTypes.create({
 			siteId,
@@ -393,6 +395,7 @@ describe("in the Site's other languages", () => {
 	test("each language keeps its own Blocks, each naming the Block it translates; a language without falls back", async () => {
 		const french = (await install.createSite((await install.createWorkspace("Maison Ltd")).id, { slug: "maison" })).id;
 		const owner = await install.superadmin();
+		await owner.api.consentBanner.setSettings({ siteId: french, mode: "none", layout: "bar" });
 		await owner.api.languages.add({ siteId: french, code: "fr" });
 		const { postType } = await owner.api.postTypes.create({
 			siteId: french,

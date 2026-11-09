@@ -15,6 +15,7 @@ import {
 	BODY_LIMITS,
 	blockSpec,
 	type HeadingBlock,
+	type HoldEmbed,
 	isBlockType,
 } from "./blocks.ts";
 import { inlineText, type Report, renderInline } from "./inline.ts";
@@ -235,6 +236,8 @@ export type RenderBodyOptions = {
 	words: { playVideo: string; video: string };
 	/** Counts the videos rendered, so the page links the embed script only when it shows one. */
 	shown?: { videos: number };
+	/** Holds embeds back until visitors accept their Consent category (see `HoldEmbed`). */
+	held?: HoldEmbed;
 };
 
 /**

@@ -52,7 +52,7 @@ export const sample = defineModule({
 			it: "Tiene note su ogni Sito: l'esempio funzionante dell'SDK dei Moduli.",
 		},
 		version: "1.0.0",
-		sdk: "^1.1.0",
+		sdk: "^1.3.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -71,6 +71,7 @@ export const sample = defineModule({
 		uses: ["email"],
 		outsideHosts: ["hooks.sample.example"],
 		routePrefix: "sample",
+		siteScript: "analytics",
 	},
 	tables: [notes],
 	migrations,
@@ -268,6 +269,10 @@ export const sample = defineModule({
 				await context.log.info("Reminded about a note.", { noteId, found: note !== undefined });
 			},
 		}),
+	},
+	// Counts a page view once visitors accept Analytics (the manifest's `siteScript` category).
+	siteScript: {
+		code: 'document.documentElement.dataset.sampleNotes = "counted";\n',
 	},
 });
 

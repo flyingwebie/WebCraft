@@ -66,9 +66,10 @@ export type BrowserInstall = {
 	createSuperadmin(account?: Partial<TestAccount>): Promise<TestAccount>;
 	/**
 	 * A new page in a fresh browser (no cookies), with the device set to light or dark. The admin
-	 * follows the device until a person chooses, so this is how both themes are checked.
+	 * follows the device until a person chooses, so this is how both themes are checked. With
+	 * `javaScript: false`, the browser runs no page script, as a visitor's browser with it switched off.
 	 */
-	newPage(theme: Theme): Promise<Page>;
+	newPage(theme: Theme, options?: { javaScript?: boolean }): Promise<Page>;
 	/**
 	 * Signs in and waits for the admin to open. The first time for an account it goes through the
 	 * sign-in page; after that the page gets the same session, as a browser that stayed signed in
@@ -133,12 +134,13 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 			return token;
 		},
 		createSuperadmin: (account) => install.createSuperadmin(account),
-		async newPage(theme) {
+		async newPage(theme, options = {}) {
 			// Reduced motion: colour transitions finish at once, so checks never see a half-changed colour.
 			const context = await started.newContext({
 				colorScheme: theme,
 				reducedMotion: "reduce",
 				viewport: { width: 1280, height: 900 },
+				javaScriptEnabled: options.javaScript ?? true,
 			});
 			contexts.push(context);
 			const page = await context.newPage();

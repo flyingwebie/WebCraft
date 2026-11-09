@@ -1,3 +1,4 @@
+import type { HoldEmbed } from "./body/blocks.ts";
 import { renderBody, renderToc } from "./body/body.ts";
 import { commandForNode } from "./commands.ts";
 import { COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
@@ -78,6 +79,10 @@ export type RenderOptions = {
 	loopItemsShown?: { count: number };
 	/** Counts what the page shows that needs a script of WebCraft's: a body's videos. */
 	shown?: { videos: number };
+	/** Holds embeds back until visitors accept their Consent category; absent where nothing is held back. */
+	held?: HoldEmbed;
+	/** What `{{@consentSettings}}` shows: the "Cookie settings" button. Nothing when absent. */
+	consentSettings?: () => string;
 	/**
 	 * What a Placement shows: its Component's (published) tree, and what that tree's bindings read
 	 * given the Placement's Prop values (`props.x`, read through `outer` where a value is passed on
@@ -227,6 +232,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		form: (formId) => options.form?.(formId) ?? "",
 		loop: (loop) => renderLoop(loop, options, state),
 		pagination: (name) => paginationHtml(options.loop?.(name), options),
+		consentSettings: () => options.consentSettings?.() ?? "",
 	});
 }
 
@@ -399,6 +405,7 @@ function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions
 			priorityImage: options.priorityImage,
 			words: options.words ?? { playVideo: "Play video", video: "Video" },
 			shown: options.shown,
+			held: options.held,
 		});
 	}
 	if (!node.format && isToc(value)) return renderToc(value.headings);

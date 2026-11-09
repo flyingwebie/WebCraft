@@ -121,7 +121,19 @@ export type BodyRenderContext = {
 	words: { playVideo: string; video: string };
 	/** Counts the videos rendered, so the page links the embed script only when it shows one. */
 	shown?: { videos: number };
+	/**
+	 * Holds an embed back until visitors accept its Consent category (ADR 0020): answers the
+	 * placeholder it shows meanwhile. Absent where nothing is held back (no banner, Edit mode).
+	 */
+	held?: HoldEmbed;
 };
+
+/**
+ * Holds back one embed (content from another site, such as a video's player) on a page asking for
+ * consent: its Consent category, what it is (`label`) and where it comes from (`source`, a host
+ * name). Answers the placeholder to show until the category is accepted, or the visitor loads it.
+ */
+export type HoldEmbed = (embed: { category: string; label: string; source: string }) => { placeholder: string };
 
 /** Everything WebCraft knows about one Block type. */
 export type BlockTypeSpec<Kind extends Block = Block> = {
@@ -310,7 +322,11 @@ const video: BlockTypeSpec<VideoBlock> = {
 		const title = block.title || context.words.video;
 		const label = block.title ? `${context.words.playVideo}: ${block.title}` : context.words.playVideo;
 		if (context.shown) context.shown.videos++;
-		return `<figure class="wc-embed"><a href="${escapeAttribute(found.watchUrl)}" data-wc-embed="${escapeAttribute(found.playerUrl)}" data-wc-title="${escapeAttribute(title)}">${escapeText(label)}</a></figure>`;
+		const link = `<a href="${escapeAttribute(found.watchUrl)}" data-wc-embed="${escapeAttribute(found.playerUrl)}" data-wc-title="${escapeAttribute(title)}">${escapeText(label)}</a>`;
+		// A video plays from another site: held back as Media until visitors accept it, or load it.
+		const held = context.held?.({ category: "media", label: title, source: new URL(found.watchUrl).hostname });
+		if (!held) return `<figure class="wc-embed">${link}</figure>`;
+		return `<figure class="wc-embed" data-wc-consent="media">${link}${held.placeholder}</figure>`;
 	},
 };
 

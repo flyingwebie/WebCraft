@@ -59,7 +59,7 @@ describe("the Modules screen", () => {
 				],
 				uses: [{ use: "email", isNew: true }],
 				outsideHosts: [{ host: "hooks.sample.example", isNew: true }],
-				siteScript: null,
+				siteScript: { category: "analytics", isNew: true },
 			},
 			adds: {
 				siteRoutes: "/_wc/m/sample/",
@@ -133,6 +133,7 @@ describe("approving a Module", () => {
 					"permission:sample.notes.edit:editor",
 					"use:email",
 					"host:hooks.sample.example",
+					"script:analytics",
 				],
 			},
 		});
