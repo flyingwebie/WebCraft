@@ -93,6 +93,8 @@ import {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	PublishAllInvalidError,
+	PublishAllRefusedError,
 	RateLimitedError,
 	ScriptNotFoundError,
 	SensitiveActionRefusedError,
@@ -107,6 +109,8 @@ import {
 	SnippetInvalidError,
 	StaffMembershipError,
 	StaffNotFoundError,
+	StagingPasswordInvalidError,
+	StagingUnavailableError,
 	StorageUnreachableError,
 	TemplateNotFoundError,
 	TokenInUseError,
@@ -797,6 +801,31 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EditFieldInvalidError) {
 		return new ORPCError("EDIT_FIELD_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof PublishAllInvalidError) {
+		return new ORPCError("PUBLISH_ALL_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { items: error.items },
+			cause: error,
+		});
+	}
+	if (error instanceof PublishAllRefusedError) {
+		// Why the item can't be published, as publishing it alone would say; nothing was published.
+		const reason = toApiError(error.cause);
+		if (!(reason instanceof ORPCError)) return reason;
+		return new ORPCError("PUBLISH_ALL_REFUSED", {
+			status: 409,
+			message: `${error.message} ${reason.message}`,
+			data: { item: error.item, name: error.itemName, code: reason.code, data: reason.data ?? null },
+			cause: error,
+		});
+	}
+	if (error instanceof StagingUnavailableError) {
+		return new ORPCError("STAGING_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof StagingPasswordInvalidError) {
+		return new ORPCError("STAGING_PASSWORD_INVALID", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof EditModeUnavailableError) {
 		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });

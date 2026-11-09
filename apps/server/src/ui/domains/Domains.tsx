@@ -52,10 +52,15 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtc, formatUtcDate } from "../format.ts";
 import { useT } from "../i18n.tsx";
+import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { PasswordInput } from "../PasswordInput.tsx";
 
 /** What the screen shows: the Site's domains, the Install's edge, the Staging address and the Site's CDN. */
 export type DomainsData = SiteDomainList & { stagingUrl: string | null; cdn: CdnKey | null };
+
+/** The Site's staging password as the screen shows it: whether there is one, never the password. */
+export type StagingPasswordState = { set: boolean; changedAt: Date | string | null };
 
 /** A language of the Site, by code, as the language domains card names it. */
 type LanguageNames = Readonly<Record<string, string>>;
@@ -71,11 +76,17 @@ export function DomainsPage({
 	data,
 	canEdit,
 	languageNames,
+	stagingPassword,
+	canManageStaging,
 }: {
 	siteId: string;
 	data: DomainsData;
 	canEdit: boolean;
 	languageNames: LanguageNames;
+	/** Whether the Site has a staging password. */
+	stagingPassword: StagingPasswordState;
+	/** Whether the person may set it (`staging.manage`: Owners and Staff). */
+	canManageStaging: boolean;
 }) {
 	const t = useT();
 	const primary = data.domains.find((domain) => domain.role === "primary");
@@ -168,7 +179,12 @@ export function DomainsPage({
 						</CardContent>
 					</Card>
 				) : null}
-				<StagingAddress url={data.stagingUrl} />
+				<StagingAddress
+					siteId={siteId}
+					url={data.stagingUrl}
+					password={stagingPassword}
+					canManagePassword={canManageStaging}
+				/>
 				<SiteCdn siteId={siteId} cdn={data.cdn} canEdit={canEdit} />
 				<p className="text-muted-foreground text-sm">{t("domains.appliesAtOnce")}</p>
 			</div>
@@ -745,7 +761,6 @@ function CopyButton({ value }: { value: string }) {
 	);
 }
 
-/** The Staging address: the Site on the agency's own domain, never indexed. */
 /**
  * The CDN in front of the Site: with one chosen, visitors' requests from the CDN's published addresses
  * count as coming from the visitor the CDN names, so rate limits keep counting visitors. Staff choose
@@ -825,9 +840,41 @@ function headerName(header: string): string {
 		.join("-");
 }
 
-function StagingAddress({ url }: { url: string | null }) {
+/**
+ * The Staging address: the Site with all its Drafts on the agency's own domain, never indexed (ADR
+ * 0014). Opening it goes through a single-use link, so the browser is let in there; people without an
+ * account get in with the staging password, which Owners and Staff set here.
+ */
+function StagingAddress({
+	siteId,
+	url,
+	password,
+	canManagePassword,
+}: {
+	siteId: string;
+	url: string | null;
+	password: StagingPasswordState;
+	canManagePassword: boolean;
+}) {
 	const t = useT();
 	const address = url ? new URL(url).host : null;
+	const [opening, setOpening] = useState(false);
+	const open = async () => {
+		setOpening(true);
+		const tab = window.open("about:blank", "_blank");
+		if (tab) tab.opener = null;
+		try {
+			const api = await getApi();
+			const { url: link } = await api.staging.open({ siteId, path: "/" });
+			if (tab) tab.location.href = link;
+			else window.location.assign(link);
+		} catch (failure) {
+			tab?.close();
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setOpening(false);
+		}
+	};
 	return (
 		<Card>
 			<CardHeader>
@@ -836,7 +883,7 @@ function StagingAddress({ url }: { url: string | null }) {
 				</CardTitle>
 				<CardDescription>{t("domains.stagingIntro")}</CardDescription>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="grid gap-6">
 				{url && address ? (
 					<div className="bg-muted/40 flex flex-wrap items-center gap-3 rounded-lg border p-3 sm:p-4">
 						<FlaskConicalIcon aria-hidden="true" className="text-muted-foreground size-5 shrink-0" />
@@ -845,15 +892,9 @@ function StagingAddress({ url }: { url: string | null }) {
 						<Button
 							variant="outline"
 							size="sm"
-							render={
-								<a
-									href={url}
-									target="_blank"
-									rel="noopener noreferrer"
-									aria-label={t("domains.openLabel", { address })}
-								/>
-							}
-							nativeButton={false}
+							onClick={open}
+							disabled={opening}
+							aria-label={t("domains.openLabel", { address })}
 						>
 							<ExternalLinkIcon aria-hidden="true" />
 							{t("domains.open")}
@@ -862,7 +903,116 @@ function StagingAddress({ url }: { url: string | null }) {
 				) : (
 					<p className="text-muted-foreground text-sm">{t("domains.noStaging")}</p>
 				)}
+				{url ? <StagingPassword siteId={siteId} password={password} canManage={canManagePassword} /> : null}
 			</CardContent>
 		</Card>
+	);
+}
+
+/** Letters and digits nobody mixes up when reading a password out: no 0/O, 1/l/I. */
+const PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789";
+
+/** A new staging password: four groups of four characters, 80 random bits. */
+function generatedPassword(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(16));
+	const characters = Array.from(bytes, (byte) => PASSWORD_ALPHABET[byte % PASSWORD_ALPHABET.length]);
+	return [0, 4, 8, 12].map((start) => characters.slice(start, start + 4).join("")).join("-");
+}
+
+/**
+ * The Site's staging password: whether there is one, and for Owners and Staff a field to set a new
+ * one (typed, or generated) and a button to remove it. Setting it is a Sensitive action: the admin
+ * asks who they are first when their last check is old.
+ */
+function StagingPassword({
+	siteId,
+	password,
+	canManage,
+}: {
+	siteId: string;
+	password: StagingPasswordState;
+	canManage: boolean;
+}) {
+	const t = useT();
+	const id = useId();
+	const router = useRouter();
+	const runSensitive = useSensitiveAction();
+	const [value, setValue] = useState("");
+	const [busy, setBusy] = useState(false);
+	const save = async (next: string | null) => {
+		setBusy(true);
+		try {
+			await runSensitive(async () => (await getApi()).staging.setPassword({ siteId, password: next }));
+			toast.success(next === null ? t("domains.stagingPasswordRemoved") : t("domains.stagingPasswordSaved"));
+			setValue("");
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setBusy(false);
+		}
+	};
+	const submit = (event: FormEvent) => {
+		event.preventDefault();
+		void save(value);
+	};
+	return (
+		<section aria-labelledby={`${id}-title`} className="grid gap-3 border-t pt-4">
+			<div className="grid gap-1">
+				<h3 id={`${id}-title`} className="font-medium">
+					{t("domains.stagingPassword")}
+				</h3>
+				<p className="text-muted-foreground text-sm">{t("domains.stagingPasswordHelp")}</p>
+				<p className="text-sm">
+					{password.set && password.changedAt
+						? t("domains.stagingPasswordSet", { date: formatUtc(password.changedAt) })
+						: t("domains.stagingPasswordNone")}
+				</p>
+			</div>
+			{canManage ? (
+				<form onSubmit={submit} className="grid gap-3">
+					<Field>
+						<FieldLabel htmlFor={`${id}-password`}>
+							{password.set ? t("domains.stagingPasswordNew") : t("domains.stagingPasswordLabel")}
+						</FieldLabel>
+						<div className="flex flex-wrap gap-2">
+							<div className="min-w-0 flex-1">
+								<PasswordInput
+									id={`${id}-password`}
+									value={value}
+									onChange={(event) => setValue(event.target.value)}
+									autoComplete="new-password"
+									minLength={8}
+									maxLength={200}
+									aria-describedby={`${id}-rules`}
+								/>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => {
+									setValue(generatedPassword());
+									toast.info(t("domains.stagingPasswordGenerated"));
+								}}
+							>
+								<RefreshCwIcon aria-hidden="true" />
+								{t("domains.stagingPasswordGenerate")}
+							</Button>
+						</div>
+						<FieldDescription id={`${id}-rules`}>{t("domains.stagingPasswordRules")}</FieldDescription>
+					</Field>
+					<div className="flex flex-wrap gap-2">
+						<Button type="submit" size="sm" disabled={busy || value.trim().length < 8}>
+							{t("domains.stagingPasswordSave")}
+						</Button>
+						{password.set ? (
+							<Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void save(null)}>
+								{t("domains.stagingPasswordRemove")}
+							</Button>
+						) : null}
+					</div>
+				</form>
+			) : null}
+		</section>
 	);
 }

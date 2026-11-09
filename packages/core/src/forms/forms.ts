@@ -16,6 +16,7 @@ import { isPagePostType } from "../content/pages.ts";
 import { slugify } from "../content/slugs.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
+import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { type FormVersionInput, newFormVersion, readFormVersion, storedFormVersion } from "./definition.ts";
 import {
@@ -102,6 +103,7 @@ export async function createForm(
 				draft: newFormVersion(languages.defaultLanguage, languages.others),
 				createdAt: now,
 				updatedAt: now,
+				updatedBy: personIdOf(tx.access.actor),
 			});
 			await tx.audit("form.create", { formId: row.id, key, name });
 			return toForm(row);
@@ -138,7 +140,11 @@ export async function saveFormDraft(scope: SiteScope, formId: string, input: For
 				problems.push({ at: "success.pageId", message: "There is no such Page on this Site." });
 		}
 		if (problems.length > 0) throw new FormInvalidError(problems);
-		const [updated] = await tx.update(forms, { draft: version, updatedAt: tx.now() }, eq(forms.id, row.id));
+		const [updated] = await tx.update(
+			forms,
+			{ draft: version, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(forms.id, row.id),
+		);
 		if (!updated) throw new FormNotFoundError();
 		return toForm(updated);
 	});

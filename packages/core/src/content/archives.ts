@@ -47,8 +47,13 @@ export type PublishedArchive = { postType: PostType; parts: string[] };
 export async function publishedArchives(
 	scope: Pick<SiteScope, "select">,
 	postTypes: readonly PostType[],
+	which: "published" | "draft" = "published",
 ): Promise<PublishedArchive[]> {
-	const rows = await scope.select(templates, and(eq(templates.kind, "archive"), isNotNull(templates.published)));
+	// With `draft`, every Archive template made, published or not, as the Staging address shows them.
+	const rows = await scope.select(
+		templates,
+		and(eq(templates.kind, "archive"), which === "published" ? isNotNull(templates.published) : undefined),
+	);
 	return rows
 		.flatMap((row) => {
 			const postType = postTypes.find((candidate) => candidate.id === row.postTypeId);

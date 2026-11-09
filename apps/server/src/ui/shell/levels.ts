@@ -83,6 +83,8 @@ export type AdminPlace =
 			/** The Site's Forms, for people who may see them: each has its own item. */
 			forms: readonly PlaceForm[];
 			languages: PlaceLanguages;
+			/** How many of the Site's Drafts the person may publish: Publish all in the top bar says it. */
+			drafts: number;
 	  };
 
 export type NavItem = {

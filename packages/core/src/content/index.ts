@@ -160,7 +160,25 @@ export {
 	type PostTypeChange,
 	updatePostType,
 } from "./post-types.ts";
-export { type PathChange, type Published, type PublishItem, publish, publishPermission } from "./publishing.ts";
+export {
+	countDrafts,
+	type DraftGroup,
+	type PublishAllDone,
+	PublishAllInvalidError,
+	type PublishAllPreview,
+	PublishAllRefusedError,
+	publishAll,
+	type SiteDraft,
+	siteDrafts,
+} from "./publish-all.ts";
+export {
+	type PathChange,
+	type Published,
+	type PublishItem,
+	publish,
+	publishItems,
+	publishPermission,
+} from "./publishing.ts";
 export type { LinkBack } from "./relationships.ts";
 export {
 	getScript,

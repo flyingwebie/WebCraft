@@ -127,7 +127,11 @@
 		"IMPORT_INVALID": "The Import's settings don't fit the Post Type.",
 		"IMPORT_POST_TYPE_FIXED": "This Import brought Entries in, so it keeps its Post Type: undo its runs, or start a new Import.",
 		"IMPORT_RUNNING": "A run of this Import hasn't ended yet: wait for it, or stop it.",
-		"IMPORT_UNDO_REFUSED": "This run can't be undone."
+		"IMPORT_UNDO_REFUSED": "This run can't be undone.",
+		"STAGING_UNAVAILABLE": "This Install has no sites domain, so the Site has no Staging address.",
+		"STAGING_PASSWORD_INVALID": "A staging password has 8 to 200 characters, not only spaces.",
+		"PUBLISH_ALL_INVALID": "Some of these items have no Draft to publish any more. Open Publish all again to see the list as it is now.",
+		"PUBLISH_ALL_REFUSED": "Nothing was published: one of the items can't be published yet."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -862,6 +866,64 @@
 		"editOptions": "More ways to open Edit mode",
 		"editInSafeMode": "Edit in Safe mode",
 		"editInSafeModeHelp": "With none of the Site's own scripts running"
+	},
+	"publishAll": {
+		"button": "Publish all",
+		"buttonLabel": "Publish all: {count, plural, one {# change} other {# changes}}",
+		"title": "Publish all changes",
+		"close": "Close",
+		"loading": "Looking for the Site's Drafts…",
+		"none": "Everything is published: this Site has no Drafts.",
+		"intro": "{count, plural, one {# item differs} other {# items differ}} between the Staging address and what visitors see. Choose what goes live.",
+		"selected": "{selected} of {total} selected",
+		"content": "Content",
+		"structure": "Structure",
+		"staffOnly": "Staff only",
+		"new": "New",
+		"changed": "Changed",
+		"view": "View",
+		"viewLabel": "View {name} on the Staging address",
+		"untitled": "Untitled",
+		"changes": "Changed: {list}",
+		"cacheNote": "Publishing clears this Site's page cache.",
+		"cancel": "Cancel",
+		"publish": "Publish {count, plural, one {# item} other {# items}}",
+		"published": "Published {count, plural, one {# item} other {# items}}.",
+		"refused": "Nothing was published: {name} can't be published yet. {reason}",
+		"kinds": {
+			"entry": "Entry",
+			"siteTemplate": "Site template",
+			"entryTemplate": "Entry template · {postType}",
+			"archiveTemplate": "Archive template · {postType}",
+			"searchTemplate": "Search results template",
+			"siteScript": "Site script",
+			"pageScript": "Page script",
+			"component": "Component",
+			"loop": "Loop",
+			"form": "Form",
+			"globals": "Globals",
+			"consentBanner": "Consent banner",
+			"designSystem": "Design system"
+		},
+		"builtIns": {
+			"title": "Title",
+			"slug": "Address",
+			"parent": "Parent page",
+			"seo": "SEO",
+			"hiddenLanguages": "Languages shown in"
+		},
+		"sections": {
+			"tokens": "Design tokens",
+			"classes": "Classes",
+			"baseStyles": "Base styles",
+			"customCss": "Custom CSS",
+			"darkMode": "Dark mode"
+		}
+	},
+	"staging": {
+		"button": "Staging",
+		"pageTitle": "Staging address",
+		"opening": "Opening the Staging address…"
 	},
 	"media": {
 		"pageTitle": "Media",
@@ -1838,7 +1900,20 @@
 		"cdnSave": "Save CDN",
 		"cdnSaved": "{name} is in front of this Site.",
 		"cdnRemoved": "No CDN is in front of this Site.",
-		"appliesAtOnce": "Changes here apply at once: they aren't part of Publish all."
+		"appliesAtOnce": "Changes here apply at once: they aren't part of Publish all.",
+		"stagingPassword": "Staging password",
+		"stagingPasswordHelp": "People without an account who give it see the Staging address for a week, or until it changes. People who sign in never need it.",
+		"stagingPasswordSet": "A password is set (last changed {date}).",
+		"stagingPasswordNone": "No password: only people who sign in see the Staging address.",
+		"stagingPasswordLabel": "Password",
+		"stagingPasswordNew": "New password",
+		"stagingPasswordRules": "8 to 200 characters. Share it with the people reviewing the Site; it can't be shown again once saved.",
+		"stagingPasswordGenerate": "Generate",
+		"stagingPasswordGenerated": "A new password is in the field: show it and copy it before you save.",
+		"stagingPasswordSave": "Save password",
+		"stagingPasswordRemove": "Remove password",
+		"stagingPasswordSaved": "Staging password saved. Anyone it let in before has to give the new one.",
+		"stagingPasswordRemoved": "Staging password removed: only people who sign in see the Staging address now."
 	},
 	"webhooks": {
 		"pageTitle": "Webhooks",

@@ -21,6 +21,7 @@ import {
 	type SiteScope,
 	STYLESHEET_PATH,
 	searchQueryIn,
+	showsDrafts,
 	siteScript,
 	VERIFY_PATH,
 } from "@webcraft/core";
@@ -42,6 +43,7 @@ import {
 import { formPost, isFormPath, sentPage, withFormTokens } from "./forms.ts";
 import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
+import { stagingEndpoint, stagingRefusal } from "./staging.ts";
 
 /** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
 const MODULE_ROUTES = "/_wc/m";
@@ -105,6 +107,13 @@ async function siteAnswer(
 	const url = new URL(request.url);
 	// A Redirect domain sends every request on to the same path on the Primary domain (ADR 0015).
 	if (host.address === "redirect") return domainRedirect(host, url);
+	// The Staging address shows the Site with its Drafts to the people reviewing it, and to nobody else
+	// (ADR 0014): its own ways in first (a link from the admin, the staging password), then a page
+	// asking everyone else to sign in, whatever they asked for.
+	const staging = await stagingEndpoint(services, request, host);
+	if (staging) return staging;
+	const refused = await stagingRefusal(services, request, host);
+	if (refused) return refused;
 	// Redirect rules come next, before anything the Site answers itself (the Install's own `/_…`
 	// paths aside): its pages, files and Edit mode.
 	if (request.method === "GET" || request.method === "HEAD") {
@@ -176,7 +185,9 @@ async function siteAnswer(
 		}
 		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
 		if (redirected) return redirected;
-		const page = await visitorPage(services, cache, request, host, number);
+		const page = showsDrafts(host)
+			? await draftPage(services, request, host, number)
+			: await visitorPage(services, cache, request, host, number);
 		return edit.stale ? withEditCookieCleared(request, page) : page;
 	});
 }
@@ -279,6 +290,43 @@ async function visitorPage(
 	cache.set(host.site.id, host.cacheGeneration, key, page);
 	return pageResponse(services, request, host, page, "MISS");
 }
+
+/**
+ * A page on the Staging address (ADR 0014): the Site as it would be with all its Drafts published,
+ * rendered afresh for each request and never kept, by the page cache, browsers or proxies (a CDN in
+ * front of the Install never keeps it either: `private, no-store`), and never indexed.
+ */
+async function draftPage(services: InstallServices, request: Request, host: SiteHost, number: number) {
+	const url = new URL(request.url);
+	const { pathname } = url;
+	if (!pathSegments(pathname)) return notFoundPage(services, host, pathname);
+	const sent = await sentPage(services, request, host, number, addressHeaders(host));
+	if (sent) return sent;
+	const query = searchQueryIn(url.searchParams);
+	if (query && (await services.sitePages.isSearchPage(host, pathname))) {
+		const address = clientAddress(request, services.config) ?? "unknown";
+		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
+			return tooManySearches(host);
+		}
+	}
+	const answer = await services.sitePages.render(host, pathname, undefined, { page: number, search: query });
+	if (!answer) return notFoundPage(services, host, pathname);
+	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
+	return new Response(answer.html, {
+		status: 200,
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": DRAFT_CACHE_CONTROL,
+			"x-content-type-options": "nosniff",
+			...answer.headers,
+			...languageVary(host, pathname),
+			...addressHeaders(host),
+		},
+	});
+}
+
+/** What the Staging address's pages are sent with: kept by nobody, shared caches included. */
+const DRAFT_CACHE_CONTROL = "private, no-store";
 
 /**
  * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
@@ -476,7 +524,7 @@ async function notFoundPage(services: InstallServices, host: SiteHost, pathname:
 		status: 404,
 		headers: {
 			"content-type": "text/html; charset=utf-8",
-			"cache-control": "no-store",
+			"cache-control": showsDrafts(host) ? DRAFT_CACHE_CONTROL : "no-store",
 			"x-content-type-options": "nosniff",
 			...page.headers,
 			...addressHeaders(host),
@@ -545,9 +593,9 @@ function redirect(host: SiteHost, location: string): Response {
 	});
 }
 
-/** A Staging address is never indexed by search engines. */
+/** A Staging address is never indexed by search engines (ADR 0014). */
 function addressHeaders(host: SiteHost): Record<string, string> {
-	return host.address === "staging" ? { "x-robots-tag": "noindex" } : {};
+	return showsDrafts(host) ? { "x-robots-tag": "noindex" } : {};
 }
 
 /** A strong ETag: the SHA-256 of the HTML, in base64url. */

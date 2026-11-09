@@ -44,6 +44,7 @@ describe("the role table", () => {
 			site: [
 				"module.manage",
 				"site.view",
+				"staging.manage",
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
@@ -72,6 +73,7 @@ describe("the role table", () => {
 			site: [
 				"module.manage",
 				"site.view",
+				"staging.manage",
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
@@ -83,13 +85,22 @@ describe("the role table", () => {
 		});
 	});
 
-	test("owner: manages Members, publishes and deletes Entries, imports CSV files, but never changes Structure or creates Sites", async () => {
+	test("owner: manages Members and the staging password, publishes and deletes Entries, imports CSV files, but never changes Structure or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
 			workspace: ["audit.view", "workspace.view", "member.invite", "member.manage"],
-			site: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage", "import.run"],
+			site: [
+				"site.view",
+				"staging.manage",
+				"entry.edit",
+				"entry.publish",
+				"entry.delete",
+				"media.upload",
+				"media.manage",
+				"import.run",
+			],
 		});
 	});
 
@@ -163,7 +174,16 @@ describe("what a role reaches", () => {
 describe("each role against Workspace and Site scope", () => {
 	/** The Site-level Permissions each Workspace role holds, from the role table above. */
 	const onSite = {
-		owner: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage", "import.run"],
+		owner: [
+			"site.view",
+			"staging.manage",
+			"entry.edit",
+			"entry.publish",
+			"entry.delete",
+			"media.upload",
+			"media.manage",
+			"import.run",
+		],
 		editor: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage", "import.run"],
 		author: ["site.view", "entry.edit", "media.upload"],
 	} as const;

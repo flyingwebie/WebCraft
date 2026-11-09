@@ -24,6 +24,7 @@ import { Route as AdminSettingsModulesRouteImport } from './routes/_admin/settin
 import { Route as AdminSettingsSecurityRouteImport } from './routes/_admin/settings.security'
 import { Route as AdminSettingsStorageRouteImport } from './routes/_admin/settings.storage'
 import { Route as AdminSitesSiteIdRouteImport } from './routes/_admin/sites.$siteId'
+import { Route as AdminStagingSiteIdRouteImport } from './routes/_admin/staging.$siteId'
 import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/workspaces.index'
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
 import { Route as BuilderSiteIdSplatRouteImport } from './routes/builder.$siteId.$'
@@ -136,6 +137,11 @@ const AdminSettingsStorageRoute = AdminSettingsStorageRouteImport.update({
 const AdminSitesSiteIdRoute = AdminSitesSiteIdRouteImport.update({
   id: '/sites/$siteId',
   path: '/sites/$siteId',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminStagingSiteIdRoute = AdminStagingSiteIdRouteImport.update({
+  id: '/staging/$siteId',
+  path: '/staging/$siteId',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminWorkspacesIndexRoute = AdminWorkspacesIndexRouteImport.update({
@@ -378,6 +384,7 @@ export interface FileRoutesByFullPath {
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
+  '/staging/$siteId': typeof AdminStagingSiteIdRoute
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
   '/workspaces/': typeof AdminWorkspacesIndexRoute
@@ -432,6 +439,7 @@ export interface FileRoutesByTo {
   '/settings/modules': typeof AdminSettingsModulesRoute
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
+  '/staging/$siteId': typeof AdminStagingSiteIdRoute
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
@@ -483,6 +491,7 @@ export interface FileRoutesById {
   '/_admin/settings/security': typeof AdminSettingsSecurityRoute
   '/_admin/settings/storage': typeof AdminSettingsStorageRoute
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
+  '/_admin/staging/$siteId': typeof AdminStagingSiteIdRoute
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
@@ -540,6 +549,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/settings/storage'
     | '/sites/$siteId'
+    | '/staging/$siteId'
     | '/workspaces/$workspaceId'
     | '/builder/$siteId/$'
     | '/workspaces/'
@@ -594,6 +604,7 @@ export interface FileRouteTypes {
     | '/settings/modules'
     | '/settings/security'
     | '/settings/storage'
+    | '/staging/$siteId'
     | '/builder/$siteId/$'
     | '/workspaces'
     | '/sites/$siteId/components'
@@ -644,6 +655,7 @@ export interface FileRouteTypes {
     | '/_admin/settings/security'
     | '/_admin/settings/storage'
     | '/_admin/sites/$siteId'
+    | '/_admin/staging/$siteId'
     | '/_admin/workspaces/$workspaceId'
     | '/builder/$siteId/$'
     | '/_admin/workspaces/'
@@ -798,6 +810,13 @@ declare module '@tanstack/react-router' {
       path: '/sites/$siteId'
       fullPath: '/sites/$siteId'
       preLoaderRoute: typeof AdminSitesSiteIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/staging/$siteId': {
+      id: '/_admin/staging/$siteId'
+      path: '/staging/$siteId'
+      fullPath: '/staging/$siteId'
+      preLoaderRoute: typeof AdminStagingSiteIdRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_admin/workspaces/': {
@@ -1251,6 +1270,7 @@ interface AdminRouteChildren {
   AdminSettingsSecurityRoute: typeof AdminSettingsSecurityRoute
   AdminSettingsStorageRoute: typeof AdminSettingsStorageRoute
   AdminSitesSiteIdRoute: typeof AdminSitesSiteIdRouteWithChildren
+  AdminStagingSiteIdRoute: typeof AdminStagingSiteIdRoute
   AdminWorkspacesWorkspaceIdRoute: typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   AdminWorkspacesIndexRoute: typeof AdminWorkspacesIndexRoute
 }
@@ -1267,6 +1287,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminSettingsSecurityRoute: AdminSettingsSecurityRoute,
   AdminSettingsStorageRoute: AdminSettingsStorageRoute,
   AdminSitesSiteIdRoute: AdminSitesSiteIdRouteWithChildren,
+  AdminStagingSiteIdRoute: AdminStagingSiteIdRoute,
   AdminWorkspacesWorkspaceIdRoute: AdminWorkspacesWorkspaceIdRouteWithChildren,
   AdminWorkspacesIndexRoute: AdminWorkspacesIndexRoute,
 }

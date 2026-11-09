@@ -10,7 +10,7 @@ import {
 	type TemplateValue,
 } from "@webcraft/renderer";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from "drizzle-orm";
-
+import { draftAddresses } from "../content/draft-paths.ts";
 import { entryValues } from "../content/entries.ts";
 import { publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
@@ -352,7 +352,11 @@ async function entryItems(
 	const addresses = new Map<string, { slug: string; path: string }>();
 	for (const postType of postTypes) {
 		const own = rows.filter((row) => row.postTypeId === postType.id).map((row) => row.id);
-		for (const [id, address] of await publishedAddresses(scope, postType, own, languages)) addresses.set(id, address);
+		// Drafts are where their Drafts would be published (the Staging address, the Data tab).
+		const located = draft
+			? await draftAddresses(scope, postType, own, languages)
+			: await publishedAddresses(scope, postType, own, languages);
+		for (const [id, address] of located) addresses.set(id, address);
 	}
 	const authors = await namesOf(
 		scope,
@@ -368,6 +372,7 @@ async function entryItems(
 			return postType && version ? linksIn(version.values, postType.fields).map((link) => link.targetId) : [];
 		}),
 		languages,
+		place.version,
 	);
 	values.push([...related.values()].map((entry) => entry.values));
 	const noSite: Parts = { text: null, part: () => undefined };

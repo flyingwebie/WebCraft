@@ -1,8 +1,9 @@
 import { entries, globals, people } from "@webcraft/db/schema";
 import { builtInNotFoundPage } from "@webcraft/renderer";
-import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
+import { draftAddresses } from "../content/draft-paths.ts";
 import { getEntry, listEntries, undoDraftChanges } from "../content/entries.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { storedFields } from "../content/fields.ts";
@@ -11,6 +12,7 @@ import { sameJson } from "../content/json.ts";
 import { siteLanguages } from "../content/languages.ts";
 import { isPagePostType } from "../content/pages.ts";
 import { getPostType, listPostTypes } from "../content/post-types.ts";
+import { siteDrafts } from "../content/publish-all.ts";
 import { publish } from "../content/publishing.ts";
 import { getEntryTemplate } from "../content/templates.ts";
 import { storedVersion } from "../content/values.ts";
@@ -103,7 +105,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 		}),
 		changes,
 		publishAll: {
-			url: new URL(`/sites/${scope.site.id}`, deps.config.adminOrigin).toString(),
+			url: publishAllUrl(deps.config.adminOrigin, scope.site.id),
 			otherDrafts: await otherDrafts(scope, items),
 		},
 		pages: await sitePages(scope),
@@ -266,32 +268,45 @@ function writerOf(value: unknown, language: string): string | null {
 	return own?.by?.kind === "person" && typeof own.by.personId === "string" ? own.by.personId : null;
 }
 
-/** How many Drafts the Site has besides the page's own: Entries and the Globals that differ from what is published. */
-async function otherDrafts(scope: SiteScope, items: readonly EditItem[]): Promise<number> {
-	const pageEntries = items.flatMap((item) => (item.kind === "entry" ? [item.id] : []));
-	const changed = sql`${entries.draft} is distinct from ${entries.published}`;
-	const count = await scope.count(
-		entries,
-		pageEntries.length > 0 ? and(changed, ...pageEntries.map((id) => ne(entries.id, id))) : changed,
-	);
-	if (items.some((item) => item.kind === "globals")) return count;
-	const globalsChanged = await scope.count(
-		globals,
-		or(isNull(globals.published), sql`${globals.draft} is distinct from ${globals.published}`),
-	);
-	return count + globalsChanged;
+/** Where Publish all is in the admin: the Site's pages, with its list open. */
+function publishAllUrl(adminOrigin: string, siteId: string): string {
+	const url = new URL(`/sites/${siteId}`, adminOrigin);
+	url.searchParams.set("publishAll", "1");
+	return url.toString();
 }
 
 /**
- * The Site's pages, for the page switcher: every published Entry with a page (its Post Type's Entry
- * template is published) and every published Page, by the title its Draft has; the home page first.
+ * How many of the Site's Drafts Publish all would hold for the person besides the page's own: every
+ * Draft they may publish (Content, and Structure for Staff), but the page's Entry and the Globals.
+ */
+async function otherDrafts(scope: SiteScope, items: readonly EditItem[]): Promise<number> {
+	const own = new Set(items.map((item) => (item.kind === "entry" ? `entry:${item.id}` : "globals")));
+	const drafts = await siteDrafts(scope);
+	return drafts.filter(
+		(draft) => draft.canPublish && !own.has(draft.item.kind === "entry" ? `entry:${draft.item.id}` : draft.item.kind),
+	).length;
+}
+
+/**
+ * The Site's pages, for the page switcher: every Entry with a page (its Post Type's Entry template is
+ * published) and every Page, by the title its Draft has, at its published address, or at its Draft's
+ * while it was never published; the home page first.
  */
 async function sitePages(scope: SiteScope): Promise<{ title: string; path: string }[]> {
 	const pages: { title: string; path: string }[] = [];
+	const { defaultLanguage } = await siteLanguages(scope);
 	for (const postType of await listPostTypes(scope)) {
 		if (!isPagePostType(postType) && !(await getEntryTemplate(scope, postType.id))?.published) continue;
-		for (const entry of await listEntries(scope, postType.id)) {
-			if (entry.path !== null) pages.push({ title: entry.draft.title, path: entry.path });
+		const listed = await listEntries(scope, postType.id);
+		const drafts = await draftAddresses(
+			scope,
+			postType,
+			listed.filter((entry) => entry.path === null).map((entry) => entry.id),
+			{ language: defaultLanguage, defaultLanguage },
+		);
+		for (const entry of listed) {
+			const path = entry.path ?? drafts.get(entry.id)?.path ?? null;
+			if (path !== null) pages.push({ title: entry.draft.title, path });
 		}
 	}
 	return pages

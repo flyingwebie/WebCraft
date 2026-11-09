@@ -50,6 +50,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"webhook.change": (api, { siteId }) =>
 		api.webhooks.add({ siteId, url: "https://hooks.agency.example/build", events: ["publish"] }),
 	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
+	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
 };
 
 let install: TestInstall;
@@ -106,6 +107,7 @@ describe("each Sensitive action", () => {
 			"member.remove",
 			"formCaptcha.change",
 			"webhook.change",
+			"stagingPassword.change",
 		] as const;
 		for (const action of actions) {
 			const refusal = await SENSITIVE_ACTION_CALLS[action](author.browser.api, fixture).then(

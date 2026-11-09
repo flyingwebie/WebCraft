@@ -74,6 +74,13 @@ export const sites = pgTable(
 		searchIndexVersion: integer("search_index_version").notNull().default(0),
 		/** When a rebuild of the search index was last queued and hasn't finished; null when none is waiting. */
 		searchRebuildClaimedAt: timestamp("search_rebuild_claimed_at", { withTimezone: true }),
+		/**
+		 * The hash of the Site's staging password (the same scrypt hash people's passwords get), or null
+		 * when it has none: with one, people without an account may see the Staging address by giving it.
+		 */
+		stagingPasswordHash: text("staging_password_hash"),
+		/** When the staging password was last set or removed, as Site settings shows it. */
+		stagingPasswordChangedAt: timestamp("staging_password_changed_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [unique("sites_workspace_id_id_unique").on(table.workspaceId, table.id)],
