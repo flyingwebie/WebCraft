@@ -51,6 +51,13 @@ export type DataLayer = {
 	 */
 	background(siteId: string): Promise<BackgroundScope | null>;
 	/**
+	 * Opens a Workspace for WebCraft's own work in the background, as `background` opens a Site: the
+	 * queries of a Workspace scope, no person, no `can()`, no Audit log, no secrets. Only jobs and the
+	 * Share link address open one (a Workspace Dashboard's Report or Share link, named by a checked
+	 * procedure or a link's token). Null when the Workspace no longer exists.
+	 */
+	backgroundWorkspace(workspaceId: string): Promise<BackgroundWorkspaceScope | null>;
+	/**
 	 * Uses one of a Site's secrets for a visitor's request, inside the call that needs it, such as
 	 * checking a Form's CAPTCHA answer with the Site's secret key. Like `useWith`, it never hands the
 	 * value back. Only the Site request pipeline uses it, for the Site it found by hostname.
@@ -202,6 +209,19 @@ export type BackgroundScope = ScopedQueries<SiteTable, "workspaceId" | "siteId">
 		transaction<Result>(work: (scope: BackgroundScope) => Promise<Result>): Promise<Result>;
 	};
 
+/**
+ * A Workspace opened for WebCraft's own background work: the queries of a Workspace scope, limited to
+ * the Workspace, with no person, no Audit log and no secrets.
+ */
+export type BackgroundWorkspaceScope = ScopedQueries<WorkspaceTable, "workspaceId"> &
+	ScopeDatabase & {
+		readonly level: "backgroundWorkspace";
+		readonly workspace: Workspace;
+		/** The time, from the Install's clock. */
+		now(): Date;
+		transaction<Result>(work: (scope: BackgroundWorkspaceScope) => Promise<Result>): Promise<Result>;
+	};
+
 type DataLayerOptions = {
 	database: Database;
 	clock: Clock;
@@ -320,6 +340,18 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 		};
 	};
 
+	const backgroundWorkspaceScope = (executor: Executor, workspace: Workspace): BackgroundWorkspaceScope => {
+		const condition = (table: WorkspaceTable) => eq(table.workspaceId, workspace.id);
+		return {
+			...scopedQueries(executor, condition, { workspaceId: workspace.id }),
+			db: executor,
+			level: "backgroundWorkspace",
+			workspace,
+			now: () => clock.now(),
+			transaction: (work) => inTransaction(executor, null, (tx) => work(backgroundWorkspaceScope(tx, workspace))),
+		};
+	};
+
 	/**
 	 * Runs `work` in a transaction, or in the one `executor` already is. What the transaction's scopes
 	 * leave for after the commit runs once the outermost one commits.
@@ -377,6 +409,11 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			const site = isUuid(siteId) ? await findSite(db, siteId) : undefined;
 			const workspace = site ? await findWorkspace(db, site.workspaceId) : undefined;
 			return site && workspace ? backgroundScope(db, workspace, site) : null;
+		},
+
+		async backgroundWorkspace(workspaceId) {
+			const workspace = isUuid(workspaceId) ? await findWorkspace(db, workspaceId) : undefined;
+			return workspace ? backgroundWorkspaceScope(db, workspace) : null;
 		},
 
 		useSiteSecret(site, name, use) {

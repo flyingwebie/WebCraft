@@ -21,6 +21,7 @@ export * from "./modules.ts";
 export * from "./oauth.ts";
 export * from "./people.ts";
 export * from "./rate-limits.ts";
+export * from "./reports.ts";
 export * from "./search.ts";
 export * from "./secrets.ts";
 export * from "./seo.ts";

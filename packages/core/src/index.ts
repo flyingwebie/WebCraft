@@ -243,6 +243,7 @@ export {
 	type RateLimits,
 	type RateLimitTally,
 } from "./rate-limits.ts";
+export * from "./reports/index.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";
 export * from "./secrets/index.ts";
@@ -304,6 +305,7 @@ export {
 export type {
 	Access,
 	BackgroundScope,
+	BackgroundWorkspaceScope,
 	DataLayer,
 	InstallScope,
 	ScopedQueries,

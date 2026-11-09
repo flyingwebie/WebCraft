@@ -16,6 +16,7 @@ import type { Logger } from "./log.ts";
 import { type ImageProcessor, imagesOnlyInWorker } from "./media/images.ts";
 import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
 import { moduleSchemas } from "./modules/schemas.ts";
+import { type PdfRenderer, pdfOnlyInWorker } from "./reports/pdf.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { systemTls } from "./tls.ts";
@@ -40,6 +41,8 @@ export type OpenInstallOptions = {
 	opened?: OpenedParts;
 	/** Image processing: the worker hands in the real one; the web process never processes images. */
 	images?: ImageProcessor;
+	/** Turning Reports into PDFs: the worker hands in headless Chromium; the web process never renders one. */
+	pdf?: PdfRenderer;
 	/** The Modules to load: the first-party Modules of this build unless given. */
 	modules?: readonly ModuleDefinition[];
 	/**
@@ -79,6 +82,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 			...realPorts(config, database, log, options.http),
 			jobs: createJobQueue(boss),
 			images: options.images ?? imagesOnlyInWorker,
+			pdf: options.pdf ?? pdfOnlyInWorker,
 		},
 		masterKey,
 		{ modules },
@@ -111,6 +115,7 @@ export async function openInstallForCommand(options: {
 				...realPorts(config, database, log, options.http ?? unpinnedHttp),
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
 				images: imagesOnlyInWorker,
+				pdf: pdfOnlyInWorker,
 			},
 			masterKey,
 		);
@@ -132,7 +137,7 @@ function realPorts(
 	database: Database,
 	log: Logger,
 	http: OutgoingHttp,
-): Omit<InstallPorts, "jobs" | "images"> {
+): Omit<InstallPorts, "jobs" | "images" | "pdf"> {
 	return {
 		config,
 		database,

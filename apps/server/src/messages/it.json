@@ -790,6 +790,14 @@
 			"name": "Notifica di un Form",
 			"description": "Quando l'invio di un Form viene conservato."
 		},
+		"report-review": {
+			"name": "Report da rivedere",
+			"description": "Quando il testo dell'IA di un report attende una revisione."
+		},
+		"report": {
+			"name": "Report",
+			"description": "Un report inviato ai suoi destinatari."
+		},
 		"form-auto-reply": {
 			"name": "Risposta automatica",
 			"description": "A un visitatore che ha inviato un Form."

@@ -113,6 +113,14 @@ export const en: EmailWording = {
 			paragraphs: [`${authorName} submitted “${itemTitle}” on ${siteName} for review.`],
 			action: { label: "Review it", path: reviewPath },
 		}),
+		"report-review": ({ reportName, placeName, reviewPath }) => ({
+			subject: `“${reportName}” is waiting for review`,
+			heading: "A Report is waiting for review",
+			paragraphs: [
+				`The Report “${reportName}” for ${placeName} is ready, with AI text to check. It goes out once someone approves it.`,
+			],
+			action: { label: "Review it", path: reviewPath },
+		}),
 		"review-result": ({ itemTitle, siteName, result, reviewerName, comment, itemPath }) => {
 			const published = result === "published";
 			return {

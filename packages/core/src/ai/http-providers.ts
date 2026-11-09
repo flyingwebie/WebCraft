@@ -6,6 +6,7 @@ import {
 	AiProviderError,
 	type AiProviders,
 	type ImageDescriptionRequest,
+	type ReportTextRequest,
 	type TranslationAnswer,
 	type TranslationRequest,
 } from "./providers.ts";
@@ -44,6 +45,12 @@ export function createHttpAiProviders({ fetch }: { fetch: GuardedFetch }): AiPro
 			});
 			return { texts: parseTexts(answer.text, request.texts.length), usage: answer.usage } satisfies TranslationAnswer;
 		},
+		async writeReport(request) {
+			return complete(fetch, request.connection, {
+				system: reportInstructions(request),
+				user: [{ kind: "text", text: request.facts }],
+			});
+		},
 		async describeImage(request) {
 			return complete(fetch, request.connection, {
 				system: altTextInstructions(request),
@@ -64,6 +71,20 @@ function translationInstructions(request: TranslationRequest): string {
 		"You get a JSON array of strings. Answer with only a JSON array of the same number of strings: each string's translation, in the same order.",
 		"Keep every marker such as ⟦1⟧, ⟦/1⟧, ⟦B1⟧ or ⟦T1⟧ exactly as written, around the words it belongs with; never translate, drop, add or change one.",
 		"Keep line breaks. Leave text that needs no translation, such as numbers or names, as it is.",
+	].join("\n");
+}
+
+/** What WebCraft asks of a Report's text: a JSON object, from the totals given and nothing else. */
+function reportInstructions(request: ReportTextRequest): string {
+	const services =
+		request.services.length > 0
+			? `The agency offers these services (id, name, description): ${JSON.stringify(request.services.map((service) => [service.id, service.name, service.description]))}. A suggestion may name the one service it relates to by its id.`
+			: "The agency has listed no services: give no service ids.";
+	return [
+		`You explain a website's analytics report to its owner, in the language with the BCP 47 tag ${request.language.code} (${request.language.name}), in plain words without jargon.`,
+		"You get the report's totals as JSON: each Widget's id, title and counts for the period, and for the period before when known. Use only these numbers; never invent figures, causes you can't see, or details about any visitor.",
+		services,
+		'Answer with only a JSON object: {"widgets": {"<widget id>": "1 to 3 sentences about that Widget"}, "whatHappened": "2 to 4 sentences about the period as a whole", "suggestions": [{"text": "one practical suggestion in 1 or 2 sentences", "service": "<service id or null>"}]}. Give at most 3 suggestions. Write plain text: no Markdown, no HTML, no links.',
 	].join("\n");
 }
 

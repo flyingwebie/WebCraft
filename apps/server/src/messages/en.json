@@ -790,6 +790,14 @@
 			"name": "Form Notification",
 			"description": "When a Form's Submission is kept."
 		},
+		"report-review": {
+			"name": "Report waiting for review",
+			"description": "When a Report's AI text waits for someone to review it."
+		},
+		"report": {
+			"name": "Report",
+			"description": "A Report sent to its recipients."
+		},
 		"form-auto-reply": {
 			"name": "Auto-reply",
 			"description": "To a visitor who sent a Form."

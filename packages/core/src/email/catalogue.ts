@@ -99,6 +99,10 @@ export const SYSTEM_EMAIL_TYPES = {
 			itemPath: adminPath,
 		}),
 	},
+	"report-review": {
+		category: "work",
+		data: z.object({ reportName: title, placeName: name, reviewPath: adminPath }),
+	},
 	"scheduled-publish-failed": {
 		category: "work",
 		data: z.object({ itemTitle: title, siteName: name, itemPath: adminPath }),

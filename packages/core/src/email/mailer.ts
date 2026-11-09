@@ -13,6 +13,21 @@ export type SmtpConnection = {
 	password: string | null;
 };
 
+/** A file sent with an email, such as a Report's PDF. */
+export type EmailAttachment = { filename: string; contentType: string; content: Uint8Array };
+
+/**
+ * What a queued email names to attach, resolved when it is sent (never the file itself in a job):
+ * `kind` says whose it is (`reportPdf`), `id` which one, in its Workspace (and Site).
+ */
+export type EmailAttachmentRef = {
+	kind: string;
+	id: string;
+	workspaceId: string;
+	siteId: string | null;
+	filename: string;
+};
+
 /** One email, ready to send: rendered, addressed, with its sender. */
 export type OutgoingEmail = {
 	from: { name: string; address: string };
@@ -28,6 +43,8 @@ export type OutgoingEmail = {
 	 * server took it, but recording that failed), mail clients can drop the copy.
 	 */
 	messageId?: string;
+	/** Files sent with it. */
+	attachments?: EmailAttachment[];
 };
 
 /** The server took the email: its answer, such as `250 2.0.0 OK queued`. */

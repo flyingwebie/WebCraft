@@ -19,8 +19,11 @@ export const SITE_NAME_MAX_LENGTH = 100;
  */
 const SLUG_SHAPE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-/** Slugs the Install keeps for itself: their Staging addresses could be mistaken for its own. */
-export const RESERVED_SITE_SLUGS: readonly string[] = ["admin", "www"];
+/**
+ * Slugs the Install keeps for itself: their Staging addresses could be mistaken for its own, and
+ * `share` is the Share link address (`share.<sites domain>`, see `reports/share-links.ts`).
+ */
+export const RESERVED_SITE_SLUGS: readonly string[] = ["admin", "www", "share"];
 
 /** Why a slug was refused. */
 export type SlugProblem = "shape" | "reserved";

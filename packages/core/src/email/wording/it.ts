@@ -115,6 +115,14 @@ export const it: EmailWording = {
 			paragraphs: [`${authorName} ha inviato “${itemTitle}” su ${siteName} in revisione.`],
 			action: { label: "Rivedilo", path: reviewPath },
 		}),
+		"report-review": ({ reportName, placeName, reviewPath }) => ({
+			subject: `“${reportName}” attende la revisione`,
+			heading: "Un report attende la revisione",
+			paragraphs: [
+				`Il report “${reportName}” per ${placeName} è pronto, con un testo dell'IA da verificare. Parte quando qualcuno lo approva.`,
+			],
+			action: { label: "Rivedilo", path: reviewPath },
+		}),
 		"review-result": ({ itemTitle, siteName, result, reviewerName, comment, itemPath }) => {
 			const published = result === "published";
 			return {

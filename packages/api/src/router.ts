@@ -27,6 +27,7 @@ import { aiClients, oauth } from "./procedures/oauth.ts";
 import { pages } from "./procedures/pages.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { publishing } from "./procedures/publishing.ts";
+import { reportBranding, reports, servicesListProcedures, shareLinks } from "./procedures/reports.ts";
 import { scripts } from "./procedures/scripts.ts";
 import { seoSettings } from "./procedures/seo.ts";
 import { session } from "./procedures/session.ts";
@@ -94,6 +95,10 @@ export const apiRouter = {
 	modules,
 	dashboards,
 	dashboardTemplates,
+	reports,
+	shareLinks,
+	reportBranding,
+	servicesList: servicesListProcedures,
 };
 
 export type ApiRouter = typeof apiRouter;

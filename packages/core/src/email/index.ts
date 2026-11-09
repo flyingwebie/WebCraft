@@ -21,7 +21,7 @@ import {
 	SmtpPasswordNeededError,
 	sameSmtpServer,
 } from "./install-smtp.ts";
-import type { Mailer } from "./mailer.ts";
+import type { EmailAttachment, EmailAttachmentRef, Mailer } from "./mailer.ts";
 import { attemptDelivery, type EmailAttempt, siteSmtpPassword } from "./outbox.ts";
 import { createEmailPreferences, type EmailPreferences } from "./preferences.ts";
 import { queueSiteMail, type SiteMail, type SiteMailRoute, siteMailRoute } from "./site-mail.ts";
@@ -67,7 +67,7 @@ export type Email = {
 	siteMail: {
 		route(scope: Pick<SiteScope, "first" | "site">): Promise<SiteMailRoute>;
 		queue(
-			site: { id: string },
+			site: { id: string } | null,
 			route: SiteMailRoute,
 			mail: SiteMail,
 		): Promise<{ emailId: string; status: "queued" | "logged" }>;
@@ -103,6 +103,8 @@ export type EmailOptions = {
 	settings: InstallSettings;
 	/** The data layer, for a Site's mail settings and who to tell when its server fails. */
 	data: DataLayer;
+	/** Reads a file a queued email names (a Report's PDF), when it is sent. */
+	attachment?(ref: EmailAttachmentRef): Promise<EmailAttachment | null>;
 };
 
 export function createEmail(options: EmailOptions): Email {
@@ -249,6 +251,8 @@ export {
 } from "./install-smtp.ts";
 export { emailLogPurge, emailLogPurgeSchedule } from "./jobs.ts";
 export {
+	type EmailAttachment,
+	type EmailAttachmentRef,
 	type Mailer,
 	type MailerReceipt,
 	type OutgoingEmail,
