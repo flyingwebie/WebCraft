@@ -13,10 +13,13 @@ import {
 	pageNumberIn,
 	pathSegments,
 	SCRIPT_PATH,
+	SEARCH_PARAMETER,
+	SEARCH_RATE_LIMIT,
 	SITE_SECURITY_HEADERS,
 	type SiteHost,
 	type SiteScope,
 	STYLESHEET_PATH,
+	searchQueryIn,
 	siteScript,
 	VERIFY_PATH,
 } from "@webcraft/core";
@@ -143,7 +146,10 @@ async function siteAnswer(
 		const number = pageNumberIn(url.searchParams);
 		if (number === undefined) return notFoundPage(services, host, url.pathname);
 		if (number === 1 && url.searchParams.has(PAGE_PARAMETER)) {
-			return redirect(host, canonicalPath(segments ?? []));
+			// A search's first page keeps the search.
+			const query = searchQueryIn(url.searchParams);
+			const search = query ? `?${new URLSearchParams({ [SEARCH_PARAMETER]: query })}` : "";
+			return redirect(host, `${canonicalPath(segments ?? [])}${search}`);
 		}
 		if (edit.session) {
 			return editModePage(
@@ -154,6 +160,7 @@ async function siteAnswer(
 				await codeModeOf(services, request, edit.session),
 				safeModeOf(request),
 				number,
+				searchQueryIn(url.searchParams),
 			);
 		}
 		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
@@ -225,15 +232,29 @@ async function visitorPage(
 	// A Form just sent shows its message on a page answered for the visitor alone, before the cache.
 	const sent = await sentPage(services, request, host, number, addressHeaders(host));
 	if (sent) return sent;
+	// Searches are never cached: one client address runs a limited number of them (ADR 0021).
+	const query = searchQueryIn(url.searchParams);
+	if (query && (await services.sitePages.isSearchPage(host, pathname))) {
+		const address = clientAddress(request, services.config) ?? "unknown";
+		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
+			return tooManySearches(host);
+		}
+	}
 	// The same path is another page on each of the Site's addresses (its language, its links), and
 	// each page of a paginated Loop another page.
 	const key = `${host.origin}${pageHref(canonicalPath(segments), number)}`;
 	const cached = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
 	if (cached) return pageResponse(services, request, host, cached, "HIT");
 	// A page kept in the cache holds no visitor's Form token: each answer fills in its own.
-	const answer = await services.sitePages.render(host, pathname, undefined, { forms: { cached: true }, page: number });
+	const answer = await services.sitePages.render(host, pathname, undefined, {
+		forms: { cached: true },
+		page: number,
+		search: searchQueryIn(url.searchParams),
+	});
 	if (!answer) return notFoundPage(services, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
+	// The search results page shows one visitor's search: never kept, never indexed (ADR 0021).
+	if (answer.searchPage) return searchResponse(services, host, answer.html, answer.headers);
 	const page = {
 		html: answer.html,
 		etag: await etagOf(answer.html),
@@ -258,9 +279,12 @@ async function editModePage(
 	code: SiteScope | null,
 	safe: boolean,
 	page: number,
+	search: string,
 ): Promise<Response> {
 	const editing = await pageEditing(session, code, safe);
-	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing, { page }) : null;
+	const answer = pathSegments(pathname)
+		? await services.sitePages.render(host, pathname, editing, { page, search })
+		: null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
 	}
@@ -392,6 +416,38 @@ async function pageResponse(
 	// The page cache holds no Form token: each answer gets its own (the ETag is the cached page's).
 	const html = await withFormTokens(services, host, page.html);
 	return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
+}
+
+/** A client address that searched more than `SEARCH_RATE_LIMIT` allows: asked to wait until its minute ends. */
+function tooManySearches(host: SiteHost): Response {
+	return plainText(429, "Too Many Requests", {
+		"retry-after": String(SEARCH_RATE_LIMIT.windowMs / 1000),
+		"cache-control": "no-store",
+		...addressHeaders(host),
+	});
+}
+
+/**
+ * The Site's search results page, answered for one visitor: never kept in the page cache, by
+ * browsers or by proxies (`no-store`, a Form token of its own), and never indexed by search engines,
+ * on any of the Site's addresses (`noindex`).
+ */
+async function searchResponse(
+	services: InstallServices,
+	host: SiteHost,
+	html: string,
+	pageHeaders: Record<string, string>,
+): Promise<Response> {
+	return new Response(await withFormTokens(services, host, html), {
+		status: 200,
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store",
+			"x-content-type-options": "nosniff",
+			"x-robots-tag": "noindex",
+			...pageHeaders,
+		},
+	});
 }
 
 /**

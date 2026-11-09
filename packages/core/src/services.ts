@@ -60,6 +60,7 @@ import type { ModuleHost } from "./modules/host.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
+import type { SiteSearch } from "./search/service.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { DataSample } from "./site-pages/data-samples.ts";
@@ -231,6 +232,15 @@ export type InstallServices = InstallPorts & {
 			markup: string,
 			base?: SaveBase,
 		): Promise<SavedTemplateMarkup>;
+		/** The Site's Search results template (ADR 0021), or null while it has none (the built-in one shows). */
+		searchTemplate(scope: SiteScope): Promise<Template | null>;
+		saveSearchTemplate(scope: SiteScope, tree: unknown): Promise<Template>;
+		/** The Search results template as Template markup (its Draft and published version), or null while it has none. */
+		searchTemplateMarkup(
+			scope: SiteScope,
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/** Saves the Search results template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
+		saveSearchTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 	};
 	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
 	domains: Domains;
@@ -323,7 +333,8 @@ export type InstallServices = InstallPorts & {
 		saveDraft(scope: SiteScope, entryId: string | null, code: string, base?: SaveBase): Promise<Script>;
 	};
 	/**
-	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing
+	 * Which Pages answer at `/` (the home page), for paths with no page (the 404 page) and for Site
+	 * search (the search results page). Choosing
 	 * them is Structure: open the Site with `structure.edit`; anyone who sees the Site may read them.
 	 */
 	pages: {
@@ -335,6 +346,11 @@ export type InstallServices = InstallPorts & {
 		 * language alone (null: the Site's answers there). It applies at once.
 		 */
 		setNotFoundPage(scope: SiteScope, pageId: string | null, language?: string): Promise<SpecialPages>;
+		/**
+		 * Chooses the Site's search results page (ADR 0021), or none with null: its content is the
+		 * Search results template, and the Search element sends visitors there. It applies at once.
+		 */
+		setSearchPage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
 	};
 	/**
 	 * Each Site's Design system (ADR 0009): tokens, Classes, base styles, custom CSS and dark mode,
@@ -371,6 +387,8 @@ export type InstallServices = InstallPorts & {
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
+	/** Site search's background work: rebuilding search indexes that are behind (ADR 0021). */
+	search: SiteSearch;
 	/**
 	 * The Consent banner (ADR 0020): each Site's setting (Structure, Staff only), its words (Content,
 	 * with a Draft) and the Consent records visitors' choices leave.

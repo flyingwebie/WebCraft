@@ -3,6 +3,7 @@ import { entries, globals, people, publishedSlugs, siteDomains, sites, templates
 import {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
+	builtInSearchTemplate,
 	type EditModePage,
 	type ElementTree,
 	FORM_TOKEN_MARK,
@@ -11,12 +12,16 @@ import {
 	type LanguageLink,
 	mediaReferencesIn,
 	type PageAlternate,
+	type PageSearch,
 	type PageToRender,
 	type PlacementRenderer,
 	pageWords,
 	placementsIn,
 	renderDocument,
 	SCRIPT_PATH,
+	SEARCH_QUERY_VALUE,
+	searchElementIn,
+	searchPageTitle,
 	type TemplateValue,
 	valuePathsOf,
 } from "@webcraft/renderer";
@@ -79,7 +84,7 @@ import { type CspMode, editModePolicy, isCspMode, pagePolicyHeaders, readHost } 
 import { retiredScript } from "../site-scripts/retired.ts";
 import type { DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
-import { pageHref, pageLoops } from "./loops.ts";
+import { pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
 import { relatedEntries, type ReadScope as ScopeToRead } from "./related.ts";
 
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
@@ -153,7 +158,15 @@ export type SitePage = {
  * goes into the page cache, one visitor's state of one Form, the Form just sent), and which page of a
  * paginated Loop visitors asked for (`?page=2`; the first when absent).
  */
-export type RenderPageOptions = { forms?: PageFormsOptions; page?: number };
+export type RenderPageOptions = {
+	forms?: PageFormsOptions;
+	page?: number;
+	/**
+	 * What the visitor searches for (`q`, as `searchQueryIn` reads it): the Site's search results page
+	 * lists its hits, and the page's Search elements show it. Other pages ignore it.
+	 */
+	search?: string;
+};
 
 /**
  * What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to
@@ -164,6 +177,11 @@ export type SiteAnswer =
 	| ({ kind: "page" } & SitePage & {
 				/** The pages of the Loop that paginates on the page, when one does. */
 				pagination: { current: number; count: number } | null;
+				/**
+				 * Whether it is the Site's search results page (ADR 0021): it shows one visitor's search,
+				 * so it is never kept in the page cache, nor indexed by search engines.
+				 */
+				searchPage?: boolean;
 			})
 	| { kind: "redirect"; location: string; keepQuery?: boolean };
 
@@ -226,6 +244,8 @@ export type CodePreview = {
 export type SitePages = {
 	/** The Site a hostname belongs to, or null for a hostname that is no Site's (an unbranded 404). */
 	resolveHost(hostname: string): Promise<SiteHost | null>;
+	/** Whether `pathname` is the Site's search results page, in any of its languages (ADR 0021). */
+	isSearchPage(host: SiteHost, pathname: string): Promise<boolean>;
 	/**
 	 * What `pathname` answers on the Site: the published Entry a Post Type's URL pattern finds there,
 	 * else the published Page at that path (the home page at `/`); null when there is none. With
@@ -377,6 +397,14 @@ export function createSitePages(options: {
 			});
 		},
 
+		async isSearchPage(host, pathname) {
+			const scope = data.visitors(host.site);
+			const searchPageId = await specialPageId(scope, "search");
+			if (!searchPageId) return false;
+			const located = await locate(scope, host, pathname, false);
+			return located?.kind === "found" && located.found.entry.id === searchPageId;
+		},
+
 		async render(host, pathname, editing, options = {}) {
 			const page = options.page ?? 1;
 			const view = viewFor(data, host, editing, sources, {
@@ -399,6 +427,20 @@ export function createSitePages(options: {
 			if (located.kind === "redirect") return located;
 			const extras = await languageExtras(view.scope, host, located, located.found);
 			const path = canonicalPath(pathSegments(pathname) ?? []);
+			if ((await specialPageId(view.scope, "search")) === located.found.entry.id) {
+				// The Site's search results page: its Page shows the Search results template's hits.
+				const query = options.search ?? "";
+				const state = query ? new URLSearchParams({ q: query }).toString() : "";
+				const rendered = await renderSearchPage(view, host, await viewStyles(view), located, extras, {
+					page,
+					path,
+					query,
+					state,
+				});
+				if (page > 1 && !rendered.pagination) return { kind: "redirect", location: pageHref(path, 1, state) };
+				if (rendered.pagination && page > rendered.pagination.count) return null;
+				return { kind: "page", ...rendered, searchPage: true };
+			}
 			// Loops paginate on Pages; on an Entry's page they show their first page.
 			const paginates = isPagePostType(located.found.postType);
 			const rendered = await renderEntryPage(view, host, await viewStyles(view), located, extras, {
@@ -1171,6 +1213,79 @@ async function renderEntryPage(
 	});
 }
 
+/**
+ * The Site's search results page (ADR 0021): its Page, showing the Search results template (the
+ * Staff's published one, else the built-in one) instead of a Page layout. Its Loop `search` lists the
+ * hits for the visitor's query among the searchable Post Types' Entries, `search.query` reads the
+ * query, and its title says what it shows hits for. Its pages keep the query (`?q=bread&page=2`).
+ */
+async function renderSearchPage(
+	view: View,
+	host: SiteHost,
+	styles: SiteStyles,
+	located: Located,
+	extras: LanguageExtras,
+	where: { page: number; path: string; query: string; state: string },
+): Promise<RenderedPage> {
+	const { scope } = view;
+	const { found, languages } = located;
+	const content = (await searchTemplateOf(scope, view.structure)) ?? builtInSearchTemplate(located.language.code);
+	const version = storedVersion(view.version === "draft" ? found.entry.draft : found.entry.published);
+	const title = entryValues(version, found.postType.fields, languages).title;
+	const site = await siteParts(view, located, host.site.name);
+	const root: Parts = { text: null, part: (name) => (name === "site" ? site : undefined) };
+	const search: SearchOnPage = { query: where.query, postTypes: await searchedPostTypes(scope, found.postTypes) };
+	return renderSitePage(view, host, styles, located, {
+		page: {
+			title: pagedTitle(searchPageTitle(title, where.query, located.language.code), where.page, located.language.code),
+			alternates: extras.alternates,
+			languageLinks: extras.languageLinks,
+			content,
+			values: (path) => (path === SEARCH_QUERY_VALUE ? where.query : resolvePath(root, path)),
+		},
+		loops: { current: found.entry.id, page: where.page, path: where.path, search, state: where.state },
+		searchQuery: where.query,
+	});
+}
+
+/** The Site's Search results template as visitors see it (published), or its Draft in Code mode; undefined for none. */
+async function searchTemplateOf(scope: ReadScope, which: "published" | "draft"): Promise<ElementTree | undefined> {
+	const row = await scope.first(templates, and(eq(templates.kind, "search"), isNull(templates.postTypeId)));
+	const tree = which === "draft" ? row?.draft : row?.published;
+	return (tree as ElementTree | null | undefined) ?? undefined;
+}
+
+/**
+ * The Post Types Site search lists, by key: those Staff mark searchable whose Entries have pages (the
+ * Page Post Type, and Post Types with a published Entry template), so every hit links somewhere.
+ */
+async function searchedPostTypes(scope: ReadScope, postTypes: readonly PostType[]): Promise<string[]> {
+	const rendered = new Set(
+		(await scope.select(templates, and(eq(templates.kind, "entry"), isNotNull(templates.published)))).map(
+			(row) => row.postTypeId,
+		),
+	);
+	return postTypes
+		.filter((postType) => postType.searchable && (isPagePostType(postType) || rendered.has(postType.id)))
+		.map((postType) => postType.key);
+}
+
+/**
+ * Where a page's Search elements send visitors: the Site's search results page in the page's
+ * language (on this hostname, or the address of the language's own domain), with the query they show.
+ * Undefined while the Site has none published and shown in the language: they then show nothing.
+ */
+async function searchOnPage(
+	scope: ReadScope,
+	host: SiteHost,
+	language: string,
+	query: string,
+): Promise<PageSearch | undefined> {
+	const pageId = await specialPageId(scope, "search");
+	const action = pageId && (await pageLocation(scope, host, pageId, language));
+	return action ? { action, query } : undefined;
+}
+
 /** The Site's Globals as `site.x` reads them (published for visitors, the Draft in Edit mode), with the page's language. */
 async function siteParts(view: View, place: Place, name: string): Promise<Parts> {
 	const site = globalsVersion(await view.scope.first(globals), place.languages, view.version);
@@ -1202,8 +1317,13 @@ async function renderSitePage(
 		contentValues?: unknown;
 		/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
 		entry?: { id: string; fields: readonly FieldDefinition[] } | null;
-		/** Where the page's Loops run: its Entry, which page of a paginated Loop, and its address. */
-		loops: { current: string | null; page: number | null; path: string };
+		/**
+		 * Where the page's Loops run: its Entry, which page of a paginated Loop, and its address; on the
+		 * search results page, the visitor's search and the state its page links keep.
+		 */
+		loops: { current: string | null; page: number | null; path: string; search?: SearchOnPage; state?: string };
+		/** What the page's Search elements show in their box: the query, on the search results page. */
+		searchQuery?: string;
 	},
 ): Promise<RenderedPage> {
 	const { scope, editing } = view;
@@ -1245,6 +1365,9 @@ async function renderSitePage(
 		],
 		languages,
 	);
+	// The page's Search elements send visitors to the search results page, when the Site has one.
+	const searching = [page.content, siteTemplate, ...placed.trees].some((tree) => tree && searchElementIn(tree));
+	const search = searching ? await searchOnPage(scope, host, language.code, options.searchQuery ?? "") : undefined;
 	const formsOn = await view.formsOf.on(host.site);
 	const forms = await pageForms(scope, {
 		on: formsOn,
@@ -1296,6 +1419,7 @@ async function renderSitePage(
 		},
 		component: placed.render,
 		form: forms.render,
+		search,
 		formScripts: forms.outsideScripts,
 		loop: loops.run,
 		time,

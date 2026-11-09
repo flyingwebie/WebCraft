@@ -1901,6 +1901,11 @@
 			"pageUrlPattern": "Le pagine si trovano tramite la pagina genitore e lo slug, quindi il loro schema di URL non può cambiare.",
 			"urlPatternFormat": "Uno schema di URL è un percorso di parti fisse (lettere minuscole, cifre e trattini) e un {slug}, come /blog/{slug}.",
 			"urlPatternParts": "Uno schema di URL ha al massimo {max} parti.",
+			"searchedFieldsCount": "Un tipo di contenuto ha al massimo {max} campi di ricerca.",
+			"searchedFieldWeight": "Il peso di un campo di ricerca è A, B, C o D.",
+			"searchedFieldUnknown": "Questo tipo di contenuto non ha un campo {field} in cui cercare.",
+			"searchedFieldType": "La ricerca nel sito legge i campi di testo, testo formattato, Body, selezione, link ed email, non {field}.",
+			"searchedFieldTwice": "{field} si cerca una volta sola, con un solo peso.",
 			"bodyInLoop": "Gli elementi di un loop non hanno un campo corpo: un loop con query su un tipo di contenuto legge il corpo dei suoi contenuti.",
 			"relationshipInLoop": "Gli elementi di un loop non possono avere relazioni: un loop con query elenca contenuti."
 		},
@@ -2264,7 +2269,34 @@
 			"label": "{name}",
 			"globalsLabel": "Globali",
 			"fields": "Campi",
-			"data": "Dati"
+			"data": "Dati",
+			"search": "Ricerca nel sito"
+		},
+		"search": {
+			"tab": "Ricerca nel sito",
+			"heading": "Ricerca nel sito",
+			"intro": "Dove cercano la ricerca nel sito e le caselle di ricerca dei filtri. Ogni tipo di contenuto è indicizzato; una modifica qui ricostruisce l'indice di ricerca del sito entro un minuto.",
+			"searchable": "Mostra nella ricerca nel sito",
+			"searchableHelp": "I suoi contenuti pubblicati compaiono nella pagina dei risultati di ricerca del sito. Se disattivato, restano indicizzati per le caselle di ricerca dei filtri.",
+			"fieldsHeading": "Campi di ricerca",
+			"fieldsHelp": "Una corrispondenza in un campo con peso A conta di più, in D di meno. Si possono cercare campi di testo, testo formattato, Body, selezione, link ed email.",
+			"field": "Campo",
+			"searched": "Cercato",
+			"weight": "Peso",
+			"searchField": "Cerca in {field}",
+			"weightOf": "Peso di {field}",
+			"weights": {
+				"A": "A · conta di più",
+				"B": "B",
+				"C": "C",
+				"D": "D · conta di meno"
+			},
+			"none": "La ricerca legge solo il titolo di questo tipo di contenuto: non ha campi che la ricerca possa leggere.",
+			"save": "Salva le modifiche",
+			"discard": "Annulla",
+			"unsaved": "Modifiche non salvate",
+			"saved": "Salvato. La ricerca nel sito si aggiorna entro un minuto.",
+			"notSaved": "Non è stato salvato nulla:"
 		}
 	},
 	"globals": {

@@ -1,24 +1,27 @@
-import { entries, entryLinks, loops } from "@webcraft/db/schema";
+import { entries, entryLinks, loops, searchDocuments } from "@webcraft/db/schema";
 import {
 	type ElementTree,
 	LOOP_LIMITS,
 	type LoopItem,
 	type LoopRun,
 	loopNamesIn,
+	richText,
+	SEARCH_LOOP,
 	type TemplateValue,
 } from "@webcraft/renderer";
-import { and, asc, desc, inArray, isNotNull, isNull, ne, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 
 import { entryValues } from "../content/entries.ts";
 import { publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { type Languages, linksIn } from "../content/field-values.ts";
-import { DATE_BUILT_INS, fieldAt, type LoopQuery, type QueryFilter } from "../content/loop-queries.ts";
+import { DATE_BUILT_INS, defaultQuery, fieldAt, type LoopQuery, type QueryFilter } from "../content/loop-queries.ts";
 import { loopItems, type StoredLoopVersion, storedLoopVersion } from "../content/loops.ts";
 import type { PostType } from "../content/post-types.ts";
 import { entryParts, type Parts, resolvePath, valuesParts } from "../content/render-values.ts";
 import { storedVersion } from "../content/values.ts";
 import { publishedVisibleIn } from "../content/visibility.ts";
+import { searchSnippets, textQuery } from "../search/snippets.ts";
 import { namesOf, type ReadScope, relatedEntries } from "./related.ts";
 
 /**
@@ -47,7 +50,41 @@ export type LoopPlace = {
 	 * both for the Data tab (Entries never published included).
 	 */
 	version: "published" | "draft";
+	/**
+	 * Site search on the page (the Site's search results page, ADR 0021): what the visitor searches
+	 * for and the keys of the Post Types it lists. The built-in `search` Loop runs it.
+	 */
+	search?: SearchOnPage;
+	/**
+	 * The state of the page's Filters as its address keeps it (`q=bread`), which links to the other
+	 * pages of its paginated Loop keep too.
+	 */
+	state?: string;
 };
+
+/** Site search on a page: see `LoopPlace.search`. */
+export type SearchOnPage = { query: string; postTypes: readonly string[] };
+
+/** How many hits Site search shows on each page of results. */
+export const SEARCH_PAGE_SIZE = 10;
+
+/**
+ * Site search's query: the searchable Post Types' published Entries shown in the page's language,
+ * `SEARCH_PAGE_SIZE` at a time, the search results page itself left out. It runs narrowed by the
+ * visitor's query, best hits first (a Filter's search box narrows its Loop's own query the same way).
+ */
+export function searchLoopQuery(postTypes: readonly string[]): LoopQuery {
+	return {
+		...defaultQuery(),
+		postTypes: [...postTypes],
+		limit: SEARCH_PAGE_SIZE,
+		paginate: true,
+		excludeCurrent: true,
+	};
+}
+
+/** What narrows a Loop's query on a page, besides its own filters: a search box's query (ADR 0021). */
+export type Narrowing = { search?: string };
 
 /** What a page's Loops show. */
 export type PageLoops = {
@@ -105,6 +142,30 @@ export async function pageLoops(
 	const rows = await scope.select(loops, inArray(loops.name, names));
 	let ran = 0;
 	for (const name of names) {
+		// Site search's built-in Loop, on the search results page.
+		if (name === SEARCH_LOOP && place.search && ran < LOOP_LIMITS.perPage) {
+			ran++;
+			const { query } = place.search;
+			if (!query) {
+				result.runs.set(name, { items: [], total: 0 });
+				continue;
+			}
+			const paginates = place.page !== null && result.pagination === null;
+			const run = await queryItems(
+				scope,
+				searchLoopQuery(place.search.postTypes),
+				place,
+				postTypes,
+				paginates,
+				result.values,
+				{
+					search: query,
+				},
+			);
+			if (paginates && run.pages) result.pagination = { current: run.pages.current, count: run.pages.count };
+			result.runs.set(name, run);
+			continue;
+		}
 		const row = rows.find((candidate) => candidate.name === name);
 		if (!row) continue;
 		const stored = place.version === "draft" ? row.draft : row.published;
@@ -161,16 +222,36 @@ async function queryItems(
 	postTypes: readonly PostType[],
 	paginates: boolean,
 	values: unknown[],
+	narrowing: Narrowing = {},
 ): Promise<LoopRun> {
 	const page = paginates ? (place.page ?? 1) : 1;
-	const rows = await queryRows(scope, query, place, postTypes, query.offset + (page - 1) * query.limit, query.limit);
+	const rows = await queryRows(
+		scope,
+		query,
+		place,
+		postTypes,
+		query.offset + (page - 1) * query.limit,
+		query.limit,
+		narrowing,
+	);
 	const total = rows[0]?.total ?? 0;
+	// A hit's snippet: where its text matched the query.
+	const snippets =
+		narrowing.search === undefined
+			? undefined
+			: await searchSnippets(
+					scope,
+					rows.map((row) => row.entry.id),
+					place.languages.language,
+					narrowing.search,
+				);
 	const items = await entryItems(
 		scope,
 		rows.map((row) => row.entry),
 		place,
 		postTypes,
 		values,
+		snippets,
 	);
 	if (!paginates) return { items, total: items.length };
 	const count =
@@ -178,13 +259,14 @@ async function queryItems(
 	return {
 		items,
 		total: Math.max(0, total - query.offset),
-		pages: { current: page, count, href: (target) => pageHref(place.path, target) },
+		pages: { current: page, count, href: (target) => pageHref(place.path, target, place.state) },
 	};
 }
 
 /**
  * The Entries a query finds, `limit` of them from `offset`, each with how many match in all: one
- * parameterised SQL query.
+ * parameterised SQL query. Narrowed by a search, only Entries whose document in the page's language
+ * matches it are found, the best match first (Searched fields weighted A count most).
  */
 export async function queryRows(
 	scope: ReadScope,
@@ -193,6 +275,7 @@ export async function queryRows(
 	postTypes: readonly PostType[],
 	offset: number,
 	limit: number,
+	narrowing: Narrowing = {},
 ): Promise<{ entry: typeof entries.$inferSelect; total: number }[]> {
 	const listed = postTypes.filter((postType) => query.postTypes.includes(postType.key));
 	if (listed.length === 0) return [];
@@ -207,8 +290,34 @@ export async function queryRows(
 		query.excludeCurrent && place.current ? ne(entries.id, place.current) : undefined,
 		sqlOf.filters(query),
 	);
+	const select = { entry: entries, total: sql<number>`count(*) over ()`.mapWith(Number) };
+	if (narrowing.search !== undefined) {
+		// The Site's index in the page's language: one document per Entry, matched through its GIN index.
+		const { language } = place.languages;
+		const matched = textQuery(language, narrowing.search);
+		return scope.db
+			.select(select)
+			.from(entries)
+			.innerJoin(
+				searchDocuments,
+				and(
+					eq(searchDocuments.siteId, entries.siteId),
+					eq(searchDocuments.entryId, entries.id),
+					eq(searchDocuments.language, language),
+				),
+			)
+			.where(
+				and(
+					scope.where(entries, condition),
+					scope.where(searchDocuments, sql`${searchDocuments.document} @@ ${matched}`),
+				),
+			)
+			.orderBy(desc(sql`ts_rank(${searchDocuments.document}, ${matched})`), ...sqlOf.order(query))
+			.limit(limit)
+			.offset(offset);
+	}
 	return scope.db
-		.select({ entry: entries, total: sql<number>`count(*) over ()`.mapWith(Number) })
+		.select(select)
 		.from(entries)
 		.where(scope.where(entries, condition))
 		.orderBy(...sqlOf.order(query))
@@ -216,9 +325,13 @@ export async function queryRows(
 		.offset(offset);
 }
 
-/** A page of a paginated Loop: the page's own address for the first, `?page=N` for the others. */
-export function pageHref(path: string, page: number): string {
-	return page <= 1 ? path : `${path}?page=${page}`;
+/**
+ * A page of a paginated Loop: the page's own address for the first, `?page=N` for the others, after
+ * the state of the page's Filters when it has one (`?q=bread&page=2`).
+ */
+export function pageHref(path: string, page: number, state = ""): string {
+	const query = [state, page > 1 ? `page=${page}` : ""].filter((part) => part !== "").join("&");
+	return query ? `${path}?${query}` : path;
 }
 
 /** Entries as a Loop's items: their built-in values, Fields, and what their Relationships point at. */
@@ -228,6 +341,7 @@ async function entryItems(
 	place: LoopPlace,
 	postTypes: readonly PostType[],
 	values: unknown[],
+	snippets?: ReadonlyMap<string, string>,
 ): Promise<LoopItem[]> {
 	const { languages } = place;
 	const byId = new Map(postTypes.map((postType) => [postType.id, postType]));
@@ -271,6 +385,8 @@ async function entryItems(
 			publishedAt: row.publishedAt,
 			lastPublishedAt: row.lastPublishedAt,
 		};
+		// A search hit's snippet, as HTML holding only WebCraft's own highlights.
+		if (snippets) builtIns.snippet = richText(snippets.get(row.id) ?? "");
 		const parts = entryParts(builtIns, postType.fields, read.fields, { related, site: noSite });
 		return [{ read: (path) => (path === "" ? read.title : resolvePath(parts, path)), key: `entry:${row.id}` }];
 	});

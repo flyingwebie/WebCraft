@@ -60,6 +60,8 @@ describe("creating a Post Type", () => {
 			],
 			builtIn: null,
 			builtInFields: BUILT_IN_FIELDS,
+			searchable: true,
+			searchedFields: [{ field: "title", weight: "A" }],
 			createdAt: install.clock.now(),
 			updatedAt: install.clock.now(),
 		});

@@ -26,7 +26,8 @@
  *   (`update` is an answer, `default` only a starting state): Analytics is `analytics_storage`,
  *   Marketing `ad_storage` with neither `ad_user_data` nor `ad_personalization` denied, Media
  *   `personalization_storage`, each `granted`;
- * - `webcraft.consent.set({ analytics, marketing, media })`, from the Site's own glue code.
+ * - `webcraft.consent.set({ analytics, marketing, media })`, from the Site's own glue code. It does
+ *   nothing on a Site with WebCraft's banner: there only the visitor's choice in the banner counts.
  * Whichever answers last wins. Nothing is recorded or kept: the service keeps its own records.
  *
  * **For other scripts** (Site analytics, Popups, the Site's own scripts): `window.webcraft.consent`
@@ -305,8 +306,10 @@ const SCRIPT = `(() => {
 			},
 			has,
 			choices: () => ({ necessary: true, ...choices }),
+			// Only an outside consent service answers through code; on a Site with WebCraft's banner, only
+			// the visitor's own choice in the banner counts, so no script on the page can answer for them.
 			set: (next) => {
-				if (next && typeof next === "object") choose(next);
+				if (mode === "outside" && next && typeof next === "object") choose(next);
 			},
 			open: () => open(null),
 			whenAnswered: () => new Promise((resolve) => (answered ? resolve() : waiting.push(resolve))),

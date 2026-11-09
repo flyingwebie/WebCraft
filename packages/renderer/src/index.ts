@@ -123,6 +123,9 @@ export {
 	type LoopItem,
 	type LoopItemPlace,
 	type LoopRun,
+	SEARCH_HIT_NAME,
+	SEARCH_LOOP,
+	SEARCH_QUERY_VALUE,
 } from "./loops.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
@@ -144,6 +147,7 @@ export {
 export {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
+	builtInSearchTemplate,
 	directionOf,
 	type EditModePage,
 	type LanguageLink,
@@ -154,12 +158,16 @@ export {
 	type PageOutsideScript,
 	type PageScript,
 	type PageScriptTag,
+	type PageSearch,
 	type PageStyles,
 	type PageToRender,
 	pageWords,
 	type RenderedPage,
 	renderDocument,
 	renderPage,
+	SEARCH_BOX_MAX_LENGTH,
+	SEARCH_HOOKS,
+	searchPageTitle,
 } from "./page.ts";
 export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
 export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText } from "./rich-text.ts";
@@ -187,6 +195,8 @@ export {
 	type ParseTreeOptions,
 	parseElementTree,
 	randomElementId,
+	type SearchNode,
+	searchElementIn,
 	TEMPLATE_ELEMENTS,
 	type TextNode,
 	type ThemeToggleNode,

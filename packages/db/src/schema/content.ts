@@ -1,5 +1,16 @@
 import { sql } from "drizzle-orm";
-import { foreignKey, index, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	foreignKey,
+	index,
+	jsonb,
+	pgTable,
+	primaryKey,
+	text,
+	timestamp,
+	unique,
+	uuid,
+} from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
 import { sites, workspaces } from "./tenancy.ts";
@@ -35,6 +46,16 @@ export const postTypes = pgTable(
 		 * each Page's path is its parent Page's path and its own slug); null for one Staff made.
 		 */
 		builtIn: text("built_in"),
+		/**
+		 * Whether its Entries show in Site search (ADR 0021). Every Post Type is indexed whatever this
+		 * says; it decides only what Site search lists.
+		 */
+		searchable: boolean("searchable").notNull().default(true),
+		/**
+		 * Its Searched fields: a JSON list of `{ field, weight }`, `field` being `title` or a Field's path
+		 * (`summary`, `address.city`, `steps.text`) and `weight` A (counts most) to D.
+		 */
+		searchedFields: jsonb("searched_fields").notNull().default(sql`'[{"field":"title","weight":"A"}]'::jsonb`),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

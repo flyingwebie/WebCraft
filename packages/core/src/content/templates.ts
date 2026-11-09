@@ -4,11 +4,14 @@ import {
 	type DesignSystem,
 	type ElementTree,
 	type LoopCatalogue,
+	type LoopInfo,
 	type MarkupNotice,
 	parseElementTree,
 	parseTemplateMarkup,
 	printTemplateMarkup,
 	refuseSiteTemplateCommands,
+	SEARCH_LOOP,
+	SEARCH_QUERY_VALUE,
 } from "@webcraft/renderer";
 import { and, eq, isNull, type SQL } from "drizzle-orm";
 
@@ -32,14 +35,15 @@ import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
-import { knownValues } from "./render-values.ts";
+import { knownValues, loopItemKnownValues } from "./render-values.ts";
 
 /**
  * The kinds of Template: the Site template (one per Site, around every page), Entry templates (one
- * per Post Type, rendering each Entry) and Archive templates (one per Post Type, listing its Entries
- * at its archive address, `archives.ts`).
+ * per Post Type, rendering each Entry), Archive templates (one per Post Type, listing its Entries
+ * at its archive address, `archives.ts`) and the Search results template (one per Site, the content
+ * of its search results page, ADR 0021).
  */
-export type TemplateKind = "entry" | "site" | "archive";
+export type TemplateKind = "entry" | "site" | "archive" | "search";
 
 /** Where a Template stands, as for Entries: never published, published as it is, or changed since. */
 export type TemplateStatus = "draft" | "published" | "changed";
@@ -49,7 +53,7 @@ export type Template = {
 	id: string;
 	siteId: string;
 	kind: TemplateKind;
-	/** The Post Type an Entry or Archive template belongs to; null for the Site template. */
+	/** The Post Type an Entry or Archive template belongs to; null for the Site template and the Search results template. */
 	postTypeId: string | null;
 	status: TemplateStatus;
 	draft: ElementTree;
@@ -137,17 +141,54 @@ function archiveTemplateRules(globalFields: readonly FieldDefinition[]) {
 	};
 }
 
-/** Which Template a save or read is about, with what it may read: an Entry or Archive template, or the Site template. */
+/**
+ * What the Search results template may hold (ADR 0021): the Globals as `site.x`, the Loops of the
+ * Site, the built-in Loop `search` (its hits) and `search.query` (what the visitor searched for); no
+ * Entry's values, neither `<main>` nor `{{@outlet}}`, which are the Site template's, around it.
+ */
+function searchTemplateRules(globalFields: readonly FieldDefinition[]) {
+	const known = knownValues({ fields: [], postTypes: [], globalFields });
+	return {
+		isKnownValue: (path: string) => path === SEARCH_QUERY_VALUE || (path.startsWith("site.") && known(path)),
+		refuseElement: (tag: string) =>
+			tag === "main"
+				? "The Search results template renders inside the page's <main>; it can't hold another."
+				: undefined,
+		refuseCommand: refuseSiteTemplateCommands,
+	};
+}
+
+/**
+ * The Loops the Search results template names: the Site's, and the built-in Loop `search`, whose items
+ * are Entries of the searchable Post Types (their built-in values and Fields) with their `snippet`.
+ */
+function withSearchLoop(loops: LoopCatalogue, postTypes: readonly PostType[]): LoopCatalogue {
+	const known = loopItemKnownValues({
+		source: "query",
+		listed: postTypes.filter((postType) => postType.searchable).map((postType) => postType.key),
+		fields: [],
+		postTypes,
+	});
+	const search: LoopInfo = { isKnownValue: (path) => path === "snippet" || known(path) };
+	return { byName: (name) => (name === SEARCH_LOOP ? search : loops.byName(name)) };
+}
+
+/** Which Template a save or read is about, with what it may read: an Entry or Archive template, the Site template or the Search results template. */
 type TemplateTarget =
 	| { kind: "entry"; context: EntryTemplateContext }
 	| { kind: "archive"; postType: PostType; globalFields: readonly FieldDefinition[] }
-	| { kind: "site"; globalFields: readonly FieldDefinition[] };
+	| { kind: "site"; globalFields: readonly FieldDefinition[] }
+	| { kind: "search"; postTypes: readonly PostType[]; globalFields: readonly FieldDefinition[] };
 
 /**
  * What the Template `target` names may hold, placing the Components and Forms of `components` and
  * naming the Loops of `loops`: their Drafts for a Draft, their published versions for a publish.
  */
 function rulesFor(target: TemplateTarget, components: SiteComponents, loops: LoopCatalogue) {
+	if (target.kind === "search") {
+		const rules = searchTemplateRules(target.globalFields);
+		return { ...rules, components, forms: components.forms, loops: withSearchLoop(loops, target.postTypes) };
+	}
 	const rules =
 		target.kind === "entry"
 			? entryTemplateRules(target.context)
@@ -158,12 +199,14 @@ function rulesFor(target: TemplateTarget, components: SiteComponents, loops: Loo
 }
 
 function whereFor(target: TemplateTarget): SQL {
-	if (target.kind === "site") return and(eq(templates.kind, "site"), isNull(templates.postTypeId)) as SQL;
+	if (target.kind === "site" || target.kind === "search") {
+		return and(eq(templates.kind, target.kind), isNull(templates.postTypeId)) as SQL;
+	}
 	return and(eq(templates.kind, target.kind), eq(templates.postTypeId, postTypeOf(target).id)) as SQL;
 }
 
 /** The Post Type an Entry or Archive template belongs to. */
-function postTypeOf(target: Exclude<TemplateTarget, { kind: "site" }>): PostType {
+function postTypeOf(target: Extract<TemplateTarget, { kind: "entry" | "archive" }>): PostType {
 	return target.kind === "entry" ? target.context.postType : target.postType;
 }
 
@@ -188,6 +231,47 @@ async function entryTemplateTarget(scope: SiteScope, postTypeId: string): Promis
 /** The Site template to save, with the Globals it may read. */
 async function siteTemplateTarget(scope: SiteScope): Promise<TemplateTarget> {
 	return { kind: "site", globalFields: await globalFieldsOf(scope) };
+}
+
+/** The Search results template to save, with the Globals and the searchable Post Types it may read. */
+async function searchTemplateTarget(scope: SiteScope): Promise<TemplateTarget> {
+	return { kind: "search", postTypes: await listPostTypes(scope), globalFields: await globalFieldsOf(scope) };
+}
+
+/**
+ * Saves the Draft of the Site's Search results template (open the Site with `structure.edit`),
+ * creating it the first time. The search results page shows the built-in one until it is published.
+ */
+export async function saveSearchTemplate(
+	scope: SiteScope,
+	tree: unknown,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Template> {
+	return saveTemplate(scope, await searchTemplateTarget(scope), tree, sources);
+}
+
+/** Saves the Draft of the Search results template from Template markup, as `saveEntryTemplateMarkup` does. */
+export async function saveSearchTemplateMarkup(
+	scope: SiteScope,
+	markup: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	base: SaveBase = {},
+): Promise<SavedTemplateMarkup> {
+	return saveTemplateMarkup(scope, await searchTemplateTarget(scope), markup, sources, base);
+}
+
+/** The Site's Search results template, or null while it has none (its search results page shows the built-in one). */
+export async function getSearchTemplate(scope: Pick<SiteScope, "first">): Promise<Template | null> {
+	const row = await scope.first(templates, and(eq(templates.kind, "search"), isNull(templates.postTypeId)));
+	return row ? toTemplate(row) : null;
+}
+
+/** The Search results template as Template markup, or null while the Site has none. */
+export async function getSearchTemplateMarkup(
+	scope: SiteScope,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }> {
+	return templateMarkup(scope, await getSearchTemplate(scope), sources);
 }
 
 /**
@@ -427,7 +511,7 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 		updated ??
 			(await scope.insert(templates, {
 				kind: target.kind,
-				postTypeId: target.kind === "site" ? null : postTypeOf(target).id,
+				postTypeId: target.kind === "site" || target.kind === "search" ? null : postTypeOf(target).id,
 				draft,
 				createdAt: now,
 				updatedAt: now,
@@ -477,9 +561,11 @@ export async function checkTemplateForPublish(
 	const target: TemplateTarget =
 		row.kind === "site"
 			? await siteTemplateTarget(scope)
-			: row.kind === "archive"
-				? await archiveTemplateTarget(scope, row.postTypeId ?? "")
-				: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
+			: row.kind === "search"
+				? await searchTemplateTarget(scope)
+				: row.kind === "archive"
+					? await archiveTemplateTarget(scope, row.postTypeId ?? "")
+					: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
 	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	// Visitors will see the Components it places and the Loops it names as they are published.
 	return parseTemplate(
