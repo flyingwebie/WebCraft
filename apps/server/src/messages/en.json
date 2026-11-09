@@ -4283,6 +4283,7 @@
 		"problems": {
 			"GOAL_NOT_FOUND": "There is no Goal of that name here. Edit the Widget to choose another, or add the Goal.",
 			"FUNNEL_NOT_FOUND": "There is no Funnel of that name here. Edit the Widget to choose another, or add the Funnel.",
+			"FUNNEL_STEPS_DIFFER": "This Funnel's steps aren't the same on every Site, so they can't be added up.",
 			"MODULE_NOT_RUNNING": "Site analytics isn't on here. Staff switch it on in Site settings › Modules.",
 			"WIDGET_FAILED": "This Widget couldn't count. The Superadmin can see why in the Module log.",
 			"WIDGET_UNKNOWN": "No Module of this Install adds this Widget.",

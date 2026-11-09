@@ -72,10 +72,14 @@ CREATE TABLE settings (
 ALTER TABLE events ADD COLUMN visit_source text;
 -- Before consent a page view stands alone: its visit's source is its own (null for a move within the Site).
 UPDATE events SET visit_source = source WHERE visit IS NULL;
--- After consent every event of a visit carries the source of the visit's arrival.
+-- After consent every event of a visit carries the source of the visit's arrival: a self-join on
+-- (site_id, visit), found by starts_visit. events has no index on that pair otherwise (it is kept in
+-- monthly partitions, up to 13 months), so a temporary one speeds this backfill; dropped once it is done.
+CREATE INDEX events_visit_source_backfill_idx ON events (site_id, visit) WHERE starts_visit;
 UPDATE events AS later SET visit_source = arrival.source
 	FROM events AS arrival
 	WHERE later.visit IS NOT NULL AND arrival.site_id = later.site_id AND arrival.visit = later.visit AND arrival.starts_visit;
+DROP INDEX events_visit_source_backfill_idx;
 CREATE INDEX events_site_type_occurred_at_idx ON events (site_id, type, occurred_at);
 
 CREATE TABLE goals (

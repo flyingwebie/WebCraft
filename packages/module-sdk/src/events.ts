@@ -77,6 +77,20 @@ export type FormSender = {
 	consent: { asks: VisitorConsent["asks"]; accepted: ConsentCategory[] };
 };
 
+/**
+ * Whether a Form Submission's sender is counted by analytics (SDK 1.8): sent on one of the Site's own
+ * domains (never its Staging address), no one of the Install signed in, no Do Not Track or Global
+ * Privacy Control, and Analytics accepted on the Site's own banner (never with an outside consent
+ * service, which only the page can read). Core asks this to decide whether to give `form.submitted`
+ * the sender's daily id; Site analytics asks it to decide whether to count the Submission at all. One
+ * rule in the SDK, so the two can't say different things.
+ */
+export function formSenderCounted(sender: FormSender): boolean {
+	return (
+		sender.via === "domain" && !sender.signedIn && !sender.doNotTrack && sender.consent.accepted.includes("analytics")
+	);
+}
+
 export type ModuleEventName = keyof ModuleEvents;
 
 /** Every event, in the order of `ModuleEvents`. */

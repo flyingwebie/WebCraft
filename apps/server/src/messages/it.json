@@ -4283,6 +4283,7 @@
 		"problems": {
 			"GOAL_NOT_FOUND": "Qui non c'è un obiettivo con quel nome. Modifica il widget per sceglierne un altro, o aggiungi l'obiettivo.",
 			"FUNNEL_NOT_FOUND": "Qui non c'è un funnel con quel nome. Modifica il widget per sceglierne un altro, o aggiungi il funnel.",
+			"FUNNEL_STEPS_DIFFER": "I passaggi di questo funnel non sono gli stessi su tutti i siti, quindi non si possono sommare.",
 			"MODULE_NOT_RUNNING": "Le statistiche del sito non sono attive qui. Lo staff le attiva in Impostazioni del sito › Moduli.",
 			"WIDGET_FAILED": "Questo widget non è riuscito a contare. Il superamministratore può vedere perché nel registro dei moduli.",
 			"WIDGET_UNKNOWN": "Nessun modulo di questa installazione aggiunge questo widget.",
