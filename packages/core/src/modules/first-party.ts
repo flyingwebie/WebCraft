@@ -1,5 +1,6 @@
 import forms from "@webcraft/module-forms";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
+import siteAnalytics from "@webcraft/module-site-analytics";
 
 /**
  * The first-party Modules this build of WebCraft loads (ADR 0024): Site analytics, Forms, Popups,
@@ -8,4 +9,4 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
  * export here (and the package to `@webcraft/core`'s dependencies). Web, worker and the `migrate`
  * step all load this list, so every process runs the same Modules.
  */
-export const FIRST_PARTY_MODULES: readonly ModuleDefinition[] = [forms];
+export const FIRST_PARTY_MODULES: readonly ModuleDefinition[] = [forms, siteAnalytics];

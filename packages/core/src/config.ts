@@ -46,6 +46,11 @@ export type InstallConfig = {
 	 * (`WEBCRAFT_TRUSTED_PROXIES`); see `TrustedProxies`. The default follows `edge`.
 	 */
 	trustedProxies: TrustedProxies;
+	/**
+	 * A file of address ranges and their countries (`WEBCRAFT_COUNTRY_FILE`), which Site analytics
+	 * counts visits by country with; null when not set: every country is then unknown.
+	 */
+	countryFile: string | null;
 };
 
 /**
@@ -83,6 +88,7 @@ export function loadInstallConfig(env: Environment): InstallConfig {
 		edge,
 		publicAddresses: loadPublicAddresses(env),
 		trustedProxies: loadTrustedProxies(env.WEBCRAFT_TRUSTED_PROXIES, edge),
+		countryFile: loadCountryFile(env),
 	};
 }
 
@@ -133,6 +139,12 @@ function loadAdminHost(env: Environment): string {
 		);
 	}
 	return host;
+}
+
+/** Reads `WEBCRAFT_COUNTRY_FILE`, which is optional: a path, relative to the folder the process starts in or absolute. */
+function loadCountryFile(env: Environment): string | null {
+	const value = env.WEBCRAFT_COUNTRY_FILE?.trim();
+	return value ? resolve(value) : null;
 }
 
 /**

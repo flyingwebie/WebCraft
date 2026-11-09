@@ -3,7 +3,8 @@ import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 /**
  * Rate limit counters: how many requests one key (such as `auth:203.0.113.7`, the auth endpoints
  * from one client address) made in its current window, and when that window ends. Kept in Postgres
- * so every web process counts together; rows whose window ended are purged every day.
+ * so every web process counts together; rows whose window ended are purged every day. A key names a
+ * client address, which is never kept: `key` holds a keyed hash (HMAC-SHA256) of it.
  */
 export const rateLimits = pgTable("rate_limits", {
 	key: text("key").primaryKey(),

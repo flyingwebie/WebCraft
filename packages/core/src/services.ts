@@ -45,6 +45,7 @@ import type {
 	Template,
 	TemplateMarkup,
 } from "./content/index.ts";
+import type { Countries } from "./countries.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
 import type { Dns } from "./dns.ts";
 import type { Domains } from "./domains/index.ts";
@@ -98,6 +99,8 @@ export type InstallPorts = {
 	dns: Dns;
 	/** TLS, for the Domain check's look at each domain's certificate. */
 	tls: TlsProbe;
+	/** The country of an address, for Site analytics (never kept). */
+	countries: Countries;
 	/** AI providers, called directly with a Workspace's AI key (ADR 0011). */
 	ai: AiProviders;
 	clock: Clock;

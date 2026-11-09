@@ -21,6 +21,8 @@ import {
 	moduleJob,
 } from "../modules/jobs.ts";
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
+import { modulePartitionsJob, modulePartitionsSchedule } from "../modules/partitions.ts";
+import { visitorSaltsPurge, visitorSaltsPurgeSchedule } from "../modules/visitors.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
 import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
@@ -46,6 +48,8 @@ export const coreJobs = [
 	moduleHourlyJobs,
 	moduleDailyJobs,
 	moduleLogPurge,
+	modulePartitionsJob,
+	visitorSaltsPurge,
 	siteFilesPurge,
 	domainsVerifyDue,
 	domainsVerify,
@@ -66,6 +70,8 @@ export const coreSchedules = [
 	moduleLogPurgeSchedule,
 	moduleHourlyJobsSchedule,
 	moduleDailyJobsSchedule,
+	modulePartitionsSchedule,
+	visitorSaltsPurgeSchedule,
 	siteFilesPurgeSchedule,
 	mediaPurgeSchedule,
 	domainsVerifyDueSchedule,

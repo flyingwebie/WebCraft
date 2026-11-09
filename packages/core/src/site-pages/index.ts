@@ -91,7 +91,14 @@ import { relatedEntries, type ReadScope as ScopeToRead } from "./related.ts";
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 
 /** A Module's Site script on a Site where the Module runs: its code, file name and Consent category. */
-export type ModuleScriptFile = { moduleId: string; name: string; code: string; category: string };
+export type ModuleScriptFile = {
+	moduleId: string;
+	name: string;
+	code: string;
+	category: string;
+	/** Whether it runs before visitors accept its category (it holds back itself what needs it). */
+	beforeConsent: boolean;
+};
 export { reservedSlugs, stagingHostname, stagingUrl } from "./addresses.ts";
 
 /** A Site found by the hostname a request came in on. */
@@ -1405,6 +1412,7 @@ async function renderSitePage(
 					moduleId: script.moduleId,
 					src: `${SCRIPT_PATH}${script.name}`,
 					consentCategory: script.category,
+					beforeConsent: script.beforeConsent,
 				})),
 		// People editing are never asked for consent (ADR 0022).
 		consent: editing ? undefined : await pageConsent(scope, languages),

@@ -116,6 +116,7 @@ describe("declaring one", () => {
 
 		expect(modules.find((module) => module.id === "sample")?.asks.siteScript).toEqual({
 			category: "analytics",
+			beforeConsent: false,
 			isNew: false,
 		});
 	});

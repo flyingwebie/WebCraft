@@ -1101,7 +1101,9 @@
 			"approve": "Approva",
 			"cancel": "Annulla",
 			"close": "Chiudi",
-			"approved": "{name} {version} è approvato."
+			"approved": "{name} {version} è approvato.",
+			"siteScriptBeforeConsent": "Aggiungere alle pagine dei Site uno script che funziona prima che i visitatori rispondano al banner dei consensi, inviando solo ciò che non richiede consenso, e fa di più quando accettano la categoria {category}",
+			"partitions": "Conservare {label} in parti mensili, ognuna eliminata quando supera il tempo per cui questa Install le conserva (ora {months, plural, one {# mese} other {# mesi}})"
 		},
 		"roles": {
 			"staff": "lo Staff",
@@ -1120,7 +1122,8 @@
 			"entryPublished": "una Entry viene pubblicata",
 			"entryDeleted": "una Entry viene eliminata",
 			"templatePublished": "un Template viene pubblicato",
-			"globalsPublished": "i Globals vengono pubblicati"
+			"globalsPublished": "i Globals vengono pubblicati",
+			"formSubmitted": "un invio di un Form viene conservato"
 		},
 		"log": {
 			"title": "Registro del Modulo {name}",
@@ -1168,6 +1171,13 @@
 		"page": {
 			"heading": "Questa pagina non è disponibile",
 			"body": "In questa versione dell'admin il Modulo non ha una schermata per questa pagina."
+		},
+		"keep": {
+			"label": "Conserva {label} per",
+			"months": "{count, plural, one {# mese} other {# mesi}}",
+			"save": "Salva",
+			"saveOf": "Salva per quanto {name} conserva {label}",
+			"saved": "{name} ora conserva {label} per {count, plural, one {# mese} other {# mesi}}."
 		}
 	},
 	"editBar": {

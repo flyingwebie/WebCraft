@@ -7,6 +7,7 @@ import {
 	type Clock,
 	coreJobs,
 	coreSchedules,
+	countriesFromFile,
 	createInstallServices,
 	createJobQueue,
 	createLogger,
@@ -37,6 +38,7 @@ import type { PgBoss } from "pg-boss";
 
 import { createTestBrowser, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
+import { testCountryFile } from "./countries.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
 import { createFakeAi, type FakeAi } from "./fake-ai.ts";
 import { createFakeDns, type FakeDns } from "./fake-dns.ts";
@@ -276,6 +278,12 @@ export type TestInstall = {
 	/** Every log entry the Install wrote. */
 	logs: LogEntry[];
 	/**
+	 * The tables, anywhere in the Install's database (WebCraft's, Modules', the job queue's), holding
+	 * `text` in any row: what a backup of the database would hold. For tests of what must never be
+	 * kept, such as a visitor's address; it reads no table's layout.
+	 */
+	tablesHolding(text: string): Promise<string[]>;
+	/**
 	 * Starts the Install again, with another Master key when given, as web and worker do after their
 	 * `WEBCRAFT_SECRET_KEY` changes, running the same start-up checks (and printing a new setup token
 	 * when the Install has no Superadmin). When the check refuses the key, this rejects with the same
@@ -335,6 +343,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const sitesDomain = options.sitesDomain === undefined ? TEST_SITES_DOMAIN : options.sitesDomain;
 	const edge = options.edge ?? "caddy";
 	const publicAddresses = [...(options.publicAddresses ?? TEST_INSTALL_ADDRESSES)];
+	const countryFile = testCountryFile();
 	// The admin host resolves to the Install's addresses, as it does on a server.
 	if (publicAddresses.length > 0) dns.answer(adminHost, publicAddresses);
 	const env: Record<string, string> = {
@@ -346,16 +355,29 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		...(options.trustedProxies === undefined ? {} : { WEBCRAFT_TRUSTED_PROXIES: options.trustedProxies }),
 		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
 		WEBCRAFT_STORAGE_DIR: storageDir,
+		WEBCRAFT_COUNTRY_FILE: countryFile,
 	};
 	const trustedProxies = loadTrustedProxies(options.trustedProxies, edge);
 	const ports: InstallPorts = {
-		config: { databaseUrl, adminHost, adminOrigin, sitesDomain, storageDir, edge, publicAddresses, trustedProxies },
+		config: {
+			databaseUrl,
+			adminHost,
+			adminOrigin,
+			sitesDomain,
+			storageDir,
+			edge,
+			publicAddresses,
+			trustedProxies,
+			countryFile,
+		},
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
 		http: http.fetch,
 		dns: dns.resolver,
 		tls: tls.probe,
+		// The real reading of a file of address ranges, with the test suite's own file.
+		countries: countriesFromFile(countryFile, log),
 		ai: ai.providers,
 		clock,
 		log,
@@ -554,6 +576,21 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		},
 		clock,
 		logs,
+		async tablesHolding(text) {
+			const { rows: tables } = await database.pool.query<{ name: string }>(
+				`SELECT format('%I.%I', n.nspname, c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+					WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
+						AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg\\_%'`,
+			);
+			const holding: string[] = [];
+			for (const { name } of tables) {
+				const { rows } = await database.pool.query(`SELECT 1 FROM ${name} t WHERE t::text LIKE $1 LIMIT 1`, [
+					`%${text}%`,
+				]);
+				if (rows.length > 0) holding.push(name);
+			}
+			return holding;
+		},
 		async restart(restartOptions = {}) {
 			const masterKey = restartOptions.masterKey ?? env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY;
 			const before = modules;

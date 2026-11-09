@@ -1,7 +1,7 @@
-import type { InferInsertModel, InferSelectModel, SQL } from "drizzle-orm";
+import type { GetColumnData, InferInsertModel, InferSelectModel, SQL } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
-import type { Label } from "./manifest.ts";
+import type { ConsentCategory, Label } from "./manifest.ts";
 
 /**
  * What a Module's code gets when it runs: in a procedure, a Site route, an event or a job. It is
@@ -52,8 +52,61 @@ export type ProcedureContext = ModuleContext & {
 	can(permission: string): boolean;
 };
 
-/** A Site route's context: the place, plus the route's parameters (`/notes/:id` gives `params.id`). */
-export type SiteRouteContext = ModuleContext & { readonly params: Readonly<Record<string, string>> };
+/**
+ * A Site route's context: the place, plus the route's parameters (`/notes/:id` gives `params.id`) and
+ * what WebCraft knows of the visitor who sent the request (SDK 1.4).
+ */
+export type SiteRouteContext = ModuleContext & {
+	readonly params: Readonly<Record<string, string>>;
+	readonly visitor: SiteVisitor;
+};
+
+/**
+ * The visitor behind a request to a Site route, as WebCraft sees it (SDK 1.4). WebCraft never hands a
+ * Module the visitor's address, nor its own cookies: it answers questions about them instead.
+ */
+export type SiteVisitor = {
+	/** How the request reached the Site: on its Staging address, or on one of its domains. */
+	readonly via: "staging" | "domain";
+	/**
+	 * Whether someone of the Install is behind the request: it carries an Edit mode session that still
+	 * holds, or it comes from an address where someone is signed in to the admin. Judged by WebCraft
+	 * from what it keeps itself, never from what the browser says.
+	 */
+	signedIn(): Promise<boolean>;
+	/** The country of the visitor's address (ISO 3166-1 alpha-2, such as `IE`), or null when unknown. */
+	country(): Promise<string | null>;
+	/** What the visitor accepted on the Site's Consent banner (see `VisitorConsent`). */
+	consent(): Promise<VisitorConsent>;
+	/** Whether the visitor's address is in one of `ranges` (single addresses or CIDR blocks; see `isAddressRange`). */
+	inRanges(ranges: readonly string[]): boolean;
+	/**
+	 * A pseudonymous id for the visitor: the same on this Site for one day (UTC) and different on every
+	 * other Site and day. WebCraft makes it from the visitor's address and browser with a salt it
+	 * replaces every day and keeps nowhere afterwards, so nobody can tell later whose it was. Null
+	 * unless the visitor accepted `category`: as WebCraft reads it from the Site's Consent banner,
+	 * or, where an outside consent service asks (which only the page can read), as the page said
+	 * (`acceptedInPage`).
+	 */
+	dailyId(
+		category: Exclude<ConsentCategory, "necessary">,
+		options?: { acceptedInPage?: boolean },
+	): Promise<string | null>;
+};
+
+/**
+ * What a visitor accepted, by how the Site asks (its Consent banner's mode):
+ * - `banner`: the Site's own banner asks; WebCraft reads the visitor's answer (Opt-in: nothing until
+ *   accepted; Opt-out: everything until declined);
+ * - `none`: the Site asks nothing, so everything is accepted;
+ * - `outside`: an outside consent service asks in the page and keeps the answer itself; WebCraft
+ *   can't read it, so `has` answers false and only the page's own script can tell.
+ */
+export type VisitorConsent = {
+	readonly asks: "banner" | "none" | "outside";
+	/** Whether the visitor accepted the category (Necessary always is). */
+	has(category: ConsentCategory): boolean;
+};
 
 export type ModulePlace =
 	| { readonly level: "site"; readonly workspaceId: string; readonly siteId: string }
@@ -96,6 +149,35 @@ export type ModuleData = {
 		where?: SQL,
 	): Promise<InferSelectModel<Table>[]>;
 	delete<Table extends ModuleTable>(table: Table, where?: SQL): Promise<number>;
+	/**
+	 * Counts and adds up rows in Postgres (SDK 1.4), limited to the place like every query:
+	 * `values` are aggregates built with the SDK's `count`, `countDistinct`, `sum`, `min` and `max`,
+	 * grouped by the columns in `groupBy` when given (one answer row per group, else one in all).
+	 *
+	 *     await context.data.aggregate(events, {
+	 *       where: gte(events.occurredAt, from),
+	 *       groupBy: { path: events.path },
+	 *       values: { views: count(), visitors: countDistinct(events.visitor) },
+	 *       orderBy: [desc(count())],
+	 *       limit: 10,
+	 *     });
+	 */
+	aggregate<
+		Table extends ModuleTable,
+		Values extends Readonly<Record<string, SQL>>,
+		Groups extends Readonly<Record<string, AnyPgColumn>> = Record<never, never>,
+	>(
+		table: Table,
+		query: { where?: SQL; groupBy?: Groups; values: Values } & ModuleSelectOptions,
+	): Promise<AggregateRow<Groups, Values>[]>;
+};
+
+/** One answer row of `aggregate`: each group's column value and each aggregate's. */
+export type AggregateRow<
+	Groups extends Readonly<Record<string, AnyPgColumn>>,
+	Values extends Readonly<Record<string, SQL>>,
+> = { [Key in keyof Groups]: GetColumnData<Groups[Key]> } & {
+	[Key in keyof Values]: Values[Key] extends SQL<infer Value> ? Value : unknown;
 };
 
 /** Who an email goes to: a person with an account, or an address. */

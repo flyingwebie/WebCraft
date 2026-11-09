@@ -7,6 +7,7 @@ import {
 	type ModuleContext,
 	type ModuleDefinition,
 	type ModuleEventName,
+	type ModuleEvents,
 	ModuleRefusedError,
 	wordsIn,
 } from "@webcraft/module-sdk";
@@ -17,8 +18,10 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import type { ComponentSources, ModuleComponent } from "../content/components.ts";
 import { clearEveryPageCache, clearPageCache } from "../content/page-cache.ts";
 import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
+import type { Countries } from "../countries.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
+import type { RateLimits } from "../rate-limits.ts";
 import type { Access, InstallScope, Site } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "../tenancy/errors.ts";
 import {
@@ -39,6 +42,7 @@ import {
 } from "./errors.ts";
 import { moduleEventJob, moduleJob, type QueuedEvent, type QueuedJob, type QueuedPlace } from "./jobs.ts";
 import { listModuleLog, type ModuleLogLine } from "./module-log.ts";
+import { createPartitionKeeper, type PartitionView } from "./partitions.ts";
 import {
 	type CompiledRoute,
 	type LoadedModule,
@@ -61,6 +65,7 @@ import {
 	writeLine,
 } from "./runtime.ts";
 import { schemasOf } from "./schemas.ts";
+import { createVisitors, formSenderOf, type SiteRouteRequest } from "./visitors.ts";
 
 /**
  * Where a Module stands on this Install:
@@ -86,6 +91,8 @@ export type ModuleView = {
 	approval: { version: string; approvedAt: Date; approvedBy: string | null } | null;
 	asks: ConsentView;
 	adds: AdditionsView;
+	/** Its tables kept in monthly partitions, with how many months the Install keeps their rows. */
+	partitions: PartitionView[];
 };
 
 /** A Module where Staff switch it: on a Site (Site-level Modules) or a Workspace (Workspace-level ones). */
@@ -169,7 +176,7 @@ export type ModuleHost = {
 	 */
 	siteScriptsAt(site: { id: string; workspaceId: string }): Promise<ModuleSiteScriptOnSite[]>;
 	/** Answers a request under `/_wc/m/<prefix>/` on a Site, or null when no running Module answers it. */
-	answerSiteRoute(site: Site, request: Request): Promise<Response | null>;
+	answerSiteRoute(route: SiteRouteRequest, request: Request): Promise<Response | null>;
 	/** Queues the event an Audit log entry stands for, for each Module that reacts to it. Never throws. */
 	afterAudit(entry: RecordedAction): Promise<void>;
 	/** Runs a queued event (the `modules.event` job). */
@@ -186,12 +193,29 @@ export type ModuleHost = {
 	/**
 	 * Hands a checked Submission to the Module that keeps them on the Site, at once, and answers its
 	 * id. Throws `ModuleNotFoundError` where none runs, and `ModuleFailedError` when it fails (in the
-	 * Module log).
+	 * Module log). A kept Submission that isn't spam is then told to Modules as `form.submitted`, with
+	 * what WebCraft knows of its sender (`FormSender`), worked out from `sender` (the post).
 	 */
-	receiveSubmission(site: Site, submission: FormSubmission): Promise<{ id: string }>;
+	receiveSubmission(
+		site: Site,
+		submission: FormSubmission,
+		sender: { route: SiteRouteRequest; request: Request },
+	): Promise<{ id: string }>;
+	/** Changes how many months the Install keeps a Module's partitioned table's rows (`module.approve`). */
+	setKeepMonths(scope: InstallScope, moduleId: string, table: string, months: number): Promise<void>;
+	/** Makes Modules' partitions ahead of time and drops the months past keeping (the daily job). */
+	maintainPartitions(): Promise<void>;
+	/** Deletes the salts of visitors' ids of days that ended (the daily job). */
+	purgeSalts(): Promise<number>;
 };
 
-export type ModuleHostOptions = RuntimeDeps & { modules: readonly ModuleDefinition[] };
+export type ModuleHostOptions = RuntimeDeps & {
+	modules: readonly ModuleDefinition[];
+	rateLimits: RateLimits;
+	countries: Countries;
+	/** The key visitors' daily ids are made with (`visitorIdKey`). */
+	visitorIdKey: CryptoKey;
+};
 
 /** A Module's Site script on a Site where the Module runs. */
 export type ModuleSiteScriptOnSite = ModuleSiteScriptFile & { moduleId: string };
@@ -214,10 +238,18 @@ const EVENTS_OF_ACTIONS: Record<string, { event: ModuleEventName; data: (details
 
 const PLAIN = { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" };
 
-export function createModuleHost(options: ModuleHostOptions): ModuleHost {
-	const { database, modules, data, jobs, log } = options;
+export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
+	const { database, modules, data, jobs, log, rateLimits } = hostOptions;
 	const registry = loadModules(modules);
 	const { db } = database;
+	const partitions = createPartitionKeeper({ database, clock: hostOptions.clock, registry });
+	const visitors = createVisitors({
+		database,
+		clock: hostOptions.clock,
+		countries: hostOptions.countries,
+		idKey: hostOptions.visitorIdKey,
+	});
+	const options: RuntimeDeps = { ...hostOptions, ensurePartition: partitions.ensure };
 
 	/** What the Superadmin approved for each Module, by id. */
 	const approvals = async (moduleId?: string) => {
@@ -238,7 +270,9 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 	const statusOf = (module: LoadedModule, granted: readonly string[] | undefined): ModuleStatus => {
 		if (!module.runnable) return "cannot-run";
 		if (granted === undefined) return "waiting";
-		return isCovered(module.manifest, granted) ? "approved" : "update-waiting";
+		return isCovered(module.manifest, granted, module.siteScript?.beforeConsent === true)
+			? "approved"
+			: "update-waiting";
 	};
 
 	const isApproved = async (module: RunnableModule) =>
@@ -389,6 +423,43 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 		}
 	};
 
+	/**
+	 * Queues an event for each Module that reacts to it (ADR 0024: afterwards, as background jobs; the
+	 * job runs only where the Module runs then). Never throws: the change is saved, and a Module that
+	 * misses an event has it in its Module log.
+	 */
+	const queueEvent = async (
+		event: ModuleEventName,
+		workspaceId: string,
+		siteId: string,
+		at: Date,
+		eventData: Record<string, unknown>,
+	) => {
+		for (const module of registry.all()) {
+			if (!module.runnable || !module.events.has(event)) continue;
+			try {
+				await jobs.send(moduleEventJob, {
+					moduleId: module.id,
+					event,
+					workspaceId,
+					siteId,
+					occurredAt: at.toISOString(),
+					data: eventData,
+				});
+			} catch (error) {
+				log.error("A Module event couldn't be queued", { moduleId: module.id, event, error });
+				await writeLine(
+					options,
+					module,
+					placeFor(module, workspaceId, siteId),
+					"error",
+					`The event ${event} couldn't be queued.`,
+					{ event, error: describeError(error) },
+				).catch(() => {});
+			}
+		}
+	};
+
 	return {
 		registry,
 		schemas: schemasOf(registry),
@@ -396,10 +467,11 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 
 		async list(_scope, language) {
 			const approved = await approvals();
-			return registry.all().map((module) => {
+			const views: ModuleView[] = [];
+			for (const module of registry.all()) {
 				const approval = approved.get(module.id);
 				const { manifest } = module;
-				return {
+				views.push({
 					id: module.id,
 					name: words(module, manifest?.name, language) || module.id,
 					description: words(module, manifest?.description, language),
@@ -412,18 +484,25 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 						? { version: approval.version, approvedAt: approval.approvedAt, approvedBy: approval.approvedBy }
 						: null,
 					asks: manifest
-						? consentView(manifest, approval?.granted ?? null, language)
+						? consentView(
+								manifest,
+								module.runnable && module.siteScript?.beforeConsent === true,
+								approval?.granted ?? null,
+								language,
+							)
 						: { permissions: [], uses: [], outsideHosts: [], siteScript: null },
 					adds: additionsView(module, language),
-				};
-			});
+					partitions: module.runnable ? await partitions.views(module, language) : [],
+				});
+			}
+			return views;
 		},
 
 		async approve(scope, moduleId, version) {
 			const module = find(moduleId);
 			if (!module.runnable) throw new ModuleCannotRunError(module.problem);
 			if (module.manifest.version !== version) throw new ModuleChangedError(module.manifest.version);
-			const granted = consentItems(module.manifest);
+			const granted = consentItems(module.manifest, module.siteScript?.beforeConsent === true);
 			const values = { version, granted, approvedAt: scope.now(), approvedBy: personIdOf(scope.access.actor) };
 			await scope.transaction(async (tx) => {
 				await tx.db
@@ -569,7 +648,8 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 			return found;
 		},
 
-		async answerSiteRoute(site, request) {
+		async answerSiteRoute(siteRoute, request) {
+			const { site } = siteRoute;
 			const url = new URL(request.url);
 			const [, prefix = "", ...rest] = url.pathname.slice("/_wc/m".length).split("/");
 			const module = registry.byRoutePrefix(prefix);
@@ -596,9 +676,26 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 				return new Response("Method Not Allowed", { status: 405, headers: { ...PLAIN, allow: allow.join(", ") } });
 			}
 			const { route } = match.compiled;
+			if (route.limit) {
+				const key = `module-route:${module.id}:${site.id}:${route.method} ${route.path}:${siteRoute.clientAddress ?? "unknown"}`;
+				const rule = { limit: route.limit.requests, windowMs: route.limit.perSeconds * 1000 };
+				if (!(await rateLimits.count(key, rule))) {
+					return new Response("Too Many Requests", {
+						status: 429,
+						headers: { ...PLAIN, "retry-after": String(route.limit.perSeconds) },
+					});
+				}
+			}
+			let incoming = request;
+			if (route.maxBodyBytes !== undefined) {
+				const limited = await withLimitedBody(request, route.maxBodyBytes);
+				if (!limited) return new Response("Payload Too Large", { status: 413, headers: PLAIN });
+				incoming = limited;
+			}
+			const visitor = visitors.visitorOf(siteRoute, incoming);
 			let response: Response;
 			try {
-				response = await route.handle(forModule(request), routeContext(module, scope, options, match.params));
+				response = await route.handle(forModule(incoming), routeContext(module, scope, options, match.params, visitor));
 				if (!(response instanceof Response))
 					throw new TypeError("The Site route answered something that isn't a Response.");
 			} catch (error) {
@@ -624,31 +721,13 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 			const mapping = EVENTS_OF_ACTIONS[entry.action];
 			const { workspaceId, siteId } = entry;
 			if (!mapping || siteId === null || workspaceId === null) return;
-			const eventData = mapping.data(entry.details) as Record<string, unknown>;
-			for (const module of registry.all()) {
-				if (!module.runnable || !module.events.has(mapping.event)) continue;
-				try {
-					await jobs.send(moduleEventJob, {
-						moduleId: module.id,
-						event: mapping.event,
-						workspaceId,
-						siteId,
-						occurredAt: entry.at.toISOString(),
-						data: eventData,
-					});
-				} catch (error) {
-					// The change is saved; the Module misses this event, and the Module log says so.
-					log.error("A Module event couldn't be queued", { moduleId: module.id, event: mapping.event, error });
-					await writeLine(
-						options,
-						module,
-						placeFor(module, workspaceId, siteId),
-						"error",
-						`The event ${mapping.event} couldn't be queued.`,
-						{ event: mapping.event, error: describeError(error) },
-					).catch(() => {});
-				}
-			}
+			await queueEvent(
+				mapping.event,
+				workspaceId,
+				siteId,
+				entry.at,
+				mapping.data(entry.details) as Record<string, unknown>,
+			);
 		},
 
 		async runEvent(payload) {
@@ -686,16 +765,16 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 			return module && module.level === "site" && (await runsOnSite(site, module)) ? module.id : null;
 		},
 
-		async receiveSubmission(site, submission) {
+		async receiveSubmission(site, submission, sender) {
 			const module = receiving();
 			const receiver = module?.receiver;
 			if (!module || !receiver) throw new ModuleNotFoundError();
 			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
 			const scope = await openForModule(module, place);
 			if (!scope) throw new ModuleNotFoundError();
+			let kept: { id: string };
 			try {
-				const { id } = await receiver.receive(submission, moduleContext(module, scope, options));
-				return { id };
+				kept = await receiver.receive(submission, moduleContext(module, scope, options));
 			} catch (error) {
 				await writeLine(options, module, place, "error", "A Form Submission couldn't be kept.", {
 					formId: submission.formId,
@@ -704,7 +783,22 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 				log.error("A Module failed to keep a Form Submission", { moduleId: module.id, error });
 				throw new ModuleFailedError();
 			}
+			// Other Modules hear of a kept Submission afterwards (never of spam), as background jobs.
+			if (submission.spam === null) {
+				await queueEvent("form.submitted", site.workspaceId, site.id, submission.receivedAt, {
+					formId: submission.formId,
+					formKey: submission.formKey,
+					page: submission.page,
+					language: submission.language,
+					sender: await formSenderOf(visitors.visitorOf(sender.route, sender.request), sender.request),
+				} satisfies ModuleEvents["form.submitted"]);
+			}
+			return { id: kept.id };
 		},
+
+		setKeepMonths: (scope, moduleId, table, months) => partitions.setKeepMonths(scope, moduleId, table, months),
+		maintainPartitions: () => partitions.maintain(),
+		purgeSalts: () => visitors.purgeSalts(),
 
 		async runJob(payload) {
 			const module = registry.get(payload.moduleId);
@@ -761,6 +855,37 @@ function withoutWebCraftSetCookies(answer: Headers): Headers {
 		if (!isWebCraftCookie(cookie.split("=")[0] ?? "")) headers.append("set-cookie", cookie);
 	}
 	return headers;
+}
+
+/**
+ * The request with its body read, when it is at most `limit` bytes (by what it says first, then by
+ * what comes), or null when it is bigger.
+ */
+async function withLimitedBody(request: Request, limit: number): Promise<Request | null> {
+	const declared = Number(request.headers.get("content-length") ?? "0");
+	if (Number.isFinite(declared) && declared > limit) return null;
+	if (request.body === null) return request;
+	const reader = request.body.getReader();
+	const parts: Uint8Array[] = [];
+	let size = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		size += value.byteLength;
+		if (size > limit) {
+			await reader.cancel().catch(() => {});
+			return null;
+		}
+		parts.push(value);
+	}
+	const body = new Uint8Array(size);
+	let offset = 0;
+	for (const part of parts) {
+		body.set(part, offset);
+		offset += part.byteLength;
+	}
+	const copied = new Request(request.url, { method: request.method, headers: request.headers, body });
+	return copied;
 }
 
 /** A Site route's parameters when its parts match the path's segments, or null. */

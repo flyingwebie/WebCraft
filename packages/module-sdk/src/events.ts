@@ -1,3 +1,6 @@
+import type { VisitorConsent } from "./context.ts";
+import type { ConsentCategory } from "./manifest.ts";
+
 /**
  * What happened on a Site that a Module can react to. Modules react afterwards, as background jobs
  * (ADR 0024): the change is saved first, and a Module that fails never undoes or blocks it; the
@@ -23,6 +26,32 @@ export type ModuleEvents = {
 	"template.published": { templateId: string };
 	/** The Site's Globals were published. */
 	"globals.published": Record<string, never>;
+	/**
+	 * A visitor sent one of the Site's Forms and its Submission was kept (never spam), SDK 1.4: which
+	 * Form, the path of the page it was sent from (null when the post didn't say), its language, and
+	 * what WebCraft knew of the sender then (`sender`). Nothing the visitor typed.
+	 */
+	"form.submitted": { formId: string; formKey: string; page: string | null; language: string; sender: FormSender };
+};
+
+/**
+ * What WebCraft knew of the visitor who sent a Form, worked out as the Submission came in (SDK 1.4):
+ * what a Site route can ask of its `SiteVisitor`, answered then, since an event runs later and the
+ * request is gone. Never the visitor's address.
+ */
+export type FormSender = {
+	/** How the post reached the Site: on its Staging address, or on one of its domains. */
+	via: "staging" | "domain";
+	/** Whether someone of the Install sent it (see `SiteVisitor.signedIn`). */
+	signedIn: boolean;
+	/** Whether the browser asked not to be tracked: it sent Do Not Track or Global Privacy Control. */
+	doNotTrack: boolean;
+	/**
+	 * How the Site asks for consent and what the visitor had accepted, as WebCraft read it (see
+	 * `VisitorConsent`): `necessary` always; where an outside consent service asks, only `necessary`,
+	 * since only the page can read that answer.
+	 */
+	consent: { asks: VisitorConsent["asks"]; accepted: ConsentCategory[] };
 };
 
 export type ModuleEventName = keyof ModuleEvents;
@@ -33,6 +62,7 @@ export const MODULE_EVENTS = [
 	"entry.deleted",
 	"template.published",
 	"globals.published",
+	"form.submitted",
 ] as const satisfies readonly ModuleEventName[];
 
 /** One event as a Module receives it: what happened, on which Site, and when. */

@@ -4,6 +4,7 @@ import {
 	boolean,
 	foreignKey,
 	index,
+	integer,
 	jsonb,
 	pgTable,
 	primaryKey,
@@ -100,3 +101,33 @@ export const moduleMigrations = pgTable(
 	},
 	(table) => [primaryKey({ columns: [table.moduleId, table.name] })],
 );
+
+/**
+ * How long the Install keeps the rows of a Module's partitioned table (a Module's `partitions`, such
+ * as Site analytics' raw events), as the Superadmin set it: whole months. No row: the Module's own
+ * `keepMonths`. Months older than that are dropped every day.
+ */
+export const modulePartitionSettings = pgTable(
+	"module_partition_settings",
+	{
+		moduleId: text("module_id").notNull(),
+		/** The partitioned table's name in the Module's schema, such as `events`. */
+		tableName: text("table_name").notNull(),
+		keepMonths: integer("keep_months").notNull(),
+		changedAt: timestamp("changed_at", { withTimezone: true }).notNull(),
+		changedBy: uuid("changed_by").references(() => people.id, { onDelete: "set null" }),
+	},
+	(table) => [primaryKey({ columns: [table.moduleId, table.tableName] })],
+);
+
+/**
+ * The salt of the day for visitors' daily ids (`visitor.dailyId` in the Module SDK, ADR 0020): a
+ * random value per day (UTC), made by whichever process needs it first. Only today's is kept: the
+ * day after, it is deleted, so nobody can tell any more whose an earlier day's ids were. Never
+ * stored with anything visitors did.
+ */
+export const visitorSalts = pgTable("visitor_salts", {
+	day: text("day").primaryKey(),
+	salt: text("salt").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});

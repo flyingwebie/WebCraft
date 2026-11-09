@@ -1,3 +1,4 @@
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 
 import type { ModuleComponent } from "./component.ts";
@@ -66,9 +67,17 @@ export type ModuleDefinition = {
 	 * serves as a file from the Site's own domain (`/_wc/js/<hash>.js`, never inline) and pages load with
 	 * `defer` after the Site's own scripts. The manifest declares its Consent category (`siteScript`),
 	 * and the Consent banner holds it back until visitors accept that category; `window.webcraft.consent`
-	 * says what they chose. It never runs in Edit mode. Added in SDK 1.3.
+	 * says what they chose. It never runs in Edit mode. Added in SDK 1.3; `beforeConsent` in 1.4.
 	 */
 	siteScript?: ModuleSiteScript;
+	/**
+	 * Its tables kept in monthly partitions by a time column (SDK 1.4), for rows that pile up, such
+	 * as raw events: WebCraft makes each month's partition ahead of time, and drops a whole month once
+	 * all of it is older than the Install keeps it (`keepMonths` until the Superadmin changes it).
+	 * Each table must be made `PARTITION BY RANGE (<column>)` in the Module's migrations, with the
+	 * column in its primary key; WebCraft makes the partitions themselves.
+	 */
+	partitions?: readonly ModulePartitioning[];
 	// Later SDK versions open more extension points; until then a Module can't use them:
 	/** Structure presets (#110). */
 	structurePresets?: readonly never[];
@@ -78,8 +87,26 @@ export type ModuleDefinition = {
 	widgets?: readonly never[];
 };
 
-/** A Module's Site script: its JavaScript, as text (at most `MODULE_SITE_SCRIPT_MAX_LENGTH` characters). */
-export type ModuleSiteScript = { code: string };
+/**
+ * A Module's Site script: its JavaScript, as text (at most `MODULE_SITE_SCRIPT_MAX_LENGTH` characters).
+ *
+ * With `beforeConsent` (SDK 1.4), the Consent banner doesn't hold the script back: it runs before
+ * visitors answer, and after they decline, so it must itself hold back everything that needs its
+ * category (reading `webcraft.consent.has(category)` and the `webcraft:consent` event). Pages
+ * carrying it still ask visitors for its category. The Superadmin approves that separately.
+ */
+export type ModuleSiteScript = { code: string; beforeConsent?: boolean };
+
+/** One of a Module's tables kept in monthly partitions (see `ModuleDefinition.partitions`). */
+export type ModulePartitioning = {
+	table: ModuleTable;
+	/** The `timestamp with time zone` column its rows are partitioned by, such as when an event happened. */
+	column: AnyPgColumn;
+	/** What its rows are, for the Superadmin: "Raw events". */
+	label: Label;
+	/** How many months its rows are kept until the Superadmin changes it: 1 to 120. */
+	keepMonths: number;
+};
 
 /** How long a Module's Site script may be, in characters. */
 export const MODULE_SITE_SCRIPT_MAX_LENGTH = 200_000;
@@ -113,6 +140,16 @@ export type SiteRoute = {
 	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 	/** The path under the route prefix: `/`, `/notes`, `/notes/:id`. */
 	path: string;
+	/**
+	 * How many requests one visitor's address may send it on a Site, in a window of `perSeconds`
+	 * (SDK 1.4): WebCraft answers 429 with `Retry-After` beyond that, before the route runs.
+	 */
+	limit?: { requests: number; perSeconds: number };
+	/**
+	 * The largest body it takes, in bytes (SDK 1.4): WebCraft answers 413 to a bigger one, before the
+	 * route runs, without reading more of it.
+	 */
+	maxBodyBytes?: number;
 	handle(request: Request, context: SiteRouteContext): Promise<Response>;
 };
 
