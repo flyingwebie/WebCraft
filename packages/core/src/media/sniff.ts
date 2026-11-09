@@ -13,7 +13,8 @@ export type FileFormat = {
 	/** The extension its served name ends in. */
 	extension: string;
 	/**
-	 * `clean`: an image the worker strips, turns upright and resizes before anyone sees it.
+	 * `clean`: an image the worker strips, turns upright and resizes before anyone sees it (an SVG
+	 * is cleaned of what could run or reach outside, and never resized).
 	 * `as-is`: stored and served as uploaded (documents, video, audio, and GIFs, which keep their
 	 * animation).
 	 */
@@ -27,6 +28,8 @@ const FORMATS = {
 	avif: { format: "avif", kind: "image", contentType: "image/avif", extension: "avif", handling: "clean" },
 	heic: { format: "heic", kind: "image", contentType: "image/heic", extension: "heic", handling: "clean" },
 	gif: { format: "gif", kind: "image", contentType: "image/gif", extension: "gif", handling: "as-is" },
+	// Cleaned by the worker like a photo (it may hold scripts), but never resized.
+	svg: { format: "svg", kind: "image", contentType: "image/svg+xml", extension: "svg", handling: "clean" },
 	pdf: { format: "pdf", kind: "document", contentType: "application/pdf", extension: "pdf", handling: "as-is" },
 	mp4: { format: "mp4", kind: "video", contentType: "video/mp4", extension: "mp4", handling: "as-is" },
 	mov: { format: "mov", kind: "video", contentType: "video/quicktime", extension: "mov", handling: "as-is" },
@@ -43,8 +46,8 @@ export function fileFormat(format: string): FileFormat | undefined {
 	return Object.hasOwn(FORMATS, format) ? FORMATS[format as keyof typeof FORMATS] : undefined;
 }
 
-/** What a file's first bytes say it is: a format, an SVG (refused until SVGs are cleaned), or unknown. */
-export type Sniffed = { format: FileFormat } | { refused: "svg" | "unknown" };
+/** What a file's first bytes say it is: a format WebCraft takes, or unknown. */
+export type Sniffed = { format: FileFormat } | { refused: "unknown" };
 
 /** The ISO base media brands (the box after `ftyp`) of HEIC and HEIF photos. */
 const HEIC_BRANDS = new Set(["heic", "heix", "heim", "heis", "hevc", "hevx", "hevm", "hevs", "mif1", "msf1"]);
@@ -72,7 +75,7 @@ export function sniff(bytes: Uint8Array): Sniffed {
 		return { format: FORMATS.mp3 };
 	}
 	if (ascii(4, 4) === "ftyp") return isoBaseMedia(bytes, ascii);
-	if (looksLikeSvg(bytes)) return { refused: "svg" };
+	if (looksLikeSvg(bytes)) return { format: FORMATS.svg };
 	return { refused: "unknown" };
 }
 

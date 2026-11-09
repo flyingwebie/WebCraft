@@ -19,10 +19,13 @@
 	"dependencies": {
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",
+		"dompurify": "3.4.17",
 		"heic-decode": "2.1.0",
+		"jsdom": "27.4.0",
 		"sharp": "0.35.5"
 	},
 	"devDependencies": {
+		"@types/jsdom": "27.0.0",
 		"@types/node": "catalog:",
 		"@webcraft/config": "workspace:*",
 		"typescript": "catalog:"

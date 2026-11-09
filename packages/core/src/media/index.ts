@@ -18,12 +18,15 @@ export {
 	StorageUnreachableError,
 } from "./errors.ts";
 export {
+	type CleanedSvg,
 	type ImageInput,
 	type ImageProcessor,
 	ImageUnreadableError,
 	imagesOnlyInWorker,
 	type OriginalFormat,
 	type ProcessedImage,
+	type SvgFinding,
+	SvgRefusedError,
 	VARIANT_FORMATS,
 	VARIANT_WIDTHS,
 	type VariantFormat,

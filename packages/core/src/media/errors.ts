@@ -26,18 +26,14 @@ export class MediaFolderTakenError extends Error {
 }
 
 /**
- * A file WebCraft doesn't take: `svg` (SVG files are refused until they are cleaned on upload) or
- * `unknown` (not an image, document, video or audio file WebCraft knows, whatever its name says).
+ * A file WebCraft doesn't take: `unknown` (not an image, SVG, document, video or audio file WebCraft
+ * knows, whatever its name says).
  */
 export class MediaTypeRefusedError extends Error {
 	override name = "MediaTypeRefusedError";
-	readonly reason: "svg" | "unknown";
-	constructor(reason: "svg" | "unknown") {
-		super(
-			reason === "svg"
-				? "SVG files can't be uploaded yet."
-				: "This file isn't an image, document, video or audio file the Media library takes.",
-		);
+	readonly reason: "unknown";
+	constructor(reason: "unknown") {
+		super("This file isn't an image, document, video or audio file the Media library takes.");
 		this.reason = reason;
 	}
 }

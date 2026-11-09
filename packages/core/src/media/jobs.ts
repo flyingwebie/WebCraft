@@ -5,7 +5,7 @@ import { z } from "zod";
 import { clearPageCache } from "../content/page-cache.ts";
 import { defineJob, type JobContext } from "../jobs/define.ts";
 import type { BackgroundScope } from "../tenancy/data-layer.ts";
-import { type ImageInput, ImageUnreadableError, VARIANT_FORMATS, variantWidths } from "./images.ts";
+import { type ImageInput, ImageUnreadableError, SvgRefusedError, VARIANT_FORMATS, variantWidths } from "./images.ts";
 import type { MediaFailure } from "./library.ts";
 import { contentHash, servedName } from "./names.ts";
 import { fileFormat } from "./sniff.ts";
@@ -58,13 +58,23 @@ async function cleanUpload(context: JobContext, siteId: string, mediaId: string)
 		await refuse(scope, row, upload, { reason: "unreadable" });
 		return;
 	}
-	let prepared: Awaited<ReturnType<typeof images.prepare>>;
+	let prepared: { data: Uint8Array; format: string; width: number | null; height: number | null };
 	try {
-		prepared = await images.prepare(bytes, upload.format as ImageInput);
+		// An SVG is cleaned as it is, never resized; a photo is stripped, turned upright and converted.
+		prepared =
+			upload.format === "svg"
+				? { ...(await images.cleanSvg(bytes)), format: "svg" }
+				: await images.prepare(bytes, upload.format as ImageInput);
 	} catch (error) {
-		if (!(error instanceof ImageUnreadableError)) throw error;
-		log.warn("An uploaded image can't be read", { siteId, mediaId, error });
-		await refuse(scope, row, upload, { reason: "unreadable" });
+		const failure: MediaFailure | null =
+			error instanceof ImageUnreadableError
+				? { reason: "unreadable" }
+				: error instanceof SvgRefusedError
+					? { reason: error.reason, ...(error.found.length > 0 ? { found: [...error.found] } : {}) }
+					: null;
+		if (!failure) throw error;
+		log.warn("An uploaded image was refused", { siteId, mediaId, error });
+		await refuse(scope, row, upload, failure);
 		await source.delete(upload.key);
 		return;
 	}
@@ -117,7 +127,8 @@ async function cleanUpload(context: JobContext, siteId: string, mediaId: string)
 	}
 	await source.delete(upload.key);
 	log.info("Cleaned an uploaded image", { siteId, mediaId, width: prepared.width, height: prepared.height });
-	await jobs.send(mediaVariants, { siteId, mediaId });
+	// An SVG is drawn at any size: it has no widths to make.
+	if (format.format !== "svg") await jobs.send(mediaVariants, { siteId, mediaId });
 }
 
 /**
@@ -153,7 +164,7 @@ async function makeVariants(context: JobContext, siteId: string, mediaId: string
 		mediaFiles,
 		and(eq(mediaFiles.mediaId, mediaId), eq(mediaFiles.role, "original"), isNull(mediaFiles.retiredAt)),
 	);
-	if (!original || original.width === null || (await hasVariants(scope, mediaId))) return;
+	if (!original || original.width === null || original.format === "svg" || (await hasVariants(scope, mediaId))) return;
 	const widths = variantWidths(original.width);
 	if (widths.length === 0) return;
 

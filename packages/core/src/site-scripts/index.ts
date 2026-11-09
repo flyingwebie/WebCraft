@@ -66,9 +66,11 @@ export {
 	FILE_POLICY,
 	HostInvalidError,
 	MEDIA_POLICY,
+	mediaPolicy,
 	pagePolicyHeaders,
 	readHost,
 	SITE_SECURITY_HEADERS,
+	SVG_POLICY,
 } from "./policy.ts";
 export { RETIRED_FILE_LIFETIME_MS, siteFilesPurge, siteFilesPurgeSchedule } from "./retired.ts";
 export { SNIPPET_MAX_LENGTH, SnippetInvalidError, type SnippetProblem } from "./snippets.ts";
