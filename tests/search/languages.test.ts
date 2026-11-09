@@ -5,7 +5,7 @@
 // language's own domain too.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
@@ -14,6 +14,8 @@ let siteId: string;
 let recipesId: string;
 let searchPageId: string;
 const SITE = "https://bakery.sites.test";
+/** Searches come from visitors of their own: each address may search 30 times a minute. */
+let visitors = 0;
 
 beforeAll(async () => {
 	install = await createTestInstall();
@@ -87,7 +89,7 @@ async function recipe(title: string, text: string, hiddenLanguages: string[] = [
 }
 
 async function search(url: string): Promise<{ html: string; hits: { href: string; title: string }[] }> {
-	const response = await install.request(url);
+	const response = await install.request(fromAddress(new Request(url), `203.0.113.${++visitors % 250}`));
 	expect(response.status).toBe(200);
 	const html = await expectSafePage(response);
 	const hits = [...html.matchAll(/<li><h2><a href="([^"]*)">([^<]*)<\/a><\/h2>/g)].map(([, href = "", title = ""]) => ({

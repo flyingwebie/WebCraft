@@ -14,6 +14,7 @@ import {
 	pathSegments,
 	SCRIPT_PATH,
 	SEARCH_PARAMETER,
+	SEARCH_RATE_LIMIT,
 	SITE_SECURITY_HEADERS,
 	type SiteHost,
 	type SiteScope,
@@ -23,6 +24,7 @@ import {
 	VERIFY_PATH,
 } from "@webcraft/core";
 
+import { clientAddress } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import {
@@ -216,6 +218,14 @@ async function visitorPage(
 	// A Form just sent shows its message on a page answered for the visitor alone, before the cache.
 	const sent = await sentPage(services, request, host, number, addressHeaders(host));
 	if (sent) return sent;
+	// Searches are never cached: one client address runs a limited number of them (ADR 0021).
+	const query = searchQueryIn(url.searchParams);
+	if (query && (await services.sitePages.isSearchPage(host, pathname))) {
+		const address = clientAddress(request, services.config) ?? "unknown";
+		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
+			return tooManySearches(host);
+		}
+	}
 	// The same path is another page on each of the Site's addresses (its language, its links), and
 	// each page of a paginated Loop another page.
 	const key = `${host.origin}${pageHref(canonicalPath(segments), number)}`;
@@ -389,6 +399,15 @@ async function pageResponse(
 	// The page cache holds no Form token: each answer gets its own (the ETag is the cached page's).
 	const html = await withFormTokens(services, host, page.html);
 	return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", ...headers } });
+}
+
+/** A client address that searched more than `SEARCH_RATE_LIMIT` allows: asked to wait until its minute ends. */
+function tooManySearches(host: SiteHost): Response {
+	return plainText(429, "Too Many Requests", {
+		"retry-after": String(SEARCH_RATE_LIMIT.windowMs / 1000),
+		"cache-control": "no-store",
+		...addressHeaders(host),
+	});
 }
 
 /**

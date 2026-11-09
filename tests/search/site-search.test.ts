@@ -4,8 +4,8 @@
 // It works without JavaScript, is never cached and never indexed by search engines.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { expectSafePage } from "../harness/site-safety.ts";
+import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -76,8 +76,13 @@ function hits(html: string): { href: string; title: string }[] {
 	}));
 }
 
+let visitors = 0;
+
+/** A search by a visitor of their own (each address may search 30 times a minute). */
 async function search(query: string, path = "/search"): Promise<{ response: Response; html: string }> {
-	const response = await install.request(`${SITE}${path}?q=${encodeURIComponent(query)}`);
+	const address = `203.0.113.${++visitors % 250}`;
+	const url = `${SITE}${path}?q=${encodeURIComponent(query)}`;
+	const response = await install.request(fromAddress(new Request(url), address));
 	const html = await expectSafePage(response);
 	return { response, html };
 }
@@ -295,6 +300,30 @@ describe("answers", () => {
 		const firstPage = await install.request(`${SITE}/search?q=sponge&page=1`);
 		expect(firstPage.status).toBe(301);
 		expect(firstPage.headers.get("location")).toBe("/search?q=sponge");
+	});
+});
+
+describe("rate limits", () => {
+	test("one address searches 30 times a minute; past that it is asked to wait, and others aren't", async () => {
+		const busy = "198.51.100.77";
+		const from = (address: string, path: string) =>
+			install.request(fromAddress(new Request(`${SITE}${path}`), address));
+		for (let index = 0; index < 30; index++) expect((await from(busy, `/search?q=bun${index}`)).status).toBe(200);
+
+		const refused = await from(busy, "/search?q=brioche");
+		expect(refused.status).toBe(429);
+		expect(refused.headers.get("retry-after")).toBe("60");
+		expect(refused.headers.get("cache-control")).toBe("no-store");
+		expectSiteHeaders(refused);
+		expect(await refused.text()).toBe("Too Many Requests");
+
+		// Another address searches; the busy one still opens pages and the search box without a query.
+		expect((await from("198.51.100.78", "/search?q=brioche")).status).toBe(200);
+		expect((await from(busy, "/search")).status).toBe(200);
+		expect((await from(busy, "/recipes/brioche?q=brioche")).status).toBe(200);
+
+		await install.clock.advance(60_000);
+		expect((await from(busy, "/search?q=brioche")).status).toBe(200);
 	});
 });
 

@@ -53,6 +53,13 @@ export function textSearchConfiguration(language: string): string {
 /** The query parameter Site search (and a Filter's search box) reads: `/search?q=bread`. */
 export const SEARCH_PARAMETER = "q";
 
+/**
+ * How many searches one client address may run on one Site: 30 a minute. Every search is a
+ * full-text query the page cache can't keep, so a client running more (a script, not a person) waits
+ * until the minute ends. Searches with no query, and every other page, don't count.
+ */
+export const SEARCH_RATE_LIMIT = { limit: 30, windowMs: 60_000 } as const;
+
 /** The longest query search reads, in characters: a longer one is cut there. */
 export const SEARCH_QUERY_MAX_LENGTH = 200;
 

@@ -16,6 +16,7 @@ export {
 	cleanSearchText,
 	SEARCH_PARAMETER,
 	SEARCH_QUERY_MAX_LENGTH,
+	SEARCH_RATE_LIMIT,
 	searchQueryIn,
 	textSearchConfiguration,
 } from "./text-search.ts";

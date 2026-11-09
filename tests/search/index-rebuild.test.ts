@@ -4,7 +4,7 @@
 // from the index as it was.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
@@ -12,6 +12,8 @@ let staff: TestBrowser;
 let siteId: string;
 let recipesId: string;
 const SITE = "https://bakery.sites.test";
+/** Searches come from visitors of their own: each address may search 30 times a minute. */
+let visitors = 0;
 
 beforeAll(async () => {
 	install = await createTestInstall();
@@ -64,7 +66,10 @@ async function settle() {
 }
 
 async function found(query: string, path = "/search"): Promise<string[]> {
-	const html = await expectSafePage(await install.request(`${SITE}${path}?q=${encodeURIComponent(query)}`));
+	const url = `${SITE}${path}?q=${encodeURIComponent(query)}`;
+	const html = await expectSafePage(
+		await install.request(fromAddress(new Request(url), `203.0.113.${++visitors % 250}`)),
+	);
 	return [...html.matchAll(/<li><h2><a href="[^"]*">([^<]*)<\/a><\/h2>/g)].map(([, title = ""]) => title);
 }
 

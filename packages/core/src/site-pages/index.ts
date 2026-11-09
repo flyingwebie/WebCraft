@@ -232,6 +232,8 @@ export type CodePreview = {
 export type SitePages = {
 	/** The Site a hostname belongs to, or null for a hostname that is no Site's (an unbranded 404). */
 	resolveHost(hostname: string): Promise<SiteHost | null>;
+	/** Whether `pathname` is the Site's search results page, in any of its languages (ADR 0021). */
+	isSearchPage(host: SiteHost, pathname: string): Promise<boolean>;
 	/**
 	 * What `pathname` answers on the Site: the published Entry a Post Type's URL pattern finds there,
 	 * else the published Page at that path (the home page at `/`); null when there is none. With
@@ -378,6 +380,14 @@ export function createSitePages(options: {
 				origin,
 				addresses,
 			});
+		},
+
+		async isSearchPage(host, pathname) {
+			const scope = data.visitors(host.site);
+			const searchPageId = await specialPageId(scope, "search");
+			if (!searchPageId) return false;
+			const located = await locate(scope, host, pathname, false);
+			return located?.kind === "found" && located.found.entry.id === searchPageId;
 		},
 
 		async render(host, pathname, editing, options = {}) {
