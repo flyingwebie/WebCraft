@@ -45,8 +45,12 @@ export type SitePipelineOptions = {
  * Modules' Site routes (`/_wc/m/<route prefix>/…`) go to the Module host, which answers them where
  * the Module runs; they are never cached.
  *
+ * Languages: a path's first part may name a language's prefix (`/fr/…`; `sitePages` reads it), the
+ * Language switcher's links (`/_wc/lang/…`) remember the visitor's choice in a cookie, and a Site may
+ * send a first visit to its home page on to the browser's language.
+ *
  * Steps still to come, in their places: Redirect domains and Redirect rules before everything else,
- * language prefixes and domains, each reserved path's feature (Forms, the Content API,
+ * language domains (with domain verification), each reserved path's feature (Forms, the Content API,
  * `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies), and the 404 log.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
