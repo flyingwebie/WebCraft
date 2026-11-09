@@ -36,6 +36,7 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import { NO_FORMS, type SiteForms, siteForms } from "../forms/forms.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
@@ -541,7 +542,7 @@ export async function readContext(scope: Pick<SiteScope, "select" | "first">): P
 export function componentTreeRules(
 	props: readonly FieldDefinition[],
 	context: ComponentReadContext,
-	catalogue: ComponentCatalogue,
+	catalogue: SiteComponents,
 ) {
 	return {
 		isKnownValue: componentKnownValues({ props, postTypes: context.postTypes, globalFields: context.globalFields }),
@@ -552,6 +553,7 @@ export function componentTreeRules(
 				: undefined,
 		refuseCommand: refuseSiteTemplateCommands,
 		components: catalogue,
+		forms: catalogue.forms,
 		// A Component's tree is itself placed: what it places sits one level deeper.
 		placedDepth: 1,
 	};
@@ -573,6 +575,7 @@ export function moduleComponentTreeRules(props: readonly FieldDefinition[]) {
 		refuseElement: (tag: string) =>
 			tag === "main" ? "A Component goes inside pages, so it holds no <main>." : undefined,
 		refuseCommand: refuseSiteTemplateCommands,
+		forms: NO_FORMS,
 		placedDepth: 1,
 	};
 }
@@ -589,7 +592,11 @@ function unknownInComponent(path: string, props: readonly FieldDefinition[]): st
 }
 
 function printMarkup(tree: ElementTree, classes: ClassCatalogue, names: SiteComponents): string {
-	return printTemplateMarkup(tree, { className: classes.nameOf, componentName: names.nameOf });
+	return printTemplateMarkup(tree, {
+		className: classes.nameOf,
+		componentName: names.nameOf,
+		formKey: names.forms.keyOf,
+	});
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -603,6 +610,8 @@ export type SiteComponents = ComponentCatalogue & {
 	version(componentId: string): ComponentVersion | undefined;
 	/** Whether a Component's tree places another, directly or through other Components. */
 	reaches(from: string, target: string): boolean;
+	/** The Site's Forms in the same version, which trees place with `{{@form <key>}}`. */
+	forms: SiteForms;
 };
 
 type CatalogueEntry = {
@@ -702,6 +711,7 @@ export async function siteComponents(
 		nameOf: (id) => byId.get(id)?.name,
 		version: (id) => byId.get(id)?.version ?? undefined,
 		reaches,
+		forms: await siteForms(scope, which),
 	};
 }
 

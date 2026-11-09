@@ -95,6 +95,8 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 		...(adds.components.length > 0
 			? [t("modules.consent.components", { names: joinWords(adds.components, and) })]
 			: []),
+		...(adds.submissions ? [t("modules.consent.submissions")] : []),
+		...[...new Set(adds.schedules)].map((every) => t("modules.consent.schedule", { every })),
 		...(adds.events.length > 0
 			? [
 					t("modules.consent.events", {

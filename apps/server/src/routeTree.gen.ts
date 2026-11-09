@@ -39,6 +39,8 @@ import { Route as AdminWorkspacesWorkspaceIdIndexRouteImport } from './routes/_a
 import { Route as AdminWorkspacesWorkspaceIdMembersRouteImport } from './routes/_admin/workspaces.$workspaceId.members'
 import { Route as AdminWorkspacesWorkspaceIdModulesRouteImport } from './routes/_admin/workspaces.$workspaceId.modules'
 import { Route as AdminSitesSiteIdEntriesPostTypeIdRouteImport } from './routes/_admin/sites.$siteId.entries.$postTypeId'
+import { Route as AdminSitesSiteIdFormsIndexRouteImport } from './routes/_admin/sites.$siteId.forms.index'
+import { Route as AdminSitesSiteIdFormsFormIdRouteImport } from './routes/_admin/sites.$siteId.forms.$formId'
 import { Route as AdminSitesSiteIdPostTypesIndexRouteImport } from './routes/_admin/sites.$siteId.post-types.index'
 import { Route as AdminSitesSiteIdPostTypesPostTypeIdRouteImport } from './routes/_admin/sites.$siteId.post-types.$postTypeId'
 import { Route as AdminSitesSiteIdPostTypesGlobalsRouteImport } from './routes/_admin/sites.$siteId.post-types.globals'
@@ -206,6 +208,18 @@ const AdminSitesSiteIdEntriesPostTypeIdRoute =
     path: '/entries/$postTypeId',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminSitesSiteIdFormsIndexRoute =
+  AdminSitesSiteIdFormsIndexRouteImport.update({
+    id: '/forms/',
+    path: '/forms/',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
+const AdminSitesSiteIdFormsFormIdRoute =
+  AdminSitesSiteIdFormsFormIdRouteImport.update({
+    id: '/forms/$formId',
+    path: '/forms/$formId',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
 const AdminSitesSiteIdPostTypesIndexRoute =
   AdminSitesSiteIdPostTypesIndexRouteImport.update({
     id: '/',
@@ -279,8 +293,10 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/sites/$siteId/entries/$postTypeId': typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
+  '/sites/$siteId/forms/$formId': typeof AdminSitesSiteIdFormsFormIdRoute
   '/sites/$siteId/post-types/$postTypeId': typeof AdminSitesSiteIdPostTypesPostTypeIdRoute
   '/sites/$siteId/post-types/globals': typeof AdminSitesSiteIdPostTypesGlobalsRoute
+  '/sites/$siteId/forms/': typeof AdminSitesSiteIdFormsIndexRoute
   '/sites/$siteId/post-types/': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
@@ -313,8 +329,10 @@ export interface FileRoutesByTo {
   '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdIndexRoute
+  '/sites/$siteId/forms/$formId': typeof AdminSitesSiteIdFormsFormIdRoute
   '/sites/$siteId/post-types/$postTypeId': typeof AdminSitesSiteIdPostTypesPostTypeIdRoute
   '/sites/$siteId/post-types/globals': typeof AdminSitesSiteIdPostTypesGlobalsRoute
+  '/sites/$siteId/forms': typeof AdminSitesSiteIdFormsIndexRoute
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
@@ -353,8 +371,10 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/_admin/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/_admin/sites/$siteId/entries/$postTypeId': typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
+  '/_admin/sites/$siteId/forms/$formId': typeof AdminSitesSiteIdFormsFormIdRoute
   '/_admin/sites/$siteId/post-types/$postTypeId': typeof AdminSitesSiteIdPostTypesPostTypeIdRoute
   '/_admin/sites/$siteId/post-types/globals': typeof AdminSitesSiteIdPostTypesGlobalsRoute
+  '/_admin/sites/$siteId/forms/': typeof AdminSitesSiteIdFormsIndexRoute
   '/_admin/sites/$siteId/post-types/': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/_admin/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/_admin/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
@@ -393,8 +413,10 @@ export interface FileRouteTypes {
     | '/sites/$siteId/'
     | '/workspaces/$workspaceId/'
     | '/sites/$siteId/entries/$postTypeId'
+    | '/sites/$siteId/forms/$formId'
     | '/sites/$siteId/post-types/$postTypeId'
     | '/sites/$siteId/post-types/globals'
+    | '/sites/$siteId/forms/'
     | '/sites/$siteId/post-types/'
     | '/sites/$siteId/entries/$postTypeId/$entryId'
     | '/sites/$siteId/m/$moduleId/$'
@@ -427,8 +449,10 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceId/modules'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
+    | '/sites/$siteId/forms/$formId'
     | '/sites/$siteId/post-types/$postTypeId'
     | '/sites/$siteId/post-types/globals'
+    | '/sites/$siteId/forms'
     | '/sites/$siteId/post-types'
     | '/sites/$siteId/entries/$postTypeId/$entryId'
     | '/sites/$siteId/m/$moduleId/$'
@@ -466,8 +490,10 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/'
     | '/_admin/workspaces/$workspaceId/'
     | '/_admin/sites/$siteId/entries/$postTypeId'
+    | '/_admin/sites/$siteId/forms/$formId'
     | '/_admin/sites/$siteId/post-types/$postTypeId'
     | '/_admin/sites/$siteId/post-types/globals'
+    | '/_admin/sites/$siteId/forms/'
     | '/_admin/sites/$siteId/post-types/'
     | '/_admin/sites/$siteId/entries/$postTypeId/$entryId'
     | '/_admin/sites/$siteId/m/$moduleId/$'
@@ -694,6 +720,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdEntriesPostTypeIdRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/forms/': {
+      id: '/_admin/sites/$siteId/forms/'
+      path: '/forms'
+      fullPath: '/sites/$siteId/forms/'
+      preLoaderRoute: typeof AdminSitesSiteIdFormsIndexRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/sites/$siteId/forms/$formId': {
+      id: '/_admin/sites/$siteId/forms/$formId'
+      path: '/forms/$formId'
+      fullPath: '/sites/$siteId/forms/$formId'
+      preLoaderRoute: typeof AdminSitesSiteIdFormsFormIdRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/sites/$siteId/post-types/': {
       id: '/_admin/sites/$siteId/post-types/'
       path: '/'
@@ -796,6 +836,8 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdWebhooksRoute: typeof AdminSitesSiteIdWebhooksRoute
   AdminSitesSiteIdIndexRoute: typeof AdminSitesSiteIdIndexRoute
   AdminSitesSiteIdEntriesPostTypeIdRoute: typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
+  AdminSitesSiteIdFormsFormIdRoute: typeof AdminSitesSiteIdFormsFormIdRoute
+  AdminSitesSiteIdFormsIndexRoute: typeof AdminSitesSiteIdFormsIndexRoute
   AdminSitesSiteIdMModuleIdSplatRoute: typeof AdminSitesSiteIdMModuleIdSplatRoute
 }
 
@@ -812,6 +854,8 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdIndexRoute: AdminSitesSiteIdIndexRoute,
   AdminSitesSiteIdEntriesPostTypeIdRoute:
     AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren,
+  AdminSitesSiteIdFormsFormIdRoute: AdminSitesSiteIdFormsFormIdRoute,
+  AdminSitesSiteIdFormsIndexRoute: AdminSitesSiteIdFormsIndexRoute,
   AdminSitesSiteIdMModuleIdSplatRoute: AdminSitesSiteIdMModuleIdSplatRoute,
 }
 

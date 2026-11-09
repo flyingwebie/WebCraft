@@ -101,6 +101,7 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
+export * from "./forms/index.ts";
 export { CODE_ATTRIBUTE, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
 export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
@@ -153,6 +154,9 @@ export {
 	type ElementTree,
 	ElementTreeInvalidError,
 	elementsOf,
+	type FormCatalogue,
+	type FormFound,
+	type FormNode,
 	type LanguageSwitcherNode,
 	type OutletNode,
 	type ParseTreeOptions,

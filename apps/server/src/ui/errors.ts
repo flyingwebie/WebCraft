@@ -55,6 +55,11 @@ export function errorMessage(error: unknown): MessageKey {
 		case "LANGUAGE_NOT_FOUND":
 		case "DOMAIN_TAKEN":
 		case "DOMAIN_NOT_FOUND":
+		case "FORM_NOT_FOUND":
+		case "FORM_INVALID":
+		case "FORM_KEY_TAKEN":
+		case "FORM_IN_USE":
+		case "CAPTCHA_INVALID":
 		case "LIBRARY_NOT_FOUND":
 		case "OUTSIDE_SCRIPT_NOT_FOUND":
 			return `errors.${code}`;

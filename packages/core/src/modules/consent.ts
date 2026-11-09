@@ -44,6 +44,10 @@ export type AdditionsView = {
 	events: string[];
 	/** The names (PascalCase tags) of the Components it adds. */
 	components: string[];
+	/** Whether it keeps what visitors send through Forms (the Sites' Form Submissions). */
+	submissions: boolean;
+	/** Its jobs that run on a schedule: how often each runs. */
+	schedules: ("hour" | "day")[];
 };
 
 export function consentView(
@@ -72,7 +76,17 @@ export function consentView(
 }
 
 export function additionsView(module: LoadedModule, language: string): AdditionsView {
-	if (!module.runnable) return { siteRoutes: null, adminPages: [], tables: 0, events: [], components: [] };
+	if (!module.runnable) {
+		return {
+			siteRoutes: null,
+			adminPages: [],
+			tables: 0,
+			events: [],
+			components: [],
+			submissions: false,
+			schedules: [],
+		};
+	}
 	const { manifest } = module;
 	return {
 		siteRoutes: module.routes.length > 0 ? `/_wc/m/${manifest.routePrefix}/` : null,
@@ -80,5 +94,7 @@ export function additionsView(module: LoadedModule, language: string): Additions
 		tables: module.tables.size,
 		events: [...module.events],
 		components: module.components.map((component) => component.name),
+		submissions: module.receiver !== null,
+		schedules: module.schedules.map((schedule) => schedule.every),
 	};
 }

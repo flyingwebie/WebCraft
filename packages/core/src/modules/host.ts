@@ -1,6 +1,7 @@
 import type { ModuleSchema } from "@webcraft/db";
-import { moduleApprovals, moduleSwitches, people } from "@webcraft/db/schema";
+import { moduleApprovals, moduleSwitches, people, sites, workspaces } from "@webcraft/db/schema";
 import {
+	type FormSubmission,
 	type Label,
 	MODULE_EVENTS,
 	type ModuleContext,
@@ -36,7 +37,7 @@ import {
 	ModuleNotApprovedError,
 	ModuleNotFoundError,
 } from "./errors.ts";
-import { moduleEventJob, type QueuedEvent, type QueuedJob, type QueuedPlace } from "./jobs.ts";
+import { moduleEventJob, moduleJob, type QueuedEvent, type QueuedJob, type QueuedPlace } from "./jobs.ts";
 import { listModuleLog, type ModuleLogLine } from "./module-log.ts";
 import {
 	type CompiledRoute,
@@ -169,6 +170,19 @@ export type ModuleHost = {
 	runEvent(payload: QueuedEvent): Promise<void>;
 	/** Runs a queued job of a Module's (the `modules.job` job). */
 	runJob(payload: QueuedJob): Promise<void>;
+	/** Queues the Modules' jobs scheduled `every` hour or day, once in each place where their Module runs. */
+	runSchedules(every: "hour" | "day"): Promise<void>;
+	/**
+	 * The Module that keeps Form Submissions on a Site, when one runs there: Forms render, and take
+	 * posts, only then. Null otherwise.
+	 */
+	submissionsKeptBy(site: { id: string; workspaceId: string }): Promise<string | null>;
+	/**
+	 * Hands a checked Submission to the Module that keeps them on the Site, at once, and answers its
+	 * id. Throws `ModuleNotFoundError` where none runs, and `ModuleFailedError` when it fails (in the
+	 * Module log).
+	 */
+	receiveSubmission(site: Site, submission: FormSubmission): Promise<{ id: string }>;
 };
 
 export type ModuleHostOptions = RuntimeDeps & { modules: readonly ModuleDefinition[] };
@@ -292,11 +306,35 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 	};
 
 	/**
-	 * Pages show a Module's Components, and allow its outside hosts, only where it runs: a change to
-	 * where it runs clears the pages.
+	 * Pages show a Module's Components and Forms (where it keeps their Submissions), and allow its
+	 * outside hosts, only where it runs: a change to where it runs clears the pages.
 	 */
 	const addsComponents = (module: LoadedModule) =>
-		module.runnable && (module.components.length > 0 || module.manifest.outsideHosts.length > 0);
+		module.runnable &&
+		(module.components.length > 0 || module.receiver !== null || module.manifest.outsideHosts.length > 0);
+
+	/** Every place where a Module runs now: each Site (or Workspace) where it is on. */
+	const placesOf = async (module: RunnableModule): Promise<QueuedPlace[]> => {
+		if (!(await isApproved(module))) return [];
+		const switches = await db
+			.select({ workspaceId: moduleSwitches.workspaceId, siteId: moduleSwitches.siteId, on: moduleSwitches.on })
+			.from(moduleSwitches)
+			.where(eq(moduleSwitches.moduleId, module.id));
+		const switched = new Map(switches.map((row) => [`${row.workspaceId}:${row.siteId ?? ""}`, row.on]));
+		const on = (key: string) => switched.get(key) ?? module.manifest.onByDefault;
+		if (module.level === "site") {
+			const rows = await db.select({ id: sites.id, workspaceId: sites.workspaceId }).from(sites);
+			return rows
+				.filter((row) => on(`${row.workspaceId}:${row.id}`))
+				.map((row) => ({ level: "site", workspaceId: row.workspaceId, siteId: row.id }));
+		}
+		const rows = await db.select({ id: workspaces.id }).from(workspaces);
+		return rows.filter((row) => on(`${row.id}:`)).map((row) => ({ level: "workspace", workspaceId: row.id }));
+	};
+
+	/** The Module keeping Form Submissions, if this build has one that can run. */
+	const receiving = (): RunnableModule | undefined =>
+		registry.all().find((module): module is RunnableModule => module.runnable && module.receiver !== null);
 
 	/** The place where a Module acts for an event on a Site: the Site, or its Workspace. */
 	const placeFor = (module: RunnableModule, workspaceId: string, siteId: string): QueuedPlace =>
@@ -607,6 +645,44 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 					moduleContext(module, scope, options),
 				),
 			);
+		},
+
+		async runSchedules(every) {
+			for (const module of registry.all()) {
+				if (!module.runnable) continue;
+				const due = module.schedules.filter((schedule) => schedule.every === every);
+				if (due.length === 0) continue;
+				for (const place of await placesOf(module)) {
+					for (const schedule of due) {
+						await jobs.send(moduleJob, { moduleId: module.id, job: schedule.job, place, payload: {} });
+					}
+				}
+			}
+		},
+
+		async submissionsKeptBy(site) {
+			const module = receiving();
+			return module && module.level === "site" && (await runsOnSite(site, module)) ? module.id : null;
+		},
+
+		async receiveSubmission(site, submission) {
+			const module = receiving();
+			const receiver = module?.receiver;
+			if (!module || !receiver) throw new ModuleNotFoundError();
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) throw new ModuleNotFoundError();
+			try {
+				const { id } = await receiver.receive(submission, moduleContext(module, scope, options));
+				return { id };
+			} catch (error) {
+				await writeLine(options, module, place, "error", "A Form Submission couldn't be kept.", {
+					formId: submission.formId,
+					error: describeError(error),
+				});
+				log.error("A Module failed to keep a Form Submission", { moduleId: module.id, error });
+				throw new ModuleFailedError();
+			}
 		},
 
 		async runJob(payload) {

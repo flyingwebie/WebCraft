@@ -79,6 +79,13 @@ export type PageToRender = {
 	media?: MediaReader;
 	/** What Placements show, in both templates: their Components' published trees. */
 	component?: PlacementRenderer;
+	/** What `{{@form <key>}}` shows, in both templates: the Form, rendered (`renderForm`). Nothing when absent. */
+	form?: (formId: string) => string;
+	/**
+	 * Outside scripts the page's Forms need (a Site's CAPTCHA), asked once the page's templates have
+	 * rendered, so only a page showing a Form loads one. They join `outsideScripts`: never in Edit mode.
+	 */
+	formScripts?: () => readonly PageOutsideScript[];
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
@@ -218,6 +225,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		media: page.media,
 		priorityImage: { given: false },
 		component: page.component,
+		form: page.form,
 		themeToggle,
 		languageSwitcher,
 		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "content") : undefined,
@@ -233,12 +241,13 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		outlet: () => content,
 		extraAttributes: mainAttributes,
 		component: page.component,
+		form: page.form,
 		themeToggle,
 		languageSwitcher,
 		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
 		codeSource: editMode?.code ? "site" : undefined,
 	});
-	const outside = page.outsideScripts ?? [];
+	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
 	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead.
 	const outsideIn = (placement: PageOutsideScript["placement"]) =>
 		editMode ? [] : outside.filter((script) => script.placement === placement).flatMap(outsideTags);

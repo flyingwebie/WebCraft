@@ -28,6 +28,8 @@ export type PrintMarkupOptions = {
 	className?: (classId: string) => string | undefined;
 	/** The name (PascalCase tag) of the Component with this id. */
 	componentName?: (componentId: string) => string | undefined;
+	/** The key of the Form with this id (`{{@form <key>}}`). */
+	formKey?: (formId: string) => string | undefined;
 };
 
 /** Attributes that print without a value when their value is empty (`hidden`, not `hidden=""`). */
@@ -91,7 +93,7 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 	}
 	const command = commandForNode(node.type);
 	if (!command) return "";
-	const sections = command.toMarkup(node);
+	const sections = command.toMarkup(node, { formKey: (formId) => options.formKey?.(formId) });
 	let markup = "";
 	for (const section of sections) {
 		markup += `{{@${section.keyword}${section.argument ? ` ${section.argument}` : ""}}}`;

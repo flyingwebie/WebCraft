@@ -39,6 +39,8 @@ export const SENSITIVE_ACTIONS = {
 	 * send and a redelivery only use what was confirmed.
 	 */
 	"webhook.change": "sends Site data to an outside address",
+	/** A Site's CAPTCHA for its Forms: its secret key is a secret. */
+	"formCaptcha.change": "changes a secret",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

@@ -67,6 +67,8 @@ describe("the Modules screen", () => {
 				tables: 1,
 				events: ["entry.published"],
 				components: ["NoteCard"],
+				submissions: false,
+				schedules: [],
 			},
 		});
 	});

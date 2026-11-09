@@ -7,7 +7,7 @@ import type { AuditDetails } from "../audit.ts";
  * values unless the spec says so.
  *
  * - `publish`: something on the Site was published (an Entry, a Page, the Globals, a Template, a
- *   Component, a script or the Design system).
+ *   Component, a script, a Form or the Design system).
  */
 export const WEBHOOK_EVENTS = ["publish"] as const;
 
@@ -24,7 +24,7 @@ export function isWebhookEvent(value: string): value is WebhookEvent {
 export type PublishedItem =
 	| { kind: "entry"; id: string; postTypeId: string; path: string | null }
 	| { kind: "template"; id: string; postTypeId: string | null }
-	| { kind: "component" | "script" | "globals" | "designSystem"; id: string };
+	| { kind: "component" | "script" | "globals" | "designSystem" | "form"; id: string };
 
 /** A published path that the publish changed, as `Published.pathChanges` lists them. */
 type PathChange = { entryId: string; language: string; from: string; to: string };
@@ -53,6 +53,7 @@ const PUBLISHES: Record<string, (details: AuditDetails) => { item: PublishedItem
 	"component.publish": (details) => ({ item: { kind: "component", id: text(details.componentId) }, pathChanges: [] }),
 	"script.publish": (details) => ({ item: { kind: "script", id: text(details.scriptId) }, pathChanges: [] }),
 	"globals.publish": (details) => ({ item: { kind: "globals", id: text(details.globalsId) }, pathChanges: [] }),
+	"form.publish": (details) => ({ item: { kind: "form", id: text(details.formId) }, pathChanges: [] }),
 	"designSystem.publish": (details) => ({
 		item: { kind: "designSystem", id: text(details.designSystemId) },
 		pathChanges: [],

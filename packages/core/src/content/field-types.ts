@@ -782,7 +782,7 @@ const patterns = new Map<string, RE2JS>();
  * Staff's input and run on every save, list and publish, so they run on a linear-time engine (RE2):
  * no pattern can keep the web process busy, whatever its shape and whatever the value.
  */
-function compiledPattern(source: string): RE2JS {
+export function compiledPattern(source: string): RE2JS {
 	let compiled = patterns.get(source);
 	if (!compiled) {
 		compiled = RE2JS.compile(`^(?:${source})$`);

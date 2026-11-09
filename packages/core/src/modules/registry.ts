@@ -10,11 +10,13 @@ import {
 	type ModuleManifest,
 	type ModuleProcedure,
 	type ModuleProcedures,
+	type ModuleSchedule,
 	type ModuleTable,
 	moduleManifestSchema,
 	moduleSchemaName,
 	SDK_VERSION,
 	type SiteRoute,
+	type SubmissionReceiver,
 } from "@webcraft/module-sdk";
 import { parseTemplateMarkup, TemplateMarkupInvalidError } from "@webcraft/renderer";
 import { getTableName, isTable } from "drizzle-orm";
@@ -77,6 +79,10 @@ export type RunnableModule = {
 	jobs: ReadonlyMap<string, ModuleJob>;
 	/** The Components it adds, ready to place: Props checked, markup read into a tree. */
 	components: readonly ModuleComponent[];
+	/** Its jobs that run on a schedule, in every place where it runs. */
+	schedules: readonly ModuleSchedule[];
+	/** How it keeps Form Submissions, when it does (at most one Module of a build). */
+	receiver: SubmissionReceiver | null;
 };
 
 /** A Site route with its path split into fixed parts and parameters. */
@@ -95,6 +101,8 @@ const DEFINITION_KEYS = new Set([
 	"structurePresets",
 	"blockTypes",
 	"components",
+	"schedules",
+	"formSubmissions",
 	"widgets",
 ]);
 
@@ -127,6 +135,11 @@ export function loadModules(definitions: readonly ModuleDefinition[]): ModuleReg
 					module.manifest.routePrefix !== undefined &&
 					other.manifest.routePrefix === module.manifest.routePrefix),
 		);
+		// Submissions go to one Module: a second one keeping them could never receive any.
+		const receiving =
+			module.runnable && module.receiver
+				? loaded.find((other) => other.runnable && other.receiver !== null)
+				: undefined;
 		// A tag names one Component: two Modules can't add Components with the same name.
 		const named = module.runnable
 			? loaded
@@ -148,7 +161,9 @@ export function loadModules(definitions: readonly ModuleDefinition[]): ModuleReg
 							module.manifest,
 							`The Module ${named.other.id} already adds a Component named ${named.added.name}.`,
 						)
-					: module,
+					: receiving
+						? broken(definition, module.manifest, `The Module ${receiving.id} already keeps Form Submissions.`)
+						: module,
 		);
 	}
 	const byId = new Map(loaded.map((module) => [module.id, module]));
@@ -327,6 +342,26 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		jobs.set(name, job);
 	}
 
+	const schedules: ModuleSchedule[] = [];
+	for (const schedule of definition.schedules ?? []) {
+		const job = jobs.get(schedule?.job);
+		if (!job) problem(`The schedule names the job ${String(schedule?.job)}, which the Module doesn't declare.`);
+		if (schedule.every !== "hour" && schedule.every !== "day") {
+			problem(`The job ${schedule.job} runs every hour or every day, not every ${String(schedule.every)}.`);
+		}
+		if (!job.payload.safeParse({}).success) {
+			problem(`The job ${schedule.job} runs on a schedule, so it must take an empty payload ({}).`);
+		}
+		if (schedules.some((other) => other.job === schedule.job)) problem(`The job ${schedule.job} is scheduled twice.`);
+		schedules.push({ job: schedule.job, every: schedule.every });
+	}
+
+	const receiver = definition.formSubmissions ?? null;
+	if (receiver !== null) {
+		if (level !== "site") problem("Only Site-level Modules keep Form Submissions: Forms are on Sites.");
+		if (typeof receiver.receive !== "function") problem("Its formSubmissions has no receive function.");
+	}
+
 	return {
 		runnable: true,
 		id: manifest.id,
@@ -342,6 +377,8 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		events,
 		jobs,
 		components: compileComponents(definition, manifest),
+		schedules,
+		receiver,
 	};
 }
 

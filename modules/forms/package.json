@@ -1,0 +1,20 @@
+{
+	"name": "@webcraft/module-forms",
+	"version": "1.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The Forms Module: keeps what visitors send through a Site's Forms (its Submissions and Spam folder). It imports nothing from WebCraft but the Module SDK (ADR 0024).",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/module-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"typescript": "catalog:"
+	}
+}

@@ -350,6 +350,10 @@ _Avoid_: Contact form, form block, form widget
 One filled-in Form as received by the Install, kept with the language and page it came from.
 _Avoid_: Entry, lead, response, message
 
+**Spam folder**:
+Where a Site keeps the Submissions its spam checks caught (a honeypot filled in, sent sooner than a person could, too often from one address, too large), for 30 days. They set off no Notification, Auto-reply or Webhook, and the sender is never told.
+_Avoid_: Junk, quarantine, blocked submissions
+
 **Notification**:
 An email the Install sends to a Form's recipients when a Submission arrives. The recipients are Content.
 _Avoid_: Alert, form email

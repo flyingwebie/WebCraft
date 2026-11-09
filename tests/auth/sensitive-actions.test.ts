@@ -48,6 +48,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"module.approve": (api) => api.modules.approve({ moduleId: "sample", version: "1.0.0" }),
 	"webhook.change": (api, { siteId }) =>
 		api.webhooks.add({ siteId, url: "https://hooks.agency.example/build", events: ["publish"] }),
+	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
 };
 
 let install: TestInstall;

@@ -274,18 +274,21 @@ describe("suggestions", () => {
 		const inEntry = await answer<Source>(coding.edit("code/open", { path, ref: "content#title" }));
 		const inSite = await answer<Source>(coding.edit("code/open", { path, ref: "site#header" }));
 
-		// Every command of the registry offers itself, each with its snippet: Languages' switcher too.
+		// Every command of the registry offers itself, each with its snippet: Languages' switcher and Forms too.
 		expect(inEntry.suggestions.commands.map((command) => command.name)).toEqual([
 			"if",
 			"themeToggle",
 			"languageSwitcher",
+			"form",
 		]);
 		expect(inSite.suggestions.commands.map((command) => command.name)).toEqual([
 			"if",
 			"outlet",
 			"themeToggle",
 			"languageSwitcher",
+			"form",
 		]);
+		expect(inEntry.suggestions.commands).toContainEqual({ name: "form", block: false, snippet: "{{@form $0}}" });
 		expect(inSite.suggestions.commands).toContainEqual({ name: "outlet", block: false, snippet: "{{@outlet}}" });
 		expect(inEntry.suggestions.commands[0]).toEqual({ name: "if", block: true, snippet: "{{@if $0}}\n{{/if}}" });
 		// Loops come with their own ticket; until then there are none to suggest.

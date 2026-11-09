@@ -10,6 +10,7 @@ import {
 } from "@webcraft/core";
 import { assertSchemaCurrent, openDatabase } from "@webcraft/db";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
+import { createBunHttp } from "./outgoing-http.ts";
 
 type Cache = { webcraftWebServices?: Promise<InstallServices> };
 
@@ -56,7 +57,13 @@ export async function checkWebSettings(env: Record<string, string | undefined>):
 
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
 	const log = createLogger({ fields: { process: "web" } });
-	const { services } = await openInstall({ env, processName: "web", log, modules: webModules() });
+	const { services } = await openInstall({
+		env,
+		processName: "web",
+		log,
+		modules: webModules(),
+		http: createBunHttp(),
+	});
 	// On an Install with no Superadmin, prints the setup token that unlocks the setup wizard.
 	await services.setup.announce();
 	return services;

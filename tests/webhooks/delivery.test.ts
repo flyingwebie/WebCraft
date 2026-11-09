@@ -143,7 +143,7 @@ describe("several Webhooks", () => {
 });
 
 describe("publishing other items", () => {
-	test("the Globals, Templates and the Design system fire `publish` too, naming what was published", async () => {
+	test("the Globals, Templates, the Design system and Forms fire `publish` too, naming what was published", async () => {
 		const { siteId, postTypeId } = await siteWithEntry("structure-bakery");
 		const url = "https://hooks.agency.example/structure";
 		install.http.respond("POST", url, { status: 200 });
@@ -153,6 +153,13 @@ describe("publishing other items", () => {
 		const { template } = await staff.api.templates.getEntryTemplate({ siteId, postTypeId });
 		await staff.api.templates.publish({ siteId, templateId: template?.id ?? "" });
 		await staff.api.designSystem.publish({ siteId });
+		const { form } = await staff.api.forms.create({ siteId, name: "Contact", key: "contact" });
+		await staff.api.forms.saveDraft({
+			siteId,
+			formId: form.id,
+			form: { fields: [{ key: "email", type: "email", label: "Email", required: true }] },
+		});
+		await staff.api.forms.publish({ siteId, formId: form.id });
 		await install.drainJobs();
 
 		// Jobs queued in the same instant go out in any order.
@@ -161,6 +168,7 @@ describe("publishing other items", () => {
 			.sort((a, b) => a.kind.localeCompare(b.kind));
 		expect(items).toEqual([
 			{ kind: "designSystem", id: expect.any(String) },
+			{ kind: "form", id: form.id },
 			{ kind: "globals", id: expect.any(String) },
 			{ kind: "template", id: template?.id, postTypeId },
 		]);
