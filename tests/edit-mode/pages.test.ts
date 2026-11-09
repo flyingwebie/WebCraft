@@ -116,7 +116,7 @@ describe("a page in Edit mode", () => {
 		editing = await openEditMode(install, editor, site.siteId, "/blog/fresh-bread");
 	});
 
-	test("shows the Drafts of its Entry and of the Globals, its editable regions tagged", async () => {
+	test("shows the Drafts of its Entry and of the Globals, its editable regions tagged with what they hold", async () => {
 		const response = await editing.page("/blog/fresh-bread");
 		expect(response.status).toBe(200);
 		const body = bodyOf(await response.text());
@@ -125,7 +125,7 @@ describe("a page in Edit mode", () => {
 
 		expect(body).toMatch(
 			new RegExp(
-				`<p data-wc-item="globals" data-wc-field="tagline" data-wc-type="text" data-wc-id${id}>Baked twice daily</p>`,
+				`<p data-wc-item="globals" data-wc-field="tagline" data-wc-type="text" data-wc-label="Tagline" data-wc-id${id}>Baked twice daily</p>`,
 			),
 		);
 		expect(body).toMatch(
@@ -135,17 +135,17 @@ describe("a page in Edit mode", () => {
 		);
 		expect(body).toMatch(
 			new RegExp(
-				`<p data-wc-item="${entry}" data-wc-field="subtitle" data-wc-type="text" data-wc-id${id}>Still warm</p>`,
+				`<p data-wc-item="${entry}" data-wc-field="subtitle" data-wc-type="text" data-wc-label="Subtitle" data-wc-id${id}>Still warm</p>`,
 			),
 		);
 		expect(body).toMatch(
 			new RegExp(
-				`<div data-wc-item="${entry}" data-wc-field="intro" data-wc-type="richText" data-wc-id${id}><p>Baked at <strong>seven</strong>.</p></div>`,
+				`<div data-wc-item="${entry}" data-wc-field="intro" data-wc-type="richText" data-wc-label="Intro" data-wc-id${id}><p>Baked at <strong>seven</strong>.</p></div>`,
 			),
 		);
 		expect(body).toMatch(
 			new RegExp(
-				`<p data-wc-item="${entry}" data-wc-field="address.city" data-wc-type="text" data-wc-id${id}>Cork</p>`,
+				`<p data-wc-item="${entry}" data-wc-field="address.city" data-wc-type="text" data-wc-label="Address › City" data-wc-id${id}>Cork</p>`,
 			),
 		);
 		// A number, a value through a formatter and a value beside other text can't be typed over in place.

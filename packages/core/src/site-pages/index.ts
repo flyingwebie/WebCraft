@@ -251,24 +251,25 @@ function editRegions(
 		if (value.path.startsWith("site.")) {
 			const key = value.path.slice("site.".length);
 			const editable = editableField(globalFields, key);
-			return (
-				editable && [
-					["data-wc-item", "globals"],
-					["data-wc-field", key],
-					["data-wc-type", editable.type],
-				]
-			);
+			return editable && regionTags("globals", key, editable.type, editable.label);
 		}
 		if (template !== "content" || !entry) return undefined;
-		const type = value.path === "title" ? "text" : editableField(entry.fields, value.path)?.type;
-		return (
-			type && [
-				["data-wc-item", `entry:${entry.id}`],
-				["data-wc-field", value.path],
-				["data-wc-type", type],
-			]
-		);
+		// The title is a built-in value: the editing bar names it in the person's own language.
+		if (value.path === "title") return regionTags(`entry:${entry.id}`, "title", "text", null);
+		const editable = editableField(entry.fields, value.path);
+		return editable && regionTags(`entry:${entry.id}`, value.path, editable.type, editable.label);
 	};
+}
+
+/** The attributes of an editable region: what it shows (`data-wc-item`, `data-wc-field`), how and its label. */
+function regionTags(item: string, field: string, type: string, label: string | null): [string, string][] {
+	const tags: [string, string][] = [
+		["data-wc-item", item],
+		["data-wc-field", field],
+		["data-wc-type", type],
+	];
+	if (label !== null) tags.push(["data-wc-label", label]);
+	return tags;
 }
 
 /** A published Entry to render, with what its content renders through: its Entry template or Page layout. */

@@ -201,6 +201,12 @@ describe("Pages", () => {
 	);
 });
 
+describe("Edit mode", () => {
+	isolation.refuses("editMode.open", (api, { siteId }) => api.editMode.open({ siteId, path: "/" }), {
+		as: ["staff", "author"],
+	});
+});
+
 describe("Members", () => {
 	isolation.refuses("members.list", (api, { workspaceId }) => api.members.list({ workspaceId }), {
 		as: ["staff", "owner"],

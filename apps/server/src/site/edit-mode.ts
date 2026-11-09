@@ -1,9 +1,11 @@
 import { ORPCError } from "@orpc/server";
 import { toApiError } from "@webcraft/api";
 import {
+	type AdminLanguageCode,
 	EDIT_MODE_PATH,
 	type EditSession,
 	type InstallServices,
+	isAdminLanguage,
 	isDevelopmentHostname,
 	type PageEditing,
 	RateLimitedError,
@@ -12,6 +14,8 @@ import {
 import { z } from "zod";
 
 import { clientAddress } from "../client-address.ts";
+import en from "../messages/en.json" with { type: "json" };
+import it from "../messages/it.json" with { type: "json" };
 import { json, plainText } from "../responses.ts";
 import { EDIT_ASSETS_PATH, editBarAssets } from "./edit-bar/assets.ts";
 
@@ -42,6 +46,9 @@ export async function editModeEndpoint(
 	return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
 }
 
+/** The editing bar's words, by Admin language: the `editBar` part of the admin's message files. */
+const BAR_WORDS: Record<AdminLanguageCode, (typeof en)["editBar"]> = { en: en.editBar, it: it.editBar };
+
 /** Where the editing bar sends edit requests, under `/_webcraft/edit/`: `api/<action>`. */
 const EDIT_API_PREFIX = "api/";
 
@@ -52,9 +59,16 @@ export const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
 const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
-	/** What the editing bar shows for a page: its changes, the Site's pages, who is editing. */
-	state: async (services, session, body, _request, host) =>
-		json(200, await services.editMode.pageState(session, host, parse(pagePath, body).path)),
+	/**
+	 * What the editing bar shows for a page: its changes, the Site's pages, who is editing, and the
+	 * bar's words in the person's Admin language.
+	 */
+	state: async (services, session, body, _request, host) => {
+		const state = await services.editMode.pageState(session, host, parse(pagePath, body).path);
+		const chosen = state.person.adminLanguage;
+		const language = chosen && isAdminLanguage(chosen) ? chosen : (await services.settings.read()).defaultAdminLanguage;
+		return json(200, { ...state, words: BAR_WORDS[language] });
+	},
 	/** Undoes one of the page's changes. */
 	undo: async (services, session, body, _request, host) =>
 		json(200, await services.editMode.undo(session, host, parse(pageChange, body))),

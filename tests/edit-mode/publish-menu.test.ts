@@ -289,6 +289,20 @@ describe("around the page", () => {
 		expect(state.changes.map((change) => change.item)).toEqual(["globals"]);
 	});
 
+	test("the editing bar's words come in the person's Admin language", async () => {
+		const site = await bakery();
+		const { browser } = await install.createMember({ workspaceId, role: "editor" });
+		await browser.api.me.updatePreferences({ adminLanguage: "it" });
+		const italian = await openEditMode(install, browser, site.siteId, "/");
+		const english = await openEditMode(install, editor, site.siteId, "/");
+
+		const inItalian = (await json(await italian.edit("state", { path: "/" }))) as { words: Record<string, unknown> };
+		const inEnglish = (await json(await english.edit("state", { path: "/" }))) as { words: Record<string, unknown> };
+
+		expect(inEnglish.words).toMatchObject({ publish: "Publish", saved: "Saved to Draft" });
+		expect(inItalian.words).toMatchObject({ publish: "Pubblica", saved: "Salvato nella bozza" });
+	});
+
 	test("a path that isn't one on the Site is refused", async () => {
 		const site = await bakery();
 		const editing = await openEditMode(install, editor, site.siteId, "/");
