@@ -40,6 +40,18 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Install settings › General", path: "/settings/general", as: "superadmin" },
 	{ name: "Install settings › Security", path: "/settings/security", as: "superadmin" },
 	{ name: "Install settings › AI, no shared keys", path: "/settings/ai", as: "superadmin" },
+	{ name: "Install settings › Report branding", path: "/settings/reports", as: "superadmin" },
+	{ name: "Install › Services list, none yet (Staff)", path: "/services", as: "staff" },
+	{
+		name: "Workspace › Report branding (Staff)",
+		path: ({ workspaceId }) => `/workspaces/${workspaceId}/report-branding`,
+		as: "staff",
+	},
+	{
+		name: "Site settings › Report branding (Staff)",
+		path: ({ siteId }) => `/sites/${siteId}/report-branding`,
+		as: "staff",
+	},
 	{
 		name: "Workspace › Protected terms, none yet (Owner)",
 		path: ({ workspaceId }) => `/workspaces/${workspaceId}/protected-terms`,

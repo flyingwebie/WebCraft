@@ -648,6 +648,10 @@ _Avoid_: Public link, client portal, guest access
 The services an agency offers, written by Staff for the whole Install, that the suggestions in Reports may point to.
 _Avoid_: Offerings, products, upsells
 
+**Report branding**:
+How Reports and Share links show the agency brand (the Superadmin's for the Install, or a Workspace's own), the client brand (the Site's or Workspace's name and logo) and "Made with WebCraft", each switched on or off. Kept apart from Install branding, which is for System emails.
+_Avoid_: White label, theme, agency branding (that means Install branding)
+
 **Consent banner**:
 The notice on a Site that asks visitors which categories of tracking and outside content they accept. WebCraft's built-in banner can be replaced by an outside consent service or turned off.
 _Avoid_: Cookie banner, cookie popup, GDPR notice
