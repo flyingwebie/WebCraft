@@ -14,11 +14,24 @@ export const BACKUP_REASONS = ["scheduled", "command", "before-migrations"] as c
 
 export type BackupReason = (typeof BACKUP_REASONS)[number];
 
+/**
+ * What a restore accepts from a manifest, which it reads before it can trust the archive: only names
+ * and bounds of the shape WebCraft and its Modules write, so a doctored manifest can't name another
+ * schema's table or slip SQL into a statement.
+ */
+/** A plain Postgres name, as WebCraft and its Modules name tables and columns. */
+const PLAIN_NAME = /^[a-z_][a-z0-9_]*$/;
+/** A table or sequence of the schemas a Backup holds: WebCraft's (`public`) and the Modules' (`m_<id>`). */
+const HELD_NAME = /^(?:public|m_[a-z0-9_]+)\.[a-z_][a-z0-9_]*$/;
+const TIMESTAMP = String.raw`\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?\+00`;
+/** A Module's monthly partition's bound as the dump writes it (in UTC): from one timestamp to the next. */
+export const PARTITION_BOUND = new RegExp(String.raw`^FOR VALUES FROM \('(${TIMESTAMP})'\) TO \('(${TIMESTAMP})'\)$`);
+
 const tableSchema = z.object({
 	/** `<schema>.<table>`, such as `public.entries` or `m_forms.submissions`. */
-	name: z.string(),
+	name: z.string().regex(HELD_NAME),
 	/** The columns the data holds, in its order (generated columns are left out: Postgres makes them again). */
-	columns: z.array(z.string()),
+	columns: z.array(z.string().regex(PLAIN_NAME)),
 	rows: z.number().int().nonnegative(),
 	/** The archive file holding its rows: Postgres's COPY text format, gzip-compressed. */
 	file: z.string(),
@@ -55,9 +68,17 @@ export const backupManifestSchema = z.object({
 	database: z.object({
 		/** In the order a restore loads them: tables first, the tables pointing at them after. */
 		tables: z.array(tableSchema),
-		sequences: z.array(z.object({ name: z.string(), value: z.string(), called: z.boolean() })),
+		sequences: z.array(
+			z.object({ name: z.string().regex(HELD_NAME), value: z.string().regex(/^-?\d+$/), called: z.boolean() }),
+		),
 		/** The partitions of partitioned tables (a Module's monthly partitions), made before rows are loaded. */
-		partitions: z.array(z.object({ parent: z.string(), name: z.string(), bound: z.string() })),
+		partitions: z.array(
+			z.object({
+				parent: z.string().regex(HELD_NAME),
+				name: z.string().regex(PLAIN_NAME),
+				bound: z.string().regex(PARTITION_BOUND),
+			}),
+		),
 	}),
 	/**
 	 * Files: where the Install stored new files then, the files of local storage the archive holds
