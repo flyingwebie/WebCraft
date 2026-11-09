@@ -2,7 +2,7 @@
  * One reason something was refused, and where: `urlPattern`, `parentId`, `fields[2].key`, or a value's path such
  * as `fields.team[1].name`. A value that breaks one of its Field's rules says which (`required`,
  * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
- * `postTypes`), so the admin can word it in the person's language.
+ * `postTypes`, `media`: `VALUE_RULES`), so the admin can word it in the person's language.
  */
 export type ContentProblem = { at: string; message: string; rule?: string };
 

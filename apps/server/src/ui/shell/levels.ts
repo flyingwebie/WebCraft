@@ -2,16 +2,20 @@ import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
 import {
 	Building2Icon,
+	DatabaseIcon,
+	FileTextIcon,
 	GlobeIcon,
 	HardDriveIcon,
 	ImagesIcon,
 	LayoutDashboardIcon,
 	type LucideIcon,
 	MailIcon,
+	NewspaperIcon,
 	PuzzleIcon,
 	ScrollTextIcon,
 	SettingsIcon,
 	ShieldCheckIcon,
+	SlidersHorizontalIcon,
 	UsersIcon,
 } from "lucide-react";
 
@@ -26,6 +30,12 @@ export type AdminLevel = "install" | "workspace" | "site";
 export type PlaceWorkspace = { id: string; name: string };
 
 export type PlaceSite = { id: string; name: string; slug: string };
+
+/** One of a Site's Post Types, as the sidebar lists it: Pages (`builtIn: "page"`), then the rest. */
+export type PlacePostType = { id: string; name: string; builtIn: "page" | null };
+
+/** The languages a Site's Content is written in: the Default language first. */
+export type PlaceLanguages = { default: string; all: readonly string[] };
 
 /** One of a Module's admin pages the person may open at the place (`/…/m/<module id>/<path>`). */
 export type PlaceModulePage = { moduleId: string; path: string; label: string };
@@ -52,14 +62,20 @@ export type AdminPlace =
 			sites: PlaceSite[];
 			permissions: readonly string[];
 			modulePages: readonly PlaceModulePage[];
+			/** The Site's Post Types: the Content group lists the Entries of each. */
+			postTypes: readonly PlacePostType[];
+			languages: PlaceLanguages;
 	  };
 
 export type NavItem = {
 	id: string;
-	label: MessageKey;
+	/** A message, or a name people gave (a Post Type's), shown as it is. */
+	label: MessageKey | { text: string };
 	icon: LucideIcon;
 	/** The page, with `$workspaceId` and `$siteId` filled in from the place. */
 	to: LinkProps["to"];
+	/** More route parameters the page needs, such as a Post Type's id. */
+	params?: Readonly<Record<string, string>>;
 	/** Shown only to people holding this Permission at the place; everyone sees it when absent. */
 	requires?: Permission;
 	/** Active only on this very page, not on the pages below it (a level's home). */
@@ -75,6 +91,8 @@ export type NavGroup = {
 	 * (`structure.edit`): Members see Content only, never Structure.
 	 */
 	requires?: Permission;
+	/** A short note beside the group's label, such as "Staff only". */
+	note?: MessageKey;
 };
 
 /** One level's sidebar: groups of items, and items pinned to its bottom. */
@@ -173,8 +191,8 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 	site: {
 		groups: [
 			{
-				id: "site",
-				label: "shell.nav.siteGroup",
+				id: "content",
+				label: "shell.nav.contentGroup",
 				items: [
 					{
 						id: "site-overview",
@@ -183,7 +201,29 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						to: "/sites/$siteId",
 						exact: true,
 					},
+					// The Site's Post Types come here (`postTypeItems`).
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
+					{ id: "site-globals", label: "shell.nav.globals", icon: SlidersHorizontalIcon, to: "/sites/$siteId/globals" },
+				],
+			},
+			{
+				id: "structure",
+				label: "shell.nav.structureGroup",
+				note: "shell.nav.staffOnly",
+				requires: "structure.edit",
+				items: [
+					{
+						id: "site-post-types",
+						label: "shell.nav.postTypes",
+						icon: DatabaseIcon,
+						to: "/sites/$siteId/post-types",
+					},
+				],
+			},
+			{
+				id: "site-settings",
+				label: "shell.nav.siteSettingsGroup",
+				items: [
 					{
 						id: "site-modules",
 						label: "shell.nav.modules",
@@ -198,12 +238,35 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 	},
 };
 
+/** A Site's Post Types as Content items, after its Overview: Pages first, then the rest by name. */
+function postTypeItems(postTypes: readonly PlacePostType[]): NavItem[] {
+	const ordered = [...postTypes].sort((a, b) => Number(b.builtIn === "page") - Number(a.builtIn === "page"));
+	return ordered.map((postType) => ({
+		id: `post-type-${postType.id}`,
+		label: { text: postType.name },
+		icon: postType.builtIn === "page" ? FileTextIcon : NewspaperIcon,
+		to: "/sites/$siteId/entries/$postTypeId",
+		params: { postTypeId: postType.id },
+	}));
+}
+
 /** The sidebar of a place, with only the groups and items the person may see, and no empty groups. */
 export function navigationFor(place: AdminPlace): LevelNavigation {
 	const visible = (entry: { requires?: Permission }) => !entry.requires || place.permissions.includes(entry.requires);
 	const level = NAVIGATION[place.level];
+	const groups =
+		place.level === "site"
+			? level.groups.map((group) =>
+					group.id === "content"
+						? {
+								...group,
+								items: [...group.items.slice(0, 1), ...postTypeItems(place.postTypes), ...group.items.slice(1)],
+							}
+						: group,
+				)
+			: level.groups;
 	return {
-		groups: level.groups
+		groups: groups
 			.filter(visible)
 			.map((group) => ({ ...group, items: group.items.filter(visible) }))
 			.filter((group) => group.items.length > 0),

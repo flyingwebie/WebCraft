@@ -14,6 +14,7 @@ import {
 	UTILITY_ID_PREFIX,
 } from "@webcraft/renderer";
 
+import { storedComponentVersion } from "../content/component-versions.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 
 /** One place a Class or token is used. */
@@ -64,7 +65,7 @@ async function treeSources(scope: Pick<SiteScope, "select">): Promise<TreeSource
 }
 
 function treeOf(version: unknown): ElementTree {
-	return (version as { tree?: ElementTree } | null)?.tree ?? { version: 1, nodes: [] };
+	return storedComponentVersion(version).tree;
 }
 
 /** Every element tree giving an element a Class or utility that `matches` accepts. */

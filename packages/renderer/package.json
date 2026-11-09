@@ -6,7 +6,8 @@
 	"description": "Template markup and the renderer that turns a Site's stored data into semantic HTML.",
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./rich-text": "./src/rich-text.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

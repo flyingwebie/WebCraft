@@ -99,6 +99,7 @@ export {
 	undoGlobalsChanges,
 } from "./globals.ts";
 export { draftVersion, type SaveBase } from "./json.ts";
+export { languagesOf } from "./languages.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
