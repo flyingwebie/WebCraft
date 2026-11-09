@@ -27,8 +27,9 @@ Coolify's proxy only answers for domains it knows, so connecting a domain takes 
 
 Coolify's proxy reaches the web process over a Docker network on the server, from a private address, so the default trusted proxies (`private`) are right: WebCraft reads `X-Forwarded-For` from the right, so it takes the address Coolify's proxy saw, whatever a client wrote to the left of it. If the server's Docker networks have no IPv6, visitors connecting over IPv6 reach the proxy through Docker's gateway and all share its address; giving Coolify's networks IPv6 fixes that.
 
-## Updating, backups and commands
+## Updating, Backups and commands
 
-- **Updating**: change `WEBCRAFT_VERSION` and redeploy. The migrate step runs before web and worker start on the new version.
-- **Backups**: Coolify can back up the Postgres service on a schedule (its database backups), or run `pg_dump -U "$POSTGRES_USER" -Fc webcraft` in the Postgres container. Back up the `storage` volume too while the Install's storage is local disk. Keep the Master key apart from both.
-- **Server commands**: open a terminal in the web container in Coolify and run `webcraft admin …`.
+- **Updating**: change `WEBCRAFT_VERSION` and redeploy. The migrate step runs before web and worker start on the new version, taking a Backup into the `backups` volume first when it has anything to do. Going back: see [the overview](README.md#going-back-a-version).
+- **Backups**: the worker takes one every night into the `backups` volume (7 daily and 4 weekly are kept); Install settings › Backups can send them to an S3-compatible bucket instead, which also keeps them off the server. Coolify's own database backups of the Postgres service are a good extra copy, but they don't hold the local Media; WebCraft's Backups do. Keep the Master key apart from both.
+- **Restoring**: stop the web and worker services, open a terminal in a container of the web image with the volumes mounted (or run `webcraft admin restore /var/lib/webcraft/backups/<archive>` as a one-off command of the web service), then start them again. See [the overview](README.md#restoring).
+- **Server commands**: open a terminal in the web container in Coolify and run `webcraft admin …` (`backup`, `check-update`, `create-superadmin`, `rotate-key`).

@@ -5,7 +5,7 @@
 #   docker build -f apps/server/Dockerfile -t webcraft-web .
 #
 # Runs as the unprivileged `bun` user (uid 1000, as the worker image's `node` user, so both can share
-# the storage volume). Listens on PORT (3000). See docs/deploy/.
+# the storage and Backups volumes). Listens on PORT (3000). See docs/deploy/.
 
 ARG BUN_VERSION=1.4.2
 
@@ -34,13 +34,15 @@ LABEL org.opencontainers.image.title="WebCraft web" \
 WORKDIR /app
 ENV NODE_ENV=production \
 	PORT=3000 \
-	WEBCRAFT_STORAGE_DIR=/var/lib/webcraft/storage
+	WEBCRAFT_STORAGE_DIR=/var/lib/webcraft/storage \
+	WEBCRAFT_BACKUP_DIR=/var/lib/webcraft/backups
 COPY --from=runtime-files /app /app
-RUN install -d -o bun -g bun /var/lib/webcraft/storage \
+# The Backups folder: `webcraft admin backup` and the migrate step write there (from this image).
+RUN install -d -o bun -g bun /var/lib/webcraft/storage /var/lib/webcraft/backups \
 	&& printf '#!/bin/sh\nexec bun /app/apps/cli/src/main.ts "$@"\n' > /usr/local/bin/webcraft \
 	&& chmod 755 /usr/local/bin/webcraft
 USER bun
-VOLUME /var/lib/webcraft/storage
+VOLUME ["/var/lib/webcraft/storage", "/var/lib/webcraft/backups"]
 EXPOSE 3000
 # `/readyz` on the admin host: the database answers and has every migration this version expects.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 CMD ["bun", "/app/apps/server/src/healthcheck.ts"]

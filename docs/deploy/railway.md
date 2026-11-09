@@ -33,6 +33,7 @@ Deploying from a fork of the repository instead of the images: give each service
 1. Deploy the template (or create the services above). The pre-deploy command runs the migrate step before every deploy of the web service, and Railway waits for `/readyz` before sending it traffic: on Railway, `/healthz` and `/readyz` also answer on `healthcheck.railway.app`, the hostname Railway's health checks use.
 2. Open the web service's logs, find `setupUrl`, open it and create the Superadmin.
 3. **Set up S3-compatible storage at once** (Install settings › Storage). A Railway volume belongs to one service, so web and worker can't share local storage: uploaded Media must go to a bucket both reach (Railway's buckets, or any S3-compatible service).
+4. **Send Backups to a bucket too** (Install settings › Backups, another bucket than Media's). The worker's daily Backup and the one the migrate step takes before an update would otherwise be written to a container's own disk, which Railway doesn't keep.
 
 ## Connecting a Site domain
 
@@ -49,8 +50,16 @@ Known limits:
 - Behind another proxy or CDN in front of Railway's edge, `X-Real-IP` holds that proxy's address, not the visitor's. For a CDN, choose it on the Site's Domains & Staging screen: the CDN's own header then names the visitor.
 - Requests over Railway's private network (`*.railway.internal`) or a TCP proxy skip the edge, and anything there can write `X-Real-IP`. Don't add a TCP proxy to the web service, and run nothing else in the project that calls it privately.
 
-## Updating, backups and commands
+## Updating, Backups and commands
 
-- **Updating**: change the image tag of web and worker to the new release and deploy; the pre-deploy command runs the migrate step first.
-- **Backups**: Railway's Postgres has scheduled backups on paid plans; or run `pg_dump "$DATABASE_URL" -Fc` from a machine that reaches it. Media is in the S3-compatible bucket: use its versioning or replication. Keep the Master key apart.
+- **Updating**: change the image tag of web and worker to the new release and deploy; the pre-deploy command runs the migrate step first, which takes a Backup into the Backups bucket when it has anything to do. Going back: see [the overview](README.md#going-back-a-version).
+- **Backups**: with Install settings › Backups set to a bucket, the worker takes one every night (7 daily and 4 weekly kept). Media is in its own bucket, which a Backup doesn't copy: use that bucket's versioning or replication. Railway's Postgres backups (paid plans) are a good extra copy. Keep the Master key apart.
+- **Restoring**: download the archive from the Backups bucket, remove the worker's and web's deployments (or scale them to zero), then, from a machine with Docker that reaches the database through its public address, run the web image with the services' variables (the Master key the Install had included) and the archive mounted:
+
+  ```sh
+  docker run --rm -v "$PWD":/restore -e DATABASE_URL='<public database URL>' -e WEBCRAFT_ADMIN_HOST=admin.agency.example \
+    -e WEBCRAFT_SECRET_KEY='<Master key>' ghcr.io/flyingwebie/webcraft-web:<version> webcraft admin restore /restore/<archive>
+  ```
+
+  Then deploy web and worker again. See [the overview](README.md#restoring).
 - **Server commands**: `railway ssh` into the web service (or its shell in the Railway dashboard) and run `webcraft admin …`.

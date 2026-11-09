@@ -5,7 +5,8 @@
 #   docker compose up -d
 #
 # Updating: change WEBCRAFT_VERSION in .env, then `docker compose pull && docker compose up -d`. The
-# `migrate` step runs first, and web and worker start only once it has finished (ADR 0031).
+# `migrate` step runs first (taking a Backup into the `backups` volume when anything is pending), and
+# web and worker start only once it has finished (ADR 0031).
 
 name: webcraft
 
@@ -20,6 +21,10 @@ x-webcraft-environment: &webcraft-environment
   WEBCRAFT_TRUSTED_PROXIES: ${WEBCRAFT_TRUSTED_PROXIES:-}
   WEBCRAFT_SECRET_KEY: ${WEBCRAFT_SECRET_KEY:?Set WEBCRAFT_SECRET_KEY in .env (openssl rand -base64 32)}
   WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
+  # Backups go here while Install settings › Backups says "Backups folder" (see docs/deploy/compose.md).
+  WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+  # Optional: another release feed for the update check, or `off`.
+  WEBCRAFT_UPDATE_FEED: ${WEBCRAFT_UPDATE_FEED:-}
   PORT: "3000"
 
 services:
@@ -38,12 +43,16 @@ services:
       timeout: 5s
       retries: 30
 
-  # The migrate step (ADR 0031): applies pending migrations, then stops. Web and worker wait for it.
+  # The migrate step (ADR 0031): when migrations are pending it takes a Backup (the database and the
+  # storage volume's files) into the backups volume, applies them, then stops. Web and worker wait for it.
   migrate:
     image: ${WEBCRAFT_IMAGE:-ghcr.io/flyingwebie/webcraft}-web:${WEBCRAFT_VERSION:?Set WEBCRAFT_VERSION in .env}
     command: ["webcraft", "admin", "migrate"]
     restart: "no"
     environment: *webcraft-environment
+    volumes:
+      - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +63,7 @@ services:
     environment: *webcraft-environment
     volumes:
       - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
     networks:
       default: {}
       # Caddy asks the web process about a hostname at http://<admin host>:3000/caddy/ask, which only
@@ -71,6 +81,7 @@ services:
     environment: *webcraft-environment
     volumes:
       - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -105,5 +116,8 @@ volumes:
   postgres-data:
   # Media and other files while the Install's storage is local disk: web and worker share it.
   storage:
+  # Backups while they go to the Backups folder: the worker (daily), the migrate step (before it changes
+  # anything) and `webcraft admin backup` write here. Copy them off the server too.
+  backups:
   caddy-data:
   caddy-config:
