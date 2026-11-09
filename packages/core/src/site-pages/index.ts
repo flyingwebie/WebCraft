@@ -56,7 +56,14 @@ import {
 	type SiteLanguages,
 	siteLanguages,
 } from "../content/languages.ts";
-import { candidatePatterns, findPublishedPage, isPagePostType, pathText } from "../content/pages.ts";
+import {
+	candidatePatterns,
+	findPublishedPage,
+	isPagePostType,
+	pathIn,
+	pathText,
+	publishedPageTree,
+} from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { propValue } from "../content/props.ts";
 import {
@@ -69,7 +76,7 @@ import {
 } from "../content/render-values.ts";
 import { pageScripts, scriptFile } from "../content/scripts.ts";
 import { specialPageId } from "../content/special-pages.ts";
-import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts";
+import { canonicalPath, pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
 import {
@@ -715,6 +722,7 @@ export function createSitePages(options: {
 					const languages = { language: site.defaultLanguage, defaultLanguage: site.defaultLanguage };
 					return (await pageMedia(scope, [mediaId], languages)).get(mediaId.toLowerCase())?.url ?? null;
 				},
+				entryPath: (entryId, language) => publishedEntryPath(scope, site, entryId, language),
 			});
 			const location = target && addressFrom(site, host, target.to);
 			// A rule never sends a request to its own address (whatever query it adds), which would loop.
@@ -771,6 +779,39 @@ export function isReservedPath(segments: readonly string[]): boolean {
 }
 
 /** The language a path on a hostname is in (the Default language when it names none). */
+/**
+ * Where an Entry is published now in a language (null: the Default language), as a Site path with
+ * the language's prefix: a Page by its place in the published Page tree, any other Entry by its Post
+ * Type's URL pattern and published slug. Null while it isn't published there, or for a language the
+ * Site doesn't have.
+ */
+async function publishedEntryPath(
+	scope: ReadScope,
+	site: SiteLanguages,
+	entryId: string,
+	language: string | null,
+): Promise<string | null> {
+	const code = language
+		? site.languages.find((each) => each.code.toLowerCase() === language.toLowerCase())?.code
+		: site.defaultLanguage;
+	if (!code) return null;
+	const [row] = await scope.select(entries, eq(entries.id, entryId));
+	if (!row || row.published === null) return null;
+	const postType = (await listPostTypes(scope)).find((each) => each.id === row.postTypeId);
+	if (!postType) return null;
+	const languages = { language: code, defaultLanguage: site.defaultLanguage };
+	if (isPagePostType(postType)) {
+		const parts = pathIn(await publishedPageTree(scope, postType.id, code), entryId);
+		return parts ? languagePath(languages, pathText(parts)) : null;
+	}
+	const slug = await scope.first(
+		publishedSlugs,
+		and(eq(publishedSlugs.entryId, entryId), eq(publishedSlugs.language, code)),
+	);
+	const path = slug ? pathFor(postType.urlPattern, slug.slug) : null;
+	return path ? languagePath(languages, path) : null;
+}
+
 export async function languageOnHost(scope: ReadScope, host: SiteHost, pathname: string): Promise<string> {
 	const site = await siteLanguages(scope);
 	const onHost = pathOnHost(site, host, pathSegments(pathname) ?? [], true);
