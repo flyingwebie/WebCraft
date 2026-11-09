@@ -184,11 +184,12 @@ function controlHtml(control: FilterControlView, id: (...parts: (string | number
 		}
 		case "chips": {
 			if (control.chips.length === 0) return `<div class="${FILTER_HOOKS.chips}" data-wc-control="chips"></div>`;
+			// Ids by place, so focus on a removed chip moves to the one that takes its place.
 			const chips = control.chips.map(
-				(chip) =>
-					`<li><a class="${FILTER_HOOKS.chip}" href="${escapeAttribute(safeUrl(chip.href))}" aria-label="${escapeAttribute(chip.removeLabel)}" data-wc-filter-link>${escapeText(chip.label)}<span aria-hidden="true"> ×</span></a></li>`,
+				(chip, index) =>
+					`<li><a class="${FILTER_HOOKS.chip}" id="${id(index + 1)}" href="${escapeAttribute(safeUrl(chip.href))}" aria-label="${escapeAttribute(chip.removeLabel)}" data-wc-filter-link>${escapeText(chip.label)}<span aria-hidden="true"> ×</span></a></li>`,
 			);
-			return `<div class="${FILTER_HOOKS.chips}" data-wc-control="chips" role="group" aria-label="${escapeAttribute(control.label)}"><ul>${chips.join("")}</ul><a class="${FILTER_HOOKS.reset}" href="${escapeAttribute(safeUrl(control.resetHref))}" data-wc-filter-link>${escapeText(control.resetLabel)}</a></div>`;
+			return `<div class="${FILTER_HOOKS.chips}" data-wc-control="chips" role="group" aria-label="${escapeAttribute(control.label)}"><ul>${chips.join("")}</ul><a class="${FILTER_HOOKS.reset}" id="${id("reset")}" href="${escapeAttribute(safeUrl(control.resetHref))}" data-wc-filter-link>${escapeText(control.resetLabel)}</a></div>`;
 		}
 		case "count":
 			return `<p class="${FILTER_HOOKS.count}" data-wc-control="count">${escapeText(control.text)}</p>`;

@@ -71,7 +71,7 @@ describe("two Filters on one page", () => {
 		expect(html).toContain('<input type="hidden" name="team.sort" value="name-desc">');
 		expect(html).toContain('<input type="hidden" name="shop.category" value="bread">');
 		expect(html).toContain('href="/shop?team.sort=name-desc" aria-label="Remove Bread"');
-		expect(html).toContain('<a class="wc-filter-reset" href="/shop?team.sort=name-desc"');
+		expect(html).toContain('href="/shop?team.sort=name-desc" data-wc-filter-link>Reset</a>');
 	});
 
 	test("a key without its Filter's name is unknown there", async () => {

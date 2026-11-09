@@ -184,7 +184,9 @@ describe("chips and Reset", () => {
 	test("each choice is a chip linking to the page without it; Reset links to the page without them all", async () => {
 		const { html } = await visit("/shop?category=bread,pastries&vegan=1");
 		const chips = [
-			...html.matchAll(/<a class="wc-filter-chip" href="([^"]*)" aria-label="([^"]*)" data-wc-filter-link>([^<]*)</g),
+			...html.matchAll(
+				/<a class="wc-filter-chip" id="[^"]*" href="([^"]*)" aria-label="([^"]*)" data-wc-filter-link>([^<]*)</g,
+			),
 		].map(([, href, name, label]) => ({ href: href?.replaceAll("&amp;", "&"), name, label }));
 
 		expect(chips).toEqual([
@@ -192,7 +194,9 @@ describe("chips and Reset", () => {
 			{ href: "/shop?category=bread&vegan=1", name: "Remove Pastries", label: "Pastries" },
 			{ href: "/shop?category=bread,pastries", name: "Remove Vegan only", label: "Vegan only" },
 		]);
-		expect(html).toContain('<a class="wc-filter-reset" href="/shop" data-wc-filter-link>Reset</a>');
+		expect(html).toContain(
+			'<a class="wc-filter-reset" id="wc-filter-shop-8-reset" href="/shop" data-wc-filter-link>Reset</a>',
+		);
 		expect(html).toContain('role="group" aria-label="Active filters"');
 	});
 

@@ -98,9 +98,11 @@ const SCRIPT = `(() => {
 		let target = document.getElementById(state.id);
 		if (target && state.value !== undefined && target.value !== state.value) target.value = state.value;
 		if (!target && state.form) {
-			// What had focus is gone (a chip just removed): the Filter's next choice, else its first control.
+			// What had focus is gone (the last chip, just removed): the chip before it, else Reset's place,
+			// else the Filter's first control.
 			const form = document.getElementById(state.form);
-			target = form?.querySelector(".wc-filter-chip, .wc-filter-reset, input, select") ?? undefined;
+			const chips = form?.querySelectorAll(".wc-filter-chip") ?? [];
+			target = chips[chips.length - 1] ?? form?.querySelector("input:not([type=hidden]), select") ?? undefined;
 		}
 		if (!target) return;
 		target.focus({ preventScroll: true });

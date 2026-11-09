@@ -66,11 +66,18 @@ const PRODUCTS: [string, Record<string, unknown>][] = [
 	["Birthday cake", { category: ["cakes"], price: 25, vegan: false, baker: null, baked: "2026-04-01" }],
 ];
 
-/** Builds the shop on a new Site of the Install, live on its Primary domain. */
-export async function buildShop(install: TestInstall, slug = "bakery"): Promise<Shop> {
+/**
+ * Builds the shop on a new Site of the Install, live on its Primary domain (`live`: the test
+ * harness's, unless another puts it live, as the browser harness does on `.localhost`).
+ */
+export async function buildShop(
+	install: TestInstall,
+	slug = "bakery",
+	live: (siteId: string) => Promise<string> = (siteId) => goLive(install, siteId),
+): Promise<Shop> {
 	const workspaceId = (await install.createWorkspace(`Shop ${slug}`)).id;
 	const siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
-	const origin = await goLive(install, siteId);
+	const origin = await live(siteId);
 	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const { postType: bakers } = await staff.api.postTypes.create({
 		siteId,
