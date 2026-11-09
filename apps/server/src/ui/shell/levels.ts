@@ -12,6 +12,7 @@ import {
 	FileTextIcon,
 	GlobeIcon,
 	HardDriveIcon,
+	HistoryIcon,
 	ImagesIcon,
 	ImportIcon,
 	InboxIcon,
@@ -188,6 +189,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.backups",
 						icon: ArchiveIcon,
 						to: "/settings/backups",
+						requires: "install.manage",
+					},
+					{
+						id: "history",
+						label: "shell.nav.history",
+						icon: HistoryIcon,
+						to: "/settings/history",
 						requires: "install.manage",
 					},
 					{

@@ -5,6 +5,7 @@ import { LayoutTemplateIcon } from "lucide-react";
 
 import { getApi } from "../../ui/api.ts";
 import { StatusBadge } from "../../ui/content/DraftParts.tsx";
+import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -76,14 +77,24 @@ function TemplatesPage() {
 								</TableCell>
 								<TableCell className="text-end">
 									{row.unavailable ? null : (
-										<Link
-											to="/builder/$siteId/$"
-											params={{ siteId, _splat: splat }}
-											className={buttonVariants({ variant: "outline", size: "sm" })}
-										>
-											{t("templates.open")}
-											<span className="sr-only">{t("templates.openNamed", { name })}</span>
-										</Link>
+										<span className="inline-flex flex-wrap justify-end gap-2">
+											{row.template ? (
+												<HistoryLink
+													siteId={siteId}
+													item={{ kind: "template", id: row.template.id }}
+													name={name}
+													size="sm"
+												/>
+											) : null}
+											<Link
+												to="/builder/$siteId/$"
+												params={{ siteId, _splat: splat }}
+												className={buttonVariants({ variant: "outline", size: "sm" })}
+											>
+												{t("templates.open")}
+												<span className="sr-only">{t("templates.openNamed", { name })}</span>
+											</Link>
+										</span>
 									)}
 								</TableCell>
 							</TableRow>

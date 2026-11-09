@@ -15,6 +15,7 @@ import { SettingsTab } from "../../ui/forms/SettingsTab.tsx";
 import { StatusBadge } from "../../ui/forms/StatusBadge.tsx";
 import { SubmissionsTab } from "../../ui/forms/SubmissionsTab.tsx";
 import { TranslationsTab } from "../../ui/forms/TranslationsTab.tsx";
+import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitleOf, useT } from "../../ui/i18n.tsx";
 import { Forbidden } from "../../ui/PageHeader.tsx";
 import { type TabSpec, Tabs } from "../../ui/Tabs.tsx";
@@ -238,6 +239,8 @@ function FormPage() {
 				</div>
 				{staff ? (
 					<div className="flex flex-wrap gap-2">
+						<HistoryLink siteId={siteId} item={{ kind: "form", id: form.id }} />
+						{changesEmails ? <HistoryLink siteId={siteId} item={{ kind: "formEmails", id: form.id }} emails /> : null}
 						<Button variant="outline" onClick={() => void save()} disabled={busy || !changed}>
 							<SaveIcon data-icon="inline-start" />
 							{t("forms.saveDraft")}
@@ -247,6 +250,8 @@ function FormPage() {
 							{t("forms.publish")}
 						</Button>
 					</div>
+				) : changesEmails ? (
+					<HistoryLink siteId={siteId} item={{ kind: "formEmails", id: form.id }} emails />
 				) : null}
 			</div>
 			{problems.length > 0 ? (

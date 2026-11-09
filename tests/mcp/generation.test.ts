@@ -4,7 +4,7 @@
 // through `tools/list`, as an AI client holding an API token with every Toolset sees it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Client } from "@modelcontextprotocol/client";
-import { FIRST_PARTY_MODULES } from "@webcraft/core";
+import { FIRST_PARTY_MODULES, TOOLSETS } from "@webcraft/core";
 
 import { createApiToken } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
@@ -22,17 +22,7 @@ type Operation = {
 
 type Tool = Awaited<ReturnType<Client["listTools"]>>["tools"][number];
 
-const EVERY_TOOLSET = [
-	"content",
-	"media",
-	"structure",
-	"forms",
-	"publishing",
-	"translation",
-	"siteSettings",
-	"analytics",
-	"submissions",
-];
+const EVERY_TOOLSET: string[] = [...TOOLSETS];
 
 let install: TestInstall;
 let operations: Operation[];

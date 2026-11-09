@@ -334,6 +334,7 @@ function plannedPostType(scope: SiteScope, type: string, name: string, key: stri
 		searchable: true,
 		searchedFields: [],
 		seo: {} as PostType["seo"],
+		revisions: true,
 		createdAt: now,
 		updatedAt: now,
 	};

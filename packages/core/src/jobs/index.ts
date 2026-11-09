@@ -11,6 +11,7 @@ import {
 } from "../domains/jobs.ts";
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
+import { historyPrune, historyPruneSchedule } from "../history/prune.ts";
 import { importsPurge, importsPurgeSchedule } from "../imports/purge.ts";
 import { importsRun } from "../imports/runs.ts";
 import { importsPreview } from "../imports/source-runs.ts";
@@ -80,6 +81,7 @@ export const coreJobs = [
 	updatesCheck,
 	translationsRun,
 	translationsResume,
+	historyPrune,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -104,6 +106,7 @@ export const coreSchedules = [
 	backupsScheduledSchedule,
 	updatesCheckSchedule,
 	translationsResumeSchedule,
+	historyPruneSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {

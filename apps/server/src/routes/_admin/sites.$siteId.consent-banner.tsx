@@ -18,6 +18,8 @@ import { z } from "zod";
 import { getApi } from "../../ui/api.ts";
 import { type ConsentBannerView, ConsentBannerWords } from "../../ui/consent/ConsentBannerWords.tsx";
 import { errorMessage } from "../../ui/errors.ts";
+import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
+import { useLeaveOnClose } from "../../ui/history/leave.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -54,10 +56,17 @@ function ConsentBannerPage() {
 	const { banner } = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
+	// Closing the editor keeps the words' Draft as a Checkpoint when it changed.
+	useLeaveOnClose(siteId, { kind: "consentBanner" });
 	if (place.level !== "site") return null;
 	return (
 		<>
-			<PageHeader heading={t("consentBanner.heading")}>{t("consentBanner.intro")}</PageHeader>
+			<PageHeader
+				heading={t("consentBanner.heading")}
+				action={<HistoryLink siteId={siteId} item={{ kind: "consentBanner" }} />}
+			>
+				{t("consentBanner.intro")}
+			</PageHeader>
 			<div className="grid gap-10">
 				<BannerSettings
 					key={`${banner.mode}-${banner.layout}`}

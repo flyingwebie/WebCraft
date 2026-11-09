@@ -5,6 +5,8 @@ import { getApi } from "../../ui/api.ts";
 import { EntryEditor } from "../../ui/content/EntryEditor.tsx";
 import { loadMedia, loadRelationshipTargets } from "../../ui/content/loaders.ts";
 import { errorCode } from "../../ui/errors.ts";
+import { HISTORY_CARD_COPIES } from "../../ui/history/HistoryCard.tsx";
+import { useLeaveOnClose } from "../../ui/history/leave.ts";
 import { pageTitleOf } from "../../ui/i18n.tsx";
 
 /** Which language the editor shows; the Site's Default language when none is given. */
@@ -24,7 +26,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId/entries/$postTypeId/
 				api.postTypes.get({ siteId, postTypeId: params.postTypeId }),
 			]);
 			if (entry.postTypeId !== postType.id) throw notFound();
-			const [relationships, media, pages] = await Promise.all([
+			const [relationships, media, pages, history] = await Promise.all([
 				loadRelationshipTargets(api, siteId, postType.fields, entry.language),
 				loadMedia(api, siteId, postType.fields, entry.draft.fields, [entry.draft.seo.image]),
 				postType.builtIn === "page"
@@ -37,8 +39,9 @@ export const Route = createFileRoute("/_admin/sites/$siteId/entries/$postTypeId/
 							})),
 						)
 					: null,
+				api.history.list({ siteId, item: { kind: "entry", id: entry.id }, limit: HISTORY_CARD_COPIES }),
 			]);
-			return { entry, relationships, media, pages, crumb: entry.draft.title || undefined };
+			return { entry, relationships, media, pages, history, crumb: entry.draft.title || undefined };
 		} catch (error) {
 			if (errorCode(error) === "ENTRY_NOT_FOUND" || errorCode(error) === "BAD_REQUEST") throw notFound();
 			throw error;
@@ -54,10 +57,12 @@ export const Route = createFileRoute("/_admin/sites/$siteId/entries/$postTypeId/
 
 /** Site › an Entry: every Field of its Post Type, saved to the Draft as people type, and published per role. */
 function EntryPage() {
-	const { entry, relationships, media, pages } = Route.useLoaderData();
+	const { entry, relationships, media, pages, history } = Route.useLoaderData();
 	const { postType } = parent.useLoaderData();
 	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
+	// Closing the editor keeps the Draft as a Checkpoint when it changed.
+	useLeaveOnClose(siteId, { kind: "entry", id: entry.id });
 	if (place.level !== "site") return null;
 	return (
 		<EntryEditor
@@ -71,6 +76,7 @@ function EntryPage() {
 			relationships={relationships}
 			media={media}
 			pages={pages}
+			history={history}
 		/>
 	);
 }

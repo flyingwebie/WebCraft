@@ -28,6 +28,7 @@ import { sameJson } from "../content/json.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
 import type { Published } from "../content/publishing.ts";
 import { storedVersion } from "../content/values.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ConsentBannerRow, lockBanner } from "./banner.ts";
@@ -160,7 +161,36 @@ export async function saveConsentTextDraft(scope: SiteScope, change: ConsentText
 			},
 			eq(consentBanners.id, row.id),
 		);
+		await noteDraftChange(
+			tx,
+			{ kind: "consentBanner" },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
+			{ values },
+		);
 		return toText(saved ?? row, languages);
+	});
+}
+
+/**
+ * Puts a Revision's or Checkpoint's version into the words' Draft (open the Site with `entry.edit`):
+ * history's restore, a change to the Draft like any other, which never publishes.
+ */
+export async function restoreConsentTextDraft(scope: SiteScope, version: unknown): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const row = await lockBanner(tx);
+		const draft = storedVersion(version);
+		if (sameJson(draft, row.draft)) return;
+		await tx.update(
+			consentBanners,
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(consentBanners.id, row.id),
+		);
+		await noteDraftChange(
+			tx,
+			{ kind: "consentBanner" },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
+			draft,
+		);
 	});
 }
 

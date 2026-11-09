@@ -35,5 +35,20 @@ export const basedOn = z
 	.nullable()
 	.optional();
 
+/** One publishable item, as publishing and its history name it: by kind, and by id where a Site has many. */
+export const publishItem = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("entry"), id }),
+	z.object({ kind: z.literal("template"), id }),
+	z.object({ kind: z.literal("component"), id }),
+	z.object({ kind: z.literal("loop"), id }),
+	z.object({ kind: z.literal("filter"), id }),
+	z.object({ kind: z.literal("script"), id }),
+	z.object({ kind: z.literal("form"), id }),
+	z.object({ kind: z.literal("formEmails"), id }),
+	z.object({ kind: z.literal("globals") }),
+	z.object({ kind: z.literal("consentBanner") }),
+	z.object({ kind: z.literal("designSystem") }),
+]);
+
 /** The Toolsets a client is given: WebCraft's own keys (`content`, `submissions`, …) and Modules' (`m.<id>`). */
 export const toolsetsInput = z.array(z.string().max(120)).max(100);

@@ -9,6 +9,7 @@ import { storedLoopVersion } from "../content/loops.ts";
 import { listPostTypes } from "../content/post-types.ts";
 import type { Published } from "../content/publishing.ts";
 import { isUniqueViolation } from "../db-errors.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
@@ -195,6 +196,12 @@ export async function saveFilterDraft(scope: SiteScope, filterId: string, change
 			filters,
 			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor), updatedVia: clientNameOf(tx.access.via) },
 			eq(filters.id, row.id),
+		);
+		await noteDraftChange(
+			tx,
+			{ kind: "filter", id: row.id },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
+			draft,
 		);
 		return toFilter(saved ?? row);
 	});

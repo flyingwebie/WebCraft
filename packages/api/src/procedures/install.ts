@@ -1,4 +1,4 @@
-import { INSTALL_NAME_MAX_LENGTH, MEDIA_MAX_FILE_BYTES } from "@webcraft/core";
+import { HISTORY_LIMITS, INSTALL_NAME_MAX_LENGTH, MEDIA_MAX_FILE_BYTES } from "@webcraft/core";
 import { z } from "zod";
 
 import { onInstall, sensitive } from "../context.ts";
@@ -105,6 +105,39 @@ export const install = {
 			.use(sensitive("storage.change"))
 			.input(storageChange)
 			.handler(({ context, input }) => context.services.storage.change(context.install, input)),
+	},
+	/**
+	 * Install settings › Revisions: whether publishing saves Revisions anywhere on the Install, how many
+	 * days Revisions are kept (at least each item's newest few, however old) and how many days
+	 * Checkpoints are kept. Turning Revisions off stops new ones; those saved before follow the same rules.
+	 */
+	history: {
+		get: onInstall("install.manage").handler(({ context }) => context.services.history.settings()),
+		update: onInstall("install.manage")
+			.input(
+				z.object({
+					revisionsOn: z.boolean().optional(),
+					revisionDays: z
+						.number()
+						.int()
+						.min(HISTORY_LIMITS.revisionDays.min)
+						.max(HISTORY_LIMITS.revisionDays.max)
+						.optional(),
+					revisionsKept: z
+						.number()
+						.int()
+						.min(HISTORY_LIMITS.revisionsKept.min)
+						.max(HISTORY_LIMITS.revisionsKept.max)
+						.optional(),
+					checkpointDays: z
+						.number()
+						.int()
+						.min(HISTORY_LIMITS.checkpointDays.min)
+						.max(HISTORY_LIMITS.checkpointDays.max)
+						.optional(),
+				}),
+			)
+			.handler(({ context, input }) => context.services.history.changeSettings(context.install, input)),
 	},
 	/** Install settings › Storage: what the Media library takes. */
 	media: {
