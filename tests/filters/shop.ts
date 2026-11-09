@@ -17,6 +17,8 @@ export type Shop = {
 	templateId: string;
 	/** Products by title. */
 	products: Map<string, string>;
+	/** Bakers by title. */
+	bakers: Map<string, string>;
 };
 
 /** Every kind of control, as the Filter `shop` has them. */
@@ -147,6 +149,7 @@ export async function buildShop(install: TestInstall, slug = "bakery"): Promise<
 		loopId: loop.id,
 		templateId: template.id,
 		products,
+		bakers: bakerIds,
 	};
 }
 
