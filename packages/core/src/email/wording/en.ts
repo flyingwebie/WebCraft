@@ -1,3 +1,4 @@
+import { moduleWordsIn } from "../catalogue.ts";
 import type { EmailWording } from "./types.ts";
 
 const days = (count: number) => (count === 1 ? "1 day" : `${count} days`);
@@ -156,6 +157,15 @@ export const en: EmailWording = {
 			],
 			action: { label: "Check the domains", path: domainsPath },
 		}),
+		"module-message": ({ moduleName, languages, subject, heading, paragraphs, action }) => {
+			const words = (label: Readonly<Record<string, string>>) => moduleWordsIn(label, "en", languages);
+			return {
+				subject: words(subject),
+				heading: words(heading),
+				paragraphs: [...paragraphs.map(words), `Sent by the ${words(moduleName)} Module.`],
+				...(action ? { action: { label: words(action.label), path: action.path } } : {}),
+			};
+		},
 		"site-smtp-failing": ({ siteName, lastResponse, settingsPath }) => ({
 			subject: `The SMTP of ${siteName} is failing`,
 			heading: `The SMTP of ${siteName} is failing`,

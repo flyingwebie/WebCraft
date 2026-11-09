@@ -9,9 +9,11 @@ import type { Subprocess } from "bun";
 import { type Browser, type BrowserContext, type Cookie, chromium, type Page } from "playwright";
 
 import { createTestInstall, TEST_MASTER_KEY, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { TEST_MODULES } from "../harness/modules.ts";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
-const WEB = join(ROOT, "apps/server/src/serve.ts");
+/** The production web process, started with the test suite's Modules (see web.ts). */
+const WEB = join(ROOT, "tests/browser/web.ts");
 const BUNDLE = join(ROOT, "apps/server/dist/server/server.js");
 
 /** Chromium sends every `*.localhost` name to this machine, so the admin needs no DNS. */
@@ -77,7 +79,7 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 	}
 	// The web process runs on the real clock, so the data prepared in the test process (invites
 	// that expire, sessions) is made at the real time too.
-	const install = await createTestInstall({ now: new Date() });
+	const install = await createTestInstall({ now: new Date(), modules: TEST_MODULES });
 	const port = await freePort();
 	const origin = `http://${ADMIN_HOST}:${port}`;
 	const logs: Record<string, unknown>[] = [];

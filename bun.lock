@@ -46,6 +46,7 @@
         "@webcraft/api": "workspace:*",
         "@webcraft/core": "workspace:*",
         "@webcraft/db": "workspace:*",
+        "@webcraft/module-sdk": "workspace:*",
         "@webcraft/ui": "workspace:*",
         "drizzle-orm": "catalog:",
         "lucide-react": "^1.41.0",
@@ -88,6 +89,7 @@
         "@orpc/server": "catalog:",
         "@webcraft/auth": "workspace:*",
         "@webcraft/core": "workspace:*",
+        "@webcraft/module-sdk": "workspace:*",
         "@webcraft/renderer": "workspace:*",
         "zod": "catalog:",
       },
@@ -121,17 +123,20 @@
       "dependencies": {
         "@webcraft/auth": "workspace:*",
         "@webcraft/db": "workspace:*",
+        "@webcraft/module-sdk": "workspace:*",
         "@webcraft/renderer": "workspace:*",
         "aws4fetch": "1.0.20",
         "drizzle-orm": "catalog:",
         "nodemailer": "^10.4.0",
         "pg-boss": "catalog:",
         "re2js": "^2.9.1",
+        "semver": "^7.8.6",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@types/node": "catalog:",
         "@types/nodemailer": "^8.0.2",
+        "@types/semver": "^7.7.1",
         "@webcraft/config": "workspace:*",
         "typescript": "catalog:",
       },
@@ -155,6 +160,19 @@
     "packages/mcp": {
       "name": "@webcraft/mcp",
       "version": "0.0.0",
+      "devDependencies": {
+        "@types/node": "catalog:",
+        "@webcraft/config": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/module-sdk": {
+      "name": "@webcraft/module-sdk",
+      "version": "1.0.0",
+      "dependencies": {
+        "drizzle-orm": "catalog:",
+        "zod": "catalog:",
+      },
       "devDependencies": {
         "@types/node": "catalog:",
         "@webcraft/config": "workspace:*",
@@ -209,6 +227,7 @@
         "@webcraft/api": "workspace:*",
         "@webcraft/core": "workspace:*",
         "@webcraft/db": "workspace:*",
+        "@webcraft/module-sdk": "workspace:*",
         "@webcraft/server": "workspace:*",
         "@webcraft/worker": "workspace:*",
         "pg": "catalog:",
@@ -625,6 +644,8 @@
 
     "@types/react-dom": ["@types/react-dom@19.3.0", "", { "peerDependencies": { "@types/react": "^19.3.0" } }, "sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q=="],
 
+    "@types/semver": ["@types/semver@7.8.0", "", {}, "sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ=="],
+
     "@types/smtp-server": ["@types/smtp-server@3.5.13", "", { "dependencies": { "@types/node": "*", "@types/nodemailer": "*" } }, "sha512-S3rGl2KbViH+98/CgHipPIWgtAFnjxLsppxIRbgJHNuZL7Y+py+7kZjT7xS+wOmCxYTn4O7IqLqkvekg99MDVQ=="],
 
     "@types/validate-npm-package-name": ["@types/validate-npm-package-name@4.0.2", "", {}, "sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw=="],
@@ -644,6 +665,8 @@
     "@webcraft/db": ["@webcraft/db@workspace:packages/db"],
 
     "@webcraft/mcp": ["@webcraft/mcp@workspace:packages/mcp"],
+
+    "@webcraft/module-sdk": ["@webcraft/module-sdk@workspace:packages/module-sdk"],
 
     "@webcraft/renderer": ["@webcraft/renderer@workspace:packages/renderer"],
 

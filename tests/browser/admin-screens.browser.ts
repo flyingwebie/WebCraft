@@ -32,6 +32,8 @@ beforeAll(async () => {
 		name: "Aoife Kelly",
 	});
 	const admin = await local.superadmin();
+	// The sample Module runs on every Site; the sample board waits for approval.
+	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.staff.invite({ email: "niamh@agency.example", workspaces: [workspace.id] });
 	const invite = await local.lastEmailTo("niamh@agency.example");
 	const inviteToken = new URL(inviteLinkIn(invite)).searchParams.get("token") ?? "";

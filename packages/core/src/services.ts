@@ -23,6 +23,7 @@ import type {
 	Template,
 	TemplateMarkup,
 } from "./content/index.ts";
+import type { Dns } from "./dns.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
@@ -30,6 +31,7 @@ import type { JobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { ImageProcessor, InstallStorage, MediaLibrary } from "./media/index.ts";
+import type { ModuleHost } from "./modules/host.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
@@ -61,6 +63,8 @@ export type InstallPorts = {
 	jobs: JobQueue;
 	mailer: Mailer;
 	http: OutgoingHttp;
+	/** DNS, for the guarded fetcher's address checks. */
+	dns: Dns;
 	clock: Clock;
 	log: Logger;
 	/**
@@ -204,4 +208,9 @@ export type InstallServices = InstallPorts & {
 	storage: InstallStorage;
 	/** Each Site's Media library: uploads, texts and folders. */
 	media: MediaLibrary;
+	/**
+	 * The Module host: the Modules this Install loads, their approvals and switches, and running
+	 * them (their procedures, Site routes, events and jobs) within what they declared.
+	 */
+	modules: ModuleHost;
 };

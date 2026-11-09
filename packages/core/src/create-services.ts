@@ -1,4 +1,5 @@
 import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
+import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
@@ -28,10 +29,13 @@ import {
 	updatePostType,
 } from "./content/index.ts";
 import { createEmail } from "./email/index.ts";
+import { createGuardedFetch } from "./guarded-fetch.ts";
 import { createInstallSettings } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
 import { createInstallStorage } from "./media/install-storage.ts";
 import { createMediaLibrary } from "./media/library.ts";
+import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
+import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
@@ -49,6 +53,8 @@ import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
 
 export type CreateServicesOptions = {
+	/** The Modules this Install loads: the first-party Modules of this build unless given. */
+	modules?: readonly ModuleDefinition[];
 	/**
 	 * Refuse a Master key that isn't the Install's current one, as web and worker do when they
 	 * start (default). Only code that must not read the database yet turns this off.
@@ -87,7 +93,25 @@ export async function createInstallServices(
 		],
 		onAccountLocked: reportAccountLock({ database, clock, email }),
 	});
-	const data = createDataLayer({ database, clock, secrets: store });
+	// The Module host hears of every Audit log entry once its change is saved: Modules react to some.
+	const listeners: { afterAudit?: ModuleHost["afterAudit"] } = {};
+	const data = createDataLayer({
+		database,
+		clock,
+		secrets: store,
+		afterAudit: (entry) => listeners.afterAudit?.(entry) ?? Promise.resolve(),
+	});
+	const modules = createModuleHost({
+		database,
+		data,
+		email,
+		jobs: ports.jobs,
+		fetch: createGuardedFetch({ http: ports.http, dns: ports.dns }),
+		clock,
+		log,
+		modules: options.modules ?? FIRST_PARTY_MODULES,
+	});
+	listeners.afterAudit = modules.afterAudit;
 	const memberships = createMemberships({ database, clock });
 	const storage = createInstallStorage({
 		database,
@@ -146,5 +170,6 @@ export async function createInstallServices(
 		email,
 		storage,
 		media: createMediaLibrary({ storage, jobs: ports.jobs }),
+		modules,
 	};
 }

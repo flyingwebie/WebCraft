@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { foreignKey, index, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
-import { sites } from "./tenancy.ts";
+import { sites, workspaces } from "./tenancy.ts";
 
 // The content store (`@webcraft/core` › content). Every table here is Site data: it carries
 // `workspace_id` and `site_id`, with a foreign key to `sites (workspace_id, id)`, so a row can never
@@ -251,14 +251,18 @@ export const globals = pgTable(
  * Two-step confirmations (spec › Management API): the first call of a destructive procedure answers
  * a preview (how many links deleting an Entry removes) and the id of one of these rows; the second
  * call passes the id back to go ahead. A confirmation belongs to one person, one action and one
- * target, holds the preview it was given for, lasts 5 minutes and works once.
+ * target, holds the preview it was given for, lasts 5 minutes and works once. It is asked in a Site
+ * (`site_id` set) or in a Workspace as a whole (`site_id` null, such as removing a Workspace-level
+ * Module's data).
  */
 export const confirmations = pgTable(
 	"confirmations",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		workspaceId: uuid("workspace_id").notNull(),
-		siteId: uuid("site_id").notNull(),
+		workspaceId: uuid("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+		siteId: uuid("site_id"),
 		personId: uuid("person_id")
 			.notNull()
 			.references(() => people.id, { onDelete: "cascade" }),

@@ -1,14 +1,18 @@
 import { assertSchemaCurrent, createBoss, type Database, type JobQueueOptions, openDatabase } from "@webcraft/db";
+import type { ModuleDefinition } from "@webcraft/module-sdk";
 import type { PgBoss } from "pg-boss";
 
 import { systemClock } from "./clock.ts";
 import { type Environment, type InstallConfig, loadInstallConfig } from "./config.ts";
 import { createInstallServices } from "./create-services.ts";
+import { systemDns } from "./dns.ts";
 import { createSmtpMailer } from "./email/smtp-mailer.ts";
 import { fetchHttp } from "./http.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import { type ImageProcessor, imagesOnlyInWorker } from "./media/images.ts";
+import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
+import { moduleSchemas } from "./modules/schemas.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 
@@ -32,6 +36,8 @@ export type OpenInstallOptions = {
 	opened?: OpenedParts;
 	/** Image processing: the worker hands in the real one; the web process never processes images. */
 	images?: ImageProcessor;
+	/** The Modules to load: the first-party Modules of this build unless given. */
+	modules?: readonly ModuleDefinition[];
 };
 
 /**
@@ -47,7 +53,8 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 
 	const database = openDatabase(config.databaseUrl, { applicationName });
 	opened.database = database;
-	await assertSchemaCurrent(database);
+	const modules = options.modules ?? FIRST_PARTY_MODULES;
+	await assertSchemaCurrent(database, { modules: moduleSchemas(modules) });
 
 	const boss = createBoss(config.databaseUrl, {
 		...JOB_QUEUE_OPTIONS[processName],
@@ -60,6 +67,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 	const services = await createInstallServices(
 		{ ...realPorts(config, database, log), jobs: createJobQueue(boss), images: options.images ?? imagesOnlyInWorker },
 		masterKey,
+		{ modules },
 	);
 	opened.boss = boss;
 	await boss.start();
@@ -77,7 +85,7 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 	const masterKey = loadMasterKey(env);
 	const database = openDatabase(config.databaseUrl, { maxConnections: 2, applicationName: "webcraft-cli" });
 	try {
-		await assertSchemaCurrent(database);
+		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 		return await createInstallServices(
 			{
 				...realPorts(config, database, log),
@@ -94,5 +102,5 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 
 /** The real adapters every process uses; only the job queue differs between them. */
 function realPorts(config: InstallConfig, database: Database, log: Logger): Omit<InstallPorts, "jobs" | "images"> {
-	return { config, database, mailer: createSmtpMailer(), http: fetchHttp, clock: systemClock, log };
+	return { config, database, mailer: createSmtpMailer(), http: fetchHttp, dns: systemDns, clock: systemClock, log };
 }
