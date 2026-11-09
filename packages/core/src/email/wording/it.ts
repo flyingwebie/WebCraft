@@ -143,7 +143,7 @@ export const it: EmailWording = {
 						subject: `${workspaceName} ha raggiunto il limite AI mensile`,
 						heading: "Il limite AI mensile è raggiunto",
 						paragraphs: [
-							`${workspaceName} ha usato tutto il limite di questo mese sulla chiave AI condivisa, quindi la traduzione AI si è fermata. Il lavoro in coda aspetta che il limite venga alzato o che finisca il mese.`,
+							`${workspaceName} ha usato tutto il limite di questo mese sulla sua chiave AI, quindi la traduzione AI si è fermata. Nulla resta scritto a metà: il lavoro in coda aspetta che il limite venga alzato o che finisca il mese.`,
 						],
 						action: { label: "Vedi l'uso dell'AI", path: usagePath },
 					}
@@ -151,7 +151,7 @@ export const it: EmailWording = {
 						subject: `${workspaceName} ha usato l'80% del limite AI mensile`,
 						heading: "È stato usato l'80% del limite AI mensile",
 						paragraphs: [
-							`${workspaceName} ha usato l'80% del limite di questo mese sulla chiave AI condivisa. La traduzione AI si ferma al 100%, finché il limite non viene alzato o finisce il mese.`,
+							`${workspaceName} ha usato l'80% del limite di questo mese sulla sua chiave AI. La traduzione AI si ferma al 100%, finché il limite non viene alzato o finisce il mese.`,
 						],
 						action: { label: "Vedi l'uso dell'AI", path: usagePath },
 					},

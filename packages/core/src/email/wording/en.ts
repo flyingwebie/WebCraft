@@ -141,7 +141,7 @@ export const en: EmailWording = {
 						subject: `${workspaceName} has reached its monthly AI cap`,
 						heading: "The monthly AI cap is reached",
 						paragraphs: [
-							`${workspaceName} has used all of this month's cap on the shared AI key, so AI translation has stopped. Queued work waits until the cap is raised or the month ends.`,
+							`${workspaceName} has used all of this month's cap on its AI key, so AI translation has stopped. Nothing is half-written: queued work waits until the cap is raised or the month ends.`,
 						],
 						action: { label: "See AI usage", path: usagePath },
 					}
@@ -149,7 +149,7 @@ export const en: EmailWording = {
 						subject: `${workspaceName} has used 80% of its monthly AI cap`,
 						heading: "80% of the monthly AI cap is used",
 						paragraphs: [
-							`${workspaceName} has used 80% of this month's cap on the shared AI key. AI translation stops at 100%, until the cap is raised or the month ends.`,
+							`${workspaceName} has used 80% of this month's cap on its AI key. AI translation stops at 100%, until the cap is raised or the month ends.`,
 						],
 						action: { label: "See AI usage", path: usagePath },
 					},

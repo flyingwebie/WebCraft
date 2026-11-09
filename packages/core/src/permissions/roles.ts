@@ -40,6 +40,12 @@ export const PERMISSIONS = {
 	"module.manage": ["workspace", "site"],
 	/** Set or remove a Workspace's Media storage quota (Staff: it keeps one client from filling the server). */
 	"quota.manage": ["workspace"],
+	/** Set, replace, test and remove the Workspace's own AI key, and its monthly cap (Staff and Owners). */
+	"aiKey.manage": ["workspace"],
+	/** See what AI costs: tokens and estimated cost per key and Site (Staff and Owners only). */
+	"aiUsage.view": ["workspace", "site"],
+	/** Change the Protected terms AI translation leaves as written: the Workspace's, or a Site's. */
+	"protectedTerms.edit": ["workspace", "site"],
 	/** See a Site and open it in the admin, and on its Staging address. */
 	"site.view": ["site"],
 	/** Set or remove the Site's staging password, which lets people without an account see its Staging address. */
@@ -66,6 +72,11 @@ export const PERMISSIONS = {
 	 * and read Import reports (Staff, Owners and Editors; a source can ask for more, such as Staff only).
 	 */
 	"import.run": ["site"],
+	/**
+	 * Set each language's Translation mode (Automatic, Review, Manual) and start AI translation of the
+	 * whole Site (Translate now), which spends the Workspace's AI budget: Staff and Owners.
+	 */
+	"translation.manage": ["site"],
 	/**
 	 * Build Dashboards: a Site's, from the Widget catalog, and a Workspace's, adding up its Sites; make
 	 * Dashboard templates from them, and choose who else sees each (Staff).
@@ -116,6 +127,9 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"member.manage",
 			"module.manage",
 			"quota.manage",
+			"aiKey.manage",
+			"aiUsage.view",
+			"protectedTerms.edit",
 			"site.view",
 			"staging.manage",
 			"structure.edit",
@@ -126,6 +140,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"media.upload",
 			"media.manage",
 			"import.run",
+			"translation.manage",
 			"dashboard.manage",
 			"dashboard.view",
 		],
@@ -137,6 +152,9 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"workspace.view",
 			"member.invite",
 			"member.manage",
+			"aiKey.manage",
+			"aiUsage.view",
+			"protectedTerms.edit",
 			"site.view",
 			"staging.manage",
 			"entry.edit",
@@ -146,6 +164,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"media.upload",
 			"media.manage",
 			"import.run",
+			"translation.manage",
 			"dashboard.view",
 		],
 	},
@@ -153,6 +172,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 		reach: "membership",
 		permissions: [
 			"workspace.view",
+			"protectedTerms.edit",
 			"site.view",
 			"entry.edit",
 			"entry.publish",

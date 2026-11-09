@@ -11,6 +11,7 @@ import {
 	type ValueSpec,
 } from "./field-types.ts";
 import { sameJson } from "./json.ts";
+import { personValue } from "./translation-sources.ts";
 import type { LanguageValue, Writer } from "./values.ts";
 
 /**
@@ -203,7 +204,9 @@ function writeLeaf(
 	const language = field.translatable ? context.language : context.defaultLanguage;
 	const byLanguage = { ...(record(node) as StoredLeaf) };
 	if (value === null) delete byLanguage[language];
-	else if (!sameJson(byLanguage[language]?.value, value)) byLanguage[language] = { value, by: context.by };
+	else if (!sameJson(byLanguage[language]?.value, value)) {
+		byLanguage[language] = personValue(byLanguage, { ...context, language }, field.type, value, context.by);
+	}
 	return byLanguage;
 }
 

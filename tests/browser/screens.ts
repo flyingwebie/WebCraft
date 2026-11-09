@@ -39,6 +39,27 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Install › Staff", path: "/staff", as: "superadmin" },
 	{ name: "Install settings › General", path: "/settings/general", as: "superadmin" },
 	{ name: "Install settings › Security", path: "/settings/security", as: "superadmin" },
+	{ name: "Install settings › AI, no shared keys", path: "/settings/ai", as: "superadmin" },
+	{
+		name: "Workspace › Protected terms, none yet (Owner)",
+		path: ({ workspaceId }) => `/workspaces/${workspaceId}/protected-terms`,
+		as: "owner",
+	},
+	{
+		name: "Workspace › AI keys, no key (Owner)",
+		path: ({ workspaceId }) => `/workspaces/${workspaceId}/ai-keys`,
+		as: "owner",
+	},
+	{
+		name: "Site › Translations, one language (Staff)",
+		path: ({ siteId }) => `/sites/${siteId}/translations`,
+		as: "staff",
+	},
+	{
+		name: "Site settings › AI translation, no key (Staff)",
+		path: ({ siteId }) => `/sites/${siteId}/ai-translation`,
+		as: "staff",
+	},
 	{ name: "Workspace › Sites", path: ({ workspaceId }) => `/workspaces/${workspaceId}`, as: "superadmin" },
 	{ name: "Workspace › Sites (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}`, as: "staff" },
 	{ name: "Workspace › Members", path: ({ workspaceId }) => `/workspaces/${workspaceId}/members`, as: "superadmin" },

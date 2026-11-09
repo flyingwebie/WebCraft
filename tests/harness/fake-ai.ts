@@ -1,4 +1,15 @@
-import { type AiAnswer, AiProviderError, type AiProviders, type ImageDescriptionRequest } from "@webcraft/core";
+import {
+	type AiAnswer,
+	AiProviderError,
+	type AiProviderProblem,
+	type AiProviders,
+	type AiUsage,
+	type ImageDescriptionRequest,
+	type TranslationRequest,
+} from "@webcraft/core";
+
+/** A call WebCraft made to the fake AI providers: an image description, a translation or a key's Test. */
+export type FakeAiRequest = ImageDescriptionRequest | TranslationRequest;
 
 /**
  * AI providers that never leave the test (ADR 0011 calls real ones directly). Tests say how they
@@ -8,31 +19,70 @@ export type FakeAi = {
 	readonly providers: AiProviders;
 	/** Answers every image description with `text`, or with what `answer` makes of the request. */
 	answer(answer: string | ((request: ImageDescriptionRequest) => AiAnswer | Promise<AiAnswer>)): void;
-	/** Every call from then on fails, as a provider that is down or refuses. */
-	fail(problem?: "unavailable" | "refused"): void;
+	/**
+	 * Translates every text sent with `translate` (one call, many texts), reporting `usage` for each
+	 * call: by default one input token per character sent and one output token per character answered.
+	 */
+	translateWith(
+		translate: (text: string, request: TranslationRequest) => string,
+		usage?: AiUsage | ((request: TranslationRequest, texts: string[]) => AiUsage),
+	): void;
+	/** Every call from then on fails, as a provider that is down, refuses or answers nonsense. */
+	fail(problem?: AiProviderProblem): void;
 	/** Every request made so far, oldest first. */
-	readonly requests: readonly ImageDescriptionRequest[];
+	readonly requests: readonly FakeAiRequest[];
+	/** The translation requests made so far (Tests included), oldest first. */
+	translations(): TranslationRequest[];
 };
 
+/** A translation that keeps every marker and shows the language: `[it] Fresh bread`. */
+export function taggedTranslation(text: string, request: TranslationRequest): string {
+	return `[${request.to.code}] ${text}`;
+}
+
 export function createFakeAi(): FakeAi {
-	const requests: ImageDescriptionRequest[] = [];
-	let respond: (request: ImageDescriptionRequest) => AiAnswer | Promise<AiAnswer> = () => {
+	const requests: FakeAiRequest[] = [];
+	let failing: AiProviderProblem | null = null;
+	let describe: (request: ImageDescriptionRequest) => AiAnswer | Promise<AiAnswer> = () => {
 		throw new AiProviderError("unavailable", "The fake AI provider has no answer prepared.");
 	};
+	let translate: ((request: TranslationRequest) => { texts: string[]; usage: AiUsage }) | null = null;
+	const failed = (problem: AiProviderProblem) => new AiProviderError(problem, `The fake AI provider is ${problem}.`);
 	return {
 		requests,
+		translations: () => requests.filter((request): request is TranslationRequest => "texts" in request),
 		answer(answer) {
-			respond = typeof answer === "string" ? () => ({ text: answer }) : answer;
+			failing = null;
+			describe = typeof answer === "string" ? () => ({ text: answer }) : answer;
+		},
+		translateWith(translateText, usage) {
+			failing = null;
+			translate = (request) => {
+				const texts = request.texts.map((text) => translateText(text, request));
+				const used =
+					typeof usage === "function"
+						? usage(request, texts)
+						: (usage ?? {
+								inputTokens: request.texts.join("").length,
+								outputTokens: texts.join("").length,
+							});
+				return { texts, usage: used };
+			};
 		},
 		fail(problem = "unavailable") {
-			respond = () => {
-				throw new AiProviderError(problem, `The fake AI provider is ${problem}.`);
-			};
+			failing = problem;
 		},
 		providers: {
 			async describeImage(request) {
 				requests.push(request);
-				return respond(request);
+				if (failing) throw failed(failing);
+				return describe(request);
+			},
+			async translate(request) {
+				requests.push(request);
+				if (failing) throw failed(failing);
+				if (!translate) throw new AiProviderError("unavailable", "The fake AI provider has no translation prepared.");
+				return translate(request);
 			},
 		},
 	};

@@ -11,6 +11,7 @@
 import { defaultTreeAdapter, html as parse5Html, parseFragment } from "parse5";
 
 import { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
+import { type RichTextPieces, richTextPieces } from "./translation.ts";
 
 /** Elements rich text keeps, with the attributes each may have. */
 const ALLOWED: Readonly<Record<string, readonly string[]>> = {
@@ -135,4 +136,12 @@ export function richTextToText(html: string): string {
 			})
 			.join("");
 	return collect(parse(html));
+}
+
+/**
+ * Rich text as AI translation sends it: one piece of text per paragraph, its emphasis, links and line
+ * breaks as markers, and how to put a translation back together (clean it again afterwards).
+ */
+export function richTextTranslation(html: string): RichTextPieces {
+	return richTextPieces(parse(html));
 }

@@ -94,15 +94,16 @@ export function readBody(input: unknown): { blocks: Block[]; problems: BodyProbl
 
 function readSource(input: unknown, at: string, report: Report): BlockSource | undefined {
 	if (input === undefined || input === null) return undefined;
-	const { id, by } = (input && typeof input === "object" && !Array.isArray(input) ? input : {}) as Record<
+	const { id, by, was } = (input && typeof input === "object" && !Array.isArray(input) ? input : {}) as Record<
 		string,
 		unknown
 	>;
-	if (typeof id !== "string" || !BLOCK_ID.test(id) || (by !== "person" && by !== "ai")) {
-		report(at, "A translated Block's source is { id: the Block it translates, by: person or ai }.");
+	const wasRecord = was === undefined || (was !== null && typeof was === "object" && !Array.isArray(was));
+	if (typeof id !== "string" || !BLOCK_ID.test(id) || (by !== "person" && by !== "ai") || !wasRecord) {
+		report(at, "A translated Block's source is { id: the Block it translates, by: person or ai, was? }.");
 		return undefined;
 	}
-	return { id, by };
+	return was === undefined ? { id, by } : { id, by, was: was as Record<string, unknown> };
 }
 
 /** Reads stored Blocks: the canonical list as saved, or an empty one when it isn't a list. */

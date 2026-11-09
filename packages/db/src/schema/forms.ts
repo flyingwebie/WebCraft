@@ -35,6 +35,12 @@ export const forms = pgTable(
 		/** The emails a Submission sets off; null until they are first published. */
 		emailsPublished: jsonb("emails_published"),
 		emailsLastPublishedAt: timestamp("emails_last_published_at", { withTimezone: true }),
+		/**
+		 * The emails' translations AI translation wrote, by language and place (`autoReply.subject`):
+		 * the text it wrote and the Default-language text it translated. A translation is the AI's only
+		 * while its text is still the one written here; once a person changes it, it is theirs.
+		 */
+		emailsAiTranslations: jsonb("emails_ai_translations"),
 		/** When the emails' Draft was last changed, and by whom: what Publish all says about them. */
 		emailsUpdatedAt: timestamp("emails_updated_at", { withTimezone: true }),
 		emailsUpdatedBy: uuid("emails_updated_by").references(() => people.id, { onDelete: "set null" }),

@@ -13,15 +13,7 @@ export {
 	DEFAULT_ADMIN_LANGUAGE,
 	isAdminLanguage,
 } from "./admin-languages.ts";
-export {
-	type AiAnswer,
-	AiKeyMissingError,
-	AiProviderError,
-	type AiProviders,
-	aiProvidersToCome,
-	type ImageDescriptionRequest,
-	WORKSPACE_AI_KEY,
-} from "./ai.ts";
+export * from "./ai/index.ts";
 export {
 	API_TOKEN_LIFETIMES,
 	API_TOKEN_LIMITS,
@@ -353,6 +345,7 @@ export {
 } from "./tenancy/staff.ts";
 export { WORKSPACE_NAME_MAX_LENGTH, type WorkspaceSummary } from "./tenancy/workspaces.ts";
 export { systemTls, type TlsCertificate, type TlsProbe } from "./tls.ts";
+export * from "./translation/index.ts";
 export {
 	type Release,
 	UPDATE_CHECK_INTERVAL_MS,

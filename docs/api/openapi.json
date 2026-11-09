@@ -24,6 +24,290 @@
 	},
 	"openapi": "3.1.1",
 	"paths": {
+		"/aiKeys/get": {
+			"post": {
+				"operationId": "aiKeys.get",
+				"summary": "A Workspace's AI keys (never the keys themselves), which one calls go through, and this month's usage",
+				"tags": ["aiKeys"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["workspaceId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/aiKeys/setOwn": {
+			"post": {
+				"operationId": "aiKeys.setOwn",
+				"summary": "Sets the Workspace's own AI key: its provider, model, endpoint, price and monthly cap",
+				"tags": ["aiKeys"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"provider": {
+										"enum": ["openai", "anthropic", "google", "openrouter", "openaiCompatible"],
+										"type": "string"
+									},
+									"model": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 200
+									},
+									"endpoint": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 2000
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"key": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 1000
+									},
+									"price": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"input": {
+														"type": "number",
+														"minimum": 0,
+														"maximum": 10000
+													},
+													"output": {
+														"type": "number",
+														"minimum": 0,
+														"maximum": 10000
+													}
+												},
+												"required": ["input", "output"]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"monthlyCap": {
+										"anyOf": [
+											{
+												"type": "number",
+												"minimum": 0.01,
+												"maximum": 1000000
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["workspaceId", "provider", "model", "endpoint"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-sensitive": "aiKey.change"
+			}
+		},
+		"/aiKeys/removeOwn": {
+			"post": {
+				"operationId": "aiKeys.removeOwn",
+				"summary": "Removes the Workspace's own AI key",
+				"tags": ["aiKeys"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["workspaceId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-sensitive": "aiKey.change"
+			}
+		},
+		"/aiKeys/setOwnCap": {
+			"post": {
+				"operationId": "aiKeys.setOwnCap",
+				"summary": "Sets or removes the monthly cap on the Workspace's own AI key",
+				"tags": ["aiKeys"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"monthlyCap": {
+										"anyOf": [
+											{
+												"type": "number",
+												"minimum": 0.01,
+												"maximum": 1000000
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["workspaceId", "monthlyCap"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/aiKeys/testOwn": {
+			"post": {
+				"operationId": "aiKeys.testOwn",
+				"summary": "Tests the Workspace's own AI key with one small call",
+				"tags": ["aiKeys"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["workspaceId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
 		"/workspaces/list": {
 			"post": {
 				"operationId": "workspaces.list",
@@ -2742,6 +3026,650 @@
 									}
 								},
 								"required": ["siteId", "code"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/translations/overview": {
+			"post": {
+				"operationId": "translations.overview",
+				"summary": "Each language's Translation mode and progress, the AI key in use and this month's usage",
+				"tags": ["translations"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/translations/setMode": {
+			"post": {
+				"operationId": "translations.setMode",
+				"summary": "Sets a language's Translation mode: automatic, review or manual",
+				"tags": ["translations"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									},
+									"mode": {
+										"enum": ["automatic", "review", "manual"],
+										"type": "string"
+									}
+								},
+								"required": ["siteId", "language", "mode"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/translations/translateNow": {
+			"post": {
+				"operationId": "translations.translateNow",
+				"summary": "Queues AI translation of the whole Site into its Automatic and Review languages",
+				"tags": ["translations"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/translations/queue": {
+			"post": {
+				"operationId": "translations.queue",
+				"summary": "The Review queue: AI translations waiting in the Draft, and Outdated translations",
+				"tags": ["translations"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/translations/approve": {
+			"post": {
+				"operationId": "translations.approve",
+				"summary": "Publishes the AI translations waiting in the Draft, in one language",
+				"tags": ["translations"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									},
+									"items": {
+										"type": "array",
+										"maxItems": 500,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "entry"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "globals"
+														}
+													},
+													"required": ["kind"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "formEmails"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												}
+											]
+										}
+									}
+								},
+								"required": ["siteId", "language"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/translations/confirm": {
+			"post": {
+				"operationId": "translations.confirm",
+				"summary": "Confirms an Outdated translation is right for its source as it is now",
+				"tags": ["translations"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"item": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entry"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "globals"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											}
+										]
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									},
+									"at": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 500
+									},
+									"block": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 64
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "item", "language", "at"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/translations/retranslate": {
+			"post": {
+				"operationId": "translations.retranslate",
+				"summary": "Translates one value again with AI, into the Draft",
+				"tags": ["translations"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"item": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entry"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "globals"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											}
+										]
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									},
+									"at": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 500
+									},
+									"block": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 64
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "item", "language", "at"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/protectedTerms/list": {
+			"post": {
+				"operationId": "protectedTerms.list",
+				"summary": "The Protected terms of a Workspace and its Sites",
+				"tags": ["protectedTerms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["workspaceId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/protectedTerms/add": {
+			"post": {
+				"operationId": "protectedTerms.add",
+				"summary": "Adds Protected terms to a Workspace's list or a Site's",
+				"tags": ["protectedTerms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"siteId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "uuid"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"terms": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 2000,
+										"items": {
+											"type": "object",
+											"properties": {
+												"term": {
+													"type": "string",
+													"maxLength": 200
+												},
+												"matchCase": {
+													"type": "boolean"
+												}
+											},
+											"required": ["term", "matchCase"]
+										}
+									}
+								},
+								"required": ["workspaceId", "siteId", "terms"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/protectedTerms/remove": {
+			"post": {
+				"operationId": "protectedTerms.remove",
+				"summary": "Removes a Protected term",
+				"tags": ["protectedTerms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"termId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["workspaceId", "termId"]
 							}
 						}
 					}

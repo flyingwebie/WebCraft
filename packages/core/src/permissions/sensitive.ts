@@ -46,6 +46,11 @@ export const SENSITIVE_ACTIONS = {
 	/** A Site's email settings: its own mail server's password is a secret, and it decides where the Site's mail comes from. */
 	"siteSmtp.change": "changes a secret",
 	/**
+	 * An AI key: setting, replacing or removing a Workspace's own key or a shared Install key (each a
+	 * secret, and where it is sent), and letting shared keys reach endpoints inside the Install's network.
+	 */
+	"aiKey.change": "changes a secret",
+	/**
 	 * A Site's staging password: a shared secret that lets people without an account see the Site's
 	 * Drafts on its Staging address.
 	 */

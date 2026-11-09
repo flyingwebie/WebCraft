@@ -39,6 +39,12 @@ export const installSettings = pgTable(
 		leakedPasswordCheck: boolean("leaked_password_check").notNull().default(true),
 		/** The largest file the Media library takes, in bytes; null for the default (50 MB). */
 		mediaMaxFileBytes: bigint("media_max_file_bytes", { mode: "number" }),
+		/**
+		 * Whether a shared Install key may call an OpenAI-compatible endpoint inside the Install's own
+		 * network (a self-hosted model). Off unless the Superadmin switches it on; a Workspace's own key
+		 * never may.
+		 */
+		aiPrivateEndpoints: boolean("ai_private_endpoints").notNull().default(false),
 	},
 	(table) => [check("install_settings_single_row", sql`${table.id} = 1`)],
 );
