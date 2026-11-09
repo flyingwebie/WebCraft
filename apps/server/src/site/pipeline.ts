@@ -5,8 +5,10 @@ import {
 	MEDIA_PATH,
 	normaliseHostname,
 	pathSegments,
+	SCRIPT_PATH,
 	type SiteHost,
 	STYLESHEET_PATH,
+	siteScript,
 } from "@webcraft/core";
 
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
@@ -44,6 +46,7 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			if (url.pathname.startsWith(STYLESHEET_PATH)) {
 				return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));
 			}
+			if (url.pathname.startsWith(SCRIPT_PATH)) return script(request, host, url.pathname.slice(SCRIPT_PATH.length));
 			const segments = pathSegments(url.pathname);
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
@@ -94,6 +97,16 @@ async function stylesheet(
 	const css = await services.sitePages.stylesheet(host, name);
 	if (css === null) return plainText(404, "Not Found", addressHeaders(host));
 	return immutableFile(request, host, css, "text/css; charset=utf-8", `"${name.slice(0, -".css".length)}"`);
+}
+
+/**
+ * A script WebCraft's own page parts need (the theme toggle's), `/_wc/js/<hash>.js`: never inline,
+ * so the Site's Content Security Policy can allow only its own files (ADR 0023).
+ */
+function script(request: Request, host: SiteHost, name: string): Response {
+	const text = siteScript(name);
+	if (text === null) return plainText(404, "Not Found", addressHeaders(host));
+	return immutableFile(request, host, text, "text/javascript; charset=utf-8", `"${name.slice(0, -".js".length)}"`);
 }
 
 /** A file named by its content hash: kept for a year, answered with 304 while the ETag holds. */

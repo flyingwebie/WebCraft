@@ -17,6 +17,7 @@ import {
 	type ElementTree,
 	elementsOf,
 	readDesignSystem,
+	THEME_TOGGLE_SCRIPT,
 } from "@webcraft/renderer";
 import { eq, isNotNull, lt } from "drizzle-orm";
 
@@ -92,4 +93,14 @@ export async function keepReplacedStylesheet(scope: SiteScope, before: SiteStyle
 	const kept = await scope.first(stylesheets, eq(stylesheets.hash, before.stylesheet.hash));
 	if (kept) await scope.update(stylesheets, { retiredAt: now }, eq(stylesheets.id, kept.id));
 	else await scope.insert(stylesheets, { hash: before.stylesheet.hash, css: before.stylesheet.css, retiredAt: now });
+}
+
+export { SCRIPT_PATH } from "@webcraft/renderer";
+
+/**
+ * A script WebCraft serves on every Site by its file name (`/_wc/js/<name>`): the theme toggle's,
+ * named by its hash. Null for any other name.
+ */
+export function siteScript(name: string): string | null {
+	return name === THEME_TOGGLE_SCRIPT.name ? THEME_TOGGLE_SCRIPT.text : null;
 }

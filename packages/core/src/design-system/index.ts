@@ -14,5 +14,5 @@ export type {
 	TokensInput,
 } from "./drafts.ts";
 export { ClassInUseError, ClassNotFoundError, TokenInUseError, TokensFileInvalidError } from "./errors.ts";
-export { RETIRED_STYLESHEET_LIFETIME_MS, STYLESHEET_PATH } from "./stylesheet.ts";
+export { RETIRED_STYLESHEET_LIFETIME_MS, SCRIPT_PATH, STYLESHEET_PATH, siteScript } from "./stylesheet.ts";
 export type { DesignUse } from "./usage.ts";

@@ -472,6 +472,8 @@ class MarkupParser {
 		depth: number,
 	): TreeNode | undefined {
 		if (depth > TREE_LIMITS.depth) this.stop(opened.offset, `Elements nest at most ${TREE_LIMITS.depth} deep.`);
+		const misplaced = command.placementProblem?.(ancestors);
+		if (misplaced) this.problem(opened.offset, misplaced);
 		const sections: MarkupSection[] = [];
 		let current = { ...opened, keyword: command.name };
 		if (command.block) {

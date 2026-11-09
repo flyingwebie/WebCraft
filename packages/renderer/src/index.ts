@@ -45,6 +45,7 @@ export {
 	readDesignSystem,
 } from "./design-system/document.ts";
 export { DTCG_EXTENSION, type DtcgProblem, exportTokens, importTokens } from "./design-system/dtcg.ts";
+export { SCRIPT_PATH, THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 export {
 	type Breakpoint,
 	type ColourToken,
@@ -128,6 +129,7 @@ export {
 	randomElementId,
 	TEMPLATE_ELEMENTS,
 	type TextNode,
+	type ThemeToggleNode,
 	TREE_LIMITS,
 	type TreeCheck,
 	type TreeNode,

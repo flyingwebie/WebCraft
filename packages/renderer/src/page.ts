@@ -1,3 +1,4 @@
+import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import { escapeAttribute, escapeText, renderTree } from "./html.ts";
 import type { MediaReader } from "./media.ts";
 import type { ElementNode, ElementTree } from "./tree.ts";
@@ -70,17 +71,26 @@ export type PageStyles = {
  * content, then the Site template with the page's content at its `{{@outlet}}`. The Site template's
  * one <main> gets the id the skip link points at, and `tabindex="-1"` so following the link moves
  * focus there. The first Media image of the page's content loads eagerly with high priority; every
- * other Media image lazily. Pages carry no JavaScript and no inline styles.
+ * other Media image lazily. Pages link the Site's stylesheet and carry no inline styles and no inline
+ * scripts: a page showing a theme toggle links its script file, and no other page has any script.
  */
 export function renderPage(page: PageToRender): string {
 	const { site } = page;
 	const title = page.title.trim() ? `${page.title} · ${site.name}` : site.name;
+	// The theme toggle shows only with dark values to switch to; its script comes only with it.
+	let toggles = 0;
+	const themeToggle = () => {
+		if (!page.styles?.darkMode) return "";
+		toggles++;
+		return `<button type="button" class="wc-theme-toggle" aria-pressed="false" hidden>${escapeText(pageWords(site.language).themeToggle)}</button>`;
+	};
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
 		className: page.className,
 		media: page.media,
 		priorityImage: { given: false },
+		themeToggle,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
@@ -89,6 +99,7 @@ export function renderPage(page: PageToRender): string {
 		media: page.media,
 		outlet: () => content,
 		extraAttributes: mainAttributes,
+		themeToggle,
 	});
 	return [
 		"<!doctype html>",
@@ -98,6 +109,7 @@ export function renderPage(page: PageToRender): string {
 		'<meta name="viewport" content="width=device-width, initial-scale=1">',
 		`<title>${escapeText(title)}</title>`,
 		...headStyles(page.styles),
+		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
@@ -127,18 +139,20 @@ function mainAttributes(element: ElementNode): readonly (readonly [string, strin
 }
 
 /** The words WebCraft itself writes into Site pages, by language. */
-type PageWords = { skipLink: string; notFoundTitle: string; notFoundText: string };
+type PageWords = { skipLink: string; notFoundTitle: string; notFoundText: string; themeToggle: string };
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 	en: {
 		skipLink: "Skip to main content",
 		notFoundTitle: "Page not found",
 		notFoundText: "There is no page at this address.",
+		themeToggle: "Dark theme",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
 		notFoundTitle: "Pagina non trovata",
 		notFoundText: "Non c'è nessuna pagina a questo indirizzo.",
+		themeToggle: "Tema scuro",
 	},
 };
 
