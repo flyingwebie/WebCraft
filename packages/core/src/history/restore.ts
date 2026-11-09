@@ -41,7 +41,7 @@ export async function restoreCopy(
 		const state = await itemState(tx, item);
 		const copy = await getCopy(tx, item, ref);
 		const checkpoint = await saveCheckpoint(tx, item, "restore");
-		await writeDraft(tx, item, copy.content, sources);
+		await writeItemDraft(tx, item, copy.content, sources);
 		const { content: _, ...restored } = copy;
 		await tx.audit("draft.restore", {
 			item: { kind: item.kind, ...("id" in item ? { id: item.id } : {}) },
@@ -53,7 +53,12 @@ export async function restoreCopy(
 }
 
 /** Writes a version into an item's Draft through the item's own save. */
-async function writeDraft(scope: SiteScope, item: HistoryItem, content: unknown, sources: ComponentSources) {
+export async function writeItemDraft(
+	scope: SiteScope,
+	item: HistoryItem,
+	content: unknown,
+	sources: ComponentSources,
+): Promise<void> {
 	const id = itemIdOf(item) ?? "";
 	switch (item.kind) {
 		case "entry":

@@ -293,7 +293,7 @@ async function noteGlobalsChange(scope: SiteScope, row: GlobalsRow, draft: unkno
 }
 
 /** Reads the Site's Globals for a change, making them the first time, and holds them until the transaction ends. */
-async function lockGlobals(scope: SiteScope): Promise<GlobalsRow> {
+export async function lockGlobals(scope: SiteScope): Promise<GlobalsRow> {
 	const now = scope.now();
 	await scope.db
 		.insert(globals)

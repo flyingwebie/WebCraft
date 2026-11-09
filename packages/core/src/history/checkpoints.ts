@@ -2,6 +2,7 @@ import { checkpoints, draftChanges } from "@webcraft/db/schema";
 import { and, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
 
 import type { AuditVia } from "../audit.ts";
+import { mirrorDraftChange } from "../co-editing/store.ts";
 import { sameJson } from "../content/json.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -21,9 +22,10 @@ import { changedParts } from "./parts.ts";
  * Never when the Draft is what the item's newest Revision or Checkpoint holds.
  *
  * Every Draft change also records who changed each part and when (`draft_changes`), which Compare
- * shows. Each place that writes a Draft calls `noteDraftChange` in its transaction; Co-editing (#71)
- * calls it as it writes the shared document's Draft row, and `draftLeft` when its last participant
- * goes.
+ * shows. Each place that writes a Draft calls `noteDraftChange` in its transaction, which also
+ * brings the write into the item's shared document when it has one (Co-editing, ADR 0025); a change
+ * made in the shared document is saved through the same writers, and `draftLeft` runs when its last
+ * participant goes.
  */
 
 /** How long a Draft is changed before another Checkpoint is saved. */
@@ -91,6 +93,8 @@ export async function noteDraftChange(
 	options: { created?: boolean } = {},
 ): Promise<void> {
 	if (sameJson(before.content ?? null, after ?? null)) return;
+	// The item's shared document, when it has one, takes the change too (ADR 0025).
+	await mirrorDraftChange(scope, item, before.content, after);
 	// A Draft that held nothing yet (a new item, a Form without emails) has nothing to keep.
 	if (!options.created && before.content !== null && before.content !== undefined) {
 		const newest = await newestCopy(scope, item);

@@ -61,6 +61,8 @@ export type PageState = {
 	site: { name: string };
 	/** The language the page is shown in: its regions save in it. */
 	language: { code: string; name: string };
+	/** The Site's Default language, which values without one of their own in the page's language show. */
+	defaultLanguage: string;
 	/** The page in each of the Site's languages, to switch to (that language's home page where it is hidden). */
 	languages: PageInLanguage[];
 };
@@ -116,6 +118,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 			name: content.languages.find((language) => language.code === content.language)?.name ?? content.language,
 		},
 		languages: content.languages,
+		defaultLanguage: (await siteLanguages(scope)).defaultLanguage,
 	};
 }
 

@@ -4,6 +4,7 @@ export * from "./ai.ts";
 export * from "./api-tokens.ts";
 export * from "./audit.ts";
 export * from "./backups.ts";
+export * from "./co-editing.ts";
 export * from "./consent.ts";
 export * from "./content.ts";
 export * from "./dashboards.ts";

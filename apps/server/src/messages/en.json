@@ -1716,7 +1716,13 @@
 				"FORBIDDEN": "Only Staff can change code.",
 				"EDIT_MODE_ENDED": "Edit mode has ended. Open it again from the admin."
 			}
-		}
+		},
+		"alsoEditing": "Also editing this page",
+		"isHere": "{name} is here",
+		"via": "{name} via {client}",
+		"viaTranslation": "{name} via AI translation",
+		"someone": "Someone",
+		"publishedBy": "Published by {name}"
 	},
 	"siteLanguages": {
 		"pageTitle": "Languages",
@@ -5472,5 +5478,30 @@
 		"add": "Add service",
 		"save": "Save the list",
 		"saved": "The Services list was saved."
+	},
+	"coEditing": {
+		"someone": "Someone",
+		"via": "{name} via {client}",
+		"viaTranslation": "{name} via AI translation",
+		"alsoHere": "Also editing",
+		"isHere": "{name} is here",
+		"published": "Published",
+		"publishedBy": "Published by {name}",
+		"status": {
+			"connecting": "Connecting…",
+			"saving": "Saving…",
+			"saved": "All changes saved",
+			"offline": "Offline: changes are kept and sent when you're back",
+			"readOnly": "Read-only until the connection is back",
+			"viewOnly": "You can view this Draft",
+			"ended": "Editing has ended"
+		},
+		"banner": {
+			"offline": "You're offline. Keep editing: your changes are kept here and merge with everyone else's when the connection is back. After 5 minutes without it, this Draft turns read-only.",
+			"readOnly": "No connection for 5 minutes, so this Draft is read-only until the connection is back. Your earlier changes are kept and will be sent then.",
+			"viewOnly": "You can see this Draft as others change it, but not change it yourself.",
+			"ended": "Editing has ended: you signed out or no longer have access. Reload the page to go on."
+		},
+		"refused": "That change wasn't saved: {reason}"
 	}
 }

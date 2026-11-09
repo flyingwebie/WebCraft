@@ -42,7 +42,7 @@ import {
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
-import { createWebHandler } from "@webcraft/server/handler";
+import { createWebHandler, type UpgradeAnswer, type WebHandler } from "@webcraft/server/handler";
 import { createImageProcessor } from "@webcraft/worker/images";
 import type { PgBoss } from "pg-boss";
 
@@ -198,6 +198,14 @@ export type TestInstall = {
 	adminUrl(path: string): string;
 	/** Sends a standard Request through the web process's handler, in process, without a port. */
 	request(input: string | URL | Request, init?: RequestInit): Promise<Response>;
+	/**
+	 * Another web process on the same database, as a server running several has: its own handler, so
+	 * its own shared documents in memory and its own LISTEN connection. Give its `upgrade` to
+	 * `browser.openSocket(…, { through })` to open a Draft there. Stopped by `close()`.
+	 */
+	webProcess(): { upgrade(request: Request): Promise<UpgradeAnswer>; request(request: Request): Promise<Response> };
+	/** Sends a WebSocket upgrade request through the handler as it is (no cookies or origin added). */
+	upgrade(request: Request): Promise<UpgradeAnswer>;
 	/**
 	 * A new browser on the admin: it keeps cookies like a browser and calls the Management API the
 	 * way the admin does. Each browser comes from its own client address unless `address` says
@@ -462,6 +470,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	let secrets = secretStore(env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY);
 	const handle = createWebHandler({ services, filterVariants: options.filterVariants });
 	const send = (request: Request) => handle(request);
+	const upgrade = (request: Request) => handle.upgrade(request);
+	const otherProcesses: WebHandler[] = [];
 
 	let superadminAccount: TestAccount | undefined;
 	let superadminBrowser: TestBrowser | undefined;
@@ -485,7 +495,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		{ email, password }: Pick<TestAccount, "email" | "password">,
 		browserOptions: TestBrowserOptions = {},
 	) => {
-		const browser = createTestBrowser({ send, adminOrigin, ...browserOptions });
+		const browser = createTestBrowser({ send, upgrade, adminOrigin, ...browserOptions });
 		await browser.api.session.signIn({ email, password });
 		return browser;
 	};
@@ -539,7 +549,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 					? fromAddress(new Request(input, init), (input as Request & { ip?: string }).ip ?? null)
 					: new Request(String(input), init),
 			),
-		browser: (browserOptions) => createTestBrowser({ send, adminOrigin, ...browserOptions }),
+		browser: (browserOptions) => createTestBrowser({ send, upgrade, adminOrigin, ...browserOptions }),
 		createSuperadmin,
 		signIn,
 		superadmin,
@@ -569,7 +579,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			};
 			await asSuperadmin(admin, () => admin.api.members.invite({ workspaceId, email: account.email, role, sites }));
 			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
-			const browser = createTestBrowser({ send, adminOrigin: TEST_ADMIN_ORIGIN });
+			const browser = createTestBrowser({ send, upgrade, adminOrigin: TEST_ADMIN_ORIGIN });
 			const { personId } = await browser.api.invites.accept({ token, ...account });
 			return { account, personId, browser };
 		},
@@ -585,7 +595,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			};
 			await asSuperadmin(admin, () => admin.api.staff.invite({ email: account.email, workspaces }));
 			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
-			const browser = createTestBrowser({ send, adminOrigin });
+			const browser = createTestBrowser({ send, upgrade, adminOrigin });
 			const { personId } = await browser.api.invites.accept({ token, ...account });
 			return { account, personId, browser };
 		},
@@ -704,7 +714,15 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return report;
 		},
 		checkUpdate: () => services.updates.check(),
+		upgrade,
+		webProcess() {
+			const other = createWebHandler({ services, filterVariants: options.filterVariants });
+			otherProcesses.push(other);
+			return { upgrade: (request) => other.upgrade(request), request: (request) => other(request) };
+		},
 		async close() {
+			await handle.stop();
+			for (const other of otherProcesses) await other.stop();
 			await boss?.stop({ graceful: false, close: true });
 			await database.close();
 			await testDatabase?.drop();
