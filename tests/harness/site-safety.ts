@@ -100,7 +100,12 @@ export async function expectSafePage(response: Response, expected: PagePolicy = 
 export function expectNoInlineCode(html: string): void {
 	for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
 		const [tag = "", attributes = "", body = ""] = match;
-		if (/\btype="application\/ld\+json"/i.test(attributes)) continue;
+		if (/\btype="application\/ld\+json"/i.test(attributes)) {
+			// Data, never run: JSON, with nothing in it a browser could read as markup.
+			expect(body, `structured data holding markup: ${body.slice(0, 200)}`).not.toMatch(/[<>]|\u2028|\u2029/);
+			expect(() => JSON.parse(body), `structured data that isn't JSON: ${body.slice(0, 200)}`).not.toThrow();
+			continue;
+		}
 		expect(attributes, `an inline script: ${tag.slice(0, 200)}`).toMatch(/\ssrc="[^"]+"/);
 		expect(body, `a script with code in the page: ${tag.slice(0, 200)}`).toBe("");
 	}

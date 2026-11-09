@@ -62,8 +62,10 @@ export async function loadMedia(
 	siteId: string,
 	fields: readonly FieldDefinition[],
 	values: FieldValues,
+	/** Other files the screen shows, such as an Entry's social image. */
+	more: readonly (string | null | undefined)[] = [],
 ): Promise<Record<string, MediaItem>> {
-	const ids = [...new Set(mediaIds(fields, values))];
+	const ids = [...new Set([...mediaIds(fields, values), ...more.filter((id): id is string => Boolean(id))])];
 	const items = await Promise.all(
 		ids.map((mediaId) =>
 			api.media.get({ siteId, mediaId }).then(

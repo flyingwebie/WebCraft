@@ -39,6 +39,7 @@ import { Route as AdminSitesSiteIdMediaRouteImport } from './routes/_admin/sites
 import { Route as AdminSitesSiteIdModulesRouteImport } from './routes/_admin/sites.$siteId.modules'
 import { Route as AdminSitesSiteIdOutsideScriptsRouteImport } from './routes/_admin/sites.$siteId.outside-scripts'
 import { Route as AdminSitesSiteIdPostTypesRouteImport } from './routes/_admin/sites.$siteId.post-types'
+import { Route as AdminSitesSiteIdSeoRouteImport } from './routes/_admin/sites.$siteId.seo'
 import { Route as AdminSitesSiteIdTemplatesRouteImport } from './routes/_admin/sites.$siteId.templates'
 import { Route as AdminSitesSiteIdWebhooksRouteImport } from './routes/_admin/sites.$siteId.webhooks'
 import { Route as AdminWorkspacesWorkspaceIdIndexRouteImport } from './routes/_admin/workspaces.$workspaceId.index'
@@ -218,6 +219,11 @@ const AdminSitesSiteIdPostTypesRoute =
     path: '/post-types',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminSitesSiteIdSeoRoute = AdminSitesSiteIdSeoRouteImport.update({
+  id: '/seo',
+  path: '/seo',
+  getParentRoute: () => AdminSitesSiteIdRoute,
+} as any)
 const AdminSitesSiteIdTemplatesRoute =
   AdminSitesSiteIdTemplatesRouteImport.update({
     id: '/templates',
@@ -380,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
+  '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
   '/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
@@ -428,6 +435,7 @@ export interface FileRoutesByTo {
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
+  '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
   '/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
@@ -481,6 +489,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/_admin/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
   '/_admin/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
+  '/_admin/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/_admin/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
   '/_admin/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
   '/_admin/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
@@ -536,6 +545,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/modules'
     | '/sites/$siteId/outside-scripts'
     | '/sites/$siteId/post-types'
+    | '/sites/$siteId/seo'
     | '/sites/$siteId/templates'
     | '/sites/$siteId/webhooks'
     | '/workspaces/$workspaceId/members'
@@ -584,6 +594,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/media'
     | '/sites/$siteId/modules'
     | '/sites/$siteId/outside-scripts'
+    | '/sites/$siteId/seo'
     | '/sites/$siteId/templates'
     | '/sites/$siteId/webhooks'
     | '/workspaces/$workspaceId/members'
@@ -636,6 +647,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/modules'
     | '/_admin/sites/$siteId/outside-scripts'
     | '/_admin/sites/$siteId/post-types'
+    | '/_admin/sites/$siteId/seo'
     | '/_admin/sites/$siteId/templates'
     | '/_admin/sites/$siteId/webhooks'
     | '/_admin/workspaces/$workspaceId/members'
@@ -879,6 +891,13 @@ declare module '@tanstack/react-router' {
       path: '/post-types'
       fullPath: '/sites/$siteId/post-types'
       preLoaderRoute: typeof AdminSitesSiteIdPostTypesRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/sites/$siteId/seo': {
+      id: '/_admin/sites/$siteId/seo'
+      path: '/seo'
+      fullPath: '/sites/$siteId/seo'
+      preLoaderRoute: typeof AdminSitesSiteIdSeoRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
     '/_admin/sites/$siteId/templates': {
@@ -1141,6 +1160,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdModulesRoute: typeof AdminSitesSiteIdModulesRoute
   AdminSitesSiteIdOutsideScriptsRoute: typeof AdminSitesSiteIdOutsideScriptsRoute
   AdminSitesSiteIdPostTypesRoute: typeof AdminSitesSiteIdPostTypesRouteWithChildren
+  AdminSitesSiteIdSeoRoute: typeof AdminSitesSiteIdSeoRoute
   AdminSitesSiteIdTemplatesRoute: typeof AdminSitesSiteIdTemplatesRoute
   AdminSitesSiteIdWebhooksRoute: typeof AdminSitesSiteIdWebhooksRoute
   AdminSitesSiteIdIndexRoute: typeof AdminSitesSiteIdIndexRoute
@@ -1163,6 +1183,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdModulesRoute: AdminSitesSiteIdModulesRoute,
   AdminSitesSiteIdOutsideScriptsRoute: AdminSitesSiteIdOutsideScriptsRoute,
   AdminSitesSiteIdPostTypesRoute: AdminSitesSiteIdPostTypesRouteWithChildren,
+  AdminSitesSiteIdSeoRoute: AdminSitesSiteIdSeoRoute,
   AdminSitesSiteIdTemplatesRoute: AdminSitesSiteIdTemplatesRoute,
   AdminSitesSiteIdWebhooksRoute: AdminSitesSiteIdWebhooksRoute,
   AdminSitesSiteIdIndexRoute: AdminSitesSiteIdIndexRoute,

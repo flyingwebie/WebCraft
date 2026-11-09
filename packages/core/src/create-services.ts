@@ -99,6 +99,7 @@ import {
 	visitorIdKey,
 } from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
+import { createSeo } from "./seo/index.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
 import { entryTemplateData, globalsData, loopData } from "./site-pages/data-samples.ts";
@@ -357,6 +358,7 @@ export async function createInstallServices(
 		sitePages,
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),
+		seo: createSeo(),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,

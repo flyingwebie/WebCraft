@@ -62,6 +62,21 @@ describe("creating a Post Type", () => {
 			builtInFields: BUILT_IN_FIELDS,
 			searchable: true,
 			searchedFields: [{ field: "title", weight: "A" }],
+			seo: {
+				titlePattern: "{title} {separator} {site}",
+				descriptionField: null,
+				imageField: null,
+				schema: {
+					type: "webPage",
+					properties: {
+						name: "title",
+						description: "seo.description",
+						image: "seo.image",
+						datePublished: "publishedAt",
+						dateModified: "lastPublishedAt",
+					},
+				},
+			},
 			createdAt: install.clock.now(),
 			updatedAt: install.clock.now(),
 		});

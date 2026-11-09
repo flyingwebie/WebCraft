@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { structuredDataLine, withoutStructuredData } from "../harness/seo.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { stylesheetIn } from "../harness/site-styles.ts";
 import { element, type TestTree, text, tree, value } from "../harness/trees.ts";
@@ -77,6 +78,16 @@ describe("semantic HTML", () => {
 				'<meta charset="utf-8">',
 				'<meta name="viewport" content="width=device-width, initial-scale=1">',
 				"<title>Daily bread · Acme &lt;Bakery&gt; &amp; Co</title>",
+				// What it tells search engines and other sites (see tests/seo), escaped as everything is.
+				'<link rel="canonical" href="https://bakery.sites.test/kind-1/daily-bread">',
+				'<meta property="og:type" content="website">',
+				'<meta property="og:title" content="Daily bread">',
+				'<meta property="og:url" content="https://bakery.sites.test/kind-1/daily-bread">',
+				'<meta property="og:site_name" content="Acme &lt;Bakery&gt; &amp; Co">',
+				'<meta property="og:locale" content="en">',
+				'<meta name="twitter:card" content="summary">',
+				'<meta name="twitter:title" content="Daily bread">',
+				structuredDataLine(html),
 				// The Site's stylesheet, named by the hash of what it holds.
 				`<link rel="stylesheet" href="${stylesheetIn(html)}">`,
 				"</head>",
@@ -137,7 +148,7 @@ describe("escaping", () => {
 			"&quot;&gt;&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt; &amp; co";
 		expect(html).toContain(`<p title="${escapedAttribute}" data-note="${escapedAttribute}">`);
 		expect(html).toContain("&lt;script&gt;alert('x')&lt;/script&gt;&lt;img src=x onerror=alert(1)&gt; &amp; co</p>");
-		expect(html).not.toContain("<script");
+		expect(withoutStructuredData(html)).not.toContain("<script");
 		expect(html).not.toContain("<img");
 	});
 
@@ -189,7 +200,7 @@ describe("no JavaScript", () => {
 			{ title: "<script>alert(1)</script>", note: "javascript:alert(1)" },
 		);
 
-		expect(html).not.toMatch(/<script/i);
+		expect(withoutStructuredData(html)).not.toMatch(/<script/i);
 		expect(html).not.toMatch(/\son[a-z]+=/i);
 		expect(html).not.toMatch(/javascript:/i);
 	});

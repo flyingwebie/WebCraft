@@ -66,11 +66,17 @@ describe("creating an Entry", () => {
 				parentId: null,
 				hiddenLanguages: [],
 				fields: { summary: "Feed it daily.", sku: null },
+				seo: { title: null, description: null, canonical: null, image: null, noindex: false },
 			},
 			published: null,
 			path: null,
 			problems: [],
-			checks: [],
+			// The SEO check's warnings (see tests/seo): nothing to describe the page or show when it is shared.
+			checks: [
+				{ at: "seo.description", check: "seoDescriptionMissing", message: expect.any(String) },
+				{ at: "seo.image", check: "seoImageMissing", message: expect.any(String) },
+			],
+			seoPreview: { title: expect.stringMatching(/^Sourdough starter · Site \d+$/), description: null, image: null },
 			linkedFrom: [],
 		});
 		expect((await editor.api.entries.get({ siteId, entryId: entry.id })).entry).toEqual(entry);

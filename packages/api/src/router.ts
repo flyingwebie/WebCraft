@@ -22,6 +22,7 @@ import { modules } from "./procedures/modules.ts";
 import { pages } from "./procedures/pages.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { scripts } from "./procedures/scripts.ts";
+import { seoSettings } from "./procedures/seo.ts";
 import { session } from "./procedures/session.ts";
 import { setup } from "./procedures/setup.ts";
 import { shell } from "./procedures/shell.ts";
@@ -59,6 +60,7 @@ export const apiRouter = {
 	outsideScripts,
 	csp,
 	consentBanner,
+	seoSettings,
 	designSystem,
 	builder,
 	media,
