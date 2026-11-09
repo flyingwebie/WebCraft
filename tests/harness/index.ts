@@ -118,6 +118,8 @@ export type TestInstallOptions = {
 	modules?: readonly ModuleDefinition[];
 	/** The largest image the worker processes, in pixels: the real limit unless given (to test it without huge files). */
 	maxImagePixels?: number;
+	/** How long Import from URL waits for a file: 30 seconds unless given (to test it without waiting). */
+	mediaImportTimeoutMs?: number;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -364,7 +366,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	let modules = options.modules ?? FIRST_PARTY_MODULES;
 	const start = async (masterKey: string) => {
 		const key = parseMasterKey(masterKey, MASTER_KEY_VARIABLE);
-		const started = await createInstallServices(ports, key, { checkMasterKey: mode === "migrated", modules });
+		const started = await createInstallServices(ports, key, {
+			checkMasterKey: mode === "migrated",
+			modules,
+			mediaImportTimeoutMs: options.mediaImportTimeoutMs,
+		});
 		if (mode === "migrated") await started.setup.announce();
 		return started;
 	};

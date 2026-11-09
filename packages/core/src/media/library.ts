@@ -7,6 +7,7 @@ import { languagesFor, siteLanguages } from "../content/languages.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import type { Email } from "../email/index.ts";
+import type { GuardedFetch } from "../guarded-fetch.ts";
 import { isUuid } from "../ids.ts";
 import type { InstallSettings } from "../install-settings.ts";
 import type { JobQueue } from "../jobs/define.ts";
@@ -27,6 +28,7 @@ import {
 	MediaTypeRefusedError,
 } from "./errors.ts";
 import type { VariantFormat } from "./images.ts";
+import { fetchForImport, MEDIA_IMPORT_TIMEOUT_MS } from "./import.ts";
 import type { InstallStorage } from "./install-storage.ts";
 import { mediaProcess } from "./jobs.ts";
 import type { MediaKind } from "./kinds.ts";
@@ -160,7 +162,13 @@ export type TrashEmptying =
 	| { emptied: true; count: number };
 
 /** A file as it was uploaded. */
-export type NewUpload = { fileName: string; data: Uint8Array; folderId?: string | null };
+export type NewUpload = {
+	fileName: string;
+	data: Uint8Array;
+	folderId?: string | null;
+	/** The host Import from URL fetched it from, recorded in the Audit log (`media.import`). */
+	importedFrom?: string;
+};
 
 /** A stored original or variant, ready to be streamed. */
 export type StoredMediaFile = {
@@ -179,6 +187,12 @@ export type StoredMediaFile = {
  */
 export type MediaLibrary = {
 	upload(scope: SiteScope, upload: NewUpload): Promise<MediaItem>;
+	/**
+	 * Import from URL: fetches the file at a public address through the guarded fetcher (refusing
+	 * addresses inside a network after DNS and after each redirect, at most 3 redirects, 30 seconds,
+	 * the Install's largest file), then takes it exactly as an upload.
+	 */
+	importUrl(scope: SiteScope, address: string, options?: { folderId?: string | null }): Promise<MediaItem>;
 	list(scope: SiteScope, query?: MediaQuery): Promise<{ items: MediaItem[]; total: number }>;
 	get(scope: SiteScope, mediaId: string, language?: string): Promise<MediaItem>;
 	/** Changes texts or the folder: a person's own upload, or any with `media.manage`. */
@@ -251,6 +265,10 @@ export function createMediaLibrary(options: {
 	clock: Clock;
 	/** AI providers, for "Suggest alt text". */
 	ai: AiProviders;
+	/** The guarded fetcher Import from URL uses, allowed files up to the largest an Install may take. */
+	fetch: GuardedFetch;
+	/** How long Import from URL waits: `MEDIA_IMPORT_TIMEOUT_MS` unless given (tests wait less). */
+	importTimeoutMs?: number;
 }): MediaLibrary {
 	const { storage, jobs, settings } = options;
 	const noticePorts = { email: options.email, log: options.log, clock: options.clock };
@@ -344,7 +362,7 @@ export function createMediaLibrary(options: {
 		return result;
 	};
 
-	return {
+	const library: MediaLibrary = {
 		async upload(scope, upload) {
 			const folderId = upload.folderId ? (await findFolder(scope, upload.folderId)).id : null;
 			const id = crypto.randomUUID();
@@ -366,10 +384,22 @@ export function createMediaLibrary(options: {
 					updatedAt: now,
 				});
 				await tx.insert(mediaFiles, fileRow(tx, file, id, now));
-				await tx.audit("media.upload", { mediaId: id, fileName: file.fileName, contentType: file.format.contentType });
+				const details = { mediaId: id, fileName: file.fileName, contentType: file.format.contentType };
+				if (upload.importedFrom) await tx.audit("media.import", { ...details, host: upload.importedFrom });
+				else await tx.audit("media.upload", details);
 			});
 			if (file.clean) await jobs.send(mediaProcess, { siteId: scope.site.id, mediaId: id });
 			return get(scope, id);
+		},
+
+		async importUrl(scope, address, importOptions = {}) {
+			const folderId = importOptions.folderId ? (await findFolder(scope, importOptions.folderId)).id : null;
+			const { maxFileBytes } = await settings.media();
+			const fetched = await fetchForImport(options.fetch, address, {
+				maxBytes: maxFileBytes,
+				timeoutMs: options.importTimeoutMs ?? MEDIA_IMPORT_TIMEOUT_MS,
+			});
+			return library.upload(scope, { ...fetched, folderId, importedFrom: fetched.host });
 		},
 
 		async replace(scope, mediaId, upload) {
@@ -679,6 +709,7 @@ export function createMediaLibrary(options: {
 			},
 		},
 	};
+	return library;
 }
 
 /** Whether a stored file is named by any of the Site's Media files (identical bytes share one). */

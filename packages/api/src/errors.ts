@@ -58,6 +58,7 @@ import {
 	LoopNotFoundError,
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
+	MediaImportRefusedError,
 	MediaInTrashError,
 	MediaInvalidError,
 	MediaNotFoundError,
@@ -510,6 +511,14 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof MediaImportRefusedError) {
+		return new ORPCError("MEDIA_IMPORT_REFUSED", {
+			status: 400,
+			message: error.message,
+			data: { problem: error.problem, ...(error.status === undefined ? {} : { status: error.status }) },
 			cause: error,
 		});
 	}

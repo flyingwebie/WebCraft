@@ -119,6 +119,19 @@ export const media = {
 		}),
 
 	/**
+	 * Import from URL: fetches the file at a public address and takes it as an upload. Refused
+	 * (`MEDIA_IMPORT_REFUSED`, `data.problem`) for anything but http(s), addresses inside a network
+	 * (after DNS and after each redirect), more than 3 redirects, more than 30 seconds, a file larger
+	 * than the Install's largest, or an error answer (`status`).
+	 */
+	importUrl: signedIn
+		.input(z.object({ siteId: id, url: z.string().trim().min(1).max(2048), folderId: id.nullable().optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
+			return { media: await context.services.media.importUrl(site, input.url, { folderId: input.folderId }) };
+		}),
+
+	/**
 	 * Replace file: gives the file a new one of the same kind, keeping its id, texts and every use. An
 	 * image is cleaned by the worker first (`replacing` until then; the current file is served
 	 * meanwhile). The file it replaced is still served for 30 days, for pages loaded before.

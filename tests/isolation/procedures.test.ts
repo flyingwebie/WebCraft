@@ -631,6 +631,15 @@ describe("Media", () => {
 	);
 	isolation.refuses("media.overview", (api, { siteId }) => api.media.overview({ siteId }), { as: ["staff", "author"] });
 	isolation.refuses(
+		"media.importUrl",
+		(api, { siteId }) => {
+			install.dns.answer("files.isolation.example", ["93.184.216.34"]);
+			install.http.respond("GET", "https://files.isolation.example/menu.pdf", { body: pdf("Imported") });
+			return api.media.importUrl({ siteId, url: "https://files.isolation.example/menu.pdf" });
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
 		"media.replace",
 		async (api, target) =>
 			api.media.replace({
