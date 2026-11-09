@@ -283,6 +283,7 @@ export async function createInstallServices(
 			settings: getSpecialPages,
 			setHomePage: (scope, pageId) => setSpecialPage(scope, "home", pageId),
 			setNotFoundPage: (scope, pageId, language) => setSpecialPage(scope, "notFound", pageId, language),
+			setSearchPage: (scope, pageId) => setSpecialPage(scope, "search", pageId),
 		},
 		designSystem: {
 			get: getDesignSystem,

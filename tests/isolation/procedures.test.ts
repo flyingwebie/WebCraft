@@ -445,6 +445,9 @@ describe("Pages", () => {
 	isolation.refuses("pages.setNotFoundPage", async (api, target) =>
 		api.pages.setNotFoundPage({ siteId: target.siteId, pageId: await pageIn(target) }),
 	);
+	isolation.refuses("pages.setSearchPage", async (api, target) =>
+		api.pages.setSearchPage({ siteId: target.siteId, pageId: await pageIn(target) }),
+	);
 });
 
 describe("Languages", () => {

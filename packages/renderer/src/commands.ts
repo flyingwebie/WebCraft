@@ -18,6 +18,7 @@ import type {
 	LoopNode,
 	OutletNode,
 	PaginationNode,
+	SearchNode,
 	ThemeToggleNode,
 	TreeNode,
 } from "./tree.ts";
@@ -31,7 +32,8 @@ export type CommandNode =
 	| LanguageSwitcherNode
 	| FormNode
 	| LoopNode
-	| PaginationNode;
+	| PaginationNode
+	| SearchNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -89,6 +91,8 @@ export type RenderTools = {
 	languageSwitcher(): string;
 	/** A Form, rendered: nothing where Forms don't run, or for a Form the page can't show. */
 	form(formId: string): string;
+	/** The Search element, rendered: nothing while the Site has no search results page in the page's language. */
+	search(): string;
 };
 
 /** What printing a command needs to know about the Site: the keys of its Forms. */
@@ -456,6 +460,54 @@ const formCommand: TemplateCommand<FormNode> = {
 };
 
 /**
+ * `{{@search}}`: the Search element (ADR 0021), a search box sending visitors to the Site's search
+ * results page in the page's language with a plain GET (`?q=…`), so it works without JavaScript. It
+ * renders nothing while the Site has no search results page there. A <form> of its own, it goes where
+ * a <div> can: never inside a link, a control, a paragraph, inline text or another form.
+ */
+const searchCommand: TemplateCommand<SearchNode> = {
+	name: "search",
+	nodeType: "search",
+	block: false,
+	branches: [],
+	snippet: "{{@search}}",
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		if (section?.argument.trim()) {
+			const leading = section.argument.length - section.argument.trimStart().length;
+			tools.problem(section.argumentOffset + leading, "{{@search}} takes nothing: write it alone.");
+			return undefined;
+		}
+		return { type: "search" };
+	},
+
+	toMarkup() {
+		return [{ keyword: "search", argument: "", children: [] }];
+	},
+
+	check() {
+		return { type: "search" };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(_node, tools) {
+		return tools.search();
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => NO_FORM_INSIDE.has(tag));
+		if (inside) return `{{@search}} is a form of its own: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@search}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
+/**
  * `{{@loop source as post}} … {{@empty}} … {{/loop}}`: a Loop (`loops.ts`). Its content renders once
  * per item, reading the item as `post.x` and its position as `loop.x`; `{{@empty}}`'s content renders
  * when there are none and reads only what is around the Loop.
@@ -604,6 +656,7 @@ export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	themeToggleCommand,
 	languageSwitcherCommand,
 	formCommand,
+	searchCommand,
 ];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */

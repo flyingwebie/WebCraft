@@ -65,6 +65,7 @@ describe("the home page", () => {
 		expect(settings).toEqual({
 			homePage: { id: welcome, title: "Welcome" },
 			notFoundPage: null,
+			searchPage: null,
 			languageNotFoundPages: {},
 		});
 		expect((await visit(site, "/")).status).toBe(404);

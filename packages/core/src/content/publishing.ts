@@ -10,6 +10,7 @@ import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-s
 import { publishFormDraft } from "../forms/forms.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
+import { indexPublishedEntry } from "../search/indexing.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { archiveAt, checkArchiveAddressFree, publishedArchives } from "./archives.ts";
@@ -211,6 +212,8 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 			throw error;
 		}
 	}
+	// Found by Site search as soon as its page shows; indexing never fails the publish.
+	await indexPublishedEntry(scope, row.id);
 	await scope.audit("entry.publish", {
 		entryId: row.id,
 		postTypeId: row.postTypeId,

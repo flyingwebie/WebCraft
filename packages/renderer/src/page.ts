@@ -2,10 +2,11 @@ import { PLAYER_ORIGINS } from "./body/video.ts";
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import type { RenderTime } from "./expressions.ts";
-import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
+import { escapeAttribute, escapeText, type PlacementRenderer, renderTree, safeUrl } from "./html.ts";
 import type { LoopItemPlace, LoopRun } from "./loops.ts";
+import { SEARCH_HIT_NAME, SEARCH_LOOP, SEARCH_QUERY_VALUE } from "./loops.ts";
 import type { MediaReader } from "./media.ts";
-import type { ElementNode, ElementTree, ValueNode } from "./tree.ts";
+import type { Attribute, ElementNode, ElementTree, TreeNode, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
 
 /**
@@ -86,6 +87,12 @@ export type PageToRender = {
 	/** What `{{@form <key>}}` shows, in both templates: the Form, rendered (`renderForm`). Nothing when absent. */
 	form?: (formId: string) => string;
 	/**
+	 * Where the Search element (`{{@search}}`) sends visitors: the Site's search results page in the
+	 * page's language, and the query it shows in its box (on the results page). The Search element shows
+	 * nothing without it.
+	 */
+	search?: PageSearch;
+	/**
 	 * Outside scripts the page's Forms need (a Site's CAPTCHA), asked once the page's templates have
 	 * rendered, so only a page showing a Form loads one. They join `outsideScripts`: never in Edit mode.
 	 */
@@ -122,6 +129,9 @@ export type PageToRender = {
 	 */
 	editMode?: EditModePage;
 };
+
+/** Where a page's Search elements send visitors, and what they show in their box. */
+export type PageSearch = { action: string; query: string };
 
 /** One of the Site's Libraries on a page: its name, where the Site serves it and its integrity hash. */
 export type PageLibrary = { name: string; src: string; integrity: string };
@@ -227,6 +237,8 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	};
 	const languageSwitcher = () => languageSwitcherHtml(page.languageLinks ?? [], site);
 	const words = pageWords(site.language);
+	let searches = 0;
+	const search = () => (page.search ? searchElementHtml(page.search, ++searches, words) : "");
 	// The embed script comes only with a video to play.
 	const shown = { videos: 0 };
 	const loopItemsShown = { count: 0 };
@@ -240,6 +252,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		priorityImage: { given: false },
 		component: page.component,
 		form: page.form,
+		search,
 		loop: page.loop,
 		time: page.time,
 		loopItemsShown,
@@ -259,6 +272,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		extraAttributes: mainAttributes,
 		component: page.component,
 		form: page.form,
+		search,
 		loop: page.loop,
 		time: page.time,
 		loopItemsShown,
@@ -349,6 +363,30 @@ function languageSwitcherHtml(links: readonly LanguageLink[], site: PageToRender
 	return `<nav class="wc-language-switcher" aria-label="${label}"><ul>${items.join("")}</ul></nav>`;
 }
 
+/** The class names WebCraft gives the Search element's parts, styled in the Design system's base layer. */
+export const SEARCH_HOOKS = { form: "wc-search", input: "wc-search-input", button: "wc-search-button" } as const;
+
+/** The longest query the Search element's box takes, as Site search reads it (`SEARCH_QUERY_MAX_LENGTH`). */
+export const SEARCH_BOX_MAX_LENGTH = 200;
+
+/**
+ * The Search element: a GET form to the search results page with one search box, `q`, labelled for
+ * screen readers (its button names it for everyone), and the query being shown in it. The first on
+ * the page is the page's search landmark; the others are plain forms, so the page has one.
+ */
+function searchElementHtml(search: PageSearch, index: number, words: PageWords): string {
+	const id = `wc-search-${index}`;
+	const role = index === 1 ? ' role="search"' : "";
+	const value = search.query ? ` value="${escapeAttribute(search.query)}"` : "";
+	return [
+		`<form class="${SEARCH_HOOKS.form}"${role} method="get" action="${escapeAttribute(safeUrl(search.action))}">`,
+		`<label class="wc-visually-hidden" for="${id}">${escapeText(words.searchLabel)}</label>`,
+		`<input class="${SEARCH_HOOKS.input}" type="search" id="${id}" name="q"${value} maxlength="${SEARCH_BOX_MAX_LENGTH}" enterkeyhint="search">`,
+		`<button class="${SEARCH_HOOKS.button}" type="submit">${escapeText(words.searchButton)}</button>`,
+		"</form>",
+	].join("");
+}
+
 /** The page's stylesheet, and the colour schemes it supports when it has dark values. */
 function headStyles(styles: PageStyles | undefined): string[] {
 	if (!styles) return [];
@@ -404,6 +442,19 @@ type PageWords = {
 	outsideScripts: string;
 	/** What an outside script's placeholder says in Edit mode. */
 	notWhileEditing: string;
+	/** The built-in Search results template's heading. */
+	search: string;
+	/** The Search element's label (out of sight, for screen readers) and its button. */
+	searchLabel: string;
+	searchButton: string;
+	/** The hit count: "1 result for “{query}”", "{count} results for “{query}”". */
+	searchResult: string;
+	searchResults: string;
+	/** What the built-in Search results template says when nothing matches, and what to try. */
+	searchNone: string;
+	searchNoneHint: string;
+	/** A search results page's title with a query: "Results for “{query}”". */
+	searchTitle: string;
 };
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
@@ -421,6 +472,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Page {n}",
 		outsideScripts: "Outside scripts",
 		notWhileEditing: "doesn't run while editing",
+		search: "Search",
+		searchLabel: "Search the site",
+		searchButton: "Search",
+		searchResult: "1 result for “{query}”",
+		searchResults: "{count} results for “{query}”",
+		searchNone: "No results for “{query}”.",
+		searchNoneHint: "Check the spelling, or try other words.",
+		searchTitle: "Results for “{query}”",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
@@ -436,6 +495,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Pagina {n}",
 		outsideScripts: "Script esterni",
 		notWhileEditing: "non viene eseguito durante la modifica",
+		search: "Cerca",
+		searchLabel: "Cerca nel sito",
+		searchButton: "Cerca",
+		searchResult: "1 risultato per «{query}»",
+		searchResults: "{count} risultati per «{query}»",
+		searchNone: "Nessun risultato per «{query}».",
+		searchNoneHint: "Controlla l'ortografia o prova con altre parole.",
+		searchTitle: "Risultati per «{query}»",
 	},
 	fr: {
 		skipLink: "Aller au contenu principal",
@@ -451,6 +518,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Page {n}",
 		outsideScripts: "Scripts externes",
 		notWhileEditing: "ne s’exécute pas pendant la modification",
+		search: "Recherche",
+		searchLabel: "Rechercher sur le site",
+		searchButton: "Rechercher",
+		searchResult: "1 résultat pour « {query} »",
+		searchResults: "{count} résultats pour « {query} »",
+		searchNone: "Aucun résultat pour « {query} ».",
+		searchNoneHint: "Vérifiez l’orthographe ou essayez d’autres mots.",
+		searchTitle: "Résultats pour « {query} »",
 	},
 	de: {
 		skipLink: "Zum Hauptinhalt springen",
@@ -466,6 +541,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Seite {n}",
 		outsideScripts: "Externe Skripte",
 		notWhileEditing: "läuft nicht während der Bearbeitung",
+		search: "Suche",
+		searchLabel: "Website durchsuchen",
+		searchButton: "Suchen",
+		searchResult: "1 Ergebnis für „{query}“",
+		searchResults: "{count} Ergebnisse für „{query}“",
+		searchNone: "Keine Ergebnisse für „{query}“.",
+		searchNoneHint: "Prüfen Sie die Schreibweise oder versuchen Sie andere Wörter.",
+		searchTitle: "Ergebnisse für „{query}“",
 	},
 	es: {
 		skipLink: "Ir al contenido principal",
@@ -481,6 +564,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Página {n}",
 		outsideScripts: "Scripts externos",
 		notWhileEditing: "no se ejecuta mientras se edita",
+		search: "Búsqueda",
+		searchLabel: "Buscar en el sitio",
+		searchButton: "Buscar",
+		searchResult: "1 resultado para «{query}»",
+		searchResults: "{count} resultados para «{query}»",
+		searchNone: "No hay resultados para «{query}».",
+		searchNoneHint: "Revisa la ortografía o prueba con otras palabras.",
+		searchTitle: "Resultados para «{query}»",
 	},
 	pt: {
 		skipLink: "Ir para o conteúdo principal",
@@ -496,6 +587,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Página {n}",
 		outsideScripts: "Scripts externos",
 		notWhileEditing: "não é executado durante a edição",
+		search: "Pesquisa",
+		searchLabel: "Pesquisar no site",
+		searchButton: "Pesquisar",
+		searchResult: "1 resultado para «{query}»",
+		searchResults: "{count} resultados para «{query}»",
+		searchNone: "Nenhum resultado para «{query}».",
+		searchNoneHint: "Verifique a ortografia ou experimente outras palavras.",
+		searchTitle: "Resultados para «{query}»",
 	},
 	nl: {
 		skipLink: "Naar de hoofdinhoud",
@@ -511,6 +610,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Pagina {n}",
 		outsideScripts: "Externe scripts",
 		notWhileEditing: "wordt niet uitgevoerd tijdens het bewerken",
+		search: "Zoeken",
+		searchLabel: "Zoeken op de site",
+		searchButton: "Zoeken",
+		searchResult: "1 resultaat voor ‘{query}’",
+		searchResults: "{count} resultaten voor ‘{query}’",
+		searchNone: "Geen resultaten voor ‘{query}’.",
+		searchNoneHint: "Controleer de spelling of probeer andere woorden.",
+		searchTitle: "Resultaten voor ‘{query}’",
 	},
 };
 
@@ -535,6 +642,117 @@ export function builtInNotFoundPage(language: string): { title: string; content:
 			nodes: [element("notFoundTitle", "h1", words.notFoundTitle), element("notFoundText", "p", words.notFoundText)],
 		},
 	};
+}
+
+/**
+ * The built-in Search results template (ADR 0021), for a Site that hasn't published its own: a
+ * heading, the Search element, then for a query either what was found (the hit count, each hit's
+ * title linked to its page with its snippet, and links to the other pages of hits) or a message that
+ * nothing was, saying what to try. In the page's language.
+ */
+export function builtInSearchTemplate(language: string): ElementTree {
+	const words = pageWords(language);
+	const element = (id: string, tag: string, children: TreeNode[], attributes: Attribute[] = []): ElementNode => ({
+		type: "element",
+		id,
+		tag,
+		attributes,
+		classes: [],
+		children,
+	});
+	const value = (path: string): ValueNode => ({ type: "value", path });
+	// A sentence of WebCraft's words with the query and the count in their places.
+	const sentence = (text: string): TreeNode[] =>
+		text
+			.split(/(\{query\}|\{count\})/)
+			.filter((part) => part !== "")
+			.map((part) =>
+				part === "{query}"
+					? value(SEARCH_QUERY_VALUE)
+					: part === "{count}"
+						? value(`${SEARCH_LOOP}.total`)
+						: { type: "text", text: part },
+			);
+	const hit = SEARCH_HIT_NAME;
+	const hits: TreeNode[] = [
+		{
+			type: "condition",
+			branches: [
+				{
+					test: {
+						type: "compare",
+						operator: "==",
+						left: { type: "value", path: `${SEARCH_LOOP}.total` },
+						right: { type: "literal", value: 1 },
+					},
+					children: [element("searchCountOne", "p", sentence(words.searchResult))],
+				},
+			],
+			otherwise: [element("searchCount", "p", sentence(words.searchResults))],
+		},
+		element("searchHits", "ol", [
+			{
+				type: "loop",
+				source: SEARCH_LOOP,
+				alias: hit,
+				children: [
+					element("searchHit", "li", [
+						element("searchHitTitle", "h2", [
+							element("searchHitLink", "a", [value(`${hit}.title`)], [{ name: "href", value: [value(`${hit}.url`)] }]),
+						]),
+						{
+							type: "condition",
+							branches: [
+								{
+									test: { type: "value", path: `${hit}.snippet` },
+									children: [element("searchHitSnippet", "p", [value(`${hit}.snippet`)])],
+								},
+							],
+							otherwise: null,
+						},
+					]),
+				],
+				empty: null,
+			},
+		]),
+		{ type: "pagination", loop: SEARCH_LOOP },
+	];
+	return {
+		version: 1,
+		nodes: [
+			element("searchHeading", "h1", [{ type: "text", text: words.search }]),
+			{ type: "search" },
+			{
+				type: "condition",
+				branches: [
+					{
+						test: { type: "value", path: SEARCH_QUERY_VALUE },
+						children: [
+							{
+								type: "condition",
+								branches: [
+									{
+										test: { type: "value", path: `${SEARCH_LOOP}.empty` },
+										children: [
+											element("searchNone", "p", sentence(words.searchNone)),
+											element("searchNoneHint", "p", [{ type: "text", text: words.searchNoneHint }]),
+										],
+									},
+								],
+								otherwise: hits,
+							},
+						],
+					},
+				],
+				otherwise: null,
+			},
+		],
+	};
+}
+
+/** A search results page's title: its Page's title, or with a query, what it shows hits for. */
+export function searchPageTitle(title: string, query: string, language: string): string {
+	return query ? pageWords(language).searchTitle.replace("{query}", query) : title;
 }
 
 /** WebCraft's own words in a page's language (by its primary subtag), English when it has none. */

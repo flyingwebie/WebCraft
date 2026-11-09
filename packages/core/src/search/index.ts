@@ -10,3 +10,10 @@ export {
 	type SearchedField,
 	type SearchWeight,
 } from "./searched-fields.ts";
+export {
+	cleanSearchText,
+	SEARCH_PARAMETER,
+	SEARCH_QUERY_MAX_LENGTH,
+	searchQueryIn,
+	textSearchConfiguration,
+} from "./text-search.ts";

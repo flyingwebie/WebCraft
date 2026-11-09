@@ -312,7 +312,8 @@ export type InstallServices = InstallPorts & {
 		saveDraft(scope: SiteScope, entryId: string | null, code: string, base?: SaveBase): Promise<Script>;
 	};
 	/**
-	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing
+	 * Which Pages answer at `/` (the home page), for paths with no page (the 404 page) and for Site
+	 * search (the search results page). Choosing
 	 * them is Structure: open the Site with `structure.edit`; anyone who sees the Site may read them.
 	 */
 	pages: {
@@ -324,6 +325,11 @@ export type InstallServices = InstallPorts & {
 		 * language alone (null: the Site's answers there). It applies at once.
 		 */
 		setNotFoundPage(scope: SiteScope, pageId: string | null, language?: string): Promise<SpecialPages>;
+		/**
+		 * Chooses the Site's search results page (ADR 0021), or none with null: its content is the
+		 * Search results template, and the Search element sends visitors there. It applies at once.
+		 */
+		setSearchPage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
 	};
 	/**
 	 * Each Site's Design system (ADR 0009): tokens, Classes, base styles, custom CSS and dark mode,
