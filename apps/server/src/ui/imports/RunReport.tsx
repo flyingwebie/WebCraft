@@ -12,8 +12,8 @@ import {
 } from "@webcraft/ui/components/dialog.tsx";
 import { FieldError } from "@webcraft/ui/components/field.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { ArrowLeftIcon, InfoIcon, ListIcon, LoaderIcon, RefreshCwIcon, SquareIcon, Undo2Icon } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { ArrowLeftIcon, ListIcon, LoaderIcon, RefreshCwIcon, SquareIcon, Undo2Icon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
@@ -24,6 +24,7 @@ import { Tabs } from "../Tabs.tsx";
 import { ProblemList } from "./CsvMapping.tsx";
 import { StatusBadge } from "./ImportsList.tsx";
 import { isGoing, type RunReport } from "./model.ts";
+import { Note } from "./Note.tsx";
 import { Stepper } from "./Stepper.tsx";
 
 /** How often a running run's progress is asked for again. */
@@ -491,13 +492,4 @@ function undoError(error: unknown): MessageKey {
 			: "imports.undo.refused.status";
 	}
 	return errorMessage(error);
-}
-
-function Note({ children }: { children: ReactNode }) {
-	return (
-		<p className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
-			<InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-			{children}
-		</p>
-	);
 }

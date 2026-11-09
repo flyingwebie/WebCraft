@@ -35,6 +35,18 @@ export class ImportInvalidError extends Error {
 	}
 }
 
+/**
+ * An Import that keeps track of Entries it brought in keeps its Post Type: a run matches rows to them
+ * by their Source ids, which would otherwise find Entries of the Post Type it had before. Undo its
+ * runs, or start a new Import.
+ */
+export class ImportPostTypeFixedError extends Error {
+	override name = "ImportPostTypeFixedError";
+	constructor() {
+		super("This Import brought Entries in, so it keeps its Post Type: undo its runs, or start a new Import.");
+	}
+}
+
 /** Another run of the Import hasn't ended yet: one run at a time. */
 export class ImportRunningError extends Error {
 	override name = "ImportRunningError";

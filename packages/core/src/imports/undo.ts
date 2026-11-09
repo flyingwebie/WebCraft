@@ -11,7 +11,7 @@ import { entries, importItems, importRunChanges, importRuns, media } from "@webc
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
-import { removeEntries, replaceDraft } from "../content/entries.ts";
+import { removalBlocks, removeEntries, replaceDraft } from "../content/entries.ts";
 import { siteLanguages } from "../content/languages.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { readValue, storedVersion } from "../content/values.ts";
@@ -161,6 +161,14 @@ async function undoPlan(scope: SiteScope, run: RunRow): Promise<UndoPlan> {
 	}
 	if (published.length > 0) return { refused: "published", entries: await titled(scope, published) };
 	if (edited.length > 0) return { refused: "edited", entries: await titled(scope, edited) };
+	// Told at the first step, and in the report, not only when it would go ahead.
+	const blocked = await removalBlocks(scope, removes);
+	if (blocked.length > 0) {
+		const linking = new Map(
+			blocked.map((block) => [block.by.entryId, { id: block.by.entryId, title: block.by.title }]),
+		);
+		return { refused: "linked", entries: [...linking.values()].slice(0, 20) };
+	}
 	const removing = new Set(removes);
 	const files: string[] = [];
 	for (const change of changes) {

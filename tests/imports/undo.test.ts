@@ -230,4 +230,60 @@ describe("Undo of an Import run", () => {
 		const { entry } = await editor.api.entries.get({ siteId, entryId: shelf.id });
 		expect(entry.draft.fields.holds).toEqual([]);
 	});
+
+	test("is refused while another Entry must point at a Draft it created (a required Relationship)", async () => {
+		const { postType, settings } = await products();
+		const { postType: shelves } = await staff.api.postTypes.create({
+			siteId,
+			name: "Labels",
+			urlPattern: "/labels/{slug}",
+			fields: [{ key: "for", label: "For", type: "relationship", postTypes: [postType.key], required: true }],
+		});
+		const { run } = await importCsv(install, editor.api, siteId, settings, "name,sku,price,photo\nRye,RY-1,4,\n");
+		const rye = run.created[0]?.entryId as string;
+		const { entry: label } = await editor.api.entries.create({
+			siteId,
+			postTypeId: shelves.id,
+			title: "Rye label",
+			fields: { for: rye },
+		});
+
+		await expect(editor.api.imports.undo({ siteId, runId: run.id })).rejects.toMatchObject({
+			code: "IMPORT_UNDO_REFUSED",
+			status: 409,
+			data: { reason: "linked", entries: [expect.objectContaining({ id: label.id })] },
+		});
+		expect(await prices(postType.id)).toEqual({ Rye: 4 });
+	});
+});
+
+describe("an Import's Post Type", () => {
+	test("stays once the Import brought Entries in; after Undo it may change", async () => {
+		const { postType: shoes, settings } = await products();
+		const { postType: shirts } = await products();
+		const { importId, run } = await importCsv(
+			install,
+			editor.api,
+			siteId,
+			settings,
+			"name,sku,price,photo\nRye,RY-1,4,\n",
+		);
+		expect((await editor.api.imports.get({ siteId, importId })).import.entries).toBe(1);
+
+		await expect(
+			editor.api.imports.update({ siteId, importId, settings: { ...settings, postTypeId: shirts.id } }),
+		).rejects.toMatchObject({ code: "IMPORT_POST_TYPE_FIXED", status: 409 });
+		// The name can still change.
+		await editor.api.imports.update({ siteId, importId, name: "Shoes" });
+		expect(await prices(shoes.id)).toEqual({ Rye: 4 });
+
+		await undo(run.id);
+		expect((await editor.api.imports.get({ siteId, importId })).import.entries).toBe(0);
+		await editor.api.imports.update({ siteId, importId, settings: { ...settings, postTypeId: shirts.id } });
+		const again = await runAgain(install, editor.api, siteId, importId, "name,sku,price,photo\nRye,RY-1,5,\n");
+
+		expect(again.counts).toMatchObject({ created: 1, updated: 0 });
+		expect(await prices(shirts.id)).toEqual({ Rye: 5 });
+		expect(await prices(shoes.id)).toEqual({});
+	});
 });
