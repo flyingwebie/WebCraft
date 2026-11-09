@@ -2,6 +2,7 @@
 // the Module and never cached as pages.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 import { sample } from "./sample/index.ts";
@@ -101,6 +102,19 @@ describe("a Module's Site routes", () => {
 
 		expect(await answer.json()).toEqual({ cookie: "theme=dark" });
 		expect(answer.headers.getSetCookie()).toEqual(["sample-seen=1; Path=/"]);
+	});
+
+	test("never see the Edit mode cookie of someone editing the Site, nor replace it", async () => {
+		const site = await newSite();
+		const editing = await openEditMode(install, staff, site.id);
+		const held = new Map(editing.browser.cookies);
+		expect(held.size).toBeGreaterThan(0);
+
+		const answer = await editing.browser.request(site.url("/_wc/m/sample/cookies"));
+
+		expect(await answer.json()).toEqual({ cookie: null });
+		expect(new Map(editing.browser.cookies)).toEqual(new Map([...held, ["sample-seen", "1"]]));
+		expect((await editing.edit("state", { path: "/" })).status).toBe(200);
 	});
 
 	test("that fail answer a plain 500 and leave the reason in the Module log", async () => {

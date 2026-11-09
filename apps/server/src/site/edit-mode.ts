@@ -10,6 +10,7 @@ import {
 	type PageEditing,
 	RateLimitedError,
 	type SiteHost,
+	WEBCRAFT_COOKIE_PREFIX,
 } from "@webcraft/core";
 import { z } from "zod";
 
@@ -312,10 +313,12 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 
 /**
  * The edit cookie's name: with the `__Host-` prefix (only this hostname, `Secure`, path `/`), except
- * on a plain-HTTP development hostname under `.localhost`.
+ * on a plain-HTTP development hostname under `.localhost`. It is named `webcraft.…` like every cookie
+ * WebCraft sets on a Site's domain, so Modules' Site routes never see it (`isWebCraftCookie`).
  */
 export function editCookieName(hostname: string): string {
-	return isDevelopmentHostname(hostname) ? "webcraft-edit" : "__Host-webcraft-edit";
+	const name = `${WEBCRAFT_COOKIE_PREFIX}.edit`;
+	return isDevelopmentHostname(hostname) ? name : `__Host-${name}`;
 }
 
 /** The `Set-Cookie` line for the edit cookie: `HttpOnly`, `Secure` (but in development), `SameSite=Lax`. */

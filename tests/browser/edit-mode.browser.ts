@@ -81,7 +81,7 @@ async function editModePage(theme: Theme, pagePath = path): Promise<Page> {
 		await page.goto(install.adminUrl(`/sites/${siteId}`));
 		await page.getByRole("button", { name: "Edit on site" }).click();
 		await page.waitForURL((url) => url.hostname === new URL(install.siteUrl(slug, "/")).hostname);
-		editCookies = (await page.context().cookies()).filter((cookie) => cookie.name === "webcraft-edit");
+		editCookies = (await page.context().cookies()).filter((cookie) => cookie.name === "webcraft.edit");
 	}
 	await page.goto(install.siteUrl(slug, pagePath));
 	await page.getByRole("button", { name: "Publish", exact: true }).waitFor();

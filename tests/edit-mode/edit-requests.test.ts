@@ -278,7 +278,7 @@ describe("Edit mode ends", () => {
 		expect(html).toContain("<p>Out of the oven</p>");
 		expect(html).not.toContain("webcraft-edit");
 		expect(html).not.toContain("data-wc-");
-		expect(editing.browser.cookies.has("__Host-webcraft-edit")).toBe(false);
+		expect(editing.browser.cookies.has("__Host-webcraft.edit")).toBe(false);
 	}
 
 	test("as soon as the person signs out of the admin", async () => {

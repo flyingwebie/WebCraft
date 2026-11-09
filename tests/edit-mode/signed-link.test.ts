@@ -52,7 +52,7 @@ function cookieAttributes(response: Response, name: string): Record<string, stri
 	);
 }
 
-const EDIT_COOKIE = "__Host-webcraft-edit";
+const EDIT_COOKIE = "__Host-webcraft.edit";
 
 describe("Edit on site", () => {
 	test("gives a link on the Site's own address; following it sets the edit cookie there and opens the page", async () => {
