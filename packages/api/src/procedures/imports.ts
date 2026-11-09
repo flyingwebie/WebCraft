@@ -98,7 +98,7 @@ export const imports = {
 				fileId: id,
 				offset: z.number().int().min(0),
 				sha256,
-				part: z.instanceof(Blob),
+				part: z.file(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
