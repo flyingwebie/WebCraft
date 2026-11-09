@@ -2244,6 +2244,7 @@
 		"notPlaced": "Non è ancora inserito in nessuna pagina.",
 		"placedOnSiteTemplate": "il Template del Site",
 		"placedOnEntryTemplate": "{name} (Template delle voci)",
+		"placedOnArchiveTemplate": "{name} (modello d'archivio)",
 		"placedOnComponent": "{name} (Componente)",
 		"saveDraft": "Salva la bozza",
 		"publish": "Pubblica il Form",

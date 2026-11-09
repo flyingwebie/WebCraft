@@ -2244,6 +2244,7 @@
 		"notPlaced": "Not placed on any page yet.",
 		"placedOnSiteTemplate": "the Site template",
 		"placedOnEntryTemplate": "{name} (Entry template)",
+		"placedOnArchiveTemplate": "{name} (Archive template)",
 		"placedOnComponent": "{name} (Component)",
 		"saveDraft": "Save Draft",
 		"publish": "Publish Form",

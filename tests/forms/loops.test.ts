@@ -163,6 +163,13 @@ describe("a Form on page 2 of a paginated Archive", () => {
 		);
 	});
 
+	test("the Form lists the Archive template it is placed in, which keeps it from being deleted", async () => {
+		const { usage } = await staff.api.forms.get({ siteId, formId });
+
+		expect(usage.usedIn).toContainEqual({ kind: "archiveTemplate", id: expect.any(String), name: "Recipes" });
+		await expect(staff.api.forms.delete({ siteId, formId })).rejects.toMatchObject({ code: "FORM_IN_USE" });
+	});
+
 	test("posts back to page 2, and every answer of the cached page carries a token of its own", async () => {
 		const visitor = formVisitor(install);
 		const first = await visitor.open(PAGE_2);
