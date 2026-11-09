@@ -14,7 +14,8 @@
 	"dependencies": {
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/core": "workspace:*",
-		"@webcraft/db": "workspace:*"
+		"@webcraft/db": "workspace:*",
+		"@webcraft/server": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/bun": "catalog:",

@@ -92,7 +92,12 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
  * start-up checks as web and worker (a missing setting, a database that is behind, a Master key that
  * isn't the Install's), but without the job queue. Close `services.database` when done.
  */
-export async function openInstallForCommand(options: { env: Environment; log: Logger }): Promise<InstallServices> {
+export async function openInstallForCommand(options: {
+	env: Environment;
+	log: Logger;
+	/** Outgoing HTTP for commands that make a call the guarded fetcher checks (`check-update`). */
+	http?: OutgoingHttp;
+}): Promise<InstallServices> {
 	const { env, log } = options;
 	const config = loadInstallConfig(env);
 	const masterKey = loadMasterKey(env);
@@ -101,8 +106,8 @@ export async function openInstallForCommand(options: { env: Environment; log: Lo
 		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 		return await createInstallServices(
 			{
-				// Server commands make no call the guarded fetcher checks.
-				...realPorts(config, database, log, unpinnedHttp),
+				// Most server commands make no call the guarded fetcher checks.
+				...realPorts(config, database, log, options.http ?? unpinnedHttp),
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
 				images: imagesOnlyInWorker,
 			},
