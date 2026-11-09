@@ -161,7 +161,12 @@ function checkCss(text: string, kind: CssKind): CssProblem[] {
 			context: kind === "stylesheet" ? "stylesheet" : "declarationList",
 			positions: true,
 			onParseError: (error) => {
-				const hint = kind === "nested" ? " Nested rules start with &, such as & h2 { … } or &:hover { … }." : "";
+				const hint =
+					kind === "nested"
+						? " Nested rules start with &, such as & h2 { … } or &:hover { … }."
+						: kind === "declarations"
+							? " Write declarations only, such as color: var(--primary-70);"
+							: "";
 				problems.push({ line: error.line, column: error.column, message: `${error.message}.${hint}` });
 			},
 		});
@@ -221,19 +226,35 @@ function addressProblems(text: string): CssProblem[] {
 		const problem = addressProblem(address);
 		if (problem) problems.push({ ...position(offset), message: problem });
 	};
-	// The depth of brackets inside a function that loads files, or 0 outside one.
+	// The depth of brackets inside a function that loads files (0 outside one), and where a problem
+	// in it is reported: at `url(` itself, at each string of `image-set(` and its kin.
 	let loading = 0;
+	let opened = { start: 0, contentStart: 0, url: false, sawString: false };
 	for (const token of tokens) {
 		const raw = text.slice(token.start, token.end);
 		if (token.type === tokenTypes.Url) {
 			check(url.decode(raw), token.start);
 		} else if (token.type === tokenTypes.Function) {
+			const name = ident.decode(raw.slice(0, -1)).toLowerCase();
 			if (loading > 0) loading++;
-			else if (URL_FUNCTIONS.has(ident.decode(raw.slice(0, -1)).toLowerCase())) loading = 1;
+			else if (URL_FUNCTIONS.has(name)) {
+				loading = 1;
+				opened = {
+					start: token.start,
+					contentStart: token.end,
+					url: name === "url" || name === "src",
+					sawString: false,
+				};
+			}
 		} else if (loading > 0) {
 			if (token.type === tokenTypes.LeftParenthesis) loading++;
-			else if (token.type === tokenTypes.RightParenthesis) loading--;
-			else if (token.type === tokenTypes.String) check(string.decode(raw), token.start);
+			else if (token.type === tokenTypes.String) {
+				opened.sawString = true;
+				check(string.decode(raw), opened.url ? opened.start : token.start);
+			} else if (token.type === tokenTypes.RightParenthesis && --loading === 0 && opened.url && !opened.sawString) {
+				// `url(` written with an escape (`\75 rl(…)`) is still a URL to a browser, quoted or not.
+				check(text.slice(opened.contentStart, token.start), opened.start);
+			}
 		}
 	}
 	return problems;
