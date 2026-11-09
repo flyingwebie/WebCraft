@@ -1,6 +1,7 @@
 // Element trees for tests, written briefly: `tree(element("article", [element("h1", [value("title")])]))`.
 // Comments, Conditions and value formatters are written out as the stored shapes they are;
-// `outlet()` is the Site template's `{{@outlet}}`.
+// `outlet()` is the Site template's `{{@outlet}}`; `placement(componentId, { heading: "Hi" })` places
+// a Component with its Prop values.
 // The shapes are the stored, canonical form (ADR 0002) that the Management API takes and answers.
 // Element ids are left out, as a new element arrives from an editor; WebCraft fills them in.
 
@@ -41,7 +42,13 @@ export type TestNode =
 			branches: { test: TestExpression; children: TestNode[] }[];
 			otherwise: TestNode[] | null;
 	  }
-	| { type: "outlet" };
+	| { type: "outlet" }
+	| {
+			type: "component";
+			id?: string;
+			component: string;
+			props: { name: string; value: TestAttributePart[] }[];
+	  };
 
 export type TestTree = { version: 1; nodes: TestNode[] };
 
@@ -73,6 +80,18 @@ export function text(content: string): TestNode {
 /** The Site template's content outlet, `{{@outlet}}`: where each page's content goes. */
 export function outlet(): TestNode {
 	return { type: "outlet" };
+}
+
+/** A Placement of a Component, with its Prop values (fixed text, or text and values). */
+export function placement(componentId: string, props: Record<string, string | TestAttributePart[]> = {}): TestNode {
+	return {
+		type: "component",
+		component: componentId,
+		props: Object.entries(props).map(([name, value]) => ({
+			name,
+			value: typeof value === "string" ? (value ? [{ type: "text", text: value }] : []) : value,
+		})),
+	};
 }
 
 /** A binding: the value at `path` (`title`, a Field key) where the page renders. */

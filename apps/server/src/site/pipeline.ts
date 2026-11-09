@@ -1,5 +1,6 @@
 import {
 	canonicalPath,
+	type EditSession,
 	type InstallServices,
 	isReservedPath,
 	MEDIA_PATH,
@@ -13,6 +14,14 @@ import {
 
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
+import {
+	clearEditCookie,
+	EDIT_MODE_PAGE_HEADERS,
+	editModeEndpoint,
+	editModeHtml,
+	editSessionOf,
+	pageEditing,
+} from "./edit-mode.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
 /** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
@@ -45,6 +54,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		const url = new URL(request.url);
 		const host = await services.sitePages.resolveHost(normaliseHostname(url.hostname));
 		if (!host) return notFound();
+		const editing = await editModeEndpoint(services, request, host);
+		if (editing) return editing;
 		if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
 			// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
 			const answer = await services.modules.answerSiteRoute(host.site, request);
@@ -63,20 +74,62 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			const segments = pathSegments(url.pathname);
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
-			if (!segments) return notFoundPage(services, host);
-			// Pages are kept by normalised URL: one form of the path, and no query parameters (no
-			// parameter changes a page yet; Filters will allow theirs, sorted).
-			const key = canonicalPath(segments);
-			const cached = cache.get(host.site.id, host.cacheGeneration, key);
-			if (cached) return pageResponse(request, host, cached, "HIT");
-			const answer = await services.sitePages.render(host, url.pathname);
-			if (!answer) return notFoundPage(services, host);
-			if (answer.kind === "redirect") return redirect(host, answer.location);
-			const page = { html: answer.html, etag: await etagOf(answer.html) };
-			cache.set(host.site.id, host.cacheGeneration, key, page);
-			return pageResponse(request, host, page, "MISS");
+			const edit = await editSessionOf(services, request, host);
+			if (edit.session) return editModePage(services, host, edit.session, url.pathname);
+			const page = await visitorPage(services, cache, request, host);
+			return edit.stale ? withEditCookieCleared(request, page) : page;
 		});
 	};
+}
+
+/**
+ * The page visitors get at the URL, from the page cache, rendering and keeping it on a miss. Pages
+ * are kept by normalised URL: one form of the path, and no query parameters (no parameter changes a
+ * page yet; Filters will allow theirs, sorted).
+ */
+async function visitorPage(services: InstallServices, cache: PageCache, request: Request, host: SiteHost) {
+	const { pathname } = new URL(request.url);
+	const segments = pathSegments(pathname);
+	if (!segments) return notFoundPage(services, host);
+	const key = canonicalPath(segments);
+	const cached = cache.get(host.site.id, host.cacheGeneration, key);
+	if (cached) return pageResponse(request, host, cached, "HIT");
+	const answer = await services.sitePages.render(host, pathname);
+	if (!answer) return notFoundPage(services, host);
+	if (answer.kind === "redirect") return redirect(host, answer.location);
+	const page = { html: answer.html, etag: await etagOf(answer.html) };
+	cache.set(host.site.id, host.cacheGeneration, key, page);
+	return pageResponse(request, host, page, "MISS");
+}
+
+/**
+ * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
+ * with the Drafts of its Content and its editable regions tagged. It never touches the page cache.
+ */
+async function editModePage(
+	services: InstallServices,
+	host: SiteHost,
+	session: EditSession,
+	pathname: string,
+): Promise<Response> {
+	const editing = await pageEditing(session);
+	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing) : null;
+	if (answer?.kind === "redirect") {
+		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
+	}
+	if (answer) return editModeHtml(200, answer.html);
+	return editModeHtml(404, (await services.sitePages.notFound(host, editing)).html);
+}
+
+/**
+ * A visitor's answer to a request whose edit cookie no longer opens Edit mode (its admin session
+ * signed out, access lost, run out): the cookie is cleared, and an answer setting a cookie is never kept.
+ */
+function withEditCookieCleared(request: Request, response: Response): Response {
+	const headers = new Headers(response.headers);
+	headers.append("set-cookie", clearEditCookie(request));
+	headers.set("cache-control", "no-store");
+	return new Response(response.body, { status: response.status, headers });
 }
 
 /**

@@ -9,11 +9,16 @@ type Executor = Database["db"] | Transaction;
  * - `admin`: the admin, at `/api/rpc` (the setup wizard included).
  * - `command`: a server command, `webcraft admin <name>`.
  * - `module`: a Module acting by itself (its id): in a background job, an event or a Site route.
+ * - `editMode`: Edit mode, on a Site's own domain.
  *
- * Later ways in add their kinds here: Edit mode, an API token (its name), an AI client (its name),
- * and Impersonation ("<Staff> as <Member>").
+ * Later ways in add their kinds here: an API token (its name), an AI client (its name), and
+ * Impersonation ("<Staff> as <Member>").
  */
-export type AuditVia = { kind: "admin" } | { kind: "command"; name: string } | { kind: "module"; name: string };
+export type AuditVia =
+	| { kind: "admin" }
+	| { kind: "command"; name: string }
+	| { kind: "module"; name: string }
+	| { kind: "editMode" };
 
 /** Something changed, as the Audit log keeps it. Values are plain JSON; never put a secret's value here. */
 export type AuditDetails = Record<string, unknown>;
@@ -52,7 +57,7 @@ export async function recordAudit(executor: Executor, at: Date, entry: NewAuditE
 		occurredAt: at,
 		personId: entry.personId,
 		via: via.kind,
-		viaName: via.kind === "admin" ? null : via.name,
+		viaName: via.kind === "command" || via.kind === "module" ? via.name : null,
 		workspaceId: entry.workspaceId,
 		siteId: entry.siteId,
 		action: entry.action,
@@ -68,9 +73,15 @@ export async function listAuditEntries(executor: Executor, options: { limit: num
 		at: row.occurredAt,
 		action: row.action,
 		personId: row.personId,
-		via: row.via === "command" || row.via === "module" ? { kind: row.via, name: row.viaName ?? "" } : { kind: "admin" },
+		via: viaOf(row.via, row.viaName),
 		workspaceId: row.workspaceId,
 		siteId: row.siteId,
 		details: (row.details ?? {}) as AuditDetails,
 	}));
+}
+
+function viaOf(kind: string, name: string | null): AuditVia {
+	if (kind === "command" || kind === "module") return { kind, name: name ?? "" };
+	if (kind === "editMode") return { kind: "editMode" };
+	return { kind: "admin" };
 }

@@ -92,6 +92,9 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 			? [t("modules.consent.adminPages", { pages: joinWords(adds.adminPages, and) })]
 			: []),
 		...(adds.tables > 0 ? [t("modules.consent.tables", { level: module.level })] : []),
+		...(adds.components.length > 0
+			? [t("modules.consent.components", { names: joinWords(adds.components, and) })]
+			: []),
 		...(adds.events.length > 0
 			? [
 					t("modules.consent.events", {

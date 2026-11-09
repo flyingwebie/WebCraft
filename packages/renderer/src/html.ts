@@ -1,4 +1,5 @@
 import { commandForNode } from "./commands.ts";
+import { COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, URL_ATTRIBUTES } from "./escape.ts";
 import { applyFormat } from "./formatters.ts";
 import { type ImagePriority, type MediaReader, mediaReference, renderMediaImage } from "./media.ts";
@@ -39,7 +40,30 @@ export type RenderOptions = {
 	media?: MediaReader;
 	/** Present while rendering `<main>`: its first Media image loads eagerly, with high priority. */
 	priorityImage?: ImagePriority;
+	/**
+	 * What a Placement shows: its Component's (published) tree, and what that tree's bindings read
+	 * given the Placement's Prop values (`props.x`, read through `outer` where a value is passed on
+	 * as it is). Undefined renders nothing, as a Placement of a Component the page can't show.
+	 */
+	component?: PlacementRenderer;
+	/**
+	 * Edit mode's tags (ADR 0022): the attributes that mark an element showing one binding alone
+	 * (`<h1>{{ title }}</h1>`) as an editable region, or undefined when that binding isn't editable.
+	 * A tagged element also carries its element id as `data-wc-id`, so Edit mode can find it in the
+	 * tree. Absent for the pages visitors get, which carry no such attributes.
+	 */
+	editRegion?: (value: ValueNode) => readonly (readonly [name: string, value: string])[] | undefined;
 };
+
+/** Finds what a Placement shows: see `RenderOptions.component`. */
+export type PlacementRenderer = (
+	componentId: string,
+	props: ReadonlyMap<string, PropArgument>,
+	outer: ValueReader,
+) => { tree: ElementTree; values: ValueReader } | undefined;
+
+/** How deep the render is in Components, and how many nodes Components have shown on the page so far. */
+type RenderState = { depth: number; budget: { nodes: number } };
 
 /**
  * Renders a tree's nodes as HTML. Every value is escaped for where it lands (text, an attribute, a
@@ -47,16 +71,17 @@ export type RenderOptions = {
  * the branch whose test passes.
  */
 export function renderTree(tree: ElementTree, options: RenderOptions): string {
-	return renderNodes(tree.nodes, options);
+	return renderNodes(tree.nodes, options, { depth: 0, budget: { nodes: 0 } });
 }
 
-function renderNodes(nodes: readonly TreeNode[], options: RenderOptions): string {
+function renderNodes(nodes: readonly TreeNode[], options: RenderOptions, state: RenderState): string {
 	let html = "";
-	for (const node of nodes) html += renderNode(node, options);
+	for (const node of nodes) html += renderNode(node, options, state);
 	return html;
 }
 
-function renderNode(node: TreeNode, options: RenderOptions): string {
+function renderNode(node: TreeNode, options: RenderOptions, state: RenderState): string {
+	if (state.depth > 0) state.budget.nodes++;
 	switch (node.type) {
 		case "text":
 			return escapeText(node.text);
@@ -72,24 +97,67 @@ function renderNode(node: TreeNode, options: RenderOptions): string {
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
 			for (const attribute of node.attributes) attributes += renderAttribute(attribute, options);
-			for (const [name, value] of options.extraAttributes?.(node) ?? []) {
+			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
-			let children = renderNodes(node.children, options);
+			let children = renderNodes(node.children, options, state);
 			// An HTML parser drops a newline right after <pre>; repeat it so the content stays as written.
 			if (node.tag === "pre" && children.startsWith("\n")) children = `\n${children}`;
 			return `<${node.tag}${attributes}>${children}</${node.tag}>`;
 		}
+		case "component":
+			return renderPlacement(node, options, state);
 	}
 	const command = commandForNode(node.type);
 	if (!command) return "";
 	return command.render(node, {
 		read: options.values,
-		nodes: (children) => renderNodes(children, options),
+		nodes: (children) => renderNodes(children, options, state),
 		outlet: () => options.outlet?.() ?? "",
 		themeToggle: () => options.themeToggle?.() ?? "",
 	});
+}
+
+/**
+ * A Placement: its Component's tree, rendered with its own Prop values. A Prop given as one value
+ * alone (`heading="{{ title }}"`) passes that value on as it is (a date stays a date, rich text stays
+ * rich text); anything else is the text its parts make. Components nest at most
+ * `COMPONENT_LIMITS.depth` deep, and a page shows at most `COMPONENT_LIMITS.expandedNodes` nodes
+ * through them: past either, Placements render nothing.
+ */
+function renderPlacement(node: PlacementNode, options: RenderOptions, state: RenderState): string {
+	if (!options.component || state.depth >= COMPONENT_LIMITS.depth) return "";
+	if (state.budget.nodes > COMPONENT_LIMITS.expandedNodes) return "";
+	const props = new Map<string, PropArgument>();
+	for (const prop of node.props) {
+		const [only] = prop.value;
+		props.set(
+			prop.name,
+			prop.value.length === 1 && only?.type === "value" && !only.format
+				? { kind: "bound", path: only.path }
+				: { kind: "text", text: attributeText({ name: prop.name, value: prop.value }, options) },
+		);
+	}
+	const shown = options.component(node.component, props, options.values);
+	if (!shown) return "";
+	// Inside a Component its bindings read its Props and the Globals; it holds no outlet. Edit mode
+	// tags regions of the page's own Template: a Component's elements are the Component's.
+	const inner: RenderOptions = { ...options, values: shown.values, outlet: undefined, editRegion: undefined };
+	return renderNodes(shown.tree.nodes, inner, { depth: state.depth + 1, budget: state.budget });
+}
+
+/**
+ * Edit mode's tags for an element: when its only content is one binding (comments aside) and that
+ * binding is editable, the region's attributes and the element's id. Nothing otherwise.
+ */
+function editTags(node: ElementNode, options: RenderOptions): readonly (readonly [string, string])[] {
+	if (!options.editRegion || VOID_ELEMENTS.has(node.tag)) return [];
+	const content = node.children.filter((child) => child.type !== "comment");
+	const [only] = content;
+	if (content.length !== 1 || only?.type !== "value") return [];
+	const region = options.editRegion(only);
+	return region ? [...region, ["data-wc-id", node.id]] : [];
 }
 
 /** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */

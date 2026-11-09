@@ -11,7 +11,15 @@ import {
 	AlreadyMemberError,
 	ClassInUseError,
 	ClassNotFoundError,
+	ComponentFromModuleError,
+	ComponentInUseError,
+	ComponentInvalidError,
+	ComponentNameTakenError,
+	ComponentNotFoundError,
 	ConfirmationInvalidError,
+	EditFieldInvalidError,
+	EditModeUnavailableError,
+	EditPathInvalidError,
 	EmailAlwaysSentError,
 	EntryIncompleteError,
 	EntryInvalidError,
@@ -106,6 +114,36 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof TemplateNotFoundError) {
 		return new ORPCError("TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ComponentNotFoundError) {
+		return new ORPCError("COMPONENT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ComponentInvalidError) {
+		return new ORPCError("COMPONENT_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof ComponentNameTakenError) {
+		return new ORPCError("COMPONENT_NAME_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { name: error.componentName, by: error.by },
+			cause: error,
+		});
+	}
+	if (error instanceof ComponentInUseError) {
+		return new ORPCError("COMPONENT_IN_USE", {
+			status: 409,
+			message: error.message,
+			data: { usedIn: error.usedIn },
+			cause: error,
+		});
+	}
+	if (error instanceof ComponentFromModuleError) {
+		return new ORPCError("COMPONENT_FROM_MODULE", { status: 409, message: error.message, cause: error });
 	}
 	if (error instanceof PostTypeInvalidError) {
 		return new ORPCError("POST_TYPE_INVALID", {
@@ -412,6 +450,15 @@ export function toApiError(error: unknown): unknown {
 			data: { retryAfterSeconds: error.retryAfterSeconds },
 			cause: error,
 		});
+	}
+	if (error instanceof EditFieldInvalidError) {
+		return new ORPCError("EDIT_FIELD_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof EditModeUnavailableError) {
+		return new ORPCError("EDIT_MODE_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof EditPathInvalidError) {
+		return new ORPCError("EDIT_PATH_INVALID", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof InvalidCredentialsError) {
 		return new ORPCError("INVALID_CREDENTIALS", { status: 401, message: error.message, cause: error });

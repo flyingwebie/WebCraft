@@ -11,6 +11,23 @@ export {
 	type TemplateCommand,
 } from "./commands.ts";
 export {
+	boundaryProblem,
+	COMPONENT_LIMITS,
+	type ComponentCatalogue,
+	type ComponentFound,
+	type ComponentInfo,
+	componentsPlacedIn,
+	expansionProblem,
+	isComponentInfo,
+	isComponentTag,
+	type PlacementNode,
+	type PropArgument,
+	type PropInfo,
+	type PropValue,
+	placementProblems,
+	placementsIn,
+} from "./components.ts";
+export {
 	CASCADE_LAYERS,
 	compileStylesheet,
 	contentHash,
@@ -82,7 +99,7 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
-export { type RenderOptions, renderTree } from "./html.ts";
+export { type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
 export { type PrintMarkupOptions, printTemplateMarkup } from "./markup/print.ts";
@@ -104,6 +121,7 @@ export {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
 	directionOf,
+	type EditModePage,
 	PAGE_HOOKS,
 	type PageStyles,
 	type PageToRender,

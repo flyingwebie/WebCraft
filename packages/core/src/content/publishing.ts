@@ -1,13 +1,27 @@
-import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
+import { components, entries, publishedSlugs, templates } from "@webcraft/db/schema";
+import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
+import { classCatalogue } from "../design-system/classes.ts";
+import { draftDesignSystem, lockDesignSystem } from "../design-system/design-systems.ts";
 import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
-import { keepReplacedStylesheet, siteStyles } from "../design-system/stylesheet.ts";
+import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-system/stylesheet.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
+import {
+	type ComponentSources,
+	checkPublishedPlacements,
+	componentTreeRules,
+	lockComponent,
+	lockComponents,
+	NO_MODULE_COMPONENTS,
+	readContext,
+	siteComponents,
+	storedVersion as storedComponentVersion,
+} from "./components.ts";
 import { entryValues, lockEntry, siteLanguages, versionFindings } from "./entries.ts";
 import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
 import { linksIn } from "./field-values.ts";
@@ -32,12 +46,13 @@ import { pathFor } from "./url-patterns.ts";
 import { storedVersion } from "./values.ts";
 
 /**
- * One item to publish. Components and Forms join Entries, Templates, the Globals and the Design
+ * One item to publish. Forms join Entries, Templates, Components, the Globals and the Design
  * system; Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
  */
 export type PublishItem =
 	| { kind: "entry"; id: string }
 	| { kind: "template"; id: string }
+	| { kind: "component"; id: string }
 	| { kind: "globals" }
 	| { kind: "designSystem" };
 
@@ -52,15 +67,16 @@ export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Da
 
 /**
  * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
- * (Editors, Owners, Staff); Structure (Templates, the Design system) takes `structure.edit` (Staff only).
+ * (Editors, Owners, Staff); Structure (Templates, Components, the Design system) takes
+ * `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
-	return item.kind === "template" || item.kind === "designSystem" ? "structure.edit" : "entry.publish";
+	return item.kind === "entry" || item.kind === "globals" ? "entry.publish" : "structure.edit";
 }
 
-/** Items whose publish can change the Site's stylesheet: what it is built from. */
+/** Items whose publish can change the Site's stylesheet: what it is built from (element trees' Classes). */
 function changesStyles(item: PublishItem): boolean {
-	return item.kind === "template" || item.kind === "designSystem";
+	return item.kind === "template" || item.kind === "component" || item.kind === "designSystem";
 }
 
 /**
@@ -73,30 +89,45 @@ function changesStyles(item: PublishItem): boolean {
  * values are empty (`EntryIncompleteError`), an Entry whose slug another published Entry of its Post
  * Type has (`EntrySlugTakenError`; for a Page, another published Page under the same parent), a Page
  * whose parent Page isn't published (`PageParentUnpublishedError`) or whose path, or that of a Page
- * under it, a Post Type's URL pattern owns (`PathTakenError`), a Template that no longer fits
- * what it renders (`ElementTreeInvalidError`), and a Design system that can't be used as it is
- * (`DesignSystemInvalidError`). Publishing a Template or the Design system keeps the stylesheet it
- * replaces for a while, for pages loaded just before.
+ * under it, a Post Type's URL pattern owns (`PathTakenError`), a Template or Component that no
+ * longer fits what it renders (`ElementTreeInvalidError`), such as one placing a Component that
+ * isn't published yet, and a Design system that can't be used as it is (`DesignSystemInvalidError`).
+ * Publishing a Template, a Component or the Design system keeps the stylesheet it replaces for a
+ * while, for pages loaded just before. `sources` gives the Components of the Modules running on the Site.
  */
-export async function publish(scope: SiteScope, item: PublishItem): Promise<Published> {
+export async function publish(
+	scope: SiteScope,
+	item: PublishItem,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Published> {
 	const permission = publishPermission(item);
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
 	return scope.transaction(async (tx) => {
-		const stylesBefore = changesStyles(item) ? await siteStyles(tx) : undefined;
-		const published = await publishItem(tx, item);
+		// Which Components are placed where is read under their lock, taken before any other.
+		if (item.kind === "template" || item.kind === "component") await lockComponents(tx);
+		let stylesBefore: SiteStyles | undefined;
+		if (changesStyles(item)) {
+			// Publishes that change the stylesheet take turns, so each reads the stylesheet the one
+			// before it left and keeps it for pages loaded in between.
+			await lockDesignSystem(tx);
+			stylesBefore = await siteStyles(tx);
+		}
+		const published = await publishItem(tx, item, sources);
 		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);
 		return published;
 	});
 }
 
-async function publishItem(scope: SiteScope, item: PublishItem): Promise<Published> {
+async function publishItem(scope: SiteScope, item: PublishItem, sources: ComponentSources): Promise<Published> {
 	switch (item.kind) {
 		case "entry":
 			return publishEntry(scope, item.id);
 		case "template":
-			return publishTemplate(scope, item.id);
+			return publishTemplate(scope, item.id, sources);
+		case "component":
+			return publishComponent(scope, item.id, sources);
 		case "globals":
 			return publishGlobals(scope);
 		case "designSystem": {
@@ -218,11 +249,13 @@ async function pagePaths(
 	return { path: pathText(pathIn(tree, pageId) ?? []), changes };
 }
 
-async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
+async function publishTemplate(scope: SiteScope, templateId: string, sources: ComponentSources): Promise<Published> {
+	// Which Components it may place is read under the Components' lock, taken before any row lock.
+	await lockComponents(scope);
 	const row = await lockTemplate(scope, templateId);
-	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes)
-	// may have changed since the Draft was saved.
-	const tree = await checkTemplateForPublish(scope, row);
+	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes,
+	// the published Components it places) may have changed since the Draft was saved.
+	const tree = await checkTemplateForPublish(scope, row, sources);
 	await publishGeneratedClasses(scope, tree);
 	const now = scope.now();
 	await scope.update(
@@ -232,4 +265,33 @@ async function publishTemplate(scope: SiteScope, templateId: string): Promise<Pu
 	);
 	await scope.audit("template.publish", { templateId: row.id, kind: row.kind, postTypeId: row.postTypeId });
 	return { kind: "template", id: row.id, publishedAt: now, pathChanges: [] };
+}
+
+/**
+ * Publishes a Component's Draft, its Props and tree together: every copy changes at once, wherever
+ * it is placed. Checked again first, against the published versions of the Components it places
+ * (each must be published) and what it reads (the Globals, the Post Types, the Classes).
+ */
+async function publishComponent(scope: SiteScope, componentId: string, sources: ComponentSources): Promise<Published> {
+	await lockComponents(scope);
+	const row = await lockComponent(scope, componentId, sources);
+	const draft = storedComponentVersion(row.draft);
+	const catalogue = await siteComponents(scope, "published", sources, { self: row.id });
+	const { ids } = classCatalogue(await draftDesignSystem(scope));
+	const tree = parseElementTree(draft.tree, {
+		...componentTreeRules(draft.props, await readContext(scope), catalogue),
+		classIds: ids,
+	});
+	// Every copy changes: each must still fit where it is placed and published.
+	await checkPublishedPlacements(scope, row.id, { props: draft.props, tree }, sources);
+	// Its generated Classes go live with it, as a Template's do.
+	await publishGeneratedClasses(scope, tree);
+	const now = scope.now();
+	await scope.update(
+		components,
+		{ published: { props: draft.props, tree }, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
+		eq(components.id, row.id),
+	);
+	await scope.audit("component.publish", { componentId: row.id, name: row.name });
+	return { kind: "component", id: row.id, publishedAt: now, pathChanges: [] };
 }

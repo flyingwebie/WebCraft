@@ -225,7 +225,7 @@ _Avoid_: External id, legacy id, original id
 ### Styling
 
 **Design system**:
-A Site's Design tokens, Classes and custom CSS, published together as one item. It is Structure, so clients never change it.
+A Site's Design tokens, Classes, base styles, custom CSS and Dark mode setting, published together as one item. It is Structure, so clients never change it.
 _Avoid_: Theme, style guide, global styles
 
 **Design token**:

@@ -5,7 +5,7 @@ import { expect } from "bun:test";
 import { AxeBuilder } from "@axe-core/playwright";
 import type { Locator, Page } from "playwright";
 
-import { pageErrors } from "./harness.ts";
+import { forgetPageErrors, pageErrors } from "./harness.ts";
 
 /** WCAG 2.0, 2.1 and 2.2 at levels A and AA, and axe's best practices. */
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa", "best-practice"];
@@ -23,7 +23,11 @@ export async function expectAccessibleScreen(page: Page, where: string): Promise
  */
 export async function expectNoAxeViolations(page: Page, where: string, skipRules: string[] = []): Promise<void> {
 	await nextPaint(page);
+	const reported = pageErrors(page).length;
 	const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).disableRules(skipRules).analyze();
+	// axe sets inline styles while it measures, which a page under a strict CSP (Edit mode) reports;
+	// those reports are axe's own, not the page's.
+	forgetPageErrors(page, reported, (error) => error.startsWith("Applying inline style violates"));
 	const violations = results.violations.map((violation) => ({
 		rule: violation.id,
 		impact: violation.impact,
@@ -119,7 +123,11 @@ export async function expectOverlayUsable(
 	// An open menu or dialog is placed at the end of the page, outside the landmarks, as menus and
 	// dialogs are: people reach it from the control that opened it, so the landmark rule is skipped.
 	await expectNoAxeViolations(page, `${where} (open)`, ["region"]);
-	const focusInside = await overlay.evaluate((element) => element.contains(document.activeElement));
+	const focusInside = await overlay.evaluate((element) => {
+		let active = document.activeElement;
+		while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+		return element.contains(active);
+	});
 	expect({ where, focusMovesIntoOverlay: focusInside }).toEqual({ where, focusMovesIntoOverlay: true });
 
 	await page.keyboard.press("Escape");
@@ -128,9 +136,14 @@ export async function expectOverlayUsable(
 	// ran is enabled again first), so it gets a moment to settle.
 	const backOnTrigger = await trigger.evaluate((element) => {
 		const deadline = performance.now() + 1000;
+		const focused = () => {
+			let active = document.activeElement;
+			while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+			return active;
+		};
 		return new Promise<boolean>((resolve) => {
 			const check = () => {
-				if (element === document.activeElement) resolve(true);
+				if (element === focused()) resolve(true);
 				else if (performance.now() > deadline) resolve(false);
 				else requestAnimationFrame(check);
 			};
@@ -142,7 +155,9 @@ export async function expectOverlayUsable(
 
 /**
  * Numbers every element the keyboard should reach, in document order, as `data-tab-stop`: links,
- * buttons and form fields that are rendered and enabled, and one radio button per group.
+ * buttons and form fields that are rendered and enabled, text people edit in place, and one radio
+ * button per group. Elements inside open shadow roots (Edit mode's editing bar) count where their
+ * host is, as the keyboard reaches them.
  */
 async function markTabbableElements(page: Page) {
 	return page.evaluate(() => {
@@ -154,15 +169,24 @@ async function markTabbableElements(page: Page) {
 			"textarea:not([disabled])",
 			"summary",
 			"[tabindex]",
-			"[contenteditable=true]",
+			"[contenteditable]:not([contenteditable=false])",
 		].join(",");
+		const everything: HTMLElement[] = [];
+		const walk = (root: Document | ShadowRoot) => {
+			for (const element of root.querySelectorAll<HTMLElement>("*")) {
+				everything.push(element);
+				if (element.shadowRoot) walk(element.shadowRoot);
+			}
+		};
+		walk(document);
 		const rendered = (element: Element) => {
 			if (element.closest("[inert], [aria-hidden=true]")) return false;
 			const style = getComputedStyle(element);
 			return element.getClientRects().length > 0 && style.visibility !== "hidden" && style.display !== "none";
 		};
 		const radioGroups = new Set<string>();
-		const elements = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter((element) => {
+		const elements = everything.filter((element) => {
+			if (!element.matches(selector)) return false;
 			if (element.tabIndex < 0 || element.matches(":disabled") || !rendered(element)) return false;
 			if (element instanceof HTMLInputElement && element.type === "radio") {
 				const group = element.name;
@@ -172,7 +196,7 @@ async function markTabbableElements(page: Page) {
 			}
 			return true;
 		});
-		for (const element of document.querySelectorAll("[data-tab-stop]")) element.removeAttribute("data-tab-stop");
+		for (const element of everything) element.removeAttribute("data-tab-stop");
 		elements.forEach((element, index) => {
 			element.dataset.tabStop = String(index);
 		});
@@ -209,7 +233,9 @@ async function moveFocusToPageStart(page: Page): Promise<void> {
 
 async function currentStop(page: Page): Promise<FocusStop> {
 	return page.evaluate(() => {
-		const element = document.activeElement as HTMLElement | null;
+		// Focus inside a shadow root shows as its host on the document: follow it down.
+		let element = document.activeElement as HTMLElement | null;
+		while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement as HTMLElement;
 		if (!element || element === document.body) {
 			return { index: -1, label: "(page)", visibleFocus: true, inside: false, segmented: false };
 		}

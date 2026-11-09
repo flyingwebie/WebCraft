@@ -104,6 +104,50 @@ describe("the Draft", () => {
 		expect(await old.text()).toBe(before.css);
 	});
 
+	test("two publishes at once never lose the stylesheet that was live between them", async () => {
+		// Two Entry templates whose inline styles each add a Class: publishing one changes the stylesheet.
+		const styles = ["color: rgb(1, 2, 3)", "color: rgb(4, 5, 6)"] as const;
+		const prepare = async () => {
+			const { siteId, url } = await siteWithPost();
+			const templateIds = await Promise.all(
+				styles.map(async (style, index) => {
+					const { postType } = await staff.api.postTypes.create({
+						siteId,
+						name: `Notes ${index}`,
+						urlPattern: `/notes-${index}/{slug}`,
+					});
+					const { template } = await staff.api.templates.saveEntryTemplateMarkup({
+						siteId,
+						postTypeId: postType.id,
+						markup: `<p style="${style}">{{ title }}</p>`,
+					});
+					return template.id;
+				}),
+			);
+			return { siteId, url, templateIds };
+		};
+		/** The stylesheet a Site has with only the template at `index` published. */
+		const stylesheetWithOnly = async (index: number) => {
+			const site = await prepare();
+			await staff.api.templates.publish({ siteId: site.siteId, templateId: site.templateIds[index] ?? "" });
+			return stylesheetIn(await (await install.request(site.url)).text());
+		};
+		const alone = [await stylesheetWithOnly(0), await stylesheetWithOnly(1)];
+
+		for (let round = 0; round < 3; round++) {
+			const site = await prepare();
+			await Promise.all(
+				site.templateIds.map((templateId) => staff.api.templates.publish({ siteId: site.siteId, templateId })),
+			);
+
+			// Whichever publish committed first, pages loaded before the second one linked its stylesheet.
+			const statuses = await Promise.all(
+				alone.map(async (path) => (await install.request(new URL(path, site.url).href)).status),
+			);
+			expect(statuses).toContain(200);
+		}
+	});
+
 	test("publishing is recorded in the Audit log; a Draft saved since shows as changed", async () => {
 		const { siteId } = await siteWithPost();
 		await staff.api.designSystem.saveDraft({ siteId, darkMode: true });

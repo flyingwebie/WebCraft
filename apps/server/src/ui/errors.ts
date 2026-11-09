@@ -49,6 +49,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "PAGE_NOT_FOUND":
 		case "PAGE_PARENT_UNPUBLISHED":
 		case "PAGE_HAS_CHILDREN":
+		case "EDIT_MODE_UNAVAILABLE":
 			return `errors.${code}`;
 		case "POST_TYPE_TAKEN":
 			return (data as { field?: unknown } | undefined)?.field === "key"

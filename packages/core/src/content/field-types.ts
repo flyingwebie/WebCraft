@@ -155,8 +155,11 @@ export type FieldInput = {
 export type DefineContext = {
 	/** The keys of the Site's Post Types, which Relationships may point at. */
 	postTypeKeys: ReadonlySet<string>;
-	/** Whose Fields these are: Globals can't hold Relationships. */
-	owner: "postType" | "globals";
+	/**
+	 * Whose Fields these are: Globals can't hold Relationships, nor can a Module's Component's Props
+	 * (each Site has its own Post Types). A Component's Props are declared with the Field types.
+	 */
+	owner: "postType" | "globals" | "component" | "moduleComponent";
 };
 
 /** Reports a problem with a setting, at a path below the Field (`maxLength`, `options[1].value`). */
@@ -496,8 +499,13 @@ const email: FieldTypeSpec<EmailField> = {
 const relationship: FieldTypeSpec<RelationshipField> = {
 	...FIELD_TYPE_TRAITS.relationship,
 	settings(input, report, context) {
-		if (context.owner === "globals") {
-			report("type", "Globals can't hold Relationships.");
+		if (context.owner === "globals" || context.owner === "moduleComponent") {
+			report(
+				"type",
+				context.owner === "globals"
+					? "Globals can't hold Relationships."
+					: "A Module's Component can't have Relationship Props: each Site has its own Post Types.",
+			);
 			return { postTypes: [], multiple: false, twoWay: true, min: null, max: null };
 		}
 		const postTypes: string[] = [];

@@ -6,18 +6,25 @@ import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
 import type {
+	Component,
+	ComponentDeletion,
+	ComponentDraftChange,
+	ComponentMarkup,
+	ComponentUsage,
 	DraftChange,
 	Entry,
 	EntryDeletion,
 	FieldInput,
 	Globals,
 	GlobalsChange,
+	NewComponent,
 	NewEntry,
 	NewPostType,
 	PostType,
 	PostTypeChange,
 	Published,
 	PublishItem,
+	SavedComponentMarkup,
 	SavedTemplateMarkup,
 	SpecialPages,
 	Template,
@@ -25,6 +32,7 @@ import type {
 } from "./content/index.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
 import type { Dns } from "./dns.ts";
+import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { InstallSettings } from "./install-settings.ts";
@@ -172,6 +180,33 @@ export type InstallServices = InstallPorts & {
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
 	};
 	/**
+	 * Components: reusable element trees with Props, placed in Templates and other Components, with a
+	 * Draft and a published version (published through `publishing.publish` with `{ kind: "component" }`).
+	 * Structure: open the Site with `structure.edit`. A Module's Components are listed where it runs.
+	 */
+	components: {
+		list(scope: SiteScope): Promise<(Component & { usage: ComponentUsage })[]>;
+		get(scope: SiteScope, componentId: string): Promise<{ component: Component; usage: ComponentUsage }>;
+		create(scope: SiteScope, input: NewComponent): Promise<Component>;
+		/** Saves its Draft: its Props (the full list) and its element tree, either or both. */
+		saveDraft(scope: SiteScope, componentId: string, change: ComponentDraftChange): Promise<Component>;
+		/** Its Draft and published version as Template markup, with where it is used. */
+		markup(
+			scope: SiteScope,
+			componentId: string,
+		): Promise<{ component: Component; markup: ComponentMarkup; usage: ComponentUsage }>;
+		/** Saves its Draft from Template markup (and new Props, when given); inline styles become generated Classes. */
+		saveMarkup(
+			scope: SiteScope,
+			componentId: string,
+			input: { markup: string; props?: FieldInput[] },
+		): Promise<SavedComponentMarkup>;
+		/** Renames it: Template markup writes the new name everywhere at once. */
+		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
+		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
+		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
+	};
+	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing
 	 * them is Structure: open the Site with `structure.edit`; anyone who sees the Site may read them.
 	 */
@@ -217,6 +252,11 @@ export type InstallServices = InstallPorts & {
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
+	/**
+	 * Edit mode (ADR 0022): "Edit on site" links, and the Edit mode sessions they start on a Site's
+	 * own domain, each checked again with every request.
+	 */
+	editMode: EditMode;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
 	/** Members of a Workspace: inviting them, their role and Sites, removing them, pending invites. */
