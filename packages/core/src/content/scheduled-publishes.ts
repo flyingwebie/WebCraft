@@ -139,8 +139,8 @@ export class ScheduledPublishNotFoundError extends Error {
 /** The action "Publish all at…"'s confirmations are for. */
 const SCHEDULE_ALL_ACTION = "site.schedulePublishAll";
 
-/** One item frozen for a Scheduled publish: its Draft as its table stores it, and that Draft's version. */
-type Frozen = { item: PublishItem; content: unknown; version: string | null };
+/** One item frozen for a Scheduled publish: its Draft as its table stores it, that Draft's version, and its name then. */
+type Frozen = { item: PublishItem; content: unknown; version: string | null; name: string | null };
 
 type Row = typeof scheduledPublishes.$inferSelect;
 type ItemRow = typeof scheduledPublishItems.$inferSelect;
@@ -164,8 +164,8 @@ export function checkScheduleTime(at: Date, now: Date): void {
 async function freeze(scope: SiteScope, items: readonly PublishItem[]): Promise<Frozen[]> {
 	const frozen: Frozen[] = [];
 	for (const item of items) {
-		const { draft } = await itemState(scope, item);
-		frozen.push({ item, content: draft, version: draftVersion(draft) });
+		const { draft, summary } = await itemState(scope, item);
+		frozen.push({ item, content: draft, version: draftVersion(draft), name: summary.name });
 	}
 	return frozen;
 }
@@ -268,6 +268,7 @@ async function insertItems(scope: SiteScope, scheduleId: string, action: Schedul
 			action,
 			itemKind: each.item.kind,
 			itemId: scheduledItemId(each.item),
+			name: each.name,
 			content: action === "publish" ? (each.content ?? null) : null,
 			version: action === "publish" ? each.version : null,
 		});
@@ -308,12 +309,13 @@ export async function scheduleUnpublish(scope: SiteScope, item: PublishItem, at:
 	if (item.kind !== "entry") throw new ScheduleInvalidError("notAnEntry");
 	checkScheduleTime(at, scope.now());
 	if (!can(scope.access.actor, "entry.publish", siteResource(scope))) throw new PermissionDeniedError("entry.publish");
-	const frozen: Frozen[] = [{ item, content: null, version: null }];
 	// Whether it could be unpublished now: it is the Site's, and isn't the home page.
-	await rolledBack(scope, async (tx) => {
-		await itemState(tx, item);
+	const frozen: Frozen[] = await rolledBack(scope, async (tx) => {
+		const { summary } = await itemState(tx, item);
+		const frozen = [{ item, content: null, version: null, name: summary.name }];
 		await refuseScheduledAlready(tx, "unpublish", frozen);
 		await unpublishEntry(tx, item.id);
+		return frozen;
 	});
 	return getScheduled(scope, await insertSchedule(scope, { action: "unpublish", kind: "item", at, frozen }));
 }
@@ -480,7 +482,7 @@ async function views(scope: SiteScope, rows: readonly Row[]): Promise<ScheduledP
 			} catch {
 				items.push({
 					item,
-					name: null,
+					name: itemRow.name,
 					postType: null,
 					templateKind: null,
 					scriptKind: null,
@@ -816,7 +818,8 @@ async function fail(
 		const items = await tx.select(scheduledPublishItems, eq(scheduledPublishItems.scheduleId, row.id), {
 			orderBy: [asc(scheduledPublishItems.position)],
 		});
-		const names = await itemNames(tx, blocked ?? (items[0] ? itemOf(items[0]) : null));
+		const named = (blocked ? items.find((each) => itemKey(itemOf(each)) === itemKey(blocked)) : undefined) ?? items[0];
+		const names = await itemNames(tx, named ? itemOf(named) : null, named?.name ?? null);
 		await tx.delete(scheduledPublishes, eq(scheduledPublishes.id, row.id));
 		// WebCraft failed it, on behalf of the person who scheduled it.
 		await recordAudit(tx.db, deps.clock.now(), {
@@ -874,11 +877,13 @@ async function fail(
 async function itemNames(
 	scope: BackgroundScope,
 	item: PublishItem | null,
+	nameWhenScheduled: string | null,
 ): Promise<{ title: string | null; entryPath: string | null }> {
 	if (!item) return { title: null, entryPath: null };
+	// Its name now, else as it was when it was scheduled (it may be deleted since).
 	const title = await itemState(scope, item).then(
-		(state) => state.summary.name || null,
-		() => null,
+		(state) => state.summary.name || nameWhenScheduled || null,
+		() => nameWhenScheduled || null,
 	);
 	if (item.kind !== "entry") return { title, entryPath: null };
 	const entry = isUuid(item.id) ? await scope.first(entries, eq(entries.id, item.id)) : undefined;

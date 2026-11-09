@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "2006e791-5e2d-4bc6-91b3-962ceda43e7b",
+  "id": "e9bd4673-9094-42cc-ba38-46e989eefbb9",
   "prevIds": [
     "5b123fc2-1a68-4cd1-87cd-6e762efb3fa9"
   ],
@@ -560,6 +560,22 @@
         "table": "scheduled_publish_items",
         "name": "item_id",
         "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "name",
+        "type": "text",
         "typeSchema": null,
         "notNull": false,
         "dimensions": 0,

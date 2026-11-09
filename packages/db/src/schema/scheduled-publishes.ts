@@ -75,6 +75,8 @@ export const scheduledPublishItems = pgTable(
 		action: text("action").notNull(),
 		itemKind: text("item_kind").notNull(),
 		itemId: uuid("item_id"),
+		/** Its name when it was scheduled (an Entry's title), for when it is deleted since. */
+		name: text("name"),
 		content: jsonb("content"),
 		version: text("version"),
 	},

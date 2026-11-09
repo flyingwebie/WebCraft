@@ -16,6 +16,7 @@ CREATE TABLE "scheduled_publish_items" (
 	"action" text NOT NULL,
 	"item_kind" text NOT NULL,
 	"item_id" uuid,
+	"name" text,
 	"content" jsonb,
 	"version" text,
 	CONSTRAINT "scheduled_publish_items_pkey" PRIMARY KEY("schedule_id","position"),
