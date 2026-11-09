@@ -93,7 +93,7 @@ for (const theme of THEMES) {
 		test("the steps of a new Import: Source, Map and Preview, from the keyboard", async () => {
 			const page = await install.newPage(theme);
 			await open(page, superadmin, `/sites/${siteId}/imports/new`);
-			await expectAccessibleScreen(page, `New import, Source (${theme})`);
+			await expectAccessibleScreen(page, `New Import, Source (${theme})`);
 
 			await page.locator("input[type=file]").setInputFiles({
 				name: "products-autumn.csv",
@@ -102,18 +102,18 @@ for (const theme of THEMES) {
 			});
 			await page.getByText("3 rows · 4 columns · comma separated · UTF-8").waitFor();
 			await page.getByLabel("Post Type", { exact: true }).selectOption({ label: "Products" });
-			await expectAccessibleScreen(page, `New import, Source with a file (${theme})`);
+			await expectAccessibleScreen(page, `New Import, Source with a file (${theme})`);
 
 			await press(page, "Continue to mapping");
 			await page.getByRole("heading", { name: "Columns" }).waitFor();
 			await page.getByText(/Will create/).waitFor();
-			await expectAccessibleScreen(page, `New import, Map (${theme})`);
+			await expectAccessibleScreen(page, `New Import, Map (${theme})`);
 
 			await press(page, "Preview");
 			await page.getByRole("button", { name: "See rows" }).waitFor();
 			await press(page, "See rows");
 			await page.getByText("Not a number (write it like 5.50 or 5,50).").waitFor();
-			await expectAccessibleScreen(page, `New import, Preview (${theme})`);
+			await expectAccessibleScreen(page, `New Import, Preview (${theme})`);
 		});
 
 		test("a run in progress (Run)", async () => {

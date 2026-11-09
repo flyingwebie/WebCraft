@@ -28,6 +28,7 @@ import {
 	suggestedColumns,
 	suggestedMatch,
 } from "./model.ts";
+import { Note } from "./Note.tsx";
 
 /**
  * Import CSV, from a Post Type's Entries, in a side sheet: a CSV file's rows become Drafts of this
@@ -153,10 +154,9 @@ export function CsvImportSheet({
 									languages={languages}
 								/>
 								{addsFields ? null : (
-									<p className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
-										<LockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+									<Note icon={<LockIcon className="size-4" aria-hidden="true" />}>
 										{t("imports.sheet.fieldsByAgency")}
-									</p>
+									</Note>
 								)}
 								<PreviewSummary preview={preview} error={previewError} loading={loading} />
 							</>

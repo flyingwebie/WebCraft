@@ -290,6 +290,26 @@ export async function removeEntries(scope: SiteScope, ids: readonly string[]): P
 /** An Entry that can't be removed: another Entry must point at it. */
 export type LinkingBlock = { entryId: string; by: { entryId: string; title: string } };
 
+/**
+ * What `removeEntries` would refuse, worked out without changing anything: the Entries another Entry
+ * outside `ids` must point at (through a required Relationship). Empty when they can all go.
+ */
+export async function removalBlocks(scope: SiteScope, ids: readonly string[]): Promise<LinkingBlock[]> {
+	if (ids.length === 0) return [];
+	const allPostTypes = await listPostTypes(scope);
+	const { defaultLanguage } = await siteLanguages(scope);
+	const removing = new Set(ids);
+	const blocked: LinkingBlock[] = [];
+	for (const id of ids) {
+		for (const entry of await linkingEntries(scope, id, allPostTypes, defaultLanguage)) {
+			if (entry.required && !removing.has(entry.entryId)) {
+				blocked.push({ entryId: id, by: { entryId: entry.entryId, title: entry.title } });
+			}
+		}
+	}
+	return blocked;
+}
+
 /** Removes the links `linking` Entries make to an Entry, then the Entry. */
 async function unlinkAndDelete(
 	tx: SiteScope,

@@ -125,6 +125,7 @@
 		"IMPORT_NOT_FOUND": "Quell'Importazione non esiste (più).",
 		"IMPORT_RUN_NOT_FOUND": "Quell'esecuzione non esiste, oppure il suo resoconto è stato eliminato.",
 		"IMPORT_INVALID": "Le impostazioni dell'Importazione non corrispondono al Tipo di contenuto.",
+		"IMPORT_POST_TYPE_FIXED": "Questa Importazione ha già portato dei contenuti, quindi mantiene il suo Tipo di contenuto: annulla le sue esecuzioni oppure avvia una nuova Importazione.",
 		"IMPORT_RUNNING": "Un'esecuzione di questa Importazione non è ancora terminata: attendila oppure interrompila.",
 		"IMPORT_UNDO_REFUSED": "Questa esecuzione non può essere annullata."
 	},
@@ -2863,7 +2864,7 @@
 		"pageTitle": "Importazioni",
 		"heading": "Importazioni",
 		"intro": "Porta contenuti da un file CSV. Tutto arriva come Bozze, da controllare prima della pubblicazione.",
-		"new": "Nuova importazione",
+		"new": "Nuova Importazione",
 		"none": "Ancora nessuna Importazione. Iniziane una qui, oppure con Importa CSV dai contenuti di un Tipo di contenuto.",
 		"columns": {
 			"import": "Importazione",
@@ -2873,7 +2874,7 @@
 			"open": "Apri"
 		},
 		"sources": {
-			"heading": "Inizia un'importazione",
+			"heading": "Inizia un'Importazione",
 			"csv": {
 				"title": "File CSV",
 				"body": "Carica righe in un Tipo di contenuto, una colonna per Campo. Possono usarlo anche Owner ed Editor.",
@@ -2883,7 +2884,7 @@
 		"sourceNames": {
 			"csv": "CSV"
 		},
-		"kept": "I resoconti delle importazioni sono conservati per 90 giorni dopo la fine dell'esecuzione. I file caricati vengono eliminati alla fine della loro esecuzione.",
+		"kept": "I resoconti delle Importazioni sono conservati per 90 giorni dopo la fine dell'esecuzione. I file caricati vengono eliminati alla fine della loro esecuzione.",
 		"list": {
 			"into": "{file} → {postType}",
 			"noPostType": "un Tipo di contenuto eliminato",
@@ -2905,7 +2906,7 @@
 			"undone": "Annullata"
 		},
 		"steps": {
-			"label": "Passaggi dell'importazione",
+			"label": "Passaggi dell'Importazione",
 			"source": "Origine",
 			"map": "Corrispondenze",
 			"preview": "Anteprima",
@@ -2946,14 +2947,14 @@
 			"seeRows": "Vedi righe",
 			"hideRows": "Nascondi righe",
 			"skippedColumns": "Colonne saltate, elencate nel resoconto: {columns}",
-			"working": "Calcolo di cosa farebbe l'importazione…"
+			"working": "Calcolo di cosa farebbe l'Importazione…"
 		},
 		"report": {
 			"noProblems": "Nessun problema.",
 			"row": "Riga",
 			"problem": "Cosa non va",
 			"moreProblems": "{count, plural, one {# altro problema} other {altri # problemi}}",
-			"title": "Resoconto dell'importazione: {name}",
+			"title": "Resoconto dell'Importazione: {name}",
 			"started": "Esecuzione {number} · avviata il {at} da {name}",
 			"openEntries": "Apri {name}",
 			"runAgain": "Esegui di nuovo",
@@ -3041,18 +3042,19 @@
 			"toMap": "Continua con le corrispondenze",
 			"mapIntro": "Scegli dove va ogni colonna",
 			"toPreview": "Anteprima",
-			"previewIntro": "Controlla cosa farà l'importazione",
-			"start": "Avvia importazione",
+			"previewIntro": "Controlla cosa farà l'Importazione",
+			"start": "Avvia Importazione",
 			"backToList": "Torna alle Importazioni",
-			"newTitle": "Nuova importazione",
+			"newTitle": "Nuova Importazione",
 			"back": "Indietro",
 			"cancel": "Annulla",
 			"source": "Origine",
 			"csvTitle": "File CSV",
 			"csvIntro": "Le righe vanno in un Tipo di contenuto, una colonna per Campo.",
-			"name": "Nome dell'importazione",
+			"name": "Nome dell'Importazione",
 			"nameHelp": "Mostrato nell'elenco e nel resoconto.",
 			"postType": "Tipo di contenuto",
+			"postTypeFixed": "Questa Importazione ha già portato dei contenuti, quindi mantiene il suo Tipo di contenuto. Annulla le sue esecuzioni oppure avvia una nuova Importazione.",
 			"fileAgain": "Scegli di nuovo il file: i file caricati vengono eliminati alla fine della loro esecuzione. Le colonne mantengono le loro corrispondenze, per nome.",
 			"goodToKnow": "Buono a sapersi",
 			"notePrivate": "Il file resta privato: non entra mai nella libreria Media e viene eliminato alla fine dell'esecuzione.",
