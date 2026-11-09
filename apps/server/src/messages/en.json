@@ -999,6 +999,7 @@
 			"pageScript": "Page script",
 			"component": "Component",
 			"loop": "Loop",
+			"filter": "Filter",
 			"form": "Form",
 			"formEmails": "Form emails",
 			"globals": "Globals",
@@ -3733,6 +3734,7 @@
 			"placeholders": {
 				"outlet": "Each page's content goes here",
 				"form": "Form {name}",
+				"filter": "Filter {name}",
 				"search": "Search box",
 				"themeToggle": "Theme toggle",
 				"languageSwitcher": "Language switcher",
@@ -3944,14 +3946,16 @@
 			"search": "Search box",
 			"themeToggle": "Theme toggle",
 			"languageSwitcher": "Language switcher",
-			"consentSettings": "Cookie settings"
+			"consentSettings": "Cookie settings",
+			"filter": "Filter"
 		},
 		"commandHelp": {
 			"outlet": "Where each page's content goes. The Site template holds one, inside its main element.",
 			"search": "A search box sending visitors to the Site's search results page.",
 			"themeToggle": "A button switching between light and dark, shown while Dark mode is on.",
 			"languageSwitcher": "Links to the page in each of the Site's languages.",
-			"consentSettings": "A button opening the Consent banner again."
+			"consentSettings": "A button opening the Consent banner again.",
+			"filter": "Controls visitors use to narrow, search and sort a Loop of this Template."
 		},
 		"style": {
 			"classes": "Classes",

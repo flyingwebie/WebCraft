@@ -144,6 +144,8 @@ export type TestInstallOptions = {
 	 * what WebCraft sends each provider and how it reads their answers.
 	 */
 	aiProviders?: "fake" | "http";
+	/** How many filtered pages the page cache keeps per Site: the web process's default unless given (to test the limit). */
+	filterVariants?: number;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -452,7 +454,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const secretStore = (masterKey: string) =>
 		createSecrets({ database, clock, masterKey: parseMasterKey(masterKey, MASTER_KEY_VARIABLE) });
 	let secrets = secretStore(env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY);
-	const handle = createWebHandler({ services });
+	const handle = createWebHandler({ services, filterVariants: options.filterVariants });
 	const send = (request: Request) => handle(request);
 
 	let superadminAccount: TestAccount | undefined;

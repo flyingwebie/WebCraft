@@ -271,6 +271,7 @@ export async function openSource(
 			className: classes.nameOf,
 			componentName: catalogue.nameOf,
 			formKey: catalogue.forms.keyOf,
+			filterName: catalogue.filters.nameOf,
 		}),
 		version: source.draft === null ? null : draftVersion(source.draft),
 		element: found ? { id: idOf(found.node), tag: tagOf(found.node) } : null,

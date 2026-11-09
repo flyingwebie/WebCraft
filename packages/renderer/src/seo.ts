@@ -50,6 +50,11 @@ export type PageSeo = {
 	canonical: string | null;
 	/** Whether search engines are asked not to index the page. */
 	noindex: boolean;
+	/**
+	 * With `noindex`, whether they are asked to follow its links all the same (`noindex, follow`): a
+	 * filtered page's, whose items are found through the page without its choices.
+	 */
+	follow?: boolean;
 	sharing: PageSharing | null;
 	/** The nodes of the page's structured data, written as one JSON-LD graph. */
 	structuredData: readonly { readonly [key: string]: JsonLd }[];
@@ -63,7 +68,7 @@ export type PageSeo = {
 export function seoTags(seo: PageSeo, options: { editMode: boolean }): string[] {
 	return [
 		...(seo.description ? [meta("name", "description", seo.description)] : []),
-		...(seo.noindex && !options.editMode ? [meta("name", "robots", "noindex")] : []),
+		...(seo.noindex && !options.editMode ? [meta("name", "robots", seo.follow ? "noindex, follow" : "noindex")] : []),
 		...(seo.canonical ? [`<link rel="canonical" href="${escapeAttribute(seo.canonical)}">`] : []),
 	];
 }

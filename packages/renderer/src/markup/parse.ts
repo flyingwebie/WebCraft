@@ -12,7 +12,14 @@
  */
 import { decodeHTML, decodeHTMLAttribute } from "entities";
 
-import { commandNamed, type MarkupSection, RESERVED_COMMANDS, TEMPLATE_COMMANDS } from "../commands.ts";
+import {
+	commandNamed,
+	filtersWithoutTheirLoop,
+	filterWithoutLoopMessage,
+	type MarkupSection,
+	RESERVED_COMMANDS,
+	TEMPLATE_COMMANDS,
+} from "../commands.ts";
 import {
 	boundaryProblem,
 	type ComponentCatalogue,
@@ -39,6 +46,7 @@ import {
 	type ElementTree,
 	ElementTreeInvalidError,
 	elementProblem,
+	type FilterCatalogue,
 	type FormCatalogue,
 	hasText,
 	isElementId,
@@ -92,6 +100,8 @@ export type ParseMarkupOptions = {
 	unknownValue?: (path: string) => string;
 	/** The Forms the markup may place (`{{@form <key>}}`), by key and by id. Every Form is refused when absent. */
 	forms?: FormCatalogue;
+	/** The Filters the markup may place (`{{@filter <name> for="…"}}`), by name and by id. Every Filter is refused when absent. */
+	filters?: FilterCatalogue;
 	/**
 	 * The Loops of the Site the markup may name (`{{@loop latest-posts}}`, `latest-posts.count`);
 	 * without them a Loop's source can only be a list the markup reads.
@@ -220,6 +230,9 @@ class MarkupParser {
 				this.options.checkTree?.(nodes, (node, message) =>
 					this.problem((node && this.offsets.get(node)) ?? 0, message),
 				);
+				for (const filter of filtersWithoutTheirLoop(nodes)) {
+					this.problem(this.offsets.get(filter) ?? 0, filterWithoutLoopMessage(filter));
+				}
 			}
 		} catch (error) {
 			if (!(error instanceof Stop)) throw error;
@@ -236,6 +249,7 @@ class MarkupParser {
 					refuseCommand: this.options.refuseCommand,
 					components: this.options.components,
 					forms: this.options.forms,
+					filters: this.options.filters,
 					unknownValue: this.options.unknownValue,
 					loops: this.options.loops,
 					placedDepth: this.options.placedDepth,
@@ -680,6 +694,14 @@ class MarkupParser {
 					return undefined;
 				}
 				return found.id;
+			},
+			filter: (name, offset) => {
+				const found = this.options.filters?.named(name);
+				if (!found || "refused" in found) {
+					this.problem(offset, found?.refused ?? `There is no Filter named ${name} on this Site.`);
+					return undefined;
+				}
+				return { id: found.id, loop: found.loop };
 			},
 			problem: (offset, message) => this.problem(offset, message),
 			scope: this.scope,

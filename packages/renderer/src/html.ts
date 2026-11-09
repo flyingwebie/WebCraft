@@ -13,6 +13,7 @@ import {
 	type Attribute,
 	type ElementNode,
 	type ElementTree,
+	type FilterNode,
 	type LoopNode,
 	type TreeNode,
 	type ValueNode,
@@ -85,6 +86,15 @@ export type RenderOptions = {
 	held?: HoldEmbed;
 	/** What `{{@consentSettings}}` shows: the "Cookie settings" button. Nothing when absent. */
 	consentSettings?: () => string;
+	/** What `{{@filter <name> for="…"}}` shows: the Filter, rendered. Nothing when absent. */
+	filter?: (node: FilterNode) => string;
+	/**
+	 * Whether a Loop of the Site is narrowed by a Filter on the page: its items and its pagination are
+	 * then marked as regions (`filterRegion`), which the Filter's script swaps in place. Shared by the
+	 * page's templates with `regions`, which numbers each region of a name in the order it renders.
+	 */
+	filtered?: (loop: string) => boolean;
+	regions?: Map<string, number>;
 	/**
 	 * What a Placement shows: its Component's (published) tree, and what that tree's bindings read
 	 * given the Placement's Prop values (`props.x`, read through `outer` where a value is passed on
@@ -233,10 +243,33 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		languageSwitcher: () => options.languageSwitcher?.() ?? "",
 		form: (formId) => options.form?.(formId) ?? "",
 		search: () => options.search?.() ?? "",
-		loop: (loop) => renderLoop(loop, options, state),
-		pagination: (name) => paginationHtml(options.loop?.(name), options),
+		loop: (loop) => filterRegion(`loop ${loop.source}`, loop.source, renderLoop(loop, options, state), options),
+		pagination: (name) =>
+			filterRegion(
+				`pagination ${name}`,
+				name,
+				paginationHtml(options.loop?.(name), options, options.filtered?.(name)),
+				options,
+			),
 		consentSettings: () => options.consentSettings?.() ?? "",
+		filter: (filter) => options.filter?.(filter) ?? "",
 	});
+}
+
+/** The comment that starts a region of a page a Filter's script swaps; `/` and the same name end it. */
+export const FILTER_REGION_MARK = "wc-region";
+
+/**
+ * Marks what a filtered Loop shows (`loop <name>`) or its pagination (`pagination <name>`) as a region
+ * of the page with comments, numbered in render order (`<!--wc-region loop products 1-->` …
+ * `<!--/wc-region loop products 1-->`). Comments may sit anywhere (inside a list or a table), and only
+ * WebCraft writes them on pages: Staff's comments are never rendered and every value is escaped.
+ */
+function filterRegion(name: string, loop: string, html: string, options: RenderOptions): string {
+	if (loop.includes(".") || !options.filtered?.(loop) || !options.regions) return html;
+	const n = (options.regions.get(name) ?? 0) + 1;
+	options.regions.set(name, n);
+	return `<!--${FILTER_REGION_MARK} ${name} ${n}-->${html}<!--/${FILTER_REGION_MARK} ${name} ${n}-->`;
 }
 
 /**
@@ -267,6 +300,7 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 				// A Form shows once where it is placed, never once per item: markup can't place one in a
 				// Loop's items, and one a Component brings there renders nothing.
 				form: undefined,
+				filter: undefined,
 			},
 			inner,
 		);
@@ -326,12 +360,14 @@ function itemReader(alias: string, item: LoopItem, index: number, count: number,
  * language, holding the previous page, the first and last pages and those near the current one (a gap
  * between them shown as …), and the next page. The current page is marked `aria-current="page"`.
  */
-function paginationHtml(run: LoopRun | undefined, options: RenderOptions): string {
+function paginationHtml(run: LoopRun | undefined, options: RenderOptions, filtered = false): string {
 	const pages = run?.pages;
 	if (!pages || pages.count < 2) return "";
 	const words = { ...ENGLISH_PAGINATION, ...options.words };
+	// A filtered Loop's pages are swapped in place by the Filter script.
+	const mark = filtered ? " data-wc-filter-link" : "";
 	const link = (page: number, text: string, extra: string) =>
-		`<li><a href="${escapeAttribute(safeUrl(pages.href(page)))}"${extra}>${escapeText(text)}</a></li>`;
+		`<li><a${mark} href="${escapeAttribute(safeUrl(pages.href(page)))}"${extra}>${escapeText(text)}</a></li>`;
 	const shown = [...new Set([1, pages.current - 1, pages.current, pages.current + 1, pages.count])]
 		.filter((page) => page >= 1 && page <= pages.count)
 		.sort((a, b) => a - b);

@@ -119,6 +119,37 @@ const SEARCH_PARTS = [
 ];
 
 /**
+ * A Filter's hooks (`FILTER_HOOKS`, GLOSSARY.md › Filter): its controls in a column, each labelled
+ * above (a toggle's beside its switch), options in a list with their counts at the end, boxes, menus,
+ * chips and buttons big enough to tap, in the page's own colours so they read in light and dark. The
+ * Apply button hides in Live mode once the Filter script runs. Staff restyle any of it in the Site's
+ * custom CSS.
+ */
+const FILTER_PARTS = [
+	".wc-filter{display:grid;gap:1em;margin-block:1em}",
+	".wc-filter[aria-busy=true]{cursor:progress}",
+	".wc-filter-control{display:grid;gap:0.5em;margin:0;padding:0;border:0;min-inline-size:0}",
+	".wc-filter-control>legend{padding:0;margin-block-end:0.5em;font-weight:bolder}",
+	".wc-filter-control>label{font-weight:bolder}",
+	".wc-filter-control input[type=search],.wc-filter-control input[type=number],.wc-filter-control input[type=date],.wc-filter-control select{box-sizing:border-box;inline-size:100%;min-block-size:2.75rem;padding:0.5em 0.75em;border:1px solid currentColor;border-radius:0.25em;background-color:Canvas;color:CanvasText;font:inherit}",
+	".wc-filter-control[data-wc-control=toggle]{display:flex;align-items:center;gap:0.5em}",
+	".wc-filter-control[data-wc-control=toggle]>label{font-weight:inherit}",
+	".wc-filter-options{display:grid;gap:0.5em;margin:0;padding:0;list-style:none}",
+	".wc-filter-options>li{display:flex;align-items:center;gap:0.5em}",
+	".wc-filter-options label{display:flex;flex:1;justify-content:space-between;gap:0.5em}",
+	".wc-filter-options input,.wc-filter-control[data-wc-control=toggle]>input{inline-size:1.5rem;block-size:1.5rem;margin:0;flex:none}",
+	".wc-filter-option-count{font-variant-numeric:tabular-nums}",
+	".wc-filter-more>summary{min-block-size:1.5rem;cursor:pointer}",
+	".wc-filter-more>ul{margin-block-start:0.5em}",
+	".wc-filter-chips{display:flex;flex-wrap:wrap;align-items:center;gap:0.5em}",
+	".wc-filter-chips>ul{display:flex;flex-wrap:wrap;gap:0.5em;margin:0;padding:0;list-style:none}",
+	".wc-filter-chip{display:inline-flex;align-items:center;min-block-size:1.5rem;padding:0.25em 0.75em;border:1px solid currentColor;border-radius:999px;color:inherit;text-decoration:none}",
+	".wc-filter-reset{display:inline-flex;align-items:center;min-block-size:1.5rem;color:inherit}",
+	".wc-filter-count{margin:0;font-weight:bolder}",
+	".wc-filter-apply{justify-self:start;min-block-size:2.75rem;padding:0.5em 1.25em;border:1px solid currentColor;border-radius:0.25em;background-color:CanvasText;color:Canvas;font:inherit;cursor:pointer}",
+];
+
+/**
  * The Consent banner's hooks (`CONSENT_HOOKS`, ADR 0020): the banner in its three layouts (a bar along
  * the bottom, a box in a corner, a centred modal dialog), its categories and buttons, the "Cookie
  * settings" button and a held-back embed's placeholder. Colours are the page's own (`Canvas`,
@@ -211,7 +242,15 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		const declarations = build(designSystem.baseStyles[target] ?? [], "declarations");
 		if (declarations) baseRules.push(`${target}{${declarations}}`);
 	}
-	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS, ...SEARCH_PARTS, ...CONSENT_PARTS, ...focalPointRules());
+	baseRules.push(
+		...PAGE_PARTS,
+		...BODY_PARTS,
+		...FORM_PARTS,
+		...SEARCH_PARTS,
+		...FILTER_PARTS,
+		...CONSENT_PARTS,
+		...focalPointRules(),
+	);
 
 	const used = designSystem.classes.filter((each) => use.classIds.has(each.id));
 	const classRules: string[] = [];

@@ -6956,6 +6956,401 @@
 				"x-webcraft-confirmation": true
 			}
 		},
+		"/filters/list": {
+			"post": {
+				"operationId": "filters.list",
+				"summary": "Lists the Site's Filters.",
+				"tags": ["filters"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/filters/get": {
+			"post": {
+				"operationId": "filters.get",
+				"summary": "One Filter: its Draft and published version.",
+				"tags": ["filters"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"filterId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "filterId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/filters/create": {
+			"post": {
+				"operationId": "filters.create",
+				"summary": "Creates a Filter for one of the Site's query Loops.",
+				"tags": ["filters"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"loop": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"mode": {
+										"type": "string",
+										"maxLength": 10
+									},
+									"label": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 2000
+											},
+											{
+												"type": "object",
+												"properties": {
+													"text": {
+														"type": "string",
+														"maxLength": 2000
+													},
+													"translations": {
+														"type": "object",
+														"propertyNames": {
+															"type": "string",
+															"maxLength": 35
+														},
+														"additionalProperties": {
+															"type": "string",
+															"maxLength": 2000
+														}
+													}
+												},
+												"required": ["text"]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"applyLabel": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 2000
+											},
+											{
+												"type": "object",
+												"properties": {
+													"text": {
+														"type": "string",
+														"maxLength": 2000
+													},
+													"translations": {
+														"type": "object",
+														"propertyNames": {
+															"type": "string",
+															"maxLength": 35
+														},
+														"additionalProperties": {
+															"type": "string",
+															"maxLength": 2000
+														}
+													}
+												},
+												"required": ["text"]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"controls": {
+										"type": "array",
+										"maxItems": 50,
+										"items": {
+											"type": "object",
+											"propertyNames": {
+												"type": "string",
+												"maxLength": 100
+											},
+											"additionalProperties": {}
+										}
+									}
+								},
+								"required": ["siteId", "name", "loop"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/filters/saveDraft": {
+			"post": {
+				"operationId": "filters.saveDraft",
+				"summary": "Saves a Filter's Draft: its mode, words and controls.",
+				"tags": ["filters"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"filterId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"mode": {
+										"type": "string",
+										"maxLength": 10
+									},
+									"label": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 2000
+											},
+											{
+												"type": "object",
+												"properties": {
+													"text": {
+														"type": "string",
+														"maxLength": 2000
+													},
+													"translations": {
+														"type": "object",
+														"propertyNames": {
+															"type": "string",
+															"maxLength": 35
+														},
+														"additionalProperties": {
+															"type": "string",
+															"maxLength": 2000
+														}
+													}
+												},
+												"required": ["text"]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"applyLabel": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 2000
+											},
+											{
+												"type": "object",
+												"properties": {
+													"text": {
+														"type": "string",
+														"maxLength": 2000
+													},
+													"translations": {
+														"type": "object",
+														"propertyNames": {
+															"type": "string",
+															"maxLength": 35
+														},
+														"additionalProperties": {
+															"type": "string",
+															"maxLength": 2000
+														}
+													}
+												},
+												"required": ["text"]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"controls": {
+										"type": "array",
+										"maxItems": 50,
+										"items": {
+											"type": "object",
+											"propertyNames": {
+												"type": "string",
+												"maxLength": 100
+											},
+											"additionalProperties": {}
+										}
+									}
+								},
+								"required": ["siteId", "filterId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/filters/publish": {
+			"post": {
+				"operationId": "filters.publish",
+				"summary": "Publishes a Filter's Draft (API clients confirm a preview first).",
+				"tags": ["filters"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"filterId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "filterId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-confirmation": true
+			}
+		},
 		"/forms/list": {
 			"post": {
 				"operationId": "forms.list",
@@ -13849,6 +14244,19 @@
 													"properties": {
 														"kind": {
 															"const": "loop"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "filter"
 														},
 														"id": {
 															"type": "string",
