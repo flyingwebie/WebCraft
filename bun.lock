@@ -93,6 +93,16 @@
         "typescript": "catalog:",
       },
     },
+    "modules/redirects": {
+      "name": "@webcraft/module-redirects",
+      "version": "1.0.0",
+      "dependencies": {
+        "@webcraft/module-sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "catalog:",
+      },
+    },
     "packages/api": {
       "name": "@webcraft/api",
       "version": "0.0.0",
@@ -135,6 +145,7 @@
         "@webcraft/auth": "workspace:*",
         "@webcraft/db": "workspace:*",
         "@webcraft/module-forms": "workspace:*",
+        "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
         "@webcraft/renderer": "workspace:*",
         "aws4fetch": "1.0.20",
@@ -180,7 +191,7 @@
     },
     "packages/module-sdk": {
       "name": "@webcraft/module-sdk",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "dependencies": {
         "drizzle-orm": "catalog:",
         "zod": "catalog:",
@@ -242,6 +253,7 @@
         "@webcraft/core": "workspace:*",
         "@webcraft/db": "workspace:*",
         "@webcraft/module-forms": "workspace:*",
+        "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
         "@webcraft/server": "workspace:*",
         "@webcraft/worker": "workspace:*",
@@ -684,6 +696,8 @@
     "@webcraft/mcp": ["@webcraft/mcp@workspace:packages/mcp"],
 
     "@webcraft/module-forms": ["@webcraft/module-forms@workspace:modules/forms"],
+
+    "@webcraft/module-redirects": ["@webcraft/module-redirects@workspace:modules/redirects"],
 
     "@webcraft/module-sdk": ["@webcraft/module-sdk@workspace:packages/module-sdk"],
 

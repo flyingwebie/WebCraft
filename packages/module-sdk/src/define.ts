@@ -4,6 +4,7 @@ import type { ModuleComponent } from "./component.ts";
 import type { ModuleContext, ModuleTable, ProcedureContext, SiteRouteContext } from "./context.ts";
 import type { ModuleEvent, ModuleEventName } from "./events.ts";
 import type { Label, ModuleManifestInput } from "./manifest.ts";
+import type { NotFoundLog, RedirectRules } from "./redirects.ts";
 import type { ModuleSchedule, SubmissionReceiver } from "./submissions.ts";
 import type { ModuleMigration } from "./tables.ts";
 
@@ -69,6 +70,17 @@ export type ModuleDefinition = {
 	 * says what they chose. It never runs in Edit mode. Added in SDK 1.3.
 	 */
 	siteScript?: ModuleSiteScript;
+	/**
+	 * How it keeps the Sites' Redirect rules, which the Site pipeline asks before the Site's own pages
+	 * (Site-level Modules only; at most one Module of a build). See `redirectRules`. Added in SDK 1.4.
+	 */
+	redirectRules?: RedirectRules;
+	/**
+	 * How it keeps the Sites' 404 log: the Site pipeline hands it the paths its 404 page answered, in
+	 * the background (Site-level Modules only; at most one Module of a build). See `notFoundLog`.
+	 * Added in SDK 1.4.
+	 */
+	notFoundLog?: NotFoundLog;
 	// Later SDK versions open more extension points; until then a Module can't use them:
 	/** Structure presets (#110). */
 	structurePresets?: readonly never[];

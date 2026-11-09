@@ -23,6 +23,16 @@ export type ModuleEvents = {
 	"template.published": { templateId: string };
 	/** The Site's Globals were published. */
 	"globals.published": Record<string, never>;
+	/**
+	 * Published paths changed without a publish (SDK 1.4): Staff changed a Post Type's URL pattern
+	 * (`reason: "urlPattern"`, with its `postTypeId`), or the Site's Default language (`reason:
+	 * "defaultLanguage"`), and every published Entry's address in `pathChanges` moved with it.
+	 */
+	"paths.changed": {
+		reason: "urlPattern" | "defaultLanguage";
+		postTypeId: string | null;
+		pathChanges: { entryId: string; language: string; from: string; to: string }[];
+	};
 };
 
 export type ModuleEventName = keyof ModuleEvents;
@@ -33,6 +43,7 @@ export const MODULE_EVENTS = [
 	"entry.deleted",
 	"template.published",
 	"globals.published",
+	"paths.changed",
 ] as const satisfies readonly ModuleEventName[];
 
 /** One event as a Module receives it: what happened, on which Site, and when. */

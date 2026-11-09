@@ -69,3 +69,32 @@ export const moduleHourlyJobsSchedule = defineSchedule({ job: moduleHourlyJobs, 
 
 /** Modules' daily jobs are queued every day at 03:47 UTC. */
 export const moduleDailyJobsSchedule = defineSchedule({ job: moduleDailyJobs, cron: "47 3 * * *", payload: {} });
+
+/** One Site's misses for the 404 log, gathered by a web process (SDK 1.4): see `ModuleHost.noteMiss`. */
+const queuedMisses = z.object({
+	moduleId: z.string().max(64),
+	workspaceId: z.uuid(),
+	siteId: z.uuid(),
+	misses: z
+		.array(
+			z.object({
+				path: z.string().max(2000),
+				language: z.string().max(64),
+				referrerHost: z.string().max(253).nullable(),
+				hits: z.number().int().min(1),
+				firstAt: z.iso.datetime(),
+				lastAt: z.iso.datetime(),
+			}),
+		)
+		.max(1000),
+});
+
+export type QueuedMisses = z.infer<typeof queuedMisses>;
+
+/** Hands a batch of a Site's misses to the Module keeping the 404 log, where it still runs. */
+export const moduleMissesJob = defineJob<QueuedMisses>({
+	name: "modules.notFound",
+	payload: queuedMisses,
+	queue: RETRIES,
+	run: (payload, services): Promise<void> => services.modules.runMisses(payload),
+});

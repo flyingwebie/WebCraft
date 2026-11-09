@@ -102,6 +102,15 @@ export {
 	wordsIn,
 } from "./manifest.ts";
 export {
+	type NotFoundLog,
+	notFoundLog,
+	type PageMiss,
+	type RedirectRequest,
+	type RedirectRules,
+	type RedirectTarget,
+	redirectRules,
+} from "./redirects.ts";
+export {
 	type FormSubmission,
 	type ModuleSchedule,
 	type SpamReason,
