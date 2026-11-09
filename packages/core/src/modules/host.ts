@@ -671,7 +671,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			}
 			const { route } = match.compiled;
 			if (route.limit) {
-				const key = `module-route:${module.id}:${site.id}:${route.method} ${route.path}:${await visitors.addressKey(siteRoute.clientAddress)}`;
+				const key = `module-route:${module.id}:${site.id}:${route.method} ${route.path}:${siteRoute.clientAddress ?? "unknown"}`;
 				const rule = { limit: route.limit.requests, windowMs: route.limit.perSeconds * 1000 };
 				if (!(await rateLimits.count(key, rule))) {
 					return new Response("Too Many Requests", {

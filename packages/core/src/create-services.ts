@@ -84,6 +84,7 @@ import {
 	editModeSigningKey,
 	formTimeKey,
 	type MasterKey,
+	rateLimitKey,
 	sessionSigningSecret,
 	visitorIdKey,
 } from "./secrets/master-key.ts";
@@ -166,7 +167,7 @@ export async function createInstallServices(
 		log,
 		email,
 	});
-	const rateLimits = createRateLimits({ database, clock, log });
+	const rateLimits = createRateLimits({ database, clock, log, keyHash: await rateLimitKey(masterKey) });
 	const modules = createModuleHost({
 		database,
 		data,

@@ -2,8 +2,8 @@
  * What a Module's Site route learns of the visitor behind a request (SDK 1.4, `SiteVisitor`).
  * WebCraft never hands a Module the visitor's address or its own cookies: it answers questions about
  * them. The address is used to work out the country, to compare with address ranges, to make the
- * day's id and to count requests against a route's limit, and is never kept or logged; the limit's
- * counter is kept under a keyed hash of it, never the address.
+ * day's id and to count requests against a route's limit (whose counters hold only a keyed hash of
+ * their key), and is never kept or logged.
  */
 import type { Database } from "@webcraft/db";
 import { consentBanners, sessions, visitorSalts } from "@webcraft/db/schema";
@@ -32,8 +32,6 @@ export type SiteRouteRequest = {
 export type Visitors = {
 	/** What a Site route learns of the visitor behind `request`. */
 	visitorOf(route: SiteRouteRequest, request: Request): SiteVisitor;
-	/** A keyed hash of the client's address, for counters kept under it (changes every day). */
-	addressKey(clientAddress: string | null): Promise<string>;
 	/** Deletes the salts of earlier days; answers how many. */
 	purgeSalts(): Promise<number>;
 };
@@ -127,11 +125,6 @@ export function createVisitors(deps: {
 					return (await sign(["visitor", day, salt, site.id, clientAddress ?? "", userAgent])).slice(0, 32);
 				},
 			};
-		},
-
-		async addressKey(clientAddress) {
-			const { day, salt } = await saltOfToday();
-			return (await sign(["address", day, salt, clientAddress ?? "unknown"])).slice(0, 32);
 		},
 
 		async purgeSalts() {

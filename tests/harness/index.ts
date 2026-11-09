@@ -269,6 +269,12 @@ export type TestInstall = {
 	/** Every log entry the Install wrote. */
 	logs: LogEntry[];
 	/**
+	 * The tables, anywhere in the Install's database (WebCraft's, Modules', the job queue's), holding
+	 * `text` in any row: what a backup of the database would hold. For tests of what must never be
+	 * kept, such as a visitor's address; it reads no table's layout.
+	 */
+	tablesHolding(text: string): Promise<string[]>;
+	/**
 	 * Starts the Install again, with another Master key when given, as web and worker do after their
 	 * `WEBCRAFT_SECRET_KEY` changes, running the same start-up checks (and printing a new setup token
 	 * when the Install has no Superadmin). When the check refuses the key, this rejects with the same
@@ -542,6 +548,21 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		},
 		clock,
 		logs,
+		async tablesHolding(text) {
+			const { rows: tables } = await database.pool.query<{ name: string }>(
+				`SELECT format('%I.%I', n.nspname, c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+					WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition
+						AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg\\_%'`,
+			);
+			const holding: string[] = [];
+			for (const { name } of tables) {
+				const { rows } = await database.pool.query(`SELECT 1 FROM ${name} t WHERE t::text LIKE $1 LIMIT 1`, [
+					`%${text}%`,
+				]);
+				if (rows.length > 0) holding.push(name);
+			}
+			return holding;
+		},
 		async restart(restartOptions = {}) {
 			const masterKey = restartOptions.masterKey ?? env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY;
 			const before = modules;
