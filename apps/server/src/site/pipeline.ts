@@ -70,7 +70,7 @@ export type SitePipelineOptions = {
  * Language switcher's links (`/_wc/lang/…`) remember the visitor's choice in a cookie, and a Site may
  * send a first visit to its home page on to the browser's language.
  *
- * Redirect domains and then the Site's Redirect rules (kept by the Module that keeps them, SDK 1.4)
+ * Redirect domains and then the Site's Redirect rules (kept by the Module that keeps them, SDK 1.5)
  * come before everything else; a visitor's request the 404 page answers goes to the Site's 404 log.
  *
  * Steps still to come, in their places: each reserved path's feature (the Content API,
@@ -113,7 +113,17 @@ async function siteAnswer(
 	if (editing) return editing;
 	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
 		// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
-		const answer = await services.modules.answerSiteRoute(host.site, request);
+		// The Module learns of the visitor only what WebCraft tells it (never the address or WebCraft's cookies).
+		const edit = await editSessionOf(services, request, host);
+		const answer = await services.modules.answerSiteRoute(
+			{
+				site: host.site,
+				via: host.address === "staging" ? "staging" : "domain",
+				clientAddress: clientAddress(request, services.config),
+				editing: edit.session !== null,
+			},
+			request,
+		);
 		if (!answer) return plainText(404, "Not Found", addressHeaders(host));
 		for (const [name, value] of Object.entries(addressHeaders(host))) answer.headers.set(name, value);
 		return answer;

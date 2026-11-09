@@ -59,7 +59,7 @@ describe("the Modules screen", () => {
 				],
 				uses: [{ use: "email", isNew: true }],
 				outsideHosts: [{ host: "hooks.sample.example", isNew: true }],
-				siteScript: { category: "analytics", isNew: true },
+				siteScript: { category: "analytics", beforeConsent: false, isNew: true },
 			},
 			adds: {
 				siteRoutes: "/_wc/m/sample/",
@@ -72,6 +72,7 @@ describe("the Modules screen", () => {
 				notFoundLog: false,
 				schedules: [],
 			},
+			partitions: [],
 		});
 	});
 

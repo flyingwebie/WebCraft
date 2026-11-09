@@ -27,7 +27,7 @@ export const redirects = defineModule({
 			it: "Porta i visitatori dai vecchi percorsi ai nuovi con regole di reindirizzamento, aggiunte dagli Editor o in automatico quando cambia un percorso pubblicato, ed elenca i percorsi richiesti che non hanno una pagina.",
 		},
 		version: "1.0.0",
-		sdk: "^1.4.0",
+		sdk: "^1.5.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],

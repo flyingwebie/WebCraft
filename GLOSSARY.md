@@ -196,6 +196,26 @@ _Avoid_: Asset manager, uploads, file manager, shared library
 The spot on a Media image that must stay visible whenever a design shows the image at a different shape. Set once per image and shared by every language.
 _Avoid_: Crop, hotspot, anchor
 
+**Trash**:
+Where a deleted Media library file waits for 30 days before it is deleted for good. A file in the Trash isn't served or shown on pages and can't be chosen for a Field, and it can be restored as it was until it goes. Emptying the Trash deletes every file in it at once.
+_Avoid_: Recycle bin, bin, archive, soft delete
+
+**Used in**:
+The places on a Site that use a Media library file: Entries (in any language, Draft or published), Globals, Templates, Components, Loops and the Design system. It is shown with a file's details and before the file goes to the Trash.
+_Avoid_: References, usages, where used, backlinks
+
+**Replace file**:
+Uploading new bytes for a Media library file that already exists. The file keeps its id, texts and every place it is used in; the old bytes are still served for 30 days, so pages and caches that name them keep working.
+_Avoid_: Re-upload, overwrite, new version
+
+**Import from URL**:
+Adding one file to a Media library from an `https` address: WebCraft fetches it once, checks it like an upload and keeps its own copy. It is not an Import, which brings a whole source's content into a Site, and not an External image, which is never fetched.
+_Avoid_: Sideload, remote upload, hotlink
+
+**Media quota**:
+The most storage a Workspace's Media libraries may take together, an optional limit set by Staff. The Workspace's Owners and Staff are told once it is 80% used, and an upload that would take it past 100% is refused. The largest single file is a separate Install setting.
+_Avoid_: Storage limit, disk quota, plan limit
+
 **Form upload**:
 A file a visitor attaches to a Form Submission. It is private: it never enters the Media library, has no public address, can only be downloaded through the admin by people who may see that Form's Submissions, and is deleted with its Submission.
 _Avoid_: Private media, attachment (except in a Notification email)
@@ -203,7 +223,7 @@ _Avoid_: Private media, attachment (except in a Notification email)
 ### Importing
 
 **Import**:
-A saved way of bringing outside content into one Site: its source (a WordPress export file, a live WordPress site, or a CSV file) and how that source maps onto Post Types and Fields. It can be run more than once.
+A saved way of bringing outside content into one Site: its source (a WordPress export file, a live WordPress site, or a CSV file) and how that source maps onto Post Types and Fields. It can be run more than once. Fetching a single file into the Media library is Import from URL, not an Import.
 _Avoid_: Migration, sync, Site export (that moves a WebCraft Site)
 
 **Import run**:

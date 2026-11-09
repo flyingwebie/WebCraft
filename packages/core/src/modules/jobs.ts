@@ -70,7 +70,7 @@ export const moduleHourlyJobsSchedule = defineSchedule({ job: moduleHourlyJobs, 
 /** Modules' daily jobs are queued every day at 03:47 UTC. */
 export const moduleDailyJobsSchedule = defineSchedule({ job: moduleDailyJobs, cron: "47 3 * * *", payload: {} });
 
-/** One Site's misses for the 404 log, gathered by a web process (SDK 1.4): see `ModuleHost.noteMiss`. */
+/** One Site's misses for the 404 log, gathered by a web process (SDK 1.5): see `ModuleHost.noteMiss`. */
 const queuedMisses = z.object({
 	moduleId: z.string().max(64),
 	workspaceId: z.uuid(),

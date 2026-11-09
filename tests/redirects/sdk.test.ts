@@ -1,4 +1,4 @@
-// The Module SDK's Redirect rules and 404 log (SDK 1.4): one Module of a build keeps each, only at
+// The Module SDK's Redirect rules and 404 log (SDK 1.5): one Module of a build keeps each, only at
 // the Site level, and the Site pipeline never fails, nor waits long, because of one: a `find` that
 // throws, hangs or answers a target that isn't allowed is "no rule", said in the Module log.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -20,7 +20,7 @@ const manifest: Omit<ModuleManifestInput, "id"> = {
 	name: { en: "Test" },
 	description: { en: "Test" },
 	version: "1.0.0",
-	sdk: "^1.4.0",
+	sdk: "^1.5.0",
 	level: "site",
 	onByDefault: true,
 	adminLanguages: ["en"],

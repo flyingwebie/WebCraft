@@ -1,7 +1,7 @@
 import type { ModuleContext, ModuleTable } from "./context.ts";
 
 /**
- * Redirect rules and the 404 log (SDK 1.4): the two places where the Site request pipeline asks a
+ * Redirect rules and the 404 log (SDK 1.5): the two places where the Site request pipeline asks a
  * Module, besides its own routes and Form Submissions (ADR 0024).
  *
  * Paths here are **Site paths**: a path on the Site as its Staging address writes it, every language
@@ -38,7 +38,7 @@ export type RedirectTarget = {
 };
 
 /**
- * How a Module keeps a Site's Redirect rules (SDK 1.4; at most one Module of a build, Site-level
+ * How a Module keeps a Site's Redirect rules (SDK 1.5; at most one Module of a build, Site-level
  * only). The Site pipeline asks `find` for every `GET` and `HEAD` request on a Site where the
  * Module runs, before anything else answers (only Redirect domains come earlier), except for the
  * paths the Install keeps (`/_…`). It must be quick: one or two indexed reads of the Module's own
@@ -81,7 +81,7 @@ export type PageMiss = {
 };
 
 /**
- * How a Module keeps a Site's 404 log (SDK 1.4; at most one Module of a build, Site-level only).
+ * How a Module keeps a Site's 404 log (SDK 1.5; at most one Module of a build, Site-level only).
  * The Site pipeline notes each request its 404 page answers, from a browser (not a robot, by its
  * user agent; `GET` only; never in Edit mode), for a path where a page could be (not a file with a
  * dot in its name, nor the Install's own `/_…` paths). It never waits for the Module: it gathers the

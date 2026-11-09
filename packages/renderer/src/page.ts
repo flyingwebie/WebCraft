@@ -126,7 +126,9 @@ export type PageToRender = {
 	/**
 	 * The Site scripts of the Modules running on the Site (SDK 1.3): files on the Site's domain, loaded
 	 * with `defer` after the Site's own scripts, each held back until visitors accept its Consent
-	 * category. Like outside scripts, they never run in Edit mode.
+	 * category, unless it runs before consent (`beforeConsent`, SDK 1.4: it holds back itself what
+	 * needs its category, and the page still asks for it). Like outside scripts, they never run in
+	 * Edit mode.
 	 */
 	moduleScripts?: readonly PageModuleScript[];
 	/**
@@ -161,7 +163,7 @@ export type PageLibrary = { name: string; src: string; integrity: string };
 export type PageScript = { kind: "site" | "page"; src: string };
 
 /** A Module's Site script on a page: the Module, where the Site serves the script, and its Consent category. */
-export type PageModuleScript = { moduleId: string; src: string; consentCategory: string };
+export type PageModuleScript = { moduleId: string; src: string; consentCategory: string; beforeConsent?: boolean };
 
 /** One script tag of an outside script: a file on another host, or one the Site serves. */
 export type PageScriptTag = {
@@ -370,7 +372,9 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		}),
 		...moduleScripts.map((script) => {
 			const tag = `<script src="${escapeAttribute(script.src)}" defer data-wc-module="${escapeAttribute(script.moduleId)}"></script>`;
-			return heldBack(script.consentCategory) ? heldScriptsHtml(script.consentCategory, [tag]) : tag;
+			return heldBack(script.consentCategory) && !script.beforeConsent
+				? heldScriptsHtml(script.consentCategory, [tag])
+				: tag;
 		}),
 		...outsideIn("head"),
 		"</head>",

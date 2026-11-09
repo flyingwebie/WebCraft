@@ -7,7 +7,7 @@ import type { Site } from "../tenancy/data-layer.ts";
 import type { SiteHost } from "./index.ts";
 
 /**
- * Redirect rules and the 404 log on the Site side (SDK 1.4): what the Site pipeline asks the Module
+ * Redirect rules and the 404 log on the Site side (SDK 1.5): what the Site pipeline asks the Module
  * keeping them, in **Site paths** (a path as the Site's Staging address writes it, every language but
  * the Default language under its prefix), and how their answers become addresses on the hostname a
  * request came in on.

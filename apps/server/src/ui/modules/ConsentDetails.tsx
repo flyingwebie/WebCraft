@@ -26,6 +26,7 @@ const EVENT_KEYS = {
 	"entry.deleted": "modules.events.entryDeleted",
 	"template.published": "modules.events.templatePublished",
 	"globals.published": "modules.events.globalsPublished",
+	"form.submitted": "modules.events.formSubmitted",
 	"paths.changed": "modules.events.pathsChanged",
 } as const satisfies Record<string, MessageKey>;
 
@@ -76,11 +77,15 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 			? [
 					{
 						key: "script",
-						text: t("modules.consent.siteScript", {
-							category: t(
-								CATEGORY_KEYS[asks.siteScript.category as keyof typeof CATEGORY_KEYS] ?? "modules.categories.necessary",
-							),
-						}),
+						text: t(
+							asks.siteScript.beforeConsent ? "modules.consent.siteScriptBeforeConsent" : "modules.consent.siteScript",
+							{
+								category: t(
+									CATEGORY_KEYS[asks.siteScript.category as keyof typeof CATEGORY_KEYS] ??
+										"modules.categories.necessary",
+								),
+							},
+						),
 						isNew: asks.siteScript.isNew,
 					},
 				]
@@ -93,6 +98,9 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 			? [t("modules.consent.adminPages", { pages: joinWords(adds.adminPages, and) })]
 			: []),
 		...(adds.tables > 0 ? [t("modules.consent.tables", { level: module.level })] : []),
+		...module.partitions.map((partition) =>
+			t("modules.consent.partitions", { label: partition.label, months: partition.keepMonths }),
+		),
 		...(adds.components.length > 0
 			? [t("modules.consent.components", { names: joinWords(adds.components, and) })]
 			: []),

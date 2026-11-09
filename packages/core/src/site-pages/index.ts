@@ -99,7 +99,14 @@ import { relatedEntries, type ReadScope as ScopeToRead } from "./related.ts";
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 
 /** A Module's Site script on a Site where the Module runs: its code, file name and Consent category. */
-export type ModuleScriptFile = { moduleId: string; name: string; code: string; category: string };
+export type ModuleScriptFile = {
+	moduleId: string;
+	name: string;
+	code: string;
+	category: string;
+	/** Whether it runs before visitors accept its category (it holds back itself what needs it). */
+	beforeConsent: boolean;
+};
 export { reservedSlugs, stagingHostname, stagingUrl } from "./addresses.ts";
 
 /** A Site found by the hostname a request came in on. */
@@ -309,7 +316,7 @@ export type SitePages = {
 	/** One of the Site's Library files by the name it is served under (`/_wc/lib/<name>`), or one replaced in the last 30 days. */
 	libraryFile(host: SiteHost, name: string): Promise<LibraryFile | null>;
 	/**
-	 * Where the Site's Redirect rules send a request for `pathname` (SDK 1.4), ahead of its pages: a
+	 * Where the Site's Redirect rules send a request for `pathname` (SDK 1.5), ahead of its pages: a
 	 * 301 or 302 to a path on this hostname, or to an address on another (of the Site's or elsewhere),
 	 * without the request's query. Null when no rule applies, no Module keeping them runs on the Site,
 	 * or the path is one the Install keeps (`/_…`). Answers are kept with the Site's page cache
@@ -342,9 +349,9 @@ export function createSitePages(options: {
 	moduleHosts?: (site: Site) => Promise<string[]>;
 	/** The Site scripts of the Modules running on a Site (SDK 1.3). */
 	moduleScripts?: (site: Site) => Promise<ModuleScriptFile[]>;
-	/** The Module keeping Redirect rules, asked through the Module host (SDK 1.4). None, when absent. */
+	/** The Module keeping Redirect rules, asked through the Module host (SDK 1.5). None, when absent. */
 	redirects?: RedirectsOf;
-	/** The Module keeping the 404 log, handed misses through the Module host (SDK 1.4). None, when absent. */
+	/** The Module keeping the 404 log, handed misses through the Module host (SDK 1.5). None, when absent. */
 	misses?: MissesOf;
 }): SitePages {
 	const { database, config, data, storage } = options;
@@ -1471,6 +1478,7 @@ async function renderSitePage(
 					moduleId: script.moduleId,
 					src: `${SCRIPT_PATH}${script.name}`,
 					consentCategory: script.category,
+					beforeConsent: script.beforeConsent,
 				})),
 		// People editing are never asked for consent (ADR 0022).
 		consent: editing ? undefined : await pageConsent(scope, languages),

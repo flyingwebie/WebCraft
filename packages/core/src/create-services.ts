@@ -90,7 +90,9 @@ import {
 	editModeSigningKey,
 	formTimeKey,
 	type MasterKey,
+	rateLimitKey,
 	sessionSigningSecret,
+	visitorIdKey,
 } from "./secrets/master-key.ts";
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
@@ -173,6 +175,7 @@ export async function createInstallServices(
 		log,
 		email,
 	});
+	const rateLimits = createRateLimits({ database, clock, log, keyHash: await rateLimitKey(masterKey) });
 	const modules = createModuleHost({
 		database,
 		data,
@@ -182,6 +185,9 @@ export async function createInstallServices(
 		clock,
 		log,
 		modules: options.modules ?? FIRST_PARTY_MODULES,
+		rateLimits,
+		countries: ports.countries,
+		visitorIdKey: await visitorIdKey(masterKey),
 	});
 	listeners.afterAudit.push(modules.afterAudit, webhooks.afterAudit);
 	// The Components of Modules: placed on Sites where their Module runs.
@@ -196,7 +202,6 @@ export async function createInstallServices(
 		log,
 		directory: config.storageDir,
 	});
-	const rateLimits = createRateLimits({ database, clock, log });
 	const formTokens = createFormTokens({ key: await formTimeKey(masterKey), clock });
 	const sitePages = createSitePages({
 		database,

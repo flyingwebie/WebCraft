@@ -10,6 +10,8 @@
 export {
 	and,
 	asc,
+	count,
+	countDistinct,
 	desc,
 	eq,
 	gt,
@@ -21,11 +23,14 @@ export {
 	like,
 	lt,
 	lte,
+	max,
+	min,
 	ne,
 	not,
 	notInArray,
 	or,
 	type SQL,
+	sum,
 } from "drizzle-orm";
 export {
 	bigint,
@@ -45,6 +50,7 @@ export {
 	uuid,
 } from "drizzle-orm/pg-core";
 export { z } from "zod";
+export { type AddressRange, addressInRanges, isAddressRange, parseAddress, parseAddressRange } from "./addresses.ts";
 export {
 	type ComponentProp,
 	type ComponentPropType,
@@ -52,6 +58,7 @@ export {
 	type ModuleComponent,
 } from "./component.ts";
 export type {
+	AggregateRow,
 	ModuleContext,
 	ModuleData,
 	ModuleEmail,
@@ -66,6 +73,8 @@ export type {
 	NewModuleRow,
 	ProcedureContext,
 	SiteRouteContext,
+	SiteVisitor,
+	VisitorConsent,
 } from "./context.ts";
 export {
 	type AdminPage,
@@ -76,6 +85,7 @@ export {
 	type ModuleDefinition,
 	type ModuleEventHandlers,
 	type ModuleJob,
+	type ModulePartitioning,
 	type ModuleProcedure,
 	type ModuleProcedures,
 	type ModuleSiteScript,

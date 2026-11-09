@@ -25,7 +25,7 @@ import {
 	type SubmissionReceiver,
 } from "@webcraft/module-sdk";
 import { parseTemplateMarkup, TemplateMarkupInvalidError } from "@webcraft/renderer";
-import { getTableName, isTable } from "drizzle-orm";
+import { getTableColumns, getTableName, isTable } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import semver from "semver";
 
@@ -91,17 +91,36 @@ export type RunnableModule = {
 	receiver: SubmissionReceiver | null;
 	/** The script it adds to Site pages where it runs, when it adds one (SDK 1.3). */
 	siteScript: ModuleSiteScriptFile | null;
-	/** How it keeps the Sites' Redirect rules, when it does (SDK 1.4; at most one Module of a build). */
+	/** Its tables kept in monthly partitions (SDK 1.4). */
+	partitions: readonly CompiledPartitioning[];
+	/** How it keeps the Sites' Redirect rules, when it does (SDK 1.5; at most one Module of a build). */
 	redirects: RedirectRules | null;
-	/** How it keeps the Sites' 404 log, when it does (SDK 1.4; at most one Module of a build). */
+	/** How it keeps the Sites' 404 log, when it does (SDK 1.5; at most one Module of a build). */
 	notFoundLog: NotFoundLog | null;
 };
 
+/** One of a Module's tables kept in monthly partitions, as WebCraft keeps it. */
+export type CompiledPartitioning = {
+	table: ModuleTable;
+	/** Its name in the Module's schema, such as `events`. */
+	name: string;
+	/** The column's name in Postgres, such as `occurred_at`, and its key in the table's rows. */
+	column: string;
+	columnKey: string;
+	label: Label;
+	keepMonths: number;
+};
+
+/** The fewest and most months an Install may keep a partitioned table's rows. */
+export const KEEP_MONTHS = { min: 1, max: 120 } as const;
+
 /**
  * A Module's Site script as Sites serve it: its code, the file name it is served under
- * (`<16 hexadecimal digits of its SHA-256>.js`, at `/_wc/js/`) and the Consent category its manifest declares.
+ * (`<16 hexadecimal digits of its SHA-256>.js`, at `/_wc/js/`), the Consent category its manifest
+ * declares, and whether it runs before visitors accept that category (holding back itself what
+ * needs it).
  */
-export type ModuleSiteScriptFile = { code: string; name: string; category: ConsentCategory };
+export type ModuleSiteScriptFile = { code: string; name: string; category: ConsentCategory; beforeConsent: boolean };
 
 /** A Site route with its path split into fixed parts and parameters. */
 export type CompiledRoute = { route: SiteRoute; parts: readonly ({ fixed: string } | { param: string })[] };
@@ -122,6 +141,7 @@ const DEFINITION_KEYS = new Set([
 	"schedules",
 	"formSubmissions",
 	"siteScript",
+	"partitions",
 	"redirectRules",
 	"notFoundLog",
 	"widgets",
@@ -341,6 +361,15 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		if (routeKeys.has(key)) problem(`The Site route ${route.method} ${route.path} is declared twice.`);
 		if (typeof route.handle !== "function")
 			problem(`The Site route ${route.method} ${route.path} has no handle function.`);
+		if (route.limit !== undefined) {
+			const { requests, perSeconds } = route.limit ?? {};
+			if (!isWhole(requests, 1, 100_000) || !isWhole(perSeconds, 1, 86_400)) {
+				problem(`The Site route ${route.method} ${route.path}'s limit isn't whole requests per whole seconds.`);
+			}
+		}
+		if (route.maxBodyBytes !== undefined && !isWhole(route.maxBodyBytes, 1, 10_000_000)) {
+			problem(`The Site route ${route.method} ${route.path}'s maxBodyBytes isn't a whole number of bytes.`);
+		}
 		routeKeys.add(key);
 		routes.push({
 			route,
@@ -407,8 +436,41 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		if (manifest.siteScript === null) {
 			problem("It adds a Site script without declaring its Consent category: set siteScript in the manifest.");
 		}
+		const beforeConsent = definition.siteScript?.beforeConsent ?? false;
+		if (typeof beforeConsent !== "boolean") problem("Its Site script's beforeConsent is true or false.");
+		if (beforeConsent && manifest.siteScript === "necessary") {
+			problem("Its Site script is Necessary: it runs before consent anyway, so beforeConsent says nothing.");
+		}
 		const name = `${createHash("sha256").update(code).digest("hex").slice(0, 16)}.js`;
-		siteScript = { code, name, category: manifest.siteScript };
+		siteScript = { code, name, category: manifest.siteScript, beforeConsent };
+	}
+
+	const partitions: CompiledPartitioning[] = [];
+	for (const partitioning of definition.partitions ?? []) {
+		const { table, column } = partitioning ?? {};
+		if (!table || !tables.has(table)) problem("A partitioned table isn't one of the Module's tables.");
+		const name = getTableName(table);
+		if (partitions.some((other) => other.name === name)) problem(`The table ${name} is partitioned twice.`);
+		const columnKey = Object.entries(getTableColumns(table)).find(([, own]) => own === column)?.[0];
+		if (!columnKey || !column) problem(`The table ${name} is partitioned by a column it doesn't have.`);
+		if (column.getSQLType() !== "timestamp with time zone" || !column.notNull) {
+			problem(
+				`The table ${name} is partitioned by ${column.name}, which isn't a timestamp with time zone that is never null.`,
+			);
+		}
+		const words = labelProblem(partitioning.label ?? {}, manifest.adminLanguages);
+		if (words) problem(`The partitioned table ${name}'s label: ${words}`);
+		if (!isWhole(partitioning.keepMonths, KEEP_MONTHS.min, KEEP_MONTHS.max)) {
+			problem(`The table ${name} keeps its rows ${KEEP_MONTHS.min} to ${KEEP_MONTHS.max} whole months.`);
+		}
+		partitions.push({
+			table,
+			name,
+			column: column.name,
+			columnKey,
+			label: partitioning.label,
+			keepMonths: partitioning.keepMonths,
+		});
 	}
 
 	const redirects = definition.redirectRules ?? null;
@@ -444,9 +506,14 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		schedules,
 		receiver,
 		siteScript,
+		partitions,
 		redirects,
 		notFoundLog: notFound,
 	};
+}
+
+function isWhole(value: unknown, least: number, most: number): value is number {
+	return typeof value === "number" && Number.isInteger(value) && value >= least && value <= most;
 }
 
 /**

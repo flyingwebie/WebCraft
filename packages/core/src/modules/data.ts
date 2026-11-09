@@ -1,10 +1,18 @@
 import { type ModuleData, ModuleRefusedError, type ModuleTable, type NewModuleRow } from "@webcraft/module-sdk";
-import { getTableName, type SQL } from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
+import { getTableColumns, getTableName, type SQL } from "drizzle-orm";
+import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import { clearPageCache } from "../content/page-cache.ts";
 import type { ScopedQueries, SiteScope, SiteTable, WorkspaceScope, WorkspaceTable } from "../tenancy/data-layer.ts";
-import type { RunnableModule } from "./registry.ts";
+import type { CompiledPartitioning, RunnableModule } from "./registry.ts";
+
+/** Makes sure the partition a new row of a partitioned table goes into exists (see `partitions.ts`). */
+export type EnsurePartition = (
+	module: RunnableModule,
+	partitioning: CompiledPartitioning,
+	at: Date,
+	scope: PlaceScope,
+) => Promise<void>;
 
 /** A Site or a Workspace, opened through the data layer: where a Module acts, or where Staff switch it. */
 export type PlaceScope = SiteScope | WorkspaceScope;
@@ -20,14 +28,15 @@ export function placeQueries(scope: PlaceScope): ScopedQueries<WorkspaceTable, "
 /**
  * A Module's tables, limited to the place `scope` opened: the data layer adds the place's condition
  * to every query and fills in the Workspace (and Site); a table that isn't one of the Module's is
- * refused. A change to a table its Redirect rules read (SDK 1.4) clears the Site's page cache with
+ * refused. A change to a table its Redirect rules read (SDK 1.5) clears the Site's page cache with
  * it, as the Site pipeline keeps their answers with the Site's pages.
  */
 export function moduleData(
 	module: RunnableModule,
 	scope: PlaceScope,
-	options: { inTransaction?: boolean } = {},
+	options: { inTransaction?: boolean; ensurePartition?: EnsurePartition } = {},
 ): ModuleData {
+	const { ensurePartition } = options;
 	const queries = placeQueries(scope);
 	const own = <Table extends ModuleTable>(table: Table): Table & WorkspaceTable => {
 		if (!module.tables.has(table)) {
@@ -59,6 +68,11 @@ export function moduleData(
 		first: (table, where?: SQL, options = {}) => queries.first(own(table), where, options) as never,
 		count: (table, where?: SQL) => queries.count(own(table), where),
 		insert: async (table, row) => {
+			const partitioning = module.partitions.find((each) => each.table === table);
+			if (partitioning && ensurePartition) {
+				const at = (row as Record<string, unknown>)[partitioning.columnKey];
+				await ensurePartition(module, partitioning, at instanceof Date ? at : scope.now(), scope);
+			}
 			const inserted = await queries.insert(own(table), values(table, row));
 			return changed(table, inserted, 1) as never;
 		},
@@ -70,6 +84,25 @@ export function moduleData(
 		delete: async (table, where?: SQL) => {
 			const deleted = await queries.delete(own(table), where);
 			return changed(table, deleted, deleted);
+		},
+		aggregate: async (table, query) => {
+			const owned = own(table);
+			const columns = new Set(Object.values(getTableColumns(owned)));
+			const groups = Object.entries(query.groupBy ?? {}) as [string, AnyPgColumn][];
+			for (const [, column] of groups) {
+				if (!columns.has(column)) {
+					throw new ModuleRefusedError("table", `A group of an aggregate isn't a column of ${getTableName(owned)}.`);
+				}
+			}
+			let select = scope.db
+				.select({ ...Object.fromEntries(groups), ...query.values } as never)
+				.from(owned as never)
+				.where(queries.where(owned, query.where))
+				.$dynamic();
+			if (groups.length > 0) select = select.groupBy(...groups.map(([, column]) => column));
+			if (query.orderBy?.length) select = select.orderBy(...query.orderBy);
+			if (query.limit !== undefined) select = select.limit(query.limit);
+			return (await select) as never;
 		},
 	};
 }

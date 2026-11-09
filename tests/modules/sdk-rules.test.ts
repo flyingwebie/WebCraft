@@ -1,0 +1,80 @@
+// What the Module SDK 1.4 adds, checked when the Install loads a Module: a Site route's limits, a
+// Site script that runs before consent, and tables kept in monthly partitions. A definition that
+// breaks a rule can't run; the Modules screen says why.
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { type ModuleDefinition, moduleSchema, siteColumns, text, uuid } from "@webcraft/module-sdk";
+
+import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { sample } from "./sample/index.ts";
+
+let install: TestInstall;
+
+beforeAll(async () => {
+	install = await createTestInstall({ modules: [sample] });
+});
+
+afterAll(async () => {
+	await install.close();
+});
+
+/** Why the Install can't run `module`, as the Modules screen says. */
+async function problemOf(module: ModuleDefinition): Promise<string | null> {
+	await install.restart({ modules: [module] });
+	try {
+		const { modules } = await (await install.superadmin()).api.modules.list();
+		const found = modules.find((each) => each.id === "sample");
+		expect(found?.status).toBe("cannot-run");
+		return found?.problem ?? null;
+	} finally {
+		await install.restart({ modules: [sample] });
+	}
+}
+
+const [route] = sample.siteRoutes ?? [];
+
+describe("a Module can't run when", () => {
+	test("a Site route's limit isn't whole requests per whole seconds", async () => {
+		const limited = {
+			...sample,
+			siteRoutes: [{ ...route, limit: { requests: 0.5, perSeconds: 60 } }],
+		} as ModuleDefinition;
+
+		expect(await problemOf(limited)).toContain("limit isn't whole requests per whole seconds");
+	});
+
+	test("a Site route's largest body isn't a whole number of bytes", async () => {
+		const sized = { ...sample, siteRoutes: [{ ...route, maxBodyBytes: -1 }] } as ModuleDefinition;
+
+		expect(await problemOf(sized)).toContain("maxBodyBytes isn't a whole number of bytes");
+	});
+
+	test("its Necessary Site script says it runs before consent", async () => {
+		const necessary: ModuleDefinition = {
+			...sample,
+			manifest: { ...sample.manifest, siteScript: "necessary" },
+			siteScript: { code: "void 0;", beforeConsent: true },
+		};
+
+		expect(await problemOf(necessary)).toContain("beforeConsent says nothing");
+	});
+
+	test("it partitions a table that isn't its own, or by a column that isn't a time", async () => {
+		const elsewhere = moduleSchema("sample").table("elsewhere", {
+			...siteColumns(),
+			id: uuid("id").notNull(),
+			label: text("label").notNull(),
+		});
+		const label = { en: "Elsewhere", it: "Altrove" };
+
+		expect(
+			await problemOf({ ...sample, partitions: [{ table: elsewhere, column: elsewhere.label, label, keepMonths: 3 }] }),
+		).toContain("isn't one of the Module's tables");
+		expect(
+			await problemOf({
+				...sample,
+				tables: [...(sample.tables ?? []), elsewhere],
+				partitions: [{ table: elsewhere, column: elsewhere.label, label, keepMonths: 3 }],
+			}),
+		).toContain("which isn't a timestamp with time zone");
+	});
+});

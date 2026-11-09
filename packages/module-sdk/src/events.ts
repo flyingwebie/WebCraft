@@ -24,7 +24,13 @@ export type ModuleEvents = {
 	/** The Site's Globals were published. */
 	"globals.published": Record<string, never>;
 	/**
-	 * Published paths changed without a publish (SDK 1.4): Staff changed a Post Type's URL pattern
+	 * A visitor sent one of the Site's Forms and its Submission was kept (never spam), SDK 1.4: which
+	 * Form, the path of the page it was sent from (null when the post didn't say) and its language.
+	 * Nothing the visitor typed.
+	 */
+	"form.submitted": { formId: string; formKey: string; page: string | null; language: string };
+	/**
+	 * Published paths changed without a publish (SDK 1.5): Staff changed a Post Type's URL pattern
 	 * (`reason: "urlPattern"`, with its `postTypeId`), or the Site's Default language (`reason:
 	 * "defaultLanguage"`), and every published Entry's address in `pathChanges` moved with it.
 	 */
@@ -43,6 +49,7 @@ export const MODULE_EVENTS = [
 	"entry.deleted",
 	"template.published",
 	"globals.published",
+	"form.submitted",
 	"paths.changed",
 ] as const satisfies readonly ModuleEventName[];
 

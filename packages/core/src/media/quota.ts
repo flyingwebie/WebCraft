@@ -40,6 +40,20 @@ export async function workspaceMediaBytes(db: Executor, workspaceId: string): Pr
 	return Number(row?.used ?? 0);
 }
 
+/**
+ * Ties uploads to quota changes, across processes: uploads hold it shared, so they still run side by
+ * side, and a quota change holds it alone. Locking the quota row isn't enough while a Workspace has
+ * none yet: there is nothing to lock, and an upload could slip past a first quota being set.
+ */
+async function lockQuota(db: Executor, workspaceId: string, mode: "shared" | "alone"): Promise<void> {
+	const key = `webcraft:media-quota:${workspaceId}`;
+	await db.execute(
+		mode === "shared"
+			? sql`select pg_advisory_xact_lock_shared(hashtextextended(${key}, 0))`
+			: sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`,
+	);
+}
+
 /** A Workspace's quota row, locked for the transaction when `lock` says so. */
 async function quotaRow(db: Executor, workspaceId: string, lock = false) {
 	const query = db.select().from(mediaQuotas).where(eq(mediaQuotas.workspaceId, workspaceId));
@@ -65,7 +79,8 @@ function storageOf(usedBytes: number, quotaBytes: number | null): MediaStorage {
 /**
  * Refuses (`MediaQuotaFullError`) a file of `adding` bytes that would take the Workspace past its
  * quota. With `lock`, it holds the quota row until the transaction ends, so two uploads checked at
- * once can't both squeeze past it; call it that way inside the transaction that records the file.
+ * once can't both squeeze past it, and waits for a quota change under way (`lockQuota`); call it
+ * that way inside the transaction that records the file.
  */
 export async function assertRoom(
 	db: Executor,
@@ -73,6 +88,7 @@ export async function assertRoom(
 	adding: number,
 	options: { lock?: boolean } = {},
 ): Promise<void> {
+	if (options.lock) await lockQuota(db, workspaceId, "shared");
 	const row = await quotaRow(db, workspaceId, options.lock);
 	if (!row) return;
 	const used = await workspaceMediaBytes(db, workspaceId);
@@ -162,6 +178,7 @@ export async function setMediaQuota(
 		throw new RangeError(`A quota is at least ${MEDIA_QUOTA_MIN_BYTES} bytes.`);
 	}
 	await scope.transaction(async (tx) => {
+		await lockQuota(tx.db, tx.workspace.id, "alone");
 		const before = await quotaRow(tx.db, tx.workspace.id, true);
 		const from = before?.quotaBytes ?? null;
 		if (from === quotaBytes) return;

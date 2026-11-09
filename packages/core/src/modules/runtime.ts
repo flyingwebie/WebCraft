@@ -10,6 +10,7 @@ import {
 	ModuleRefusedError,
 	type ProcedureContext,
 	type SiteRouteContext,
+	type SiteVisitor,
 } from "@webcraft/module-sdk";
 
 import { isAdminLanguage } from "../admin-languages.ts";
@@ -22,7 +23,7 @@ import type { Logger } from "../log.ts";
 import type { ModuleActor } from "../permissions/can.ts";
 import { SecretNotSetError } from "../secrets/store.ts";
 import type { Access, DataLayer } from "../tenancy/data-layer.ts";
-import { moduleData, type PlaceScope } from "./data.ts";
+import { type EnsurePartition, moduleData, type PlaceScope } from "./data.ts";
 import { moduleJob, type QueuedPlace } from "./jobs.ts";
 import { type ModuleLogLevel, writeModuleLog } from "./module-log.ts";
 import type { RunnableModule } from "./registry.ts";
@@ -36,6 +37,8 @@ export type RuntimeDeps = {
 	fetch: GuardedFetch;
 	clock: Clock;
 	log: Logger;
+	/** Makes the month's partition before a row goes into a partitioned table (see `partitions.ts`). */
+	ensurePartition?: EnsurePartition;
 };
 
 /** A Module acting by itself (a job, an event, a Site route) at a place: as `can()` and the Audit log see it. */
@@ -127,7 +130,10 @@ export function moduleContext(
 		module: { id: module.id, version: manifest.version },
 		place: place as ModulePlace,
 		now: () => scope.now(),
-		data: moduleData(module, scope, { inTransaction: afterCommit !== null }),
+		data: moduleData(module, scope, {
+			inTransaction: afterCommit !== null,
+			ensurePartition: deps.ensurePartition,
+		}),
 		async audit(action, details) {
 			if (!AUDIT_ACTION.test(action)) {
 				throw new TypeError(`An Audit log action is <noun>.<verb>, such as note.add: not ${action}.`);
@@ -250,8 +256,9 @@ export function routeContext(
 	scope: PlaceScope,
 	deps: RuntimeDeps,
 	params: Record<string, string>,
+	visitor: SiteVisitor,
 ): SiteRouteContext {
-	return { ...moduleContext(module, scope, deps), params };
+	return { ...moduleContext(module, scope, deps), params, visitor };
 }
 
 /**

@@ -5,10 +5,11 @@ import type { LoadedModule } from "./registry.ts";
 /**
  * What a Module asks for, as the Superadmin approves it: one consent item per grant, such as
  * `permission:sample.notes.edit:owner` (Owners get the Module's Permission to edit notes),
- * `use:email` or `host:api.example.com`. An approval stores the items it granted; a later version
- * asks for more when it has an item the approval doesn't.
+ * `use:email`, `host:api.example.com`, `script:analytics`, or `script:analytics:before-consent` for a
+ * Site script that runs before visitors accept its category (SDK 1.4). An approval stores the items
+ * it granted; a later version asks for more when it has an item the approval doesn't.
  */
-export function consentItems(manifest: ModuleManifest): string[] {
+export function consentItems(manifest: ModuleManifest, beforeConsent = false): string[] {
 	return [
 		...manifest.permissions.flatMap((permission) =>
 			permission.roles.map((role) => `permission:${manifest.id}.${permission.key}:${role}`),
@@ -16,12 +17,13 @@ export function consentItems(manifest: ModuleManifest): string[] {
 		...manifest.uses.map((use) => `use:${use}`),
 		...manifest.outsideHosts.map((host) => `host:${host}`),
 		...(manifest.siteScript ? [`script:${manifest.siteScript}`] : []),
+		...(manifest.siteScript && beforeConsent ? [`script:${manifest.siteScript}:before-consent`] : []),
 	];
 }
 
 /** Whether everything `manifest` asks for was granted. */
-export function isCovered(manifest: ModuleManifest, granted: readonly string[]): boolean {
-	return consentItems(manifest).every((item) => granted.includes(item));
+export function isCovered(manifest: ModuleManifest, granted: readonly string[], beforeConsent = false): boolean {
+	return consentItems(manifest, beforeConsent).every((item) => granted.includes(item));
 }
 
 /** What a Module asks for, in the person's language, each marked new when the approval didn't grant it. */
@@ -29,7 +31,8 @@ export type ConsentView = {
 	permissions: { key: string; label: string; roles: string[]; isNew: boolean }[];
 	uses: { use: string; isNew: boolean }[];
 	outsideHosts: { host: string; isNew: boolean }[];
-	siteScript: { category: string; isNew: boolean } | null;
+	/** The Consent category of the script it adds to Site pages, and whether it runs before visitors accept it. */
+	siteScript: { category: string; beforeConsent: boolean; isNew: boolean } | null;
 };
 
 /** What a Module adds to WebCraft besides what it asks for, for the consent screen. */
@@ -46,9 +49,9 @@ export type AdditionsView = {
 	components: string[];
 	/** Whether it keeps what visitors send through Forms (the Sites' Form Submissions). */
 	submissions: boolean;
-	/** Whether it keeps the Sites' Redirect rules, which answer before the Sites' own pages (SDK 1.4). */
+	/** Whether it keeps the Sites' Redirect rules, which answer before the Sites' own pages (SDK 1.5). */
 	redirectRules: boolean;
-	/** Whether it keeps the Sites' 404 log, the paths visitors asked for that have no page (SDK 1.4). */
+	/** Whether it keeps the Sites' 404 log, the paths visitors asked for that have no page (SDK 1.5). */
 	notFoundLog: boolean;
 	/** Its jobs that run on a schedule: how often each runs. */
 	schedules: ("hour" | "day")[];
@@ -56,6 +59,7 @@ export type AdditionsView = {
 
 export function consentView(
 	manifest: ModuleManifest,
+	beforeConsent: boolean,
 	granted: readonly string[] | null,
 	language: string,
 ): ConsentView {
@@ -74,7 +78,13 @@ export function consentView(
 		uses: manifest.uses.map((use) => ({ use, isNew: isNew(`use:${use}`) })),
 		outsideHosts: manifest.outsideHosts.map((host) => ({ host, isNew: isNew(`host:${host}`) })),
 		siteScript: manifest.siteScript
-			? { category: manifest.siteScript, isNew: isNew(`script:${manifest.siteScript}`) }
+			? {
+					category: manifest.siteScript,
+					beforeConsent,
+					isNew:
+						isNew(`script:${manifest.siteScript}`) ||
+						(beforeConsent && isNew(`script:${manifest.siteScript}:before-consent`)),
+				}
 			: null,
 	};
 }
