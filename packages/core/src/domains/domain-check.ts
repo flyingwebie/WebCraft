@@ -1,10 +1,10 @@
 import type { Database } from "@webcraft/db";
-import { membershipSites, memberships, siteDomains } from "@webcraft/db/schema";
-import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { siteDomains } from "@webcraft/db/schema";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { Email } from "../email/index.ts";
 import type { Logger } from "../log.ts";
-import { roleDefinition } from "../permissions/roles.ts";
+import { siteOwners } from "../tenancy/site-owners.ts";
 import { type CheckPorts, checkCertificate, checkReaches } from "./checks.ts";
 import type { DomainProblem, DomainRow } from "./domains.ts";
 import { displayName } from "./names.ts";
@@ -73,28 +73,4 @@ async function tellOwners(ports: LiveCheckPorts, scope: DomainScope, row: Domain
 		},
 		related: { kind: "site", id: scope.site.id },
 	});
-}
-
-/**
- * The Site's Owners: the Members of its Workspace who reach the Site and whose role manages the
- * Workspace's Members (`member.manage`, which only Owners hold in v1). Checked by Permission, never
- * by role name (ADR 0028).
- */
-async function siteOwners(scope: Pick<DomainScope, "db" | "site" | "workspace">): Promise<string[]> {
-	const rows = await scope.db
-		.selectDistinct({ personId: memberships.personId, role: memberships.role })
-		.from(memberships)
-		.leftJoin(
-			membershipSites,
-			and(eq(membershipSites.membershipId, memberships.id), eq(membershipSites.siteId, scope.site.id)),
-		)
-		.where(
-			and(
-				eq(memberships.workspaceId, scope.workspace.id),
-				or(eq(memberships.allSites, true), isNotNull(membershipSites.siteId)),
-			),
-		);
-	return rows
-		.filter((row) => roleDefinition(row.role)?.permissions.includes("member.manage") ?? false)
-		.map((row) => row.personId);
 }

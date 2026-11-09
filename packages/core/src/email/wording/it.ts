@@ -162,6 +162,15 @@ export const it: EmailWording = {
 			],
 			action: { label: "Controlla i domini", path: domainsPath },
 		}),
+		"webhook-switched-off": ({ webhookName, host, siteName, failures, webhooksPath }) => ({
+			subject: `Un Webhook di ${siteName} è stato disattivato`,
+			heading: "Un Webhook è stato disattivato",
+			paragraphs: [
+				`Il Webhook ${webhookName} di ${siteName}, verso ${host}, non è riuscito a consegnare ${failures} volte di seguito, quindi è stato disattivato: non riceve nulla finché non viene riattivato.`,
+				"Quando il sistema che chiama torna a funzionare, riattivalo e consegna di nuovo dal suo registro delle consegne ciò che ha perso.",
+			],
+			action: { label: "Apri i Webhook", path: webhooksPath },
+		}),
 		"module-message": ({ moduleName, languages, subject, heading, paragraphs, action }) => {
 			const words = (label: Readonly<Record<string, string>>) => wordsIn(label, "it", languages);
 			return {
