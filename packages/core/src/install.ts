@@ -4,6 +4,7 @@ import type { PgBoss } from "pg-boss";
 
 import { systemClock } from "./clock.ts";
 import { type Environment, type InstallConfig, loadInstallConfig } from "./config.ts";
+import { countriesFromFile, unknownCountries } from "./countries.ts";
 import { createInstallServices } from "./create-services.ts";
 import { systemDns } from "./dns.ts";
 import { createSmtpMailer } from "./email/smtp-mailer.ts";
@@ -132,6 +133,7 @@ function realPorts(
 		http,
 		dns: systemDns,
 		tls: systemTls,
+		countries: config.countryFile ? countriesFromFile(config.countryFile, log) : unknownCountries,
 		clock: systemClock,
 		log,
 	};

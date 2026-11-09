@@ -23,6 +23,12 @@ export type ModuleEvents = {
 	"template.published": { templateId: string };
 	/** The Site's Globals were published. */
 	"globals.published": Record<string, never>;
+	/**
+	 * A visitor sent one of the Site's Forms and its Submission was kept (never spam), SDK 1.4: which
+	 * Form, the path of the page it was sent from (null when the post didn't say) and its language.
+	 * Nothing the visitor typed.
+	 */
+	"form.submitted": { formId: string; formKey: string; page: string | null; language: string };
 };
 
 export type ModuleEventName = keyof ModuleEvents;
@@ -33,6 +39,7 @@ export const MODULE_EVENTS = [
 	"entry.deleted",
 	"template.published",
 	"globals.published",
+	"form.submitted",
 ] as const satisfies readonly ModuleEventName[];
 
 /** One event as a Module receives it: what happened, on which Site, and when. */

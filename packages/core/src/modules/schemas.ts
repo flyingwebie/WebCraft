@@ -24,10 +24,12 @@ export function schemasOf(registry: ModuleRegistry): ModuleSchema[] {
 						migrations: module.definition.migrations ?? [],
 						tables: [...module.tables].map((table) => {
 							const columns = getTableConfig(table).columns.map((column) => column.name);
+							const partitioning = module.partitions.find((each) => each.table === table);
 							return {
 								name: getTableName(table),
 								kind: columns.includes("site_id") ? ("site" as const) : ("workspace" as const),
 								columns,
+								...(partitioning ? { partitionedBy: partitioning.column } : {}),
 							};
 						}),
 					},

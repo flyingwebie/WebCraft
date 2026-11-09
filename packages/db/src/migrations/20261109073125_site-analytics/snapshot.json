@@ -1,0 +1,267 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "97edf6c0-eacd-4641-992f-c133632caddc",
+  "prevIds": [
+    "514366a5-c7fc-4a9b-af43-dd64962b371b"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "module_partition_settings"
+      ],
+      "writes": [
+        "s|tbl|public.module_partition_settings",
+        "n|tbl|public.module_partition_settings",
+        "e|tbl|public.module_partition_settings",
+        "n|rel|public.module_partition_settings",
+        "n|type|public.module_partition_settings",
+        "n|rel|public.module_partition_settings_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "visitor_salts"
+      ],
+      "writes": [
+        "s|tbl|public.visitor_salts",
+        "n|tbl|public.visitor_salts",
+        "e|tbl|public.visitor_salts",
+        "n|rel|public.visitor_salts",
+        "n|type|public.visitor_salts",
+        "n|rel|public.visitor_salts_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "module_partition_settings"
+      ],
+      "writes": [
+        "s|fk|public.module_partition_settings.module_partition_settings_changed_by_people_id_fkey",
+        "n|fk|public.module_partition_settings.module_partition_settings_changed_by_people_id_fkey",
+        "e|fk|public.module_partition_settings.module_partition_settings_changed_by_people_id_fkey",
+        "n|con|public.module_partition_settings.module_partition_settings_changed_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.module_partition_settings",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.module_partition_settings.changed_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "module_partition_settings",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "visitor_salts",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "module_partition_settings",
+        "name": "module_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "module_partition_settings",
+        "name": "table_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "module_partition_settings",
+        "name": "keep_months",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "module_partition_settings",
+        "name": "changed_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "module_partition_settings",
+        "name": "changed_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "visitor_salts",
+        "name": "day",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "visitor_salts",
+        "name": "salt",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "visitor_salts",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "module_partition_settings",
+        "name": "module_partition_settings_changed_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "changed_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "module_partition_settings",
+        "name": "module_partition_settings_pkey",
+        "columns": [
+          "module_id",
+          "table_name"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "visitor_salts",
+        "name": "visitor_salts_pkey",
+        "columns": [
+          "day"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}
