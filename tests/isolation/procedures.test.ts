@@ -1038,6 +1038,74 @@ describe("Publish all", () => {
 	);
 });
 
+/** The Revision a target's Entry was published with, made once by the Superadmin. */
+const revisions = new Map<string, Promise<{ entryId: string; revisionId: string }>>();
+function revisionIn(target: IsolationTarget) {
+	let revision = revisions.get(target.siteId);
+	if (!revision) {
+		revision = (async () => {
+			const { api } = await install.superadmin();
+			const { entryId } = await contentIn(target);
+			await api.entries.publish({ siteId: target.siteId, entryId });
+			const { copies } = await api.history.list({ siteId: target.siteId, item: { kind: "entry", id: entryId } });
+			return { entryId, revisionId: copies.find((copy) => copy.type === "revision")?.id ?? "" };
+		})();
+		revisions.set(target.siteId, revision);
+	}
+	return revision;
+}
+
+describe("history", () => {
+	isolation.refuses(
+		"history.list",
+		async (api, target) =>
+			api.history.list({ siteId: target.siteId, item: { kind: "entry", id: (await contentIn(target)).entryId } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.get",
+		async (api, target) => {
+			const { entryId, revisionId } = await revisionIn(target);
+			return api.history.get({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				copy: { type: "revision", id: revisionId },
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.compare",
+		async (api, target) => {
+			const { entryId, revisionId } = await revisionIn(target);
+			return api.history.compare({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				copy: { type: "revision", id: revisionId },
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.restore",
+		async (api, target) => {
+			const { entryId, revisionId } = await revisionIn(target);
+			return api.history.restore({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				copy: { type: "revision", id: revisionId },
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.leave",
+		async (api, target) =>
+			api.history.leave({ siteId: target.siteId, item: { kind: "entry", id: (await contentIn(target)).entryId } }),
+		{ as: ["staff", "author"] },
+	);
+});
+
 describe("Members", () => {
 	isolation.refuses("members.list", (api, { workspaceId }) => api.members.list({ workspaceId }), {
 		as: ["staff", "owner"],

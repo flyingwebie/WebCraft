@@ -225,6 +225,23 @@ describe("restored into a fresh database", () => {
 		expect(entry.draft.title).toBe("Brioche");
 	});
 
+	test("each item's history comes back: the Revision its publish saved, and who published it", async () => {
+		const postTypes = (await editor.api.postTypes.list({ siteId })).postTypes;
+		const blog = postTypes.find((each) => each.name === "Blog posts");
+		const entries = (await editor.api.entries.list({ siteId, postTypeId: blog?.id ?? "" })).entries;
+		const fresh = entries.find((entry) => entry.draft.title === "Fresh bread");
+		const item = { kind: "entry", id: fresh?.id ?? "" } as const;
+		const { copies } = await editor.api.history.list({ siteId, item });
+		expect(copies.map((copy) => copy.type)).toEqual(["revision"]);
+		expect(copies[0]?.by?.person?.name).toEqual(expect.any(String));
+		const revision = await editor.api.history.get({
+			siteId,
+			item,
+			copy: { type: "revision", id: copies[0]?.id ?? "" },
+		});
+		expect(JSON.stringify(revision.content)).toContain("Fresh bread");
+	});
+
 	test("the Audit log comes back, and keeps counting from where it was", async () => {
 		const admin = await restored.signIn(superadmin);
 		const { entries } = await admin.api.audit.list({ limit: 200 });
