@@ -10,10 +10,11 @@ import { pinnedTarget } from "./http-pinned.ts";
 /**
  * Outgoing HTTP for the worker, on Node. A call pinned to an address goes over `node:http`/`node:https`
  * to that address, with the URL's host name in the `Host` header and as the TLS server name, which
- * Node sends for SNI and checks the certificate against (never against the address). Kept connections are found again by address and port
- * (over TLS also by server name and trusted authorities), so a reused connection is one made to the
- * same address for the same name. The answer's body streams as it arrives, decoded as `fetch` decodes
- * it, and a pinned call never follows a redirect. Every other call is Node's `fetch`, as it is.
+ * Node sends for SNI and checks the certificate against (never against the address). Kept
+ * connections are found again by address and port (over TLS also by server name and trusted
+ * authorities), so a reused connection is one made to the same address for the same name. The
+ * answer's body streams as it arrives, decoded as `fetch` decodes it, and a pinned call never follows
+ * a redirect. Every other call is Node's `fetch`, as it is.
  *
  * `ca`: the certificate authorities pinned calls trust instead of the usual ones (tests trust one they
  * made with it).
