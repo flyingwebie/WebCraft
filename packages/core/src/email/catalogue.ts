@@ -145,11 +145,6 @@ export function isSystemEmailType(type: string): type is SystemEmailType {
 	return Object.hasOwn(SYSTEM_EMAIL_TYPES, type);
 }
 
-/** A Module's words in `language`, or in its first language when it has none in it. */
-export function moduleWordsIn(words: Readonly<Record<string, string>>, language: string, languages: readonly string[]) {
-	return words[language] ?? words[languages[0] ?? ""] ?? "";
-}
-
 export function categoryOf(type: SystemEmailType): EmailCategory {
 	return SYSTEM_EMAIL_TYPES[type].category;
 }

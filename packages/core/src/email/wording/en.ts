@@ -1,4 +1,4 @@
-import { moduleWordsIn } from "../catalogue.ts";
+import { wordsIn } from "@webcraft/module-sdk";
 import type { EmailWording } from "./types.ts";
 
 const days = (count: number) => (count === 1 ? "1 day" : `${count} days`);
@@ -158,7 +158,7 @@ export const en: EmailWording = {
 			action: { label: "Check the domains", path: domainsPath },
 		}),
 		"module-message": ({ moduleName, languages, subject, heading, paragraphs, action }) => {
-			const words = (label: Readonly<Record<string, string>>) => moduleWordsIn(label, "en", languages);
+			const words = (label: Readonly<Record<string, string>>) => wordsIn(label, "en", languages);
 			return {
 				subject: words(subject),
 				heading: words(heading),

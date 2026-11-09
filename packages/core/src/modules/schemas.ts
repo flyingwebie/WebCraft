@@ -3,32 +3,35 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { getTableName } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 
-import { loadModules } from "./registry.ts";
+import { loadModules, type ModuleRegistry } from "./registry.ts";
 
 /**
  * What the `migrate` step and the schema check need to know about Modules: each runnable Module's
  * schema, migrations and declared tables. A Module WebCraft can't run has no migrations applied.
  */
 export function moduleSchemas(definitions: readonly ModuleDefinition[]): ModuleSchema[] {
-	return loadModules(definitions)
-		.all()
-		.flatMap((module) =>
-			module.runnable
-				? [
-						{
-							moduleId: module.id,
-							schema: module.schema,
-							migrations: module.definition.migrations ?? [],
-							tables: [...module.tables].map((table) => {
-								const columns = getTableConfig(table).columns.map((column) => column.name);
-								return {
-									name: getTableName(table),
-									kind: columns.includes("site_id") ? ("site" as const) : ("workspace" as const),
-									columns,
-								};
-							}),
-						},
-					]
-				: [],
-		);
+	return schemasOf(loadModules(definitions));
+}
+
+/** `moduleSchemas` for Modules already loaded. */
+export function schemasOf(registry: ModuleRegistry): ModuleSchema[] {
+	return registry.all().flatMap((module) =>
+		module.runnable
+			? [
+					{
+						moduleId: module.id,
+						schema: module.schema,
+						migrations: module.definition.migrations ?? [],
+						tables: [...module.tables].map((table) => {
+							const columns = getTableConfig(table).columns.map((column) => column.name);
+							return {
+								name: getTableName(table),
+								kind: columns.includes("site_id") ? ("site" as const) : ("workspace" as const),
+								columns,
+							};
+						}),
+					},
+				]
+			: [],
+	);
 }

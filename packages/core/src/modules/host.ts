@@ -56,7 +56,7 @@ import {
 	routeContext,
 	writeLine,
 } from "./runtime.ts";
-import { moduleSchemas } from "./schemas.ts";
+import { schemasOf } from "./schemas.ts";
 
 /**
  * Where a Module stands on this Install:
@@ -293,7 +293,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 
 	return {
 		registry,
-		schemas: moduleSchemas(modules),
+		schemas: schemasOf(registry),
 
 		async list(_scope, language) {
 			const approved = await approvals();
