@@ -125,6 +125,7 @@
 		"IMPORT_NOT_FOUND": "That Import doesn't exist (any more).",
 		"IMPORT_RUN_NOT_FOUND": "That Import run doesn't exist, or its report was purged.",
 		"IMPORT_INVALID": "The Import's settings don't fit the Post Type.",
+		"IMPORT_POST_TYPE_FIXED": "This Import brought Entries in, so it keeps its Post Type: undo its runs, or start a new Import.",
 		"IMPORT_RUNNING": "A run of this Import hasn't ended yet: wait for it, or stop it.",
 		"IMPORT_UNDO_REFUSED": "This run can't be undone."
 	},
@@ -2875,7 +2876,7 @@
 		"pageTitle": "Imports",
 		"heading": "Imports",
 		"intro": "Bring content in from a CSV file. Everything arrives as Drafts, ready to check before it's published.",
-		"new": "New import",
+		"new": "New Import",
 		"none": "No Imports yet. Start one here, or with Import CSV on a Post Type's Entries.",
 		"columns": {
 			"import": "Import",
@@ -2885,7 +2886,7 @@
 			"open": "Open"
 		},
 		"sources": {
-			"heading": "Start an import",
+			"heading": "Start an Import",
 			"csv": {
 				"title": "CSV file",
 				"body": "Load rows into one Post Type, one column per Field. Owners and Editors can use it too.",
@@ -2958,7 +2959,7 @@
 			"seeRows": "See rows",
 			"hideRows": "Hide rows",
 			"skippedColumns": "Skipped columns, listed in the report: {columns}",
-			"working": "Working out what the import would do…"
+			"working": "Working out what the Import would do…"
 		},
 		"report": {
 			"noProblems": "No problems.",
@@ -3053,10 +3054,10 @@
 			"toMap": "Continue to mapping",
 			"mapIntro": "Choose where each column goes",
 			"toPreview": "Preview",
-			"previewIntro": "Check what the import will do",
-			"start": "Start import",
+			"previewIntro": "Check what the Import will do",
+			"start": "Start Import",
 			"backToList": "Back to Imports",
-			"newTitle": "New import",
+			"newTitle": "New Import",
 			"back": "Back",
 			"cancel": "Cancel",
 			"source": "Source",
@@ -3065,6 +3066,7 @@
 			"name": "Import name",
 			"nameHelp": "Shown in the list and the report.",
 			"postType": "Post Type",
+			"postTypeFixed": "This Import brought Entries in, so it keeps its Post Type. Undo its runs, or start a new Import.",
 			"fileAgain": "Choose the file again: uploaded files are deleted once their run ends. Columns keep where they went, by name.",
 			"goodToKnow": "Good to know",
 			"notePrivate": "The file stays private: it never joins the Media library and is deleted once the run ends.",

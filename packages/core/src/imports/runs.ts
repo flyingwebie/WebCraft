@@ -5,6 +5,7 @@
 import {
 	entries,
 	importFiles,
+	importItems,
 	importRunChanges,
 	importRunProblems,
 	importRuns,
@@ -12,7 +13,7 @@ import {
 	people,
 	postTypes,
 } from "@webcraft/db/schema";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { siteLanguages } from "../content/languages.ts";
@@ -28,6 +29,7 @@ import { type CsvSettings, csvItem, csvMapping, csvSettingsSchema, matchKey, ski
 import {
 	ImportInvalidError,
 	ImportNotFoundError,
+	ImportPostTypeFixedError,
 	ImportRunNotFoundError,
 	ImportRunningError,
 	type UndoRefusal,
@@ -145,6 +147,8 @@ export type Import = {
 	updatedAt: Date;
 	/** How many runs it has had, reports purged since included. */
 	runs: number;
+	/** How many Entries it brought in and keeps track of: while it has any, it keeps its Post Type. */
+	entries: number;
 	/** Its newest run whose report is kept, if any. */
 	lastRun: ImportRunSummary | null;
 };
@@ -206,14 +210,22 @@ export async function createImport(scope: SiteScope, input: NewImport): Promise<
 	});
 }
 
-/** Changes an Import's name or settings; later runs use them. */
+/**
+ * Changes an Import's name or settings; later runs use them. Its Post Type stays while it keeps track
+ * of Entries it brought in (`ImportPostTypeFixedError`).
+ */
 export async function updateImport(
 	scope: SiteScope,
 	importId: string,
 	change: { name?: string; settings?: CsvSettings },
 ): Promise<Import> {
 	const row = await findImport(scope, importId);
-	if (change.settings) await csvMapping(scope, change.settings);
+	if (change.settings) {
+		await csvMapping(scope, change.settings);
+		const before = csvSettingsSchema.safeParse(row.settings);
+		const movesPostType = !before.success || before.data.postTypeId !== change.settings.postTypeId;
+		if (movesPostType && (await trackedEntries(scope, [row.id])).has(row.id)) throw new ImportPostTypeFixedError();
+	}
 	const [saved] = await scope.update(
 		imports,
 		{
@@ -580,9 +592,29 @@ function problemView(row: number, problem: ItemProblem): ImportProblem {
 }
 
 /** Imports as the API answers them, each with its newest run. */
+/** How many Entries each Import keeps track of (those it brought in that still exist), by its id. */
+async function trackedEntries(scope: SiteScope, importIds: readonly string[]): Promise<Map<string, number>> {
+	const rows = await scope.db
+		.select({ importId: importItems.importId, count: count() })
+		.from(importItems)
+		.where(
+			scope.where(
+				importItems,
+				and(
+					inArray(importItems.importId, [...importIds]),
+					eq(importItems.kind, "entry"),
+					isNotNull(importItems.entryId),
+				),
+			),
+		)
+		.groupBy(importItems.importId);
+	return new Map(rows.map((row) => [row.importId, Number(row.count)]));
+}
+
 async function importViews(scope: SiteScope, rows: readonly ImportRow[]): Promise<Import[]> {
 	if (rows.length === 0) return [];
 	const ids = rows.map((row) => row.id);
+	const tracked = await trackedEntries(scope, ids);
 	const latest = await scope.db
 		.selectDistinctOn([importRuns.importId])
 		.from(importRuns)
@@ -617,6 +649,7 @@ async function importViews(scope: SiteScope, rows: readonly ImportRow[]): Promis
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 			runs: row.runs,
+			entries: tracked.get(row.id) ?? 0,
 			lastRun: summaries.get(row.id) ?? null,
 		};
 	});

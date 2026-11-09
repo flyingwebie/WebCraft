@@ -51,6 +51,7 @@ import {
 	ImportFileNotFoundError,
 	ImportInvalidError,
 	ImportNotFoundError,
+	ImportPostTypeFixedError,
 	ImportRunNotFoundError,
 	ImportRunningError,
 	ImportUndoRefusedError,
@@ -514,6 +515,9 @@ export function toApiError(error: unknown): unknown {
 			data: { problems: error.problems },
 			cause: error,
 		});
+	}
+	if (error instanceof ImportPostTypeFixedError) {
+		return new ORPCError("IMPORT_POST_TYPE_FIXED", { status: 409, message: error.message, cause: error });
 	}
 	if (error instanceof ImportRunningError) {
 		return new ORPCError("IMPORT_RUNNING", {

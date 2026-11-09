@@ -32,6 +32,7 @@ export {
 	ImportFileNotFoundError,
 	ImportInvalidError,
 	ImportNotFoundError,
+	ImportPostTypeFixedError,
 	ImportRunNotFoundError,
 	ImportRunningError,
 	type ImportSettingProblem,

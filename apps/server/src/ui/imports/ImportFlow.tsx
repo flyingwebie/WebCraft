@@ -31,6 +31,7 @@ import {
 	suggestedColumns,
 	suggestedMatch,
 } from "./model.ts";
+import { Note } from "./Note.tsx";
 import { type ImportStep, Stepper } from "./Stepper.tsx";
 
 type Step = Extract<ImportStep, "source" | "map" | "preview">;
@@ -58,6 +59,8 @@ export function ImportFlow({
 	const heading = useRef<HTMLHeadingElement>(null);
 	const [step, setStep] = useState<Step>("source");
 	const [name, setName] = useState(existing?.name ?? "");
+	// An Import that keeps track of Entries it brought in keeps its Post Type (the server refuses a change).
+	const postTypeFixed = (existing?.entries ?? 0) > 0;
 	// A Post Type Staff made, rather than Pages, unless the Import already has one.
 	const [postTypeId, setPostTypeId] = useState(
 		existing?.settings.postTypeId ?? (postTypes.find((type) => type.builtIn === null) ?? postTypes[0])?.id ?? "",
@@ -288,6 +291,8 @@ export function ImportFlow({
 								id={`${ids}-post-type`}
 								className="w-full"
 								value={postTypeId}
+								disabled={postTypeFixed}
+								aria-describedby={postTypeFixed ? `${ids}-post-type-help` : undefined}
 								onChange={(event) => setPostTypeId(event.target.value)}
 							>
 								{postTypes.map((type) => (
@@ -296,6 +301,9 @@ export function ImportFlow({
 									</NativeSelectOption>
 								))}
 							</NativeSelect>
+							{postTypeFixed ? (
+								<FieldDescription id={`${ids}-post-type-help`}>{t("imports.flow.postTypeFixed")}</FieldDescription>
+							) : null}
 						</Field>
 						{file ? (
 							<CsvFileCard
@@ -366,15 +374,5 @@ export function ImportFlow({
 				</div>
 			) : null}
 		</div>
-	);
-}
-
-/** A short note beside the form. */
-function Note({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-	return (
-		<p className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
-			<span className="mt-0.5 shrink-0">{icon}</span>
-			{children}
-		</p>
 	);
 }
