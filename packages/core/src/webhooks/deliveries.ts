@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { people, webhookDeliveries, webhookDeliveryAttempts, webhooks } from "@webcraft/db/schema";
-import { and, arrayContains, eq, inArray } from "drizzle-orm";
+import { and, arrayContains, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { RecordedAuditEntry } from "../audit.ts";
 import type { Clock } from "../clock.ts";
@@ -11,6 +11,7 @@ import type { JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
 import { SecretNotSetError, type Secrets, SecretUnreadableError } from "../secrets/store.ts";
 import type { BackgroundScope, DataLayer } from "../tenancy/data-layer.ts";
+import { WebhookDeliveryNotFoundError } from "./errors.ts";
 import { publishedBy, type WebhookEvent } from "./events.ts";
 import { webhooksDeliver } from "./jobs.ts";
 import { signatureHeader, signingSecretName, WEBHOOK_HEADERS } from "./signing.ts";
@@ -360,4 +361,106 @@ export async function waitingDeliveries(scope: Pick<DeliveryScope, "select">, we
 		and(eq(webhookDeliveries.webhookId, webhookId), inArray(webhookDeliveries.status, ["queued", "retrying"])),
 	);
 	return rows.map((row) => row.id);
+}
+
+/** One attempt of a delivery, as the delivery log shows it. */
+export type DeliveryAttemptView = {
+	number: number;
+	at: Date;
+	durationMs: number;
+	/** The receiver's HTTP status; null when it didn't answer. */
+	statusCode: number | null;
+	/** What went wrong; null when it was delivered. */
+	problem: AttemptProblem | null;
+	/** The start of the receiver's answer (up to 500 characters). */
+	excerpt: string | null;
+};
+
+/** A delivery, as the delivery log shows it: its body as sent, and every attempt, oldest first. */
+export type DeliveryView = {
+	/** The delivery id the receiver gets on every attempt. */
+	id: string;
+	event: string;
+	test: boolean;
+	status: "queued" | "retrying" | "delivered" | "failed";
+	createdAt: Date;
+	nextAttemptAt: Date | null;
+	finishedAt: Date | null;
+	lastStatusCode: number | null;
+	/** What went wrong with the last attempt, or `switched-off` when it was stopped before one. */
+	lastProblem: AttemptProblem | "switched-off" | null;
+	/** The JSON body, as sent. */
+	body: string;
+	attempts: DeliveryAttemptView[];
+};
+
+/** A page of the delivery log, newest first; `next` asks for the page after it (null at the end). */
+export type DeliveryPage = { deliveries: DeliveryView[]; next: string | null };
+
+/** The delivery log of a Webhook, newest first, `limit` at a time, before the delivery `before` when given. */
+export async function listDeliveries(
+	scope: Pick<DeliveryScope, "select" | "first">,
+	webhookId: string,
+	options: { before?: string | undefined; limit: number },
+): Promise<DeliveryPage> {
+	let where = eq(webhookDeliveries.webhookId, webhookId);
+	if (options.before) {
+		const from = await scope.first(
+			webhookDeliveries,
+			and(eq(webhookDeliveries.webhookId, webhookId), eq(webhookDeliveries.id, options.before)),
+		);
+		if (!from) throw new WebhookDeliveryNotFoundError();
+		where = and(
+			where,
+			sql`(${webhookDeliveries.createdAt}, ${webhookDeliveries.id}) < (${from.createdAt.toISOString()}::timestamptz, ${from.id}::uuid)`,
+		) as typeof where;
+	}
+	const rows = await scope.select(webhookDeliveries, where, {
+		orderBy: [desc(webhookDeliveries.createdAt), desc(webhookDeliveries.id)],
+		limit: options.limit + 1,
+	});
+	const page = rows.slice(0, options.limit);
+	const attempts =
+		page.length === 0
+			? []
+			: await scope.select(
+					webhookDeliveryAttempts,
+					inArray(
+						webhookDeliveryAttempts.deliveryId,
+						page.map((row) => row.id),
+					),
+					{ orderBy: [asc(webhookDeliveryAttempts.number)] },
+				);
+	return {
+		deliveries: page.map((row) => deliveryView(row, attempts)),
+		next: rows.length > options.limit ? (page.at(-1)?.id ?? null) : null,
+	};
+}
+
+export function deliveryView(
+	row: DeliveryRow,
+	attempts: readonly (typeof webhookDeliveryAttempts.$inferSelect)[],
+): DeliveryView {
+	return {
+		id: row.id,
+		event: row.event,
+		test: row.test,
+		status: row.status as DeliveryView["status"],
+		createdAt: row.createdAt,
+		nextAttemptAt: row.nextAttemptAt,
+		finishedAt: row.finishedAt,
+		lastStatusCode: row.lastStatusCode,
+		lastProblem: row.lastProblem as DeliveryView["lastProblem"],
+		body: row.body,
+		attempts: attempts
+			.filter((attempt) => attempt.deliveryId === row.id)
+			.map((attempt) => ({
+				number: attempt.number,
+				at: attempt.attemptedAt,
+				durationMs: attempt.durationMs,
+				statusCode: attempt.statusCode,
+				problem: attempt.problem as AttemptProblem | null,
+				excerpt: attempt.responseExcerpt,
+			})),
+	};
 }

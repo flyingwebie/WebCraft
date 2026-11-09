@@ -46,4 +46,23 @@ export const webhooks = {
 		})
 		.use(sensitive("webhook.change"))
 		.handler(async ({ context, input }) => await context.services.webhooks.add(context.site, input)),
+
+	/**
+	 * A Webhook's delivery log, newest first, 20 at a time (up to 100): each delivery's body as sent,
+	 * its status and every attempt (when, how long, the receiver's status and the start of its
+	 * answer, or what went wrong). `next` asks for the following page. Deliveries are kept 30 days.
+	 */
+	deliveries: signedIn
+		.input(
+			z.object({
+				siteId: id,
+				webhookId: id,
+				before: id.optional(),
+				limit: z.number().int().min(1).max(100).default(20),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "site.view");
+			return await context.services.webhooks.deliveries(site, input.webhookId, input);
+		}),
 };

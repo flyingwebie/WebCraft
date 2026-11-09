@@ -5,8 +5,10 @@ import type { RecordedAuditEntry } from "../audit.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	type AttemptPayload,
+	type DeliveryPage,
 	type DeliveryPorts,
 	type DeliveryScope,
+	listDeliveries,
 	publishEventOf,
 	queueEvent,
 	runAttempt,
@@ -14,6 +16,7 @@ import {
 import type { WebhookEvent } from "./events.ts";
 import {
 	addWebhook,
+	findWebhook,
 	listWebhooks,
 	type NewWebhook,
 	type WebhookRow,
@@ -21,6 +24,7 @@ import {
 	type WebhookWithSecret,
 } from "./webhooks.ts";
 
+export type { AttemptProblem, DeliveryAttemptView, DeliveryPage, DeliveryView } from "./deliveries.ts";
 export {
 	TooManyWebhooksError,
 	WebhookDeliveryNotFoundError,
@@ -54,6 +58,15 @@ export type Webhooks = {
 	/** Adds a Webhook, on at once; answers the signing secret WebCraft made, once, when none was given. */
 	add(scope: SiteScope, input: NewWebhook): Promise<WebhookWithSecret>;
 	/**
+	 * A Webhook's delivery log, newest first, `limit` at a time (the page before the delivery
+	 * `before` when given). Deliveries are kept 30 days.
+	 */
+	deliveries(
+		scope: SiteScope,
+		webhookId: string,
+		options: { before?: string | undefined; limit: number },
+	): Promise<DeliveryPage>;
+	/**
 	 * Queues an event on a Site for every Webhook that is on and receives it. Call it once the change
 	 * the event is about is saved (never inside its transaction); `data` holds no secret, and no
 	 * Content values unless the spec says so. Forms' `formSubmitted` (#89) is queued this way.
@@ -73,6 +86,10 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 	return {
 		list: listWebhooks,
 		add: addWebhook,
+		async deliveries(scope, webhookId, options) {
+			await findWebhook(scope, webhookId);
+			return listDeliveries(scope, webhookId, options);
+		},
 		queueEvent: queue,
 		afterAudit: (entry) => publishEventOf(ports, queue, entry),
 		runAttempt: (payload) => runAttempt(ports, payload),

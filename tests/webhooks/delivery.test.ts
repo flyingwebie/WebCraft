@@ -2,11 +2,10 @@
 // Webhook that receives `publish` a small signed JSON event, through the guarded fetcher. The publish
 // never waits for a receiver and never fails because of one.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createHmac, timingSafeEqual } from "node:crypto";
-
 import type { RecordedRequest } from "../harness/fake-http.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { element, tree, value } from "../harness/trees.ts";
+import { receiverAccepts } from "./support.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -46,20 +45,6 @@ async function siteWithEntry(slug: string): Promise<{ siteId: string; postTypeId
 /** The requests made to a URL so far. */
 function requestsTo(url: string): RecordedRequest[] {
 	return install.http.requests.filter((request) => request.url === url);
-}
-
-/**
- * Checks a delivery's signature as a receiver does: HMAC-SHA256 of `<t>.<body>` with the signing
- * secret, compared in constant time, and `t` within 5 minutes of now. Answers whether it holds.
- */
-function receiverAccepts(request: RecordedRequest, secret: string, now: Date): boolean {
-	const header = request.headers.get("webcraft-signature") ?? "";
-	const parts = Object.fromEntries(header.split(",").map((part) => part.split("=", 2) as [string, string]));
-	const timestamp = Number(parts.t);
-	if (!Number.isInteger(timestamp) || Math.abs(now.getTime() / 1000 - timestamp) > 300) return false;
-	const expected = createHmac("sha256", secret).update(`${timestamp}.${request.body}`).digest();
-	const given = Buffer.from(parts.v1 ?? "", "hex");
-	return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
 describe("publishing an Entry", () => {
