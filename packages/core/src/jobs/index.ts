@@ -9,6 +9,7 @@ import {
 } from "../domains/jobs.ts";
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
+import { importsPurge, importsPurgeSchedule } from "../imports/purge.ts";
 import { importsRun } from "../imports/runs.ts";
 import { mediaProcess, mediaVariants } from "../media/jobs.ts";
 import { mediaPurge, mediaPurgeSchedule } from "../media/trash.ts";
@@ -44,6 +45,7 @@ export const coreJobs = [
 	mediaVariants,
 	mediaPurge,
 	importsRun,
+	importsPurge,
 	moduleEventJob,
 	moduleJob,
 	moduleHourlyJobs,
@@ -74,6 +76,7 @@ export const coreSchedules = [
 	visitorSaltsPurgeSchedule,
 	siteFilesPurgeSchedule,
 	mediaPurgeSchedule,
+	importsPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
 	searchRebuildDueSchedule,

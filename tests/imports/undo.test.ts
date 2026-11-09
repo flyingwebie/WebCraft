@@ -62,10 +62,15 @@ async function prices(postTypeId: string) {
 	return Object.fromEntries(entries.map((entry) => [entry.draft.title, entry.draft.fields.price]));
 }
 
+/** The confirmation id Undo's first step answers. */
+function confirmationOf(answer: Awaited<ReturnType<typeof editor.api.imports.undo>>): string | undefined {
+	return "confirmation" in answer ? answer.confirmation.id : undefined;
+}
+
 /** Undoes a run in its two steps; answers the second step's answer. */
 async function undo(runId: string) {
 	const first = await editor.api.imports.undo({ siteId, runId });
-	return editor.api.imports.undo({ siteId, runId, confirmation: first.confirmation?.id });
+	return editor.api.imports.undo({ siteId, runId, confirmation: confirmationOf(first) });
 }
 
 describe("Undo of an Import run", () => {
@@ -87,7 +92,7 @@ describe("Undo of an Import run", () => {
 		expect(run.undo).toEqual({ available: true, reason: null });
 
 		const asked = await editor.api.imports.undo({ siteId, runId: run.id });
-		const confirmation = asked.confirmation?.id;
+		const confirmation = confirmationOf(asked);
 		expect(asked).toMatchObject({ undone: false, preview: { removes: 2, restores: 1, files: 1 } });
 		expect(confirmation).toEqual(expect.any(String));
 		expect(await prices(postType.id)).toEqual({ Rye: 4.5, Tart: 3, Pie: 6 });
@@ -188,7 +193,7 @@ describe("Undo of an Import run", () => {
 		await editor.api.entries.delete({ siteId, entryId: pie, confirmation: confirmation?.id });
 
 		await expect(
-			editor.api.imports.undo({ siteId, runId: run.id, confirmation: asked.confirmation?.id }),
+			editor.api.imports.undo({ siteId, runId: run.id, confirmation: confirmationOf(asked) }),
 		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 	});
 

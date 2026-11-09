@@ -12,7 +12,7 @@ import {
 	people,
 	postTypes,
 } from "@webcraft/db/schema";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { siteLanguages } from "../content/languages.ts";
@@ -269,10 +269,8 @@ export async function startRun(
 		const settings = csvSettingsSchema.parse(row.settings);
 		const mapping = await csvMapping(tx, settings);
 		const details = file.details as CsvDetails;
-		const [last] = await tx.db
-			.select({ number: sql<number>`coalesce(max(${importRuns.number}), 0)` })
-			.from(importRuns)
-			.where(tx.where(importRuns, eq(importRuns.importId, row.id)));
+		const number = row.runs + 1;
+		await tx.update(imports, { runs: number }, eq(imports.id, row.id));
 		const summary: RunSummaryJson = {
 			created: 0,
 			updated: 0,
@@ -286,7 +284,7 @@ export async function startRun(
 		};
 		const created = await tx.insert(importRuns, {
 			importId: row.id,
-			number: Number(last?.number ?? 0) + 1,
+			number,
 			status: "waiting",
 			startedBy: actingPerson(tx.access.actor),
 			settings,

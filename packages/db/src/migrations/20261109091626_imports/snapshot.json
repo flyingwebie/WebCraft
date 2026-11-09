@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "b664266d-47bc-4b09-995b-11dce40869b7",
+  "id": "f40e5f7e-efcc-4d36-ad43-8f3da453dac7",
   "prevIds": [
     "3ed33893-0d8b-4229-8f72-bdd5a65d07af"
   ],
@@ -1954,6 +1954,22 @@
         "notNull": true,
         "dimensions": 0,
         "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "runs",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
         "generated": null,
         "identity": null,
         "entityType": "columns"

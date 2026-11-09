@@ -92,6 +92,7 @@ CREATE TABLE "imports" (
 	"name" text NOT NULL,
 	"source" text NOT NULL,
 	"settings" jsonb NOT NULL,
+	"runs" integer DEFAULT 0 NOT NULL,
 	"created_by" uuid,
 	"created_at" timestamp with time zone NOT NULL,
 	"updated_at" timestamp with time zone NOT NULL,
