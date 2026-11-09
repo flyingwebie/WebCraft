@@ -1,5 +1,5 @@
 import { media, mediaFiles, mediaFolders, people } from "@webcraft/db/schema";
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
@@ -20,6 +20,7 @@ import {
 	MediaInvalidError,
 	MediaNotFoundError,
 	MediaNotInTrashError,
+	MediaReplaceRefusedError,
 	MediaTooLargeError,
 	MediaTypeRefusedError,
 } from "./errors.ts";
@@ -29,10 +30,10 @@ import { mediaProcess } from "./jobs.ts";
 import type { MediaKind } from "./kinds.ts";
 import { contentHash, MEDIA_PATH, SERVED_NAME, servedName } from "./names.ts";
 import { assertRoom, type MediaStorage, mediaStorage, noticeQuotaUse, setMediaQuota } from "./quota.ts";
-import { gifSize, sniff } from "./sniff.ts";
+import { type FileFormat, gifSize, sniff } from "./sniff.ts";
 import { type ByteRange, type StorageBackend, type StorageKind, siteFolder } from "./storage.ts";
 import { MEDIA_TEXTS, type MediaText, readText, storedTexts, writeText } from "./texts.ts";
-import { deleteForGood, removeUnusedFiles, TRASH_LIFETIME_MS } from "./trash.ts";
+import { deleteForGood, removeUnusedFiles, retireFiles, TRASH_LIFETIME_MS } from "./trash.ts";
 import { type MediaUse, mediaUses } from "./usage.ts";
 
 export const MEDIA_FOLDER_NAME_MAX_LENGTH = 100;
@@ -76,8 +77,23 @@ export type MediaItem = {
 	/** When it went to the Trash, and when it will be deleted for good; null while it is in the library. */
 	trashedAt: Date | null;
 	purgeAt: Date | null;
+	/** Whether a new file (Replace file) is waiting for the worker; the current one is served until then. */
+	replacing: boolean;
+	/** Why the worker refused the file, or the file meant to replace it (the item kept its own); null otherwise. */
+	failure: MediaFailure | null;
 	/** Whether the person asking may change it: their own upload, or every file with `media.manage`. */
 	canEdit: boolean;
+};
+
+/**
+ * Why the worker refused a file: `unreadable` (it isn't the image it claims to be), `svgInvalid` (an
+ * SVG that can't be read) or `svgUnsafe` (an SVG holding what can't be kept, listed in `found`).
+ * `replacement` when it was meant to replace the item's file, which the item kept.
+ */
+export type MediaFailure = {
+	reason: "unreadable" | "svgInvalid" | "svgUnsafe";
+	replacement?: boolean;
+	found?: string[];
 };
 
 /**
@@ -156,6 +172,12 @@ export type MediaLibrary = {
 	get(scope: SiteScope, mediaId: string, language?: string): Promise<MediaItem>;
 	/** Changes texts or the folder: a person's own upload, or any with `media.manage`. */
 	update(scope: SiteScope, mediaId: string, change: MediaChange): Promise<MediaItem>;
+	/**
+	 * Replace file: gives an item a new file of the same kind, keeping its id, texts and every use. An
+	 * image is cleaned by the worker first; until then the current file is served. The file it
+	 * replaced is still served for 30 days. Your own upload, or any with `media.manage`.
+	 */
+	replace(scope: SiteScope, mediaId: string, upload: { fileName: string; data: Uint8Array }): Promise<MediaItem>;
 	/** Every place a file is used on the Site (Used in). */
 	usage(scope: SiteScope, mediaId: string): Promise<MediaUse[]>;
 	/**
@@ -239,72 +261,150 @@ export function createMediaLibrary(options: {
 		}
 	};
 
+	/**
+	 * A file someone sent, checked: within the largest file, of a format WebCraft takes, named. A raw
+	 * upload the worker cleans is kept under `uploadName` (a new item's id) until then.
+	 */
+	const incoming = async (
+		upload: { fileName: string; data: Uint8Array },
+		uploadName: string = crypto.randomUUID(),
+	): Promise<IncomingFile> => {
+		const { maxFileBytes } = await settings.media();
+		if (upload.data.length > maxFileBytes) throw new MediaTooLargeError(maxFileBytes);
+		const sniffed = sniff(upload.data);
+		if ("refused" in sniffed) throw new MediaTypeRefusedError(sniffed.refused);
+		const { format } = sniffed;
+		const fileName = cleanFileName(upload.fileName);
+		// Images are cleaned by the worker before anyone sees them (they may carry GPS data): until then
+		// the upload is kept apart, and never served.
+		const clean = format.handling === "clean";
+		const name = clean ? uploadName : servedName(await contentHash(upload.data), fileName, format.extension);
+		return {
+			data: upload.data,
+			format,
+			fileName,
+			clean,
+			name,
+			folder: clean ? "uploads" : "media",
+			size: format.format === "gif" ? gifSize(upload.data) : undefined,
+			target: await storage.current(),
+		};
+	};
+
+	/**
+	 * Stores an incoming file in the Site's folder and records it with `record`, in one transaction,
+	 * within the Workspace's quota; a file refused once stored is removed again. Answers what `record`
+	 * answers.
+	 */
+	const store = async <Result>(
+		scope: SiteScope,
+		file: IncomingFile,
+		record: (tx: SiteScope) => Promise<Result>,
+	): Promise<Result> => {
+		const key = keyOf(scope, file);
+		// Refused before anything is stored when it plainly doesn't fit.
+		const shared = await keyIsStored(scope, file.target.kind, key);
+		await assertRoom(scope.db, scope.workspace.id, shared ? 0 : file.data.length);
+		await file.target.put(key, file.data, file.format.contentType);
+		let result: Result;
+		try {
+			result = await scope.transaction(async (tx) => {
+				// Checked again with the quota held, now that the file is stored: two uploads at once can't
+				// both squeeze past it. A file that already shares stored bytes adds none.
+				const adds = (await keyIsStored(tx, file.target.kind, key)) ? 0 : file.data.length;
+				await assertRoom(tx.db, tx.workspace.id, adds, { lock: true });
+				return record(tx);
+			});
+		} catch (error) {
+			await forgetStored(scope, file.target, key);
+			throw error;
+		}
+		await noticeQuotaUse(scope.db, noticePorts, scope.workspace);
+		return result;
+	};
+
 	return {
 		async upload(scope, upload) {
-			const { maxFileBytes } = await settings.media();
-			if (upload.data.length > maxFileBytes) throw new MediaTooLargeError(maxFileBytes);
-			const sniffed = sniff(upload.data);
-			if ("refused" in sniffed) throw new MediaTypeRefusedError(sniffed.refused);
-			const { format } = sniffed;
 			const folderId = upload.folderId ? (await findFolder(scope, upload.folderId)).id : null;
-			const fileName = cleanFileName(upload.fileName);
 			const id = crypto.randomUUID();
-			const target = await storage.current();
-			const now = scope.now();
-			const personId = actingPerson(scope.access.actor);
-
-			// Images are cleaned by the worker before anyone sees them (they may carry GPS data): until
-			// then the upload is kept apart, and never served.
-			const clean = format.handling === "clean";
-			const name = clean ? id : servedName(await contentHash(upload.data), fileName, format.extension);
-			const key = `${siteFolder(scope.site)}/${clean ? "uploads" : "media"}/${name}`;
-			const size = format.format === "gif" ? gifSize(upload.data) : undefined;
-			// Refused before anything is stored when it plainly doesn't fit.
-			const shared = await keyIsStored(scope, target.kind, key);
-			await assertRoom(scope.db, scope.workspace.id, shared ? 0 : upload.data.length);
-			await target.put(key, upload.data, format.contentType);
-			try {
-				await scope.transaction(async (tx) => {
-					// Checked again with the quota held, now that the file is stored: two uploads at once
-					// can't both squeeze past it. A file that already shares stored bytes adds none.
-					const adds = (await keyIsStored(tx, target.kind, key)) ? 0 : upload.data.length;
-					await assertRoom(tx.db, tx.workspace.id, adds, { lock: true });
-					await tx.insert(media, {
-						id,
-						folderId,
-						kind: format.kind,
-						fileName,
-						contentType: format.contentType,
-						sizeBytes: upload.data.length,
-						width: size?.width ?? null,
-						height: size?.height ?? null,
-						status: clean ? "processing" : "ready",
-						uploadedBy: personId,
-						createdAt: now,
-						updatedAt: now,
-					});
-					await tx.insert(mediaFiles, {
-						mediaId: id,
-						role: clean ? "upload" : "original",
-						name,
-						format: format.format,
-						contentType: format.contentType,
-						width: size?.width ?? null,
-						height: size?.height ?? null,
-						sizeBytes: upload.data.length,
-						storage: target.kind,
-						key,
-						createdAt: now,
-					});
-					await tx.audit("media.upload", { mediaId: id, fileName, contentType: format.contentType });
+			const file = await incoming(upload, id);
+			await store(scope, file, async (tx) => {
+				const now = tx.now();
+				await tx.insert(media, {
+					id,
+					folderId,
+					kind: file.format.kind,
+					fileName: file.fileName,
+					contentType: file.format.contentType,
+					sizeBytes: file.data.length,
+					width: file.size?.width ?? null,
+					height: file.size?.height ?? null,
+					status: file.clean ? "processing" : "ready",
+					uploadedBy: actingPerson(tx.access.actor),
+					createdAt: now,
+					updatedAt: now,
 				});
-			} catch (error) {
-				await forgetStored(scope, target, key);
-				throw error;
-			}
-			if (clean) await jobs.send(mediaProcess, { siteId: scope.site.id, mediaId: id });
-			await noticeQuotaUse(scope.db, noticePorts, scope.workspace);
+				await tx.insert(mediaFiles, fileRow(tx, file, id, now));
+				await tx.audit("media.upload", { mediaId: id, fileName: file.fileName, contentType: file.format.contentType });
+			});
+			if (file.clean) await jobs.send(mediaProcess, { siteId: scope.site.id, mediaId: id });
 			return get(scope, id);
+		},
+
+		async replace(scope, mediaId, upload) {
+			// Refused before anything is stored when the person may not, or the file isn't the right kind.
+			const current = await changeable(scope, mediaId);
+			const file = await incoming(upload);
+			assertReplaceable(current, file);
+			const waiting = await store(scope, file, async (tx) => {
+				const row = await changeable(tx, mediaId);
+				assertReplaceable(row, file);
+				const now = tx.now();
+				// A replacement still waiting for the worker gives way to this one.
+				const earlier = await tx.select(mediaFiles, and(eq(mediaFiles.mediaId, row.id), eq(mediaFiles.role, "upload")));
+				await tx.delete(mediaFiles, and(eq(mediaFiles.mediaId, row.id), eq(mediaFiles.role, "upload")));
+				// A file served as it is replaces the current one at once, which stays served for 30 days.
+				if (!file.clean) await retireFiles(tx, row.id);
+				await tx.insert(mediaFiles, fileRow(tx, file, row.id, now));
+				if (file.clean) {
+					// Visitors keep getting the current file until the worker has cleaned the new one.
+					await tx.update(
+						media,
+						{
+							fileName: file.fileName,
+							status: row.status === "ready" ? "ready" : "processing",
+							failure: null,
+							updatedAt: now,
+						},
+						eq(media.id, row.id),
+					);
+				} else {
+					await tx.update(
+						media,
+						{
+							fileName: file.fileName,
+							contentType: file.format.contentType,
+							sizeBytes: file.data.length,
+							width: file.size?.width ?? null,
+							height: file.size?.height ?? null,
+							status: "ready",
+							failure: null,
+							updatedAt: now,
+						},
+						eq(media.id, row.id),
+					);
+					await clearPageCache(tx);
+				}
+				await tx.audit("media.replace", {
+					mediaId: row.id,
+					fileName: file.fileName,
+					contentType: file.format.contentType,
+				});
+				return earlier;
+			});
+			await removeUnusedFiles(scope, storage, waiting);
+			if (file.clean) await jobs.send(mediaProcess, { siteId: scope.site.id, mediaId });
+			return get(scope, mediaId);
 		},
 
 		async list(scope, query = {}) {
@@ -549,6 +649,47 @@ async function forgetStored(scope: Pick<SiteScope, "count">, backend: StorageBac
 	if (!(await keyIsStored(scope, backend.kind, key))) await backend.delete(key);
 }
 
+/** A file someone sent, checked and named, before it is stored. */
+type IncomingFile = {
+	data: Uint8Array;
+	format: FileFormat;
+	fileName: string;
+	/** Whether the worker cleans it before anyone sees it (images). */
+	clean: boolean;
+	/** Its name in storage: a random one for an upload to clean, the name it is served under otherwise. */
+	name: string;
+	folder: "uploads" | "media";
+	size: { width: number; height: number } | undefined;
+	target: StorageBackend;
+};
+
+function keyOf(scope: Pick<SiteScope, "site">, file: IncomingFile): string {
+	return `${siteFolder(scope.site)}/${file.folder}/${file.name}`;
+}
+
+/** The row recording an incoming file: the raw `upload` the worker cleans, or the `original` itself. */
+function fileRow(scope: Pick<SiteScope, "site">, file: IncomingFile, mediaId: string, now: Date) {
+	return {
+		mediaId,
+		role: file.clean ? "upload" : "original",
+		name: file.name,
+		format: file.format.format,
+		contentType: file.format.contentType,
+		width: file.size?.width ?? null,
+		height: file.size?.height ?? null,
+		sizeBytes: file.data.length,
+		storage: file.target.kind,
+		key: keyOf(scope, file),
+		createdAt: now,
+	};
+}
+
+/** A file in the Trash isn't replaced, and a file is replaced by one of the same kind. */
+function assertReplaceable(row: MediaRow, file: IncomingFile): void {
+	if (row.trashedAt) throw new MediaInTrashError();
+	if (row.kind !== file.format.kind) throw new MediaReplaceRefusedError("kind");
+}
+
 /**
  * A Media item the scope's person may change (their own upload, or any with `media.manage`),
  * locked until the transaction ends.
@@ -606,10 +747,7 @@ async function views(
 ): Promise<MediaItem[]> {
 	if (rows.length === 0) return [];
 	const ids = rows.map((row) => row.id);
-	const files = await scope.select(
-		mediaFiles,
-		and(inArray(mediaFiles.mediaId, ids), inArray(mediaFiles.role, ["original", "variant"])),
-	);
+	const files = await scope.select(mediaFiles, and(inArray(mediaFiles.mediaId, ids), isNull(mediaFiles.retiredAt)));
 	const uploaderIds = [...new Set(rows.map((row) => row.uploadedBy).filter((id): id is string => id !== null))];
 	const uploaders = new Map(
 		uploaderIds.length === 0
@@ -650,21 +788,23 @@ async function views(
 			updatedAt: row.updatedAt,
 			trashedAt: row.trashedAt,
 			purgeAt: row.trashedAt ? new Date(row.trashedAt.getTime() + TRASH_LIFETIME_MS) : null,
+			replacing: row.status === "ready" && own.some((file) => file.role === "upload"),
+			failure: (row.failure as MediaFailure | null) ?? null,
 			canEdit: manages || row.uploadedBy === personId,
 		};
 	});
 }
 
-/** The URL of a ready item's original. */
+/** The URL of a ready item's original (its current one: not one Replace file put aside). */
 export function originalUrl(row: Pick<MediaRow, "status">, files: readonly FileRow[]): string | null {
-	const original = files.find((file) => file.role === "original");
+	const original = files.find((file) => file.role === "original" && file.retiredAt === null);
 	return row.status === "ready" && original ? `${MEDIA_PATH}${original.name}` : null;
 }
 
 /** An image's variants, smallest first, AVIF before WebP at each width. */
 export function variantsOf(files: readonly FileRow[]): MediaVariant[] {
 	return files
-		.filter((file) => file.role === "variant" && file.width !== null && file.height !== null)
+		.filter((file) => file.role === "variant" && file.retiredAt === null && file.width !== null && file.height !== null)
 		.map((file) => ({
 			format: file.format as VariantFormat,
 			width: file.width ?? 0,
@@ -676,13 +816,15 @@ export function variantsOf(files: readonly FileRow[]): MediaVariant[] {
 
 /** A stored original or variant of the scope's Site by the name it is served under, or null. */
 export async function storedFile(
-	scope: Pick<SiteScope, "first" | "db" | "where">,
+	scope: Pick<SiteScope, "db" | "where" | "now">,
 	storage: InstallStorage,
 	name: string,
 	options: { trashed?: boolean } = {},
 ): Promise<StoredMediaFile | null> {
 	if (!SERVED_NAME.test(name)) return null;
-	// Visitors never get a file in the Trash (the admin still shows it there).
+	// Visitors never get a file in the Trash (the admin still shows it there). A file Replace file put
+	// aside is still served for 30 days, for pages loaded before.
+	const replacedSince = new Date(scope.now().getTime() - TRASH_LIFETIME_MS);
 	const [found] = await scope.db
 		.select({ file: mediaFiles })
 		.from(mediaFiles)
@@ -693,10 +835,13 @@ export async function storedFile(
 				and(
 					eq(mediaFiles.name, name),
 					inArray(mediaFiles.role, ["original", "variant"]),
+					or(isNull(mediaFiles.retiredAt), gt(mediaFiles.retiredAt, replacedSince)),
 					options.trashed ? undefined : isNull(media.trashedAt),
 				),
 			),
 		)
+		// Two items can share a name (identical bytes): either row names the same stored file.
+		.orderBy(desc(isNull(mediaFiles.retiredAt)))
 		.limit(1);
 	const row = found?.file;
 	if (!row) return null;

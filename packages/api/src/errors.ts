@@ -60,6 +60,7 @@ import {
 	MediaNotFoundError,
 	MediaNotInTrashError,
 	MediaQuotaFullError,
+	MediaReplaceRefusedError,
 	MediaTooLargeError,
 	MediaTypeRefusedError,
 	MemberNotFoundError,
@@ -495,6 +496,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof MediaNotInTrashError) {
 		return new ORPCError("MEDIA_NOT_IN_TRASH", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof MediaReplaceRefusedError) {
+		return new ORPCError("MEDIA_REPLACE_REFUSED", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
 	}
 	if (error instanceof MediaQuotaFullError) {
 		return new ORPCError("MEDIA_QUOTA_FULL", {

@@ -34,6 +34,7 @@ export async function pageMedia(
 				rows.map((row) => row.id),
 			),
 			inArray(mediaFiles.role, ["original", "variant"]),
+			isNull(mediaFiles.retiredAt),
 		),
 	);
 	const found = new Map<string, PageMedia>();

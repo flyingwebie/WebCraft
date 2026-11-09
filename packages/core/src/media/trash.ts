@@ -5,7 +5,7 @@
  * except bytes another item still shares. Files that Replace file put aside go the same way.
  */
 import { media, mediaFiles } from "@webcraft/db/schema";
-import { and, eq, inArray, isNotNull, lt } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { z } from "zod";
 
 import { defineJob } from "../jobs/define.ts";
@@ -19,6 +19,22 @@ import type { StorageKind } from "./storage.ts";
 export const TRASH_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 type Scope = Pick<SiteScope, "select" | "delete"> | BackgroundScope;
+
+/**
+ * Puts an item's current original and variants aside: still served under their names for 30 days,
+ * for pages loaded before, then deleted by `media.purge`.
+ */
+export async function retireFiles(scope: Pick<SiteScope, "update" | "now">, mediaId: string): Promise<void> {
+	await scope.update(
+		mediaFiles,
+		{ retiredAt: scope.now() },
+		and(
+			eq(mediaFiles.mediaId, mediaId),
+			inArray(mediaFiles.role, ["original", "variant"]),
+			isNull(mediaFiles.retiredAt),
+		),
+	);
+}
 
 /** A stored file, by the storage holding it and its key there. */
 export type StoredFile = { storage: string; key: string };

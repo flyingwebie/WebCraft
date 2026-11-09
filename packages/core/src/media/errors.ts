@@ -68,6 +68,16 @@ export class MediaNotInTrashError extends Error {
 	}
 }
 
+/** Replace file refused the new file: `kind` (it isn't the same kind of file: an image for an image). */
+export class MediaReplaceRefusedError extends Error {
+	override name = "MediaReplaceRefusedError";
+	readonly reason: "kind";
+	constructor(reason: "kind") {
+		super("A file is replaced by one of the same kind: an image by an image, a document by a document.");
+		this.reason = reason;
+	}
+}
+
 /** The file would take the Workspace's Media past its storage quota. */
 export class MediaQuotaFullError extends Error {
 	override name = "MediaQuotaFullError";

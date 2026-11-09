@@ -631,6 +631,16 @@ describe("Media", () => {
 	);
 	isolation.refuses("media.overview", (api, { siteId }) => api.media.overview({ siteId }), { as: ["staff", "author"] });
 	isolation.refuses(
+		"media.replace",
+		async (api, target) =>
+			api.media.replace({
+				siteId: target.siteId,
+				mediaId: (await mediaIn(target)).mediaId,
+				file: upload(pdf("Replaced"), "replaced.pdf"),
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
 		"media.usage",
 		async (api, target) => api.media.usage({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
 		{ as: ["staff", "author"] },
