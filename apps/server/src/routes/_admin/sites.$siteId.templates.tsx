@@ -80,9 +80,9 @@ function TemplatesPage() {
 											to="/builder/$siteId/$"
 											params={{ siteId, _splat: splat }}
 											className={buttonVariants({ variant: "outline", size: "sm" })}
-											aria-label={t("templates.openNamed", { name })}
 										>
 											{t("templates.open")}
+											<span className="sr-only">{t("templates.openNamed", { name })}</span>
 										</Link>
 									)}
 								</TableCell>

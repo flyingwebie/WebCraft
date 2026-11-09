@@ -85,9 +85,9 @@ function ComponentsPage() {
 											to="/builder/$siteId/$"
 											params={{ siteId, _splat: `component/${component.id}` }}
 											className={buttonVariants({ variant: "outline", size: "sm" })}
-											aria-label={t("templates.openNamed", { name: component.name })}
 										>
 											{t("templates.open")}
+											<span className="sr-only">{t("templates.openNamed", { name: component.name })}</span>
 										</Link>
 									)}
 								</TableCell>

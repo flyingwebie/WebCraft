@@ -2864,7 +2864,7 @@
 		"notMade": "Non ancora creato",
 		"noAddress": "Nessun indirizzo d'archivio: lo schema dell'URL inizia con '{slug}'",
 		"open": "Apri nel builder",
-		"openNamed": "Apri {name} nel builder"
+		"openNamed": ": {name}"
 	},
 	"components": {
 		"pageTitle": "Componenti",

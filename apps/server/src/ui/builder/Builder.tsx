@@ -126,6 +126,7 @@ export function Builder({
 	const [conflict, setConflict] = useState<{ version: string | null } | null>(null);
 	const [busy, setBusy] = useState<"save" | "publish" | "switch" | null>(null);
 	const [designVersion, setDesignVersion] = useState(0);
+	const [focusLayers, setFocusLayers] = useState(0);
 	const clipboard = useRef<TreeNode[] | null>(null);
 	const insertTrigger = useRef<HTMLButtonElement | null>(null);
 	const fixedTextTrigger = useRef<HTMLElement | null>(null);
@@ -636,6 +637,7 @@ export function Builder({
 	// Ctrl/⌘ S saves; Ctrl/⌘ Z and Shift+Z (or Y) undo and redo, outside text being typed; Ctrl/⌘ I inserts.
 	const keys = useRef({ save, undo, redo, view });
 	keys.current = { save, undo, redo, view };
+	const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
 			if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
@@ -656,6 +658,7 @@ export function Builder({
 				setInsertOpen(true);
 			}
 		};
+		shortcut.current = onKey;
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
@@ -847,6 +850,7 @@ export function Builder({
 								);
 							}}
 							onDrop={dropOn}
+							focusRequest={focusLayers}
 							onInsert={() => {
 								insertTrigger.current = document.activeElement as HTMLButtonElement;
 								openInsert();
@@ -903,6 +907,7 @@ export function Builder({
 							const path = pathOfId(doc.tree, found.id);
 							if (!path || view !== "visual") return;
 							setSelection({ kind: "node", path });
+							setFocusLayers((count) => count + 1);
 							const node = nodeAt(doc.tree, path);
 							if (node) announce(t("builder.selected", { name: layerName(t, node, catalogue).name }));
 							// Every layer on the way to it opens.
@@ -917,6 +922,7 @@ export function Builder({
 							});
 						}}
 						onMove={canvasMove}
+						onShortcut={(event) => shortcut.current(event)}
 					/>
 				</section>
 				{view === "visual" ? (

@@ -2864,7 +2864,7 @@
 		"notMade": "Not made yet",
 		"noAddress": "No archive address: the URL pattern starts with '{slug}'",
 		"open": "Open in builder",
-		"openNamed": "Open {name} in the builder"
+		"openNamed": ": {name}"
 	},
 	"components": {
 		"pageTitle": "Components",

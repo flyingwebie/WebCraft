@@ -78,6 +78,11 @@ function layer(page: Page, name: string | RegExp) {
 	return page.getByRole("tree", { name: "Layers" }).getByRole("treeitem", { name });
 }
 
+/** Waits until the live region says `text` (after a call to the server, it may take a moment). */
+async function expectAnnounced(page: Page, text: string): Promise<void> {
+	await page.getByRole("status").filter({ hasText: text }).first().waitFor({ timeout: 10_000 });
+}
+
 /** What the live region last said. */
 async function announced(page: Page): Promise<string> {
 	return ((await page.getByRole("status").filter({ hasText: /\S/ }).last().textContent()) ?? "").trim();
@@ -218,3 +223,232 @@ describe("the Layers panel from the keyboard alone", () => {
 		await expect(layer(page, /^section/).count()).resolves.toBe(0);
 	});
 });
+
+describe("inserting", () => {
+	test("from the insert menu, by typing and Enter, inside the selected layer", async () => {
+		await resetTemplate();
+		const page = await builderPage();
+		await layer(page, /^section/).click();
+
+		await page.getByRole("button", { name: "Insert" }).click();
+		await page.getByRole("combobox", { name: "Find an element" }).fill("Heading 2");
+		await page.keyboard.press("Enter");
+
+		expect(await announced(page)).toBe("Inserted h2: 1 of 1 in section.");
+		await page.frameLocator("iframe[title^='Canvas']").getByRole("heading", { name: "Heading", level: 2 }).waitFor();
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		expect(await draftMarkup()).toMatch(
+			/<section data-wc-id="box"><h2 data-wc-id="[A-Za-z0-9]{12}">Heading<\/h2><\/section>/,
+		);
+	});
+
+	test("any element by its tag, refusing what Templates never hold", async () => {
+		await resetTemplate();
+		const page = await builderPage();
+		await layer(page, /^section/).click();
+		await page.getByRole("button", { name: "Insert" }).click();
+		await page.getByRole("combobox", { name: "Find an element" }).fill("Any element");
+		await page.keyboard.press("Enter");
+		const tag = page.getByRole("textbox", { name: "Tag name" });
+
+		await tag.fill("script");
+		await page.getByRole("button", { name: "Insert", exact: true }).last().click();
+		await page.getByText("Scripts aren't allowed in a Template.").waitFor();
+		await tag.fill("dl");
+		await page.getByRole("button", { name: "Insert", exact: true }).last().click();
+
+		expect(await announced(page)).toBe("Inserted dl: 1 of 1 in section.");
+	});
+});
+
+test("a Media image, chosen from the Media library inside the insert menu", async () => {
+	await resetTemplate();
+	const { api } = await install.install.superadmin();
+	const { photo, upload } = await import("../harness/images.ts");
+	await api.media.upload({ siteId, file: upload(await photo({ width: 400, height: 300 }), "loaf.jpg") });
+	await install.install.drainJobs();
+	const page = await builderPage();
+	await layer(page, /^section/).click();
+	await page.getByRole("button", { name: "Insert" }).click();
+	await page.getByRole("combobox", { name: "Find an element" }).fill("Image");
+	await page.keyboard.press("Enter");
+
+	await page.getByRole("button", { name: /^Choose file/ }).click();
+	await page.getByRole("button", { name: /loaf\.jpg/ }).click();
+	await page.getByRole("button", { name: "Insert", exact: true }).last().click();
+
+	await expectAnnounced(page, "Inserted img: 1 of 1 in section.");
+	const src = await page.frameLocator("iframe[title^='Canvas']").locator("section img").getAttribute("src");
+	expect(src).toStartWith(`/api/media/${siteId}/`);
+	await page.keyboard.press("ControlOrMeta+s");
+	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+	expect(await draftMarkup()).toMatch(
+		/<section data-wc-id="box"><img src="media:[0-9a-f-]{36}" data-wc-id="[A-Za-z0-9]{12}"><\/section>/,
+	);
+});
+
+describe("the canvas", () => {
+	test("selects what is clicked, and moves the selected element where it is dragged", async () => {
+		await resetTemplate();
+		const page = await builderPage();
+		const canvas = page.frameLocator("iframe[title^='Canvas']");
+
+		await canvas.getByText("One", { exact: true }).click();
+		await expect(layer(page, /^li/).first().getAttribute("aria-selected")).resolves.toBe("true");
+		// Playwright's mouse runs a script in every frame to watch for native drags, and the canvas runs
+		// none, so the drag is the pointer events a person's drag makes, sent to the canvas page.
+		await page.evaluate(() => {
+			const frame = document.querySelector<HTMLIFrameElement>("iframe[title^='Canvas']");
+			const canvasDocument = frame?.contentDocument;
+			const items = [...(canvasDocument?.querySelectorAll("li") ?? [])];
+			const one = items.find((item) => item.textContent === "One")?.getBoundingClientRect();
+			const three = items.find((item) => item.textContent === "Three")?.getBoundingClientRect();
+			if (!canvasDocument || !one || !three) throw new Error("The canvas shows no list.");
+			const send = (type: string, x: number, y: number) =>
+				canvasDocument
+					.elementFromPoint(x, y)
+					?.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }));
+			send("pointerdown", one.x + 10, one.y + one.height / 2);
+			for (let step = 1; step <= 8; step++) {
+				send(
+					"pointermove",
+					one.x + 10,
+					one.y + one.height / 2 + ((three.bottom - 2 - one.y - one.height / 2) * step) / 8,
+				);
+			}
+			send("pointerup", three.x + 10, three.bottom - 2);
+		});
+
+		expect(await announced(page)).toBe("Moved li: 3 of 3 in ul.");
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		expect(await draftMarkup()).toContain(
+			'<ul data-wc-id="list"><li data-wc-id="two">Two</li><li data-wc-id="three">Three</li><li data-wc-id="one">One</li></ul>',
+		);
+	});
+
+	test("shows the Site's dark values when the dark preview is on", async () => {
+		const page = await builderPage();
+		const preview = page.getByRole("button", { name: "Dark preview" });
+
+		await preview.click();
+
+		expect(await preview.getAttribute("aria-pressed")).toBe("true");
+		const theme = await page.frameLocator("iframe[title^='Canvas']").locator("html").getAttribute("data-wc-theme");
+		expect(theme).toBe("dark");
+	});
+});
+
+describe("the Template markup view", () => {
+	test("shows the same Draft as text; what is typed there comes back as layers and saves the same Draft", async () => {
+		await resetTemplate();
+		const page = await builderPage();
+		await page.getByRole("button", { name: "Template markup" }).click();
+		const markup = page.getByRole("textbox", { name: "Template markup" });
+		expect(await markup.inputValue()).toBe(ENTRY_TEMPLATE);
+
+		await markup.fill(ENTRY_TEMPLATE.replace("Fresh from the oven", "Baked daily").replace("<li", "\n  <li"));
+		await page.getByRole("button", { name: "Visual" }).click();
+		await layer(page, /^“Baked daily”/).waitFor();
+		await page.getByRole("button", { name: "Template markup" }).click();
+		expect(await markup.inputValue()).toContain('<ul data-wc-id="list">\n  <li data-wc-id="one">');
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+
+		expect(await draftMarkup()).toBe(await markup.inputValue());
+	});
+
+	test("refuses markup it can't read, saying where, and stays", async () => {
+		await resetTemplate();
+		const page = await builderPage();
+		await page.getByRole("button", { name: "Template markup" }).click();
+		const markup = page.getByRole("textbox", { name: "Template markup" });
+		await markup.fill('<p data-wc-id="x">\n  <script>alert(1)</script>\n</p>');
+
+		await page.getByRole("button", { name: "Visual" }).click();
+
+		await page.getByRole("button", { name: "Line 2, column 3:" }).waitFor();
+		expect(await markup.isVisible()).toBe(true);
+	});
+});
+
+describe("the style panel", () => {
+	test("adds a Class, makes a new one, and saves a one-off style as a generated Class", async () => {
+		await resetTemplate();
+		const page = await builderPage();
+		await layer(page, /^p/).click();
+		await page.getByRole("tab", { name: "Style" }).click();
+		const add = page.getByRole("combobox", { name: "Add a Class" });
+
+		await add.fill("intro");
+		await add.press("Enter");
+		expect(await announced(page)).toBe("Added intro.");
+		await add.fill("lead-text");
+		await add.press("Enter");
+		await expectAnnounced(page, "Created the Class lead-text in the Design system's Draft.");
+		await page.getByRole("textbox", { name: "Declarations" }).fill("color: red");
+		await page.getByRole("button", { name: "Apply" }).click();
+		expect(await announced(page)).toBe("One-off style applied.");
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+
+		expect(await draftMarkup()).toMatch(/<p class="intro lead-text style-[0-9a-f]{8}" data-wc-id="lead">/);
+	});
+});
+
+describe("fixed text", () => {
+	test("is flagged, and becomes a Field of the Post Type that clients edit", async () => {
+		await resetTemplate();
+		const page = await builderPage();
+		await expect(
+			layer(page, /^“Fresh from the oven”/)
+				.getByText("Fixed text")
+				.count(),
+		).resolves.toBe(1);
+		await layer(page, /^“Fresh from the oven”/).click();
+
+		await page.getByRole("button", { name: "Make it a Field" }).click();
+		const dialog = page.getByRole("dialog", { name: "Make it a Field" });
+		await dialog.getByRole("textbox", { name: "Label" }).fill("Lead");
+		await dialog.getByRole("button", { name: "Make it a Field" }).click();
+		await expectAnnounced(page, "The text now reads {{ lead }}.");
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+
+		expect(await draftMarkup()).toContain('<p data-wc-id="lead">{{ lead }}</p>');
+		const { api } = await install.install.superadmin();
+		const { postType } = await api.postTypes.get({ siteId, postTypeId });
+		expect(postType.fields.find((field) => field.key === "lead")).toMatchObject({
+			label: "Lead",
+			type: "text",
+			default: "Fresh from the oven",
+		});
+	});
+});
+
+test("Publish saves, then publishes what visitors see", async () => {
+	await resetTemplate();
+	const page = await builderPage();
+	await layer(page, /^section/).click();
+	await page.keyboard.press("Delete");
+
+	await page.getByRole("button", { name: "Publish" }).click();
+	await page.getByText("Blog posts · Entry template is published.").first().waitFor();
+
+	const { api } = await install.install.superadmin();
+	const { template } = await api.templates.getEntryTemplate({ siteId, postTypeId });
+	expect(template?.id).toBe(entryTemplateId);
+	expect(template?.status).toBe("published");
+	expect(JSON.stringify(template?.published)).not.toContain('"box"');
+});
+
+for (const theme of THEMES) {
+	test(`the Template markup view, ${theme}`, async () => {
+		const page = await builderPage(theme);
+		await page.getByRole("button", { name: "Template markup" }).click();
+		await page.getByRole("textbox", { name: "Template markup" }).waitFor();
+
+		await expectAccessibleScreen(page, `Builder › Template markup (${theme})`, CANVAS);
+	});
+}

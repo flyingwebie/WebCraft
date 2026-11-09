@@ -46,6 +46,7 @@ export function Canvas({
 	placeholderWords,
 	onSelect,
 	onMove,
+	onShortcut,
 }: {
 	html: string | null;
 	css: string;
@@ -61,6 +62,8 @@ export function Canvas({
 	placeholderWords(kind: string, name: string | null): string;
 	onSelect(target: CanvasTarget): void;
 	onMove(from: CanvasTarget, to: CanvasTarget, position: DropPosition): void;
+	/** A key pressed while the canvas has focus: the builder's shortcuts hear it too. */
+	onShortcut(event: KeyboardEvent): void;
 }) {
 	const frame = useRef<HTMLIFrameElement>(null);
 	const holder = useRef<HTMLDivElement>(null);
@@ -75,8 +78,8 @@ export function Canvas({
 	const hover = useRef<CanvasTarget | null>(null);
 	const drag = useRef<{ from: CanvasTarget; x: number; y: number; moving: boolean } | null>(null);
 	const dropAt = useRef<{ to: CanvasTarget; position: DropPosition } | null>(null);
-	const callbacks = useRef({ onSelect, onMove, selected });
-	callbacks.current = { onSelect, onMove, selected };
+	const callbacks = useRef({ onSelect, onMove, onShortcut, selected });
+	callbacks.current = { onSelect, onMove, onShortcut, selected };
 
 	// The canvas page loads once; it may have loaded before the builder was ready to hear it.
 	useEffect(() => {
@@ -179,6 +182,11 @@ export function Canvas({
 				setLayout((count) => count + 1);
 			}
 		};
+		// Keys pressed while the canvas has focus (after a click there) reach the builder's shortcuts.
+		const onCanvasKey = (event: KeyboardEvent) => {
+			onKey(event);
+			callbacks.current.onShortcut(event);
+		};
 		const onLeave = () => {
 			hover.current = null;
 			setLayout((count) => count + 1);
@@ -189,7 +197,7 @@ export function Canvas({
 		document.addEventListener("pointerdown", onPointerDown);
 		document.addEventListener("pointermove", onPointerMove);
 		document.addEventListener("pointerup", onPointerUp);
-		document.addEventListener("keydown", onKey);
+		document.addEventListener("keydown", onCanvasKey);
 		document.addEventListener("submit", preventSubmit);
 		document.addEventListener("dragstart", preventSubmit);
 		document.documentElement.addEventListener("pointerleave", onLeave);
@@ -200,7 +208,7 @@ export function Canvas({
 			document.removeEventListener("pointerdown", onPointerDown);
 			document.removeEventListener("pointermove", onPointerMove);
 			document.removeEventListener("pointerup", onPointerUp);
-			document.removeEventListener("keydown", onKey);
+			document.removeEventListener("keydown", onCanvasKey);
 			document.removeEventListener("submit", preventSubmit);
 			document.removeEventListener("dragstart", preventSubmit);
 			document.documentElement.removeEventListener("pointerleave", onLeave);
@@ -209,14 +217,26 @@ export function Canvas({
 		};
 	}, [ready]);
 
-	// The canvas changes size with the window and the panels.
+	// The outlines move whenever the canvas or what it shows changes size: the window and the panels,
+	// the stylesheet taking effect, images and fonts arriving.
 	useEffect(() => {
 		const element = holder.current;
+		const document = frame.current?.contentDocument;
 		if (!element || typeof ResizeObserver === "undefined") return;
-		const observer = new ResizeObserver(() => setLayout((count) => count + 1));
+		const relayout = () => setLayout((count) => count + 1);
+		const observer = new ResizeObserver(relayout);
 		observer.observe(element);
-		return () => observer.disconnect();
-	}, []);
+		if (ready && document) {
+			observer.observe(document.documentElement);
+			observer.observe(document.body);
+			document.addEventListener("load", relayout, true);
+			void document.fonts?.ready.then(relayout);
+		}
+		return () => {
+			observer.disconnect();
+			document?.removeEventListener("load", relayout, true);
+		};
+	}, [ready]);
 
 	// The outlines, measured after every change of what the canvas shows or where it is scrolled.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `layout` counts what moved the outlines.

@@ -122,7 +122,10 @@ export function LayersPanel({
 	onRename,
 	onDrop,
 	onInsert,
+	focusRequest,
 }: {
+	/** Changes when the selected row should take focus (after a click on the canvas). */
+	focusRequest: number;
 	tree: ElementTree;
 	catalogue: Catalogue;
 	selection: Selection | null;
@@ -143,6 +146,7 @@ export function LayersPanel({
 	const rows = layerRows(tree, collapsed);
 	const list = useRef<HTMLDivElement>(null);
 	const [renaming, setRenaming] = useState<string | null>(null);
+	const handledRequest = useRef(focusRequest);
 	const [dragging, setDragging] = useState<NodePath | null>(null);
 	const [over, setOver] = useState<{ key: string; position: DropPosition } | null>(null);
 	const selectedKey =
@@ -159,13 +163,17 @@ export function LayersPanel({
 	const selectedRow = rows.find((row) => row.key === selectedKey);
 	const nodeSelected = selectedRow?.kind === "node";
 
-	// The focused row follows the selection while focus is in the panel.
+	// The focused row follows the selection while focus is in the panel, and when something else
+	// (a click on the canvas) asks for it, so the keyboard carries on from there.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: `focusRequest` counts those asks.
 	useEffect(() => {
 		const element = list.current;
-		if (!element?.contains(document.activeElement) || renaming) return;
+		const asked = focusRequest !== handledRequest.current;
+		handledRequest.current = focusRequest;
+		if (!element || renaming || (!asked && !element.contains(document.activeElement))) return;
 		const row = element.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(focusKey ?? "")}"]`);
 		if (row && row !== document.activeElement) row.focus();
-	}, [focusKey, renaming]);
+	}, [focusKey, renaming, focusRequest]);
 
 	const select = (row: LayerRow) =>
 		onSelect(row.kind === "node" ? { kind: "node", path: row.path } : { kind: "list", list: row.list });
