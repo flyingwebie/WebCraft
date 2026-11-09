@@ -7,9 +7,11 @@
 import type { MarkupNotice } from "@webcraft/renderer";
 import { readComponentMarkup, saveComponentMarkup } from "../content/components.ts";
 import { readTemplateMarkup, saveEntryTemplateMarkup, saveSiteTemplateMarkup } from "../content/templates.ts";
+import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles, draftTrees } from "../design-system/stylesheet.ts";
 import type { CodePreview, SiteHost } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { type CssTarget, previewCss } from "./css.ts";
 import { CodeSourceNotFoundError } from "./errors.ts";
 import { readCodeRef, resolveSource, type SourceDeps } from "./sources.ts";
 
@@ -17,9 +19,10 @@ import { readCodeRef, resolveSource, type SourceDeps } from "./sources.ts";
 export type MarkupChange = { ref: string; text: string };
 
 /**
- * What a page in Code mode shows with unsaved markup: the tree it reads as, in place of its source's
- * Draft, and the styles it would have (generated Classes for inline styles included). Without a
- * change, the Drafts as they are. Throws `TemplateMarkupInvalidError` as saving would.
+ * What a page in Code mode shows with unsaved changes: markup read as the tree it would save as, in
+ * place of its source's Draft, and CSS read into the Design system's Draft, with the styles that
+ * makes (generated Classes for inline styles included). Without changes, the Drafts as they are.
+ * Throws `TemplateMarkupInvalidError` and `DesignSystemInvalidError` as saving would.
  */
 export async function previewMarkup(
 	scope: SiteScope,
@@ -27,8 +30,13 @@ export async function previewMarkup(
 	host: SiteHost,
 	path: string,
 	change: MarkupChange | undefined,
+	css?: { target: CssTarget; text: string },
 ): Promise<{ preview: CodePreview; notices: MarkupNotice[] }> {
-	if (!change) return { preview: { styles: await draftStyles(scope) }, notices: [] };
+	if (!change) {
+		if (!css) return { preview: { styles: await draftStyles(scope) }, notices: [] };
+		const designSystem = previewCss(await draftDesignSystem(scope), css);
+		return { preview: { styles: await draftStyles(scope, { designSystem }) }, notices: [] };
+	}
 	const { source } = await resolveSource(scope, deps, host, path, readCodeRef(change.ref));
 	const read = async () => {
 		if (source.kind === "component" && source.id !== null) {
@@ -50,7 +58,8 @@ export async function previewMarkup(
 		}
 		throw new CodeSourceNotFoundError();
 	};
-	const { tree, notices, designSystem, source: shown } = await read();
+	const { tree, notices, designSystem: withClasses, source: shown } = await read();
+	const designSystem = css ? previewCss(withClasses, css) : withClasses;
 	const styles = await draftStyles(scope, { designSystem, trees: [...(await draftTrees(scope)), tree] });
 	return { preview: { source: shown, styles }, notices };
 }

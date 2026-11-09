@@ -99,6 +99,21 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.save(scope, host, parse(codeSave, body)));
 	},
+	/** What the CSS panel shows for an element: its Classes, the breakpoints, the Site CSS and the tokens. */
+	"code/css": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.css(scope, host, parse(codeSource, body)));
+	},
+	/** Saves a piece of a Class, or the Site CSS, to the Design system's Draft, based on the version it was opened at. */
+	"code/saveCss": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.saveCss(scope, parse(codeSaveCss, body)));
+	},
+	/** Makes a Class of the Design system's Draft from a name the HTML panel doesn't know. */
+	"code/createClass": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.codeMode.createClass(scope, parse(codeClassName, body).name));
+	},
 	/** Turns Code mode off for this browser: its pages are Content editing's again. */
 	"code/stop": async (_services, _session, _body, request) => {
 		const response = json(200, { code: false });
@@ -159,10 +174,29 @@ const draftVersion = z
 	.regex(/^[0-9a-f]{16}$/)
 	.nullable();
 
+/** The longest CSS Code mode sends, in characters, as the Design system takes it. */
+const CSS_MAX_LENGTH = 200_000;
+
+/** The id of a Class or a breakpoint token. */
+const designId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+/** Which CSS a save or preview changes: one piece of a Class (its styles, own CSS, or a breakpoint's styles), or the Site CSS. */
+const cssTarget = z.union([
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("styles") }),
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("css") }),
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("breakpoint"), breakpointId: designId }),
+	z.object({ kind: z.literal("site") }),
+]);
+
 const codePreview = z.object({
 	path: z.string().max(2000),
 	markup: z.object({ ref: z.string().max(1000), text: z.string().max(MARKUP_MAX_LENGTH) }).optional(),
+	css: z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH) }).optional(),
 });
+
+const codeSaveCss = z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH), version: draftVersion });
+
+const codeClassName = z.object({ name: z.string().max(200) });
 
 const codeSave = z.object({
 	path: z.string().max(2000),

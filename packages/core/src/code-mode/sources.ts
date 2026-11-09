@@ -171,7 +171,7 @@ async function rootOf(
 }
 
 /** A node of a tree by its id, with the elements and Placements around it, outermost first. */
-function findNode(
+export function findNode(
 	nodes: readonly TreeNode[],
 	id: string,
 	around: TreeNode[] = [],

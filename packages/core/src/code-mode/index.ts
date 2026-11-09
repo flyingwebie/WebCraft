@@ -17,9 +17,11 @@ import { isEditPath } from "../edit-mode/paths.ts";
 import type { PageEditing, SiteHost, SitePages } from "../site-pages/index.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
+import { type CodeClass, type CodeCss, type CssTarget, makeClass, readCss, saveCss } from "./css.ts";
 import { type MarkupChange, previewMarkup, type SavedMarkup, saveMarkup } from "./markup.ts";
 import { type OpenedSource, openSource, readCodeRef, type SourceDeps } from "./sources.ts";
 
+export type { CodeClass, CodeCss, CssTarget, TokenKind } from "./css.ts";
 export { CodeSourceNotFoundError } from "./errors.ts";
 export type { MarkupChange, SavedMarkup } from "./markup.ts";
 export type { CodeSourceKind, OpenedSource, Suggestions } from "./sources.ts";
@@ -56,7 +58,7 @@ export type CodeMode = {
 	preview(
 		host: SiteHost,
 		editing: PageEditing,
-		input: { path: string; markup?: MarkupChange },
+		input: { path: string; markup?: MarkupChange; css?: { target: CssTarget; text: string } },
 	): Promise<CodePreviewPage>;
 	/**
 	 * Saves markup to the Draft of the Template or Component a reference names, based on the version
@@ -67,6 +69,21 @@ export type CodeMode = {
 		host: SiteHost,
 		input: { path: string; ref: string; markup: string; version: string | null },
 	): Promise<SavedMarkup>;
+	/** What the CSS panel shows for the element a reference names (null: the Site CSS only). */
+	css(scope: SiteScope, host: SiteHost, input: { path: string; ref: string | null }): Promise<CodeCss>;
+	/**
+	 * Saves CSS (a piece of a Class, or the Site CSS) to the Design system's Draft, based on the
+	 * version it was opened at.
+	 */
+	saveCss(
+		scope: SiteScope,
+		input: { target: CssTarget; text: string; version: string | null },
+	): Promise<{
+		text: string;
+		version: string;
+	}>;
+	/** Makes a Class of the Design system's Draft, for a name the HTML panel doesn't know yet. */
+	createClass(scope: SiteScope, name: string): Promise<{ class: CodeClass }>;
 };
 
 export function createCodeMode(options: {
@@ -101,7 +118,7 @@ export function createCodeMode(options: {
 		},
 		async preview(host, editing, input) {
 			if (!isEditPath(input.path)) throw new EditPathInvalidError();
-			const { preview, notices } = await previewMarkup(editing.scope, deps, host, input.path, input.markup);
+			const { preview, notices } = await previewMarkup(editing.scope, deps, host, input.path, input.markup, input.css);
 			const shown: PageEditing = { ...editing, code: true, preview };
 			let answer = await pages.render(host, input.path, shown);
 			// The home page's own path shows the home page.
@@ -114,5 +131,8 @@ export function createCodeMode(options: {
 			};
 		},
 		save: (scope, host, input) => saveMarkup(scope, deps, host, input),
+		css: (scope, host, input) => readCss(scope, deps, host, input),
+		saveCss: (scope, input) => saveCss(scope, input),
+		createClass: (scope, name) => makeClass(scope, name),
 	};
 }
