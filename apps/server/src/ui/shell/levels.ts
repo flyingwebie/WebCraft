@@ -5,6 +5,7 @@ import {
 	GlobeIcon,
 	HardDriveIcon,
 	ImagesIcon,
+	LanguagesIcon,
 	LayoutDashboardIcon,
 	type LucideIcon,
 	MailIcon,
@@ -184,6 +185,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						exact: true,
 					},
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
+					{
+						id: "site-languages",
+						label: "shell.nav.languages",
+						icon: LanguagesIcon,
+						to: "/sites/$siteId/languages",
+						requires: "structure.edit",
+					},
 					{
 						id: "site-modules",
 						label: "shell.nav.modules",

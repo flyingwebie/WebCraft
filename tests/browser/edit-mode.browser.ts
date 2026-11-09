@@ -25,6 +25,7 @@ beforeAll(async () => {
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	editor = (await local.createMember({ workspaceId, role: "editor", name: "Erin Editor" })).account;
 
+	await api.languages.add({ siteId, code: "fr" });
 	await api.globals.setFields({ siteId, fields: [{ key: "tagline", label: "Tagline", type: "text" }] });
 	await api.globals.saveDraft({ siteId, fields: { tagline: "Open every day from seven." } });
 	await api.globals.publish({ siteId });
@@ -138,6 +139,17 @@ for (const theme of THEMES) {
 				page.getByRole("button", { name: /Edit mode menu$/ }),
 				"menu",
 				`Edit mode › Account menu (${theme})`,
+			);
+		});
+
+		test("the language menu", async () => {
+			const page = await editModePage(theme);
+
+			await expectOverlayUsable(
+				page,
+				page.getByRole("button", { name: /^Language: EN \(English\)/ }),
+				"menu",
+				`Edit mode › Languages (${theme})`,
 			);
 		});
 	});

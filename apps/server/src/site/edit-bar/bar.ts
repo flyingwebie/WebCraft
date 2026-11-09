@@ -307,10 +307,13 @@ export function editingBar(config: EditingBarConfig): void {
 					class: "control language",
 					"aria-haspopup": "menu",
 					"aria-expanded": "false",
-					"aria-label": word("languageSwitcher", { language: s.language.name }),
+					// The name holds the code it shows, then the language's name.
+					"aria-label": word("languageSwitcher", {
+						language: `${s.language.code.toUpperCase()} (${s.language.name})`,
+					}),
 				},
 				icon("language"),
-				el("span", { "aria-hidden": "true" }, s.language.code.toUpperCase()),
+				el("span", {}, s.language.code.toUpperCase()),
 				icon("chevron"),
 			);
 			popupTrigger({

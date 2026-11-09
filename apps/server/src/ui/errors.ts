@@ -38,6 +38,11 @@ export function errorMessage(error: unknown): MessageKey {
 		case "MEDIA_INVALID":
 		case "STORAGE_UNREACHABLE":
 		case "EDIT_MODE_UNAVAILABLE":
+		case "CONFIRMATION_INVALID":
+		case "LANGUAGE_INVALID":
+		case "LANGUAGE_TAKEN":
+		case "LANGUAGE_NOT_FOUND":
+		case "PATH_TAKEN":
 			return `errors.${code}`;
 		case "MEDIA_TYPE_REFUSED":
 			return (data as { reason?: unknown } | undefined)?.reason === "svg"
