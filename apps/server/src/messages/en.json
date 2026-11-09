@@ -119,7 +119,14 @@
 		"MEDIA_IMPORT_REFUSED_STATUS": "The server didn't send the file: it answered with an error.",
 		"AI_KEY_MISSING": "This Workspace has no AI key, so alt text can't be suggested.",
 		"AI_PROVIDER_FAILED": "The AI provider didn't answer. Try again later.",
-		"ALT_TEXT_UNAVAILABLE": "Alt text can't be suggested for this file."
+		"ALT_TEXT_UNAVAILABLE": "Alt text can't be suggested for this file.",
+		"IMPORT_FILE_REFUSED": "The file can't be imported.",
+		"IMPORT_FILE_NOT_FOUND": "The uploaded file is gone: upload it again.",
+		"IMPORT_NOT_FOUND": "That Import doesn't exist (any more).",
+		"IMPORT_RUN_NOT_FOUND": "That Import run doesn't exist, or its report was purged.",
+		"IMPORT_INVALID": "The Import's settings don't fit the Post Type.",
+		"IMPORT_RUNNING": "A run of this Import hasn't ended yet: wait for it, or stop it.",
+		"IMPORT_UNDO_REFUSED": "This run can't be undone."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -272,6 +279,7 @@
 			"loops": "Loops",
 			"forms": "Forms",
 			"libraries": "Libraries",
+			"imports": "Imports",
 			"seo": "SEO"
 		}
 	},
@@ -2868,6 +2876,260 @@
 			"RULE_LOOP": "Visitors would go round in a circle, or through more than 5 rules. Choose another target.",
 			"RULE_NOT_FOUND": "This rule no longer exists. Someone may have removed it.",
 			"MISS_NOT_FOUND": "This path is no longer in the 404 log."
+		}
+	},
+	"imports": {
+		"pageTitle": "Imports",
+		"heading": "Imports",
+		"intro": "Bring content in from a CSV file. Everything arrives as Drafts, ready to check before it's published.",
+		"new": "New import",
+		"none": "No Imports yet. Start one here, or with Import CSV on a Post Type's Entries.",
+		"columns": {
+			"import": "Import",
+			"source": "Source",
+			"lastRun": "Last run",
+			"result": "Result",
+			"open": "Open"
+		},
+		"sources": {
+			"heading": "Start an import",
+			"csv": {
+				"title": "CSV file",
+				"body": "Load rows into one Post Type, one column per Field. Owners and Editors can use it too.",
+				"short": "Into one Post Type"
+			}
+		},
+		"sourceNames": {
+			"csv": "CSV"
+		},
+		"kept": "Import reports are kept for 90 days after their run ends. Uploaded files are deleted once their run ends.",
+		"list": {
+			"into": "{file} → {postType}",
+			"noPostType": "a Post Type that was deleted",
+			"runBy": "Run {number} · by {name}",
+			"notRun": "Not run yet",
+			"purged": "{count, plural, one {Ran once; its report was purged} other {Ran # times; the reports were purged}}",
+			"progress": "{done} of {total} rows",
+			"counts": "{created} new · {updated} updated · {skipped} skipped",
+			"openRun": "Open the run of {name}",
+			"openReport": "Report of {name}",
+			"continue": "Run {name}"
+		},
+		"status": {
+			"waiting": "Waiting",
+			"running": "Running",
+			"stopped": "Stopped",
+			"done": "Done",
+			"failed": "Failed",
+			"undone": "Undone"
+		},
+		"steps": {
+			"label": "Import steps",
+			"source": "Source",
+			"map": "Map",
+			"preview": "Preview",
+			"run": "Run",
+			"report": "Report",
+			"done": "(done)"
+		},
+		"file": {
+			"details": "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}} · {separator} · UTF-8",
+			"separators": {
+				"comma": "comma separated",
+				"semicolon": "semicolon separated",
+				"tab": "tab separated"
+			},
+			"change": "Change",
+			"label": "CSV file",
+			"help": "UTF-8 (with or without a byte order mark), separated by commas, semicolons or tabs, its first row naming the columns. At most 10 MB and 10,000 rows.",
+			"reading": "Reading the file…"
+		},
+		"map": {
+			"language": "Language",
+			"defaultLanguage": "{language} (Default language)",
+			"languageHelp": "Values are written in this language. To bring translations in, run a file in another language matched by the same column: rows add their values to the Entries they match.",
+			"matchBy": "Match existing Entries by",
+			"matchHelp": "A row matching one Entry updates its Draft; Entries this Import brought in and someone edited since are skipped.",
+			"matchNotMapped": "Choose a column for it below: rows are matched by its value.",
+			"columns": "Columns",
+			"column": "Column",
+			"field": "Field",
+			"firstRow": "First row",
+			"fieldFor": "Field for the column {column}",
+			"skip": "Skip"
+		},
+		"preview": {
+			"summary": "Will create {create, plural, one {# Draft} other {# Drafts}} and update {update} · {skip} skipped",
+			"problemRows": "{count, plural, one {# row has a problem} other {# rows have a problem}}",
+			"files": "{count, plural, one {# file to fetch} other {# files to fetch}}",
+			"seeRows": "See rows",
+			"hideRows": "Hide rows",
+			"skippedColumns": "Skipped columns, listed in the report: {columns}",
+			"working": "Working out what the import would do…"
+		},
+		"report": {
+			"noProblems": "No problems.",
+			"row": "Row",
+			"problem": "What's wrong",
+			"moreProblems": "{count, plural, one {# more problem} other {# more problems}}",
+			"title": "Import report: {name}",
+			"started": "Run {number} · started {at} by {name}",
+			"openEntries": "Open {name}",
+			"runAgain": "Run again",
+			"failed": {
+				"access": "The run stopped: the person who started it can no longer import on this Site.",
+				"settings": "The run stopped: its Post Type or Fields changed so they no longer fit.",
+				"file": "The run stopped: its file was gone.",
+				"error": "The run stopped on an unexpected error. What it imported is kept."
+			},
+			"stopped": "Stopped after {done} of {total} rows. What it imported is kept.",
+			"undone": "Undone by {name} on {at}.",
+			"done": "Done: every row was gone through.",
+			"listsLabel": "What the run did",
+			"tabs": {
+				"problems": "Problem rows ({count})",
+				"created": "Created ({count})",
+				"updated": "Updated ({count})",
+				"skipped": "Skipped ({count})",
+				"columns": "Skipped columns ({count})"
+			},
+			"noSkippedColumns": "Every column went into a Field.",
+			"againTitle": "Running again",
+			"againBody": "Matches rows by their Source id: updates the Entries nobody edited, skips hand-edited ones, adds new ones.",
+			"kept": "This report is kept until {at}.",
+			"counts": {
+				"created": "Created",
+				"updated": "Updated",
+				"unchanged": "Unchanged",
+				"skipped": "Skipped",
+				"problemRows": "Problem rows",
+				"files": "Files fetched"
+			},
+			"noEntries": "None.",
+			"entry": "Entry",
+			"note": "Note",
+			"entryGone": "Deleted since",
+			"editedSince": "Edited since an earlier run",
+			"moreEntries": "{count, plural, one {# more Entry} other {# more Entries}}"
+		},
+		"run": {
+			"stopping": "Stopping after the row it is on.",
+			"stopRequested": "Stopping…",
+			"stop": "Stop run",
+			"waiting": "Waiting for the worker…",
+			"importing": "Importing…",
+			"leave": "You can leave this page: the run continues in the background.",
+			"progressLabel": "Rows imported",
+			"progress": "{done} of {total} rows ({percent}%)",
+			"noteDrafts": "Everything lands as Drafts. Files are fetched into the Media library, which goes live at once, like all Media.",
+			"noteStop": "Stopping keeps what was imported so far. You can undo the whole run from its report."
+		},
+		"undo": {
+			"done": "The run was undone.",
+			"title": "Undo this run",
+			"available": "Removes the Drafts it created, puts back the Drafts it updated and moves the files it fetched to the Trash. Available until anything from it is published or edited.",
+			"undoneAlready": "This run was undone.",
+			"refused": {
+				"status": "Only a run that ended can be undone.",
+				"published": "Something this run brought in was published since, so it can't be undone.",
+				"edited": "Something this run brought in was edited since, so it can't be undone.",
+				"linked": "Another Entry must point at an Entry this run created, so it can't be undone."
+			},
+			"button": "Undo run",
+			"close": "Close",
+			"dialogTitle": "Undo run {number}?",
+			"preview": "Deletes {removes, plural, one {# Draft} other {# Drafts}} it created, puts back {restores, plural, one {# Draft} other {# Drafts}} it updated and moves {files, plural, one {# file} other {# files}} to the Trash.",
+			"asking": "Working out what Undo would do…",
+			"cancel": "Cancel",
+			"confirm": "Undo run"
+		},
+		"sheet": {
+			"open": "Import CSV",
+			"close": "Close",
+			"title": "Import CSV into {name}",
+			"intro": "Rows become Drafts. Nothing goes live until it's published.",
+			"fieldsByAgency": "New Fields can only be added by your agency. Columns without a Field are skipped and listed in the report.",
+			"cancel": "Cancel",
+			"start": "Import {count, plural, one {# row} other {# rows}}"
+		},
+		"flow": {
+			"choosePostType": "Choose the Post Type the rows go into.",
+			"chooseFile": "Choose a CSV file.",
+			"nameRequired": "Give the Import a name.",
+			"sourceIntro": "Choose where the content comes from",
+			"toMap": "Continue to mapping",
+			"mapIntro": "Choose where each column goes",
+			"toPreview": "Preview",
+			"previewIntro": "Check what the import will do",
+			"start": "Start import",
+			"backToList": "Back to Imports",
+			"newTitle": "New import",
+			"back": "Back",
+			"cancel": "Cancel",
+			"source": "Source",
+			"csvTitle": "CSV file",
+			"csvIntro": "Rows go into one Post Type, one column per Field.",
+			"name": "Import name",
+			"nameHelp": "Shown in the list and the report.",
+			"postType": "Post Type",
+			"fileAgain": "Choose the file again: uploaded files are deleted once their run ends. Columns keep where they went, by name.",
+			"goodToKnow": "Good to know",
+			"notePrivate": "The file stays private: it never joins the Media library and is deleted once the run ends.",
+			"noteKept": "Its report is kept for 90 days after the run ends.",
+			"noteDrafts": "Nothing goes live: everything arrives as Drafts, and you can undo the whole run until anything from it is published or edited."
+		},
+		"rules": {
+			"number": "Not a number (write it like 5.50 or 5,50).",
+			"boolean": "Not yes or no (write true, false, yes, no, 1 or 0).",
+			"date": "Not a date or time the Field takes (write it like 2026-03-02, 09:30 or 2026-03-02 09:30).",
+			"mediaAddress": "Not an https address of a file, nor a file of the Media library.",
+			"mediaNotFound": "No such file in the Media library.",
+			"media": "Not a file of the Media library.",
+			"link": "Not an address a link can go to.",
+			"tooLong": "Longer than the Field takes.",
+			"slug": "Not a slug (lower-case letters and digits joined by dashes).",
+			"matchMissing": "No value to match Entries by: the row isn't imported.",
+			"translationWithoutEntry": "Matches no Entry to translate: the row isn't imported.",
+			"choice": "{value} isn't one of the Field's choices.",
+			"entryNotFound": "No Entry found by the slug or title {name}.",
+			"entryAmbiguous": "Several Entries have the slug or title {name}.",
+			"columnCount": "More cells than the {columns} columns: the row isn't imported.",
+			"matchedTwice": "Row {row} has the same value to match by: the row isn't imported.",
+			"matchesSeveral": "Matches {count} Entries: the row isn't imported.",
+			"slugTaken": "Another Entry has the slug {slug}: the row isn't imported.",
+			"refused": "The Entry refused the row: it isn't imported."
+		},
+		"fetchProblems": {
+			"scheme": "The file wasn't fetched: not an https address.",
+			"host": "The file wasn't fetched: its address is inside a network.",
+			"address": "The file wasn't fetched: its address is inside a network.",
+			"redirects": "The file wasn't fetched: too many redirects.",
+			"timeout": "The file wasn't fetched: it took longer than 30 seconds.",
+			"size": "The file wasn't fetched: it is larger than the largest file the Install takes.",
+			"status": "The file wasn't fetched: the server answered {status}.",
+			"type": "The file wasn't fetched: the Media library doesn't take this kind of file.",
+			"quota": "The file wasn't fetched: the Workspace's storage is full.",
+			"unreachable": "The file wasn't fetched: the server couldn't be reached."
+		},
+		"fileRefused": {
+			"size": "The file is larger than {megabytes} MB: split it into smaller files.",
+			"encoding": "The file isn't UTF-8. Save it as CSV UTF-8 and upload it again.",
+			"empty": "The file has no rows after its first row.",
+			"header": "The first row must name every column once: column {column} has no name, or one another column has.",
+			"quote": "A quoted field starting in row {row} never closes.",
+			"cell": "A field in row {row} is longer than {max} characters.",
+			"rows": "The file has more than {max} rows: split it into smaller files.",
+			"columns": "The file has more than {max} columns."
+		},
+		"settingRules": {
+			"postTypeNotFound": "The Post Type is gone.",
+			"languageUnknown": "The Site doesn't have that language.",
+			"columnTwice": "A column is mapped twice.",
+			"targetUnknown": "A column goes into a Field the Post Type doesn't have.",
+			"targetNotLeaf": "A column goes into a Group or Repeater: map their Fields instead.",
+			"targetTwice": "Two columns go into the same Field.",
+			"matchUnknown": "Entries can only be matched by the title, the slug, or a text, email or number Field.",
+			"matchNotMapped": "Choose a column for what rows match Entries by."
 		}
 	},
 	"seo": {

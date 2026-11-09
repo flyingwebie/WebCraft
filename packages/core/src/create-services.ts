@@ -75,6 +75,7 @@ import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
+import { createImports } from "./imports/index.ts";
 import { createInstallSettings, MEDIA_MAX_FILE_BYTES } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
 import { MEDIA_IMPORT_TIMEOUT_MS } from "./media/import.ts";
@@ -203,6 +204,21 @@ export async function createInstallServices(
 		clock,
 		log,
 		directory: config.storageDir,
+	});
+	const media = createMediaLibrary({
+		storage,
+		jobs: ports.jobs,
+		settings,
+		email,
+		log,
+		clock,
+		ai: ports.ai,
+		fetch: createGuardedFetch({
+			http: ports.http,
+			dns: ports.dns,
+			ceilings: { maxBytes: MEDIA_MAX_FILE_BYTES.max, timeoutMs: MEDIA_IMPORT_TIMEOUT_MS },
+		}),
+		importTimeoutMs: options.mediaImportTimeoutMs,
 	});
 	const formTokens = createFormTokens({ key: await formTimeKey(masterKey), clock });
 	const sitePages = createSitePages({
@@ -359,21 +375,8 @@ export async function createInstallServices(
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
 		email,
 		storage,
-		media: createMediaLibrary({
-			storage,
-			jobs: ports.jobs,
-			settings,
-			email,
-			log,
-			clock,
-			ai: ports.ai,
-			fetch: createGuardedFetch({
-				http: ports.http,
-				dns: ports.dns,
-				ceilings: { maxBytes: MEDIA_MAX_FILE_BYTES.max, timeoutMs: MEDIA_IMPORT_TIMEOUT_MS },
-			}),
-			importTimeoutMs: options.mediaImportTimeoutMs,
-		}),
+		media,
+		imports: createImports({ storage, jobs: ports.jobs }),
 		modules,
 	};
 }

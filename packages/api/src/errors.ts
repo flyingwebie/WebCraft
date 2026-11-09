@@ -25,6 +25,7 @@ import {
 	ConfirmationInvalidError,
 	ConsentBannerInvalidError,
 	ConsentRecordNotFoundError,
+	CsvRefusedError,
 	DomainChangeRefusedError,
 	DomainInvalidError,
 	DomainNotFoundError,
@@ -47,6 +48,12 @@ import {
 	GlobalsInvalidError,
 	HostInvalidError,
 	IdentityCheckRequiredError,
+	ImportFileNotFoundError,
+	ImportInvalidError,
+	ImportNotFoundError,
+	ImportRunNotFoundError,
+	ImportRunningError,
+	ImportUndoRefusedError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	LanguageInvalidError,
@@ -489,6 +496,47 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof CsvRefusedError) {
+		return new ORPCError("IMPORT_FILE_REFUSED", {
+			status: error.reason === "size" ? 413 : 400,
+			message: error.message,
+			data: { reason: error.reason, ...error.params },
+			cause: error,
+		});
+	}
+	if (error instanceof ImportFileNotFoundError) {
+		return new ORPCError("IMPORT_FILE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ImportNotFoundError) {
+		return new ORPCError("IMPORT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ImportRunNotFoundError) {
+		return new ORPCError("IMPORT_RUN_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ImportInvalidError) {
+		return new ORPCError("IMPORT_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof ImportRunningError) {
+		return new ORPCError("IMPORT_RUNNING", {
+			status: 409,
+			message: error.message,
+			data: { runId: error.runId },
+			cause: error,
+		});
+	}
+	if (error instanceof ImportUndoRefusedError) {
+		return new ORPCError("IMPORT_UNDO_REFUSED", {
+			status: 409,
+			message: error.message,
+			data: { reason: error.reason, entries: error.entries },
 			cause: error,
 		});
 	}

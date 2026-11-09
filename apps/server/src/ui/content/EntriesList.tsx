@@ -18,7 +18,7 @@ import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { CircleAlertIcon, CornerDownRightIcon, DatabaseIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
@@ -51,6 +51,7 @@ export function EntriesList({
 	permissions,
 	search,
 	onSearch,
+	actions,
 }: {
 	siteId: string;
 	postType: ListedPostType;
@@ -59,6 +60,8 @@ export function EntriesList({
 	permissions: readonly string[];
 	search: EntriesSearch;
 	onSearch(next: EntriesSearch, options?: { replace?: boolean }): void;
+	/** More actions beside New, such as Import CSV. */
+	actions?: ReactNode;
 }) {
 	const t = useT();
 	const isPage = postType.builtIn === "page";
@@ -99,6 +102,7 @@ export function EntriesList({
 							{t("entries.list.fields")}
 						</Button>
 					) : null}
+					{actions}
 					{permissions.includes("entry.edit") ? (
 						<NewEntryDialog siteId={siteId} postType={postType} pages={isPage ? entries : null} />
 					) : null}

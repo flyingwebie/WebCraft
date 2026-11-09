@@ -1,0 +1,2832 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "70b20724-b052-48a7-98f9-305a2d9b3a0c",
+  "prevIds": [
+    "7d6e4a92-1834-4fe2-9074-47e1bd4ab400"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_files"
+      ],
+      "writes": [
+        "s|tbl|public.import_files",
+        "n|tbl|public.import_files",
+        "e|tbl|public.import_files",
+        "n|rel|public.import_files",
+        "n|type|public.import_files",
+        "n|rel|public.import_files_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|tbl|public.import_items",
+        "n|tbl|public.import_items",
+        "e|tbl|public.import_items",
+        "n|rel|public.import_items",
+        "n|type|public.import_items",
+        "n|rel|public.import_items_pkey",
+        "n|rel|public.import_items_import_id_kind_source_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_changes"
+      ],
+      "writes": [
+        "s|tbl|public.import_run_changes",
+        "n|tbl|public.import_run_changes",
+        "e|tbl|public.import_run_changes",
+        "n|rel|public.import_run_changes",
+        "n|type|public.import_run_changes",
+        "n|rel|public.import_run_changes_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_problems"
+      ],
+      "writes": [
+        "s|tbl|public.import_run_problems",
+        "n|tbl|public.import_run_problems",
+        "e|tbl|public.import_run_problems",
+        "n|rel|public.import_run_problems",
+        "n|type|public.import_run_problems",
+        "n|rel|public.import_run_problems_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_runs"
+      ],
+      "writes": [
+        "s|tbl|public.import_runs",
+        "n|tbl|public.import_runs",
+        "e|tbl|public.import_runs",
+        "n|rel|public.import_runs",
+        "n|type|public.import_runs",
+        "n|rel|public.import_runs_pkey",
+        "n|rel|public.import_runs_import_id_number_unique",
+        "n|rel|public.import_runs_site_id_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "imports"
+      ],
+      "writes": [
+        "s|tbl|public.imports",
+        "n|tbl|public.imports",
+        "e|tbl|public.imports",
+        "n|rel|public.imports",
+        "n|type|public.imports",
+        "n|rel|public.imports_pkey",
+        "n|rel|public.imports_site_id_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "import_files",
+        "import_files_site_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.import_files_site_id_idx",
+        "n|idx|public.import_files_site_id_idx",
+        "e|idx|public.import_files_site_id_idx",
+        "n|rel|public.import_files_site_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public",
+        "n|col|public.import_files.site_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "import_files",
+        "import_files_expires_at_idx"
+      ],
+      "writes": [
+        "s|idx|public.import_files_expires_at_idx",
+        "n|idx|public.import_files_expires_at_idx",
+        "e|idx|public.import_files_expires_at_idx",
+        "n|rel|public.import_files_expires_at_idx"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public",
+        "n|col|public.import_files.expires_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "import_items",
+        "import_items_entry_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.import_items_entry_id_idx",
+        "n|idx|public.import_items_entry_id_idx",
+        "e|idx|public.import_items_entry_id_idx",
+        "n|rel|public.import_items_entry_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|col|public.import_items.entry_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "import_items",
+        "import_items_media_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.import_items_media_id_idx",
+        "n|idx|public.import_items_media_id_idx",
+        "e|idx|public.import_items_media_id_idx",
+        "n|rel|public.import_items_media_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|col|public.import_items.media_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "import_run_changes",
+        "import_run_changes_run_id_position_idx"
+      ],
+      "writes": [
+        "s|idx|public.import_run_changes_run_id_position_idx",
+        "n|idx|public.import_run_changes_run_id_position_idx",
+        "e|idx|public.import_run_changes_run_id_position_idx",
+        "n|rel|public.import_run_changes_run_id_position_idx"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public",
+        "n|col|public.import_run_changes.run_id",
+        "n|col|public.import_run_changes.position"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "import_run_problems",
+        "import_run_problems_run_id_position_idx"
+      ],
+      "writes": [
+        "s|idx|public.import_run_problems_run_id_position_idx",
+        "n|idx|public.import_run_problems_run_id_position_idx",
+        "e|idx|public.import_run_problems_run_id_position_idx",
+        "n|rel|public.import_run_problems_run_id_position_idx"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_problems",
+        "n|sch|public",
+        "n|col|public.import_run_problems.run_id",
+        "n|col|public.import_run_problems.position"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "import_runs",
+        "import_runs_expires_at_idx"
+      ],
+      "writes": [
+        "s|idx|public.import_runs_expires_at_idx",
+        "n|idx|public.import_runs_expires_at_idx",
+        "e|idx|public.import_runs_expires_at_idx",
+        "n|rel|public.import_runs_expires_at_idx"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|col|public.import_runs.expires_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "imports",
+        "imports_site_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.imports_site_id_idx",
+        "n|idx|public.imports_site_id_idx",
+        "e|idx|public.imports_site_id_idx",
+        "n|rel|public.imports_site_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.imports",
+        "n|sch|public",
+        "n|col|public.imports.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_files"
+      ],
+      "writes": [
+        "s|fk|public.import_files.import_files_uploaded_by_people_id_fkey",
+        "n|fk|public.import_files.import_files_uploaded_by_people_id_fkey",
+        "e|fk|public.import_files.import_files_uploaded_by_people_id_fkey",
+        "n|con|public.import_files.import_files_uploaded_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.import_files.uploaded_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_files"
+      ],
+      "writes": [
+        "s|fk|public.import_files.import_files_site_fkey",
+        "n|fk|public.import_files.import_files_site_fkey",
+        "e|fk|public.import_files.import_files_site_fkey",
+        "n|con|public.import_files.import_files_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.import_files.workspace_id",
+        "n|col|public.import_files.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|fk|public.import_items.import_items_entry_id_entries_id_fkey",
+        "n|fk|public.import_items.import_items_entry_id_entries_id_fkey",
+        "e|fk|public.import_items.import_items_entry_id_entries_id_fkey",
+        "n|con|public.import_items.import_items_entry_id_entries_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.import_items.entry_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|fk|public.import_items.import_items_media_id_media_id_fkey",
+        "n|fk|public.import_items.import_items_media_id_media_id_fkey",
+        "e|fk|public.import_items.import_items_media_id_media_id_fkey",
+        "n|con|public.import_items.import_items_media_id_media_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|tbl|public.media",
+        "n|sch|public",
+        "n|col|public.import_items.media_id",
+        "n|col|public.media.id",
+        "e|uniqueness|public.media.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|fk|public.import_items.import_items_last_run_id_import_runs_id_fkey",
+        "n|fk|public.import_items.import_items_last_run_id_import_runs_id_fkey",
+        "e|fk|public.import_items.import_items_last_run_id_import_runs_id_fkey",
+        "n|con|public.import_items.import_items_last_run_id_import_runs_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|col|public.import_items.last_run_id",
+        "n|col|public.import_runs.id",
+        "e|uniqueness|public.import_runs.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|fk|public.import_items.import_items_site_fkey",
+        "n|fk|public.import_items.import_items_site_fkey",
+        "e|fk|public.import_items.import_items_site_fkey",
+        "n|con|public.import_items.import_items_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.import_items.workspace_id",
+        "n|col|public.import_items.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_items"
+      ],
+      "writes": [
+        "s|fk|public.import_items.import_items_import_fkey",
+        "n|fk|public.import_items.import_items_import_fkey",
+        "e|fk|public.import_items.import_items_import_fkey",
+        "n|con|public.import_items.import_items_import_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_items",
+        "n|sch|public",
+        "n|tbl|public.imports",
+        "n|sch|public",
+        "n|col|public.import_items.site_id",
+        "n|col|public.import_items.import_id",
+        "n|col|public.imports.site_id",
+        "n|col|public.imports.id",
+        "e|uniqueness|public.imports.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_changes"
+      ],
+      "writes": [
+        "s|fk|public.import_run_changes.import_run_changes_entry_id_entries_id_fkey",
+        "n|fk|public.import_run_changes.import_run_changes_entry_id_entries_id_fkey",
+        "e|fk|public.import_run_changes.import_run_changes_entry_id_entries_id_fkey",
+        "n|con|public.import_run_changes.import_run_changes_entry_id_entries_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.import_run_changes.entry_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_changes"
+      ],
+      "writes": [
+        "s|fk|public.import_run_changes.import_run_changes_media_id_media_id_fkey",
+        "n|fk|public.import_run_changes.import_run_changes_media_id_media_id_fkey",
+        "e|fk|public.import_run_changes.import_run_changes_media_id_media_id_fkey",
+        "n|con|public.import_run_changes.import_run_changes_media_id_media_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public",
+        "n|tbl|public.media",
+        "n|sch|public",
+        "n|col|public.import_run_changes.media_id",
+        "n|col|public.media.id",
+        "e|uniqueness|public.media.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_changes"
+      ],
+      "writes": [
+        "s|fk|public.import_run_changes.import_run_changes_site_fkey",
+        "n|fk|public.import_run_changes.import_run_changes_site_fkey",
+        "e|fk|public.import_run_changes.import_run_changes_site_fkey",
+        "n|con|public.import_run_changes.import_run_changes_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.import_run_changes.workspace_id",
+        "n|col|public.import_run_changes.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_changes"
+      ],
+      "writes": [
+        "s|fk|public.import_run_changes.import_run_changes_run_fkey",
+        "n|fk|public.import_run_changes.import_run_changes_run_fkey",
+        "e|fk|public.import_run_changes.import_run_changes_run_fkey",
+        "n|con|public.import_run_changes.import_run_changes_run_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_changes",
+        "n|sch|public",
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|col|public.import_run_changes.site_id",
+        "n|col|public.import_run_changes.run_id",
+        "n|col|public.import_runs.site_id",
+        "n|col|public.import_runs.id",
+        "e|uniqueness|public.import_runs.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_problems"
+      ],
+      "writes": [
+        "s|fk|public.import_run_problems.import_run_problems_site_fkey",
+        "n|fk|public.import_run_problems.import_run_problems_site_fkey",
+        "e|fk|public.import_run_problems.import_run_problems_site_fkey",
+        "n|con|public.import_run_problems.import_run_problems_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_problems",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.import_run_problems.workspace_id",
+        "n|col|public.import_run_problems.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_run_problems"
+      ],
+      "writes": [
+        "s|fk|public.import_run_problems.import_run_problems_run_fkey",
+        "n|fk|public.import_run_problems.import_run_problems_run_fkey",
+        "e|fk|public.import_run_problems.import_run_problems_run_fkey",
+        "n|con|public.import_run_problems.import_run_problems_run_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_run_problems",
+        "n|sch|public",
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|col|public.import_run_problems.site_id",
+        "n|col|public.import_run_problems.run_id",
+        "n|col|public.import_runs.site_id",
+        "n|col|public.import_runs.id",
+        "e|uniqueness|public.import_runs.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_runs"
+      ],
+      "writes": [
+        "s|fk|public.import_runs.import_runs_started_by_people_id_fkey",
+        "n|fk|public.import_runs.import_runs_started_by_people_id_fkey",
+        "e|fk|public.import_runs.import_runs_started_by_people_id_fkey",
+        "n|con|public.import_runs.import_runs_started_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.import_runs.started_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_runs"
+      ],
+      "writes": [
+        "s|fk|public.import_runs.import_runs_file_id_import_files_id_fkey",
+        "n|fk|public.import_runs.import_runs_file_id_import_files_id_fkey",
+        "e|fk|public.import_runs.import_runs_file_id_import_files_id_fkey",
+        "n|con|public.import_runs.import_runs_file_id_import_files_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|tbl|public.import_files",
+        "n|sch|public",
+        "n|col|public.import_runs.file_id",
+        "n|col|public.import_files.id",
+        "e|uniqueness|public.import_files.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_runs"
+      ],
+      "writes": [
+        "s|fk|public.import_runs.import_runs_undone_by_people_id_fkey",
+        "n|fk|public.import_runs.import_runs_undone_by_people_id_fkey",
+        "e|fk|public.import_runs.import_runs_undone_by_people_id_fkey",
+        "n|con|public.import_runs.import_runs_undone_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.import_runs.undone_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_runs"
+      ],
+      "writes": [
+        "s|fk|public.import_runs.import_runs_site_fkey",
+        "n|fk|public.import_runs.import_runs_site_fkey",
+        "e|fk|public.import_runs.import_runs_site_fkey",
+        "n|con|public.import_runs.import_runs_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.import_runs.workspace_id",
+        "n|col|public.import_runs.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "import_runs"
+      ],
+      "writes": [
+        "s|fk|public.import_runs.import_runs_import_fkey",
+        "n|fk|public.import_runs.import_runs_import_fkey",
+        "e|fk|public.import_runs.import_runs_import_fkey",
+        "n|con|public.import_runs.import_runs_import_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public",
+        "n|tbl|public.imports",
+        "n|sch|public",
+        "n|col|public.import_runs.site_id",
+        "n|col|public.import_runs.import_id",
+        "n|col|public.imports.site_id",
+        "n|col|public.imports.id",
+        "e|uniqueness|public.imports.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "imports"
+      ],
+      "writes": [
+        "s|fk|public.imports.imports_created_by_people_id_fkey",
+        "n|fk|public.imports.imports_created_by_people_id_fkey",
+        "e|fk|public.imports.imports_created_by_people_id_fkey",
+        "n|con|public.imports.imports_created_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.imports",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.imports.created_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "imports"
+      ],
+      "writes": [
+        "s|fk|public.imports.imports_site_fkey",
+        "n|fk|public.imports.imports_site_fkey",
+        "e|fk|public.imports.imports_site_fkey",
+        "n|con|public.imports.imports_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.imports",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.imports.workspace_id",
+        "n|col|public.imports.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "import_files",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "import_items",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "import_run_changes",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "import_run_problems",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "import_runs",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "imports",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "uploaded_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "file_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "size_bytes",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "storage",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "details",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "kind",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "source_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "entry_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "media_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "written_hash",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "written_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "last_run_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "run_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "position",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "kind",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "action",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "reason",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "entry_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "media_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "before",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "written_hash",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "written_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "published_then",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "run_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "position",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "ordinal",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "column",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "rule",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "params",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "number",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "status",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "started_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "settings",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "file_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "file_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "total",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "done",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "summary",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "failure",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "started_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "stop_requested_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "finished_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "undone_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "undone_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "expires_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "source",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "settings",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "runs",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "created_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "import_files_site_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "import_files_expires_at_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "expires_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_entry_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "entry_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_media_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "media_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_run_id_position_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "run_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "position",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "import_run_problems_run_id_position_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "run_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "position",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_expires_at_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "expires_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "imports_site_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "import_files_uploaded_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "uploaded_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "import_files_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_entry_id_entries_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "entry_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_media_id_media_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "media_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "media",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_last_run_id_import_runs_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "last_run_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "import_runs",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_import_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "import_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "imports",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_entry_id_entries_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "entry_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_media_id_media_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "media_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "media",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_run_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "run_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "import_runs",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "import_run_problems_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "import_run_problems_run_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "run_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "import_runs",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_started_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "started_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_file_id_import_files_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "file_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "import_files",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_undone_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "undone_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_import_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "import_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "imports",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "imports_created_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "created_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "imports_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "import_files_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_problems",
+        "name": "import_run_problems_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "imports_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_import_id_kind_source_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "import_id",
+          "kind",
+          "source_id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_import_id_number_unique",
+        "nameExplicit": true,
+        "columns": [
+          "import_id",
+          "number"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_site_id_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "imports_site_id_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_items",
+        "name": "import_items_kind_known",
+        "value": "\"kind\" in ('entry', 'media')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_kind_known",
+        "value": "\"kind\" in ('entry', 'media')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_run_changes",
+        "name": "import_run_changes_action_known",
+        "value": "\"action\" in ('created', 'updated', 'unchanged', 'skipped')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "import_runs_status_known",
+        "value": "\"status\" in ('waiting', 'running', 'stopped', 'done', 'failed', 'undone')",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

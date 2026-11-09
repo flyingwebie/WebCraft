@@ -119,7 +119,14 @@
 		"MEDIA_IMPORT_REFUSED_STATUS": "Il server non ha inviato il file: ha risposto con un errore.",
 		"AI_KEY_MISSING": "Questo Workspace non ha una chiave AI, quindi non si può suggerire il testo alternativo.",
 		"AI_PROVIDER_FAILED": "Il fornitore AI non ha risposto. Riprova più tardi.",
-		"ALT_TEXT_UNAVAILABLE": "Per questo file non si può suggerire il testo alternativo."
+		"ALT_TEXT_UNAVAILABLE": "Per questo file non si può suggerire il testo alternativo.",
+		"IMPORT_FILE_REFUSED": "Il file non può essere importato.",
+		"IMPORT_FILE_NOT_FOUND": "Il file caricato non c'è più: caricalo di nuovo.",
+		"IMPORT_NOT_FOUND": "Quell'Importazione non esiste (più).",
+		"IMPORT_RUN_NOT_FOUND": "Quell'esecuzione non esiste, oppure il suo resoconto è stato eliminato.",
+		"IMPORT_INVALID": "Le impostazioni dell'Importazione non corrispondono al Tipo di contenuto.",
+		"IMPORT_RUNNING": "Un'esecuzione di questa Importazione non è ancora terminata: attendila oppure interrompila.",
+		"IMPORT_UNDO_REFUSED": "Questa esecuzione non può essere annullata."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -272,6 +279,7 @@
 			"loops": "Loop",
 			"forms": "Form",
 			"libraries": "Librerie",
+			"imports": "Importazioni",
 			"seo": "SEO"
 		}
 	},
@@ -2868,6 +2876,260 @@
 			"RULE_LOOP": "I visitatori girerebbero in tondo, o passerebbero per più di 5 regole. Scegli un'altra destinazione.",
 			"RULE_NOT_FOUND": "Questa regola non esiste più. Forse qualcuno l'ha rimossa.",
 			"MISS_NOT_FOUND": "Questo percorso non è più nel registro 404."
+		}
+	},
+	"imports": {
+		"pageTitle": "Importazioni",
+		"heading": "Importazioni",
+		"intro": "Porta contenuti da un file CSV. Tutto arriva come Bozze, da controllare prima della pubblicazione.",
+		"new": "Nuova importazione",
+		"none": "Ancora nessuna Importazione. Iniziane una qui, oppure con Importa CSV dai contenuti di un Tipo di contenuto.",
+		"columns": {
+			"import": "Importazione",
+			"source": "Origine",
+			"lastRun": "Ultima esecuzione",
+			"result": "Esito",
+			"open": "Apri"
+		},
+		"sources": {
+			"heading": "Inizia un'importazione",
+			"csv": {
+				"title": "File CSV",
+				"body": "Carica righe in un Tipo di contenuto, una colonna per Campo. Possono usarlo anche Owner ed Editor.",
+				"short": "In un Tipo di contenuto"
+			}
+		},
+		"sourceNames": {
+			"csv": "CSV"
+		},
+		"kept": "I resoconti delle importazioni sono conservati per 90 giorni dopo la fine dell'esecuzione. I file caricati vengono eliminati alla fine della loro esecuzione.",
+		"list": {
+			"into": "{file} → {postType}",
+			"noPostType": "un Tipo di contenuto eliminato",
+			"runBy": "Esecuzione {number} · di {name}",
+			"notRun": "Non ancora eseguita",
+			"purged": "{count, plural, one {Eseguita una volta; il resoconto è stato eliminato} other {Eseguita # volte; i resoconti sono stati eliminati}}",
+			"progress": "{done} di {total} righe",
+			"counts": "{created} nuovi · {updated} aggiornati · {skipped} saltati",
+			"openRun": "Apri l'esecuzione di {name}",
+			"openReport": "Resoconto di {name}",
+			"continue": "Esegui {name}"
+		},
+		"status": {
+			"waiting": "In attesa",
+			"running": "In corso",
+			"stopped": "Interrotta",
+			"done": "Completata",
+			"failed": "Non riuscita",
+			"undone": "Annullata"
+		},
+		"steps": {
+			"label": "Passaggi dell'importazione",
+			"source": "Origine",
+			"map": "Corrispondenze",
+			"preview": "Anteprima",
+			"run": "Esecuzione",
+			"report": "Resoconto",
+			"done": "(fatto)"
+		},
+		"file": {
+			"details": "{rows, plural, one {# riga} other {# righe}} · {columns, plural, one {# colonna} other {# colonne}} · {separator} · UTF-8",
+			"separators": {
+				"comma": "separato da virgole",
+				"semicolon": "separato da punti e virgola",
+				"tab": "separato da tabulazioni"
+			},
+			"change": "Cambia",
+			"label": "File CSV",
+			"help": "UTF-8 (con o senza byte order mark), separato da virgole, punti e virgola o tabulazioni, con la prima riga che nomina le colonne. Al massimo 10 MB e 10.000 righe.",
+			"reading": "Lettura del file…"
+		},
+		"map": {
+			"language": "Lingua",
+			"defaultLanguage": "{language} (Lingua predefinita)",
+			"languageHelp": "I valori vengono scritti in questa lingua. Per importare traduzioni, esegui un file in un'altra lingua con la stessa colonna di corrispondenza: le righe aggiungono i loro valori ai contenuti a cui corrispondono.",
+			"matchBy": "Fai corrispondere i contenuti esistenti per",
+			"matchHelp": "Una riga che corrisponde a un contenuto ne aggiorna la Bozza; i contenuti portati da questa Importazione e modificati da qualcuno nel frattempo vengono saltati.",
+			"matchNotMapped": "Scegli una colonna per questo qui sotto: le righe corrispondono per il suo valore.",
+			"columns": "Colonne",
+			"column": "Colonna",
+			"field": "Campo",
+			"firstRow": "Prima riga",
+			"fieldFor": "Campo per la colonna {column}",
+			"skip": "Salta"
+		},
+		"preview": {
+			"summary": "Creerà {create, plural, one {# Bozza} other {# Bozze}} e ne aggiornerà {update} · {skip} saltati",
+			"problemRows": "{count, plural, one {# riga ha un problema} other {# righe hanno un problema}}",
+			"files": "{count, plural, one {# file da scaricare} other {# file da scaricare}}",
+			"seeRows": "Vedi righe",
+			"hideRows": "Nascondi righe",
+			"skippedColumns": "Colonne saltate, elencate nel resoconto: {columns}",
+			"working": "Calcolo di cosa farebbe l'importazione…"
+		},
+		"report": {
+			"noProblems": "Nessun problema.",
+			"row": "Riga",
+			"problem": "Cosa non va",
+			"moreProblems": "{count, plural, one {# altro problema} other {altri # problemi}}",
+			"title": "Resoconto dell'importazione: {name}",
+			"started": "Esecuzione {number} · avviata il {at} da {name}",
+			"openEntries": "Apri {name}",
+			"runAgain": "Esegui di nuovo",
+			"failed": {
+				"access": "L'esecuzione si è fermata: chi l'ha avviata non può più importare su questo sito.",
+				"settings": "L'esecuzione si è fermata: il suo Tipo di contenuto o i suoi Campi sono cambiati e non corrispondono più.",
+				"file": "L'esecuzione si è fermata: il suo file non c'era più.",
+				"error": "L'esecuzione si è fermata per un errore imprevisto. Quanto importato viene conservato."
+			},
+			"stopped": "Interrotta dopo {done} di {total} righe. Quanto importato viene conservato.",
+			"undone": "Annullata da {name} il {at}.",
+			"done": "Completata: tutte le righe sono state elaborate.",
+			"listsLabel": "Cosa ha fatto l'esecuzione",
+			"tabs": {
+				"problems": "Righe con problemi ({count})",
+				"created": "Creati ({count})",
+				"updated": "Aggiornati ({count})",
+				"skipped": "Saltati ({count})",
+				"columns": "Colonne saltate ({count})"
+			},
+			"noSkippedColumns": "Ogni colonna è andata in un Campo.",
+			"againTitle": "Eseguire di nuovo",
+			"againBody": "Fa corrispondere le righe per il loro ID di origine: aggiorna i contenuti che nessuno ha modificato, salta quelli modificati a mano, aggiunge quelli nuovi.",
+			"kept": "Questo resoconto è conservato fino al {at}.",
+			"counts": {
+				"created": "Creati",
+				"updated": "Aggiornati",
+				"unchanged": "Invariati",
+				"skipped": "Saltati",
+				"problemRows": "Righe con problemi",
+				"files": "File scaricati"
+			},
+			"noEntries": "Nessuno.",
+			"entry": "Contenuto",
+			"note": "Nota",
+			"entryGone": "Eliminato nel frattempo",
+			"editedSince": "Modificato dopo un'esecuzione precedente",
+			"moreEntries": "{count, plural, one {# altro contenuto} other {altri # contenuti}}"
+		},
+		"run": {
+			"stopping": "Si ferma dopo la riga che sta elaborando.",
+			"stopRequested": "Interruzione in corso…",
+			"stop": "Interrompi esecuzione",
+			"waiting": "In attesa del worker…",
+			"importing": "Importazione in corso…",
+			"leave": "Puoi lasciare questa pagina: l'esecuzione continua in background.",
+			"progressLabel": "Righe importate",
+			"progress": "{done} di {total} righe ({percent}%)",
+			"noteDrafts": "Tutto arriva come Bozze. I file vengono scaricati nella libreria Media, che va online subito, come tutti i Media.",
+			"noteStop": "Interrompere conserva quanto importato finora. Puoi annullare l'intera esecuzione dal suo resoconto."
+		},
+		"undo": {
+			"done": "L'esecuzione è stata annullata.",
+			"title": "Annulla questa esecuzione",
+			"available": "Elimina le Bozze che ha creato, ripristina le Bozze che ha aggiornato e sposta nel Cestino i file che ha scaricato. Disponibile finché nulla di quanto importato viene pubblicato o modificato.",
+			"undoneAlready": "Questa esecuzione è stata annullata.",
+			"refused": {
+				"status": "Si può annullare solo un'esecuzione terminata.",
+				"published": "Qualcosa portato da questa esecuzione è stato pubblicato nel frattempo, quindi non può essere annullata.",
+				"edited": "Qualcosa portato da questa esecuzione è stato modificato nel frattempo, quindi non può essere annullata.",
+				"linked": "Un altro contenuto deve puntare a un contenuto creato da questa esecuzione, quindi non può essere annullata."
+			},
+			"button": "Annulla esecuzione",
+			"close": "Chiudi",
+			"dialogTitle": "Annullare l'esecuzione {number}?",
+			"preview": "Elimina {removes, plural, one {# Bozza creata} other {# Bozze create}}, ripristina {restores, plural, one {# Bozza aggiornata} other {# Bozze aggiornate}} e sposta {files, plural, one {# file} other {# file}} nel Cestino.",
+			"asking": "Calcolo di cosa farebbe l'annullamento…",
+			"cancel": "Indietro",
+			"confirm": "Annulla esecuzione"
+		},
+		"sheet": {
+			"open": "Importa CSV",
+			"close": "Chiudi",
+			"title": "Importa CSV in {name}",
+			"intro": "Le righe diventano Bozze. Nulla va online finché non viene pubblicato.",
+			"fieldsByAgency": "Solo la tua agenzia può aggiungere nuovi Campi. Le colonne senza un Campo vengono saltate ed elencate nel resoconto.",
+			"cancel": "Annulla",
+			"start": "Importa {count, plural, one {# riga} other {# righe}}"
+		},
+		"flow": {
+			"choosePostType": "Scegli il Tipo di contenuto in cui vanno le righe.",
+			"chooseFile": "Scegli un file CSV.",
+			"nameRequired": "Dai un nome all'Importazione.",
+			"sourceIntro": "Scegli da dove arrivano i contenuti",
+			"toMap": "Continua con le corrispondenze",
+			"mapIntro": "Scegli dove va ogni colonna",
+			"toPreview": "Anteprima",
+			"previewIntro": "Controlla cosa farà l'importazione",
+			"start": "Avvia importazione",
+			"backToList": "Torna alle Importazioni",
+			"newTitle": "Nuova importazione",
+			"back": "Indietro",
+			"cancel": "Annulla",
+			"source": "Origine",
+			"csvTitle": "File CSV",
+			"csvIntro": "Le righe vanno in un Tipo di contenuto, una colonna per Campo.",
+			"name": "Nome dell'importazione",
+			"nameHelp": "Mostrato nell'elenco e nel resoconto.",
+			"postType": "Tipo di contenuto",
+			"fileAgain": "Scegli di nuovo il file: i file caricati vengono eliminati alla fine della loro esecuzione. Le colonne mantengono le loro corrispondenze, per nome.",
+			"goodToKnow": "Buono a sapersi",
+			"notePrivate": "Il file resta privato: non entra mai nella libreria Media e viene eliminato alla fine dell'esecuzione.",
+			"noteKept": "Il suo resoconto è conservato per 90 giorni dopo la fine dell'esecuzione.",
+			"noteDrafts": "Nulla va online: tutto arriva come Bozze, e puoi annullare l'intera esecuzione finché nulla di quanto importato viene pubblicato o modificato."
+		},
+		"rules": {
+			"number": "Non è un numero (scrivilo come 5.50 o 5,50).",
+			"boolean": "Non è sì o no (scrivi true, false, sì, no, 1 o 0).",
+			"date": "Non è una data o un'ora che il Campo accetta (scrivila come 2026-03-02, 09:30 o 2026-03-02 09:30).",
+			"mediaAddress": "Non è un indirizzo https di un file, né un file della libreria Media.",
+			"mediaNotFound": "Nessun file del genere nella libreria Media.",
+			"media": "Non è un file della libreria Media.",
+			"link": "Non è un indirizzo a cui può puntare un link.",
+			"tooLong": "Più lungo di quanto il Campo accetti.",
+			"slug": "Non è uno slug (lettere minuscole e cifre unite da trattini).",
+			"matchMissing": "Nessun valore per far corrispondere i contenuti: la riga non viene importata.",
+			"translationWithoutEntry": "Non corrisponde a nessun contenuto da tradurre: la riga non viene importata.",
+			"choice": "{value} non è tra le scelte del Campo.",
+			"entryNotFound": "Nessun contenuto trovato con lo slug o il titolo {name}.",
+			"entryAmbiguous": "Più contenuti hanno lo slug o il titolo {name}.",
+			"columnCount": "Più celle delle {columns} colonne: la riga non viene importata.",
+			"matchedTwice": "La riga {row} ha lo stesso valore di corrispondenza: la riga non viene importata.",
+			"matchesSeveral": "Corrisponde a {count} contenuti: la riga non viene importata.",
+			"slugTaken": "Un altro contenuto ha lo slug {slug}: la riga non viene importata.",
+			"refused": "Il contenuto ha rifiutato la riga: non viene importata."
+		},
+		"fetchProblems": {
+			"scheme": "Il file non è stato scaricato: non è un indirizzo https.",
+			"host": "Il file non è stato scaricato: il suo indirizzo è all'interno di una rete.",
+			"address": "Il file non è stato scaricato: il suo indirizzo è all'interno di una rete.",
+			"redirects": "Il file non è stato scaricato: troppi reindirizzamenti.",
+			"timeout": "Il file non è stato scaricato: ci ha messo più di 30 secondi.",
+			"size": "Il file non è stato scaricato: è più grande del file più grande che l'Install accetta.",
+			"status": "Il file non è stato scaricato: il server ha risposto {status}.",
+			"type": "Il file non è stato scaricato: la libreria Media non accetta questo tipo di file.",
+			"quota": "Il file non è stato scaricato: lo spazio del Workspace è pieno.",
+			"unreachable": "Il file non è stato scaricato: il server non è raggiungibile."
+		},
+		"fileRefused": {
+			"size": "Il file è più grande di {megabytes} MB: dividilo in file più piccoli.",
+			"encoding": "Il file non è in UTF-8. Salvalo come CSV UTF-8 e caricalo di nuovo.",
+			"empty": "Il file non ha righe dopo la prima.",
+			"header": "La prima riga deve nominare ogni colonna una sola volta: la colonna {column} non ha nome, o ha il nome di un'altra.",
+			"quote": "Un campo tra virgolette che inizia alla riga {row} non si chiude mai.",
+			"cell": "Un campo alla riga {row} è più lungo di {max} caratteri.",
+			"rows": "Il file ha più di {max} righe: dividilo in file più piccoli.",
+			"columns": "Il file ha più di {max} colonne."
+		},
+		"settingRules": {
+			"postTypeNotFound": "Il Tipo di contenuto non c'è più.",
+			"languageUnknown": "Il sito non ha quella lingua.",
+			"columnTwice": "Una colonna ha due corrispondenze.",
+			"targetUnknown": "Una colonna va in un Campo che il Tipo di contenuto non ha.",
+			"targetNotLeaf": "Una colonna va in un Gruppo o in un Ripetitore: indica invece i loro Campi.",
+			"targetTwice": "Due colonne vanno nello stesso Campo.",
+			"matchUnknown": "I contenuti possono corrispondere solo per titolo, slug, o un Campo di testo, email o numero.",
+			"matchNotMapped": "Scegli una colonna per il valore con cui le righe corrispondono ali contenuti."
 		}
 	},
 	"seo": {
