@@ -9,4 +9,5 @@ depends on `@webcraft/module-sdk` and its own outside packages only; Biome and
 to `FIRST_PARTY_MODULES` in `packages/core/src/modules/first-party.ts`.
 
 See `docs/development.md` › "Modules" for the SDK, and `tests/modules/sample/` for a Module that
-uses every extension point.
+uses every extension point but those one Module of a build keeps (Form Submissions, Redirect rules
+and the 404 log): `modules/forms` and `modules/redirects` show those.
