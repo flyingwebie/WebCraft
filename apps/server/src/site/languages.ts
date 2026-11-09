@@ -1,4 +1,4 @@
-import { type InstallServices, LANGUAGE_CHOICE_PATH, type SiteHost } from "@webcraft/core";
+import { type InstallServices, isRobot, LANGUAGE_CHOICE_PATH, type SiteHost } from "@webcraft/core";
 
 import { plainText } from "../responses.ts";
 import { cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
@@ -38,10 +38,6 @@ export async function languageChoiceResponse(
 	});
 }
 
-/** User agents of crawlers, link previewers and other robots: never sent on by language. */
-const ROBOTS =
-	/bot\b|bot\/|crawl|spider|slurp|archiver|facebookexternalhit|embedly|preview|pinterest|vkshare|whatsapp|telegram|discord|slack|lighthouse|headless|validator|^curl|^wget|python|^java\//i;
-
 /**
  * The browser-language redirect (ADR 0010), when the Site has it on: a visitor's first request to
  * the home page (`/`), with no language chosen yet, goes on (302, never kept) to the home page in the
@@ -58,8 +54,7 @@ export async function browserLanguageRedirect(
 	const url = new URL(request.url);
 	if (!host.browserLanguageRedirect || url.pathname !== "/") return null;
 	if (cookieValue(request, siteCookieName(url.hostname, LANGUAGE_COOKIE)) !== undefined) return null;
-	const agent = request.headers.get("user-agent");
-	if (!agent || ROBOTS.test(agent)) return null;
+	if (isRobot(request.headers.get("user-agent"))) return null;
 	if (fromSameOrigin(request.headers.get("referer"), url)) return null;
 	const home = await services.sitePages.preferredHome(host, request.headers.get("accept-language"));
 	if (!home) return null;

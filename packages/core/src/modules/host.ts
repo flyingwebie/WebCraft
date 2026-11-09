@@ -9,6 +9,9 @@ import {
 	type ModuleEventName,
 	type ModuleEvents,
 	ModuleRefusedError,
+	type PageMiss,
+	type RedirectRequest,
+	type RedirectTarget,
 	wordsIn,
 } from "@webcraft/module-sdk";
 import { and, eq, getTableName, isNull } from "drizzle-orm";
@@ -17,11 +20,13 @@ import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import type { ComponentSources, ModuleComponent } from "../content/components.ts";
 import { clearEveryPageCache, clearPageCache } from "../content/page-cache.ts";
+import { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
 import type { Countries } from "../countries.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { RateLimits } from "../rate-limits.ts";
+import type { NotedMiss, RedirectPaths } from "../site-pages/redirects.ts";
 import type { Access, InstallScope, Site } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "../tenancy/errors.ts";
 import {
@@ -40,7 +45,15 @@ import {
 	ModuleNotApprovedError,
 	ModuleNotFoundError,
 } from "./errors.ts";
-import { moduleEventJob, moduleJob, type QueuedEvent, type QueuedJob, type QueuedPlace } from "./jobs.ts";
+import {
+	moduleEventJob,
+	moduleJob,
+	moduleMissesJob,
+	type QueuedEvent,
+	type QueuedJob,
+	type QueuedMisses,
+	type QueuedPlace,
+} from "./jobs.ts";
 import { listModuleLog, type ModuleLogLine } from "./module-log.ts";
 import { createPartitionKeeper, type PartitionView } from "./partitions.ts";
 import {
@@ -207,7 +220,49 @@ export type ModuleHost = {
 	maintainPartitions(): Promise<void>;
 	/** Deletes the salts of visitors' ids of days that ended (the daily job). */
 	purgeSalts(): Promise<number>;
+	/**
+	 * Where the Redirect rules of the Module keeping them send a request for a Site path (SDK 1.5),
+	 * following a target that is itself a Site path through the rules again (at most
+	 * `MAX_REDIRECT_HOPS` rules; a 302 anywhere makes the whole a 302). A rule made to step aside
+	 * where a page answers does so. Null when no Module keeping rules runs on the Site, no rule
+	 * applies, or the rules go round in a circle (said once in the Module log, the Site's pages then
+	 * answering). Never throws: a `find` that fails or takes longer than `FIND_TIMEOUT_MS` is "no rule".
+	 */
+	redirectFor(
+		site: Site,
+		request: RedirectRequest,
+		paths: RedirectPaths,
+	): Promise<Pick<RedirectTarget, "to" | "status"> | null>;
+	/** Whether this build has a Module keeping the 404 log (SDK 1.5). */
+	readonly keepsNotFoundLog: boolean;
+	/**
+	 * Notes a request a Site's 404 page answered, for the Module keeping the 404 log. Nothing waits
+	 * for it: misses are gathered (one entry per path, language and referring host) and handed to the
+	 * Module in the background, a batch per Site, by `flushMisses`: every few seconds in the web
+	 * process, at once past `MISS_BATCH_SIZE` entries, and by the test harness before it drains jobs.
+	 */
+	noteMiss(site: Site, miss: NotedMiss): void;
+	/** Queues the gathered misses, one job per Site where the Module keeping the 404 log runs. */
+	flushMisses(): Promise<void>;
+	/** Runs a batch of misses (the `modules.notFound` job). */
+	runMisses(payload: QueuedMisses): Promise<void>;
 };
+
+/** How many Redirect rules the Site pipeline follows from one request; more is taken for a loop. */
+export const MAX_REDIRECT_HOPS = 5;
+
+/** How long the Site pipeline waits for a Module's `find`, in milliseconds. */
+export const FIND_TIMEOUT_MS = 500;
+
+/** How many distinct misses a web process gathers before it hands them over at once. */
+export const MISS_BATCH_SIZE = 500;
+
+/** How many distinct misses a web process holds at most; more, between two hand-overs, are dropped. */
+const MAX_HELD_MISSES = 5000;
+
+/** A Site path a Redirect rule may send visitors to: `/…`, never `//…` (another host), no backslash or control character. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+const SITE_TARGET = /^\/(?![/\\])[^\\\u0000-\u0020\u007f]*$/;
 
 export type ModuleHostOptions = RuntimeDeps & {
 	modules: readonly ModuleDefinition[];
@@ -221,7 +276,10 @@ export type ModuleHostOptions = RuntimeDeps & {
 export type ModuleSiteScriptOnSite = ModuleSiteScriptFile & { moduleId: string };
 
 /** The Audit log actions Modules hear of, as SDK events with the data the SDK promises. */
-const EVENTS_OF_ACTIONS: Record<string, { event: ModuleEventName; data: (details: AuditDetails) => object }> = {
+const EVENTS_OF_ACTIONS: Record<
+	string,
+	{ event: ModuleEventName; data: (details: AuditDetails) => object; when?: (details: AuditDetails) => boolean }
+> = {
 	"entry.publish": {
 		event: "entry.published",
 		data: ({ entryId, postTypeId, path, pathChanges }) => ({
@@ -234,6 +292,16 @@ const EVENTS_OF_ACTIONS: Record<string, { event: ModuleEventName; data: (details
 	"entry.delete": { event: "entry.deleted", data: ({ entryId, postTypeId }) => ({ entryId, postTypeId }) },
 	"template.publish": { event: "template.published", data: ({ templateId }) => ({ templateId }) },
 	"globals.publish": { event: "globals.published", data: () => ({}) },
+	"postType.update": {
+		event: "paths.changed",
+		data: ({ postTypeId, pathChanges }) => ({ reason: "urlPattern", postTypeId, pathChanges }),
+		when: ({ pathChanges }) => Array.isArray(pathChanges) && pathChanges.length > 0,
+	},
+	"defaultLanguage.change": {
+		event: "paths.changed",
+		data: ({ pathChanges }) => ({ reason: "defaultLanguage", postTypeId: null, pathChanges }),
+		when: ({ pathChanges }) => Array.isArray(pathChanges) && pathChanges.length > 0,
+	},
 };
 
 const PLAIN = { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" };
@@ -349,13 +417,15 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	};
 
 	/**
-	 * Pages show a Module's Components, Forms (where it keeps their Submissions) and Site script, and
-	 * allow its outside hosts, only where it runs: a change to where it runs clears the pages.
+	 * Pages show a Module's Components, Forms (where it keeps their Submissions) and Site script, allow
+	 * its outside hosts, and follow its Redirect rules, only where it runs: a change to where it runs
+	 * clears the pages.
 	 */
 	const addsComponents = (module: LoadedModule) =>
 		module.runnable &&
 		(module.components.length > 0 ||
 			module.receiver !== null ||
+			module.redirects !== null ||
 			module.siteScript !== null ||
 			module.manifest.outsideHosts.length > 0);
 
@@ -381,6 +451,55 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	/** The Module keeping Form Submissions, if this build has one that can run. */
 	const receiving = (): RunnableModule | undefined =>
 		registry.all().find((module): module is RunnableModule => module.runnable && module.receiver !== null);
+
+	/** The Module keeping Redirect rules, if this build has one that can run. */
+	const redirecting = registry
+		.all()
+		.find((module): module is RunnableModule => module.runnable && module.redirects !== null);
+
+	/** The Module keeping the 404 log, if this build has one that can run. */
+	const logging = registry
+		.all()
+		.find((module): module is RunnableModule => module.runnable && module.notFoundLog !== null);
+
+	/** Misses gathered for the 404 log, by Site, then by path, language and referring host. */
+	const held = new Map<string, { site: { id: string; workspaceId: string }; misses: Map<string, PageMiss> }>();
+	let heldCount = 0;
+	let flushing: Promise<void> = Promise.resolve();
+
+	/** Hands the misses held now to the job queue, one job per Site where the 404 log's Module runs. */
+	const sendMisses = async () => {
+		const batches = [...held.values()];
+		held.clear();
+		heldCount = 0;
+		if (!logging) return;
+		for (const batch of batches) {
+			try {
+				if (!(await runsOnSite(batch.site, logging))) continue;
+				const misses = [...batch.misses.values()];
+				for (let start = 0; start < misses.length; start += 1000) {
+					await jobs.send(moduleMissesJob, {
+						moduleId: logging.id,
+						workspaceId: batch.site.workspaceId,
+						siteId: batch.site.id,
+						misses: misses.slice(start, start + 1000).map((miss) => ({
+							...miss,
+							firstAt: miss.firstAt.toISOString(),
+							lastAt: miss.lastAt.toISOString(),
+						})),
+					});
+				}
+			} catch (error) {
+				// The 404 log is a guide: a batch that can't be queued is lost, and the log says so.
+				log.warn("Misses for the 404 log couldn't be queued", { siteId: batch.site.id, error });
+			}
+		}
+	};
+	/** Hands the misses over after any hand-over already under way, so a caller waiting for it sees them queued. */
+	const flushMisses = (): Promise<void> => {
+		flushing = flushing.then(sendMisses, sendMisses);
+		return flushing;
+	};
 
 	/** The place where a Module acts for an event on a Site: the Site, or its Workspace. */
 	const placeFor = (module: RunnableModule, workspaceId: string, siteId: string): QueuedPlace =>
@@ -721,6 +840,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const mapping = EVENTS_OF_ACTIONS[entry.action];
 			const { workspaceId, siteId } = entry;
 			if (!mapping || siteId === null || workspaceId === null) return;
+			if (mapping.when && !mapping.when(entry.details)) return;
 			await queueEvent(
 				mapping.event,
 				workspaceId,
@@ -796,6 +916,132 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			return { id: kept.id };
 		},
 
+		async redirectFor(site, request, paths) {
+			const module = redirecting;
+			const rules = module?.redirects;
+			if (!module || !rules || !(await runsOnSite(site, module))) return null;
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) return null;
+			const context = moduleContext(module, scope, options);
+			const problem = async (message: string, details: Record<string, unknown>) => {
+				await writeLine(options, module, place, "warn", message, details).catch(() => {});
+			};
+			const ask = async (asked: RedirectRequest): Promise<RedirectTarget | null> => {
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				try {
+					const late = new Promise<"late">((resolve) => {
+						timer = setTimeout(() => resolve("late"), FIND_TIMEOUT_MS);
+					});
+					const answer = await Promise.race([rules.find(asked, context), late]);
+					if (answer === "late") {
+						await problem("Its Redirect rules took too long to answer; the request went on without them.", {
+							path: asked.path,
+						});
+						return null;
+					}
+					return answer;
+				} catch (error) {
+					await problem("Its Redirect rules failed; the request went on without them.", {
+						path: asked.path,
+						error: describeError(error),
+					});
+					log.warn("A Module's Redirect rules failed", { moduleId: module.id, error });
+					return null;
+				} finally {
+					clearTimeout(timer);
+				}
+			};
+			let path = request.path;
+			let result: Pick<RedirectTarget, "to" | "status"> | null = null;
+			// One 302 on the way makes the whole a 302: the page is elsewhere for now.
+			let temporary = false;
+			const seen = new Set([path]);
+			for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+				const asked = hop === 0 ? request : { path, language: paths.languageOf(path) };
+				const target = await ask(asked);
+				if (!target) return result;
+				const to = checkedTarget(target.to);
+				const status: number = target.status;
+				if (to === null || (status !== 301 && status !== 302)) {
+					await problem("A Redirect rule's target isn't a path on the Site or an https:// address; it was left out.", {
+						path,
+						to: String(target.to).slice(0, 200),
+					});
+					return result;
+				}
+				// A rule that only stands where no page is steps aside for a page published since.
+				if (target.whereNoPage && (await paths.hasPage(path))) return result;
+				if (hop === MAX_REDIRECT_HOPS) break;
+				if (status === 302) temporary = true;
+				result = { to, status: temporary ? 302 : 301 };
+				// A chain goes on from a plain Site path; an address elsewhere, a query or a fragment ends it.
+				if (!/^\/[^?#]*$/.test(to)) return result;
+				if (seen.has(to)) {
+					await problem("Redirect rules go round in a circle; the Site's page answered instead.", {
+						path: request.path,
+						through: [...seen],
+					});
+					return null;
+				}
+				seen.add(to);
+				path = to;
+			}
+			await problem(
+				`Redirect rules go through more than ${MAX_REDIRECT_HOPS} steps; the Site's page answered instead.`,
+				{
+					path: request.path,
+					through: [...seen],
+				},
+			);
+			return null;
+		},
+
+		keepsNotFoundLog: logging !== undefined,
+
+		noteMiss(site, miss) {
+			if (!logging) return;
+			let batch = held.get(site.id);
+			if (!batch) {
+				batch = { site: { id: site.id, workspaceId: site.workspaceId }, misses: new Map() };
+				held.set(site.id, batch);
+			}
+			const key = `${miss.path}\n${miss.language}\n${miss.referrerHost ?? ""}`;
+			const known = batch.misses.get(key);
+			if (known) {
+				known.hits++;
+				if (miss.at > known.lastAt) known.lastAt = miss.at;
+				return;
+			}
+			if (heldCount >= MAX_HELD_MISSES) return;
+			batch.misses.set(key, {
+				path: miss.path,
+				language: miss.language,
+				referrerHost: miss.referrerHost,
+				hits: 1,
+				firstAt: miss.at,
+				lastAt: miss.at,
+			});
+			heldCount++;
+			if (heldCount >= MISS_BATCH_SIZE) flushMisses().catch(() => {});
+		},
+
+		flushMisses,
+
+		async runMisses(payload) {
+			const module = registry.get(payload.moduleId);
+			const keeper = module?.runnable ? module.notFoundLog : null;
+			if (!module?.runnable || !keeper) return;
+			const place: QueuedPlace = { level: "site", workspaceId: payload.workspaceId, siteId: payload.siteId };
+			await runQueued(module, place, { job: "notFound" }, async (scope) => {
+				const misses = payload.misses.map((miss) => ({
+					...miss,
+					firstAt: new Date(miss.firstAt),
+					lastAt: new Date(miss.lastAt),
+				}));
+				await keeper.record(misses, moduleContext(module, scope, options));
+			});
+		},
 		setKeepMonths: (scope, moduleId, table, months) => partitions.setKeepMonths(scope, moduleId, table, months),
 		maintainPartitions: () => partitions.maintain(),
 		purgeSalts: () => visitors.purgeSalts(),
@@ -813,6 +1059,27 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			});
 		},
 	};
+}
+
+/**
+ * A Redirect rule's target, as the Site pipeline may send visitors there: a Site path (made
+ * canonical, its query and fragment kept), or an `https://` address without a user name or password.
+ * Null for anything else (`javascript:`, `//elsewhere`, …), which no rule may send visitors to.
+ */
+function checkedTarget(to: unknown): string | null {
+	if (typeof to !== "string" || to.length > 4000) return null;
+	if (to.startsWith("/")) {
+		if (!SITE_TARGET.test(to)) return null;
+		const cut = to.search(/[?#]/);
+		const segments = pathSegments(cut === -1 ? to : to.slice(0, cut));
+		return segments ? `${canonicalPath(segments)}${cut === -1 ? "" : to.slice(cut)}` : null;
+	}
+	try {
+		const url = new URL(to);
+		return url.protocol === "https:" && url.username === "" && url.password === "" ? url.href : null;
+	} catch {
+		return null;
+	}
 }
 
 /** Whether the scope's actor holds a Permission a Module names (its own, or one of WebCraft's) at the place. */

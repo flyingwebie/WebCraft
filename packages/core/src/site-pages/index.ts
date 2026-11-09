@@ -86,6 +86,15 @@ import { retiredScript } from "../site-scripts/retired.ts";
 import type { DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
 import { pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
+import {
+	addressFrom,
+	createRedirectAnswers,
+	languageOf,
+	type MissesOf,
+	type RedirectsOf,
+	type SiteRedirect,
+	sitePathIn,
+} from "./redirects.ts";
 import { relatedEntries, type ReadScope as ScopeToRead } from "./related.ts";
 
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
@@ -309,6 +318,20 @@ export type SitePages = {
 	script(host: SiteHost, name: string): Promise<string | null>;
 	/** One of the Site's Library files by the name it is served under (`/_wc/lib/<name>`), or one replaced in the last 30 days. */
 	libraryFile(host: SiteHost, name: string): Promise<LibraryFile | null>;
+	/**
+	 * Where the Site's Redirect rules send a request for `pathname` (SDK 1.5), ahead of its pages: a
+	 * 301 or 302 to a path on this hostname, or to an address on another (of the Site's or elsewhere),
+	 * without the request's query. Null when no rule applies, no Module keeping them runs on the Site,
+	 * or the path is one the Install keeps (`/_…`). Answers are kept with the Site's page cache
+	 * generation, so each path is asked once until the Site's pages change.
+	 */
+	redirect(host: SiteHost, pathname: string): Promise<SiteRedirect | null>;
+	/**
+	 * Notes a visitor's request for `pathname`, which the Site's 404 page answered, in the Site's 404
+	 * log (when a Module keeping one runs there), with the host of the page that linked to it. It
+	 * waits for nothing: the miss is handed over later, in the background.
+	 */
+	noteMiss(host: SiteHost, pathname: string, referrerHost: string | null): void;
 };
 
 /** How many Sites' styles a web process keeps built at most. */
@@ -329,6 +352,10 @@ export function createSitePages(options: {
 	moduleHosts?: (site: Site) => Promise<string[]>;
 	/** The Site scripts of the Modules running on a Site (SDK 1.3). */
 	moduleScripts?: (site: Site) => Promise<ModuleScriptFile[]>;
+	/** The Module keeping Redirect rules, asked through the Module host (SDK 1.5). None, when absent. */
+	redirects?: RedirectsOf;
+	/** The Module keeping the 404 log, handed misses through the Module host (SDK 1.5). None, when absent. */
+	misses?: MissesOf;
 }): SitePages {
 	const { database, config, data, storage } = options;
 	const moduleHosts = options.moduleHosts ?? (async () => []);
@@ -364,6 +391,7 @@ export function createSitePages(options: {
 		if (view.structure !== "draft") return stylesOf(view.host);
 		return view.editing?.preview?.styles ?? draftStyles(view.scope);
 	};
+	const redirectAnswers = createRedirectAnswers();
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
@@ -597,6 +625,48 @@ export function createSitePages(options: {
 
 		libraryFile(host, name) {
 			return libraryFile(data.visitors(host.site), storage, name);
+		},
+
+		async redirect(host, pathname) {
+			const redirects = options.redirects;
+			const segments = pathSegments(pathname);
+			if (!redirects || !segments || segments[0]?.startsWith("_")) return null;
+			const key = `${host.origin}${canonicalPath(segments)}`;
+			const kept = redirectAnswers.get(host, key);
+			if (kept !== undefined) return kept;
+			const scope = data.visitors(host.site);
+			const site = await siteLanguages(scope);
+			const request = sitePathIn(site, host, segments);
+			// Rules name Site paths, as the Staging address writes them, whatever hostname asked.
+			const asStaging: SiteHost = { ...host, address: "staging", language: null };
+			const target = await redirects(host.site, request, {
+				hasPage: async (path) =>
+					(await locateArchive(scope, asStaging, path, true)) !== undefined ||
+					(await locate(scope, asStaging, path, true))?.kind === "found",
+				languageOf: (path) => languageOf(site, path),
+			});
+			const location = target && addressFrom(site, host, target.to);
+			// A rule never sends a request to its own address (whatever query it adds), which would loop.
+			const [there = ""] = (location ?? "").split(/[?#]/);
+			const answer =
+				target && location && there !== key.slice(host.origin.length) && there !== key
+					? { location, status: target.status }
+					: null;
+			redirectAnswers.set(host, key, answer);
+			return answer;
+		},
+
+		noteMiss(host, pathname, referrerHost) {
+			const misses = options.misses;
+			const segments = pathSegments(pathname);
+			if (!misses?.keeps || !segments || isReservedPath(segments)) return;
+			const scope = data.visitors(host.site);
+			const at = scope.now();
+			siteLanguages(scope)
+				.then((site) => misses.note(host.site, { ...sitePathIn(site, host, segments), referrerHost, at }))
+				.catch(() => {
+					// The 404 log is a guide, never a reason for a 404 to fail.
+				});
 		},
 	};
 }

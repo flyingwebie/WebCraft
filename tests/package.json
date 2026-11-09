@@ -15,6 +15,7 @@
 		"@webcraft/core": "workspace:*",
 		"@webcraft/db": "workspace:*",
 		"@webcraft/module-forms": "workspace:*",
+		"@webcraft/module-redirects": "workspace:*",
 		"@webcraft/module-site-analytics": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/server": "workspace:*",

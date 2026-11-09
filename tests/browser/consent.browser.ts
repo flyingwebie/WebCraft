@@ -80,12 +80,33 @@ async function consentSite(mode: "optIn" | "optOut" | "outside", layout: "bar" |
 	return slug;
 }
 
+type Ran = { analytics: boolean; marketing: boolean };
+
 /** Which held-back scripts ran on the page. */
-function ran(page: Page): Promise<{ analytics: boolean; marketing: boolean }> {
+function ran(page: Page): Promise<Ran> {
 	return page.evaluate(() => ({
 		analytics: document.documentElement.dataset.analytics === "ran",
 		marketing: document.documentElement.dataset.marketing === "ran",
 	}));
+}
+
+/**
+ * Expects which held-back scripts ran. The consent script loads the ones a choice allows as files of
+ * their own, so they run a moment after the answer (or the page): those expected to run are waited
+ * for first (on a busy machine that can take a while), then all of them are compared.
+ */
+async function expectRan(page: Page, expected: Ran): Promise<void> {
+	await page
+		.waitForFunction(
+			(wanted) =>
+				Object.entries(wanted).every(
+					([category, runs]) => !runs || document.documentElement.dataset[category] === "ran",
+				),
+			expected,
+			{ timeout: 10_000 },
+		)
+		.catch(() => undefined);
+	expect(await ran(page)).toEqual(expected);
 }
 
 /** Opens a Site's page (the note, unless given) and waits for the consent script to have run. */
@@ -125,7 +146,7 @@ for (const theme of THEMES) {
 				const banner = page.getByRole("region", { name: "Privacy choices" });
 
 				await banner.waitFor({ state: "visible" });
-				expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+				await expectRan(page, { analytics: false, marketing: false });
 				// The page stays usable around it, and the keyboard reaches it right after the skip link.
 				await expectAccessibleScreen(page, `the ${layout} banner (${theme})`);
 				const stops = await page.evaluate(() =>
@@ -143,13 +164,13 @@ for (const theme of THEMES) {
 				await pressButton(page, "Save choices");
 				await banner.waitFor({ state: "hidden" });
 				await recorded(page);
-				expect(await ran(page)).toEqual({ analytics: true, marketing: false });
+				await expectRan(page, { analytics: true, marketing: false });
 				await expectAccessibleScreen(page, `a page once the ${layout} banner is answered (${theme})`);
 
 				// The choice holds on the next page.
 				await open(page, slug, "/");
 				expect(await banner.isVisible()).toBe(false);
-				expect(await ran(page)).toEqual({ analytics: true, marketing: false });
+				await expectRan(page, { analytics: true, marketing: false });
 
 				// "Cookie settings" opens it again with the choice made, and Escape closes it, focus back on the button.
 				const settings = page.getByRole("button", { name: "Cookie settings" });
@@ -188,7 +209,7 @@ for (const theme of THEMES) {
 			}
 			await page.keyboard.press("Escape");
 			await dialog.waitFor({ state: "hidden" });
-			expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+			await expectRan(page, { analytics: false, marketing: false });
 
 			// Not answered: it asks again on the next page. Rejecting holds everything back for good.
 			await open(page, slug);
@@ -196,11 +217,11 @@ for (const theme of THEMES) {
 			await pressButton(page, "Reject all");
 			await dialog.waitFor({ state: "hidden" });
 			await recorded(page);
-			expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+			await expectRan(page, { analytics: false, marketing: false });
 			await expectAccessibleScreen(page, `a page once the dialog banner is answered (${theme})`);
 			await open(page, slug);
 			expect(await dialog.isVisible()).toBe(false);
-			expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+			await expectRan(page, { analytics: false, marketing: false });
 
 			// "Cookie settings" opens it again as a modal dialog.
 			await expectOverlayUsable(
@@ -214,7 +235,7 @@ for (const theme of THEMES) {
 			await pressButton(page, "Accept all");
 			await dialog.waitFor({ state: "hidden" });
 			await page.waitForFunction(() => document.documentElement.dataset.marketing === "ran");
-			expect(await ran(page)).toEqual({ analytics: true, marketing: true });
+			await expectRan(page, { analytics: true, marketing: true });
 		});
 	});
 
@@ -247,7 +268,7 @@ for (const theme of THEMES) {
 			await open(page, slug, "/notes/ovens");
 			expect(await placeholder.isVisible()).toBe(false);
 			expect(await page.getByRole("link", { name: "Play video: Inside the bakery" }).isVisible()).toBe(true);
-			expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+			await expectRan(page, { analytics: false, marketing: false });
 		});
 	});
 }
@@ -299,7 +320,7 @@ describe("forged answers", () => {
 		);
 		await page.waitForTimeout(300);
 
-		expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+		await expectRan(page, { analytics: false, marketing: false });
 		expect(
 			await page.evaluate(
 				() => (window as unknown as { webcraft: { consent: { answered: boolean } } }).webcraft.consent.answered,
@@ -325,7 +346,7 @@ describe("an outside consent service", () => {
 
 		expect(await page.locator("#wc-consent").count()).toBe(0);
 		expect(await page.getByRole("button", { name: "Cookie settings" }).count()).toBe(0);
-		expect(await ran(page)).toEqual({ analytics: false, marketing: false });
+		await expectRan(page, { analytics: false, marketing: false });
 		await expectKeyboardUsable(page, "a page of a Site with an outside consent service");
 	});
 
@@ -346,7 +367,7 @@ describe("an outside consent service", () => {
 		});
 
 		await page.waitForFunction(() => document.documentElement.dataset.marketing === "ran");
-		expect(await ran(page)).toEqual({ analytics: false, marketing: true });
+		await expectRan(page, { analytics: false, marketing: true });
 	});
 
 	test("reads the consent-mode signal: an update granting analytics_storage accepts Analytics", async () => {
@@ -358,7 +379,7 @@ describe("an outside consent service", () => {
 		});
 
 		await page.waitForFunction(() => document.documentElement.dataset.analytics === "ran");
-		expect(await ran(page)).toEqual({ analytics: true, marketing: false });
+		await expectRan(page, { analytics: true, marketing: false });
 		expect(
 			await page.evaluate(
 				() => (window as unknown as { webcraft: { consent: { answered: boolean } } }).webcraft.consent.answered,
@@ -376,6 +397,6 @@ describe("an outside consent service", () => {
 		);
 
 		await page.waitForFunction(() => document.documentElement.dataset.marketing === "ran");
-		expect(await ran(page)).toEqual({ analytics: true, marketing: true });
+		await expectRan(page, { analytics: true, marketing: true });
 	});
 });

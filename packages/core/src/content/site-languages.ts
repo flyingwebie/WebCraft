@@ -301,7 +301,7 @@ export async function setDefaultLanguage(
 		await clearPageCache(tx);
 		// Values now fall back to another language: Site search's documents are rebuilt.
 		await markSearchIndexStale(tx);
-		await tx.audit("defaultLanguage.change", { from, to, changedPaths: pathChanges.length });
+		await tx.audit("defaultLanguage.change", { from, to, changedPaths: pathChanges.length, pathChanges });
 		return { changed: true, settings: await siteLanguages(tx), pathChanges };
 	});
 }

@@ -32,6 +32,16 @@ export type ModuleEvents = {
 	 * what WebCraft knew of the sender then (`sender`). Nothing the visitor typed.
 	 */
 	"form.submitted": { formId: string; formKey: string; page: string | null; language: string; sender: FormSender };
+	/**
+	 * Published paths changed without a publish (SDK 1.5): Staff changed a Post Type's URL pattern
+	 * (`reason: "urlPattern"`, with its `postTypeId`), or the Site's Default language (`reason:
+	 * "defaultLanguage"`), and every published Entry's address in `pathChanges` moved with it.
+	 */
+	"paths.changed": {
+		reason: "urlPattern" | "defaultLanguage";
+		postTypeId: string | null;
+		pathChanges: { entryId: string; language: string; from: string; to: string }[];
+	};
 };
 
 /**
@@ -63,6 +73,7 @@ export const MODULE_EVENTS = [
 	"template.published",
 	"globals.published",
 	"form.submitted",
+	"paths.changed",
 ] as const satisfies readonly ModuleEventName[];
 
 /** One event as a Module receives it: what happened, on which Site, and when. */

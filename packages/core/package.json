@@ -22,6 +22,7 @@
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/db": "workspace:*",
 		"@webcraft/module-forms": "workspace:*",
+		"@webcraft/module-redirects": "workspace:*",
 		"@webcraft/module-site-analytics": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/renderer": "workspace:*",

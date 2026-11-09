@@ -66,5 +66,15 @@ async function openWebServices(env: Record<string, string | undefined>): Promise
 	});
 	// On an Install with no Superadmin, prints the setup token that unlocks the setup wizard.
 	await services.setup.announce();
+	// The 404 log's misses wait here a few seconds, then go to the job queue together.
+	const handOver = setInterval(() => {
+		services.modules.flushMisses().catch((error: unknown) => {
+			log.warn("Misses for the 404 log couldn't be handed over", { error });
+		});
+	}, MISS_HAND_OVER_MS);
+	handOver.unref();
 	return services;
 }
+
+/** How often the web process hands the misses it gathered for the 404 log to the job queue. */
+const MISS_HAND_OVER_MS = 5000;

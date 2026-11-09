@@ -337,7 +337,7 @@ The kind of thing a Post Type's Entries describe to search engines (Article, Pro
 _Avoid_: Rich snippet, schema markup, JSON-LD type
 
 **Redirect rule**:
-A rule on a Site that sends visitors from one path to another, added by people on the Redirects screen or by WebCraft when a published slug changes. It is Content. Not to be confused with a Redirect domain, which redirects a whole domain.
+A rule on a Site that sends visitors from one path (or every path under one) to another path or site, added by people on the Redirects screen or by WebCraft when a published path changes (a new slug, a moved Page, a new URL pattern or Default language). It is Content, without a Draft: it applies once saved. Not to be confused with a Redirect domain, which redirects a whole domain.
 _Avoid_: Redirect, 301, URL forward
 
 **404 log**:

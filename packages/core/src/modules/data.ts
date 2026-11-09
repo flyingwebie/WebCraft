@@ -2,6 +2,7 @@ import { type ModuleData, ModuleRefusedError, type ModuleTable, type NewModuleRo
 import { getTableColumns, getTableName, type SQL } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
+import { clearPageCache } from "../content/page-cache.ts";
 import type { ScopedQueries, SiteScope, SiteTable, WorkspaceScope, WorkspaceTable } from "../tenancy/data-layer.ts";
 import type { CompiledPartitioning, RunnableModule } from "./registry.ts";
 
@@ -27,9 +28,15 @@ export function placeQueries(scope: PlaceScope): ScopedQueries<WorkspaceTable, "
 /**
  * A Module's tables, limited to the place `scope` opened: the data layer adds the place's condition
  * to every query and fills in the Workspace (and Site); a table that isn't one of the Module's is
- * refused.
+ * refused. A change to a table its Redirect rules read (SDK 1.5) clears the Site's page cache with
+ * it, as the Site pipeline keeps their answers with the Site's pages.
  */
-export function moduleData(module: RunnableModule, scope: PlaceScope, ensurePartition?: EnsurePartition): ModuleData {
+export function moduleData(
+	module: RunnableModule,
+	scope: PlaceScope,
+	options: { inTransaction?: boolean; ensurePartition?: EnsurePartition } = {},
+): ModuleData {
+	const { ensurePartition } = options;
 	const queries = placeQueries(scope);
 	const own = <Table extends ModuleTable>(table: Table): Table & WorkspaceTable => {
 		if (!module.tables.has(table)) {
@@ -46,6 +53,16 @@ export function moduleData(module: RunnableModule, scope: PlaceScope, ensurePart
 	/** A new row: in a Site the Site is filled in; in a Workspace a Site table's row names its Site. */
 	const values = <Table extends ModuleTable>(table: Table, row: NewModuleRow<Table> | Partial<NewModuleRow<Table>>) =>
 		(scope.level === "site" && "siteId" in table ? { ...row, siteId: scope.site.id } : row) as never;
+	// In one transaction the Site's pages go once: nobody sees the change before it commits.
+	let cleared = false;
+	/** After a change to a table the Site pipeline keeps answers of: the Site's pages go, with the change. */
+	const changed = async <Result>(table: ModuleTable, result: Result, rows: number): Promise<Result> => {
+		if (rows === 0 || scope.level !== "site" || !module.redirects?.tables.includes(table)) return result;
+		if (cleared && options.inTransaction) return result;
+		await clearPageCache(scope);
+		cleared = true;
+		return result;
+	};
 	return {
 		select: (table, where?: SQL, options = {}) => queries.select(own(table), where, options) as never,
 		first: (table, where?: SQL, options = {}) => queries.first(own(table), where, options) as never,
@@ -56,13 +73,18 @@ export function moduleData(module: RunnableModule, scope: PlaceScope, ensurePart
 				const at = (row as Record<string, unknown>)[partitioning.columnKey];
 				await ensurePartition(module, partitioning, at instanceof Date ? at : scope.now(), scope);
 			}
-			return (await queries.insert(own(table), values(table, row))) as never;
+			const inserted = await queries.insert(own(table), values(table, row));
+			return changed(table, inserted, 1) as never;
 		},
-		update: (table, set, where?: SQL) => {
+		update: async (table, set, where?: SQL) => {
 			const { siteId: _site, ...rest } = set as Record<string, unknown>;
-			return queries.update(own(table), rest as never, where) as never;
+			const updated = await queries.update(own(table), rest as never, where);
+			return changed(table, updated, updated.length) as never;
 		},
-		delete: (table, where?: SQL) => queries.delete(own(table), where),
+		delete: async (table, where?: SQL) => {
+			const deleted = await queries.delete(own(table), where);
+			return changed(table, deleted, deleted);
+		},
 		aggregate: async (table, query) => {
 			const owned = own(table);
 			const columns = new Set(Object.values(getTableColumns(owned)));
