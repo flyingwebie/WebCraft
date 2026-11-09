@@ -8,6 +8,8 @@ import {
 } from "@webcraft/auth";
 import {
 	AccessNotHeldError,
+	AiCapReachedError,
+	AiKeyInvalidError,
 	AiKeyMissingError,
 	AiProviderError,
 	AlreadyMemberError,
@@ -102,6 +104,7 @@ import {
 	SetupClosedError,
 	SetupStageError,
 	SetupTokenInvalidError,
+	SharedAiKeyNotFoundError,
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
@@ -570,6 +573,25 @@ export function toApiError(error: unknown): unknown {
 			data: { maxBytes: error.maxBytes },
 			cause: error,
 		});
+	}
+	if (error instanceof AiKeyInvalidError) {
+		return new ORPCError("AI_KEY_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { field: error.field, reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof AiCapReachedError) {
+		return new ORPCError("AI_CAP_REACHED", {
+			status: 409,
+			message: error.message,
+			data: { key: error.key, resumesAt: error.resumesAt.toISOString() },
+			cause: error,
+		});
+	}
+	if (error instanceof SharedAiKeyNotFoundError) {
+		return new ORPCError("SHARED_AI_KEY_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof AiKeyMissingError) {
 		return new ORPCError("AI_KEY_MISSING", { status: 409, message: error.message, cause: error });

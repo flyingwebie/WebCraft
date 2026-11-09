@@ -50,15 +50,15 @@ export const media = {
 
 	/**
 	 * Suggest alt text: an AI provider describes the image in a language (the Site's Default language
-	 * unless given), with the Workspace's AI key. Nothing is saved: the person reads it and saves it.
-	 * Your own uploads with `media.upload`; every file with `media.manage`.
+	 * unless given), with the AI key the Workspace uses (its own, else a shared one), recording what
+	 * the call cost. Nothing is saved: the person reads it and saves it. Your own uploads with
+	 * `media.upload`; every file with `media.manage`.
 	 */
 	suggestAltText: signedIn
 		.input(z.object({ siteId: id, mediaId: id, language: language.optional() }))
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
-			const workspace = await context.services.data.workspace(context.access, site.workspace.id, "workspace.view");
-			return { alt: await context.services.media.suggestAltText(site, workspace, input.mediaId, input.language) };
+			return { alt: await context.services.media.suggestAltText(site, input.mediaId, input.language) };
 		}),
 
 	/** One file, with its texts in a language (the Site's Default language unless given). */

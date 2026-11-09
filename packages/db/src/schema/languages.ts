@@ -26,6 +26,12 @@ export const siteLanguages = pgTable(
 		domain: text("domain"),
 		/** Where the language comes in the Site's lists (the Language switcher, `hreflang`), from 0. */
 		position: integer("position").notNull(),
+		/**
+		 * How the language is kept up to date (its Translation mode): `automatic` (AI translation is
+		 * published together with the Default language's publish), `review` (AI translation lands in the
+		 * Draft for a person to publish) or `manual` (people translate). Unused on the Default language.
+		 */
+		translationMode: text("translation_mode").notNull().default("manual"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [

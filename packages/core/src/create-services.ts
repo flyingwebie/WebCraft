@@ -2,6 +2,7 @@ import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createAccount, reportAccountLock } from "./account.ts";
+import { createAiKeys } from "./ai/keys.ts";
 import { createApiTokens } from "./api-tokens.ts";
 import { listAuditEntries } from "./audit.ts";
 import { createBackups } from "./backups/service.ts";
@@ -210,6 +211,7 @@ export async function createInstallServices(
 	const people = createPeople({ database, clock });
 	const apiTokens = createApiTokens({ database, clock, people, rateLimits, keyHash: await apiTokenKey(masterKey) });
 	const memberships = createMemberships({ database, clock });
+	const aiKeys = createAiKeys({ database, secrets: store, clock, log, email, ai: ports.ai });
 	const storage = createInstallStorage({
 		database,
 		secrets: installSecrets,
@@ -226,6 +228,7 @@ export async function createInstallServices(
 		log,
 		clock,
 		ai: ports.ai,
+		aiKeys,
 		fetch: createGuardedFetch({
 			http: ports.http,
 			dns: ports.dns,
@@ -254,6 +257,7 @@ export async function createInstallServices(
 		account: createAccount({ database, auth, clock }),
 		rateLimits,
 		people,
+		aiKeys,
 		apiTokens,
 		setup: createInstallSetup({ database, auth, config, clock, log }),
 		settings,

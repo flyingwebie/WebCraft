@@ -33,6 +33,12 @@ export type GuardedFetchOptions = {
 	 * network, or at this machine in development). Every other address keeps the rule.
 	 */
 	installAddresses?: readonly string[];
+	/**
+	 * Every address may be called, inside the server's network too: only for a shared AI key's
+	 * self-hosted endpoint, which the Superadmin set and allowed (Install settings › AI). Everything
+	 * else (the scheme, the hosts, redirects, pinning) keeps the rules.
+	 */
+	privateNetwork?: boolean;
 };
 
 export const GUARDED_FETCH_LIMITS = {
@@ -106,7 +112,10 @@ export function createGuardedFetch({
 			const body = request.body === null ? null : await request.arrayBuffer();
 			let hop = { url: new URL(request.url), method: request.method, headers: new Headers(request.headers), body };
 			for (let redirects = 0; ; redirects++) {
-				const address = await Promise.race([checkTarget(hop.url, allowed, own, dns), aborted]);
+				const address = await Promise.race([
+					checkTarget(hop.url, allowed, own, dns, options.privateNetwork === true),
+					aborted,
+				]);
 				let response: Response;
 				try {
 					response = await Promise.race([
@@ -156,6 +165,7 @@ async function checkTarget(
 	allowed: ReadonlySet<string> | "any",
 	own: ReadonlySet<string>,
 	dns: Dns,
+	privateNetwork: boolean,
 ): Promise<string> {
 	if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) {
 		throw new GuardedFetchError(
@@ -180,7 +190,9 @@ async function checkTarget(
 	}
 	const [first] = addresses;
 	if (first === undefined) throw new GuardedFetchError("address", `${host} doesn't resolve.`);
-	const internal = addresses.find((address) => !isPublicAddress(address) && !own.has(canonicalAddress(address)));
+	const internal = privateNetwork
+		? undefined
+		: addresses.find((address) => !isPublicAddress(address) && !own.has(canonicalAddress(address)));
 	if (internal !== undefined) {
 		throw new GuardedFetchError("address", `${host} resolves to ${internal}, inside the server's network.`);
 	}

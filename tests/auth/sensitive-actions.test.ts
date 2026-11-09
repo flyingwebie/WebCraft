@@ -52,6 +52,14 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 		api.webhooks.add({ siteId, url: "https://hooks.agency.example/build", events: ["publish"] }),
 	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
 	"siteSmtp.change": (api, { siteId }) => api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
+	"aiKey.change": (api, { workspaceId }) =>
+		api.aiKeys.setOwn({
+			workspaceId,
+			provider: "openai",
+			model: "gpt-5-mini",
+			endpoint: null,
+			key: "sk-test-key-for-the-sensitive-action",
+		}),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 };
 
@@ -141,6 +149,7 @@ describe("each Sensitive action", () => {
 			"webhook.change",
 			"formCaptcha.change",
 			"siteSmtp.change",
+			"aiKey.change",
 		];
 		expect(answers).toEqual(
 			Object.fromEntries(

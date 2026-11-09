@@ -1,5 +1,6 @@
 import type { RouterClient } from "@orpc/server";
 
+import { aiKeys, sharedAiKeys } from "./procedures/ai-keys.ts";
 import { apiTokens } from "./procedures/api-tokens.ts";
 import { audit } from "./procedures/audit.ts";
 import { builder } from "./procedures/builder.ts";
@@ -46,6 +47,8 @@ export const apiRouter = {
 	me,
 	apiTokens,
 	install,
+	sharedAiKeys,
+	aiKeys,
 	workspaces,
 	sites,
 	postTypes,

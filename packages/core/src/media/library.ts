@@ -1,6 +1,7 @@
 import { media, mediaFiles, mediaFolders, people } from "@webcraft/db/schema";
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
-import type { AiProviders } from "../ai.ts";
+import type { AiKeys } from "../ai/keys.ts";
+import type { AiProviders } from "../ai/providers.ts";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
@@ -227,7 +228,7 @@ export type MediaLibrary = {
 	 * Suggest alt text: an AI provider describes an image in `language`, with the Workspace's AI key
 	 * (`workspace`, the Site's Workspace). Nothing is saved. Your own upload, or any with `media.manage`.
 	 */
-	suggestAltText(scope: SiteScope, workspace: WorkspaceScope, mediaId: string, language?: string): Promise<string>;
+	suggestAltText(scope: SiteScope, mediaId: string, language?: string): Promise<string>;
 	/** A Workspace's Media storage and quota. Open it with `workspace.view` to read, `quota.manage` to set. */
 	quota: {
 		get(scope: WorkspaceScope): Promise<MediaStorage>;
@@ -265,6 +266,8 @@ export function createMediaLibrary(options: {
 	clock: Clock;
 	/** AI providers, for "Suggest alt text". */
 	ai: AiProviders;
+	/** The AI keys calls go through, with what they cost. */
+	aiKeys: AiKeys;
 	/** The guarded fetcher Import from URL uses, allowed files up to the largest an Install may take. */
 	fetch: GuardedFetch;
 	/** How long Import from URL waits: `MEDIA_IMPORT_TIMEOUT_MS` unless given (tests wait less). */
@@ -632,15 +635,15 @@ export function createMediaLibrary(options: {
 				maxFileBytes,
 				storage: await mediaStorage(scope.db, scope.workspace.id),
 				trash: { count: await scope.count(media, isNotNull(media.trashedAt)) },
-				altTextSuggestions: await canSuggestAltText(workspace.secrets),
+				altTextSuggestions: await canSuggestAltText(options.aiKeys, workspace.workspace.id),
 			};
 		},
 
-		async suggestAltText(scope, workspace, mediaId, language) {
+		async suggestAltText(scope, mediaId, language) {
 			const row = await changeable(scope, mediaId);
 			if (row.trashedAt) throw new MediaInTrashError();
 			const item = await get(scope, mediaId, language);
-			return suggestAltText({ ai: options.ai, storage }, scope, workspace.secrets, item);
+			return suggestAltText({ ai: options.ai, keys: options.aiKeys, storage }, scope, item);
 		},
 
 		quota: {

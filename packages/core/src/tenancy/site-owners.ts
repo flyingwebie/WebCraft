@@ -52,3 +52,17 @@ export async function siteStaff(scope: { db: Executor; workspace: Pick<Workspace
 		);
 	return rows.map((row) => row.personId);
 }
+
+/**
+ * The Workspace's Owners: its Members whose role manages the Workspace's Members (`member.manage`,
+ * which only Owners hold in v1), whichever Sites they reach.
+ */
+export async function workspaceOwners(scope: { db: Executor; workspace: Pick<Workspace, "id"> }): Promise<string[]> {
+	const rows = await scope.db
+		.select({ personId: memberships.personId, role: memberships.role })
+		.from(memberships)
+		.where(eq(memberships.workspaceId, scope.workspace.id));
+	return rows
+		.filter((row) => roleDefinition(row.role)?.permissions.includes("member.manage") ?? false)
+		.map((row) => row.personId);
+}

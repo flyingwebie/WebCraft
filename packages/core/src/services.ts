@@ -2,7 +2,7 @@ import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 
 import type { Account } from "./account.ts";
-import type { AiProviders } from "./ai.ts";
+import type { AiKeys, AiProviders } from "./ai/index.ts";
 import type { ApiTokens } from "./api-tokens.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Backups } from "./backups/service.ts";
@@ -139,6 +139,11 @@ export type InstallServices = InstallPorts & {
 	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */
 	people: People;
+	/**
+	 * AI keys (a Workspace's own, shared Install keys) and what calls cost: every call to an AI provider
+	 * goes through `aiKeys.call`, which picks the key, keeps the monthly caps and records the cost.
+	 */
+	aiKeys: AiKeys;
 	/** API tokens: people's credentials for the Management API at `/api/v1`, and their limits. */
 	apiTokens: ApiTokens;
 	/** The setup wizard and its token. */

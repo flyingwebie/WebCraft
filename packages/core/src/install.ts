@@ -2,13 +2,14 @@ import { assertSchemaCurrent, createBoss, type Database, type JobQueueOptions, o
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 import type { PgBoss } from "pg-boss";
 
-import { aiProvidersToCome } from "./ai.ts";
+import { createHttpAiProviders } from "./ai/http-providers.ts";
 import { systemClock } from "./clock.ts";
 import { type Environment, type InstallConfig, loadInstallConfig } from "./config.ts";
 import { countriesFromFile, unknownCountries } from "./countries.ts";
 import { createInstallServices } from "./create-services.ts";
 import { systemDns } from "./dns.ts";
 import { createSmtpMailer } from "./email/smtp-mailer.ts";
+import { createGuardedFetch } from "./guarded-fetch.ts";
 import type { OutgoingHttp } from "./http.ts";
 import { createJobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
@@ -140,7 +141,8 @@ function realPorts(
 		dns: systemDns,
 		tls: systemTls,
 		countries: config.countryFile ? countriesFromFile(config.countryFile, log) : unknownCountries,
-		ai: aiProvidersToCome,
+		// AI providers are called directly, through the guarded fetcher on this process's outgoing HTTP.
+		ai: createHttpAiProviders({ fetch: createGuardedFetch({ http, dns: systemDns }) }),
 		clock: systemClock,
 		log,
 	};
