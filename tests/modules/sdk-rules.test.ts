@@ -1,6 +1,6 @@
 // What the Module SDK 1.4 adds, checked when the Install loads a Module: a Site route's limits, a
-// Site script that runs before consent, and tables kept in monthly partitions. A definition that
-// breaks a rule can't run; the Modules screen says why.
+// Site script that runs before consent, and tables kept in monthly partitions; and SDK 1.6's
+// procedure kinds. A definition that breaks a rule can't run; the Modules screen says why.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type ModuleDefinition, moduleSchema, siteColumns, text, uuid } from "@webcraft/module-sdk";
 
@@ -33,6 +33,15 @@ async function problemOf(module: ModuleDefinition): Promise<string | null> {
 const [route] = sample.siteRoutes ?? [];
 
 describe("a Module can't run when", () => {
+	test("a procedure is neither a read nor a write", async () => {
+		const notes = (sample.procedures as { notes: Record<string, object> }).notes;
+		const odd = {
+			...sample,
+			procedures: { ...sample.procedures, notes: { ...notes, list: { ...notes.list, kind: "maybe" } } },
+		} as ModuleDefinition;
+		expect(await problemOf(odd)).toContain("notes.list is neither a read nor a write");
+	});
+
 	test("a Site route's limit isn't whole requests per whole seconds", async () => {
 		const limited = {
 			...sample,

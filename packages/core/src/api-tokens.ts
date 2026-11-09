@@ -22,6 +22,9 @@ import { newToken } from "./tokens.ts";
  * the Master key), so a request finds its token with one indexed lookup, and a new Master key ends
  * every token, as it signs everyone out.
  *
+ * A person's tokens are their own account's data, read by person as their Memberships are; one is
+ * made through the scope of the Workspace it is for, which the person must reach.
+ *
  * A token acts as its person now: their access is read fresh on every request (`TokenActor`), so
  * it never does more than they may. When the person no longer reaches what the token was made for
  * (their Membership removed, their Staff Workspaces changed, the token's Sites out of their reach),
@@ -303,24 +306,17 @@ export function createApiTokens({
 			const now = scope.now();
 			const expiresAt = input.lifetimeDays === null ? null : new Date(now.getTime() + input.lifetimeDays * DAY_MS);
 			const tokenId = await scope.transaction(async (tx) => {
-				const [row] = await tx.db
-					.insert(apiTokens)
-					.values({
-						personId: actor.personId,
-						workspaceId: tx.workspace.id,
-						name,
-						secretHash: await hashed(secret),
-						hint: secret.slice(-4),
-						allSites: listed === null,
-						readOnly: input.readOnly,
-						createdAt: now,
-						expiresAt,
-					})
-					.returning({ id: apiTokens.id });
-				if (!row) throw new Error("The new API token was not saved.");
-				for (const siteId of listed ?? []) {
-					await tx.db.insert(apiTokenSites).values({ tokenId: row.id, workspaceId: tx.workspace.id, siteId });
-				}
+				const row = await tx.insert(apiTokens, {
+					personId: actor.personId,
+					name,
+					secretHash: await hashed(secret),
+					hint: secret.slice(-4),
+					allSites: listed === null,
+					readOnly: input.readOnly,
+					createdAt: now,
+					expiresAt,
+				});
+				for (const siteId of listed ?? []) await tx.insert(apiTokenSites, { tokenId: row.id, siteId });
 				await tx.audit("apiToken.create", {
 					tokenId: row.id,
 					name,
