@@ -22,7 +22,7 @@ import {
 	editSessionOf,
 	pageEditing,
 } from "./edit-mode.ts";
-import { languageChoiceResponse } from "./languages.ts";
+import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
 /** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
@@ -79,6 +79,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
 			const edit = await editSessionOf(services, request, host);
 			if (edit.session) return editModePage(services, host, edit.session, url.pathname);
+			const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
+			if (redirected) return redirected;
 			const page = await visitorPage(services, cache, request, host);
 			return edit.stale ? withEditCookieCleared(request, page) : page;
 		});
@@ -202,6 +204,7 @@ function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheS
 		etag: page.etag,
 		"x-cache": cacheStatus,
 		"x-content-type-options": "nosniff",
+		...languageVary(host, new URL(request.url).pathname),
 		...addressHeaders(host),
 	};
 	if (matchesETag(request.headers.get("if-none-match"), page.etag)) {

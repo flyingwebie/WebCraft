@@ -25,6 +25,7 @@ import {
 	saveGlobalsDraft,
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
+	setBrowserLanguageRedirect,
 	setGlobalFields,
 	setSpecialPage,
 	siteLanguages,
@@ -174,6 +175,7 @@ export async function createInstallServices(
 			get: siteLanguages,
 			add: (scope, input) => addLanguage({ config }, scope, input),
 			update: (scope, code, change) => updateLanguage({ config }, scope, code, change),
+			setBrowserRedirect: setBrowserLanguageRedirect,
 		},
 		pages: {
 			settings: getSpecialPages,

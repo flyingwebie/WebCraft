@@ -183,6 +183,8 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope): Promise<SiteLanguages>;
 		add(scope: SiteScope, input: NewLanguage): Promise<SiteLanguages>;
 		update(scope: SiteScope, code: string, change: LanguageChange): Promise<SiteLanguages>;
+		/** Turns the browser-language redirect on the home page on or off. */
+		setBrowserRedirect(scope: SiteScope, on: boolean): Promise<SiteLanguages>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing

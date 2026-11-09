@@ -244,6 +244,9 @@ describe("Languages", () => {
 	isolation.refuses("languages.update", (api, { siteId }) =>
 		api.languages.update({ siteId, code: "en", name: "Inglese" }),
 	);
+	isolation.refuses("languages.setBrowserRedirect", (api, { siteId }) =>
+		api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: true }),
+	);
 });
 
 describe("Edit mode", () => {

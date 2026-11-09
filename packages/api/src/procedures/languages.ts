@@ -42,6 +42,17 @@ export const languages = {
 			return { settings: await context.services.languages.add(site, language) };
 		}),
 
+	/**
+	 * Turns the browser-language redirect on or off: when on, a visitor's first request to the home
+	 * page goes on to the home page in the language their browser prefers. Off by default.
+	 */
+	setBrowserRedirect: signedIn
+		.input(z.object({ siteId: id, browserLanguageRedirect: z.boolean() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { settings: await context.services.languages.setBrowserRedirect(site, input.browserLanguageRedirect) };
+		}),
+
 	/** Changes a language's name, direction or domain (null for none). */
 	update: signedIn
 		.input(

@@ -93,6 +93,7 @@ export {
 	LANGUAGE_NAME_MAX_LENGTH,
 	type LanguageChange,
 	type NewLanguage,
+	setBrowserLanguageRedirect,
 	updateLanguage,
 } from "./site-languages.ts";
 export {

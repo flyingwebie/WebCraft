@@ -1,6 +1,6 @@
-import { siteLanguages as siteLanguageRows } from "@webcraft/db/schema";
+import { siteLanguages as siteLanguageRows, sites } from "@webcraft/db/schema";
 import { directionOf } from "@webcraft/renderer";
-import { eq, max } from "drizzle-orm";
+import { and, eq, max } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -160,4 +160,20 @@ async function saving<Result>(save: () => Promise<Result>): Promise<Result> {
 		if (isUniqueViolation(error, "site_languages_pkey")) throw new LanguageTakenError("code");
 		throw error;
 	}
+}
+
+/**
+ * Turns the Site's browser-language redirect on or off: when on, a visitor's first request to the
+ * home page goes on to the home page in the language their browser prefers (ADR 0010).
+ */
+export async function setBrowserLanguageRedirect(scope: SiteScope, on: boolean): Promise<SiteLanguages> {
+	return scope.transaction(async (tx) => {
+		await tx.db
+			.update(sites)
+			.set({ browserLanguageRedirect: on })
+			.where(and(eq(sites.id, tx.site.id), eq(sites.workspaceId, tx.site.workspaceId)));
+		await clearPageCache(tx);
+		await tx.audit("browserLanguageRedirect.change", { on });
+		return siteLanguages(tx);
+	});
 }

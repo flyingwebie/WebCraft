@@ -27,6 +27,7 @@ import {
 	languageNamed,
 	languageOfPath,
 	languagePath,
+	preferredLanguage,
 	type SiteLanguage,
 	type SiteLanguages,
 	siteLanguages,
@@ -62,6 +63,8 @@ export type SiteHost = {
 	 * addresses on the page (`hreflang` alternates) start with.
 	 */
 	origin: string;
+	/** Whether the Site sends a first visit to the home page on to the browser's language (ADR 0010). */
+	browserLanguageRedirect: boolean;
 	/**
 	 * The Site's page cache generation: a page rendered now stays valid until a publish raises it.
 	 * Read before the page, so a page is never kept under a newer generation than its content.
@@ -123,6 +126,12 @@ export type SitePages = {
 	 */
 	pageContent(host: SiteHost, pathname: string): Promise<PageContent>;
 	/**
+	 * Where the browser-language redirect sends a visitor's first request to the home page: the home
+	 * page in the language their browser prefers (`Accept-Language`) among those it is shown in. Null
+	 * when that is the Default language, none matches, the Site has the redirect off or no home page.
+	 */
+	preferredHome(host: SiteHost, acceptLanguage: string | null): Promise<LanguageChoice | null>;
+	/**
 	 * What a Language switcher link (`/_wc/lang/<path>`) chooses: the language of the path, and the
 	 * path to go on to. Undefined for any other path, or one no page could be at.
 	 */
@@ -181,6 +190,7 @@ export function createSitePages(options: {
 				address: "staging",
 				defaultLanguage: row.defaultLanguage,
 				origin: stagingUrl(config, row.slug) ?? `https://${hostname}`,
+				browserLanguageRedirect: row.browserLanguageRedirect,
 				cacheGeneration: row.pageCacheGeneration,
 			};
 		},
@@ -222,6 +232,27 @@ export function createSitePages(options: {
 			return {
 				html: await renderSitePage(view, host, styles, place, { ...builtIn, languageLinks, values: () => undefined }),
 			};
+		},
+
+		async preferredHome(host, acceptLanguage) {
+			if (!host.browserLanguageRedirect) return null;
+			const scope = data.visitors(host.site);
+			const home = await homePageId(scope);
+			const page = home && (await publishedPage(scope, await listPostTypes(scope), home));
+			if (!page) return null;
+			const site = await siteLanguages(scope);
+			const shown = site.languages.filter((language) =>
+				isVisibleIn(storedVersion(page.entry.published), {
+					language: language.code,
+					defaultLanguage: site.defaultLanguage,
+				}),
+			);
+			const language = preferredLanguage(
+				acceptLanguage,
+				shown.map((candidate) => candidate.code),
+			);
+			if (!language || language === site.defaultLanguage) return null;
+			return { language, location: languagePath({ language, defaultLanguage: site.defaultLanguage }, "/") };
 		},
 
 		languageChoice(host, pathname) {

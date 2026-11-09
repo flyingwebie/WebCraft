@@ -167,3 +167,30 @@ export function languageNamed(site: SiteLanguages, code: string): SiteLanguage {
 		toSiteLanguage(code, languageName(code), directionOf(code), null, true)
 	);
 }
+
+/**
+ * The language a browser prefers among `available` codes, from its `Accept-Language` header: its
+ * ranges in order of preference (`q`, none at 0, `*` ignored), each matching a code exactly or by its
+ * language alone (`fr-CA` finds `fr`, `pt` finds `pt-BR`). Undefined when none matches.
+ */
+export function preferredLanguage(acceptLanguage: string | null, available: readonly string[]): string | undefined {
+	const ranges: { tag: string; q: number }[] = [];
+	for (const part of (acceptLanguage ?? "").split(",").slice(0, 50)) {
+		const [range = "", ...parameters] = part.split(";").map((piece) => piece.trim());
+		let q = 1;
+		for (const parameter of parameters) {
+			const match = /^q=([01](?:\.\d{0,3})?)$/i.exec(parameter);
+			if (match) q = Number(match[1]);
+		}
+		if (range && range !== "*" && q > 0) ranges.push({ tag: range.toLowerCase(), q });
+	}
+	ranges.sort((a, b) => b.q - a.q);
+	const primary = (tag: string) => tag.toLowerCase().split("-")[0];
+	for (const { tag } of ranges) {
+		const exact = available.find((code) => code.toLowerCase() === tag);
+		if (exact) return exact;
+		const close = available.find((code) => primary(code) === primary(tag));
+		if (close) return close;
+	}
+	return undefined;
+}
