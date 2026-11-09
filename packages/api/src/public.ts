@@ -122,8 +122,8 @@ export function createPublicApi(
 				429,
 				"TOO_MANY_REQUESTS",
 				!requests.within
-					? "This API token made 300 requests in the last minute: wait, then try again."
-					: "This API token made 30 writes in the last minute: wait, then try again.",
+					? `This API token made ${requests.limit} requests this minute: wait, then try again.`
+					: `This API token made ${writes?.limit ?? 0} writes this minute: wait, then try again.`,
 				{ retryAfterSeconds, limit: !requests.within ? "requests" : "writes" },
 				{ ...limits, "retry-after": String(retryAfterSeconds) },
 			);
