@@ -1,6 +1,7 @@
 import { ENTRY_TITLE_MAX_LENGTH, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { fieldValues, language, seoFields } from "../fields.ts";
 import { id } from "../inputs.ts";
@@ -95,10 +96,13 @@ export const entries = {
 		}),
 
 	/** Publishes an Entry's Draft: it goes live at once and the Site's page cache is cleared. */
-	publish: signedIn.input(z.object({ siteId: id, entryId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "entry", id: input.entryId } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		await context.services.publishing.publish(site, item);
-		return { entry: await context.services.entries.get(site, input.entryId) };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, entryId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish((input) => ({ kind: "entry", id: input.entryId })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "entry", id: input.entryId } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			await context.services.publishing.publish(site, item);
+			return { entry: await context.services.entries.get(site, input.entryId) };
+		}),
 };

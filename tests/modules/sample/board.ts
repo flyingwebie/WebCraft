@@ -51,6 +51,7 @@ CREATE TABLE pins (
 		pins: {
 			list: procedure({
 				permission: "workspace.view",
+				kind: "read",
 				input: z.object({}),
 				async run(_input, context) {
 					return { pins: await context.data.select(pins, undefined, { orderBy: [desc(pins.createdAt)] }) };

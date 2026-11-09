@@ -17,6 +17,8 @@ import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
 import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
+import { Route as AdminAccountIndexRouteImport } from './routes/_admin/account.index'
+import { Route as AdminAccountApiTokensRouteImport } from './routes/_admin/account.api-tokens'
 import { Route as AdminSettingsBackupsRouteImport } from './routes/_admin/settings.backups'
 import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
@@ -103,6 +105,16 @@ const AdminStaffRoute = AdminStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
   getParentRoute: () => AdminRoute,
+} as any)
+const AdminAccountIndexRoute = AdminAccountIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminAccountRoute,
+} as any)
+const AdminAccountApiTokensRoute = AdminAccountApiTokensRouteImport.update({
+  id: '/api-tokens',
+  path: '/api-tokens',
+  getParentRoute: () => AdminAccountRoute,
 } as any)
 const AdminSettingsBackupsRoute = AdminSettingsBackupsRouteImport.update({
   id: '/settings/backups',
@@ -374,9 +386,10 @@ export interface FileRoutesByFullPath {
   '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
-  '/account': typeof AdminAccountRoute
+  '/account': typeof AdminAccountRouteWithChildren
   '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
+  '/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
@@ -386,6 +399,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
+  '/account/': typeof AdminAccountIndexRoute
   '/workspaces/': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
@@ -429,10 +443,10 @@ export interface FileRoutesByTo {
   '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
-  '/account': typeof AdminAccountRoute
   '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
   '/': typeof AdminIndexRoute
+  '/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
@@ -440,6 +454,7 @@ export interface FileRoutesByTo {
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
+  '/account': typeof AdminAccountIndexRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
@@ -480,10 +495,11 @@ export interface FileRoutesById {
   '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
-  '/_admin/account': typeof AdminAccountRoute
+  '/_admin/account': typeof AdminAccountRouteWithChildren
   '/_admin/email-log': typeof AdminEmailLogRoute
   '/_admin/staff': typeof AdminStaffRoute
   '/_admin/': typeof AdminIndexRoute
+  '/_admin/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/_admin/settings/backups': typeof AdminSettingsBackupsRoute
   '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
@@ -493,6 +509,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/builder/$siteId/$': typeof BuilderSiteIdSplatRoute
+  '/_admin/account/': typeof AdminAccountIndexRoute
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
   '/_admin/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/_admin/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
@@ -542,6 +559,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/email-log'
     | '/staff'
+    | '/account/api-tokens'
     | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
@@ -551,6 +569,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/builder/$siteId/$'
+    | '/account/'
     | '/workspaces/'
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
@@ -594,10 +613,10 @@ export interface FileRouteTypes {
     | '/invite'
     | '/setup'
     | '/sign-in'
-    | '/account'
     | '/email-log'
     | '/staff'
     | '/'
+    | '/account/api-tokens'
     | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
@@ -605,6 +624,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/settings/storage'
     | '/builder/$siteId/$'
+    | '/account'
     | '/workspaces'
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
@@ -648,6 +668,7 @@ export interface FileRouteTypes {
     | '/_admin/email-log'
     | '/_admin/staff'
     | '/_admin/'
+    | '/_admin/account/api-tokens'
     | '/_admin/settings/backups'
     | '/_admin/settings/email'
     | '/_admin/settings/general'
@@ -657,6 +678,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId'
     | '/_admin/workspaces/$workspaceId'
     | '/builder/$siteId/$'
+    | '/_admin/account/'
     | '/_admin/workspaces/'
     | '/_admin/sites/$siteId/components'
     | '/_admin/sites/$siteId/consent-banner'
@@ -762,6 +784,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/staff'
       preLoaderRoute: typeof AdminStaffRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/_admin/account/': {
+      id: '/_admin/account/'
+      path: '/'
+      fullPath: '/account/'
+      preLoaderRoute: typeof AdminAccountIndexRouteImport
+      parentRoute: typeof AdminAccountRoute
+    }
+    '/_admin/account/api-tokens': {
+      id: '/_admin/account/api-tokens'
+      path: '/api-tokens'
+      fullPath: '/account/api-tokens'
+      preLoaderRoute: typeof AdminAccountApiTokensRouteImport
+      parentRoute: typeof AdminAccountRoute
     }
     '/_admin/settings/backups': {
       id: '/_admin/settings/backups'
@@ -1095,6 +1131,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminAccountRouteChildren {
+  AdminAccountApiTokensRoute: typeof AdminAccountApiTokensRoute
+  AdminAccountIndexRoute: typeof AdminAccountIndexRoute
+}
+
+const AdminAccountRouteChildren: AdminAccountRouteChildren = {
+  AdminAccountApiTokensRoute: AdminAccountApiTokensRoute,
+  AdminAccountIndexRoute: AdminAccountIndexRoute,
+}
+
+const AdminAccountRouteWithChildren = AdminAccountRoute._addFileChildren(
+  AdminAccountRouteChildren,
+)
+
 interface AdminSitesSiteIdImportsImportIdRouteChildren {
   AdminSitesSiteIdImportsImportIdIndexRoute: typeof AdminSitesSiteIdImportsImportIdIndexRoute
   AdminSitesSiteIdImportsImportIdRunsRunIdRoute: typeof AdminSitesSiteIdImportsImportIdRunsRunIdRoute
@@ -1261,7 +1311,7 @@ const AdminWorkspacesWorkspaceIdRouteWithChildren =
   )
 
 interface AdminRouteChildren {
-  AdminAccountRoute: typeof AdminAccountRoute
+  AdminAccountRoute: typeof AdminAccountRouteWithChildren
   AdminEmailLogRoute: typeof AdminEmailLogRoute
   AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -1277,7 +1327,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
-  AdminAccountRoute: AdminAccountRoute,
+  AdminAccountRoute: AdminAccountRouteWithChildren,
   AdminEmailLogRoute: AdminEmailLogRoute,
   AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,

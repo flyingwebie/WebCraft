@@ -42,11 +42,25 @@ export type ModuleActor = {
 };
 
 /**
- * Who `can()` is asked about: a person or a Module. Later kinds slot in here, each limited by what
- * stands behind it: an API token acts as its person within one Workspace and its Toolsets; an
- * OAuth grant is a person plus scope, Toolsets and "may publish".
+ * An API token: its person acting through the Management API (`/api/v1`), never with more access
+ * than they have now (`person` is read fresh for every request) and limited further to the token's
+ * Workspace and Sites. A token limited to some Sites holds nothing on the Workspace itself but
+ * seeing it, so it can't act on the rest of the Workspace. Whether it may only read is decided per
+ * procedure, where the request comes in; Sensitive actions are never its to take.
  */
-export type Actor = PersonActor | ModuleActor;
+export type TokenActor = {
+	kind: "token";
+	tokenId: string;
+	person: PersonActor;
+	workspaceId: string;
+	sites: Reach;
+};
+
+/**
+ * Who `can()` is asked about: a person, a Module or an API token. Later kinds slot in here, each
+ * limited by what stands behind it: an OAuth grant is a person plus scope, Toolsets and "may publish".
+ */
+export type Actor = PersonActor | ModuleActor | TokenActor;
 
 /**
  * A Permission a Module adds (ADR 0028): named under the Module's id (`sample.notes.edit`), checked
@@ -58,11 +72,13 @@ export type AddedPermission = {
 	readonly roles: readonly string[];
 };
 
-/** The person behind an actor, or null for actors with no person (Modules; tokens later). */
+/** The person behind an actor (an API token's is the person who made it), or null for a Module. */
 export function personIdOf(actor: Actor): string | null {
 	switch (actor.kind) {
 		case "person":
 			return actor.personId;
+		case "token":
+			return actor.person.personId;
 		case "module":
 			return null;
 	}
@@ -102,7 +118,19 @@ export function can(actor: Actor, permission: Permission | AddedPermission, reso
 			return (
 				moduleReaches(actor, resource) && (MODULE_VIEW_PERMISSIONS.includes(key) || actor.permissions.includes(key))
 			);
+		case "token":
+			return tokenReaches(actor, resource, key) && can(actor.person, permission, resource);
 	}
+}
+
+/**
+ * Whether `resource` is within an API token's limits: its Workspace, and there only the Sites it
+ * lists. A token listing some Sites sees its Workspace and nothing more of it.
+ */
+function tokenReaches(actor: TokenActor, resource: Resource, key: string): boolean {
+	if (resource.level === "install" || resource.workspaceId !== actor.workspaceId) return false;
+	if (resource.level === "site") return includes(actor.sites, resource.siteId);
+	return actor.sites === "all" || key === "workspace.view";
 }
 
 /** What a Module holds wherever it acts, so it can open its place. */
@@ -141,6 +169,13 @@ export type MemberAccess = { role: string; sites: Reach };
  * never held this way.
  */
 export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAccess): boolean {
+	if (actor.kind === "token") {
+		// A token holds what its person holds, within its Workspace and Sites.
+		if (actor.workspaceId !== workspaceId) return false;
+		const sites =
+			access.sites === "all" ? actor.sites === "all" : access.sites.every((id) => includes(actor.sites, id));
+		return sites && holdsAccess(actor.person, workspaceId, access);
+	}
 	if (actor.kind !== "person") return false;
 	const role = roleDefinition(access.role);
 	if (role?.reach !== "membership") return false;
@@ -164,6 +199,7 @@ export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAcc
  */
 export function workspacesReached(actor: Actor): Reach {
 	if (actor.kind === "module") return [actor.place.workspaceId];
+	if (actor.kind === "token") return [actor.workspaceId];
 	const { installRole, memberships } = actor;
 	const reach = installRole ? roleDefinition(installRole.role)?.reach : undefined;
 	if (reach === "install") return "all";

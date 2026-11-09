@@ -337,6 +337,9 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 				const taken = PLACE_KEYS.find((key) => key in entry.input.shape);
 				if (taken) problem(`The procedure ${dotted} has its own ${taken}: WebCraft adds that.`);
 				if (typeof entry.run !== "function") problem(`The procedure ${dotted} has no run function.`);
+				if (entry.kind !== undefined && entry.kind !== "read" && entry.kind !== "write") {
+					problem(`The procedure ${dotted} is neither a read nor a write.`);
+				}
 				procedures.set(dotted, entry);
 			} else if (entry && typeof entry === "object") {
 				walk(entry as ModuleProcedures, at);

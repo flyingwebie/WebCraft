@@ -9,7 +9,7 @@ import {
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
 import { SidebarMenuButton } from "@webcraft/ui/components/sidebar.tsx";
-import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react";
+import { ChevronsUpDownIcon, KeyRoundIcon, LogOutIcon, UserIcon } from "lucide-react";
 
 import { getApi } from "../api.ts";
 import { useT } from "../i18n.tsx";
@@ -45,6 +45,10 @@ export function UserMenu({ person }: { person: SignedInPerson }) {
 					<DropdownMenuItem render={<Link to="/account" />}>
 						<UserIcon aria-hidden="true" />
 						{t("shell.userMenu.account")}
+					</DropdownMenuItem>
+					<DropdownMenuItem render={<Link to="/account/api-tokens" />}>
+						<KeyRoundIcon aria-hidden="true" />
+						{t("shell.userMenu.apiTokens")}
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator />

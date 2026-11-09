@@ -6,10 +6,14 @@
 //
 // Each line becomes a test: a person who reaches one Workspace ("ours") calls the procedure with
 // our Workspace's ids, which must work, then with another Workspace's ids ("theirs"), which must be
-// refused as not found (404) or forbidden (403).
+// refused as not found (404) or forbidden (403). A public procedure gets one more test through
+// `/api/v1`, with an API token the Superadmin made for our Workspace: the Superadmin reaches every
+// Workspace, so only the token's own limit keeps it out of theirs. A Sensitive procedure is refused
+// for the token on ours too.
 import { expect, test } from "bun:test";
-import type { ApiClient } from "@webcraft/api";
+import { type ApiClient, exposureOf } from "@webcraft/api";
 
+import { createApiToken, tokenClient } from "./api-tokens.ts";
 import type { TestInstall } from "./index.ts";
 
 /** The Workspace and Site a call is aimed at. */
@@ -25,6 +29,8 @@ type Fixture = {
 	ours: IsolationTarget;
 	theirs: IsolationTarget;
 	apis: Record<IsolationActor, ApiClient>;
+	/** The Sensitive action of each public procedure that is one, from the OpenAPI document. */
+	sensitive: ReadonlyMap<string, string>;
 };
 
 export type WorkspaceIsolation = {
@@ -64,8 +70,38 @@ export function workspaceIsolation(install: () => TestInstall): WorkspaceIsolati
 					expect([403, 404]).toContain(refusal.status as number);
 				});
 			}
+			if (!isPublic(procedure)) return;
+			test(`${procedure} refuses another Workspace's data (API token)`, async () => {
+				const { ours, theirs, sensitive } = await ready();
+				const admin = await install().superadmin();
+				// A token of its own, so its count of requests a minute starts afresh.
+				const { secret } = await createApiToken(admin, {
+					workspaceId: ours.workspaceId,
+					name: `Isolation ${procedure}`,
+				});
+				const { api } = tokenClient(install(), secret);
+
+				const answer = await call(api, ours).then(
+					() => "answered",
+					(error: { code?: string }) => error.code,
+				);
+				expect(answer).toBe(sensitive.has(procedure) ? "SENSITIVE_ACTION_REFUSED" : "answered");
+
+				const refusal = await call(api, theirs).then(
+					() => ({ status: "answered" }),
+					(error: unknown) => error as { status?: unknown },
+				);
+				expect([403, 404]).toContain(refusal.status as number);
+			});
 		},
 	};
+}
+
+/** Whether `/api/v1` serves the procedure: a public one of WebCraft's own, or a Module's. */
+function isPublic(procedure: string): boolean {
+	if (procedure.startsWith("m.")) return true;
+	const exposure = exposureOf(procedure);
+	return exposure !== null && exposure.access !== "internal";
 }
 
 async function createFixture(install: TestInstall): Promise<Fixture> {
@@ -78,9 +114,19 @@ async function createFixture(install: TestInstall): Promise<Fixture> {
 	const theirs = await target("Their Workspace");
 	const member = async (role: "owner" | "editor" | "author") =>
 		(await install.createMember({ workspaceId: ours.workspaceId, role })).browser.api;
+	const document = (await (await install.request(install.adminUrl("/api/v1/openapi.json"))).json()) as {
+		paths: Record<string, Record<string, { operationId: string; "x-webcraft-sensitive"?: string }>>;
+	};
+	const sensitive = new Map(
+		Object.values(document.paths)
+			.flatMap((methods) => Object.values(methods))
+			.filter((operation) => operation["x-webcraft-sensitive"])
+			.map((operation) => [operation.operationId, operation["x-webcraft-sensitive"] ?? ""]),
+	);
 	return {
 		ours,
 		theirs,
+		sensitive,
 		apis: {
 			staff: (await install.createStaff({ workspaces: [ours.workspaceId] })).browser.api,
 			owner: await member("owner"),
