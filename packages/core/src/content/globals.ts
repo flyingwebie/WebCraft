@@ -2,12 +2,22 @@ import { globals } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 import { actingPerson } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { restoredVersion, siteLanguages } from "./entries.ts";
+import { restoredVersion } from "./entries.ts";
 import { type ContentProblem, GlobalsIncompleteError, GlobalsInvalidError } from "./errors.ts";
 import type { FieldDefinition, FieldInput, Json } from "./field-types.ts";
-import { checkFields, defaultValues, type Findings, randomRowId, readFields, writeFields } from "./field-values.ts";
+import {
+	checkFields,
+	defaultValues,
+	type Findings,
+	findingsInEveryLanguage,
+	type Languages,
+	randomRowId,
+	readFields,
+	writeFields,
+} from "./field-values.ts";
 import { parseFields, RESERVED_FIELD_KEYS, storedFields } from "./fields.ts";
 import { sameJson } from "./json.ts";
+import { languagesFor, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import type { Published } from "./publishing.ts";
 import { type EntryVersion, emptyVersion, storedVersion, type Writer } from "./values.ts";
@@ -56,10 +66,9 @@ type GlobalsRow = typeof globals.$inferSelect;
 
 /** The Site's Globals, in a language (the Default language unless given). */
 export async function getGlobals(scope: SiteScope, language?: string): Promise<Globals> {
-	const { defaultLanguage } = await siteLanguages(scope);
-	const chosen = checkLanguage(language, defaultLanguage);
+	const languages = await languagesOf(scope, language);
 	const row = await scope.first(globals);
-	return toGlobals(scope, row, chosen, defaultLanguage);
+	return toGlobals(scope, row, languages);
 }
 
 /**
@@ -99,7 +108,7 @@ export async function setGlobalFields(scope: SiteScope, inputs: readonly FieldIn
 		);
 		await clearPageCache(tx);
 		await tx.audit("globals.update", { keys: fields.map((field) => field.key) });
-		return toGlobals(tx, saved ?? row, defaultLanguage, defaultLanguage);
+		return toGlobals(tx, saved ?? row, { language: defaultLanguage, defaultLanguage });
 	});
 }
 
@@ -110,24 +119,21 @@ export async function setGlobalFields(scope: SiteScope, inputs: readonly FieldIn
  */
 export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange): Promise<Globals> {
 	return scope.transaction(async (tx) => {
+		const languages = await languagesOf(tx, change.language);
 		const row = await lockGlobals(tx);
 		const fields = storedFields(row.fields);
-		const { defaultLanguage } = await siteLanguages(tx);
-		const language = change.language ?? defaultLanguage;
 		const problems: ContentProblem[] = [];
-		if (language !== defaultLanguage)
-			problems.push({ at: "language", message: `The Site has no language ${language}.` });
 		const values = writeFields(
 			storedVersion(row.draft).values,
 			fields,
 			change.fields,
-			{ language, defaultLanguage, by: writerOf(tx), problems, references: [], newRowId: randomRowId },
+			{ ...languages, by: writerOf(tx), problems, references: [], newRowId: randomRowId },
 			"fields.",
 			"The Globals",
 		);
 		if (problems.length > 0) throw new GlobalsInvalidError(problems);
 		const [saved] = await tx.update(globals, { draft: { values }, updatedAt: tx.now() }, eq(globals.id, row.id));
-		return toGlobals(tx, saved ?? row, language, defaultLanguage);
+		return toGlobals(tx, saved ?? row, languages);
 	});
 }
 
@@ -138,13 +144,13 @@ export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange):
  */
 export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string[] | "all"): Promise<Globals> {
 	return scope.transaction(async (tx) => {
+		const languages = await languagesOf(tx);
 		const row = await lockGlobals(tx);
-		const { defaultLanguage } = await siteLanguages(tx);
 		const draft = storedVersion(row.draft);
 		const restored = restoredVersion(draft, storedVersion(row.published), keys);
-		if (sameJson(restored, draft)) return toGlobals(tx, row, defaultLanguage, defaultLanguage);
+		if (sameJson(restored, draft)) return toGlobals(tx, row, languages);
 		const [saved] = await tx.update(globals, { draft: restored, updatedAt: tx.now() }, eq(globals.id, row.id));
-		return toGlobals(tx, saved ?? row, defaultLanguage, defaultLanguage);
+		return toGlobals(tx, saved ?? row, languages);
 	});
 }
 
@@ -154,9 +160,12 @@ export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string
  */
 export async function publishGlobals(scope: SiteScope): Promise<Published> {
 	const row = await lockGlobals(scope);
-	const { defaultLanguage } = await siteLanguages(scope);
+	const site = await siteLanguages(scope);
 	const draft = storedVersion(row.draft);
-	const findings = globalsFindings(draft, storedFields(row.fields), defaultLanguage);
+	const fields = storedFields(row.fields);
+	const findings = findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
+		globalsFindings(draft, fields, languages),
+	);
 	if (findings.problems.some((problem) => problem.rule !== "required"))
 		throw new GlobalsInvalidError(findings.problems);
 	if (findings.missing.length > 0) throw new GlobalsIncompleteError(findings.missing);
@@ -203,40 +212,36 @@ async function lockGlobals(scope: SiteScope): Promise<GlobalsRow> {
 	return row;
 }
 
-function globalsFindings(version: EntryVersion, fields: readonly FieldDefinition[], language: string): Findings {
+function globalsFindings(version: EntryVersion, fields: readonly FieldDefinition[], languages: Languages): Findings {
 	const findings: Findings = { problems: [], missing: [], references: [] };
-	checkFields(version.values, fields, { language, defaultLanguage: language }, findings);
+	checkFields(version.values, fields, languages, findings);
 	return findings;
 }
 
-function toGlobals(
-	scope: Pick<SiteScope, "site">,
-	row: GlobalsRow | undefined,
-	language: string,
-	defaultLanguage: string,
-): Globals {
+function toGlobals(scope: Pick<SiteScope, "site">, row: GlobalsRow | undefined, languages: Languages): Globals {
 	const fields = storedFields(row?.fields);
-	const languages = { language, defaultLanguage };
 	const draft = storedVersion(row?.draft);
 	return {
 		siteId: scope.site.id,
 		fields,
 		status: !row?.published ? "draft" : sameJson(row.draft, row.published) ? "published" : "changed",
-		language,
+		language: languages.language,
 		draft: readFields(draft.values, fields, languages),
 		published: row?.published ? readFields(storedVersion(row.published).values, fields, languages) : null,
-		problems: globalsFindings(draft, fields, defaultLanguage).problems,
+		problems: globalsFindings(draft, fields, languages).problems,
 		updatedAt: row?.updatedAt ?? null,
 		publishedAt: row?.publishedAt ?? null,
 		lastPublishedAt: row?.lastPublishedAt ?? null,
 	};
 }
 
-function checkLanguage(language: string | undefined, defaultLanguage: string): string {
-	if (language !== undefined && language !== defaultLanguage) {
+/** The Site's language `language` names (the Default language when absent); `GlobalsInvalidError` for one it doesn't have. */
+async function languagesOf(scope: Pick<SiteScope, "db" | "site">, language?: string): Promise<Languages> {
+	const languages = languagesFor(await siteLanguages(scope), language);
+	if (!languages) {
 		throw new GlobalsInvalidError([{ at: "language", message: `The Site has no language ${language}.` }]);
 	}
-	return defaultLanguage;
+	return languages;
 }
 
 function writerOf(scope: Pick<SiteScope, "access">): Writer {

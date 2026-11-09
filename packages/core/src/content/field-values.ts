@@ -512,3 +512,36 @@ export function moveLanguage(node: unknown, from: string, to: string): Record<st
 	else byLanguage[to] = value;
 	return byLanguage;
 }
+
+/**
+ * What keeps a version from being published, in every language it is shown in: each language's
+ * values are checked (`check` answers undefined for a language the version isn't shown in), each
+ * problem reported once, with its language when it isn't the Default language's. A value a language
+ * falls back to is the Default language's, so its problem is the Default language's too.
+ */
+export function findingsInEveryLanguage(
+	languages: readonly { code: string; default: boolean }[],
+	defaultLanguage: string,
+	check: (languages: Languages) => Findings | undefined,
+): Findings {
+	const all: Findings = { problems: [], missing: [], references: [] };
+	const seen = new Set<string>();
+	for (const language of languages) {
+		const found = check({ language: language.code, defaultLanguage });
+		if (!found) continue;
+		for (const problem of found.problems) {
+			const key = `${problem.at} ${problem.rule} ${problem.message}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			all.problems.push(language.default ? problem : { ...problem, language: language.code });
+		}
+		for (const missing of found.missing) if (!all.missing.includes(missing)) all.missing.push(missing);
+		for (const reference of found.references) {
+			const key = `references ${reference.at} ${reference.ids.join(" ")}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			all.references.push({ ...reference, problems: all.problems });
+		}
+	}
+	return all;
+}

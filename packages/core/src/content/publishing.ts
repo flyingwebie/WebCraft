@@ -12,7 +12,7 @@ import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { entryValues, lockEntry, versionFindings } from "./entries.ts";
 import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
 import type { FieldDefinition } from "./field-types.ts";
-import { type Findings, type Languages, linksIn } from "./field-values.ts";
+import { type Findings, findingsInEveryLanguage, type Languages, linksIn } from "./field-values.ts";
 import { publishGlobals } from "./globals.ts";
 import { checkPathOutsidePrefixes } from "./language-paths.ts";
 import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
@@ -199,33 +199,13 @@ function publishedSlug(
 }
 
 /**
- * What keeps a version from being published, in every language of the Site it is shown in: each
- * language's values are checked (a language falls back to the Default language one Field at a time), and each problem is
- * reported once, with its language when it isn't the Default language's.
+ * What keeps a version from being published, in every language of the Site it is shown in (a
+ * language the Entry is hidden in shows none of its values).
  */
 function publishFindings(draft: EntryVersion, fields: readonly FieldDefinition[], site: SiteLanguages): Findings {
-	const all: Findings = { problems: [], missing: [], references: [] };
-	const seen = new Set<string>();
-	for (const language of site.languages) {
-		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
-		// A language the Entry is hidden in shows none of its values.
-		if (!isVisibleIn(draft, languages)) continue;
-		const found = versionFindings(draft, fields, languages);
-		for (const problem of found.problems) {
-			const key = `${problem.at} ${problem.rule} ${problem.message}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			all.problems.push(language.default ? problem : { ...problem, language: language.code });
-		}
-		for (const missing of found.missing) if (!all.missing.includes(missing)) all.missing.push(missing);
-		for (const reference of found.references) {
-			const key = `references ${reference.at} ${reference.ids.join(" ")}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			all.references.push({ ...reference, problems: all.problems });
-		}
-	}
-	return all;
+	return findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
+		isVisibleIn(draft, languages) ? versionFindings(draft, fields, languages) : undefined,
+	);
 }
 
 /** Where a published Entry will be, and which published paths publishing it changes. */
