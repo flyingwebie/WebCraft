@@ -105,6 +105,7 @@ export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
 export { createNodeHttp } from "./http-node.ts";
 export { pinnedTarget } from "./http-pinned.ts";
+export * from "./imports/index.ts";
 export {
 	type InstallProcess,
 	type OpenedParts,

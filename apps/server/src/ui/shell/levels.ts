@@ -10,6 +10,7 @@ import {
 	GlobeIcon,
 	HardDriveIcon,
 	ImagesIcon,
+	ImportIcon,
 	InboxIcon,
 	LanguagesIcon,
 	LayoutDashboardIcon,
@@ -217,6 +218,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 					// The Site's Post Types come here (`postTypeItems`).
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
 					{ id: "site-globals", label: "shell.nav.globals", icon: SlidersHorizontalIcon, to: "/sites/$siteId/globals" },
+					{
+						id: "site-imports",
+						label: "shell.nav.imports",
+						icon: ImportIcon,
+						to: "/sites/$siteId/imports",
+						requires: "import.run",
+					},
 				],
 			},
 			{

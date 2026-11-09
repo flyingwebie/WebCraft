@@ -9,6 +9,7 @@ import { editMode } from "./procedures/edit-mode.ts";
 import { entries } from "./procedures/entries.ts";
 import { forms } from "./procedures/forms.ts";
 import { globals } from "./procedures/globals.ts";
+import { imports } from "./procedures/imports.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
 import { languages } from "./procedures/languages.ts";
@@ -59,6 +60,7 @@ export const apiRouter = {
 	consentBanner,
 	designSystem,
 	media,
+	imports,
 	pages,
 	editMode,
 	members,

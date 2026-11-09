@@ -207,6 +207,19 @@ export type Reference =
 	| { kind: "entries"; ids: string[]; postTypes: readonly string[] }
 	| { kind: "media"; ids: string[] };
 
+/**
+ * A value written as plain text (a cell of a CSV file), as a Field type reads it:
+ * - `input`: what the type's `parse` takes; `rule` names what is wrong when `parse` refuses it;
+ * - `entries`: Entries to find first, by slug or title (a Relationship), then given as their ids;
+ * - `file`: a file to fetch into the Media library first, by its `https` address (a media Field);
+ * - `problem`: why the text can't be a value of the Field (a rule code, with what fills in its wording).
+ */
+export type TextReading =
+	| { input: unknown; rule: string }
+	| { entries: string[] }
+	| { file: string }
+	| { problem: string; params?: Record<string, string | number> };
+
 /** What a leaf type does with values. */
 export type ValueSpec<Field extends LeafField> = {
 	/** How the API shows an empty value. */
@@ -233,6 +246,11 @@ export type ValueSpec<Field extends LeafField> = {
 	 * reference that is gone is a broken rule), each at a place inside the value.
 	 */
 	references?(value: Json, field: Field): (Reference & { within: string })[];
+	/**
+	 * Reads a value written as plain text (never empty), such as a cell of a CSV file an Import reads:
+	 * its one written form for this type (see `TextReading`).
+	 */
+	fromText(text: string, field: Field): TextReading;
 };
 
 /** Everything the content store knows about one Field type: its traits (`field-rules.ts`) and what it does. */
@@ -251,6 +269,19 @@ const LINK_TEXT_MAX_LENGTH = 300;
 const URL_MAX_LENGTH = 2_000;
 const EMAIL_MAX_LENGTH = 320;
 const EMAIL = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+/** A number as text: a dot or a comma as the decimal mark, no thousands separators. */
+const WRITTEN_NUMBER = /^[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+)$/;
+/** The words a true/false value is written with, in English and Italian, as text. */
+const TRUE_WORDS = new Set(["true", "yes", "y", "1", "on", "si", "sì", "vero"]);
+const FALSE_WORDS = new Set(["false", "no", "n", "0", "off", "falso"]);
+
+/** Several values in one piece of text: separated by semicolons, or by commas when there is none. */
+function listedParts(text: string): string[] {
+	return text
+		.split(text.includes(";") ? ";" : ",")
+		.map((part) => part.trim())
+		.filter(Boolean);
+}
 
 const text: FieldTypeSpec<TextField> = {
 	...FIELD_TYPE_TRAITS.text,
@@ -272,6 +303,7 @@ const text: FieldTypeSpec<TextField> = {
 			return value === "" ? null : value;
 		},
 		read: (stored) => (typeof stored === "string" ? stored : null),
+		fromText: (text) => ({ input: text, rule: "tooLong" }),
 		rules(value, field) {
 			const length = String(value).length;
 			return [
@@ -307,6 +339,8 @@ const richText: FieldTypeSpec<RichTextField> = {
 			return richTextToText(html).trim() === "" ? null : html;
 		},
 		read: (stored) => (typeof stored === "string" ? stored : null),
+		// HTML, cleaned against the rich text allowlist like any rich text; plain text stays text.
+		fromText: (text) => ({ input: text, rule: "tooLong" }),
 		rules(value, field) {
 			const length = richTextToText(String(value)).trim().length;
 			return field.maxLength !== null && length > field.maxLength
@@ -365,6 +399,17 @@ const body: FieldTypeSpec<BodyField> = {
 			return blocks.length === 0 ? null : (blocks as unknown as Json);
 		},
 		read: (stored) => (Array.isArray(stored) ? stored : null),
+		// Plain paragraphs: a blank line starts a new one, a single line break stays a line break. Nothing
+		// in the text is read as markup.
+		fromText: (text) => ({
+			input: text
+				.replace(/\r\n?/g, "\n")
+				.split(/\n[ \t]*\n/)
+				.map((paragraph) => paragraph.trim())
+				.filter(Boolean)
+				.map((paragraph) => ({ type: "paragraph", text: paragraph })),
+			rule: "tooLong",
+		}),
 		rules(value, field) {
 			const broken: BrokenRule[] = [];
 			storedBlocks(value).forEach((block, index) => {
@@ -408,6 +453,12 @@ const number: FieldTypeSpec<NumberField> = {
 			return input;
 		},
 		read: (stored) => (typeof stored === "number" && Number.isFinite(stored) ? stored : null),
+		// A dot or a comma as the decimal mark, no thousands separators: `5.50`, `5,50`, `-3`, `1200`.
+		fromText(text) {
+			const written = text.trim();
+			if (!WRITTEN_NUMBER.test(written)) return { problem: "number" };
+			return { input: Number(written.replace(",", ".")), rule: "number" };
+		},
 		rules(value, field) {
 			const n = Number(value);
 			return [
@@ -430,6 +481,12 @@ const boolean: FieldTypeSpec<BooleanField> = {
 			return input;
 		},
 		read: (stored) => (typeof stored === "boolean" ? stored : null),
+		fromText(text) {
+			const word = text.trim().toLocaleLowerCase();
+			if (TRUE_WORDS.has(word)) return { input: true, rule: "boolean" };
+			if (FALSE_WORDS.has(word)) return { input: false, rule: "boolean" };
+			return { problem: "boolean" };
+		},
 		rules: () => [],
 		isEmpty: () => false,
 	},
@@ -468,6 +525,16 @@ const date: FieldTypeSpec<DateField> = {
 			return parsed;
 		},
 		read: (stored, field) => (typeof stored === "string" ? parseDate(stored, field.mode) : null),
+		// The stored form, and a moment without an offset (`2026-03-02 09:30`) read as UTC.
+		fromText(text, field) {
+			let written = text.trim();
+			if (field.mode === "dateTime") {
+				written = written.replace(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)$/, "$1T$2Z").replace(" ", "T");
+			} else if (field.mode === "time") {
+				written = written.replace(/^(\d):/, "0$1:").replace(/^(\d{2}:\d{2}):00$/, "$1");
+			}
+			return parseDate(written, field.mode) === null ? { problem: "date" } : { input: written, rule: "date" };
+		},
 		rules(value, field) {
 			const written = String(value);
 			return [
@@ -537,6 +604,21 @@ const select: FieldTypeSpec<SelectField> = {
 			if (!field.multiple) return typeof stored === "string" ? stored : null;
 			return Array.isArray(stored) && stored.every((value) => typeof value === "string") ? stored : null;
 		},
+		// A choice by its value or its label (in any case); several separated by semicolons, or by
+		// commas when there is no semicolon.
+		fromText(text, field) {
+			const parts = field.multiple ? listedParts(text) : [text.trim()];
+			const chosen: string[] = [];
+			for (const part of parts) {
+				const folded = part.toLocaleLowerCase();
+				const option =
+					field.options.find((candidate) => candidate.value === part) ??
+					field.options.find((candidate) => candidate.label.toLocaleLowerCase() === folded);
+				if (!option) return { problem: "choice", params: { value: part } };
+				chosen.push(option.value);
+			}
+			return { input: field.multiple ? chosen : (chosen[0] ?? null), rule: "choice" };
+		},
 		rules(value, field) {
 			const chosen = Array.isArray(value) ? (value as string[]) : [String(value)];
 			const known = new Set(field.options.map((option) => option.value));
@@ -566,6 +648,18 @@ const media: FieldTypeSpec<MediaField> = {
 			return id;
 		},
 		read: (stored) => (typeof stored === "string" && isUuid(stored) ? stored : null),
+		// An `https` address, fetched into the Media library (Import from URL), or the id of a file
+		// already in it.
+		fromText(text) {
+			const written = text.trim();
+			if (isUuid(written)) return { input: written, rule: "media" };
+			try {
+				if (new URL(written).protocol === "https:") return { file: written };
+			} catch {
+				// Not an address: refused below.
+			}
+			return { problem: "mediaAddress" };
+		},
 		rules: () => [],
 	},
 };
@@ -597,6 +691,8 @@ const link: FieldTypeSpec<LinkField> = {
 			const { url, text } = (stored ?? {}) as Record<string, unknown>;
 			return typeof url === "string" && typeof text === "string" ? { url, text } : null;
 		},
+		// Its address, without text.
+		fromText: (text) => ({ input: { url: text.trim(), text: "" }, rule: "link" }),
 		rules: (value) => ((value as LinkValue).url === "" ? [{ rule: "url", message: "A link needs an address." }] : []),
 	},
 };
@@ -614,6 +710,7 @@ const email: FieldTypeSpec<EmailField> = {
 			return value === "" ? null : value;
 		},
 		read: (stored) => (typeof stored === "string" ? stored : null),
+		fromText: (text) => ({ input: text, rule: "tooLong" }),
 		rules: (value, field) => [
 			...(EMAIL.test(String(value)) ? [] : [{ rule: "email", message: "Not an email address." }]),
 			...patternRule(String(value), field.pattern),
@@ -674,6 +771,9 @@ const relationship: FieldTypeSpec<RelationshipField> = {
 			if (!field.multiple) return typeof stored === "string" ? stored : null;
 			return Array.isArray(stored) && stored.every((id) => typeof id === "string") ? stored : null;
 		},
+		// Entries of its Post Types by slug or title; several separated by semicolons, or by commas when
+		// there is no semicolon.
+		fromText: (text, field) => ({ entries: field.multiple ? listedParts(text) : [text.trim()] }),
 		rules: (value, field) => countRules(Array.isArray(value) ? value.length : 1, field),
 		isEmpty: (value) => value === null || (Array.isArray(value) && value.length === 0),
 	},

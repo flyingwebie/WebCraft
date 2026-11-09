@@ -715,6 +715,122 @@ async function trashedIn(target: IsolationTarget): Promise<string> {
 	return mediaId;
 }
 
+/** An Import in a target's Site, made once by the Superadmin, with one run that ended. */
+const importsIn = new Map<string, Promise<{ importId: string; runId: string; settings: CsvImportSettings }>>();
+type CsvImportSettings = {
+	postTypeId: string;
+	language: string | null;
+	match: string;
+	columns: { column: string; to: string | null }[];
+};
+function importIn(target: IsolationTarget) {
+	let found = importsIn.get(target.siteId);
+	if (!found) {
+		found = (async () => {
+			const { api } = await install.superadmin();
+			const { siteId } = target;
+			const { postType } = await api.postTypes.create({ siteId, name: "Imported", urlPattern: "/imported/{slug}" });
+			const settings: CsvImportSettings = {
+				postTypeId: postType.id,
+				language: null,
+				match: "title",
+				columns: [{ column: "name", to: "title" }],
+			};
+			const { import: created } = await api.imports.create({ siteId, name: "Isolated", source: "csv", settings });
+			const { file } = await api.imports.uploadCsv({ siteId, file: csvFile() });
+			const { run } = await api.imports.start({ siteId, importId: created.id, fileId: file.id });
+			await install.drainJobs();
+			return { importId: created.id, runId: run.id, settings };
+		})();
+		importsIn.set(target.siteId, found);
+	}
+	return found;
+}
+
+const csvFile = () => upload("name\nRye\n", "isolation.csv", "text/csv");
+
+/**
+ * A CSV file the caller uploaded to the target's Site. They can't upload to another Workspace's Site,
+ * so a made-up id stands in there: the call is refused for the Site before the file is looked for.
+ */
+async function csvFileIn(api: ApiClient, target: IsolationTarget): Promise<string> {
+	try {
+		return (await api.imports.uploadCsv({ siteId: target.siteId, file: csvFile() })).file.id;
+	} catch {
+		return crypto.randomUUID();
+	}
+}
+
+describe("Imports", () => {
+	isolation.refuses("imports.uploadCsv", (api, { siteId }) => api.imports.uploadCsv({ siteId, file: csvFile() }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses(
+		"imports.preview",
+		async (api, target) =>
+			api.imports.preview({
+				siteId: target.siteId,
+				fileId: await csvFileIn(api, target),
+				settings: (await importIn(target)).settings,
+			}),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("imports.list", (api, { siteId }) => api.imports.list({ siteId }), { as: ["staff", "editor"] });
+	isolation.refuses(
+		"imports.get",
+		async (api, target) => api.imports.get({ siteId: target.siteId, importId: (await importIn(target)).importId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"imports.create",
+		async (api, target) =>
+			api.imports.create({
+				siteId: target.siteId,
+				name: "Leaked",
+				source: "csv",
+				settings: (await importIn(target)).settings,
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"imports.update",
+		async (api, target) =>
+			api.imports.update({ siteId: target.siteId, importId: (await importIn(target)).importId, name: "Renamed" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"imports.start",
+		async (api, target) => {
+			// A new Import each time: one run of an Import at a time, and this one is never drained.
+			const { settings } = await importIn(target);
+			const { api: admin } = await install.superadmin();
+			const { import: created } = await admin.imports.create({
+				siteId: target.siteId,
+				name: "Start",
+				source: "csv",
+				settings,
+			});
+			return api.imports.start({ siteId: target.siteId, importId: created.id, fileId: await csvFileIn(api, target) });
+		},
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"imports.stop",
+		async (api, target) => api.imports.stop({ siteId: target.siteId, runId: (await importIn(target)).runId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"imports.report",
+		async (api, target) => api.imports.report({ siteId: target.siteId, runId: (await importIn(target)).runId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"imports.undo",
+		async (api, target) => api.imports.undo({ siteId: target.siteId, runId: (await importIn(target)).runId }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
 describe("Media", () => {
 	isolation.refuses("media.list", (api, { siteId }) => api.media.list({ siteId }), { as: ["staff", "author"] });
 	isolation.refuses(

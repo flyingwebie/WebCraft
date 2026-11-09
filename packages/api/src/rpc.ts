@@ -1,9 +1,10 @@
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ResponseHeadersPlugin } from "@orpc/server/plugins";
-import { type InstallServices, MediaTooLargeError } from "@webcraft/core";
+import { CSV_LIMITS, csvTooLarge, type InstallServices, MediaTooLargeError } from "@webcraft/core";
 
 import type { ApiContext } from "./context.ts";
+import { toApiError } from "./errors.ts";
 
 import { adminRouter } from "./module-router.ts";
 
@@ -54,7 +55,7 @@ export function createAdminApi(
 		});
 		if (!matched) return null;
 		// A body that grew past the limit while it was read is refused as too large, not as malformed.
-		if (body.overflowed()) return tooLarge(body.maxFileBytes);
+		if (body.overflowed()) return body.tooLarge();
 		response.headers.set("cache-control", "no-store");
 		return response;
 	};
@@ -63,23 +64,33 @@ export function createAdminApi(
 /** Room a multipart body needs beside its file: boundaries, part headers and the other fields. */
 const MULTIPART_ALLOWANCE = 64 * 1024;
 
-type LimitedBody = { request: Request; maxFileBytes: number; overflowed(): boolean };
+type LimitedBody = { request: Request; overflowed(): boolean; tooLarge(): Response };
+
+/** The procedures whose uploads aren't Media, with the largest file each takes and how it refuses a larger one. */
+const OWN_UPLOAD_LIMITS: Record<string, { maxFileBytes: number; refusal: () => Error }> = {
+	[`${ADMIN_API_PREFIX}/imports/uploadCsv`]: { maxFileBytes: CSV_LIMITS.maxBytes, refusal: csvTooLarge },
+};
 
 /**
  * Keeps an upload (a multipart body, the only kind that carries files) to the largest file the
- * Install takes, before it is read into memory: a body that says it is larger is refused at once,
- * and one that doesn't say stops being read once it passes the limit.
+ * procedure takes (the Install's largest Media file, unless it has its own limit), before it is read
+ * into memory: a body that says it is larger is refused at once, and one that doesn't say stops
+ * being read once it passes the limit.
  */
 async function bodyWithinLimit(services: InstallServices, request: Request): Promise<LimitedBody | Response> {
 	const multipart = request.headers.get("content-type")?.toLowerCase().startsWith("multipart/") ?? false;
-	if (!multipart || request.body === null) return { request, maxFileBytes: 0, overflowed: () => false };
-	const { maxFileBytes } = await services.settings.media();
+	if (!multipart || request.body === null) {
+		return { request, overflowed: () => false, tooLarge: () => tooLarge(new MediaTooLargeError(0)) };
+	}
+	const own = OWN_UPLOAD_LIMITS[new URL(request.url).pathname];
+	const maxFileBytes = own?.maxFileBytes ?? (await services.settings.media()).maxFileBytes;
+	const refusal = own?.refusal ?? (() => new MediaTooLargeError(maxFileBytes));
 	const limit = maxFileBytes + MULTIPART_ALLOWANCE;
 	const declared = Number(request.headers.get("content-length"));
 	if (Number.isFinite(declared) && declared > limit) {
 		// Not waited for: a body cancelled half-read may never say it is done (Bun's never does).
 		request.body.cancel().catch(() => {});
-		return tooLarge(maxFileBytes);
+		return tooLarge(refusal());
 	}
 	const reader = request.body.getReader();
 	let read = 0;
@@ -95,7 +106,7 @@ async function bodyWithinLimit(services: InstallServices, request: Request): Pro
 			if (read > limit) {
 				overflowed = true;
 				reader.cancel().catch(() => {});
-				controller.error(new MediaTooLargeError(maxFileBytes));
+				controller.error(refusal());
 				return;
 			}
 			controller.enqueue(value);
@@ -114,16 +125,17 @@ async function bodyWithinLimit(services: InstallServices, request: Request): Pro
 	};
 	return {
 		request: new Request(request.url, init),
-		maxFileBytes,
 		overflowed: () => overflowed,
+		tooLarge: () => tooLarge(refusal()),
 	};
 }
 
-/** `MEDIA_TOO_LARGE`, as a procedure answers it. */
-function tooLarge(maxBytes: number): Response {
-	const error = new MediaTooLargeError(maxBytes);
+/** A refused upload (`MEDIA_TOO_LARGE`, `IMPORT_FILE_REFUSED`), as a procedure answers it. */
+function tooLarge(error: Error): Response {
+	const answer = toApiError(error);
+	const { code, status, message, data } = answer instanceof ORPCError ? answer : new ORPCError("PAYLOAD_TOO_LARGE");
 	return Response.json(
-		{ json: { defined: false, code: "MEDIA_TOO_LARGE", status: 413, message: error.message, data: { maxBytes } } },
-		{ status: 413, headers: { "cache-control": "no-store" } },
+		{ json: { defined: false, code, status, message, data } },
+		{ status, headers: { "cache-control": "no-store" } },
 	);
 }
