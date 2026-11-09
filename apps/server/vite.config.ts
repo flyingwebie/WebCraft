@@ -13,6 +13,9 @@ export default defineConfig({
 	},
 	resolve: {
 		tsconfigPaths: true,
+		// css-tree (the Design system's CSS parser) loads its syntax data from JSON files at run time,
+		// which a bundle can't follow; its own prebuilt bundle has the data inside.
+		alias: [{ find: /^css-tree$/, replacement: "css-tree/dist/csstree.esm" }],
 	},
 	environments: {
 		ssr: {
