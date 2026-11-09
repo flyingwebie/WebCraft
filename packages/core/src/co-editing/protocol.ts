@@ -54,6 +54,8 @@ export type Participant = {
 	name: string;
 	/** The client a person came through (an API token's or AI client's name); null in the admin and Edit mode. */
 	via: string | null;
+	/** AI translation writing for the person who asked for it (who published, or pressed Translate now). */
+	translation?: boolean;
 	/** One of 8 colours, the same for a person everywhere; shown with the name, never alone. */
 	colour: number;
 	/** Where they are: a value's key (`title`, `price`), an element's id, or null. */

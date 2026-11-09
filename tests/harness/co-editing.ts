@@ -75,11 +75,17 @@ export function upgradeDraft(
 	browser: TestBrowser,
 	siteId: string,
 	item: DraftItem,
-	options: { protocols?: readonly string[]; origin?: string | null } = {},
+	options: {
+		protocols?: readonly string[];
+		origin?: string | null;
+		/** Another web process (`install.webProcess()`) to open it on. */
+		through?: (request: Request) => Promise<UpgradeAnswer>;
+	} = {},
 ): Promise<UpgradeAnswer> {
 	return browser.openSocket(install.adminUrl(`/api/drafts/${siteId}/${draftPath(item)}`), {
 		protocols: options.protocols ?? [DRAFTS_PROTOCOL],
 		origin: options.origin,
+		through: options.through,
 	});
 }
 
@@ -102,8 +108,9 @@ export async function openDraft(
 	browser: TestBrowser,
 	siteId: string,
 	item: DraftItem,
+	options: { through?: (request: Request) => Promise<UpgradeAnswer> } = {},
 ): Promise<TestEditor> {
-	return editorOver(() => upgradeDraft(install, browser, siteId, item));
+	return editorOver(() => upgradeDraft(install, browser, siteId, item, options));
 }
 
 /** Opens an item's Draft from a page in Edit mode. */

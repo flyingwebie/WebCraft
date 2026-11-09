@@ -202,6 +202,8 @@ export type TestInstall = {
 	 * `browser.openSocket(…, { through })` to open a Draft there. Stopped by `close()`.
 	 */
 	webProcess(): { upgrade(request: Request): Promise<UpgradeAnswer>; request(request: Request): Promise<Response> };
+	/** Sends a WebSocket upgrade request through the handler as it is (no cookies or origin added). */
+	upgrade(request: Request): Promise<UpgradeAnswer>;
 	/**
 	 * A new browser on the admin: it keeps cookies like a browser and calls the Management API the
 	 * way the admin does. Each browser comes from its own client address unless `address` says
@@ -705,6 +707,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return report;
 		},
 		checkUpdate: () => services.updates.check(),
+		upgrade,
 		webProcess() {
 			const other = createWebHandler({ services, filterVariants: options.filterVariants });
 			otherProcesses.push(other);
