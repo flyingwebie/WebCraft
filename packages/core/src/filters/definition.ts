@@ -1,6 +1,7 @@
 import {
 	FILTER_CONTROL_ID,
 	FILTER_CONTROL_TYPES,
+	FILTER_DATE_PRESETS,
 	FILTER_EMPTY_OPTIONS,
 	FILTER_KEY,
 	FILTER_LAYOUTS,
@@ -10,9 +11,11 @@ import {
 	FILTER_PHONE_LAYOUTS,
 	type FilterControl,
 	type FilterControlType,
+	type FilterDatePreset,
 	type FilterLayout,
 	type FilterOptionSource,
 	type FilterPhoneLayout,
+	type FilterSlider,
 	type FilterText,
 	type FilterVersion,
 	newFilterVersion,
@@ -61,7 +64,14 @@ export function storedFilterVersion(stored: unknown): FilterVersion {
 			: fresh.phone,
 		label: raw.label ?? null,
 		applyLabel: raw.applyLabel ?? null,
-		controls: Array.isArray(raw.controls) ? raw.controls : [],
+		// A range stored before ranges had a slider and presets has neither.
+		controls: Array.isArray(raw.controls)
+			? raw.controls.map((control) =>
+					control.type === "range"
+						? { ...control, slider: control.slider ?? null, presets: control.presets ?? [] }
+						: control,
+				)
+			: [],
 	};
 }
 
@@ -125,7 +135,7 @@ const SETTINGS: Readonly<Record<FilterControlType, readonly string[]>> = {
 	choice: ["key", "label", "source", "counts", "empty", "order", "display", "allLabel"],
 	toggle: ["key", "label", "field"],
 	// A range's `kind` is read from its Field: given back as stored, it changes nothing.
-	range: ["key", "label", "field", "minLabel", "maxLabel", "kind"],
+	range: ["key", "label", "field", "minLabel", "maxLabel", "kind", "slider", "presets"],
 	sort: ["key", "label", "defaultLabel", "options"],
 	chips: ["label", "resetLabel"],
 	count: ["one", "other", "none"],
@@ -266,6 +276,9 @@ function readControl(
 				report(`${at}.field`, "A range of dates needs a date Field with a day in it.");
 				return undefined;
 			}
+			const kind = field?.definition.type === "date" ? "date" : "number";
+			const slider = readSlider(raw.slider, `${at}.slider`, field ? kind : undefined, report);
+			const presets = readPresets(raw.presets, `${at}.presets`, field ? kind : undefined, report);
 			if (key === undefined || !label || !field) return undefined;
 			return {
 				id,
@@ -273,9 +286,11 @@ function readControl(
 				key,
 				label,
 				field: field.path,
-				kind: field.definition.type === "date" ? "date" : "number",
+				kind,
 				minLabel: words("minLabel"),
 				maxLabel: words("maxLabel"),
+				slider,
+				presets,
 			};
 		}
 		case "sort": {
@@ -291,6 +306,54 @@ function readControl(
 			};
 		}
 	}
+}
+
+/** A range's slider: numbers only, its ends in order and a step above 0 (null: none). */
+function readSlider(
+	value: unknown,
+	at: string,
+	kind: "number" | "date" | undefined,
+	report: Report,
+): FilterSlider | null {
+	if (value === undefined || value === null) return null;
+	if (kind === "date") {
+		report(at, "A slider is for a range of numbers: a range of days can offer presets instead.");
+		return null;
+	}
+	const { min, max, step } = isRecord(value) ? value : {};
+	const finite = (number: unknown): number is number => typeof number === "number" && Number.isFinite(number);
+	if (!finite(min) || !finite(max) || !finite(step) || min >= max || step <= 0 || step > max - min) {
+		report(at, "A slider goes from its min to a greater max, in steps above 0 (such as 0, 30 and 0.5).");
+		return null;
+	}
+	return { min, max, step };
+}
+
+/** A range's date presets: days only, each one of `FILTER_DATE_PRESETS`, once. */
+function readPresets(
+	value: unknown,
+	at: string,
+	kind: "number" | "date" | undefined,
+	report: Report,
+): FilterDatePreset[] {
+	if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) return [];
+	if (kind === "number") {
+		report(at, "Presets are periods of days: a range of numbers can have a slider instead.");
+		return [];
+	}
+	if (!Array.isArray(value)) {
+		report(at, `Presets are a list of ${FILTER_DATE_PRESETS.join(", ")}.`);
+		return [];
+	}
+	const presets: FilterDatePreset[] = [];
+	value.forEach((preset: unknown, index) => {
+		if (!(FILTER_DATE_PRESETS as readonly unknown[]).includes(preset)) {
+			report(`${at}[${index}]`, `A preset is one of ${FILTER_DATE_PRESETS.join(", ")}.`);
+		} else if (presets.includes(preset as FilterDatePreset)) {
+			report(`${at}[${index}]`, `The preset ${String(preset)} is offered once.`);
+		} else presets.push(preset as FilterDatePreset);
+	});
+	return presets;
 }
 
 function readKey(value: unknown, at: string, report: Report): string | undefined {

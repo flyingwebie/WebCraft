@@ -276,3 +276,120 @@ describe("a control placed on its own", () => {
 		expect(parts.filters[0]?.html).toContain('value="bun"');
 	});
 });
+
+describe("ranges", () => {
+	let shop: Shop;
+
+	beforeAll(async () => {
+		shop = await buildShop(install, "ranges");
+	});
+
+	/** The shop's controls with the price range and the baked range changed. */
+	const withRanges = async (price: Record<string, unknown>, baked: Record<string, unknown>) => {
+		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });
+		return filter.draft.controls.map((control) =>
+			control.type !== "range" ? control : { ...control, ...(control.key === "price" ? price : baked) },
+		);
+	};
+
+	test("a number range may have a slider and a date range presets; each is checked", async () => {
+		const controls = await withRanges(
+			{ slider: { min: 0, max: 30, step: 0.5 } },
+			{ presets: ["next-7-days", "last-30-days", "last-12-months"] },
+		);
+		const { filter } = await shop.staff.api.filters.saveDraft({
+			siteId: shop.siteId,
+			filterId: shop.filterId,
+			controls,
+		});
+
+		expect(filter.draft.controls.find((control) => control.type === "range" && control.key === "price")).toMatchObject({
+			slider: { min: 0, max: 30, step: 0.5 },
+			presets: [],
+		});
+		expect(filter.draft.controls.find((control) => control.type === "range" && control.key === "baked")).toMatchObject({
+			slider: null,
+			presets: ["next-7-days", "last-30-days", "last-12-months"],
+		});
+
+		const refused = async (price: Record<string, unknown>, baked: Record<string, unknown>) => {
+			const error = await shop.staff.api.filters
+				.saveDraft({ siteId: shop.siteId, filterId: shop.filterId, controls: await withRanges(price, baked) })
+				.catch((caught) => caught);
+			expect(error).toMatchObject({ code: "FILTER_INVALID" });
+			return (error.data.problems as { at: string }[]).map((problem) => problem.at);
+		};
+		expect(await refused({ presets: ["today"] }, { slider: { min: 0, max: 10, step: 1 } })).toEqual([
+			"controls[4].presets",
+			"controls[5].slider",
+		]);
+		expect(
+			await refused({ slider: { min: 10, max: 2, step: 0 } }, { presets: ["yesterday", "today", "today"] }),
+		).toEqual(["controls[4].slider", "controls[5].presets[0]", "controls[5].presets[2]"]);
+	});
+
+	test("presets are links to the days they cover, from today, the current one marked", async () => {
+		await publishFilter(shop, {
+			controls: await withRanges(
+				{ slider: { min: 0, max: 30, step: 0.5 } },
+				{ presets: ["next-7-days", "last-30-days", "last-12-months"] },
+			),
+		});
+		const { html } = await visit(shop, "/shop?baked=2025-05-02..2026-05-01&category=bread");
+
+		const presets = [
+			...html.matchAll(
+				/<a href="([^"]*)" data-wc-filter-link data-wc-from="([^"]*)" data-wc-to="([^"]*)"( aria-current="true")?>([^<]*)<\/a>/g,
+			),
+		].map(([, href, from, to, current, label]) => ({
+			href: href?.replaceAll("&amp;", "&"),
+			from,
+			to,
+			current: Boolean(current),
+			label,
+		}));
+		expect(presets).toEqual([
+			{
+				href: "/shop?baked=2026-05-01..2026-05-07&category=bread",
+				from: "2026-05-01",
+				to: "2026-05-07",
+				current: false,
+				label: "Next 7 days",
+			},
+			{
+				href: "/shop?baked=2026-04-02..2026-05-01&category=bread",
+				from: "2026-04-02",
+				to: "2026-05-01",
+				current: false,
+				label: "Last 30 days",
+			},
+			{
+				href: "/shop?baked=2025-05-02..2026-05-01&category=bread",
+				from: "2025-05-02",
+				to: "2026-05-01",
+				current: true,
+				label: "Last 12 months",
+			},
+		]);
+		expect(listed(html)).toEqual(["Country sourdough", "Rosemary focaccia", "Rye & caraway"]);
+		const following = await visit(shop, "/shop?baked=2026-04-02..2026-05-01");
+		expect(listed(following.html)).toEqual(["None"]);
+	});
+
+	test("the presets move on with the day", async () => {
+		await visit(shop, "/shop");
+		await install.clock.advance(24 * 60 * 60 * 1000);
+		const { html } = await visit(shop, "/shop");
+
+		expect(html).toContain('data-wc-from="2026-05-02" data-wc-to="2026-05-08">Next 7 days</a>');
+	});
+
+	test("a slider, shown once the Filter script runs, moves each end of the range with its value in the box", async () => {
+		const { html } = await visit(shop, "/shop?price=2-");
+
+		expect(html).toContain(
+			'<div class="wc-filter-slider" data-wc-slider hidden><input type="range" id="wc-filter-shop-5-min-slider" min="0" max="30" step="0.5" value="2" aria-label="From" data-wc-for="wc-filter-shop-5-min"><input type="range" id="wc-filter-shop-5-max-slider" min="0" max="30" step="0.5" value="30" aria-label="To" data-wc-for="wc-filter-shop-5-max"></div>',
+		);
+		expect(html).toContain('<input type="number" id="wc-filter-shop-5-min" name="price.min" value="2"');
+	});
+});

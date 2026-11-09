@@ -76,6 +76,10 @@ export type FilterControlView =
 			maxLabel: string;
 			min: string;
 			max: string;
+			/** A slider for each end (numbers only), shown once the Filter script runs. */
+			slider: { min: number; max: number; step: number } | null;
+			/** Periods to pick at once (days only): links to the page with the period chosen. */
+			presets: readonly { label: string; href: string; from: string; to: string; current: boolean }[];
 	  }
 	| {
 			type: "sort";
@@ -123,6 +127,9 @@ export const FILTER_HOOKS = {
 	show: "wc-filter-show",
 	/** A control shown on its own elsewhere on the page. */
 	part: "wc-filter-part",
+	/** A range's slider, and a range of days' presets. */
+	slider: "wc-filter-slider",
+	presets: "wc-filter-presets",
 } as const;
 
 /**
@@ -318,7 +325,7 @@ function controlHtml(control: FilterControlView, id: (...parts: (string | number
 			const step = control.kind === "number" ? ' step="any" inputmode="decimal"' : "";
 			const box = (part: "min" | "max", label: string, value: string) =>
 				`<label for="${id(part)}">${escapeText(label)}</label><input type="${type}" id="${id(part)}" name="${name}${RANGE_PARTS[part]}"${owner}${value ? ` value="${escapeAttribute(value)}"` : ""}${step}>`;
-			return `<fieldset class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="range"><legend>${escapeText(control.label)}</legend>${box("min", control.minLabel, control.min)}${box("max", control.maxLabel, control.max)}</fieldset>`;
+			return `<fieldset class="${FILTER_HOOKS.control}" id="${id("control")}" data-wc-control="range"><legend>${escapeText(control.label)}</legend>${box("min", control.minLabel, control.min)}${box("max", control.maxLabel, control.max)}${sliderHtml(control, id)}${presetsHtml(control)}</fieldset>`;
 		}
 		case "sort": {
 			const none = !control.options.some((option) => option.selected);
@@ -344,6 +351,32 @@ function controlHtml(control: FilterControlView, id: (...parts: (string | number
 		case "count":
 			return `<p class="${FILTER_HOOKS.count}" id="${id("control")}" data-wc-control="count">${escapeText(control.text)}</p>`;
 	}
+}
+
+type RangeView = Extract<FilterControlView, { type: "range" }>;
+
+/**
+ * A range's slider: one for each end, without a name (the boxes are what the form sends), hidden
+ * until the Filter script shows it and keeps each in step with its box, so its values always show.
+ */
+function sliderHtml(control: RangeView, id: (...parts: (string | number)[]) => string): string {
+	const { slider } = control;
+	if (!slider) return "";
+	const end = (part: "min" | "max", label: string, value: string) => {
+		const shown = value === "" ? (part === "min" ? slider.min : slider.max) : value;
+		return `<input type="range" id="${id(part, "slider")}" min="${slider.min}" max="${slider.max}" step="${slider.step}" value="${escapeAttribute(String(shown))}" aria-label="${escapeAttribute(label)}" data-wc-for="${id(part)}">`;
+	};
+	return `<div class="${FILTER_HOOKS.slider}" data-wc-slider hidden>${end("min", control.minLabel, control.min)}${end("max", control.maxLabel, control.max)}</div>`;
+}
+
+/** A range of days' presets: links to the page with each period chosen, the one chosen marked. */
+function presetsHtml(control: RangeView): string {
+	if (control.presets.length === 0) return "";
+	const items = control.presets.map(
+		(preset) =>
+			`<li><a href="${escapeAttribute(safeUrl(preset.href))}" data-wc-filter-link data-wc-from="${escapeAttribute(preset.from)}" data-wc-to="${escapeAttribute(preset.to)}"${preset.current ? ' aria-current="true"' : ""}>${escapeText(preset.label)}</a></li>`,
+	);
+	return `<ul class="${FILTER_HOOKS.presets}">${items.join("")}</ul>`;
 }
 
 /** An option's label with how many items it would list, when shown. */

@@ -1878,7 +1878,10 @@ async function renderSitePage(
 	});
 	// A page sent back with a Form's errors says so first in its title.
 	const invalid = view.forms?.state?.state.kind === "invalid";
-	let expiresAt = loops.changesAt;
+	let expiresAt =
+		loops.changesAt && filters.changesAt
+			? new Date(Math.min(loops.changesAt.getTime(), filters.changesAt.getTime()))
+			: (loops.changesAt ?? filters.changesAt);
 	const time = {
 		now: scope.now(),
 		changesAt(instant: Date) {

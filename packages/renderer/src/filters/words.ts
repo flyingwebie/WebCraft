@@ -1,3 +1,5 @@
+import type { FilterDatePreset } from "./version.ts";
+
 /**
  * The words WebCraft itself writes into Filters, by language, where Staff leave a control's own words
  * empty: English, Italian, French, German, Spanish, Portuguese and Dutch, by the language's primary
@@ -27,6 +29,8 @@ export type FilterWords = {
 	close: string;
 	/** What follows how many choices a button's controls hold ("2 chosen"). */
 	chosen: string;
+	/** A range of days' presets. */
+	presets: Readonly<Record<FilterDatePreset, string>>;
 };
 
 const WORDS: Readonly<Record<string, FilterWords>> = {
@@ -49,6 +53,16 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		show: "Show {results}",
 		close: "Close",
 		chosen: "chosen",
+		presets: {
+			today: "Today",
+			"next-7-days": "Next 7 days",
+			"next-30-days": "Next 30 days",
+			"this-month": "This month",
+			"last-7-days": "Last 7 days",
+			"last-30-days": "Last 30 days",
+			"last-12-months": "Last 12 months",
+			"this-year": "This year",
+		},
 	},
 	it: {
 		filters: "Filtri",
@@ -69,6 +83,16 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		show: "Mostra {results}",
 		close: "Chiudi",
 		chosen: "scelti",
+		presets: {
+			today: "Oggi",
+			"next-7-days": "Prossimi 7 giorni",
+			"next-30-days": "Prossimi 30 giorni",
+			"this-month": "Questo mese",
+			"last-7-days": "Ultimi 7 giorni",
+			"last-30-days": "Ultimi 30 giorni",
+			"last-12-months": "Ultimi 12 mesi",
+			"this-year": "Quest’anno",
+		},
 	},
 	fr: {
 		filters: "Filtres",
@@ -89,6 +113,16 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		show: "Afficher {results}",
 		close: "Fermer",
 		chosen: "choisis",
+		presets: {
+			today: "Aujourd’hui",
+			"next-7-days": "7 prochains jours",
+			"next-30-days": "30 prochains jours",
+			"this-month": "Ce mois-ci",
+			"last-7-days": "7 derniers jours",
+			"last-30-days": "30 derniers jours",
+			"last-12-months": "12 derniers mois",
+			"this-year": "Cette année",
+		},
 	},
 	de: {
 		filters: "Filter",
@@ -109,6 +143,16 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		show: "{results} anzeigen",
 		close: "Schließen",
 		chosen: "ausgewählt",
+		presets: {
+			today: "Heute",
+			"next-7-days": "Nächste 7 Tage",
+			"next-30-days": "Nächste 30 Tage",
+			"this-month": "Diesen Monat",
+			"last-7-days": "Letzte 7 Tage",
+			"last-30-days": "Letzte 30 Tage",
+			"last-12-months": "Letzte 12 Monate",
+			"this-year": "Dieses Jahr",
+		},
 	},
 	es: {
 		filters: "Filtros",
@@ -129,6 +173,16 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		show: "Mostrar {results}",
 		close: "Cerrar",
 		chosen: "elegidos",
+		presets: {
+			today: "Hoy",
+			"next-7-days": "Próximos 7 días",
+			"next-30-days": "Próximos 30 días",
+			"this-month": "Este mes",
+			"last-7-days": "Últimos 7 días",
+			"last-30-days": "Últimos 30 días",
+			"last-12-months": "Últimos 12 meses",
+			"this-year": "Este año",
+		},
 	},
 	pt: {
 		filters: "Filtros",
@@ -149,6 +203,16 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		show: "Mostrar {results}",
 		close: "Fechar",
 		chosen: "escolhidos",
+		presets: {
+			today: "Hoje",
+			"next-7-days": "Próximos 7 dias",
+			"next-30-days": "Próximos 30 dias",
+			"this-month": "Este mês",
+			"last-7-days": "Últimos 7 dias",
+			"last-30-days": "Últimos 30 dias",
+			"last-12-months": "Últimos 12 meses",
+			"this-year": "Este ano",
+		},
 	},
 	nl: {
 		filters: "Filters",
@@ -169,6 +233,16 @@ const WORDS: Readonly<Record<string, FilterWords>> = {
 		show: "{results} tonen",
 		close: "Sluiten",
 		chosen: "gekozen",
+		presets: {
+			today: "Vandaag",
+			"next-7-days": "Komende 7 dagen",
+			"next-30-days": "Komende 30 dagen",
+			"this-month": "Deze maand",
+			"last-7-days": "Afgelopen 7 dagen",
+			"last-30-days": "Afgelopen 30 dagen",
+			"last-12-months": "Afgelopen 12 maanden",
+			"this-year": "Dit jaar",
+		},
 	},
 };
 

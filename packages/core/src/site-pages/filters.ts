@@ -14,6 +14,7 @@ import {
 	filterTextIn,
 	filterWords,
 	isStateControl,
+	presetDays,
 	renderFilter,
 	renderFilterPart,
 	type TreeNode,
@@ -62,6 +63,8 @@ export type PageFilters = {
 	filtered(loop: string): boolean;
 	/** How each placed Filter renders, once the page's Loops ran (the result count is theirs). */
 	render(loops: PageLoops): Promise<(node: FilterNode) => string>;
+	/** When the page's Filters show something else: the next midnight (UTC) when they offer date presets. */
+	changesAt: Date | null;
 };
 
 /** A page with no Filter. */
@@ -71,6 +74,7 @@ const NO_FILTERS_ON_PAGE: PageFilters = {
 	narrowing: new Map(),
 	filtered: () => false,
 	render: async () => () => "",
+	changesAt: null,
 };
 
 /** One option of a control: its slug in the address, its label, and what it matches in SQL. */
@@ -162,10 +166,17 @@ export async function pageFilters(
 	const narrowing = new Map<string, Narrowing>();
 	const sqlFor = (filter: PageFilter) => new QuerySql(filter.listed, { ...place, page: null }, scope.now());
 	for (const filter of read) narrowing.set(filter.loop, narrowingOf(filter, state, sqlFor(filter)));
+	// Date presets count from today: the page shows other days from midnight on.
+	const presets = read.some((filter) =>
+		filter.version.controls.some((control) => control.type === "range" && control.presets.length > 0),
+	);
+	const today = scope.now();
+	const midnight = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1));
 	return {
 		reader,
 		state,
 		narrowing,
+		changesAt: presets ? midnight : null,
 		filtered: (loop) => narrowing.has(loop),
 		render: async (pageLoops) => {
 			const views = new Map<string, FilterView>();
@@ -502,7 +513,10 @@ async function viewOf(
 				break;
 			case "range": {
 				const kind = page.field?.type === "date" ? "date" : "number";
-				const [min, max] = rangeSides(kind, state.values.get(key) ?? "");
+				const value = state.values.get(key) ?? "";
+				const [min, max] = rangeSides(kind, value);
+				// Presets keep the page's other choices, as chips do; they count from the day the page is shown.
+				const others = mine.filter(([other]) => other !== key);
 				views.push({
 					type: "range",
 					name: key,
@@ -512,6 +526,20 @@ async function viewOf(
 					maxLabel: text(control.maxLabel, words.to),
 					min,
 					max,
+					slider: kind === "number" ? control.slider : null,
+					presets:
+						kind === "date"
+							? control.presets.map((preset) => {
+									const [from, to] = presetDays(preset, scope.now());
+									return {
+										label: words.presets[preset],
+										href: href([...others, [key, `${from}..${to}`]]),
+										from,
+										to,
+										current: value === `${from}..${to}`,
+									};
+								})
+							: [],
 				});
 				break;
 			}
