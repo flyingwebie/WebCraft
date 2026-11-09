@@ -493,8 +493,8 @@ describe("Forms", () => {
 				await api.templates.publish({ siteId, templateId: template.id });
 				const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Form", slug: "form" });
 				await api.entries.publish({ siteId, entryId: entry.id });
-				const { stagingUrl } = await api.sites.get({ siteId });
-				return { formId: form.id, page: `${stagingUrl}/${key}/form` };
+				const live = await goLive(install, siteId);
+				return { formId: form.id, page: `${live}/${key}/form` };
 			})();
 			formPages.set(target.siteId, made);
 		}
