@@ -4,6 +4,7 @@ import { mediaProcess, mediaVariants } from "../media/jobs.ts";
 import { moduleEventJob, moduleJob } from "../modules/jobs.ts";
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
+import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
 import type { JobDefinition } from "./define.ts";
 import { samplePing } from "./sample-ping.ts";
 import type { JobSchedule } from "./schedules.ts";
@@ -22,6 +23,7 @@ export const coreJobs = [
 	moduleEventJob,
 	moduleJob,
 	moduleLogPurge,
+	siteFilesPurge,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -29,6 +31,7 @@ export const coreSchedules = [
 	emailLogPurgeSchedule,
 	rateLimitsPurgeSchedule,
 	moduleLogPurgeSchedule,
+	siteFilesPurgeSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {

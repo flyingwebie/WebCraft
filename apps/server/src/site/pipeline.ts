@@ -1,12 +1,16 @@
 import {
 	canonicalPath,
 	type EditSession,
+	FILE_POLICY,
 	type InstallServices,
 	isReservedPath,
+	LIBRARY_PATH,
 	MEDIA_PATH,
+	MEDIA_POLICY,
 	normaliseHostname,
 	pathSegments,
 	SCRIPT_PATH,
+	SITE_SECURITY_HEADERS,
 	type SiteHost,
 	type SiteScope,
 	STYLESHEET_PATH,
@@ -23,6 +27,7 @@ import {
 	editModeHtml,
 	editSessionOf,
 	pageEditing,
+	safeModeOf,
 } from "./edit-mode.ts";
 import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
@@ -47,6 +52,9 @@ export type SitePipelineOptions = {
  * Modules' Site routes (`/_wc/m/<route prefix>/…`) go to the Module host, which answers them where
  * the Module runs; they are never cached.
  *
+ * Every answer on a Site's domain carries the fixed security headers (ADR 0023), and pages the Site's
+ * Content Security Policy, which is kept with each page in the page cache.
+ *
  * Languages: a path's first part may name a language's prefix (`/fr/…`; `sitePages` reads it), the
  * Language switcher's links (`/_wc/lang/…`) remember the visitor's choice in a cookie, and a Site may
  * send a first visit to its home page on to the browser's language.
@@ -61,46 +69,76 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		const url = new URL(request.url);
 		const host = await services.sitePages.resolveHost(normaliseHostname(url.hostname));
 		if (!host) return notFound();
-		const editing = await editModeEndpoint(services, request, host);
-		if (editing) return editing;
-		if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
-			// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
-			const answer = await services.modules.answerSiteRoute(host.site, request);
-			if (!answer) return plainText(404, "Not Found", addressHeaders(host));
-			for (const [name, value] of Object.entries(addressHeaders(host))) answer.headers.set(name, value);
-			return answer;
-		}
-		return readOnly(request, async () => {
-			if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
-				return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));
-			}
-			if (url.pathname.startsWith(STYLESHEET_PATH)) {
-				return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));
-			}
-			if (url.pathname.startsWith(SCRIPT_PATH)) {
-				return script(services, request, host, url.pathname.slice(SCRIPT_PATH.length));
-			}
-			const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
-			if (chosen) return chosen;
-			const segments = pathSegments(url.pathname);
-			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
-			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
-			const edit = await editSessionOf(services, request, host);
-			if (edit.session) {
-				return editModePage(
-					services,
-					host,
-					edit.session,
-					url.pathname,
-					await codeModeOf(services, request, edit.session),
-				);
-			}
-			const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
-			if (redirected) return redirected;
-			const page = await visitorPage(services, cache, request, host);
-			return edit.stale ? withEditCookieCleared(request, page) : page;
-		});
+		return withSecurityHeaders(await siteAnswer(services, cache, request, host));
 	};
+}
+
+/** What a request on one of the Site's hostnames answers, before the security headers every answer gets. */
+async function siteAnswer(
+	services: InstallServices,
+	cache: PageCache,
+	request: Request,
+	host: SiteHost,
+): Promise<Response> {
+	const url = new URL(request.url);
+	const editing = await editModeEndpoint(services, request, host);
+	if (editing) return editing;
+	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
+		// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
+		const answer = await services.modules.answerSiteRoute(host.site, request);
+		if (!answer) return plainText(404, "Not Found", addressHeaders(host));
+		for (const [name, value] of Object.entries(addressHeaders(host))) answer.headers.set(name, value);
+		return answer;
+	}
+	return readOnly(request, async () => {
+		if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
+			return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));
+		}
+		if (url.pathname.startsWith(STYLESHEET_PATH)) {
+			return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));
+		}
+		if (url.pathname.startsWith(SCRIPT_PATH)) {
+			return script(services, request, host, url.pathname.slice(SCRIPT_PATH.length));
+		}
+		if (url.pathname.startsWith(LIBRARY_PATH)) {
+			return library(services, request, host, url.pathname.slice(LIBRARY_PATH.length));
+		}
+		const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
+		if (chosen) return chosen;
+		const segments = pathSegments(url.pathname);
+		// Paths the Install keeps: each feature answers its own; until then, a plain 404.
+		if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
+		const edit = await editSessionOf(services, request, host);
+		if (edit.session) {
+			return editModePage(
+				services,
+				host,
+				edit.session,
+				url.pathname,
+				await codeModeOf(services, request, edit.session),
+				safeModeOf(request),
+			);
+		}
+		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
+		if (redirected) return redirected;
+		const page = await visitorPage(services, cache, request, host);
+		return edit.stale ? withEditCookieCleared(request, page) : page;
+	});
+}
+
+/**
+ * Adds the security headers every answer on a Site's domain carries (ADR 0023): `nosniff`, a strict
+ * referrer policy, no framing by other sites, and, on answers that bring no policy of their own (a
+ * page brings the Site's, Edit mode its own, a Media file one its viewer can open with), the fixed
+ * directives: no plugins, no base-tag changes, forms only to the Site.
+ */
+function withSecurityHeaders(response: Response): Response {
+	const headers = new Headers(response.headers);
+	for (const [name, value] of Object.entries(SITE_SECURITY_HEADERS)) {
+		if (!headers.has(name)) headers.set(name, value);
+	}
+	if (!headers.has("content-security-policy")) headers.set("content-security-policy", FILE_POLICY);
+	return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 /**
@@ -118,7 +156,7 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 	const answer = await services.sitePages.render(host, pathname);
 	if (!answer) return notFoundPage(services, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, answer.location);
-	const page = { html: answer.html, etag: await etagOf(answer.html) };
+	const page = { html: answer.html, etag: await etagOf(answer.html), headers: answer.headers };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
 	return pageResponse(request, host, page, "MISS");
 }
@@ -135,14 +173,16 @@ async function editModePage(
 	session: EditSession,
 	pathname: string,
 	code: SiteScope | null,
+	safe: boolean,
 ): Promise<Response> {
-	const editing = await pageEditing(session, code);
+	const editing = await pageEditing(session, code, safe);
 	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing) : null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
 	}
-	if (answer) return editModeHtml(200, answer.html);
-	return editModeHtml(404, (await services.sitePages.notFound(host, pathname, editing)).html);
+	if (answer) return editModeHtml(200, answer.html, answer.headers);
+	const notFoundPage = await services.sitePages.notFound(host, pathname, editing);
+	return editModeHtml(404, notFoundPage.html, notFoundPage.headers);
 }
 
 /**
@@ -166,7 +206,11 @@ const MEDIA_CACHE_CONTROL = "public, max-age=31536000, immutable";
 async function mediaFile(services: InstallServices, request: Request, host: SiteHost, name: string): Promise<Response> {
 	const file = await services.sitePages.mediaFile(host, name);
 	const response = file
-		? await mediaFileResponse(request, file, { "cache-control": MEDIA_CACHE_CONTROL, ...addressHeaders(host) })
+		? await mediaFileResponse(request, file, {
+				"cache-control": MEDIA_CACHE_CONTROL,
+				"content-security-policy": MEDIA_POLICY,
+				...addressHeaders(host),
+			})
 		: null;
 	if (file && !response) {
 		services.log.error("A Media file is missing from storage", { siteId: host.site.id, name });
@@ -201,8 +245,31 @@ async function script(services: InstallServices, request: Request, host: SiteHos
 	return immutableFile(request, host, text, "text/javascript; charset=utf-8", `"${name.slice(0, -".js".length)}"`);
 }
 
+/**
+ * One of the Site's Libraries, `/_wc/lib/<hash>-<file name>` (ADR 0023): a copy WebCraft keeps of a
+ * script package, served from the Site so pages need no outside host. Named by its hash, so it may be
+ * kept for a year; one an update or a removal replaced is still served for 30 days.
+ */
+async function library(services: InstallServices, request: Request, host: SiteHost, name: string): Promise<Response> {
+	const file = await services.sitePages.libraryFile(host, name);
+	if (!file) return plainText(404, "Not Found", addressHeaders(host));
+	return immutableFile(
+		request,
+		host,
+		file.bytes as Uint8Array<ArrayBuffer>,
+		"text/javascript; charset=utf-8",
+		`"${file.hash}"`,
+	);
+}
+
 /** A file named by its content hash: kept for a year, answered with 304 while the ETag holds. */
-function immutableFile(request: Request, host: SiteHost, body: string, type: string, etag: string): Response {
+function immutableFile(
+	request: Request,
+	host: SiteHost,
+	body: string | Uint8Array<ArrayBuffer>,
+	type: string,
+	etag: string,
+): Response {
 	const headers: Record<string, string> = {
 		"cache-control": MEDIA_CACHE_CONTROL,
 		etag,
@@ -225,6 +292,7 @@ function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheS
 		etag: page.etag,
 		"x-cache": cacheStatus,
 		"x-content-type-options": "nosniff",
+		...page.headers,
 		...languageVary(host, new URL(request.url).pathname),
 		...addressHeaders(host),
 	};
@@ -247,6 +315,7 @@ async function notFoundPage(services: InstallServices, host: SiteHost, pathname:
 			"content-type": "text/html; charset=utf-8",
 			"cache-control": "no-store",
 			"x-content-type-options": "nosniff",
+			...page.headers,
 			...addressHeaders(host),
 		},
 	});

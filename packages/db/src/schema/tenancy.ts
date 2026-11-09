@@ -53,6 +53,12 @@ export const sites = pgTable(
 		 * language their browser prefers (ADR 0010). Off by default.
 		 */
 		browserLanguageRedirect: boolean("browser_language_redirect").notNull().default(false),
+		/**
+		 * How the Site's Content Security Policy applies (ADR 0023): `strict` (the default: scripts only
+		 * from the Site and its allowed hosts), `relaxed` (inline scripts and `eval` allowed, for tag
+		 * managers) or `reportOnly` (the strict policy reported, not enforced).
+		 */
+		cspMode: text("csp_mode").notNull().default("strict"),
 		pageCacheGeneration: bigint("page_cache_generation", { mode: "number" }).notNull().default(0),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},

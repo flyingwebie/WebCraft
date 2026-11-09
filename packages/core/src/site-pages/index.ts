@@ -12,7 +12,7 @@ import {
 	type PageToRender,
 	type PlacementRenderer,
 	placementsIn,
-	renderPage,
+	renderDocument,
 	type TemplateValue,
 	valuePathsOf,
 } from "@webcraft/renderer";
@@ -64,6 +64,11 @@ import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
+import { siteAllowedHosts } from "../site-scripts/csp.ts";
+import { type LibraryFile, libraryFile, pageLibraries } from "../site-scripts/libraries.ts";
+import { outsideScriptCode, pageOutsideScripts } from "../site-scripts/outside-scripts.ts";
+import { type CspMode, editModePolicy, isCspMode, pagePolicyHeaders, readHost } from "../site-scripts/policy.ts";
+import { retiredScript } from "../site-scripts/retired.ts";
 import type { DataLayer, Site, SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
 
@@ -84,6 +89,8 @@ export type SiteHost = {
 	origin: string;
 	/** Whether the Site sends a first visit to the home page on to the browser's language (ADR 0010). */
 	browserLanguageRedirect: boolean;
+	/** How the Site's Content Security Policy applies (ADR 0023). */
+	cspMode: CspMode;
 	/**
 	 * The Site's page cache generation: a page rendered now stays valid until a publish raises it.
 	 * Read before the page, so a page is never kept under a newer generation than its content.
@@ -94,8 +101,12 @@ export type SiteHost = {
 /** A language a visitor chose with the Language switcher, and the page to go on to. */
 export type LanguageChoice = { language: string; location: string };
 
-/** A rendered page of a Site. */
-export type SitePage = { html: string };
+/**
+ * A rendered page of a Site, with the security headers it is sent with: the Site's Content Security
+ * Policy as the page needs it (a body's video players framed), or Edit mode's own. Pages are cached
+ * with them, so a change to the policy clears the page cache.
+ */
+export type SitePage = { html: string; headers: Record<string, string> };
 
 /** What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to `/`). */
 export type SiteAnswer = ({ kind: "page" } & SitePage) | { kind: "redirect"; location: string };
@@ -130,6 +141,11 @@ export type PageEditing = {
 	scope: SiteScope;
 	head: Omit<EditModePage, "region" | "code">;
 	code?: boolean;
+	/**
+	 * Safe mode (ADR 0022): the page runs none of the Site's own scripts (its Libraries, Site script
+	 * and page script), so a broken one can't lock anyone out of editing.
+	 */
+	safe?: boolean;
 	/** In Code mode, unsaved changes to show in place of the Drafts, as Staff type them. */
 	preview?: CodePreview;
 };
@@ -194,8 +210,13 @@ export type SitePages = {
 	 * one, or one a publish replaced lately. Null for any other name.
 	 */
 	stylesheet(host: SiteHost, name: string): Promise<string | null>;
-	/** A published script of the Site (its Site script, a page script) by the name it is served under (`/_wc/js/<name>`). */
+	/**
+	 * A script of the Site by the name it is served under (`/_wc/js/<name>`): its published Site script
+	 * or a page script, an outside script's code, or one of them a change replaced in the last 30 days.
+	 */
 	script(host: SiteHost, name: string): Promise<string | null>;
+	/** One of the Site's Library files by the name it is served under (`/_wc/lib/<name>`), or one replaced in the last 30 days. */
+	libraryFile(host: SiteHost, name: string): Promise<LibraryFile | null>;
 };
 
 /** How many Sites' styles a web process keeps built at most. */
@@ -208,8 +229,11 @@ export function createSitePages(options: {
 	storage: InstallStorage;
 	/** The Components of the Modules running on each Site. */
 	components?: ComponentSources;
+	/** The outside hosts of the Modules running on a Site, which its policy allows. */
+	moduleHosts?: (site: Site) => Promise<string[]>;
 }): SitePages {
 	const { database, config, data, storage } = options;
+	const moduleHosts = options.moduleHosts ?? (async () => []);
 	const sources = options.components ?? NO_MODULE_COMPONENTS;
 	// Each Site's styles, built once per page cache generation: a publish that changes them raises it.
 	// The Sites used least recently go first when there are too many.
@@ -249,17 +273,18 @@ export function createSitePages(options: {
 				defaultLanguage: row.defaultLanguage,
 				origin: stagingUrl(config, row.slug) ?? `https://${hostname}`,
 				browserLanguageRedirect: row.browserLanguageRedirect,
+				cspMode: isCspMode(row.cspMode) ? row.cspMode : "strict",
 				cacheGeneration: row.pageCacheGeneration,
 			};
 		},
 
 		async render(host, pathname, editing) {
-			const view = viewFor(data, host, editing, sources);
+			const view = viewFor(data, host, editing, sources, moduleHosts);
 			const located = await locate(view.scope, pathname);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
 			const extras = await languageExtras(view.scope, host, located, located.found);
-			return { kind: "page", html: await renderEntryPage(view, host, await viewStyles(view), located, extras) };
+			return { kind: "page", ...(await renderEntryPage(view, host, await viewStyles(view), located, extras)) };
 		},
 
 		async pageContent(host, pathname) {
@@ -289,18 +314,16 @@ export function createSitePages(options: {
 		},
 
 		async notFound(host, pathname, editing) {
-			const view = viewFor(data, host, editing, sources);
+			const view = viewFor(data, host, editing, sources, moduleHosts);
 			const place = await notFoundPlace(view.scope, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
 			if (place.found) {
 				const located = { ...place, found: place.found };
-				return { html: await renderEntryPage(view, host, styles, located, { alternates: [], languageLinks }) };
+				return renderEntryPage(view, host, styles, located, { alternates: [], languageLinks });
 			}
 			const builtIn = builtInNotFoundPage(place.language.code);
-			return {
-				html: await renderSitePage(view, host, styles, place, { ...builtIn, languageLinks, values: () => undefined }),
-			};
+			return renderSitePage(view, host, styles, place, { ...builtIn, languageLinks, values: () => undefined });
 		},
 
 		async preferredHome(host, acceptLanguage) {
@@ -336,8 +359,17 @@ export function createSitePages(options: {
 			return stylesheetFile(data.visitors(host.site), await stylesOf(host), name);
 		},
 
-		script(host, name) {
-			return scriptFile(data.visitors(host.site), name, "published");
+		async script(host, name) {
+			const scope = data.visitors(host.site);
+			const published = await scriptFile(scope, name, "published");
+			if (published !== null) return published;
+			const hash = /^([0-9a-f]{16})\.js$/.exec(name)?.[1];
+			if (!hash) return null;
+			return (await outsideScriptCode(scope, hash)) ?? (await retiredScript(scope, hash));
+		},
+
+		libraryFile(host, name) {
+			return libraryFile(data.visitors(host.site), storage, name);
 		},
 	};
 }
@@ -514,9 +546,17 @@ type View = {
 	editing?: PageEditing;
 	/** Where the Components of the Modules running on the Site come from. */
 	sources: ComponentSources;
+	/** The outside hosts of the Modules running on the Site. */
+	moduleHosts: (site: Site) => Promise<string[]>;
 };
 
-function viewFor(data: DataLayer, host: SiteHost, editing: PageEditing | undefined, sources: ComponentSources): View {
+function viewFor(
+	data: DataLayer,
+	host: SiteHost,
+	editing: PageEditing | undefined,
+	sources: ComponentSources,
+	moduleHosts: (site: Site) => Promise<string[]>,
+): View {
 	return editing
 		? {
 				host,
@@ -525,8 +565,9 @@ function viewFor(data: DataLayer, host: SiteHost, editing: PageEditing | undefin
 				structure: editing.code ? "draft" : "published",
 				editing,
 				sources,
+				moduleHosts,
 			}
-		: { host, scope: data.visitors(host.site), version: "published", structure: "published", sources };
+		: { host, scope: data.visitors(host.site), version: "published", structure: "published", sources, moduleHosts };
 }
 
 /**
@@ -656,7 +697,7 @@ async function renderEntryPage(
 	styles: SiteStyles,
 	located: Place & { found: FoundEntry },
 	extras: LanguageExtras,
-): Promise<string> {
+): Promise<SitePage> {
 	const { scope } = view;
 	const { found, languages } = located;
 	const { postType, entry } = found;
@@ -727,7 +768,7 @@ async function renderSitePage(
 	contentValues: unknown = null,
 	/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
 	entry: { id: string; fields: readonly FieldDefinition[] } | null = null,
-): Promise<string> {
+): Promise<SitePage> {
 	const { scope, editing } = view;
 	const { languages, language } = place;
 	const globalsRow = await scope.first(globals);
@@ -756,7 +797,9 @@ async function renderSitePage(
 		],
 		languages,
 	);
-	return renderPage({
+	// Safe mode runs none of the Site's own scripts; outside scripts never run in Edit mode at all.
+	const ownScripts = !editing?.safe;
+	const rendered = renderDocument({
 		...page,
 		site: { name: host.site.name, language: language.code, direction: language.direction },
 		siteTemplate,
@@ -764,13 +807,32 @@ async function renderSitePage(
 		className: styles.className,
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
-		scripts: await pageScripts(scope, entry?.id ?? null, view.structure),
+		libraries: ownScripts ? await pageLibraries(scope) : [],
+		scripts: ownScripts ? await pageScripts(scope, entry?.id ?? null, view.structure) : [],
+		outsideScripts: await pageOutsideScripts(scope),
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(entry, storedFields(globalsRow?.fields)),
 			code: view.structure === "draft",
 		},
 		component: placed.render,
+	});
+	const hosts = await policyHosts(view);
+	const headers = editing
+		? { "content-security-policy": editModePolicy(hosts) }
+		: pagePolicyHeaders({ mode: host.cspMode, hosts, frames: rendered.frames });
+	return { html: rendered.html, headers };
+}
+
+/** The hosts a page's policy allows: the Site's allowed hosts and its running Modules' outside hosts. */
+async function policyHosts(view: View): Promise<string[]> {
+	const hosts = [...(await siteAllowedHosts(view.scope)), ...(await view.moduleHosts(view.host.site))];
+	return hosts.flatMap((host) => {
+		try {
+			return [readHost(host)];
+		} catch {
+			return [];
+		}
 	});
 }
 

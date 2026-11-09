@@ -30,12 +30,15 @@ import {
 	EntrySlugTakenError,
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
+	HostInvalidError,
 	IdentityCheckRequiredError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
+	LibraryNotFoundError,
+	LibraryRefusedError,
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
 	MediaInvalidError,
@@ -48,6 +51,7 @@ import {
 	ModuleFailedError,
 	ModuleNotApprovedError,
 	ModuleNotFoundError,
+	OutsideScriptNotFoundError,
 	PageHasChildrenError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
@@ -67,12 +71,14 @@ import {
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
+	SnippetInvalidError,
 	StaffMembershipError,
 	StaffNotFoundError,
 	StorageUnreachableError,
 	TemplateNotFoundError,
 	TokenInUseError,
 	TokensFileInvalidError,
+	TooManyHostsError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
 import { ModuleError } from "@webcraft/module-sdk";
@@ -345,6 +351,39 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof StorageUnreachableError) {
 		return new ORPCError("STORAGE_UNREACHABLE", {
+			status: 400,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
+	}
+	if (error instanceof HostInvalidError) {
+		return new ORPCError("HOST_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { host: error.host },
+			cause: error,
+		});
+	}
+	if (error instanceof TooManyHostsError) {
+		return new ORPCError("TOO_MANY_HOSTS", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof SnippetInvalidError) {
+		return new ORPCError("OUTSIDE_SCRIPT_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof OutsideScriptNotFoundError) {
+		return new ORPCError("OUTSIDE_SCRIPT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof LibraryNotFoundError) {
+		return new ORPCError("LIBRARY_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof LibraryRefusedError) {
+		return new ORPCError("LIBRARY_REFUSED", {
 			status: 400,
 			message: error.message,
 			data: { problem: error.problem },
