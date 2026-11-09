@@ -83,6 +83,8 @@ export type AdminPlace =
 			/** The Site's Forms, for people who may see them: each has its own item. */
 			forms: readonly PlaceForm[];
 			languages: PlaceLanguages;
+			/** The Permissions Modules running on the Site add that the person holds (`forms.submissions.view`). */
+			modulePermissions: readonly string[];
 	  };
 
 export type NavItem = {
@@ -311,6 +313,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						requires: "entry.edit",
 					},
 					{
+						id: "site-email",
+						label: "shell.nav.siteEmail",
+						icon: MailIcon,
+						to: "/sites/$siteId/email",
+						requires: "structure.edit",
+					},
+					{
 						id: "site-webhooks",
 						label: "shell.nav.webhooks",
 						icon: WebhookIcon,
@@ -351,8 +360,9 @@ function postTypeItems(postTypes: readonly PlacePostType[]): NavItem[] {
 }
 
 /**
- * A Site's Forms as Content items, after Media: one each (its Build and Settings tabs for Staff;
- * Submissions and Emails for clients join them).
+ * A Site's Forms as Content items, after Media: one each, with its Submissions and Emails tabs for
+ * clients and its Build and Settings tabs for Staff. The place lists the Forms only for people who may
+ * see them (Staff, and the clients who change their emails), never Authors.
  */
 function formItems(forms: readonly PlaceForm[]): NavItem[] {
 	return forms.map((form) => ({
@@ -361,7 +371,6 @@ function formItems(forms: readonly PlaceForm[]): NavItem[] {
 		icon: InboxIcon,
 		to: "/sites/$siteId/forms/$formId",
 		params: { formId: form.id },
-		requires: "structure.edit",
 	}));
 }
 

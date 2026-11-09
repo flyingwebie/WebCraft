@@ -20,6 +20,7 @@ import { getApi } from "../api.ts";
 import { draftsOf, freeKey, inputsOf, keyFromLabel, newField } from "../content/field-drafts.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { excerpt } from "./model.ts";
 
 /**
  * What fixed text can become so clients edit it: a Prop of the Component (saved with it), a Field of
@@ -106,11 +107,9 @@ export function FixedTextDialog({
 			if (target === "global") {
 				const { globals } = await api.globals.get({ siteId });
 				if (globals.fields.some((field) => field.key === finalKey)) return setProblem(t("builder.fixedText.keyTaken"));
-				await api.globals.setFields({
-					siteId,
-					fields: [...inputsOf(draftsOf(globals.fields)), { ...made, default: null }],
-				});
-				await api.globals.saveDraft({ siteId, fields: { [finalKey]: text } });
+				// One call: a Field added with a default starts the Globals' Draft with it, so the text is
+				// there at once, and a refusal (text longer than a text Field holds) leaves nothing half made.
+				await api.globals.setFields({ siteId, fields: [...inputsOf(draftsOf(globals.fields)), made] });
 			} else if (postTypeId) {
 				const { postType } = await api.postTypes.get({ siteId, postTypeId });
 				if (postType.fields.some((field) => field.key === finalKey)) return setProblem(t("builder.fixedText.keyTaken"));
@@ -139,7 +138,10 @@ export function FixedTextDialog({
 				<form onSubmit={submit} className="grid gap-6" noValidate>
 					<DialogHeader>
 						<DialogTitle>{t(`builder.fixedText.make.${target}`)}</DialogTitle>
-						<DialogDescription>{t(`builder.fixedText.intro.${target}`, { text })}</DialogDescription>
+						<DialogDescription>
+							{/* Fixed text may be long: the dialog names it by its start, so its buttons stay in reach. */}
+							{t(`builder.fixedText.intro.${target}`, { text: excerpt(text, 80) })}
+						</DialogDescription>
 					</DialogHeader>
 					<fieldset className="grid gap-2">
 						<legend className="sr-only">{t(`builder.fixedText.make.${target}`)}</legend>

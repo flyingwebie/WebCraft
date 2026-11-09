@@ -7,8 +7,9 @@
  * - `job`: a job it didn't define, or a payload its job doesn't accept.
  * - `secret`: a secret name that isn't allowed, or one nobody set.
  * - `email`: an email that isn't complete in the Module's languages.
+ * - `submissions`: Form Submissions' services, for a Module that doesn't keep them, or outside a Site.
  */
-export type ModuleRefusal = "permission" | "table" | "host" | "use" | "job" | "secret" | "email";
+export type ModuleRefusal = "permission" | "table" | "host" | "use" | "job" | "secret" | "email" | "submissions";
 
 /** Thrown when a Module tries something it didn't declare. Never retried: the Module must change. */
 export class ModuleRefusedError extends Error {

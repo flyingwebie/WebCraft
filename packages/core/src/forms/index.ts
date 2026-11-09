@@ -3,6 +3,7 @@ import type { SiteHost } from "../site-pages/index.ts";
 import type { Site, SiteScope } from "../tenancy/data-layer.ts";
 import { type CaptchaView, getCaptcha, setCaptcha } from "./captcha.ts";
 import type { FormVersionInput } from "./definition.ts";
+import type { FormEmailsInput } from "./emails.ts";
 import {
 	createForm,
 	deleteForm,
@@ -14,12 +15,14 @@ import {
 	type NewForm,
 	renameForm,
 	saveFormDraft,
+	saveFormEmails,
 } from "./forms.ts";
 import { type FormPost, type FormPostAnswer, type ReceiveDeps, receiveFormPost } from "./receive.ts";
 import type { FormTokens } from "./tokens.ts";
 
 export type { CaptchaView } from "./captcha.ts";
 export type { FormVersionInput } from "./definition.ts";
+export type { FormEmailsInput } from "./emails.ts";
 export {
 	CaptchaInvalidError,
 	FormInUseError,
@@ -44,6 +47,11 @@ export type Forms = {
 	create(scope: SiteScope, input: NewForm): Promise<Form>;
 	/** Saves its Draft: each part given (`fields`, `submitLabel`, `success`, `spam`) replaces that part. */
 	saveDraft(scope: SiteScope, formId: string, input: FormVersionInput): Promise<Form>;
+	/**
+	 * Saves its emails Draft (`formEmails.edit`): each part given (`notifications`, `autoReply`) replaces
+	 * that part. Publishing goes through `services.publishing.publish` with `{ kind: "formEmails" }`.
+	 */
+	saveEmails(scope: SiteScope, formId: string, input: FormEmailsInput): Promise<Form>;
 	/** Changes its name or key: `{{@form <key>}}` writes the new key everywhere at once. */
 	rename(scope: SiteScope, formId: string, input: { name?: string; key?: string }): Promise<Form>;
 	/** Deletes it in two steps; refused while a Template or Component places it. */
@@ -73,6 +81,7 @@ export function createForms(deps: ReceiveDeps & { tokens: FormTokens }): Forms {
 			return createForm(scope, input, { defaultLanguage: site.defaultLanguage, others });
 		},
 		saveDraft: saveFormDraft,
+		saveEmails: saveFormEmails,
 		rename: renameForm,
 		delete: deleteForm,
 		receive: (host, formId, post) => receiveFormPost(deps, host, formId, post),

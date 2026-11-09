@@ -67,6 +67,19 @@ export function childLists(node: TreeNode): readonly (readonly TreeNode[])[] {
 	}
 }
 
+/** Where something dropped on a layer or an element goes: before it, after it, or inside it. */
+export type DropPosition = "before" | "after" | "inside";
+
+/**
+ * Where a drop goes by how far down the target the pointer is (0 at its top, 1 at its bottom): inside
+ * the middle of something that can hold children, else before it in its top half and after it below.
+ * The Layers panel and the canvas both drop this way.
+ */
+export function dropPositionAt(y: number, canHold: boolean): DropPosition {
+	if (canHold && y > 0.3 && y < 0.7) return "inside";
+	return y < 0.5 ? "before" : "after";
+}
+
 /** Whether something can go inside a node: a non-void element, a Condition or a Loop. */
 export function canHoldChildren(node: TreeNode): boolean {
 	return childLists(node).length > 0;

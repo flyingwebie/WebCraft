@@ -117,6 +117,14 @@ function printAttribute(attribute: Attribute): string {
 	return ` ${attribute.name}="${attribute.value.map(printPart).join("")}"`;
 }
 
+/**
+ * An attribute's value as Template markup writes it between the quotes: text escaped as in markup,
+ * values as `{{ path }}`, fixed text with other languages as `{{ "…" fr: "…" }}`.
+ */
+export function printAttributeText(parts: readonly AttributePart[]): string {
+	return parts.map(printPart).join("");
+}
+
 function printPart(part: AttributePart): string {
 	if (part.type === "text") return part.translations ? translatedText(part) : markupText(part.text, true);
 	return `{{ ${part.path}${part.format ? ` | ${writeFormat(part.format)}` : ""} }}`;

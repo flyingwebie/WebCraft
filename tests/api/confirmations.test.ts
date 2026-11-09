@@ -149,6 +149,7 @@ describe("publishing through a token", () => {
 				(confirmation) => script.api.components.publish({ siteId, componentId: component.id, confirmation }),
 			],
 			["form", (confirmation) => script.api.forms.publish({ siteId, formId: form.id, confirmation })],
+			["formEmails", (confirmation) => script.api.forms.publishEmails({ siteId, formId: form.id, confirmation })],
 			["loop", (confirmation) => script.api.loops.publish({ siteId, loopId: loop.id, confirmation })],
 			["script", (confirmation) => script.api.scripts.publish({ siteId, scriptId: siteScript.id, confirmation })],
 			["globals", (confirmation) => script.api.globals.publish({ siteId, confirmation })],

@@ -51,6 +51,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"webhook.change": (api, { siteId }) =>
 		api.webhooks.add({ siteId, url: "https://hooks.agency.example/build", events: ["publish"] }),
 	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
+	"siteSmtp.change": (api, { siteId }) => api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 };
 
@@ -133,7 +134,14 @@ describe("each Sensitive action", () => {
 			);
 		}
 
-		const refused = ["member.invite", "member.changeAccess", "member.remove", "webhook.change", "formCaptcha.change"];
+		const refused = [
+			"member.invite",
+			"member.changeAccess",
+			"member.remove",
+			"webhook.change",
+			"formCaptcha.change",
+			"siteSmtp.change",
+		];
 		expect(answers).toEqual(
 			Object.fromEntries(
 				ALL_SENSITIVE_ACTIONS.map((action) => [

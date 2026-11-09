@@ -7,7 +7,7 @@ import type { Clock } from "../clock.ts";
 import type { Logger } from "../log.ts";
 import { actingPerson } from "../permissions/can.ts";
 import type { SecretDescription, Secrets } from "../secrets/store.ts";
-import type { InstallScope } from "../tenancy/data-layer.ts";
+import type { Executor, InstallScope } from "../tenancy/data-layer.ts";
 import type { SmtpSecurity } from "./mailer.ts";
 
 /** How a connection to an SMTP server is secured. */
@@ -144,7 +144,7 @@ export function checkSettings(settings: SmtpSettings): SmtpSettings {
 }
 
 /** An SMTP server's record of failed sends; a server never recorded is working. */
-export async function readHealth(database: Database, smtp: string): Promise<SmtpHealth> {
+export async function readHealth(database: { db: Executor }, smtp: string): Promise<SmtpHealth> {
 	const [row] = await database.db.select().from(smtpHealth).where(eq(smtpHealth.smtp, smtp));
 	if (!row) return { state: "working", failuresInARow: 0, failingSince: null, lastResponse: null };
 	return {

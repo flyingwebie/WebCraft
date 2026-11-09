@@ -21,7 +21,7 @@ import { email } from "../inputs.ts";
 const emailAdmin = onInstall("install.manage");
 
 /** A mail server's hostname or IP address. */
-const host = z
+export const host = z
 	.string()
 	.trim()
 	.min(1)
@@ -39,7 +39,7 @@ const smtpSettings = z.object({
 });
 
 /** A password typed into the admin: a new one, null to remove it, absent to keep the stored one. */
-const smtpPassword = z.string().min(1).max(1024);
+export const smtpPassword = z.string().min(1).max(1024);
 
 /** The Install SMTP, for the Superadmin. */
 export const smtp = {

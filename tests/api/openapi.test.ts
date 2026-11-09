@@ -122,6 +122,7 @@ describe("the document", () => {
 				["members.changeAccess", "member.changeAccess"],
 				["members.invite", "member.invite"],
 				["members.remove", "member.remove"],
+				["siteSmtp.update", "siteSmtp.change"],
 				["webhooks.add", "webhook.change"],
 				["webhooks.changeSecret", "webhook.change"],
 				["webhooks.update", "webhook.change"],
@@ -138,6 +139,7 @@ describe("the document", () => {
 			"templates.publish",
 			"components.publish",
 			"forms.publish",
+			"forms.publishEmails",
 			"loops.publish",
 			"scripts.publish",
 			"consentBanner.publish",
@@ -157,6 +159,7 @@ describe("the document", () => {
 			"imports.undo",
 			"modules.removeSiteData",
 			"modules.removeWorkspaceData",
+			"m.forms.submissions.delete",
 		];
 		const confirmed = [...operations.values()]
 			.filter((operation) => operation["x-webcraft-confirmation"])

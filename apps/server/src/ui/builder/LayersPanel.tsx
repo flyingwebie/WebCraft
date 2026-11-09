@@ -21,7 +21,17 @@ import {
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n.tsx";
 import { type Catalogue, layerName, listName, type Selection } from "./model.ts";
-import { childLists, isFixedText, isFormatting, type ListRef, type NodePath, pathKey } from "./tree.ts";
+import {
+	canHoldChildren,
+	childLists,
+	type DropPosition,
+	dropPositionAt,
+	isFixedText,
+	isFormatting,
+	type ListRef,
+	type NodePath,
+	pathKey,
+} from "./tree.ts";
 
 /** One row of the Layers panel: a node, or a later list of a Condition or Loop (its Else, its Empty). */
 export type LayerRow =
@@ -98,7 +108,7 @@ const ACTIONS: readonly { action: LayerAction; icon: LucideIcon; keys: string }[
 const INDENT = ["ps-0", "ps-0", "ps-3", "ps-6", "ps-9", "ps-12", "ps-15", "ps-18", "ps-21", "ps-24", "ps-27", "ps-30"];
 
 /** Where a dragged layer goes, beside or inside another. */
-export type DropPosition = "before" | "after" | "inside";
+export type { DropPosition } from "./tree.ts";
 
 /**
  * The Layers panel: the tree of the Template or Component as an ARIA tree, the keyboard way to do
@@ -298,8 +308,7 @@ export function LayersPanel({
 				event.preventDefault();
 				const box = event.currentTarget.getBoundingClientRect();
 				const y = (event.clientY - box.top) / Math.max(box.height, 1);
-				const holds = childLists(row.node).length > 0;
-				const position: DropPosition = holds && y > 0.3 && y < 0.7 ? "inside" : y < 0.5 ? "before" : "after";
+				const position = dropPositionAt(y, canHoldChildren(row.node));
 				if (over?.key !== row.key || over.position !== position) setOver({ key: row.key, position });
 			},
 			onDragLeave() {

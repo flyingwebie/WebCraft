@@ -9,6 +9,7 @@ export type { PlacementNode } from "./components.ts";
 export { safeUrl, URL_ATTRIBUTES } from "./escape.ts";
 export { type Expression, readExpression, writeExpression } from "./expressions.ts";
 export { readFormat, type ValueFormat, writeFormat } from "./formatters.ts";
+export { parseAttributeText, printAttributeText } from "./markup/attribute-text.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export {
 	type Attribute,

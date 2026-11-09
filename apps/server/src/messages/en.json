@@ -286,7 +286,8 @@
 			"seo": "SEO",
 			"backups": "Backups",
 			"templates": "Templates",
-			"components": "Components"
+			"components": "Components",
+			"siteEmail": "Email (SMTP)"
 		}
 	},
 	"masterKeyBanner": {
@@ -627,7 +628,8 @@
 		},
 		"smtp": {
 			"install": "Install SMTP",
-			"none": "None: written to the log"
+			"none": "None: written to the log",
+			"site": "Site SMTP"
 		},
 		"status": {
 			"queued": "Queued",
@@ -638,7 +640,9 @@
 		},
 		"nextAttempt": "Next attempt {time}",
 		"related": {
-			"installSmtp": "Email (SMTP)"
+			"installSmtp": "Email (SMTP)",
+			"siteSmtp": "Site email (SMTP)",
+			"submission": "A Form Submission"
 		},
 		"emptyTitle": "No emails yet",
 		"emptyBody": "Emails the Install sends will show here.",
@@ -713,6 +717,14 @@
 		"webhook-switched-off": {
 			"name": "Webhook switched off",
 			"description": "When a Site's Webhook keeps failing and is switched off."
+		},
+		"form-notification": {
+			"name": "Form Notification",
+			"description": "When a Form's Submission is kept."
+		},
+		"form-auto-reply": {
+			"name": "Auto-reply",
+			"description": "To a visitor who sent a Form."
 		}
 	},
 	"workspaces": {
@@ -1923,10 +1935,12 @@
 		"openLog": "Delivery log of {name}",
 		"events": {
 			"publish": "Publish",
-			"test": "Test"
+			"test": "Test",
+			"formSubmitted": "Form submitted"
 		},
 		"eventHelp": {
-			"publish": "When an Entry, a Page, the Globals, a Template, a Component, a script, a Form, a Loop or the Design system is published."
+			"publish": "When an Entry, a Page, the Globals, a Template, a Component, a script, a Form, a Loop or the Design system is published.",
+			"formSubmitted": "When a visitor sends a Form and its Submission is kept (never spam). It carries what they sent."
 		},
 		"on": "On",
 		"off": "Off",
@@ -2732,7 +2746,9 @@
 		"tabs": {
 			"build": "Build",
 			"settings": "Settings",
-			"translations": "Translations"
+			"translations": "Translations",
+			"submissions": "Submissions",
+			"emails": "Emails"
 		},
 		"addField": "Add field",
 		"add": "Add",
@@ -2861,7 +2877,8 @@
 			"saved": "The CAPTCHA was saved.",
 			"off": "The CAPTCHA is off.",
 			"switchOff": "Switch off"
-		}
+		},
+		"tabsLabel": "Parts of {name}"
 	},
 	"workspaceStorage": {
 		"heading": "Media storage",
@@ -3769,5 +3786,141 @@
 			"overwrite": "Save mine over it",
 			"close": "Close"
 		}
+	},
+	"siteEmail": {
+		"pageTitle": "Email (SMTP)",
+		"heading": "Email (SMTP)",
+		"intro": "How this Site sends its Form Notifications, Auto-replies and other email. Secrets are stored encrypted.",
+		"server": {
+			"heading": "Sending server",
+			"intro": "Choose which SMTP server sends this Site's email.",
+			"install": "Use the Install SMTP",
+			"installHelp": "Sent through the agency's server under the Site's name ({name}). Good for testing; mail may look less trustworthy to visitors.",
+			"own": "Use this Site's own SMTP",
+			"ownHelp": "Sent from the client's own domain. If it fails, its email is retried for about 24 hours, never sent another way, and the Site's Owners and Staff are told."
+		},
+		"sender": {
+			"fromName": "From name (optional)",
+			"fromNameHelp": "Leave it empty to use the Site's name, {name}.",
+			"fromAddressHelp": "Must be allowed by the Site's server, or mail may be refused.",
+			"replyToHelp": "Where replies to Auto-replies go. Form Notifications use the visitor's email as reply-to instead."
+		},
+		"failingTitle": "This Site's SMTP is failing",
+		"applyNote": "Changes to Site settings take effect when saved; they aren't part of Publish all.",
+		"errors": {
+			"fromNameInvalid": "A sender name is one line of at most 100 characters."
+		}
+	},
+	"formEmails": {
+		"content": "Content",
+		"intro": "What each Submission sends: Notifications to the Site's people, and an Auto-reply to the visitor. Changes stay in the Draft until you publish them.",
+		"publish": "Publish emails",
+		"saved": "Saved to the Draft.",
+		"published": "The emails were published: Submissions send them from now on.",
+		"problems": "The emails can't be saved yet:",
+		"leaveEmpty": "Leave it empty for: {example}",
+		"notifications": {
+			"heading": "Notifications",
+			"intro": "Each address gets its own email, in the Site's Default language, with everything the visitor sent. Replies go to the visitor.",
+			"none": "No Notifications: Submissions are only kept.",
+			"add": "Add Notification",
+			"title": "Notification {number}",
+			"remove": "Remove Notification {number}",
+			"recipients": "Send to",
+			"recipientsHelp": "One email address per line, at most {max}.",
+			"routing": "Route by a field",
+			"routingNone": "Don't route",
+			"routingHelp": "Send to other addresses depending on the answer to a select or radio field.",
+			"routingNoField": "Add a select or radio field to the Form to route by its answer.",
+			"routeFor": "When {field} is {option}",
+			"routeHelp": "One address per line. Empty: the addresses above.",
+			"subject": "Subject",
+			"intro2": "Opening text",
+			"introHelp": "Shown above the visitor's answers. Leave it empty for WebCraft's words."
+		},
+		"autoReply": {
+			"heading": "Auto-reply",
+			"intro": "An email back to the visitor, in the language they used, with your words only: never what they typed.",
+			"enabled": "Send an Auto-reply",
+			"field": "Send to the address in",
+			"firstEmailField": "The first email field",
+			"fieldHelp": "The email field the visitor fills in.",
+			"noEmailField": "Add an email field to the Form to send an Auto-reply.",
+			"inDefault": "{language} (as written)",
+			"inLanguage": "{language}",
+			"subject": "Subject",
+			"text": "Text",
+			"textHelp": "Separate paragraphs with an empty line.",
+			"translationHelp": "Left empty, visitors in this language get the text as written."
+		}
+	},
+	"submissions": {
+		"folders": "Folders",
+		"inbox": "Inbox",
+		"spam": "Spam",
+		"spamNote": "Spam is deleted after 30 days. It never sends Notifications, Auto-replies or Webhooks.",
+		"summary": "{total, plural, one {# Submission} other {# Submissions}} · {unread} unread · {kept}",
+		"keptForever": "kept forever",
+		"keptDays": "kept {days} days",
+		"loading": "Loading…",
+		"export": "Export CSV",
+		"exported": "{count, plural, one {# Submission} other {# Submissions}} exported.",
+		"search": "Search Submissions",
+		"show": "Show",
+		"filter": {
+			"all": "All",
+			"unread": "Unread",
+			"read": "Read"
+		},
+		"language": "Language",
+		"allLanguages": "All languages",
+		"tableLabel": "Submissions, newest first",
+		"columns": {
+			"submitter": "Submitter",
+			"language": "Language",
+			"received": "Received"
+		},
+		"unread": "Unread",
+		"noName": "No name",
+		"empty": "No Submissions yet.",
+		"emptySpam": "The Spam folder is empty.",
+		"noMatch": "No Submissions match.",
+		"showing": "Showing {from}–{to} of {total}",
+		"previous": "Previous",
+		"next": "Next",
+		"choose": "Choose a Submission to read it.",
+		"came": "{time} · {language} · from {page}",
+		"inSpam": "In the Spam folder: {reason}.",
+		"spamReasons": {
+			"honeypot": "a field people never see was filled in",
+			"tooFast": "it was sent sooner than a person could fill it in",
+			"token": "it came without the page's token",
+			"rateLimit": "one address sent it too often",
+			"size": "it was too large",
+			"captcha": "the CAPTCHA couldn't be checked",
+			"other": "a spam check caught it"
+		},
+		"markUnread": "Mark as unread",
+		"markRead": "Mark as read",
+		"notSpam": "Not spam",
+		"notSpamDone": "Moved to the inbox: its Notifications, Auto-reply and Webhooks are on their way.",
+		"notSpamNote": "Not spam moves it to the inbox and sends its Notifications, Auto-reply (within a day of when it came) and Webhooks.",
+		"delete": "Delete",
+		"deleteTitle": "Delete this Submission?",
+		"deleteBody": "It is deleted for good, with any files that came with it.",
+		"deleted": "The Submission was deleted.",
+		"cancel": "Cancel",
+		"deliveries": "Delivery log",
+		"deliveriesNone": "Nothing was sent for it.",
+		"deliveryNotification": "Notification → {to}",
+		"deliveryAutoReply": "Auto-reply → {to}",
+		"deliveryWebhook": "Webhook · {name}",
+		"deliveryProblem": "Last answer: {problem}",
+		"retention": "Keep Submissions",
+		"retentionForever": "Forever",
+		"retentionDays": "{days} days",
+		"retentionSaved": "Saved: older Submissions are deleted every night.",
+		"yes": "Yes",
+		"no": "No"
 	}
 }

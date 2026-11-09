@@ -3123,9 +3123,9 @@
 									"events": {
 										"type": "array",
 										"minItems": 1,
-										"maxItems": 2,
+										"maxItems": 4,
 										"items": {
-											"enum": ["publish"],
+											"enum": ["publish", "formSubmitted"],
 											"type": "string"
 										}
 									},
@@ -3191,9 +3191,9 @@
 									"events": {
 										"type": "array",
 										"minItems": 1,
-										"maxItems": 2,
+										"maxItems": 4,
 										"items": {
-											"enum": ["publish"],
+											"enum": ["publish", "formSubmitted"],
 											"type": "string"
 										}
 									}
@@ -3525,6 +3525,169 @@
 					}
 				},
 				"x-webcraft-access": "write"
+			}
+		},
+		"/siteSmtp/get": {
+			"post": {
+				"operationId": "siteSmtp.get",
+				"summary": "The Site's email settings (never its mail server's password).",
+				"tags": ["siteSmtp"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/siteSmtp/update": {
+			"post": {
+				"operationId": "siteSmtp.update",
+				"summary": "Changes the Site's email settings (Sensitive: admin only).",
+				"tags": ["siteSmtp"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"fromName": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 100,
+												"pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"replyTo": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 320
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"server": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"host": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 253,
+														"pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*|[0-9A-Fa-f:]+)$"
+													},
+													"port": {
+														"type": "integer",
+														"minimum": 1,
+														"maximum": 65535
+													},
+													"security": {
+														"enum": ["starttls", "tls", "none"],
+														"type": "string"
+													},
+													"username": {
+														"anyOf": [
+															{
+																"type": "string",
+																"maxLength": 320
+															},
+															{
+																"type": "null"
+															}
+														]
+													},
+													"fromAddress": {
+														"type": "string",
+														"maxLength": 320
+													},
+													"password": {
+														"anyOf": [
+															{
+																"type": "string",
+																"minLength": 1,
+																"maxLength": 1024
+															},
+															{
+																"type": "null"
+															}
+														]
+													}
+												},
+												"required": ["host", "port", "security", "username", "fromAddress"]
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "fromName", "replyTo", "server"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-sensitive": "siteSmtp.change"
 			}
 		},
 		"/templates/list": {
@@ -5951,6 +6114,114 @@
 					}
 				},
 				"x-webcraft-access": "read"
+			}
+		},
+		"/forms/saveEmails": {
+			"post": {
+				"operationId": "forms.saveEmails",
+				"summary": "Saves a Form's emails Draft: its Notifications and Auto-reply.",
+				"tags": ["forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"formId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"emails": {
+										"type": "object",
+										"properties": {
+											"notifications": {
+												"type": "array",
+												"maxItems": 100,
+												"items": {}
+											},
+											"autoReply": {}
+										}
+									}
+								},
+								"required": ["siteId", "formId", "emails"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/forms/publishEmails": {
+			"post": {
+				"operationId": "forms.publishEmails",
+				"summary": "Publishes a Form's emails (API clients confirm a preview first).",
+				"tags": ["forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"formId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "formId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-confirmation": true
 			}
 		},
 		"/forms/create": {
@@ -12038,11 +12309,30 @@
 										"type": "string",
 										"default": "inbox"
 									},
+									"search": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"read": {
+										"enum": ["all", "unread", "read"],
+										"type": "string",
+										"default": "all"
+									},
+									"language": {
+										"type": "string",
+										"maxLength": 35
+									},
 									"limit": {
 										"type": "integer",
 										"minimum": 1,
 										"maximum": 200,
 										"default": 50
+									},
+									"offset": {
+										"type": "integer",
+										"minimum": 0,
+										"maximum": 1000000,
+										"default": 0
 									},
 									"siteId": {
 										"type": "string",
@@ -12072,6 +12362,384 @@
 					}
 				},
 				"x-webcraft-access": "read"
+			}
+		},
+		"/m/forms/submissions/get": {
+			"post": {
+				"operationId": "m.forms.submissions.get",
+				"summary": "Forms: submissions.get.",
+				"tags": ["m.forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["id", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/m/forms/submissions/setRead": {
+			"post": {
+				"operationId": "m.forms.submissions.setRead",
+				"summary": "Forms: submissions.setRead.",
+				"tags": ["m.forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"ids": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 200,
+										"items": {
+											"type": "string",
+											"format": "uuid"
+										}
+									},
+									"read": {
+										"type": "boolean"
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["ids", "read", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/m/forms/submissions/notSpam": {
+			"post": {
+				"operationId": "m.forms.submissions.notSpam",
+				"summary": "Forms: submissions.notSpam.",
+				"tags": ["m.forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["id", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
+			}
+		},
+		"/m/forms/submissions/delete": {
+			"post": {
+				"operationId": "m.forms.submissions.delete",
+				"summary": "Forms: submissions.delete.",
+				"tags": ["m.forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"ids": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 500,
+										"items": {
+											"type": "string",
+											"format": "uuid"
+										}
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["ids", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-confirmation": true
+			}
+		},
+		"/m/forms/submissions/export": {
+			"post": {
+				"operationId": "m.forms.submissions.export",
+				"summary": "Forms: submissions.export.",
+				"tags": ["m.forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"formId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"folder": {
+										"enum": ["inbox", "spam"],
+										"type": "string",
+										"default": "inbox"
+									},
+									"search": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"read": {
+										"enum": ["all", "unread", "read"],
+										"type": "string",
+										"default": "all"
+									},
+									"language": {
+										"type": "string",
+										"maxLength": 35
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["formId", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/m/forms/retention/get": {
+			"post": {
+				"operationId": "m.forms.retention.get",
+				"summary": "Forms: retention.get.",
+				"tags": ["m.forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"formId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["formId", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
+		"/m/forms/retention/set": {
+			"post": {
+				"operationId": "m.forms.retention.set",
+				"summary": "Forms: retention.set.",
+				"tags": ["m.forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"formId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"keepDays": {
+										"anyOf": [
+											{
+												"anyOf": [
+													{
+														"const": 30
+													},
+													{
+														"const": 90
+													},
+													{
+														"const": 365
+													}
+												]
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["formId", "keepDays", "siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write"
 			}
 		},
 		"/m/site-analytics/stats/totals": {

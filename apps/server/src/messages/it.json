@@ -286,7 +286,8 @@
 			"seo": "SEO",
 			"backups": "Backup",
 			"templates": "Template",
-			"components": "Componenti"
+			"components": "Componenti",
+			"siteEmail": "Email (SMTP)"
 		}
 	},
 	"masterKeyBanner": {
@@ -627,7 +628,8 @@
 		},
 		"smtp": {
 			"install": "SMTP dell'Install",
-			"none": "Nessuno: scritta nel log"
+			"none": "Nessuno: scritta nel log",
+			"site": "SMTP del Sito"
 		},
 		"status": {
 			"queued": "In coda",
@@ -638,7 +640,9 @@
 		},
 		"nextAttempt": "Prossimo tentativo {time}",
 		"related": {
-			"installSmtp": "Email (SMTP)"
+			"installSmtp": "Email (SMTP)",
+			"siteSmtp": "Email del Sito (SMTP)",
+			"submission": "Un invio di un Form"
 		},
 		"emptyTitle": "Ancora nessuna email",
 		"emptyBody": "Le email inviate dall'Install compariranno qui.",
@@ -713,6 +717,14 @@
 		"webhook-switched-off": {
 			"name": "Webhook disattivato",
 			"description": "Quando un Webhook di un Site continua a non funzionare e viene disattivato."
+		},
+		"form-notification": {
+			"name": "Notifica di un Form",
+			"description": "Quando l'invio di un Form viene conservato."
+		},
+		"form-auto-reply": {
+			"name": "Risposta automatica",
+			"description": "A un visitatore che ha inviato un Form."
 		}
 	},
 	"workspaces": {
@@ -1923,10 +1935,12 @@
 		"openLog": "Registro delle consegne di {name}",
 		"events": {
 			"publish": "Pubblicazione",
-			"test": "Prova"
+			"test": "Prova",
+			"formSubmitted": "Form inviato"
 		},
 		"eventHelp": {
-			"publish": "Quando vengono pubblicati una Entry, una Pagina, i Globals, un Template, un Component, uno script, un Form, un Loop o il Design system."
+			"publish": "Quando vengono pubblicati una Entry, una Pagina, i Globals, un Template, un Component, uno script, un Form, un Loop o il Design system.",
+			"formSubmitted": "Quando un visitatore invia un Form e l'invio viene conservato (mai lo spam). Contiene ciò che ha inviato."
 		},
 		"on": "Attivo",
 		"off": "Disattivato",
@@ -2732,7 +2746,9 @@
 		"tabs": {
 			"build": "Costruzione",
 			"settings": "Impostazioni",
-			"translations": "Traduzioni"
+			"translations": "Traduzioni",
+			"submissions": "Invii",
+			"emails": "Email"
 		},
 		"addField": "Aggiungi un campo",
 		"add": "Aggiungi",
@@ -2861,7 +2877,8 @@
 			"saved": "Il CAPTCHA è stato salvato.",
 			"off": "Il CAPTCHA è spento.",
 			"switchOff": "Spegni"
-		}
+		},
+		"tabsLabel": "Parti di {name}"
 	},
 	"workspaceStorage": {
 		"heading": "Spazio per i Media",
@@ -3769,5 +3786,141 @@
 			"overwrite": "Salva la mia sopra",
 			"close": "Chiudi"
 		}
+	},
+	"siteEmail": {
+		"pageTitle": "Email (SMTP)",
+		"heading": "Email (SMTP)",
+		"intro": "Come questo Sito invia le notifiche dei Form, le risposte automatiche e le altre email. I segreti sono conservati cifrati.",
+		"server": {
+			"heading": "Server di invio",
+			"intro": "Scegli quale server SMTP invia le email di questo Sito.",
+			"install": "Usa l'SMTP dell'Installazione",
+			"installHelp": "Inviata dal server dell'agenzia con il nome del Sito ({name}). Va bene per le prove; ai visitatori può sembrare meno affidabile.",
+			"own": "Usa l'SMTP di questo Sito",
+			"ownHelp": "Inviata dal dominio del cliente. Se non funziona, ogni email viene riprovata per circa 24 ore, mai inviata in altro modo, e i Proprietari e lo Staff del Sito vengono avvisati."
+		},
+		"sender": {
+			"fromName": "Nome mittente (facoltativo)",
+			"fromNameHelp": "Lascialo vuoto per usare il nome del Sito, {name}.",
+			"fromAddressHelp": "Deve essere consentito dal server del Sito, altrimenti la posta può essere rifiutata.",
+			"replyToHelp": "Dove vanno le risposte alle risposte automatiche. Le notifiche dei Form usano invece l'email del visitatore."
+		},
+		"failingTitle": "L'SMTP di questo Sito non funziona",
+		"applyNote": "Le modifiche alle impostazioni del Sito valgono appena salvate; non fanno parte di Pubblica tutto.",
+		"errors": {
+			"fromNameInvalid": "Il nome mittente è una riga di al massimo 100 caratteri."
+		}
+	},
+	"formEmails": {
+		"content": "Contenuto",
+		"intro": "Cosa invia ogni invio: notifiche alle persone del Sito e una risposta automatica al visitatore. Le modifiche restano nella bozza finché non le pubblichi.",
+		"publish": "Pubblica le email",
+		"saved": "Salvato nella bozza.",
+		"published": "Le email sono state pubblicate: gli invii le spediscono da ora in poi.",
+		"problems": "Le email non possono ancora essere salvate:",
+		"leaveEmpty": "Lascialo vuoto per: {example}",
+		"notifications": {
+			"heading": "Notifiche",
+			"intro": "Ogni indirizzo riceve la sua email, nella lingua predefinita del Sito, con tutto ciò che il visitatore ha inviato. Le risposte vanno al visitatore.",
+			"none": "Nessuna notifica: gli invii vengono solo conservati.",
+			"add": "Aggiungi notifica",
+			"title": "Notifica {number}",
+			"remove": "Rimuovi la notifica {number}",
+			"recipients": "Invia a",
+			"recipientsHelp": "Un indirizzo email per riga, al massimo {max}.",
+			"routing": "Instrada in base a un campo",
+			"routingNone": "Non instradare",
+			"routingHelp": "Invia ad altri indirizzi a seconda della risposta a un campo di selezione o a scelta singola.",
+			"routingNoField": "Aggiungi al Form un campo di selezione o a scelta singola per instradare in base alla risposta.",
+			"routeFor": "Quando {field} è {option}",
+			"routeHelp": "Un indirizzo per riga. Vuoto: gli indirizzi sopra.",
+			"subject": "Oggetto",
+			"intro2": "Testo iniziale",
+			"introHelp": "Mostrato sopra le risposte del visitatore. Lascialo vuoto per le parole di WebCraft."
+		},
+		"autoReply": {
+			"heading": "Risposta automatica",
+			"intro": "Un'email di ritorno al visitatore, nella lingua che ha usato, solo con le tue parole: mai ciò che ha scritto.",
+			"enabled": "Invia una risposta automatica",
+			"field": "Invia all'indirizzo indicato in",
+			"firstEmailField": "Il primo campo email",
+			"fieldHelp": "Il campo email che il visitatore compila.",
+			"noEmailField": "Aggiungi un campo email al Form per inviare una risposta automatica.",
+			"inDefault": "{language} (come scritto)",
+			"inLanguage": "{language}",
+			"subject": "Oggetto",
+			"text": "Testo",
+			"textHelp": "Separa i paragrafi con una riga vuota.",
+			"translationHelp": "Se vuoto, i visitatori in questa lingua ricevono il testo come scritto."
+		}
+	},
+	"submissions": {
+		"folders": "Cartelle",
+		"inbox": "Posta in arrivo",
+		"spam": "Spam",
+		"spamNote": "Lo spam viene eliminato dopo 30 giorni. Non invia mai notifiche, risposte automatiche o Webhook.",
+		"summary": "{total, plural, one {# invio} other {# invii}} · {unread} da leggere · {kept}",
+		"keptForever": "conservati per sempre",
+		"keptDays": "conservati {days} giorni",
+		"loading": "Caricamento…",
+		"export": "Esporta CSV",
+		"exported": "{count, plural, one {# invio esportato} other {# invii esportati}}.",
+		"search": "Cerca negli invii",
+		"show": "Mostra",
+		"filter": {
+			"all": "Tutti",
+			"unread": "Da leggere",
+			"read": "Letti"
+		},
+		"language": "Lingua",
+		"allLanguages": "Tutte le lingue",
+		"tableLabel": "Invii, dal più recente",
+		"columns": {
+			"submitter": "Mittente",
+			"language": "Lingua",
+			"received": "Ricevuto"
+		},
+		"unread": "Da leggere",
+		"noName": "Senza nome",
+		"empty": "Ancora nessun invio.",
+		"emptySpam": "La cartella Spam è vuota.",
+		"noMatch": "Nessun invio corrisponde.",
+		"showing": "Da {from} a {to} di {total}",
+		"previous": "Precedenti",
+		"next": "Successivi",
+		"choose": "Scegli un invio per leggerlo.",
+		"came": "{time} · {language} · da {page}",
+		"inSpam": "Nella cartella Spam: {reason}.",
+		"spamReasons": {
+			"honeypot": "è stato compilato un campo che le persone non vedono",
+			"tooFast": "è stato inviato prima di quanto una persona possa compilarlo",
+			"token": "è arrivato senza il token della pagina",
+			"rateLimit": "un indirizzo l'ha inviato troppe volte",
+			"size": "era troppo grande",
+			"captcha": "non è stato possibile verificare il CAPTCHA",
+			"other": "un controllo antispam lo ha fermato"
+		},
+		"markUnread": "Segna come da leggere",
+		"markRead": "Segna come letto",
+		"notSpam": "Non è spam",
+		"notSpamDone": "Spostato nella posta in arrivo: notifiche, risposta automatica e Webhook sono in partenza.",
+		"notSpamNote": "Non è spam lo sposta nella posta in arrivo e invia notifiche, risposta automatica (entro un giorno dall'arrivo) e Webhook.",
+		"delete": "Elimina",
+		"deleteTitle": "Eliminare questo invio?",
+		"deleteBody": "Viene eliminato per sempre, con i file che lo accompagnano.",
+		"deleted": "L'invio è stato eliminato.",
+		"cancel": "Annulla",
+		"deliveries": "Registro degli invii",
+		"deliveriesNone": "Non è stato inviato nulla.",
+		"deliveryNotification": "Notifica → {to}",
+		"deliveryAutoReply": "Risposta automatica → {to}",
+		"deliveryWebhook": "Webhook · {name}",
+		"deliveryProblem": "Ultima risposta: {problem}",
+		"retention": "Conserva gli invii",
+		"retentionForever": "Per sempre",
+		"retentionDays": "{days} giorni",
+		"retentionSaved": "Salvato: gli invii più vecchi vengono eliminati ogni notte.",
+		"yes": "Sì",
+		"no": "No"
 	}
 }

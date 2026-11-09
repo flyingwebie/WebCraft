@@ -105,6 +105,13 @@ export async function publishPreview(scope: SiteScope, item: PublishItem): Promi
 			);
 			return versions(row.draft, row.published, row.name);
 		}
+		case "formEmails": {
+			const row = byId(
+				isUuid(item.id) ? await scope.first(forms, eq(forms.id, item.id)) : undefined,
+				() => new FormNotFoundError(),
+			);
+			return versions(row.emailsDraft, row.emailsPublished, row.name);
+		}
 		case "globals": {
 			const row = await scope.first(globals);
 			return versions(row?.draft, row?.published);
