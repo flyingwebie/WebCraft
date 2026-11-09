@@ -402,37 +402,36 @@ function WidgetCard({
 	const drag = useRef<{ startX: number; startY: number; from: Rect; resize: boolean; at: Rect } | null>(null);
 	const title = widget.title || widget.label;
 	const rect: Rect = { x: widget.x, y: widget.y, w: widget.w, h: widget.h };
-	// What the Widget counts: a change to it (or to the days explored) counts again.
-	const counted = JSON.stringify([
+	// What the Widget counts: a change to it (or to the days explored) counts again. A named shape,
+	// not a positional array, so reordering a field here can't silently read back a different one.
+	const counted = JSON.stringify({
 		place,
 		dashboardId,
-		widget.id,
-		widget.kind,
-		widget.range,
-		widget.filters,
-		widget.settings,
-		widget.rows,
-		widget.title,
+		widgetId: widget.id,
+		kind: widget.kind,
+		range: widget.range,
+		filters: widget.filters,
+		settings: widget.settings,
+		rows: widget.rows,
+		title: widget.title,
 		explored,
-	]);
+	});
 	useEffect(() => {
 		let live = true;
 		setFailed(false);
-		const [where, dashboard, widgetId, , , , , , , range] = JSON.parse(counted) as [
-			DashboardPlace,
-			string,
-			string,
-			...unknown[],
-		];
+		const {
+			place: where,
+			dashboardId: dashboard,
+			widgetId,
+			explored: range,
+		} = JSON.parse(counted) as {
+			place: DashboardPlace;
+			dashboardId: string;
+			widgetId: string;
+			explored: DashboardRange | null;
+		};
 		void dashboardsApi()
-			.then((api) =>
-				api.widgets.data({
-					...where,
-					dashboardId: dashboard,
-					widgetId,
-					range: (range as DashboardRange | null) ?? undefined,
-				}),
-			)
+			.then((api) => api.widgets.data({ ...where, dashboardId: dashboard, widgetId, range: range ?? undefined }))
 			.then((answered) => live && setAnswer(answered.widget))
 			.catch(() => live && setFailed(true));
 		return () => {
@@ -656,6 +655,7 @@ function WidgetCard({
 const PROBLEMS = [
 	"GOAL_NOT_FOUND",
 	"FUNNEL_NOT_FOUND",
+	"FUNNEL_STEPS_DIFFER",
 	"MODULE_NOT_RUNNING",
 	"WIDGET_FAILED",
 	"WIDGET_UNKNOWN",

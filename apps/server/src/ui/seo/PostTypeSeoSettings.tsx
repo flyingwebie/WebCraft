@@ -19,6 +19,7 @@ import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native
 import { CircleAlertIcon, PlusIcon } from "lucide-react";
 import { useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useAfterRender } from "../after-render.ts";
 
 import { getApi } from "../api.ts";
 import type { FieldDefinition, PostTypeView, Problem } from "../content/model.ts";
@@ -69,6 +70,7 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 	const [problems, setProblems] = useState<string[] | null>(null);
 	const [busy, setBusy] = useState(false);
 	const summary = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const pattern = useRef<HTMLInputElement>(null);
 	const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
 	const hasBody = postType.fields.some((field) => field.type === "body");
@@ -134,7 +136,7 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 					? data.problems.map((problem) => settingProblemText(t, problem))
 					: [t(errorMessage(error))],
 			);
-			requestAnimationFrame(() => summary.current?.focus());
+			afterRender(() => summary.current?.focus());
 		} finally {
 			setBusy(false);
 		}

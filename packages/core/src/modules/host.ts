@@ -4,6 +4,7 @@ import {
 	type AddedRule,
 	type FormSender,
 	type FormSubmission,
+	formSenderCounted,
 	type ImportedRule,
 	type ImportedRuleResult,
 	type ImportSource,
@@ -1074,16 +1075,11 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			}
 			// What follows a kept Submission (never spam) is queued afterwards, as background jobs.
 			if (submission.spam === null) {
-				// The sender's id for the day, only once they accepted Analytics on the Site's own banner
-				// (never with an outside consent service, which only the page can read), and only where
-				// analytics may count them at all: analytics links the Submission to their visit with it.
+				// The sender's id for the day, only where analytics may count them at all
+				// (`formSenderCounted`, the SDK's one rule for it): analytics links the Submission to
+				// their visit with it.
 				const { sender: known } = submission;
-				const countable =
-					known.via === "domain" &&
-					!known.signedIn &&
-					!known.doNotTrack &&
-					known.consent.accepted.includes("analytics");
-				const dailyId = countable ? await visitor.dailyId("analytics") : null;
+				const dailyId = formSenderCounted(known) ? await visitor.dailyId("analytics") : null;
 				await submissionKept(site, { ...submission, id: kept.id }, submission.sender, dailyId);
 			}
 			return { id: kept.id };
