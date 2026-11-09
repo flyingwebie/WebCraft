@@ -23,6 +23,8 @@ services:
       retries: 30
 
   # The migrate step (ADR 0031): applies pending migrations, then stops. Web and worker wait for it.
+  # `exclude_from_hc` is Coolify's own key (plain Docker Compose refuses it): a step that stops on
+  # purpose doesn't make the resource unhealthy.
   migrate:
     image: ghcr.io/flyingwebie/webcraft-web:${WEBCRAFT_VERSION:-main}
     command: ["webcraft", "admin", "migrate"]

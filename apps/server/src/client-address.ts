@@ -21,8 +21,8 @@ const VISITOR = Symbol("webcraft.visitorAddress");
 
 /**
  * The address of the client a request came from, or null when the web process can't tell. Rate
- * limits, lockout records, the sessions list, Consent records and Form posts all take it from here,
- * and nowhere else.
+ * limits, lockout records, the sessions list, Consent records, Form posts and Modules' Site routes all
+ * take it from here, and nowhere else.
  *
  * It starts from the address of the connection (`serve.ts` sets it from Bun's server, the
  * development server the same way: `request.ip`). When that connection comes from a proxy the
@@ -58,7 +58,7 @@ export async function recordVisitorAddress(request: Request, services: InstallSe
 	if (host.cdn !== null && address !== null && inRanges(address, await services.cdns.ranges(host.cdn))) {
 		address = normaliseAddress(request.headers.get(CDNS[host.cdn].header) ?? "") ?? address;
 	}
-	Object.defineProperty(request, VISITOR, { value: address });
+	Object.defineProperty(request, VISITOR, { value: address, configurable: true });
 }
 
 /** The client's address as the trusted proxies in front of the web process tell it. */
@@ -116,7 +116,7 @@ function compiled(ranges: readonly string[]): IpRange[] {
  * without brackets or a port (`[2001:db8::1]:443`, `203.0.113.7:51234`, as some proxies write them).
  * Null for anything that isn't an IP address.
  */
-export function normaliseAddress(address: string): string | null {
+function normaliseAddress(address: string): string | null {
 	let text = address.trim().toLowerCase();
 	const bracketed = text.match(/^\[([^\]]+)\](?::\d+)?$/);
 	if (bracketed?.[1]) text = bracketed[1];
