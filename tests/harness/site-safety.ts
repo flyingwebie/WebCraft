@@ -94,7 +94,8 @@ export async function expectSafePage(response: Response, expected: PagePolicy = 
 /**
  * Checks that a page carries no inline code (ADR 0023): every `<script>` loads a file (`src`) and
  * holds nothing (structured data, `application/ld+json`, is data and may), no `<style>` element, no
- * `style` or `on…` attribute, and no `javascript:` address.
+ * `style` or `on…` attribute, and no `javascript:` address. Tags are read with their attributes, so
+ * escaped text that merely looks like code (an attack string in a value) doesn't count.
  */
 export function expectNoInlineCode(html: string): void {
 	for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
@@ -103,8 +104,22 @@ export function expectNoInlineCode(html: string): void {
 		expect(attributes, `an inline script: ${tag.slice(0, 200)}`).toMatch(/\ssrc="[^"]+"/);
 		expect(body, `a script with code in the page: ${tag.slice(0, 200)}`).toBe("");
 	}
-	expect(html, "a <style> element").not.toMatch(/<style[\s>]/i);
-	expect(html, "a style attribute").not.toMatch(/<[a-z][^>]*\sstyle=/i);
-	expect(html, "an event handler attribute").not.toMatch(/<[a-z][^>]*\son[a-z]+=/i);
-	expect(html, "a javascript: address").not.toMatch(/(?:href|src|action)="\s*javascript:/i);
+	const attribute = /([^\s"'>/=]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g;
+	const tags = /<([a-zA-Z][a-zA-Z0-9-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*\/?>/g;
+	for (const [tag = "", name = "", attributes = ""] of html.matchAll(tags)) {
+		const where = tag.slice(0, 200);
+		expect(name.toLowerCase(), `a <style> element: ${where}`).not.toBe("style");
+		for (const [, rawName = "", rawValue = ""] of attributes.matchAll(attribute)) {
+			const attributeName = rawName.toLowerCase();
+			const value = rawValue
+				.replace(/^["']|["']$/g, "")
+				.trim()
+				.toLowerCase();
+			expect(attributeName.startsWith("on"), `an event handler attribute: ${where}`).toBe(false);
+			expect(attributeName, `a style attribute: ${where}`).not.toBe("style");
+			if (["href", "src", "action", "formaction"].includes(attributeName)) {
+				expect(value.startsWith("javascript:"), `a javascript: address: ${where}`).toBe(false);
+			}
+		}
+	}
 }

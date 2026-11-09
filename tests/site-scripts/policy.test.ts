@@ -8,7 +8,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { expectSafePage, expectSiteHeaders, policyOf, reportOnlyPolicyOf } from "../harness/site-safety.ts";
+import {
+	expectNoInlineCode,
+	expectSafePage,
+	expectSiteHeaders,
+	policyOf,
+	reportOnlyPolicyOf,
+} from "../harness/site-safety.ts";
 import { sample } from "../modules/sample/index.ts";
 
 let install: TestInstall;
@@ -301,5 +307,22 @@ describe("the Site's policy", () => {
 			["allowedHost.add", { host: "tags.example.com" }],
 			["csp.change", { from: "strict", to: "reportOnly" }],
 		]);
+	});
+});
+
+describe("the page checks every Site test uses", () => {
+	test("catch inline code, and not escaped text that looks like it", () => {
+		for (const html of [
+			"<script>go()</script>",
+			'<script src="/_wc/js/a.js">go()</script>',
+			'<p style="color: red">Hi</p>',
+			"<style>p { color: red }</style>",
+			'<img src="/a.png" onerror="go()">',
+			'<a href="javascript:go()">Go</a>',
+		]) {
+			expect(() => expectNoInlineCode(html), html).toThrow();
+		}
+		expectNoInlineCode('<p title="&quot;&gt;&lt;img src=x onerror=go()&gt;">&lt;script&gt;go()&lt;/script&gt;</p>');
+		expectNoInlineCode('<script type="application/ld+json">{"@type":"WebPage"}</script>');
 	});
 });

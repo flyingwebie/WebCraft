@@ -3,6 +3,7 @@
  * file served there, and the cascade layers in it.
  */
 import type { TestInstall } from "./index.ts";
+import { expectSafePage } from "./site-safety.ts";
 
 /** The address of the one stylesheet a page links in its <head>; throws unless there is exactly one. */
 export function stylesheetIn(html: string): string {
@@ -14,7 +15,7 @@ export function stylesheetIn(html: string): string {
 
 /** The page at `url` and the stylesheet it links, as served. */
 export async function pageWithStyles(install: TestInstall, url: string): Promise<{ html: string; css: string }> {
-	const html = await (await install.request(url)).text();
+	const html = await expectSafePage(await install.request(url));
 	const response = await install.request(new URL(stylesheetIn(html), url).href);
 	if (response.status !== 200) throw new Error(`The stylesheet answered ${response.status}.`);
 	return { html, css: await response.text() };
