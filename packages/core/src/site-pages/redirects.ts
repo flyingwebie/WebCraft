@@ -24,6 +24,11 @@ export type RedirectPaths = {
 	languageOf(path: string): string;
 	/** Where a file of the Site's Media library is served now (`/_media/…`); null when visitors can't get it. */
 	mediaPath(mediaId: string): Promise<string | null>;
+	/**
+	 * The Site path where an Entry is published now in a language (null: the Default language), with
+	 * its prefix; null while it isn't published there.
+	 */
+	entryPath(entryId: string, language: string | null): Promise<string | null>;
 };
 
 /** Asks the Module keeping Redirect rules on a Site (`ModuleHost.redirectFor`). */

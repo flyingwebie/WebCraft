@@ -242,6 +242,15 @@ describe("files the source refuses", () => {
 		);
 		expect(await refusal(new Uint8Array([0x3c, 0x72, 0x73, 0x73, 0xff, 0xfe, 0x3e]))).toBe("encoding");
 	});
+
+	test("elements nested deeper than an export ever goes, before they fill the memory", async () => {
+		const deep = `${"<x>".repeat(40)}${"</x>".repeat(40)}`;
+		expect(
+			await refusal(
+				`<rss version="2.0" xmlns:wp="http://wordpress.org/export/1.2/"><channel><wp:wxr_version>1.2</wp:wxr_version><item><title>Deep</title>${deep}</item></channel></rss>`,
+			),
+		).toBe("xml");
+	});
 });
 
 describe("who uploads", () => {

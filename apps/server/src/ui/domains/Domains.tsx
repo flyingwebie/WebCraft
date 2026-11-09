@@ -2,6 +2,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import type { DnsRecord, Edge, SiteDomain, SiteDomainList } from "@webcraft/core";
 import { CDN_KEYS, CDNS, type CdnKey } from "@webcraft/core/cdns";
 import { wwwPartnerOf } from "@webcraft/core/domain-partner";
+import { STAGING_PASSWORD_MAX_LENGTH, STAGING_PASSWORD_MIN_LENGTH } from "@webcraft/core/staging-rules";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
@@ -55,6 +56,7 @@ import { useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 import { PasswordInput } from "../PasswordInput.tsx";
+import { useOpenStaging } from "../shell/StagingButton.tsx";
 
 /** What the screen shows: the Site's domains, the Install's edge, the Staging address and the Site's CDN. */
 export type DomainsData = SiteDomainList & { stagingUrl: string | null; cdn: CdnKey | null };
@@ -858,23 +860,8 @@ function StagingAddress({
 }) {
 	const t = useT();
 	const address = url ? new URL(url).host : null;
-	const [opening, setOpening] = useState(false);
-	const open = async () => {
-		setOpening(true);
-		const tab = window.open("about:blank", "_blank");
-		if (tab) tab.opener = null;
-		try {
-			const api = await getApi();
-			const { url: link } = await api.staging.open({ siteId, path: "/" });
-			if (tab) tab.location.href = link;
-			else window.location.assign(link);
-		} catch (failure) {
-			tab?.close();
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setOpening(false);
-		}
-	};
+	const { opening, open: openPath } = useOpenStaging(siteId);
+	const open = () => openPath("/");
 	return (
 		<Card>
 			<CardHeader>
@@ -982,8 +969,8 @@ function StagingPassword({
 									value={value}
 									onChange={(event) => setValue(event.target.value)}
 									autoComplete="new-password"
-									minLength={8}
-									maxLength={200}
+									minLength={STAGING_PASSWORD_MIN_LENGTH}
+									maxLength={STAGING_PASSWORD_MAX_LENGTH}
 									aria-describedby={`${id}-rules`}
 								/>
 							</div>
@@ -1002,7 +989,7 @@ function StagingPassword({
 						<FieldDescription id={`${id}-rules`}>{t("domains.stagingPasswordRules")}</FieldDescription>
 					</Field>
 					<div className="flex flex-wrap gap-2">
-						<Button type="submit" size="sm" disabled={busy || value.trim().length < 8}>
+						<Button type="submit" size="sm" disabled={busy || value.trim().length < STAGING_PASSWORD_MIN_LENGTH}>
 							{t("domains.stagingPasswordSave")}
 						</Button>
 						{password.set ? (

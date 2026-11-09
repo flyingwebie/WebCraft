@@ -16,7 +16,8 @@
 		"./import-rules": "./src/imports/source-rules.ts",
 		"./domain-partner": "./src/domains/partner.ts",
 		"./cdns": "./src/cdns/registry.ts",
-		"./edit-paths": "./src/edit-mode/paths.ts"
+		"./edit-paths": "./src/edit-mode/paths.ts",
+		"./staging-rules": "./src/staging/password-rules.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

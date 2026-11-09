@@ -2,7 +2,6 @@ import { type Auth, hashPassword, verifyPassword } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 import { sites, stagingLinks, stagingSessions } from "@webcraft/db/schema";
 import { and, eq, gt, isNull, lte, type SQL } from "drizzle-orm";
-
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
@@ -14,6 +13,7 @@ import type { SiteHost } from "../site-pages/index.ts";
 import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
+import { STAGING_PASSWORD_MAX_LENGTH, STAGING_PASSWORD_MIN_LENGTH } from "./password-rules.ts";
 
 export { STAGING_PAGE_POLICY, STAGING_PATH, STAGING_STYLESHEET, type StagingPageOptions, stagingPage } from "./page.ts";
 export { type StagingWords, stagingWords } from "./words.ts";
@@ -34,9 +34,7 @@ export const STAGING_PASSWORD_ACCESS_MS = 7 * 24 * 60 * 60 * 1000;
 /** How many passwords one client address may try on one Site's Staging address a minute, as many as signing in. */
 export const STAGING_PASSWORD_RATE_LIMIT: RateLimitRule = { limit: 10, windowMs: 60_000 };
 
-/** The shortest and longest staging password. It guards Drafts, not an account, but is still guessed from outside. */
-export const STAGING_PASSWORD_MIN_LENGTH = 8;
-export const STAGING_PASSWORD_MAX_LENGTH = 200;
+export { STAGING_PASSWORD_MAX_LENGTH, STAGING_PASSWORD_MIN_LENGTH } from "./password-rules.ts";
 
 /** A Site with no Staging address (the Install has no sites domain) can't be opened there. */
 export class StagingUnavailableError extends Error {

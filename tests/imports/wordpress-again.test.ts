@@ -200,7 +200,8 @@ describe("Undo", () => {
 		const { siteId, origin, file, settings } = await siteWithFile();
 		const { importId, run } = await runImport(install, staff.api, siteId, file.id, settings);
 		expect((await install.drainJobs()).failed).toEqual([]);
-		expect((await install.request(`${origin}/2024/03/spring-opening-hours`)).status).toBe(301);
+		// The rule for an old file address already sends visitors on (the Entries' rules wait for their publish).
+		expect((await install.request(`${origin}/wp-content/uploads/2024/03/loaf.jpg`)).status).toBe(301);
 		expect(run.undo).toEqual({ available: true, reason: null });
 
 		const first = await staff.api.imports.undo({ siteId, runId: run.id });
@@ -222,7 +223,7 @@ describe("Undo", () => {
 		expect((await staff.api.entries.list({ siteId, postTypeId: pages?.id ?? "" })).entries).toEqual([]);
 		expect((await staff.api.media.list({ siteId })).items).toEqual([]);
 		expect((await staff.api.media.list({ siteId, trash: true })).items).toHaveLength(2);
-		expect((await install.request(`${origin}/2024/03/spring-opening-hours`)).status).toBe(404);
+		expect((await install.request(`${origin}/wp-content/uploads/2024/03/loaf.jpg`)).status).toBe(404);
 		// The Import names what it would make again, so it can run again from scratch.
 		const { import: kept } = await staff.api.imports.get({ siteId, importId });
 		expect((kept.settings as SourceSettings).types.find((type) => type.type === "post")?.to).toEqual({
@@ -249,6 +250,23 @@ describe("Redirect rules", () => {
 		const page = await install.request(`${origin}/products/seeded-rye`);
 		expect(page.status).toBe(200);
 		expect(await page.text()).toContain("<h1>Seeded rye</h1>");
+	});
+
+	test("send visitors to where the Entry is published, its slug changed before the first publish included", async () => {
+		const { siteId, origin, file, settings } = await siteWithFile();
+		await runImport(install, staff.api, siteId, file.id, settings);
+		const posts = (await staff.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.name === "Posts");
+		const { entries } = await staff.api.entries.list({ siteId, postTypeId: posts?.id ?? "" });
+		const spring = entries.find((entry) => entry.draft.slug === "spring-opening-hours");
+		// A Draft has no page yet: the old link isn't sent to a page that doesn't exist.
+		expect((await install.request(`${origin}/2024/03/spring-opening-hours`)).status).toBe(404);
+
+		await staff.api.entries.saveDraft({ siteId, entryId: spring?.id ?? "", slug: "opening-times" });
+		await staff.api.entries.publish({ siteId, entryId: spring?.id ?? "" });
+
+		const moved = await install.request(`${origin}/2024/03/spring-opening-hours`);
+		expect(moved.status).toBe(301);
+		expect(moved.headers.get("location")).toBe("/posts/opening-times");
 	});
 
 	test("never take a path a rule already has", async () => {

@@ -498,7 +498,7 @@ describe("publishing them all", () => {
 	});
 
 	test("Modules hear of each item after it is published: a Draft slug change gets its Redirect rule", async () => {
-		await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
+		await (await install.superadmin()).api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 		const site = await newSite();
 		const post = await staff.api.entries.create({ siteId: site.siteId, postTypeId: site.postTypeId, title: "Rye" });
 		await staff.api.entries.publish({ siteId: site.siteId, entryId: post.entry.id });
