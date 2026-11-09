@@ -67,8 +67,9 @@ export async function collect(request: Request, context: SiteRouteContext): Prom
 	const now = context.now();
 	let visit: string | null = null;
 	let startsVisit = false;
+	let last: typeof events.$inferSelect | undefined;
 	if (visitor) {
-		const last = await context.data.first(
+		last = await context.data.first(
 			events,
 			and(eq(events.visitor, visitor), gte(events.occurredAt, new Date(now.getTime() - VISIT_GAP_MS))),
 			{ orderBy: [desc(events.occurredAt)] },
@@ -84,7 +85,9 @@ export async function collect(request: Request, context: SiteRouteContext): Prom
 	const userAgent = request.headers.get("user-agent") ?? "";
 	// Sources count arrivals: from another site, a campaign's link, or typed in (direct, empty).
 	const campaignSource = body.us?.trim().toLowerCase();
-	const source = campaignSource || (body.i === 1 ? null : sourceHost(body.r));
+	const source = (campaignSource || (body.i === 1 ? null : sourceHost(body.r)))?.slice(0, 200) ?? null;
+	// A visit's events all carry where it came from; before consent a page view is its own visit.
+	const visitSource = last ? last.visitSource : source;
 	await context.data.insert(events, {
 		occurredAt: now,
 		hour: startOf("hour", now),
@@ -93,7 +96,7 @@ export async function collect(request: Request, context: SiteRouteContext): Prom
 		name: body.t === "link" || body.t === "event" ? (body.n ?? null) : null,
 		target: body.t === "link" ? (body.h ?? null) : null,
 		path: body.p,
-		source: source?.slice(0, 200) ?? null,
+		source,
 		medium: body.um?.trim().toLowerCase() || null,
 		campaign: body.uc?.trim() || null,
 		country: await context.visitor.country(),
@@ -103,6 +106,7 @@ export async function collect(request: Request, context: SiteRouteContext): Prom
 		visitor,
 		visit,
 		startsVisit,
+		visitSource,
 	});
 	return answer(204);
 }

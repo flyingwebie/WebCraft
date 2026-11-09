@@ -43,7 +43,7 @@ beforeAll(async () => {
 	superadmin = await source.createSuperadmin();
 	const admin = await source.superadmin();
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
 	const workspaceId = (await source.createWorkspace("Acme Ltd")).id;
 	siteId = (await source.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await goLive(source, siteId);

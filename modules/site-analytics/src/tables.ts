@@ -58,11 +58,18 @@ export const events = schema.table(
 		visit: uuid("visit"),
 		/** Whether it started its visit. */
 		startsVisit: boolean("starts_visit").notNull(),
+		/**
+		 * Where the visit it belongs to came from (SDK 1.7 widgets filter by it): the source of the
+		 * visit's arrival, carried by every event of the visit; before consent, a page view's own
+		 * source (null for a move within the Site, whose visit is unknown).
+		 */
+		visitSource: text("visit_source"),
 	},
 	(table) => [
 		primaryKey({ columns: [table.id, table.occurredAt] }),
 		index("events_site_occurred_at_idx").on(table.siteId, table.occurredAt),
 		index("events_site_visitor_occurred_at_idx").on(table.siteId, table.visitor, table.occurredAt),
+		index("events_site_type_occurred_at_idx").on(table.siteId, table.type, table.occurredAt),
 	],
 );
 
@@ -120,3 +127,33 @@ export const settings = schema.table(
 	},
 	(table) => [primaryKey({ columns: [table.siteId] })],
 );
+
+/**
+ * A Site's Goals (Structure, built by Staff): something a visitor does that counts as a result. Each
+ * has a name, unique on the Site whatever its case (Widgets, Dashboard templates and Workspace
+ * Dashboards name Goals by it), and what it counts (`definition`, see `goals.ts`): a Form Submission,
+ * a page visit, a click on an outbound, download, phone or email link, or a custom event.
+ */
+export const goals = schema.table("goals", {
+	...siteColumns(),
+	id: uuid("id").primaryKey().defaultRandom(),
+	name: text("name").notNull(),
+	/** `form`, `page`, `link` or `event`. */
+	kind: text("kind").notNull(),
+	definition: jsonb("definition").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
+/**
+ * A Site's Funnels (Structure, built by Staff): two to five steps, each one of the Site's Goals (by
+ * its id) or a page visit, counted per visitor within one day (see `funnels.ts`).
+ */
+export const funnels = schema.table("funnels", {
+	...siteColumns(),
+	id: uuid("id").primaryKey().defaultRandom(),
+	name: text("name").notNull(),
+	steps: jsonb("steps").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});

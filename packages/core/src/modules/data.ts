@@ -104,6 +104,16 @@ export function moduleData(
 			if (query.limit !== undefined) select = select.limit(query.limit);
 			return (await select) as never;
 		},
+		values: (table, column, where?: SQL) => {
+			const owned = own(table);
+			if (!new Set(Object.values(getTableColumns(owned))).has(column)) {
+				throw new ModuleRefusedError("table", `The column of values isn't a column of ${getTableName(owned)}.`);
+			}
+			return scope.db
+				.select({ value: column })
+				.from(owned as never)
+				.where(queries.where(owned, where));
+		},
 	};
 }
 

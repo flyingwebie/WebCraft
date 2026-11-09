@@ -8,6 +8,7 @@ import type { Label, ModuleManifestInput } from "./manifest.ts";
 import type { NotFoundLog, RedirectRules } from "./redirects.ts";
 import type { ModuleSchedule, SubmissionReceiver } from "./submissions.ts";
 import type { ModuleMigration } from "./tables.ts";
+import type { ModuleWidget } from "./widgets.ts";
 
 /**
  * Everything a Module is: its manifest and what it adds to WebCraft. Export one from the Module's
@@ -90,13 +91,21 @@ export type ModuleDefinition = {
 	 * Added in SDK 1.5.
 	 */
 	notFoundLog?: NotFoundLog;
+	/**
+	 * Kinds of Widget it adds to the catalog Staff build Dashboards from (Site-level Modules only), each
+	 * with its shape, the filters it takes, its settings and its `query` (see `widget`). Added in SDK 1.7.
+	 */
+	widgets?: readonly ModuleWidget[];
+	/**
+	 * The names of a Site's Goals, which its Widgets' `goal` filter offers there (SDK 1.7): needed by a
+	 * Module whose Widgets take that filter.
+	 */
+	widgetGoals?: (context: ModuleContext) => Promise<readonly string[]>;
 	// Later SDK versions open more extension points; until then a Module can't use them:
 	/** Structure presets (#110). */
 	structurePresets?: readonly never[];
-	/** Declarative Block types: settings made of Fields, output in Template markup (#103). */
+	/** Declarative Block types: settings made of Fields, output in Template markup. */
 	blockTypes?: readonly never[];
-	/** Dashboard Widgets. */
-	widgets?: readonly never[];
 };
 
 /**

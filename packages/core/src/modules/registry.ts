@@ -8,6 +8,7 @@ import {
 	labelProblem,
 	MODULE_EVENTS,
 	MODULE_SITE_SCRIPT_MAX_LENGTH,
+	type ModuleContext,
 	type ModuleDefinition,
 	type ModuleEventName,
 	type ModuleJob,
@@ -16,6 +17,7 @@ import {
 	type ModuleProcedures,
 	type ModuleSchedule,
 	type ModuleTable,
+	type ModuleWidget,
 	moduleManifestSchema,
 	moduleSchemaName,
 	type NotFoundLog,
@@ -23,6 +25,9 @@ import {
 	SDK_VERSION,
 	type SiteRoute,
 	type SubmissionReceiver,
+	WIDGET_FILTERS,
+	WIDGET_SHAPES,
+	type WidgetOption,
 } from "@webcraft/module-sdk";
 import { parseTemplateMarkup, TemplateMarkupInvalidError } from "@webcraft/renderer";
 import { getTableColumns, getTableName, isTable } from "drizzle-orm";
@@ -97,6 +102,10 @@ export type RunnableModule = {
 	redirects: RedirectRules | null;
 	/** How it keeps the Sites' 404 log, when it does (SDK 1.5; at most one Module of a build). */
 	notFoundLog: NotFoundLog | null;
+	/** The kinds of Widget it adds to Dashboards (SDK 1.7). */
+	widgets: readonly ModuleWidget[];
+	/** The names of a Site's Goals its Widgets' `goal` filter offers (SDK 1.7). */
+	widgetGoals: ((context: ModuleContext) => Promise<readonly string[]>) | null;
 };
 
 /** One of a Module's tables kept in monthly partitions, as WebCraft keeps it. */
@@ -145,14 +154,16 @@ const DEFINITION_KEYS = new Set([
 	"redirectRules",
 	"notFoundLog",
 	"widgets",
+	"widgetGoals",
 ]);
 
 /** Extension points declared for later SDK versions: a Module can't use them yet. */
 const LATER = {
 	structurePresets: "Structure presets",
 	blockTypes: "Block types",
-	widgets: "Widgets",
 };
+
+const WIDGET_KIND = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 const NAME = /^[a-z][a-zA-Z0-9]*$/;
 const PAGE_PATH = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -491,6 +502,8 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		if (typeof notFound.record !== "function") problem("Its notFoundLog has no record function.");
 	}
 
+	const widgets = checkWidgets(definition, manifest);
+
 	return {
 		runnable: true,
 		id: manifest.id,
@@ -512,7 +525,91 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		partitions,
 		redirects,
 		notFoundLog: notFound,
+		widgets,
+		widgetGoals: definition.widgetGoals ?? null,
 	};
+}
+
+/**
+ * Checks the Widget kinds a Module adds (SDK 1.7): Site-level Modules only (a Widget counts one Site
+ * at a time; Workspace Dashboards add the Sites up), kinds named once, labels in its languages, a
+ * shape the admin draws, filters it knows (`goal` with `widgetGoals`), and settings that are choices.
+ */
+function checkWidgets(definition: ModuleDefinition, manifest: ModuleManifest): ModuleWidget[] {
+	const declared = definition.widgets ?? [];
+	const goals = definition.widgetGoals;
+	if (goals !== undefined && typeof goals !== "function") problem("Its widgetGoals isn't a function.");
+	if (declared.length > 0 && manifest.level !== "site") {
+		problem("Only Site-level Modules add Widgets: a Widget counts one Site at a time.");
+	}
+	const checked: ModuleWidget[] = [];
+	for (const widget of declared) {
+		const kind = widget?.kind;
+		if (typeof kind !== "string" || !WIDGET_KIND.test(kind)) {
+			problem(`The Widget kind ${String(kind)} isn't lower-case words joined by dashes.`);
+		}
+		if (checked.some((other) => other.kind === kind)) problem(`The Widget kind ${kind} is declared twice.`);
+		for (const [what, words] of [
+			["label", widget.label],
+			["description", widget.description],
+		] as const) {
+			const missing = labelProblem(words ?? {}, manifest.adminLanguages);
+			if (missing) problem(`The Widget ${kind}'s ${what}: ${missing}`);
+		}
+		if (!(WIDGET_SHAPES as readonly string[]).includes(widget.shape)) {
+			problem(`The Widget ${kind}'s shape ${String(widget.shape)} isn't one of ${WIDGET_SHAPES.join(", ")}.`);
+		}
+		for (const filter of widget.filters ?? []) {
+			if (!(WIDGET_FILTERS as readonly string[]).includes(filter)) {
+				problem(`The Widget ${kind} takes the filter ${String(filter)}, which Dashboards don't have.`);
+			}
+			if (filter === "goal" && typeof goals !== "function") {
+				problem(`The Widget ${kind} takes the goal filter, but the Module has no widgetGoals to offer its Goals.`);
+			}
+		}
+		const keys = new Set<string>();
+		for (const setting of widget.settings ?? []) {
+			const key = setting?.key;
+			if (typeof key !== "string" || !NAME.test(key)) problem(`A setting of the Widget ${kind} has no name.`);
+			if (keys.has(key)) problem(`The Widget ${kind}'s setting ${key} is declared twice.`);
+			keys.add(key);
+			const words = labelProblem(setting.label ?? {}, manifest.adminLanguages);
+			if (words) problem(`The Widget ${kind}'s setting ${key}: ${words}`);
+			if (typeof setting.options === "function") {
+				if (setting.default !== undefined) {
+					problem(`The Widget ${kind}'s setting ${key} offers options worked out per Site: it can't have a default.`);
+				}
+			} else if (Array.isArray(setting.options)) {
+				const values = new Set<string>();
+				for (const option of setting.options as readonly WidgetOption[]) {
+					if (typeof option?.value !== "string" || values.has(option.value)) {
+						problem(`The Widget ${kind}'s setting ${key} has an option without a value of its own.`);
+					}
+					const label =
+						typeof option.label === "string" ? null : labelProblem(option.label ?? {}, manifest.adminLanguages);
+					if (label) problem(`The Widget ${kind}'s setting ${key}, option ${option.value}: ${label}`);
+					values.add(option.value);
+				}
+				const defaults =
+					setting.default === undefined
+						? []
+						: typeof setting.default === "string"
+							? [setting.default]
+							: [...setting.default];
+				if (defaults.some((value) => !values.has(value))) {
+					problem(`The Widget ${kind}'s setting ${key} starts with a value it doesn't offer.`);
+				}
+				if (!setting.multiple && defaults.length > 1) {
+					problem(`The Widget ${kind}'s setting ${key} takes one value, but starts with several.`);
+				}
+			} else {
+				problem(`The Widget ${kind}'s setting ${key} offers no options.`);
+			}
+		}
+		if (typeof widget.query !== "function") problem(`The Widget ${kind} has no query function.`);
+		checked.push(widget);
+	}
+	return checked;
 }
 
 function isWhole(value: unknown, least: number, most: number): value is number {

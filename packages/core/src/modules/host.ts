@@ -594,7 +594,12 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	 * What a kept Submission sets off (never spam): its Notifications, Auto-reply and Webhooks, then
 	 * `form.submitted` for other Modules, with its sender when known. Never throws.
 	 */
-	const submissionKept = async (site: Site, submission: KeptSubmission, sender: FormSender | null) => {
+	const submissionKept = async (
+		site: Site,
+		submission: KeptSubmission,
+		sender: FormSender | null,
+		visitor: string | null = null,
+	) => {
 		await hostOptions.submissionActions?.kept(site, submission, { autoReply: true });
 		if (!sender) return;
 		await queueEvent("form.submitted", site.workspaceId, site.id, submission.receivedAt, {
@@ -603,6 +608,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			page: submission.page,
 			language: submission.language,
 			sender,
+			visitor,
 		} satisfies ModuleEvents["form.submitted"]);
 	};
 	options.submissions = {
@@ -936,10 +942,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
 			const scope = await openForModule(module, place);
 			if (!scope) throw new ModuleNotFoundError();
-			const submission: FormSubmission = {
-				...received,
-				sender: await formSenderOf(visitors.visitorOf(sender.route, sender.request), sender.request),
-			};
+			const visitor = visitors.visitorOf(sender.route, sender.request);
+			const submission: FormSubmission = { ...received, sender: await formSenderOf(visitor, sender.request) };
 			let kept: { id: string };
 			try {
 				kept = await receiver.receive(submission, moduleContext(module, scope, options));
@@ -952,7 +956,19 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				throw new ModuleFailedError();
 			}
 			// What follows a kept Submission (never spam) is queued afterwards, as background jobs.
-			if (submission.spam === null) await submissionKept(site, { ...submission, id: kept.id }, submission.sender);
+			if (submission.spam === null) {
+				// The sender's id for the day, only once they accepted Analytics on the Site's own banner
+				// (never with an outside consent service, which only the page can read), and only where
+				// analytics may count them at all: analytics links the Submission to their visit with it.
+				const { sender: known } = submission;
+				const countable =
+					known.via === "domain" &&
+					!known.signedIn &&
+					!known.doNotTrack &&
+					known.consent.accepted.includes("analytics");
+				const dailyId = countable ? await visitor.dailyId("analytics") : null;
+				await submissionKept(site, { ...submission, id: kept.id }, submission.sender, dailyId);
+			}
 			return { id: kept.id };
 		},
 
