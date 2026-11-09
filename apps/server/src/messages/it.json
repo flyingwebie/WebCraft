@@ -67,6 +67,8 @@
 		"ENTRY_LINKED": "Altri contenuti devono puntare a questo tramite una relazione obbligatoria. Modificali prima.",
 		"GLOBALS_INVALID": "Alcuni valori globali non possono essere salvati. Controlla quelli segnalati.",
 		"GLOBALS_INCOMPLETE": "Compila i valori globali segnalati prima di pubblicare.",
+		"CONSENT_BANNER_INVALID": "Alcune parole del banner non si possono salvare. Controlla quelle segnate.",
+		"CONSENT_RECORD_NOT_FOUND": "Su questo Site non c'è nessuna registrazione del consenso con questo id.",
 		"PAGE_NOT_FOUND": "Questo sito non ha questa pagina.",
 		"PAGE_PARENT_UNPUBLISHED": "Pubblica prima la pagina genitore: l'indirizzo di una pagina inizia con quello del genitore.",
 		"PAGE_HAS_CHILDREN": "Altre pagine si trovano sotto questa. Spostale o eliminale prima.",
@@ -227,6 +229,7 @@
 			"modules": "Moduli",
 			"modulePagesGroup": "Pagine dei Moduli",
 			"languages": "Lingue",
+			"consentBanner": "Banner del consenso",
 			"outsideScripts": "Script esterni",
 			"domains": "Domini e staging",
 			"contentGroup": "Contenuti",
@@ -1386,6 +1389,70 @@
 			"empty": "Il file è vuoto.",
 			"unreachable": "Il download non ha funzionato. Controlla l'indirizzo o riprova più tardi.",
 			"limit": "Questo sito ha già tutte le librerie che può avere."
+		}
+	},
+	"consentBanner": {
+		"pageTitle": "Banner del consenso",
+		"heading": "Banner del consenso",
+		"intro": "Come questo Site chiede ai visitatori quali categorie di consenso accettano. Gli script e i contenuti incorporati fuori da Necessari restano in attesa finché i visitatori non accettano la loro categoria.",
+		"settingsTitle": "Come vengono chiesti i visitatori",
+		"settingsIntro": "Un'impostazione del Site: vale subito per ogni pagina e viene registrata. Solo lo Staff la cambia.",
+		"mode": "Modalità",
+		"modes": {
+			"optIn": "Consenso preventivo (opt-in)",
+			"optOut": "Rifiuto esplicito (opt-out)",
+			"none": "Nessun banner",
+			"outside": "Servizio di consenso esterno"
+		},
+		"modeHelp": {
+			"optIn": "Nulla di ciò che è in attesa si carica finché il visitatore non accetta la sua categoria. La scelta abituale dove valgono le leggi sul consenso.",
+			"optOut": "Tutto si carica finché il visitatore non rifiuta la sua categoria.",
+			"none": "Nessun banner, e nulla resta in attesa. Solo dove non vale nessuna legge sul consenso.",
+			"outside": "Un altro servizio chiede ai visitatori e mostra il proprio banner: aggiungi il suo script in Script esterni, nella categoria Necessari. WebCraft legge la sua risposta (i dati TCF v2.2, il segnale consent-mode, oppure webcraft.consent.set() dallo script del Site) e fino ad allora tiene in attesa il resto."
+		},
+		"layout": "Aspetto",
+		"layouts": {
+			"bar": "Una barra in basso",
+			"box": "Un riquadro in un angolo",
+			"dialog": "Una finestra al centro della pagina"
+		},
+		"layoutHelp": {
+			"bar": "I visitatori possono usare la pagina mentre è visibile.",
+			"box": "I visitatori possono usare la pagina mentre è visibile.",
+			"dialog": "I visitatori rispondono prima di usare la pagina."
+		},
+		"save": "Salva",
+		"saved": "L'impostazione del banner del consenso è salvata.",
+		"current": "{mode}, {layout}. Lo Staff cambia come vengono chiesti i visitatori.",
+		"version": "Versione del banner {version}",
+		"wordsTitle": "Le parole del banner",
+		"wordsIntro": "Ciò che dice il banner, in ogni lingua. Una parola lasciata vuota mostra quella di WebCraft; una lingua senza la propria parola mostra quella della lingua predefinita. Aggiungi “Impostazioni dei cookie” al Site template con '{{@consentSettings}}'.",
+		"wordsOutside": "Con un servizio di consenso esterno si vedono solo le parole dei contenuti in attesa: il servizio mostra il proprio banner.",
+		"wordsNone": "Senza banner, queste parole non si vedono da nessuna parte.",
+		"default": "Vuoto: “{text}”",
+		"privacyHelp": "Una pagina del Site, come /privacy, e il testo del link (vuoto: “{text}”).",
+		"publishHelp": "Pubblicare mette queste parole su ogni pagina subito, come nuova versione del banner.",
+		"published": "Le parole del banner del consenso sono online.",
+		"fields": {
+			"heading": "Titolo",
+			"message": "Messaggio",
+			"acceptAll": "Pulsante “Accetta tutto”",
+			"rejectAll": "Pulsante “Rifiuta tutto”",
+			"choose": "Pulsante “Scegli”",
+			"save": "Pulsante “Salva le scelte”",
+			"settings": "Pulsante “Impostazioni dei cookie”",
+			"privacyPolicy": "Link all'informativa sulla privacy",
+			"necessary": "Necessari",
+			"necessaryText": "A cosa servono i Necessari",
+			"analytics": "Statistiche",
+			"analyticsText": "A cosa servono le Statistiche",
+			"marketing": "Marketing",
+			"marketingText": "A cosa serve il Marketing",
+			"media": "Contenuti multimediali",
+			"mediaText": "A cosa servono i Contenuti multimediali",
+			"embedText": "Contenuto in attesa: cosa dice il suo segnaposto",
+			"loadContent": "Pulsante “Carica il contenuto”",
+			"rememberEmbeds": "Casella “Carica sempre i contenuti multimediali”"
 		}
 	},
 	"outsideScripts": {

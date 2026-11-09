@@ -65,6 +65,8 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Modules (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/modules`, as: "staff" },
 	{ name: "Site › Modules (Staff)", path: ({ siteId }) => `/sites/${siteId}/modules`, as: "staff" },
 	{ name: "Site › Languages (Staff)", path: ({ siteId }) => `/sites/${siteId}/languages`, as: "staff" },
+	{ name: "Site › Consent banner (Staff)", path: ({ siteId }) => `/sites/${siteId}/consent-banner`, as: "staff" },
+	{ name: "Site › Consent banner (Owner)", path: ({ siteId }) => `/sites/${siteId}/consent-banner`, as: "owner" },
 	{ name: "Site › Libraries, none yet (Staff)", path: ({ siteId }) => `/sites/${siteId}/libraries`, as: "staff" },
 	{
 		name: "Site › Outside scripts, none yet (Staff)",

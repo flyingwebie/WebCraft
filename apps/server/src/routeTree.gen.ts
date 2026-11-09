@@ -26,6 +26,7 @@ import { Route as AdminSitesSiteIdRouteImport } from './routes/_admin/sites.$sit
 import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/workspaces.index'
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
 import { Route as AdminSitesSiteIdIndexRouteImport } from './routes/_admin/sites.$siteId.index'
+import { Route as AdminSitesSiteIdConsentBannerRouteImport } from './routes/_admin/sites.$siteId.consent-banner'
 import { Route as AdminSitesSiteIdDomainsRouteImport } from './routes/_admin/sites.$siteId.domains'
 import { Route as AdminSitesSiteIdGlobalsRouteImport } from './routes/_admin/sites.$siteId.globals'
 import { Route as AdminSitesSiteIdLanguagesRouteImport } from './routes/_admin/sites.$siteId.languages'
@@ -133,6 +134,12 @@ const AdminSitesSiteIdIndexRoute = AdminSitesSiteIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminSitesSiteIdRoute,
 } as any)
+const AdminSitesSiteIdConsentBannerRoute =
+  AdminSitesSiteIdConsentBannerRouteImport.update({
+    id: '/consent-banner',
+    path: '/consent-banner',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
 const AdminSitesSiteIdDomainsRoute = AdminSitesSiteIdDomainsRouteImport.update({
   id: '/domains',
   path: '/domains',
@@ -272,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
   '/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
@@ -309,6 +317,7 @@ export interface FileRoutesByTo {
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
+  '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
   '/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
@@ -348,6 +357,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
+  '/_admin/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/_admin/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/_admin/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
   '/_admin/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
@@ -389,6 +399,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/workspaces/'
+    | '/sites/$siteId/consent-banner'
     | '/sites/$siteId/domains'
     | '/sites/$siteId/globals'
     | '/sites/$siteId/languages'
@@ -426,6 +437,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/settings/storage'
     | '/workspaces'
+    | '/sites/$siteId/consent-banner'
     | '/sites/$siteId/domains'
     | '/sites/$siteId/globals'
     | '/sites/$siteId/languages'
@@ -464,6 +476,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId'
     | '/_admin/workspaces/$workspaceId'
     | '/_admin/workspaces/'
+    | '/_admin/sites/$siteId/consent-banner'
     | '/_admin/sites/$siteId/domains'
     | '/_admin/sites/$siteId/globals'
     | '/_admin/sites/$siteId/languages'
@@ -614,6 +627,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/sites/$siteId/'
       preLoaderRoute: typeof AdminSitesSiteIdIndexRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/sites/$siteId/consent-banner': {
+      id: '/_admin/sites/$siteId/consent-banner'
+      path: '/consent-banner'
+      fullPath: '/sites/$siteId/consent-banner'
+      preLoaderRoute: typeof AdminSitesSiteIdConsentBannerRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
     '/_admin/sites/$siteId/domains': {
@@ -805,6 +825,7 @@ const AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren =
   )
 
 interface AdminSitesSiteIdRouteChildren {
+  AdminSitesSiteIdConsentBannerRoute: typeof AdminSitesSiteIdConsentBannerRoute
   AdminSitesSiteIdDomainsRoute: typeof AdminSitesSiteIdDomainsRoute
   AdminSitesSiteIdGlobalsRoute: typeof AdminSitesSiteIdGlobalsRoute
   AdminSitesSiteIdLanguagesRoute: typeof AdminSitesSiteIdLanguagesRoute
@@ -821,6 +842,7 @@ interface AdminSitesSiteIdRouteChildren {
 }
 
 const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
+  AdminSitesSiteIdConsentBannerRoute: AdminSitesSiteIdConsentBannerRoute,
   AdminSitesSiteIdDomainsRoute: AdminSitesSiteIdDomainsRoute,
   AdminSitesSiteIdGlobalsRoute: AdminSitesSiteIdGlobalsRoute,
   AdminSitesSiteIdLanguagesRoute: AdminSitesSiteIdLanguagesRoute,
