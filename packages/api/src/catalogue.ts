@@ -263,6 +263,25 @@ export const PROCEDURES = {
 	"modules.setOnWorkspace": write("Switches a Workspace-level Module on or off on a Workspace."),
 	"modules.removeSiteData": write("Removes a Module's data from a Site, after a preview and a confirmation."),
 	"modules.removeWorkspaceData": write("Removes a Module's data from a Workspace, after a preview and a confirmation."),
+	"dashboards.catalog": read("The Widget kinds a Dashboard here can show, with their filters and settings."),
+	"dashboards.options": read("What a Widget kind's setting offers here, such as the Site's Goals."),
+	"dashboards.list": read("Lists a Site's Dashboards, or a Workspace's, that the caller sees."),
+	"dashboards.get": read("One Dashboard and its Widgets, without their data."),
+	"dashboards.create": write("Creates a Dashboard, empty or from a Dashboard template."),
+	"dashboards.update": write("Renames a Dashboard, or changes its range or who sees it."),
+	"dashboards.delete": write("Deletes a Dashboard."),
+	"dashboards.saveAsTemplate": write("Keeps a Dashboard's Widgets and range as a Dashboard template."),
+	"dashboards.export": read("Every Widget of a Dashboard as one CSV file (recorded in the Audit log)."),
+	"dashboards.widgets.add": write("Adds a Widget from the catalog to a Dashboard."),
+	"dashboards.widgets.update": write("Changes a Widget's title, range, filters, settings or rows."),
+	"dashboards.widgets.move": write("Moves and resizes a Widget on its Dashboard's grid."),
+	"dashboards.widgets.remove": write("Takes a Widget off its Dashboard."),
+	"dashboards.widgets.data": read("What a Widget shows now: its counts for its range, or why it shows nothing."),
+	"dashboards.widgets.export": read("One Widget as a CSV file (recorded in the Audit log)."),
+	"dashboardTemplates.list": read(
+		"Lists the Dashboard templates of the Workspaces where the caller builds Dashboards.",
+	),
+	"dashboardTemplates.delete": write("Deletes a Dashboard template."),
 } as const satisfies Record<ProcedurePath, Exposure>;
 
 /** How the catalogue lists a procedure: internal to the admin, or a public read or write. */

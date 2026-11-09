@@ -3,6 +3,7 @@ import { moduleApprovals, moduleSwitches, people, sites, workspaces } from "@web
 import {
 	type FormSender,
 	type FormSubmission,
+	isModuleError,
 	type KeptSubmission,
 	type Label,
 	MODULE_EVENTS,
@@ -11,9 +12,13 @@ import {
 	type ModuleEventName,
 	type ModuleEvents,
 	ModuleRefusedError,
+	type ModuleWidget,
 	type PageMiss,
 	type RedirectRequest,
 	type RedirectTarget,
+	type WidgetData,
+	type WidgetOption,
+	type WidgetRequest,
 	wordsIn,
 } from "@webcraft/module-sdk";
 import { and, eq, getTableName, isNull } from "drizzle-orm";
@@ -255,7 +260,53 @@ export type ModuleHost = {
 	flushMisses(): Promise<void>;
 	/** Runs a batch of misses (the `modules.notFound` job). */
 	runMisses(payload: QueuedMisses): Promise<void>;
+	/**
+	 * The Widget kinds Modules add to Dashboards (SDK 1.7): each runnable Site-level Module's, with its
+	 * id and name in `language`, whether or not it runs anywhere.
+	 */
+	widgetKinds(language: string): WidgetKind[];
+	/** Whether a Site-level Module runs on a Site (approved and switched on there). */
+	runsOn(site: { id: string; workspaceId: string }, moduleId: string): Promise<boolean>;
+	/**
+	 * Runs a Widget kind's query on a Site, as its Module acting by itself, once the caller checked
+	 * that the person may see the Dashboard. A refusal (`ModuleError`), a Module that doesn't run on
+	 * the Site, and a failure (written to the Module log) come back as the Widget's problem.
+	 */
+	runWidget(
+		site: { id: string; workspaceId: string },
+		moduleId: string,
+		kind: string,
+		request: WidgetRequest,
+	): Promise<WidgetAnswer>;
+	/** The options a Widget setting offers on a Site (worked out there for some, such as its Goals); none where the Module doesn't run. */
+	widgetOptions(
+		site: { id: string; workspaceId: string },
+		moduleId: string,
+		kind: string,
+		setting: string,
+	): Promise<readonly WidgetOption[]>;
+	/** The names of the Goals a Module's Widgets can be filtered by on a Site; none where it doesn't run. */
+	widgetGoals(site: { id: string; workspaceId: string }, moduleId: string): Promise<readonly string[]>;
 };
+
+/** A Widget kind a Module adds, as Dashboards see it. */
+export type WidgetKind = {
+	moduleId: string;
+	module: string;
+	/** The Module's admin languages, the first its fallback: its Widgets' words come in them. */
+	languages: readonly string[];
+	widget: ModuleWidget;
+};
+
+/** What a Widget kind's query answered on one Site: its data, or the problem that kept it from counting. */
+export type WidgetAnswer = { data: WidgetData; problem: null } | { data: null; problem: WidgetProblem };
+
+/**
+ * Why a Widget shows nothing on a Site: its Module's own refusal (`code` its own, such as
+ * `GOAL_NOT_FOUND`), `MODULE_NOT_RUNNING` (switched off there, or waiting for approval),
+ * `WIDGET_UNKNOWN` (no Module of this build adds it) or `WIDGET_FAILED` (in the Module log).
+ */
+export type WidgetProblem = { code: string; message: string };
 
 /** How many Redirect rules the Site pipeline follows in one answer; a longer chain goes on in the next request. */
 export const MAX_REDIRECT_HOPS = 5;
@@ -1102,6 +1153,80 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		setKeepMonths: (scope, moduleId, table, months) => partitions.setKeepMonths(scope, moduleId, table, months),
 		maintainPartitions: () => partitions.maintain(),
 		purgeSalts: () => visitors.purgeSalts(),
+
+		widgetKinds(language) {
+			return registry.all().flatMap((module) =>
+				module.runnable && module.level === "site"
+					? module.widgets.map((widget) => ({
+							moduleId: module.id,
+							module: words(module, module.manifest.name, language) || module.id,
+							languages: module.manifest.adminLanguages,
+							widget,
+						}))
+					: [],
+			);
+		},
+
+		async runsOn(site, moduleId) {
+			const module = registry.get(moduleId);
+			return module?.runnable === true && module.level === "site" && (await runsOnSite(site, module));
+		},
+
+		async runWidget(site, moduleId, kind, request) {
+			const module = registry.get(moduleId);
+			const widget = module?.runnable ? module.widgets.find((each) => each.kind === kind) : undefined;
+			if (!module?.runnable || !widget) {
+				return {
+					data: null,
+					problem: { code: "WIDGET_UNKNOWN", message: "No Module of this Install adds this Widget." },
+				};
+			}
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) {
+				return {
+					data: null,
+					problem: { code: "MODULE_NOT_RUNNING", message: "The Module that adds this Widget isn't on here." },
+				};
+			}
+			try {
+				const data = await widget.query(request, moduleContext(module, scope, options));
+				if (data?.shape !== widget.shape)
+					throw new TypeError(`It answered a ${String(data?.shape)}, not a ${widget.shape}.`);
+				return { data, problem: null };
+			} catch (error) {
+				if (isModuleError(error)) return { data: null, problem: { code: error.code, message: error.message } };
+				await writeLine(options, module, place, "error", `The Widget ${kind} failed.`, {
+					widget: kind,
+					error: describeError(error),
+				});
+				log.warn("A Module's Widget failed", { moduleId: module.id, widget: kind, error });
+				return {
+					data: null,
+					problem: { code: "WIDGET_FAILED", message: "This Widget couldn't count. The Module log says why." },
+				};
+			}
+		},
+
+		async widgetOptions(site, moduleId, kind, key) {
+			const module = registry.get(moduleId);
+			const setting = module?.runnable
+				? module.widgets.find((each) => each.kind === kind)?.settings?.find((each) => each.key === key)
+				: undefined;
+			if (!module?.runnable || !setting) return [];
+			if (typeof setting.options !== "function") return setting.options;
+			const scope = await openForModule(module, { level: "site", workspaceId: site.workspaceId, siteId: site.id });
+			if (!scope) return [];
+			return await setting.options(moduleContext(module, scope, options));
+		},
+
+		async widgetGoals(site, moduleId) {
+			const module = registry.get(moduleId);
+			if (!module?.runnable || !module.widgetGoals) return [];
+			const scope = await openForModule(module, { level: "site", workspaceId: site.workspaceId, siteId: site.id });
+			if (!scope) return [];
+			return await module.widgetGoals(moduleContext(module, scope, options));
+		},
 
 		async runJob(payload) {
 			const module = registry.get(payload.moduleId);
