@@ -41,17 +41,41 @@ const version = {
  * and publish them.
  */
 export const filters = {
-	/** The Site's Filters, by name. */
+	/** The Site's Filters, by name, each with where it is placed. */
 	list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 		return { filters: await context.services.filters.list(site) };
 	}),
 
-	/** One Filter: its Draft and published version. */
+	/**
+	 * One Filter: its Draft and published version, where it is placed (`usage`), and what its controls
+	 * can use from its Loop's Post Types (`sources`; null when its Loop is no longer a query Loop).
+	 */
 	get: signedIn.input(z.object({ siteId: id, filterId: id })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-		return { filter: await context.services.filters.get(site, input.filterId) };
+		return context.services.filters.details(site, input.filterId);
 	}),
+
+	/**
+	 * The Filter builder's live preview: the Draft with the changes given (not saved), rendered where it
+	 * is placed with its Loop's published Entries and real counts for the choices of `query`, in the
+	 * Site's Design system, checked as saving checks it.
+	 */
+	preview: signedIn
+		.input(
+			z.object({
+				siteId: id,
+				filterId: id,
+				...version,
+				query: z.string().max(2_000).optional(),
+				language: z.string().max(35).optional(),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			const { siteId: _, filterId, ...change } = input;
+			return context.services.filters.preview(site, filterId, change);
+		}),
 
 	/**
 	 * Creates a Filter with its name (how Template markup names it; it never changes) for one query

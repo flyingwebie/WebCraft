@@ -158,7 +158,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			const designSystem = await draftDesignSystem(scope);
 			const catalogue = classCatalogue(designSystem);
 			const tree = withStyleClasses(checked(draft.tree, source, catalogue), draft.styles ?? {}, catalogue);
-			const html = await renderPreview(scope, sources, {
+			const { html } = await renderPreview(scope, sources, {
 				kind: source.kind,
 				postType: source.postType,
 				props: source.props,

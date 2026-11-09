@@ -241,7 +241,7 @@ function consentTokens(names: { propertyOf(ref: { token: string; step?: string }
 }
 
 /** Where phones end: the Design system's smallest breakpoint (768 px by default, and without one). */
-function phoneWidth(breakpoints: readonly { width: number }[]): number {
+export function phoneWidthOf(breakpoints: readonly { width: number }[]): number {
 	return breakpoints.length > 0 ? Math.min(...breakpoints.map((breakpoint) => breakpoint.width)) : 768;
 }
 
@@ -288,7 +288,7 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		...BODY_PARTS,
 		...FORM_PARTS,
 		...SEARCH_PARTS,
-		...filterParts(phoneWidth(tokens.breakpoints)),
+		...filterParts(phoneWidthOf(tokens.breakpoints)),
 		...CONSENT_PARTS,
 		...focalPointRules(),
 	);

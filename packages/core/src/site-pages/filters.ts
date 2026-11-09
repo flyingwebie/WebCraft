@@ -62,9 +62,15 @@ export type PageFilters = {
 	/** Whether a Loop of the Site is narrowed by a Filter on the page. */
 	filtered(loop: string): boolean;
 	/** How each placed Filter renders, once the page's Loops ran (the result count is theirs). */
-	render(loops: PageLoops): Promise<(node: FilterNode) => string>;
+	render(loops: PageLoops): Promise<RenderedFilters>;
 	/** When the page's Filters show something else: the next midnight (UTC) when they offer date presets. */
 	changesAt: Date | null;
+};
+
+/** The page's Filters once its Loops ran: each placement's HTML, and what each Filter says its result count is. */
+export type RenderedFilters = {
+	html(node: FilterNode): string;
+	announce(filterId: string): string | undefined;
 };
 
 /** A page with no Filter. */
@@ -73,7 +79,7 @@ const NO_FILTERS_ON_PAGE: PageFilters = {
 	state: { values: new Map(), query: "", differs: false, search: undefined },
 	narrowing: new Map(),
 	filtered: () => false,
-	render: async () => () => "",
+	render: async () => ({ html: () => "", announce: () => undefined }),
 	changesAt: null,
 };
 
@@ -107,6 +113,8 @@ export type FilterPlace = Pick<LoopPlace, "languages" | "version" | "path" | "cu
 	kept?: readonly (readonly [string, string])[];
 	/** Whether the page shares its address with Site search (the search results page): its Filters' keys are then prefixed. */
 	shared?: boolean;
+	/** The Filter builder's preview: only this Filter shows, in the version it is given (not saved yet). */
+	only?: { id: string; version: FilterVersion };
 };
 
 /** Works out the page's Filters from its trees. */
@@ -117,7 +125,7 @@ export async function pageFilters(
 	postTypes: readonly PostType[],
 ): Promise<PageFilters> {
 	const nodes = trees.flatMap((tree) => (tree ? filterNodesIn(tree.nodes) : []));
-	const ids = [...new Set(nodes.map((node) => node.filter))];
+	const ids = [...new Set(nodes.map((node) => node.filter))].filter((id) => !place.only || id === place.only.id);
 	if (ids.length === 0) return NO_FILTERS_ON_PAGE;
 	const rows = await scope.select(filterRows, inArray(filterRows.id, ids));
 	const loopRows = await scope.select(
@@ -130,7 +138,7 @@ export async function pageFilters(
 	const read: PageFilter[] = [];
 	for (const id of ids) {
 		const row = rows.find((candidate) => candidate.id === id);
-		const stored = place.structure === "draft" ? row?.draft : row?.published;
+		const stored = place.only ? place.only.version : place.structure === "draft" ? row?.draft : row?.published;
 		const loopRow = loopRows.find((candidate) => candidate.name === row?.loop);
 		const loopStored = place.version === "draft" ? loopRow?.draft : loopRow?.published;
 		// A Filter never published, or one whose Loop has no query, shows nothing and narrows nothing.
@@ -142,7 +150,7 @@ export async function pageFilters(
 			id: row.id,
 			name: row.name,
 			loop: row.loop,
-			version: storedFilterVersion(stored),
+			version: place.only ? place.only.version : storedFilterVersion(stored),
 			query: loop.query,
 			listed: postTypes.filter((postType) => loop.query.postTypes.includes(postType.key)),
 			controls: [],
@@ -184,7 +192,7 @@ export async function pageFilters(
 				views.set(filter.id, await viewOf(scope, filter, state, place, postTypes, pageLoops, sqlFor(filter)));
 			}
 			const shown = new Map<string, number>();
-			return (node) => {
+			const html = (node: FilterNode) => {
 				const view = views.get(node.filter);
 				const filter = read.find((each) => each.id === node.filter);
 				if (!view || !filter) return "";
@@ -201,6 +209,7 @@ export async function pageFilters(
 				const form = placed.some((each) => each.control === undefined) ? `wc-filter-${view.name}` : null;
 				return renderFilterPart(view, index, occurrence, form);
 			};
+			return { html, announce: (filterId) => views.get(filterId)?.announce };
 		},
 	};
 }

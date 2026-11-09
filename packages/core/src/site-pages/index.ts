@@ -1936,7 +1936,7 @@ async function renderSitePage(
 		search,
 		formScripts: forms.outsideScripts,
 		loop: loops.run,
-		filter: filterHtml,
+		filter: filterHtml.html,
 		filtered: filters.filtered,
 		time,
 	});

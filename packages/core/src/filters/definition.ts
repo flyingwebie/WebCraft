@@ -26,7 +26,7 @@ import {
 
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
-import { fieldAt, type LoopQuery, sortable } from "../content/loop-queries.ts";
+import { fieldAt, type LoopQuery, SORTABLE_BUILT_INS, sortable } from "../content/loop-queries.ts";
 import type { PostType } from "../content/post-types.ts";
 import { readText } from "../forms/definition.ts";
 
@@ -112,6 +112,49 @@ export function readFilterVersion(
 		applyLabel: words(input.applyLabel, "applyLabel", current.applyLabel),
 		controls: input.controls === undefined ? current.controls : readControls(input.controls, context, report),
 	};
+}
+
+/**
+ * What a Filter's controls can use from its Loop's Post Types, as the Filter builder offers them: the
+ * select and Relationship Fields options can come from (Post Types are always offered), the true/false
+ * Fields toggles keep, the number and date Fields ranges cover, and what a sort menu can sort by (the
+ * built-in values first, their labels left to the admin), each by its path, read by the same rules a
+ * save keeps.
+ */
+export type FilterSources = {
+	options: { field: string; label: string; type: "select" | "relationship" }[];
+	toggles: { field: string; label: string }[];
+	ranges: { field: string; label: string; kind: "number" | "date" }[];
+	sorts: { by: string; label: string | null }[];
+};
+
+export function filterSources(context: FilterContext): FilterSources {
+	const listed = context.postTypes.filter((postType) => context.query.postTypes.includes(postType.key));
+	const paths = new Map<string, string>();
+	const walk = (fields: readonly FieldDefinition[], prefix: string) => {
+		for (const field of fields) {
+			const path = `${prefix}${field.key}`;
+			if (!paths.has(path)) paths.set(path, field.label);
+			if (field.type === "group" || field.type === "repeater") walk(field.fields, `${path}.`);
+		}
+	};
+	for (const postType of listed) walk(postType.fields, "");
+	const quiet: Report = () => {};
+	const sources: FilterSources = { options: [], toggles: [], ranges: [], sorts: [] };
+	for (const by of SORTABLE_BUILT_INS) sources.sorts.push({ by, label: null });
+	for (const [path, label] of paths) {
+		if (readSource({ kind: "field", field: path }, "", listed, quiet)) {
+			const type = fieldAt(listed, path, true)?.found[0]?.field.type;
+			sources.options.push({ field: path, label, type: type === "relationship" ? "relationship" : "select" });
+		}
+		if (readField(path, "", listed, quiet, ["boolean"], "")) sources.toggles.push({ field: path, label });
+		const range = readField(path, "", listed, quiet, ["number", "date"], "");
+		if (range && !(range.definition.type === "date" && range.definition.mode === "time")) {
+			sources.ranges.push({ field: path, label, kind: range.definition.type === "date" ? "date" : "number" });
+		}
+		if (sortable(listed, path)) sources.sorts.push({ by: path, label });
+	}
+	return sources;
 }
 
 /** Checks a whole version again (on publish, against the Loop's published query), reporting what no longer fits. */

@@ -6073,7 +6073,7 @@
 		"/filters/get": {
 			"post": {
 				"operationId": "filters.get",
-				"summary": "One Filter: its Draft and published version.",
+				"summary": "One Filter: its Draft and published version, where it is placed and what its controls can use.",
 				"tags": ["filters"],
 				"requestBody": {
 					"required": true,
@@ -6141,6 +6141,14 @@
 										"maxLength": 200
 									},
 									"mode": {
+										"type": "string",
+										"maxLength": 10
+									},
+									"layout": {
+										"type": "string",
+										"maxLength": 10
+									},
+									"phone": {
 										"type": "string",
 										"maxLength": 10
 									},
@@ -6267,6 +6275,14 @@
 										"format": "uuid"
 									},
 									"mode": {
+										"type": "string",
+										"maxLength": 10
+									},
+									"layout": {
+										"type": "string",
+										"maxLength": 10
+									},
+									"phone": {
 										"type": "string",
 										"maxLength": 10
 									},
