@@ -29,6 +29,7 @@ export {
 	type NewAuditEntry,
 	recordAudit,
 } from "./audit.ts";
+export * from "./cdns/index.ts";
 export { type Clock, systemClock } from "./clock.ts";
 export {
 	type CodeMode,

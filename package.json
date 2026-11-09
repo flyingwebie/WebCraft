@@ -42,7 +42,8 @@
 		"db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
 		"db:studio": "drizzle-kit studio --config packages/db/drizzle.config.ts",
 		"check:licences": "bun scripts/check-licences.ts",
-		"check:denylist": "sh scripts/check-denylist.sh"
+		"check:denylist": "sh scripts/check-denylist.sh",
+		"refresh:cdn-ranges": "bun scripts/refresh-cdn-ranges.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.2",

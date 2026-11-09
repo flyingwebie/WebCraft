@@ -4,6 +4,7 @@ import type { Database } from "@webcraft/db";
 import type { Account } from "./account.ts";
 import type { AiProviders } from "./ai.ts";
 import type { AuditEntry } from "./audit.ts";
+import type { Cdns } from "./cdns/index.ts";
 import type { Clock } from "./clock.ts";
 import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
@@ -244,6 +245,8 @@ export type InstallServices = InstallPorts & {
 	};
 	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
 	domains: Domains;
+	/** CDNs in front of Sites: a Site's CDN setting, and the address ranges CDNs publish. */
+	cdns: Cdns;
 	/**
 	 * A Site's Webhooks: signed calls to outside addresses when something happens on the Site, sent by
 	 * the worker with retries and kept in a delivery log. Anyone who sees the Site reads them;

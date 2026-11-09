@@ -1,12 +1,15 @@
 import { isIP } from "node:net";
 
 import {
+	CDNS,
 	type InstallConfig,
+	type InstallServices,
 	type IpRange,
 	inIpRange,
 	PRIVATE_RANGES,
 	parseIpAddress,
 	parseIpRange,
+	type SiteHost,
 	type TrustedProxies,
 } from "@webcraft/core";
 
@@ -43,8 +46,18 @@ export function setConnectionAddress(request: Request, address: string | undefin
 	if (address) Object.defineProperty(request, "ip", { value: address, enumerable: true });
 }
 
-/** Records the visitor's address the Site pipeline worked out, for `clientAddress` to answer. */
-export function recordVisitorAddress(request: Request, address: string | null): void {
+/**
+ * Works out the address of a visitor to a Site and records it on the request, for `clientAddress` to
+ * answer from then on. It is `clientAddress`'s, unless the Site has a CDN in front (`host.cdn`) and
+ * that address is one of the CDN's servers (its published ranges): then it is the visitor's address
+ * the CDN gives in its own header (`CF-Connecting-IP`, `Fastly-Client-IP`), when that is one. From
+ * anywhere else such a header is ignored, since anyone can send it.
+ */
+export async function recordVisitorAddress(request: Request, services: InstallServices, host: SiteHost): Promise<void> {
+	let address = clientAddress(request, services.config);
+	if (host.cdn !== null && address !== null && inRanges(address, await services.cdns.ranges(host.cdn))) {
+		address = normaliseAddress(request.headers.get(CDNS[host.cdn].header) ?? "") ?? address;
+	}
 	Object.defineProperty(request, VISITOR, { value: address });
 }
 

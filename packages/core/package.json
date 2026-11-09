@@ -12,7 +12,8 @@
 		"./media-kinds": "./src/media/kinds.ts",
 		"./field-rules": "./src/content/field-rules.ts",
 		"./search-fields": "./src/search/searched-fields.ts",
-		"./domain-partner": "./src/domains/partner.ts"
+		"./domain-partner": "./src/domains/partner.ts",
+		"./cdns": "./src/cdns/registry.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

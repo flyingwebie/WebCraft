@@ -1791,6 +1791,14 @@
 		"removed": "{name} è stato rimosso.",
 		"cancel": "Annulla",
 		"close": "Chiudi",
+		"cdnTitle": "CDN davanti a questo sito",
+		"cdnIntro": "Se i visitatori raggiungono questo sito tramite una CDN, sceglila qui. Le richieste dagli indirizzi pubblicati dalla CDN contano allora come provenienti dal visitatore che la CDN indica, così i limiti di frequenza e antispam continuano a contare i visitatori e non la CDN.",
+		"cdnNone": "Nessuna CDN",
+		"cdnOption": "{name}: visitatori indicati in {header}",
+		"cdnSteps": "Collega ogni dominio con il proxy della CDN disattivato. Quando è verificato e ha il suo certificato, attiva il proxy con TLS completo e rigoroso verso il sito.",
+		"cdnSave": "Salva CDN",
+		"cdnSaved": "{name} è davanti a questo sito.",
+		"cdnRemoved": "Nessuna CDN è davanti a questo sito.",
 		"appliesAtOnce": "Le modifiche qui valgono subito: non fanno parte di Pubblica tutto."
 	},
 	"webhooks": {
