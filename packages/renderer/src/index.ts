@@ -34,6 +34,7 @@ export {
 	CASCADE_LAYERS,
 	compileStylesheet,
 	contentHash,
+	phoneWidthOf,
 	type StylesheetUse,
 } from "./design-system/compile.ts";
 export {

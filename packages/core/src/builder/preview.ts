@@ -11,6 +11,7 @@ import { entries, globals, people } from "@webcraft/db/schema";
 import {
 	type ElementTree,
 	escapeAttribute,
+	type FilterVersion,
 	mediaReferencesIn,
 	type PageMedia,
 	pageWords,
@@ -30,8 +31,10 @@ import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { propValue } from "../content/props.ts";
 import { entryParts, globalsParts, type Parts, placementValues, resolvePath } from "../content/render-values.ts";
 import { storedVersion } from "../content/values.ts";
+import { writeQuery } from "../filters/state.ts";
 import { uuidsIn } from "../ids.ts";
 import { pageMedia } from "../media/page-media.ts";
+import { pageFilters } from "../site-pages/filters.ts";
 import { pageComponents } from "../site-pages/index.ts";
 import { pageLoops } from "../site-pages/loops.ts";
 import { relatedEntries } from "../site-pages/related.ts";
@@ -68,14 +71,34 @@ export type PreviewInput = {
 	formKey(formId: string): string | undefined;
 	/** The name of a Filter of the Site, for its placeholder. */
 	filterName(filterId: string): string | undefined;
+	/** The language to show it in, one of the Site's (its Default language when absent). */
+	language?: string;
+	/** The Filter builder's preview: this Filter shows for real rather than as a placeholder. */
+	filter?: PreviewFilter;
 };
 
-/** The canvas's HTML for a tree, in the Site's Default language. */
-export async function renderPreview(scope: SiteScope, sources: ComponentSources, input: PreviewInput): Promise<string> {
+/**
+ * One Filter shown for real on the canvas (the Filter builder's preview): its version as given (not
+ * saved), the choices of the page's address, and the address of the page it is on. It narrows its
+ * Loop over published Entries with real counts, as the Site would.
+ */
+export type PreviewFilter = { id: string; version: FilterVersion; params: URLSearchParams; path: string };
+
+/** The canvas's HTML, and for a Filter shown for real, its page's address with its choices and its result count. */
+export type RenderedPreview = { html: string; filter: { url: string; count: string } | null };
+
+/** The canvas's HTML for a tree, in the Site's Default language (or the one asked for). */
+export async function renderPreview(
+	scope: SiteScope,
+	sources: ComponentSources,
+	input: PreviewInput,
+): Promise<RenderedPreview> {
 	const site = await siteLanguages(scope);
-	const language = site.languages.find((each) => each.code === site.defaultLanguage);
+	const language =
+		site.languages.find((each) => each.code === input.language) ??
+		site.languages.find((each) => each.code === site.defaultLanguage);
 	const code = language?.code ?? site.defaultLanguage;
-	const languages = { language: code, defaultLanguage: code };
+	const languages = { language: code, defaultLanguage: site.defaultLanguage };
 	const globalValues = globalsVersion(await scope.first(globals), languages, "draft");
 	const siteValues = globalsParts(globalValues.fields, globalValues.values, { language: code, name: scope.site.name });
 	const postTypes = await listPostTypes(scope);
@@ -98,19 +121,40 @@ export async function renderPreview(scope: SiteScope, sources: ComponentSources,
 	}
 	const placed = await pageComponents(scope, [input.tree], sources, siteValues, languages, { which: "draft" });
 	const searchable = postTypes.filter((postType) => postType.searchable).map((postType) => postType.key);
+	const trees = [input.tree, ...placed.trees];
+	const path = input.filter?.path ?? "/";
+	// The Filter builder's preview: its Filter, as given, narrows its Loop by the address's choices.
+	const filters = input.filter
+		? await pageFilters(
+				scope,
+				trees,
+				{
+					languages,
+					version: "published",
+					path,
+					current,
+					structure: "draft",
+					params: input.filter.params,
+					only: { id: input.filter.id, version: input.filter.version },
+				},
+				postTypes,
+			)
+		: undefined;
 	const loops = await pageLoops(
 		scope,
-		[input.tree, ...placed.trees],
+		trees,
 		{
 			current,
 			languages,
 			page: input.kind === "archive" ? 1 : null,
-			path: "/",
+			path,
 			version: "published",
 			...(input.kind === "search" ? { search: { query: "", postTypes: searchable } } : {}),
+			...(filters ? { narrowing: filters.narrowing, state: writeQuery([...filters.state.values]) } : {}),
 		},
 		postTypes,
 	);
+	const shownFilters = filters ? await filters.render(loops) : undefined;
 	const shown = await pageMedia(
 		scope,
 		[
@@ -121,7 +165,7 @@ export async function renderPreview(scope: SiteScope, sources: ComponentSources,
 	);
 	const placeholder = (kind: CanvasPlaceholder, name?: string) =>
 		`<span data-wc-builder-placeholder="${kind}"${name ? ` data-wc-builder-name="${escapeAttribute(name)}"` : ""}></span>`;
-	return renderTree(input.tree, {
+	const html = renderTree(input.tree, {
 		values: withPlaceholders(values),
 		language: code,
 		className: input.className,
@@ -131,7 +175,10 @@ export async function renderPreview(scope: SiteScope, sources: ComponentSources,
 		search: () => placeholder("search"),
 		consentSettings: () => placeholder("consentSettings"),
 		form: (formId) => placeholder("form", input.formKey(formId)),
-		filter: (node) => placeholder("filter", input.filterName(node.filter)),
+		filter: (node) =>
+			shownFilters && node.filter === input.filter?.id
+				? shownFilters.html(node)
+				: placeholder("filter", input.filterName(node.filter)),
 		media: (id) => onAdminHost(shown.get(id), scope.site.id),
 		words: pageWords(code),
 		loop: loops.run,
@@ -139,6 +186,12 @@ export async function renderPreview(scope: SiteScope, sources: ComponentSources,
 		time: { now: scope.now(), changesAt: () => {} },
 		codeSource: CANVAS_SOURCE,
 	});
+	if (!input.filter || !filters) return { html, filter: null };
+	const query = writeQuery([...filters.state.values]);
+	return {
+		html,
+		filter: { url: query ? `${path}?${query}` : path, count: shownFilters?.announce(input.filter.id) ?? "" },
+	};
 }
 
 /** The Entry of the Post Type saved last, as its page shows it from its Draft: what the Data tab shows too. */

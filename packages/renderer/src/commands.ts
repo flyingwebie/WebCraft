@@ -52,13 +52,19 @@ export type MarkupSection = {
 	children: TreeNode[];
 };
 
+/** A Filter a tree may place: its id, name, the Loop it narrows and its controls' ids. */
+export type PlacedFilter = { id: string; name: string; loop: string; controls: readonly string[] };
+
 export type FromMarkupTools = {
 	/** Reads an expression written at `offset` in the markup; undefined after reporting a problem. */
 	expression(text: string, offset: number): Expression | undefined;
 	/** The id of the Site's Form with this key, written at `offset`; undefined after reporting a problem. */
 	form(key: string, offset: number): string | undefined;
-	/** The Site's Filter with this name, written at `offset` (its id and Loop); undefined after reporting a problem. */
-	filter(name: string, offset: number): { id: string; loop: string } | undefined;
+	/**
+	 * The Site's Filter with this name, written at `offset` (its id, Loop and controls' ids); undefined
+	 * after reporting a problem.
+	 */
+	filter(name: string, offset: number): PlacedFilter | undefined;
 	problem(offset: number, message: string): void;
 	/** What bindings may read where the command is. */
 	scope: ValueScope;
@@ -77,8 +83,8 @@ export type CheckTools = {
 	scope: ValueScope;
 	/** Checks a stored Form id at `at`: one of the Site's Forms the tree may place. */
 	form(input: unknown, at: string): string | undefined;
-	/** Checks a stored Filter id at `at`: one of the Site's Filters the tree may place (its id and Loop). */
-	filter(input: unknown, at: string): { id: string; loop: string } | undefined;
+	/** Checks a stored Filter id at `at`: one of the Site's Filters the tree may place (its id, Loop and controls). */
+	filter(input: unknown, at: string): PlacedFilter | undefined;
 };
 
 export type RenderTools = {
@@ -715,15 +721,24 @@ const consentSettingsCommand: TemplateCommand<ConsentSettingsNode> = {
 const FILTER_IN_LOOP =
 	"{{@filter}} can't go inside a Loop's items: a page shows a Filter once, not once per item. Place it outside the Loop, or in its {{@empty}}.";
 
-/** `{{@filter <name> for="<loop>"}}`'s argument: the Filter's name and its Loop's. */
-const FILTER_ARGUMENT = /^(\s*)([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\s+for="([^"]*)"\s*$/;
+/**
+ * `{{@filter <name> for="<loop>"}}`'s argument: the Filter's name and its Loop's, then the id of one of
+ * its controls when it shows that control on its own (`control="search"`).
+ */
+const FILTER_ARGUMENT = /^(\s*)([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\s+for="([^"]*)"(?:(\s+control=")([^"]*)")?\s*$/;
+
+/** Why a control can't be shown on its own: its Filter has no control with that id. */
+function noSuchControl(name: string, control: string, controls: readonly string[]): string {
+	return `The Filter ${name} has no control ${control}: its controls are ${controls.join(", ") || "none yet"}.`;
+}
 
 /**
  * `{{@filter <name> for="<loop>"}}`: one of the Site's Filters (GLOSSARY.md › Filter), placed by its
  * name and stored by its id, with the query Loop it narrows, which the same tree must show. It renders
  * the Filter's controls as a plain GET form, so it works without JavaScript; with JavaScript, its
  * script updates the Loop in place. A form of its own, it goes where a <div> can, never in a Loop's
- * items, a link, a control, a paragraph or another form.
+ * items, a link, a control, a paragraph or another form. `control="<id>"` shows one of its controls on
+ * its own anywhere else on the page (a search box in the header), part of the same Filter.
  */
 const filterCommand: TemplateCommand<FilterNode> = {
 	name: "filter",
@@ -747,7 +762,7 @@ const filterCommand: TemplateCommand<FilterNode> = {
 			tools.problem(section.offset, FILTER_IN_LOOP);
 			return undefined;
 		}
-		const [, lead = "", name = "", loop = ""] = read;
+		const [, lead = "", name = "", loop = "", before, control] = read;
 		const found = tools.filter(name, section.argumentOffset + lead.length);
 		if (!found) return undefined;
 		if (found.loop !== loop) {
@@ -757,14 +772,21 @@ const filterCommand: TemplateCommand<FilterNode> = {
 			);
 			return undefined;
 		}
-		return { type: "filter", filter: found.id, loop };
+		if (control === undefined) return { type: "filter", filter: found.id, loop };
+		if (!found.controls.includes(control)) {
+			const at = section.argument.indexOf(`${before ?? ""}${control}"`) + (before?.length ?? 0);
+			tools.problem(section.argumentOffset + at, noSuchControl(name, control, found.controls));
+			return undefined;
+		}
+		return { type: "filter", filter: found.id, loop, control };
 	},
 
 	toMarkup(node, tools) {
+		const control = node.control === undefined ? "" : ` control="${node.control}"`;
 		return [
 			{
 				keyword: "filter",
-				argument: `${tools.filterName(node.filter) ?? node.filter} for="${node.loop}"`,
+				argument: `${tools.filterName(node.filter) ?? node.filter} for="${node.loop}"${control}`,
 				children: [],
 			},
 		];
@@ -781,7 +803,12 @@ const filterCommand: TemplateCommand<FilterNode> = {
 			tools.problem(`${at}.loop`, `This Filter narrows the Loop ${found.loop}.`);
 			return undefined;
 		}
-		return { type: "filter", filter: found.id, loop: found.loop };
+		if (input.control === undefined) return { type: "filter", filter: found.id, loop: found.loop };
+		if (typeof input.control !== "string" || !found.controls.includes(input.control)) {
+			tools.problem(`${at}.control`, noSuchControl(found.name, String(input.control), found.controls));
+			return undefined;
+		}
+		return { type: "filter", filter: found.id, loop: found.loop, control: input.control };
 	},
 
 	children() {
@@ -803,14 +830,16 @@ const filterCommand: TemplateCommand<FilterNode> = {
 
 /**
  * The Filters a tree places whose Loop the tree doesn't show (`{{@loop <name>}}`): a Filter acts on
- * its one Loop, so the Template or Component placing it shows that Loop too.
+ * its one Loop, so the Template or Component placing its form shows that Loop too. A control shown on
+ * its own (`control="search"`) may sit in another tree of the page, such as the Site template's
+ * header: it shows only on pages that show its Loop.
  */
 export function filtersWithoutTheirLoop(nodes: readonly TreeNode[]): FilterNode[] {
 	const placed: FilterNode[] = [];
 	const shown = new Set<string>();
 	const visit = (list: readonly TreeNode[]) => {
 		for (const node of list) {
-			if (node.type === "filter") placed.push(node);
+			if (node.type === "filter" && node.control === undefined) placed.push(node);
 			if (node.type === "loop") shown.add(node.source);
 			if (node.type === "element") visit(node.children);
 			else if (node.type !== "text" && node.type !== "value" && node.type !== "comment" && node.type !== "component") {

@@ -162,6 +162,14 @@ export function layerName(
 				detail: t("builder.layers.command"),
 				kind: "command",
 			};
+		case "filter": {
+			const filter = catalogue.filters.find((each) => each.id === node.filter);
+			return {
+				name: `${t("builder.layers.filter")} ${filter?.name ?? ""}${node.control ? ` · ${node.control}` : ""}`,
+				detail: t("builder.layers.command"),
+				kind: "command",
+			};
+		}
 		case "pagination":
 			return {
 				name: `${t("builder.layers.pagination")} ${node.loop}`,

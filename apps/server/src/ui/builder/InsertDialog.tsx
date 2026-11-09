@@ -23,7 +23,7 @@ import { newElement, withNewIds } from "./tree.ts";
 /** Where a new layer goes: inside the selected one (at its end), after it, or before it. */
 export type InsertWhere = "inside" | "after" | "before";
 
-type Step = "image" | "value" | "component" | "loop" | "form" | "pagination" | "condition" | "tag";
+type Step = "image" | "value" | "component" | "loop" | "form" | "filter" | "pagination" | "condition" | "tag";
 
 /** One thing the insert menu offers. */
 type Item = {
@@ -198,6 +198,7 @@ export function InsertDialog({
 				"if",
 				"loop",
 				"form",
+				"filter",
 				"pagination",
 				"outlet",
 				"search",
@@ -215,7 +216,13 @@ export function InsertDialog({
 					languageSwitcher: () => ({ type: "languageSwitcher" }) as TreeNode,
 					consentSettings: () => ({ type: "consentSettings" }) as TreeNode,
 				};
-				const steps: Record<string, Step> = { if: "condition", loop: "loop", form: "form", pagination: "pagination" };
+				const steps: Record<string, Step> = {
+					if: "condition",
+					loop: "loop",
+					form: "form",
+					filter: "filter",
+					pagination: "pagination",
+				};
 				const build = node[name];
 				return {
 					id: `command-${name}`,
@@ -438,6 +445,7 @@ function StepForm({
 	const [text, setText] = useState("");
 	const [choice, setChoice] = useState("");
 	const [alias, setAlias] = useState("item");
+	const [control, setControl] = useState("");
 	const [props, setProps] = useState<Record<string, string>>({});
 	const [media, setMedia] = useState<{ id: string; item: Parameters<typeof MediaPicker>[0]["item"] } | null>(null);
 	const [own, setOwn] = useState<string | null>(null);
@@ -477,6 +485,13 @@ function StepForm({
 			case "form":
 				if (!choice) return setOwn(t("builder.insert.chooseForm"));
 				return put([{ type: "form", form: choice }]);
+			case "filter": {
+				const filter = offered.filters.find((each) => each.id === choice);
+				if (!filter) return setOwn(t("builder.insert.chooseFilter"));
+				return put([
+					{ type: "filter", filter: filter.id, loop: filter.loop, ...(control ? { control } : {}) } as TreeNode,
+				]);
+			}
 			case "pagination":
 				if (!choice) return setOwn(t("builder.insert.chooseLoop"));
 				return put([{ type: "pagination", loop: choice }]);
@@ -600,6 +615,46 @@ function StepForm({
 						))}
 					</NativeSelect>
 				</Field>
+			) : null}
+			{chosen.step === "filter" ? (
+				<>
+					<Field>
+						<FieldLabel htmlFor={`${fieldId}-choice`}>{t("builder.insert.filterChoice")}</FieldLabel>
+						<NativeSelect
+							id={`${fieldId}-choice`}
+							value={choice}
+							aria-describedby={`${fieldId}-choice-help`}
+							onChange={(event) => {
+								setChoice(event.target.value);
+								setControl("");
+							}}
+						>
+							<NativeSelectOption value="">{t("builder.insert.valueNone")}</NativeSelectOption>
+							{offered.filters.map((filter) => (
+								<NativeSelectOption key={filter.id} value={filter.id}>
+									{`${filter.name} (${filter.loop})`}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<FieldDescription id={`${fieldId}-choice-help`}>{t("builder.insert.filterHint")}</FieldDescription>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={`${fieldId}-control`}>{t("builder.insert.filterControl")}</FieldLabel>
+						<NativeSelect
+							id={`${fieldId}-control`}
+							value={control}
+							onChange={(event) => setControl(event.target.value)}
+							disabled={!choice}
+						>
+							<NativeSelectOption value="">{t("builder.insert.filterWhole")}</NativeSelectOption>
+							{(offered.filters.find((filter) => filter.id === choice)?.controls ?? []).map((each) => (
+								<NativeSelectOption key={each.id} value={each.id}>
+									{t("builder.insert.filterOne", { name: each.label ?? each.type, id: each.id })}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+				</>
 			) : null}
 			{chosen.step === "pagination" ? (
 				<Field>

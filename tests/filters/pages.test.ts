@@ -40,19 +40,21 @@ describe("the Filter on the page", () => {
 
 		expect(response.status).toBe(200);
 		expect(html).toContain(
-			'<form class="wc-filter" id="wc-filter-shop" method="get" action="/shop" aria-label="Filters" data-wc-filter="shop" data-wc-mode="live" data-wc-announce="7 products">',
+			'<form class="wc-filter" id="wc-filter-shop" method="get" action="/shop" aria-label="Filters" data-wc-filter="shop" data-wc-mode="live" data-wc-layout="sidebar" data-wc-phone="drawer" data-wc-announce="7 products">',
 		);
 		expect(html).toContain(
 			'<label for="wc-filter-shop-1">Search the shop</label><input type="search" id="wc-filter-shop-1" name="q" placeholder="Search the shop" maxlength="200" enterkeyhint="search">',
 		);
 		expect(html).toContain(
-			'<fieldset class="wc-filter-control" data-wc-control="checkboxes"><legend>Category</legend>',
+			'<fieldset class="wc-filter-control" id="wc-filter-shop-2-control" data-wc-control="checkboxes"><legend>Category</legend>',
 		);
 		expect(html).toContain('<input type="checkbox" role="switch" id="wc-filter-shop-4" name="vegan" value="1">');
 		expect(html).toContain('<legend>Price</legend><label for="wc-filter-shop-5-min">From</label><input type="number"');
 		expect(html).toContain('name="baked.min"');
 		expect(html).toContain('<button class="wc-filter-apply" type="submit">Apply</button>');
-		expect(html).toContain('<p class="wc-filter-count" data-wc-control="count">7 products</p>');
+		expect(html).toContain(
+			'<p class="wc-filter-count" id="wc-filter-shop-9-control" data-wc-control="count">7 products</p>',
+		);
 		expect(html).toMatch(/<script src="\/_wc\/js\/[0-9a-f]{16}\.js" defer><\/script>/);
 		expect(listed(html)).toEqual(["Birthday cake", "Butter croissant", "Cinnamon bun", "Country sourdough"]);
 	});
@@ -84,7 +86,9 @@ describe("choosing", () => {
 		]);
 		const both = await visit("/shop?category=bread,pastries");
 		expect(listed(both.html)).toEqual(["Butter croissant", "Cinnamon bun", "Country sourdough", "Pain au chocolat"]);
-		expect(both.html).toContain('<p class="wc-filter-count" data-wc-control="count">6 products</p>');
+		expect(both.html).toContain(
+			'<p class="wc-filter-count" id="wc-filter-shop-9-control" data-wc-control="count">6 products</p>',
+		);
 		expect(
 			optionsIn(both.html, "category")
 				.filter((option) => option.checked)
@@ -175,7 +179,9 @@ describe("choosing", () => {
 		const { html } = await visit("/shop?category=cakes&vegan=1");
 
 		expect(listed(html)).toEqual(["None"]);
-		expect(html).toContain('<p class="wc-filter-count" data-wc-control="count">No products match</p>');
+		expect(html).toContain(
+			'<p class="wc-filter-count" id="wc-filter-shop-9-control" data-wc-control="count">No products match</p>',
+		);
 		expect(html).toContain('data-wc-announce="No products match"');
 	});
 });
@@ -203,7 +209,7 @@ describe("chips and Reset", () => {
 	test("without choices there are no chips", async () => {
 		const { html } = await visit("/shop");
 
-		expect(html).toContain('<div class="wc-filter-chips" data-wc-control="chips"></div>');
+		expect(html).toContain('<div class="wc-filter-chips" id="wc-filter-shop-8-control" data-wc-control="chips"></div>');
 	});
 });
 

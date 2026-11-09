@@ -403,7 +403,7 @@ export async function createInstallServices(
 			clock,
 			log,
 		}),
-		filters: createFilters(),
+		filters: createFilters({ sources: componentSources }),
 		loops: {
 			list: listLoops,
 			get: getLoop,

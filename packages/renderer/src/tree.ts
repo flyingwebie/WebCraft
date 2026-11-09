@@ -111,9 +111,11 @@ export type FormNode = { type: "form"; form: string };
 /**
  * A Filter placed here (`{{@filter <name> for="<loop>"}}`): the Site's Filter, by id, and the query
  * Loop it narrows, by name, which the same tree must show (`{{@loop <loop>}}`). It renders the
- * Filter's controls as a plain GET form on the page (GLOSSARY.md › Filter).
+ * Filter's controls as a plain GET form on the page (GLOSSARY.md › Filter). With `control` (a
+ * control's id, `control="search"`), it shows that one control on its own, part of the same Filter:
+ * the Filter's form then leaves it out.
  */
-export type FilterNode = { type: "filter"; filter: string; loop: string };
+export type FilterNode = { type: "filter"; filter: string; loop: string; control?: string };
 
 /**
  * A Loop (`{{@loop source as alias}} … {{@empty}} … {{/loop}}`): `children` render once per item,
@@ -601,8 +603,14 @@ export type FormCatalogue = {
 	byId(id: string): FormFound;
 };
 
-/** A Filter found: its id, name and the Loop it narrows, why it can't be placed here, or undefined when there is none. */
-export type FilterFound = { id: string; name: string; loop: string } | { refused: string } | undefined;
+/**
+ * A Filter found: its id, name, the Loop it narrows and its controls' ids, why it can't be placed
+ * here, or undefined when there is none.
+ */
+export type FilterFound =
+	| { id: string; name: string; loop: string; controls: readonly string[] }
+	| { refused: string }
+	| undefined;
 
 /** The Filters a tree may place, by name (Template markup) and by id (stored trees). */
 export type FilterCatalogue = {
@@ -910,7 +918,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 						problem(here, found?.refused ?? `There is no Filter with the id ${filterId} on this Site.`);
 						return undefined;
 					}
-					return { id: found.id, loop: found.loop };
+					return { id: found.id, name: found.name, loop: found.loop, controls: found.controls };
 				},
 			});
 		}

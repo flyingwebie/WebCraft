@@ -1,7 +1,7 @@
 import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
 
-/** One tab: its id (unique on the page), its name, and its panel. */
-export type TabSpec = { id: string; label: string; panel: ReactNode };
+/** One tab: its id (unique on the page), its name, a short count beside it (`badge`), and its panel. */
+export type TabSpec = { id: string; label: string; badge?: string; panel: ReactNode };
 
 /**
  * Tabs, as the ARIA tabs pattern has them: a tab list (one tab stop; the arrow keys, Home and End move
@@ -13,12 +13,15 @@ export function Tabs({
 	tabs,
 	initial,
 	onSelect,
+	aside,
 }: {
 	/** What the tab list is, for screen readers. */
 	label: string;
 	tabs: readonly TabSpec[];
 	initial?: string;
 	onSelect?(id: string): void;
+	/** What shows beside every panel, whichever tab is selected (a live preview). */
+	aside?: ReactNode;
 }) {
 	const [selected, setSelected] = useState(() =>
 		tabs.some((tab) => tab.id === initial) ? (initial as string) : (tabs[0]?.id ?? ""),
@@ -49,6 +52,20 @@ export function Tabs({
 		choose(target.id, true);
 	};
 
+	const panels = tabs.map((tab) => (
+		// Every panel is there for its tab's aria-controls; its content comes the first time it shows.
+		<div
+			key={tab.id}
+			role="tabpanel"
+			id={`panel-${tab.id}`}
+			aria-labelledby={`tab-${tab.id}`}
+			hidden={tab.id !== current}
+			className="min-w-0"
+		>
+			{shown.has(tab.id) || tab.id === current ? tab.panel : null}
+		</div>
+	));
+
 	return (
 		<div className="grid gap-6">
 			<div ref={list} role="tablist" aria-label={label} className="flex flex-wrap gap-4 border-b">
@@ -66,22 +83,22 @@ export function Tabs({
 						className="focus-visible:ring-ring/50 aria-selected:border-primary aria-selected:text-foreground text-muted-foreground -mb-px rounded-t-sm border-b-2 border-transparent px-1 pb-2 text-sm font-medium outline-none focus-visible:ring-3"
 					>
 						{tab.label}
+						{tab.badge ? (
+							<span className="bg-muted text-muted-foreground ms-1.5 rounded-full px-1.5 py-0.5 text-xs font-medium">
+								{tab.badge}
+							</span>
+						) : null}
 					</button>
 				))}
 			</div>
-			{tabs.map((tab) => (
-				// Every panel is there for its tab's aria-controls; its content comes the first time it shows.
-				<div
-					key={tab.id}
-					role="tabpanel"
-					id={`panel-${tab.id}`}
-					aria-labelledby={`tab-${tab.id}`}
-					hidden={tab.id !== current}
-					className="min-w-0"
-				>
-					{shown.has(tab.id) || tab.id === current ? tab.panel : null}
+			{aside ? (
+				<div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+					<div className="min-w-0">{panels}</div>
+					{aside}
 				</div>
-			))}
+			) : (
+				panels
+			)}
 		</div>
 	);
 }
