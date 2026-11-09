@@ -18,13 +18,13 @@ import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native
 import { ArrowLeftIcon, CircleAlertIcon, Trash2Icon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-
 import { getApi } from "../api.ts";
 import { errorCode, errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
+import { OutdatedTranslations } from "../translations/OutdatedTranslations.tsx";
 import { useAutosave } from "./autosave.ts";
 import {
 	DraftStatusCard,
@@ -209,6 +209,14 @@ export function EntryEditor({
 				/>
 
 				{saveError ? <SaveErrorBanner error={saveError} onRetry={() => void autosave.flush()} /> : null}
+
+				<OutdatedTranslations
+					siteId={siteId}
+					entryId={entry.id}
+					language={entry.language}
+					translation={entry.translation}
+					beforeChange={() => autosave.flush()}
+				/>
 
 				<div className="grid gap-6">
 					<BuiltInValue

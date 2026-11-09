@@ -40,11 +40,16 @@ describe("the role table", () => {
 				"member.manage",
 				"module.manage",
 				"quota.manage",
+				"aiKey.manage",
+				"aiUsage.view",
+				"protectedTerms.edit",
 				"dashboard.manage",
 				"dashboard.view",
 			],
 			site: [
 				"module.manage",
+				"aiUsage.view",
+				"protectedTerms.edit",
 				"site.view",
 				"staging.manage",
 				"structure.edit",
@@ -55,6 +60,7 @@ describe("the role table", () => {
 				"media.upload",
 				"media.manage",
 				"import.run",
+				"translation.manage",
 				"dashboard.manage",
 				"dashboard.view",
 			],
@@ -74,11 +80,16 @@ describe("the role table", () => {
 				"member.manage",
 				"module.manage",
 				"quota.manage",
+				"aiKey.manage",
+				"aiUsage.view",
+				"protectedTerms.edit",
 				"dashboard.manage",
 				"dashboard.view",
 			],
 			site: [
 				"module.manage",
+				"aiUsage.view",
+				"protectedTerms.edit",
 				"site.view",
 				"staging.manage",
 				"structure.edit",
@@ -89,19 +100,31 @@ describe("the role table", () => {
 				"media.upload",
 				"media.manage",
 				"import.run",
+				"translation.manage",
 				"dashboard.manage",
 				"dashboard.view",
 			],
 		});
 	});
 
-	test("owner: manages Members and the staging password, publishes and deletes Entries, changes Form emails, imports CSV files, sees Dashboards, but never changes Structure, builds Dashboards or creates Sites", async () => {
+	test("owner: manages Members, the AI key and the staging password, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, sees Dashboards, but never changes Structure, builds Dashboards or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
-			workspace: ["audit.view", "workspace.view", "member.invite", "member.manage", "dashboard.view"],
+			workspace: [
+				"audit.view",
+				"workspace.view",
+				"member.invite",
+				"member.manage",
+				"aiKey.manage",
+				"aiUsage.view",
+				"protectedTerms.edit",
+				"dashboard.view",
+			],
 			site: [
+				"aiUsage.view",
+				"protectedTerms.edit",
 				"site.view",
 				"staging.manage",
 				"entry.edit",
@@ -111,18 +134,20 @@ describe("the role table", () => {
 				"media.upload",
 				"media.manage",
 				"import.run",
+				"translation.manage",
 				"dashboard.view",
 			],
 		});
 	});
 
-	test("editor: edits, publishes and deletes Content, changes Form emails, imports CSV files, and manages every Media file", async () => {
+	test("editor: edits, publishes and deletes Content, changes Form emails and Protected terms, imports CSV files, and manages every Media file", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "editor" });
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
-			workspace: ["workspace.view"],
+			workspace: ["workspace.view", "protectedTerms.edit"],
 			site: [
+				"protectedTerms.edit",
 				"site.view",
 				"entry.edit",
 				"entry.publish",
@@ -196,6 +221,8 @@ describe("each role against Workspace and Site scope", () => {
 	/** The Site-level Permissions each Workspace role holds, from the role table above. */
 	const onSite = {
 		owner: [
+			"aiUsage.view",
+			"protectedTerms.edit",
 			"site.view",
 			"staging.manage",
 			"entry.edit",
@@ -205,9 +232,11 @@ describe("each role against Workspace and Site scope", () => {
 			"media.upload",
 			"media.manage",
 			"import.run",
+			"translation.manage",
 			"dashboard.view",
 		],
 		editor: [
+			"protectedTerms.edit",
 			"site.view",
 			"entry.edit",
 			"entry.publish",

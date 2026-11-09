@@ -181,7 +181,7 @@ export {
 	searchPageTitle,
 } from "./page.ts";
 export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
-export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText } from "./rich-text.ts";
+export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, richTextTranslation } from "./rich-text.ts";
 export {
 	cutText,
 	type JsonLd,
@@ -192,6 +192,15 @@ export {
 	seoTags,
 	sharingTags,
 } from "./seo.ts";
+export {
+	type InlinePiece,
+	inlinePiece,
+	MARKER,
+	markersOf,
+	type RichTextPieces,
+	sameMarkers,
+	TranslationMarkersError,
+} from "./translation.ts";
 export {
 	type Attribute,
 	type AttributePart,

@@ -71,8 +71,15 @@ export const BODY_LIMITS = {
 /** A Block's id: 1 to 64 letters, digits, dashes and underscores; it never changes. */
 export const BLOCK_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** On a Block of a translation: the Block it translates (by id), and who wrote the translation. */
-export type BlockSource = { id: string; by: "person" | "ai" };
+/**
+ * On a Block of a translation: the Block it translates (by id), who wrote the translation, and what
+ * that Block held when it was translated (`was`: its settings, without id), so a translation a person
+ * wrote becomes an Outdated translation once the Block it translates changes.
+ */
+export type BlockSource = { id: string; by: "person" | "ai"; was?: Record<string, unknown> };
+
+/** A Block's text as AI translation reads and writes it: formatted text, or plain text (a video's title). */
+export type BlockText = { inline: InlineText } | { plain: string };
 
 type BlockBase = { id: string; source?: BlockSource };
 
@@ -146,8 +153,12 @@ export type BlockTypeSpec<Kind extends Block = Block> = {
 	settings: readonly string[];
 	/** Its formatted text, in reading order (where links and marks are). */
 	inlines(block: Kind): InlineText[];
-	/** Its text as plain text pieces, in reading order: for excerpts, reading time and translation. */
+	/** Its text as plain text pieces, in reading order: for excerpts and reading time. */
 	texts(block: Kind): string[];
+	/** The text AI translation translates, in reading order (never code, addresses or Media). */
+	translatable(block: Kind): BlockText[];
+	/** The Block with its translatable text replaced, in the same order as `translatable` gave it. */
+	translated(block: Kind, texts: readonly BlockText[]): Kind;
 	/** Whether it shows anything: an empty paragraph or an image with none chosen doesn't render. */
 	hasContent(block: Kind): boolean;
 	/** Its semantic HTML. Only `wc-callout` and `wc-embed` are ever written as classes. */
@@ -155,6 +166,24 @@ export type BlockTypeSpec<Kind extends Block = Block> = {
 };
 
 const TEXT = { maxLength: BODY_LIMITS.text };
+
+/** The formatted text at `index` of a translation, or what the Block held when there is none. */
+function inlineAt(texts: readonly BlockText[], index: number, fallback: InlineText): InlineText {
+	const text = texts[index];
+	return text && "inline" in text ? text.inline : fallback;
+}
+
+/** One piece of formatted text, translated as one. */
+const oneText = {
+	translatable: (block: { text: InlineText }): BlockText[] => [{ inline: block.text }],
+	translated: <Kind extends { text: InlineText }>(block: Kind, texts: readonly BlockText[]): Kind => ({
+		...block,
+		text: inlineAt(texts, 0, block.text),
+	}),
+};
+
+/** Nothing to translate: images, code and dividers stay as they are. */
+const noText = { translatable: (): BlockText[] => [], translated: <Kind>(block: Kind): Kind => block };
 
 function oneOf<Value extends string | number>(
 	values: readonly Value[],
@@ -186,6 +215,7 @@ const paragraph: BlockTypeSpec<ParagraphBlock> = {
 	read: (input, report) => ({ text: readInline(input.text, ".text", report, TEXT) }),
 	inlines: (block) => [block.text],
 	texts: (block) => [inlineText(block.text)],
+	...oneText,
 	hasContent: (block) => hasText(block.text),
 	render: (block) => `<p>${renderInline(block.text)}</p>`,
 };
@@ -214,6 +244,7 @@ const heading: BlockTypeSpec<HeadingBlock> = {
 	},
 	inlines: (block) => [block.text],
 	texts: (block) => [inlineText(block.text)],
+	...oneText,
 	hasContent: (block) => hasText(block.text),
 	render: (block, context) => {
 		const anchor = context.anchors.get(block.id);
@@ -255,6 +286,15 @@ function itemTexts(items: readonly ListItem[]): InlineText[] {
 	return items.flatMap((item) => [item.text, ...itemTexts(item.items ?? [])]);
 }
 
+/** List items with their texts replaced from `texts`, in the order `itemTexts` reads them. */
+function translatedItems(items: readonly ListItem[], texts: readonly BlockText[], at: { index: number }): ListItem[] {
+	return items.map((item) => {
+		const text = inlineAt(texts, at.index++, item.text);
+		const nested = item.items ? translatedItems(item.items, texts, at) : undefined;
+		return nested ? { text, items: nested } : { text };
+	});
+}
+
 function renderItems(items: readonly ListItem[], style: ListStyle): string {
 	const tag = style === "numbered" ? "ol" : "ul";
 	const shown = items.filter((item) => hasText(item.text) || itemTexts(item.items ?? []).some(hasText));
@@ -271,6 +311,8 @@ const list: BlockTypeSpec<ListBlock> = {
 	}),
 	inlines: (block) => itemTexts(block.items),
 	texts: (block) => itemTexts(block.items).map(inlineText),
+	translatable: (block) => itemTexts(block.items).map((inline) => ({ inline })),
+	translated: (block, texts) => ({ ...block, items: translatedItems(block.items, texts, { index: 0 }) }),
 	hasContent: (block) => itemTexts(block.items).some(hasText),
 	render: (block) => renderItems(block.items, block.style),
 };
@@ -280,6 +322,7 @@ const quote: BlockTypeSpec<QuoteBlock> = {
 	read: (input, report) => ({ text: readInline(input.text, ".text", report, TEXT) }),
 	inlines: (block) => [block.text],
 	texts: (block) => [inlineText(block.text)],
+	...oneText,
 	hasContent: (block) => hasText(block.text),
 	render: (block) => `<blockquote><p>${renderInline(block.text)}</p></blockquote>`,
 };
@@ -298,6 +341,7 @@ const image: BlockTypeSpec<ImageBlock> = {
 	},
 	inlines: () => [],
 	texts: () => [],
+	...noText,
 	hasContent: (block) => block.media !== null,
 	render(block, context) {
 		const found = block.media ? context.media?.(block.media) : undefined;
@@ -315,6 +359,12 @@ const video: BlockTypeSpec<VideoBlock> = {
 	}),
 	inlines: () => [],
 	texts: (block) => (block.title ? [block.title] : []),
+	// Its address is never sent; its title is text people read.
+	translatable: (block) => (block.title ? [{ plain: block.title }] : []),
+	translated: (block, texts) => {
+		const text = texts[0];
+		return text && "plain" in text ? { ...block, title: text.plain.trim().slice(0, BODY_LIMITS.videoTitle) } : block;
+	},
 	hasContent: (block) => block.url !== "",
 	render(block, context) {
 		const found = videoAt(block.url);
@@ -365,6 +415,11 @@ const table: BlockTypeSpec<TableBlock> = {
 	},
 	inlines: (block) => block.rows.flat(),
 	texts: (block) => block.rows.flat().map(inlineText),
+	translatable: (block) => block.rows.flat().map((inline) => ({ inline })),
+	translated: (block, texts) => {
+		let index = 0;
+		return { ...block, rows: block.rows.map((row) => row.map((cell) => inlineAt(texts, index++, cell))) };
+	},
 	hasContent: (block) => block.rows.flat().some(hasText),
 	render(block) {
 		const [first, ...rest] = block.rows;
@@ -389,6 +444,7 @@ const callout: BlockTypeSpec<CalloutBlock> = {
 	}),
 	inlines: (block) => [block.text],
 	texts: (block) => [inlineText(block.text)],
+	...oneText,
 	hasContent: (block) => hasText(block.text),
 	render: (block) => `<aside class="wc-callout" data-tone="${block.tone}"><p>${renderInline(block.text)}</p></aside>`,
 };
@@ -413,6 +469,8 @@ const code: BlockTypeSpec<CodeBlock> = {
 	},
 	inlines: () => [],
 	texts: (block) => [block.code],
+	// Code is never translated.
+	...noText,
 	hasContent: (block) => block.code.trim() !== "",
 	render(block) {
 		// An HTML parser drops a newline right after <pre>; repeat it so the code stays as written.
@@ -427,6 +485,7 @@ const divider: BlockTypeSpec<DividerBlock> = {
 	read: () => ({}),
 	inlines: () => [],
 	texts: () => [],
+	...noText,
 	hasContent: () => false,
 	render: () => "<hr>",
 };
@@ -439,6 +498,12 @@ const toggle: BlockTypeSpec<ToggleBlock> = {
 	}),
 	inlines: (block) => [block.summary, block.text],
 	texts: (block) => [inlineText(block.summary), inlineText(block.text)],
+	translatable: (block) => [{ inline: block.summary }, { inline: block.text }],
+	translated: (block, texts) => ({
+		...block,
+		summary: inlineAt(texts, 0, block.summary),
+		text: inlineAt(texts, 1, block.text),
+	}),
 	hasContent: (block) => hasText(block.summary) || hasText(block.text),
 	render: (block) =>
 		`<details><summary>${renderInline(block.summary)}</summary>${hasText(block.text) ? `<p>${renderInline(block.text)}</p>` : ""}</details>`,

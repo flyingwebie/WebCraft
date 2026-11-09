@@ -8,6 +8,8 @@ import {
 } from "@webcraft/auth";
 import {
 	AccessNotHeldError,
+	AiCapReachedError,
+	AiKeyInvalidError,
 	AiKeyMissingError,
 	AiProviderError,
 	AlreadyMemberError,
@@ -103,6 +105,8 @@ import {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	ProtectedTermInvalidError,
+	ProtectedTermNotFoundError,
 	PublishAllInvalidError,
 	PublishAllRefusedError,
 	RateLimitedError,
@@ -113,6 +117,7 @@ import {
 	SetupClosedError,
 	SetupStageError,
 	SetupTokenInvalidError,
+	SharedAiKeyNotFoundError,
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
@@ -128,6 +133,8 @@ import {
 	TokensFileInvalidError,
 	TooManyHostsError,
 	TooManyWebhooksError,
+	TranslationLanguageError,
+	TranslationNotFoundError,
 	WebhookDeliveryNotFoundError,
 	WebhookInvalidError,
 	WebhookNotFoundError,
@@ -639,6 +646,47 @@ export function toApiError(error: unknown): unknown {
 			data: { maxBytes: error.maxBytes },
 			cause: error,
 		});
+	}
+	if (error instanceof TranslationLanguageError) {
+		return new ORPCError("TRANSLATION_LANGUAGE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof TranslationNotFoundError) {
+		return new ORPCError("TRANSLATION_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ProtectedTermInvalidError) {
+		return new ORPCError("PROTECTED_TERM_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { index: error.index, reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof ProtectedTermNotFoundError) {
+		return new ORPCError("PROTECTED_TERM_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof AiKeyInvalidError) {
+		return new ORPCError("AI_KEY_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { field: error.field, reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof AiCapReachedError) {
+		return new ORPCError("AI_CAP_REACHED", {
+			status: 409,
+			message: error.message,
+			data: { key: error.key, resumesAt: error.resumesAt.toISOString() },
+			cause: error,
+		});
+	}
+	if (error instanceof SharedAiKeyNotFoundError) {
+		return new ORPCError("SHARED_AI_KEY_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof AiKeyMissingError) {
 		return new ORPCError("AI_KEY_MISSING", { status: 409, message: error.message, cause: error });

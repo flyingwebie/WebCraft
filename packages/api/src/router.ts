@@ -1,5 +1,6 @@
 import type { RouterClient } from "@orpc/server";
 
+import { aiKeys, sharedAiKeys } from "./procedures/ai-keys.ts";
 import { apiTokens } from "./procedures/api-tokens.ts";
 import { audit } from "./procedures/audit.ts";
 import { builder } from "./procedures/builder.ts";
@@ -36,6 +37,7 @@ import { sites } from "./procedures/sites.ts";
 import { staff } from "./procedures/staff.ts";
 import { staging } from "./procedures/staging.ts";
 import { templates } from "./procedures/templates.ts";
+import { protectedTerms, translations } from "./procedures/translations.ts";
 import { webhooks } from "./procedures/webhooks.ts";
 import { workspaces } from "./procedures/workspaces.ts";
 
@@ -50,12 +52,16 @@ export const apiRouter = {
 	me,
 	apiTokens,
 	install,
+	sharedAiKeys,
+	aiKeys,
 	workspaces,
 	sites,
 	postTypes,
 	entries,
 	globals,
 	languages,
+	translations,
+	protectedTerms,
 	domains,
 	webhooks,
 	siteSmtp,

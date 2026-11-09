@@ -7,6 +7,8 @@ import { actingPerson, personIdOf } from "../permissions/can.ts";
 import { SEO_CHECK_MESSAGES, type SeoPreview, seoReports } from "../seo/checks.ts";
 import { type EntrySeo, type EntrySeoChange, readEntrySeo, writeEntrySeo } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { type ItemTranslation, itemTranslation } from "../translation/status.ts";
+import { entryFields, unitsOf } from "../translation/units.ts";
 import { bodyChecksOf, type EntryCheck } from "./body-checks.ts";
 import { publishedAddresses } from "./entry-paths.ts";
 import {
@@ -113,6 +115,13 @@ export type Entry = {
 	linkedFrom: LinkBack[];
 	/** Where visitors find it (`/blog/fresh-bread`, `/about/team`, `/` for the home page); null until it is published. */
 	path: string | null;
+	/**
+	 * In a language other than the Default language, where its Draft's translations stand: Outdated
+	 * translations (a person's, whose source changed since: the old and the new source), the values the
+	 * AI wrote, those waiting for a person to publish, and those with no translation yet. Null in the
+	 * Default language.
+	 */
+	translation: ItemTranslation | null;
 };
 
 /** A change to an Entry's Draft, in one language (the Site's Default language unless given). */
@@ -361,6 +370,46 @@ export async function replaceDraft(scope: SiteScope, entryId: string, version: u
 	});
 }
 
+/** What translations change in an Entry: its Draft, its published version, or both (unchanged when absent). */
+export type TranslationWrite = { draft?: EntryVersion; published?: EntryVersion } | null;
+
+/**
+ * Writes translations into an Entry: AI translation's, and a person confirming or approving one. The
+ * Entry is locked; `change` gets its Draft and published version as they are now and answers what to
+ * write (null: nothing). The Draft goes through `changeDraft` like every other change; the published
+ * version takes only translated values (AI translation in Automatic mode, an approved translation),
+ * whose publishing the caller finishes (the page cache, Site search, the Audit log). Open the Site
+ * with `entry.edit`, and `entry.publish` to write the published version.
+ */
+export async function writeEntryTranslations(
+	scope: SiteScope,
+	entryId: string,
+	change: (entry: {
+		draft: EntryVersion;
+		published: EntryVersion | null;
+		postType: PostType;
+		hiddenLanguages: string[];
+	}) => TranslationWrite | Promise<TranslationWrite>,
+): Promise<{ written: TranslationWrite; postType: PostType }> {
+	return scope.transaction(async (tx) => {
+		const languages = await entryLanguages(tx);
+		const row = await lockEntry(tx, entryId);
+		const postType = await getPostType(tx, row.postTypeId);
+		const draft = storedVersion(row.draft);
+		const written = await change({
+			draft,
+			published: row.published === null ? null : storedVersion(row.published),
+			postType,
+			hiddenLanguages: hiddenLanguagesIn(draft, languages.defaultLanguage),
+		});
+		if (written?.draft) await changeDraft(tx, row, postType, { replace: written.draft }, languages);
+		if (written?.published && row.published !== null) {
+			await tx.update(entries, { published: written.published }, eq(entries.id, row.id));
+		}
+		return { written, postType };
+	});
+}
+
 /**
  * Puts values of an Entry's Draft back as they are published (open the Site with `entry.edit`):
  * the stored values named in `keys` (`title`, `slug`, `parent` and Field keys), or every value. A
@@ -577,7 +626,7 @@ export async function entryLanguages(scope: Pick<SiteScope, "db" | "site">, lang
 	return languages;
 }
 
-function writerOf(scope: Pick<SiteScope, "access">): Writer {
+function writerOf(scope: Pick<SiteScope, "access">): Extract<Writer, { kind: "person" }> {
 	return { kind: "person", personId: actingPerson(scope.access.actor) };
 }
 
@@ -677,6 +726,15 @@ async function entryViews(
 			seoPreview: seo[index]?.preview ?? { title: "", description: null, image: null },
 			linkedFrom: back.get(row.id) ?? [],
 			path: address?.path ?? null,
+			translation:
+				languages.language === languages.defaultLanguage
+					? null
+					: itemTranslation(
+							storedVersion(row.draft).values,
+							row.published === null ? null : storedVersion(row.published).values,
+							unitsOf(storedVersion(row.draft).values, entryFields(postType)),
+							languages,
+						),
 		};
 	});
 }

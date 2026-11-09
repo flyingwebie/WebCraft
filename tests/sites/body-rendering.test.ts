@@ -442,9 +442,17 @@ describe("in the Site's other languages", () => {
 				],
 			},
 		});
+		// A person's save works out each Block's source: a Block they wrote translates the Block it names,
+		// as that Block is now; one still holding exactly its source's content is a copy waiting for a
+		// translation, whatever the client claimed.
 		expect(entry.draft.fields.body).toEqual([
-			{ id: "intro-fr", type: "paragraph", text: [{ text: "Pain frais." }], source: { id: "intro", by: "person" } },
-			{ id: "film-fr", type: "video", url: "https://vimeo.com/76979871", title: "", source: { id: "film", by: "ai" } },
+			{
+				id: "intro-fr",
+				type: "paragraph",
+				text: [{ text: "Pain frais." }],
+				source: { id: "intro", by: "person", was: { type: "paragraph", text: [{ text: "Fresh bread." }] } },
+			},
+			{ id: "film-fr", type: "video", url: "https://vimeo.com/76979871", title: "" },
 		]);
 		const english = (await owner.api.entries.get({ siteId: french, entryId: translated.id })).entry;
 		expect((english.draft.fields.body as { id: string }[]).map((block) => block.id)).toEqual(["intro", "film"]);

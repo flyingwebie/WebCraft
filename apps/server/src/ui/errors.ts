@@ -91,11 +91,32 @@ export function errorMessage(error: unknown): MessageKey {
 		case "IMPORT_POST_TYPE_FIXED":
 		case "IMPORT_RUNNING":
 		case "IMPORT_UNDO_REFUSED":
+		case "AI_CAP_REACHED":
+		case "SHARED_AI_KEY_NOT_FOUND":
+		case "TRANSLATION_LANGUAGE_INVALID":
+		case "TRANSLATION_NOT_FOUND":
+		case "PROTECTED_TERM_INVALID":
+		case "PROTECTED_TERM_NOT_FOUND":
 		case "STAGING_UNAVAILABLE":
 		case "STAGING_PASSWORD_INVALID":
 		case "PUBLISH_ALL_INVALID":
 		case "PUBLISH_ALL_REFUSED":
 			return `errors.${code}`;
+		case "AI_KEY_INVALID":
+			switch ((data as { field?: unknown } | undefined)?.field) {
+				case "endpoint":
+					return "errors.AI_KEY_INVALID_ENDPOINT";
+				case "model":
+					return "errors.AI_KEY_INVALID_MODEL";
+				case "price":
+					return "errors.AI_KEY_INVALID_PRICE";
+				case "monthlyCap":
+					return "errors.AI_KEY_INVALID_MONTHLY_CAP";
+				case "name":
+					return "errors.AI_KEY_INVALID_NAME";
+				default:
+					return "errors.AI_KEY_INVALID_KEY";
+			}
 		case "DOMAIN_INVALID":
 			return (data as { reason?: unknown } | undefined)?.reason === "install"
 				? "errors.DOMAIN_INSTALL"

@@ -1,7 +1,9 @@
-// "Suggest alt text": an AI provider writes alt text for an image, with the Workspace's own AI key
-// (ADR 0011). Without one the library offers nothing and the procedure says why. A suggestion is
-// only a suggestion: nothing is saved until the person saves it.
+// "Suggest alt text": an AI provider writes alt text for an image, with the AI key the Workspace uses
+// (ADR 0011: its own, else a shared one). Without one the library offers nothing and the procedure
+// says why. A suggestion is only a suggestion: nothing is saved until the person saves it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
+import type { ImageDescriptionRequest } from "@webcraft/core";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -11,6 +13,7 @@ const AI_KEY = "sk-test-workspace-key-0123456789";
 let install: TestInstall;
 let workspaceId: string;
 let siteId: string;
+let staff: TestBrowser;
 let editor: TestBrowser;
 let author: TestBrowser;
 
@@ -18,7 +21,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace()).id;
 	siteId = (await install.createSite(workspaceId)).id;
-	const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
+	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	author = (await install.createMember({ workspaceId, role: "author" })).browser;
 	await staff.api.languages.add({ siteId, code: "it" });
@@ -49,7 +52,13 @@ describe("Suggest alt text", () => {
 	});
 
 	test("with it, an AI provider writes alt text in the language asked; nothing is saved", async () => {
-		await install.secrets.set({ owner: { kind: "workspace", workspaceId }, name: "ai.key" }, AI_KEY);
+		await staff.api.aiKeys.setOwn({
+			workspaceId,
+			provider: "openai",
+			model: "gpt-5-mini",
+			endpoint: null,
+			key: AI_KEY,
+		});
 		install.ai.answer(({ language }) => ({
 			text: language === "it" ? "  Una pagnotta rotonda su un tagliere.  " : "A round loaf on a board.",
 		}));
@@ -61,9 +70,9 @@ describe("Suggest alt text", () => {
 			alt: "Una pagnotta rotonda su un tagliere.",
 		});
 
-		const request = install.ai.requests.at(-1);
+		const request = install.ai.requests.at(-1) as ImageDescriptionRequest | undefined;
 		expect(request).toMatchObject({
-			key: AI_KEY,
+			connection: { provider: "openai", model: "gpt-5-mini", key: AI_KEY },
 			purpose: "altText",
 			language: "it",
 			image: { contentType: "image/webp" },

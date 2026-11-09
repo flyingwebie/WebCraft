@@ -15,6 +15,7 @@ import {
 	ImagesIcon,
 	ImportIcon,
 	InboxIcon,
+	KeyRoundIcon,
 	LanguagesIcon,
 	LayoutDashboardIcon,
 	LayoutTemplateIcon,
@@ -28,7 +29,9 @@ import {
 	SearchCheckIcon,
 	SettingsIcon,
 	ShieldCheckIcon,
+	ShieldIcon,
 	SlidersHorizontalIcon,
+	SparklesIcon,
 	UsersIcon,
 	WebhookIcon,
 } from "lucide-react";
@@ -187,6 +190,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						requires: "install.manage",
 					},
 					{
+						id: "ai",
+						label: "shell.nav.ai",
+						icon: SparklesIcon,
+						to: "/settings/ai",
+						requires: "install.manage",
+					},
+					{
 						id: "modules",
 						label: "shell.nav.modules",
 						icon: PuzzleIcon,
@@ -218,6 +228,19 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: UsersIcon,
 						to: "/workspaces/$workspaceId/members",
 						requires: "member.manage",
+					},
+					{
+						id: "protected-terms",
+						label: "shell.nav.protectedTerms",
+						icon: ShieldIcon,
+						to: "/workspaces/$workspaceId/protected-terms",
+					},
+					{
+						id: "ai-keys",
+						label: "shell.nav.aiKeys",
+						icon: KeyRoundIcon,
+						to: "/workspaces/$workspaceId/ai-keys",
+						requires: "aiKey.manage",
 					},
 					{
 						id: "workspace-modules",
@@ -254,6 +277,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 					// The Site's Post Types come here (`postTypeItems`).
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
 					{ id: "site-globals", label: "shell.nav.globals", icon: SlidersHorizontalIcon, to: "/sites/$siteId/globals" },
+					{
+						id: "site-translations",
+						label: "shell.nav.translations",
+						icon: LanguagesIcon,
+						to: "/sites/$siteId/translations",
+						requires: "entry.edit",
+					},
 					{
 						id: "site-imports",
 						label: "shell.nav.imports",
@@ -320,6 +350,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: LanguagesIcon,
 						to: "/sites/$siteId/languages",
 						requires: "structure.edit",
+					},
+					{
+						id: "site-ai-translation",
+						label: "shell.nav.aiTranslation",
+						icon: SparklesIcon,
+						to: "/sites/$siteId/ai-translation",
+						requires: "translation.manage",
 					},
 					{
 						id: "site-seo",

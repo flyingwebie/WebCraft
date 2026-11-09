@@ -100,6 +100,7 @@ describe("accepting a Member invite", () => {
 		});
 		expect((await browser.api.workspaces.list()).workspaces.map((workspace) => workspace.name)).toEqual(["Acme Ltd"]);
 		expect((await browser.api.sites.get({ siteId: bakery.id })).permissions).toEqual([
+			"protectedTerms.edit",
 			"site.view",
 			"entry.edit",
 			"entry.publish",

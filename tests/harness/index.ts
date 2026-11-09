@@ -8,6 +8,8 @@ import {
 	coreJobs,
 	coreSchedules,
 	countriesFromFile,
+	createGuardedFetch,
+	createHttpAiProviders,
 	createInstallServices,
 	createJobQueue,
 	createLogger,
@@ -136,6 +138,12 @@ export type TestInstallOptions = {
 	mediaImportTimeoutMs?: number;
 	/** `WEBCRAFT_UPDATE_FEED`: the project's own feed unless given; null for `off`. */
 	updateFeed?: string | null;
+	/**
+	 * How AI providers answer: the fake (`install.ai`, the default), or `http`: the real providers'
+	 * APIs, called through the guarded fetcher on the fake outgoing HTTP (`install.http`), to test
+	 * what WebCraft sends each provider and how it reads their answers.
+	 */
+	aiProviders?: "fake" | "http";
 	/** How many filtered pages the page cache keeps per Site: the web process's default unless given (to test the limit). */
 	filterVariants?: number;
 };
@@ -413,7 +421,10 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		tls: tls.probe,
 		// The real reading of a file of address ranges, with the test suite's own file.
 		countries: countriesFromFile(countryFile, log),
-		ai: ai.providers,
+		ai:
+			options.aiProviders === "http"
+				? createHttpAiProviders({ fetch: createGuardedFetch({ http: http.fetch, dns: dns.resolver }) })
+				: ai.providers,
 		clock,
 		log,
 		// The real image processing the worker does (it isn't an edge, so it isn't faked).
