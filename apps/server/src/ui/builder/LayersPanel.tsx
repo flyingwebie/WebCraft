@@ -19,6 +19,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useAfterRender } from "../after-render.ts";
 import { useT } from "../i18n.tsx";
 import { type Catalogue, layerName, listName, type Selection } from "./model.ts";
 import {
@@ -155,6 +156,7 @@ export function LayersPanel({
 	const t = useT();
 	const rows = layerRows(tree, collapsed);
 	const list = useRef<HTMLDivElement>(null);
+	const afterRender = useAfterRender();
 	const [renaming, setRenaming] = useState<string | null>(null);
 	const handledRequest = useRef(focusRequest);
 	const [dragging, setDragging] = useState<NodePath | null>(null);
@@ -433,7 +435,7 @@ export function LayersPanel({
 											onDone={(label) => {
 												setRenaming(null);
 												if (label !== undefined && row.kind === "node") onRename(row.path, label);
-												requestAnimationFrame(() =>
+												afterRender(() =>
 													list.current?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(row.key)}"]`)?.focus(),
 												);
 											}}
