@@ -4,14 +4,24 @@ import {
 	builtInNotFoundPage,
 	directionOf,
 	type ElementTree,
+	isComponentInfo,
 	mediaReferencesIn,
 	type PageToRender,
+	type PlacementRenderer,
+	placementsIn,
 	renderPage,
 	type TemplateValue,
 } from "@webcraft/renderer";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
+import {
+	type ComponentSources,
+	type ComponentVersion,
+	NO_MODULE_COMPONENTS,
+	type SiteComponents,
+	siteComponents,
+} from "../content/components.ts";
 import { entryValues } from "../content/entries.ts";
 import { linksIn } from "../content/field-values.ts";
 import type { BuiltInField } from "../content/fields.ts";
@@ -26,8 +36,16 @@ import {
 	publishedPageTree,
 } from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
+import { propValue } from "../content/props.ts";
 import { publishedEntries } from "../content/relationships.ts";
-import { entryParts, globalsParts, type Parts, type RelatedEntry, resolvePath } from "../content/render-values.ts";
+import {
+	entryParts,
+	globalsParts,
+	type Parts,
+	placementValues,
+	type RelatedEntry,
+	resolvePath,
+} from "../content/render-values.ts";
 import { specialPageId } from "../content/special-pages.ts";
 import { pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
@@ -91,8 +109,11 @@ export function createSitePages(options: {
 	config: InstallConfig;
 	data: DataLayer;
 	storage: InstallStorage;
+	/** The Components of the Modules running on each Site. */
+	components?: ComponentSources;
 }): SitePages {
 	const { database, config, data, storage } = options;
+	const sources = options.components ?? NO_MODULE_COMPONENTS;
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
@@ -121,16 +142,16 @@ export function createSitePages(options: {
 						(await findPage(scope, postTypes, segments, host.defaultLanguage)));
 			if (!found) return null;
 			if (segments.length > 0 && found.entry.id === home) return { kind: "redirect", location: "/" };
-			return { kind: "page", html: await renderEntryPage(scope, host, found) };
+			return { kind: "page", html: await renderEntryPage(scope, host, found, sources) };
 		},
 
 		async notFound(host) {
 			const scope = data.visitors(host.site);
 			const chosen = await specialPageId(scope, "notFound");
 			const found = chosen && (await publishedPage(scope, await listPostTypes(scope), chosen));
-			if (found) return { html: await renderEntryPage(scope, host, found) };
+			if (found) return { html: await renderEntryPage(scope, host, found, sources) };
 			const builtIn = builtInNotFoundPage(host.defaultLanguage);
-			return { html: await renderSitePage(scope, host, { ...builtIn, values: () => undefined }) };
+			return { html: await renderSitePage(scope, host, { ...builtIn, values: () => undefined }, sources) };
 		},
 
 		mediaFile(host, name) {
@@ -226,7 +247,12 @@ async function publishedPage(
 	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT };
 }
 
-async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: FoundEntry): Promise<string> {
+async function renderEntryPage(
+	scope: VisitorScope,
+	host: SiteHost,
+	found: FoundEntry,
+	sources: ComponentSources,
+): Promise<string> {
 	const { postType, entry, content } = found;
 	const language = host.defaultLanguage;
 	const languages = { language, defaultLanguage: host.defaultLanguage };
@@ -249,7 +275,7 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 	const site = await siteParts(scope, languages);
 	const related = await relatedEntries(
 		scope,
-		found,
+		found.postTypes,
 		linksIn(version.values, postType.fields).map((link) => link.targetId),
 		languages,
 	);
@@ -261,6 +287,7 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 		scope,
 		host,
 		{ title: published.title, content, values: (path) => resolvePath(root, path) },
+		sources,
 		// Media values the content may read: its own, and its related Entries'.
 		[published.fields, [...related.values()].map((entry) => entry.values)],
 	);
@@ -283,6 +310,7 @@ async function renderSitePage(
 	scope: VisitorScope,
 	host: SiteHost,
 	page: Pick<PageToRender, "title" | "content" | "values">,
+	sources: ComponentSources,
 	contentValues: unknown = null,
 ): Promise<string> {
 	const language = host.defaultLanguage;
@@ -292,12 +320,14 @@ async function renderSitePage(
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
 	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
 	const siteTemplate = await publishedSiteTemplate(scope);
-	// The Media the page may show: `media:<id>` written in either template, and every media value the
-	// page reads (its content's, the Globals'). Ids that aren't the Site's ready Media find nothing.
+	const placed = await pageComponents(scope, [page.content, siteTemplate], sources, site, languages);
+	// The Media the page may show: `media:<id>` written in either template or a Component it places,
+	// and every media value the page reads (its content's, the Globals'). Ids that aren't the Site's
+	// ready Media find nothing.
 	const shown = await pageMedia(
 		scope,
 		[
-			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null])),
+			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null, placed.trees])),
 			...uuidsIn(JSON.stringify([contentValues, globalValues.values])),
 		],
 		languages,
@@ -309,7 +339,81 @@ async function renderSitePage(
 		siteValues: (path) => resolvePath(siteRoot, path),
 		className: (classId) => classNames.get(classId),
 		media: (id) => shown.get(id),
+		component: placed.render,
 	});
+}
+
+/**
+ * The published Components a page shows, through its trees and the Components they place, and how
+ * each Placement renders: the Component's published tree, reading its Prop values (`props.x`) and
+ * the Globals (`site.x`). A Component that isn't published, or a Module's that doesn't run on the
+ * Site, shows nothing. Relationship Props written as Entry ids show those published Entries of their
+ * Post Types.
+ */
+async function pageComponents(
+	scope: VisitorScope,
+	trees: readonly (ElementTree | undefined)[],
+	sources: ComponentSources,
+	site: Parts,
+	languages: { language: string; defaultLanguage: string },
+): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
+	const catalogue = await siteComponents(scope, "published", sources);
+	const used = new Map<string, ComponentVersion>();
+	const visit = (tree: ElementTree) => {
+		for (const placement of placementsIn(tree.nodes)) {
+			if (used.has(placement.component) || !isComponentInfo(catalogue.byId(placement.component))) continue;
+			const version = catalogue.version(placement.component);
+			if (!version) continue;
+			used.set(placement.component, version);
+			visit(version.tree);
+		}
+	};
+	for (const tree of trees) if (tree) visit(tree);
+	const related = await relatedOfProps(
+		scope,
+		[...trees, ...[...used.values()].map((version) => version.tree)],
+		catalogue,
+		languages,
+	);
+	return {
+		trees: [...used.values()].map((version) => version.tree),
+		render: (componentId, props, outer) => {
+			const version = used.get(componentId);
+			if (!version) return undefined;
+			return {
+				tree: version.tree,
+				values: placementValues(version.props, props, outer, { site, related, read: propValue }),
+			};
+		},
+	};
+}
+
+/** The published Entries Relationship Props written as Entry ids point at, with their Post Type's key. */
+async function relatedOfProps(
+	scope: VisitorScope,
+	trees: readonly (ElementTree | undefined)[],
+	catalogue: SiteComponents,
+	languages: { language: string; defaultLanguage: string },
+): Promise<Map<string, RelatedEntry & { postTypeKey: string }>> {
+	const ids: string[] = [];
+	for (const tree of trees) {
+		for (const placement of placementsIn(tree?.nodes ?? [])) {
+			const props = catalogue.version(placement.component)?.props ?? [];
+			for (const given of placement.props) {
+				const prop = props.find((candidate) => candidate.key === given.name);
+				if (prop?.type !== "relationship" || given.value.some((part) => part.type === "value")) continue;
+				const value = propValue(prop, given.value.map((part) => (part.type === "text" ? part.text : "")).join(""));
+				ids.push(...(Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === "string"));
+			}
+		}
+	}
+	if (ids.length === 0) return new Map();
+	const postTypes = await listPostTypes(scope);
+	const keys = new Map(postTypes.map((postType) => [postType.id, postType.key]));
+	const related = await relatedEntries(scope, postTypes, ids, languages);
+	const withKeys = new Map<string, RelatedEntry & { postTypeKey: string }>();
+	for (const [id, entry] of related) withKeys.set(id, { ...entry, postTypeKey: keys.get(entry.postTypeId) ?? "" });
+	return withKeys;
 }
 
 /** The Site template visitors see, or undefined while none is published (pages get the built-in one). */
@@ -324,12 +428,12 @@ async function publishedSiteTemplate(scope: VisitorScope): Promise<ElementTree |
 /** The published Entries the page's Relationships point at, read in the page's language. */
 async function relatedEntries(
 	scope: VisitorScope,
-	found: FoundEntry,
+	postTypes: readonly PostType[],
 	ids: readonly string[],
 	languages: { language: string; defaultLanguage: string },
-): Promise<Map<string, RelatedEntry>> {
-	const byId = new Map(found.postTypes.map((postType) => [postType.id, postType]));
-	const related = new Map<string, RelatedEntry>();
+): Promise<Map<string, RelatedEntry & { postTypeId: string }>> {
+	const byId = new Map(postTypes.map((postType) => [postType.id, postType]));
+	const related = new Map<string, RelatedEntry & { postTypeId: string }>();
 	let pageTree: PageTree | undefined;
 	for (const row of await publishedEntries(scope, [...new Set(ids)])) {
 		const postType = byId.get(row.postTypeId);
@@ -344,6 +448,7 @@ async function relatedEntries(
 			url = pathFor(postType.urlPattern, values.slug);
 		}
 		related.set(row.id, {
+			postTypeId: postType.id,
 			fields: postType.fields,
 			values: values.fields,
 			builtIns: {

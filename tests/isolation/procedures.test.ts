@@ -216,6 +216,9 @@ describe("Components", () => {
 	isolation.refuses("components.saveMarkup", async (api, target) =>
 		api.components.saveMarkup({ siteId: target.siteId, componentId: await componentIn(target), markup: "<p>Hi</p>" }),
 	);
+	isolation.refuses("components.publish", async (api, target) =>
+		api.components.publish({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
 });
 
 describe("Pages", () => {

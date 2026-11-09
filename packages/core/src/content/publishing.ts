@@ -1,11 +1,23 @@
-import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
+import { components, entries, publishedSlugs, templates } from "@webcraft/db/schema";
+import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
+import { classCatalogue, listClasses } from "../design-system/classes.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
+import {
+	type ComponentSources,
+	componentTreeRules,
+	lockComponent,
+	lockComponents,
+	NO_MODULE_COMPONENTS,
+	readContext,
+	siteComponents,
+	storedVersion as storedComponentVersion,
+} from "./components.ts";
 import { entryValues, lockEntry, siteLanguages, versionFindings } from "./entries.ts";
 import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
 import { linksIn } from "./field-values.ts";
@@ -30,10 +42,14 @@ import { pathFor } from "./url-patterns.ts";
 import { storedVersion } from "./values.ts";
 
 /**
- * One item to publish. Components, Forms and the Design system join Entries, Templates and the
+ * One item to publish. Forms and the Design system join Entries, Templates, Components and the
  * Globals; Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
  */
-export type PublishItem = { kind: "entry"; id: string } | { kind: "template"; id: string } | { kind: "globals" };
+export type PublishItem =
+	| { kind: "entry"; id: string }
+	| { kind: "template"; id: string }
+	| { kind: "component"; id: string }
+	| { kind: "globals" };
 
 /** A published path that a publish changed: where visitors found an Entry or Page, and where now. */
 export type PathChange = { entryId: string; language: string; from: string; to: string };
@@ -46,10 +62,10 @@ export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Da
 
 /**
  * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
- * (Editors, Owners, Staff); Structure, such as a Template, takes `structure.edit` (Staff only).
+ * (Editors, Owners, Staff); Structure (Templates, Components) takes `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
-	return item.kind === "template" ? "structure.edit" : "entry.publish";
+	return item.kind === "template" || item.kind === "component" ? "structure.edit" : "entry.publish";
 }
 
 /**
@@ -62,10 +78,15 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
  * values are empty (`EntryIncompleteError`), an Entry whose slug another published Entry of its Post
  * Type has (`EntrySlugTakenError`; for a Page, another published Page under the same parent), a Page
  * whose parent Page isn't published (`PageParentUnpublishedError`) or whose path, or that of a Page
- * under it, a Post Type's URL pattern owns (`PathTakenError`), and a Template that no longer fits
- * what it renders (`ElementTreeInvalidError`).
+ * under it, a Post Type's URL pattern owns (`PathTakenError`), and a Template or Component that no
+ * longer fits what it renders (`ElementTreeInvalidError`), such as one placing a Component that
+ * isn't published yet. `sources` gives the Components of the Modules running on the Site.
  */
-export async function publish(scope: SiteScope, item: PublishItem): Promise<Published> {
+export async function publish(
+	scope: SiteScope,
+	item: PublishItem,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Published> {
 	const permission = publishPermission(item);
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
@@ -74,8 +95,10 @@ export async function publish(scope: SiteScope, item: PublishItem): Promise<Publ
 			item.kind === "entry"
 				? await publishEntry(tx, item.id)
 				: item.kind === "template"
-					? await publishTemplate(tx, item.id)
-					: await publishGlobals(tx);
+					? await publishTemplate(tx, item.id, sources)
+					: item.kind === "component"
+						? await publishComponent(tx, item.id, sources)
+						: await publishGlobals(tx);
 		await clearPageCache(tx);
 		return published;
 	});
@@ -193,11 +216,13 @@ async function pagePaths(
 	return { path: pathText(pathIn(tree, pageId) ?? []), changes };
 }
 
-async function publishTemplate(scope: SiteScope, templateId: string): Promise<Published> {
+async function publishTemplate(scope: SiteScope, templateId: string, sources: ComponentSources): Promise<Published> {
+	// Which Components it may place is read under the Components' lock, taken before any row lock.
+	await lockComponents(scope);
 	const row = await lockTemplate(scope, templateId);
-	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes)
-	// may have changed since the Draft was saved.
-	const tree = await checkTemplateForPublish(scope, row);
+	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes,
+	// the published Components it places) may have changed since the Draft was saved.
+	const tree = await checkTemplateForPublish(scope, row, sources);
 	const now = scope.now();
 	await scope.update(
 		templates,
@@ -206,4 +231,29 @@ async function publishTemplate(scope: SiteScope, templateId: string): Promise<Pu
 	);
 	await scope.audit("template.publish", { templateId: row.id, kind: row.kind, postTypeId: row.postTypeId });
 	return { kind: "template", id: row.id, publishedAt: now, pathChanges: [] };
+}
+
+/**
+ * Publishes a Component's Draft, its Props and tree together: every copy changes at once, wherever
+ * it is placed. Checked again first, against the published versions of the Components it places
+ * (each must be published) and what it reads (the Globals, the Post Types, the Classes).
+ */
+async function publishComponent(scope: SiteScope, componentId: string, sources: ComponentSources): Promise<Published> {
+	await lockComponents(scope);
+	const row = await lockComponent(scope, componentId, sources);
+	const draft = storedComponentVersion(row.draft);
+	const catalogue = await siteComponents(scope, "published", sources, { self: row.id });
+	const { ids } = classCatalogue(await listClasses(scope));
+	const tree = parseElementTree(draft.tree, {
+		...componentTreeRules(draft.props, await readContext(scope), catalogue),
+		classIds: ids,
+	});
+	const now = scope.now();
+	await scope.update(
+		components,
+		{ published: { props: draft.props, tree }, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
+		eq(components.id, row.id),
+	);
+	await scope.audit("component.publish", { componentId: row.id, name: row.name });
+	return { kind: "component", id: row.id, publishedAt: now, pathChanges: [] };
 }

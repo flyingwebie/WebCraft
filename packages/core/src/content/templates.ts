@@ -1,5 +1,6 @@
 import { globals, templates } from "@webcraft/db/schema";
 import {
+	type ComponentCatalogue,
 	checkSiteTemplate,
 	type ElementTree,
 	type MarkupNotice,
@@ -14,6 +15,13 @@ import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import {
+	type ComponentSources,
+	lockComponents,
+	NO_MODULE_COMPONENTS,
+	type SiteComponents,
+	siteComponents,
+} from "./components.ts";
 import { PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.ts";
 import type { FieldDefinition } from "./field-types.ts";
 import { storedFields } from "./fields.ts";
@@ -111,8 +119,15 @@ type TemplateTarget =
 	| { kind: "entry"; context: EntryTemplateContext }
 	| { kind: "site"; globalFields: readonly FieldDefinition[] };
 
-function rulesFor(target: TemplateTarget) {
-	return target.kind === "entry" ? entryTemplateRules(target.context) : siteTemplateRules(target.globalFields);
+/**
+ * What the Template `target` names may hold, placing the Components of `components`: their Drafts
+ * for a Draft, their published versions for a publish.
+ */
+function rulesFor(target: TemplateTarget, components: ComponentCatalogue) {
+	return {
+		...(target.kind === "entry" ? entryTemplateRules(target.context) : siteTemplateRules(target.globalFields)),
+		components,
+	};
 }
 
 function whereFor(target: TemplateTarget): SQL {
@@ -122,8 +137,13 @@ function whereFor(target: TemplateTarget): SQL {
 }
 
 /** Checks a tree as the Template `target` names, answering it in canonical form. */
-function parseTemplate(tree: unknown, target: TemplateTarget, classIds: ReadonlySet<string>): ElementTree {
-	return parseElementTree(tree, { ...rulesFor(target), classIds });
+function parseTemplate(
+	tree: unknown,
+	target: TemplateTarget,
+	classIds: ReadonlySet<string>,
+	components: ComponentCatalogue,
+): ElementTree {
+	return parseElementTree(tree, { ...rulesFor(target, components), classIds });
 }
 
 /** An Entry template to save: Pages have none, being arranged with a Page layout (`PagesHaveNoEntryTemplateError`). */
@@ -143,22 +163,42 @@ async function siteTemplateTarget(scope: SiteScope): Promise<TemplateTarget> {
  * the template the first time. Visitors see nothing of it until it is published. Pages have none:
  * they are arranged with a Page layout.
  */
-export async function saveEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template> {
-	return saveTemplate(scope, await entryTemplateTarget(scope, postTypeId), tree);
+export async function saveEntryTemplate(
+	scope: SiteScope,
+	postTypeId: string,
+	tree: unknown,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Template> {
+	return saveTemplate(scope, await entryTemplateTarget(scope, postTypeId), tree, sources);
 }
 
 /**
  * Saves the Draft of the Site template (open the Site with `structure.edit`), creating it the first
  * time. Visitors see the built-in one until it is published.
  */
-export async function saveSiteTemplate(scope: SiteScope, tree: unknown): Promise<Template> {
-	return saveTemplate(scope, await siteTemplateTarget(scope), tree);
+export async function saveSiteTemplate(
+	scope: SiteScope,
+	tree: unknown,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Template> {
+	return saveTemplate(scope, await siteTemplateTarget(scope), tree, sources);
 }
 
-async function saveTemplate(scope: SiteScope, target: TemplateTarget, tree: unknown): Promise<Template> {
-	const { ids } = classCatalogue(await listClasses(scope));
-	const draft = parseTemplate(tree, target, ids);
-	return retryOnRace(() => scope.transaction((tx) => writeTemplateDraft(tx, target, draft)));
+async function saveTemplate(
+	scope: SiteScope,
+	target: TemplateTarget,
+	tree: unknown,
+	sources: ComponentSources,
+): Promise<Template> {
+	return retryOnRace(() =>
+		scope.transaction(async (tx) => {
+			// The Components it places can't be deleted while it is saved.
+			await lockComponents(tx);
+			const { ids } = classCatalogue(await listClasses(tx));
+			const draft = parseTemplate(tree, target, ids, await siteComponents(tx, "draft", sources));
+			return writeTemplateDraft(tx, target, draft);
+		}),
+	);
 }
 
 /**
@@ -170,67 +210,81 @@ export async function saveEntryTemplateMarkup(
 	scope: SiteScope,
 	postTypeId: string,
 	markup: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<SavedTemplateMarkup> {
-	return saveTemplateMarkup(scope, await entryTemplateTarget(scope, postTypeId), markup);
+	return saveTemplateMarkup(scope, await entryTemplateTarget(scope, postTypeId), markup, sources);
 }
 
 /** Saves the Draft of the Site template from Template markup, as `saveEntryTemplateMarkup` does. */
-export async function saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup> {
-	return saveTemplateMarkup(scope, await siteTemplateTarget(scope), markup);
+export async function saveSiteTemplateMarkup(
+	scope: SiteScope,
+	markup: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<SavedTemplateMarkup> {
+	return saveTemplateMarkup(scope, await siteTemplateTarget(scope), markup, sources);
 }
 
 async function saveTemplateMarkup(
 	scope: SiteScope,
 	target: TemplateTarget,
 	markup: string,
+	sources: ComponentSources,
 ): Promise<SavedTemplateMarkup> {
-	return retryOnRace(async () => {
-		const catalogue = classCatalogue(await listClasses(scope));
-		const { tree, notices } = parseTemplateMarkup(markup, {
-			...rulesFor(target),
-			classNamed: catalogue.named,
-			classForStyle: catalogue.forStyle,
-		});
-		const template = await scope.transaction(async (tx) => {
+	return retryOnRace(() =>
+		scope.transaction(async (tx) => {
+			// The Components it places can't be deleted while it is saved.
+			await lockComponents(tx);
+			const catalogue = classCatalogue(await listClasses(tx));
+			const components = await siteComponents(tx, "draft", sources);
+			const { tree, notices } = parseTemplateMarkup(markup, {
+				...rulesFor(target, components),
+				classNamed: catalogue.named,
+				classForStyle: catalogue.forStyle,
+			});
 			await saveCreatedClasses(tx, catalogue);
-			return writeTemplateDraft(tx, target, tree);
-		});
-		return { template, markup: printMarkup(template.draft, catalogue), notices };
-	});
+			const template = await writeTemplateDraft(tx, target, tree);
+			return { template, markup: printMarkup(template.draft, catalogue, components), notices };
+		}),
+	);
 }
 
 /** A Post Type's Entry template as Template markup, or null while it has none. */
 export async function getEntryTemplateMarkup(
 	scope: SiteScope,
 	postTypeId: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
-	return templateMarkup(scope, await getEntryTemplate(scope, postTypeId));
+	return templateMarkup(scope, await getEntryTemplate(scope, postTypeId), sources);
 }
 
 /** The Site template as Template markup, or null while the Site has none (and shows the built-in one). */
 export async function getSiteTemplateMarkup(
 	scope: SiteScope,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
-	return templateMarkup(scope, await getSiteTemplate(scope));
+	return templateMarkup(scope, await getSiteTemplate(scope), sources);
 }
 
 async function templateMarkup(
 	scope: SiteScope,
 	template: Template | null,
+	sources: ComponentSources,
 ): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
 	if (!template) return { template: null, markup: null };
 	const catalogue = classCatalogue(await listClasses(scope));
+	const components = await siteComponents(scope, "draft", sources);
 	return {
 		template,
 		markup: {
-			draft: printMarkup(template.draft, catalogue),
-			published: template.published ? printMarkup(template.published, catalogue) : null,
+			draft: printMarkup(template.draft, catalogue, components),
+			published: template.published ? printMarkup(template.published, catalogue, components) : null,
 		},
 	};
 }
 
-function printMarkup(tree: ElementTree, catalogue: ClassCatalogue): string {
-	return printTemplateMarkup(tree, { className: catalogue.nameOf });
+/** A tree as Template markup: Classes by name, Placements by their Components' names. */
+function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: SiteComponents): string {
+	return printTemplateMarkup(tree, { className: catalogue.nameOf, componentName: components.nameOf });
 }
 
 /** Writes a checked tree as the Draft of the Template `target` names, creating it the first time. */
@@ -284,13 +338,18 @@ export async function getSiteTemplate(scope: Pick<SiteScope, "first">): Promise<
  * reads (its Post Type, the Globals, what Relationships point at) or its Classes may have changed
  * since it was saved.
  */
-export async function checkTemplateForPublish(scope: SiteScope, row: TemplateRow): Promise<ElementTree> {
+export async function checkTemplateForPublish(
+	scope: SiteScope,
+	row: TemplateRow,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<ElementTree> {
 	const target: TemplateTarget =
 		row.kind === "site"
 			? await siteTemplateTarget(scope)
 			: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
 	const { ids } = classCatalogue(await listClasses(scope));
-	return parseTemplate(row.draft, target, ids);
+	// Visitors will see the Components it places as they are published.
+	return parseTemplate(row.draft, target, ids, await siteComponents(scope, "published", sources));
 }
 
 /** Reads a Template for publishing, holding it until the transaction ends. */

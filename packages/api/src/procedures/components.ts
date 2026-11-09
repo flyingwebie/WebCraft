@@ -1,3 +1,4 @@
+import { publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
@@ -82,4 +83,15 @@ export const components = {
 			const { siteId: _, componentId: target, ...change } = input;
 			return context.services.components.saveMarkup(site, target, change);
 		}),
+
+	/**
+	 * Publishes a Component's Draft, its Props and tree together: every copy changes at once, and the
+	 * Site's page cache is cleared. Refused while it places a Component that isn't published.
+	 */
+	publish: signedIn.input(z.object({ siteId: id, componentId })).handler(async ({ context, input }) => {
+		const item = { kind: "component", id: input.componentId } as const;
+		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+		const published = await context.services.publishing.publish(site, item);
+		return { published, ...(await context.services.components.get(site, input.componentId)) };
+	}),
 };
