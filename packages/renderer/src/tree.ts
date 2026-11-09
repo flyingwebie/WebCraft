@@ -280,6 +280,7 @@ export function attributeProblem(name: string): string | undefined {
 export const LABEL_MAX_LENGTH = 100;
 
 /** Characters a layer label can't hold: control characters, line breaks among them. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
 const LABEL_REFUSED = /[\u0000-\u001f\u007f]/;
 
 /**
