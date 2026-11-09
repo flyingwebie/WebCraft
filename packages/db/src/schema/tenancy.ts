@@ -3,6 +3,7 @@ import {
 	boolean,
 	foreignKey,
 	index,
+	integer,
 	pgTable,
 	primaryKey,
 	text,
@@ -60,6 +61,12 @@ export const sites = pgTable(
 		 */
 		cspMode: text("csp_mode").notNull().default("strict"),
 		pageCacheGeneration: bigint("page_cache_generation", { mode: "number" }).notNull().default(0),
+		/**
+		 * Which version of WebCraft's search index the Site's index was last rebuilt for; 0 when a
+		 * change (Searched fields, a language added) asks for a rebuild. Sites behind the current
+		 * version are rebuilt by the `search.rebuild-due` job.
+		 */
+		searchIndexVersion: integer("search_index_version").notNull().default(0),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [unique("sites_workspace_id_id_unique").on(table.workspaceId, table.id)],

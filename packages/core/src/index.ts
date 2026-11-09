@@ -167,6 +167,7 @@ export {
 	type RateLimitRule,
 	type RateLimits,
 } from "./rate-limits.ts";
+export * from "./search/index.ts";
 export * from "./secrets/index.ts";
 export type { InstallPorts, InstallServices } from "./services.ts";
 export {

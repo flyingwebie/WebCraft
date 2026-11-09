@@ -1695,6 +1695,11 @@
 			"pageUrlPattern": "Pages are found by their parent Page and slug, so their URL pattern can't change.",
 			"urlPatternFormat": "A URL pattern is a path of fixed parts (lower-case letters, digits and dashes) and one {slug}, such as /blog/{slug}.",
 			"urlPatternParts": "A URL pattern has at most {max} parts.",
+			"searchedFieldsCount": "A Post Type has up to {max} Searched fields.",
+			"searchedFieldWeight": "A Searched field's weight is A, B, C or D.",
+			"searchedFieldUnknown": "This Post Type has no Field {field} to search.",
+			"searchedFieldType": "Site search reads text, rich text, Body, select, link and email Fields, not {field}.",
+			"searchedFieldTwice": "{field} is searched once, with one weight.",
 			"bodyInLoop": "Loop items have no Body field: a query Loop over a Post Type reads its Entries' bodies.",
 			"relationshipInLoop": "Loop items can't hold Relationships: a query Loop lists Entries."
 		},
