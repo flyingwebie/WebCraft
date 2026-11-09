@@ -211,6 +211,59 @@ describe("Scripts", () => {
 	);
 });
 
+describe("Site script safety", () => {
+	isolation.refuses("csp.get", (api, { siteId }) => api.csp.get({ siteId }));
+	isolation.refuses("csp.setMode", (api, { siteId }) => api.csp.setMode({ siteId, mode: "relaxed" }));
+	isolation.refuses("csp.addHost", (api, { siteId }) => api.csp.addHost({ siteId, host: "tags.example.com" }));
+	isolation.refuses("csp.removeHost", (api, { siteId }) => api.csp.removeHost({ siteId, host: "tags.example.com" }));
+
+	const outside = {
+		name: "Chat widget",
+		placement: "bodyEnd" as const,
+		consentCategory: "marketing" as const,
+		source: { kind: "url" as const, url: "https://widgets.example.com/chat.js" },
+	};
+	/** An outside script on a target's Site, added by the Superadmin. */
+	const outsideScriptIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.outsideScripts.add({ siteId: target.siteId, ...outside })).outsideScript.id;
+	};
+	isolation.refuses("outsideScripts.list", (api, { siteId }) => api.outsideScripts.list({ siteId }));
+	isolation.refuses("outsideScripts.add", (api, { siteId }) => api.outsideScripts.add({ siteId, ...outside }));
+	isolation.refuses("outsideScripts.update", async (api, target) =>
+		api.outsideScripts.update({ siteId: target.siteId, outsideScriptId: await outsideScriptIn(target), ...outside }),
+	);
+	isolation.refuses("outsideScripts.remove", async (api, target) =>
+		api.outsideScripts.remove({ siteId: target.siteId, outsideScriptId: await outsideScriptIn(target) }),
+	);
+
+	/** A Library by address (the fake outgoing HTTP answers it). */
+	const libraryUrl = "https://cdn.example.org/slider.js";
+	const library = { source: "url" as const, url: libraryUrl };
+	const prepared = () => {
+		install.dns.answer("cdn.example.org", ["93.184.215.14"]);
+		install.http.respond("GET", libraryUrl, { body: "window.slider = {};" });
+	};
+	/** A Library on a target's Site, added by the Superadmin. */
+	const libraryIn = async (target: IsolationTarget) => {
+		prepared();
+		const { api } = await install.superadmin();
+		return (await api.libraries.add({ siteId: target.siteId, library })).library.id;
+	};
+	isolation.refuses("libraries.list", (api, { siteId }) => api.libraries.list({ siteId }));
+	isolation.refuses("libraries.add", (api, { siteId }) => {
+		prepared();
+		return api.libraries.add({ siteId, library });
+	});
+	isolation.refuses("libraries.checkUpdates", (api, { siteId }) => api.libraries.checkUpdates({ siteId }));
+	isolation.refuses("libraries.update", async (api, target) =>
+		api.libraries.update({ siteId: target.siteId, libraryId: await libraryIn(target) }),
+	);
+	isolation.refuses("libraries.remove", async (api, target) =>
+		api.libraries.remove({ siteId: target.siteId, libraryId: await libraryIn(target) }),
+	);
+});
+
 describe("Components", () => {
 	/** A name no other call has used. */
 	let names = 0;
