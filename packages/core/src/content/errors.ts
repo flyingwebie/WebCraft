@@ -4,7 +4,13 @@
  * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
  * `postTypes`), so the admin can word it in the person's language.
  */
-export type ContentProblem = { at: string; message: string; rule?: string };
+export type ContentProblem = {
+	at: string;
+	message: string;
+	rule?: string;
+	/** The language of the value it is about, when it isn't the Default language's (or a shared) value. */
+	language?: string;
+};
 
 /** There is no such Post Type on the Site. */
 export class PostTypeNotFoundError extends Error {
@@ -72,17 +78,29 @@ export class EntryInvalidError extends Error {
 	}
 }
 
-/** Another Entry of the Post Type (for a Page, another Page under the same parent) already has the slug. */
+/**
+ * Another Entry of the Post Type (for a Page, another Page under the same parent) already has the
+ * slug in the language.
+ */
 export class EntrySlugTakenError extends Error {
 	override name = "EntrySlugTakenError";
 	readonly slug: string;
-	constructor(slug: string, among: "postType" | "siblingPages" = "postType") {
+	readonly language: string | null;
+	constructor(
+		slug: string,
+		among: "postType" | "siblingPages" = "postType",
+		languages: { language: string; defaultLanguage: string } | null = null,
+	) {
+		const language = languages?.language ?? null;
+		// The Default language goes without saying.
+		const where = language && language !== languages?.defaultLanguage ? ` in ${language}` : "";
 		super(
 			among === "siblingPages"
-				? `Another Page under the same parent already has the slug ${slug}.`
-				: `Another Entry of this Post Type already has the slug ${slug}.`,
+				? `Another Page under the same parent already has the slug ${slug}${where}.`
+				: `Another Entry of this Post Type already has the slug ${slug}${where}.`,
 		);
 		this.slug = slug;
+		this.language = language;
 	}
 }
 

@@ -141,7 +141,7 @@ export function toApiError(error: unknown): unknown {
 		return new ORPCError("ENTRY_SLUG_TAKEN", {
 			status: 409,
 			message: error.message,
-			data: { slug: error.slug },
+			data: { slug: error.slug, language: error.language },
 			cause: error,
 		});
 	}

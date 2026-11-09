@@ -76,7 +76,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 	if (!isEditPath(path)) throw new EditPathInvalidError();
 	const { scope } = editing;
 	const content = await deps.pageContent(host, path);
-	const entry = content.entryId ? await getEntry(scope, content.entryId) : null;
+	const entry = content.entryId ? await getEntry(scope, content.entryId, content.language) : null;
 	const items = itemsOf(content);
 	const [person] = await scope.db
 		.select({ name: people.name, adminLanguage: people.adminLanguage })
@@ -84,7 +84,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 		.where(eq(people.id, editing.personId));
 	return {
 		page: {
-			title: entry?.draft.title ?? builtInNotFoundPage(host.defaultLanguage).title,
+			title: entry?.draft.title ?? builtInNotFoundPage(content.language).title,
 			path,
 			item: content.entryId ? `entry:${content.entryId}` : null,
 		},
@@ -101,7 +101,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 		pages: await sitePages(scope),
 		person: { name: person?.name ?? "", adminLanguage: person?.adminLanguage ?? null },
 		site: { name: scope.site.name },
-		language: { code: host.defaultLanguage },
+		language: { code: content.language },
 	};
 }
 

@@ -3,7 +3,6 @@ import { entries, globals, people, publishedSlugs, sites, templates } from "@web
 import {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
-	directionOf,
 	type EditModePage,
 	type ElementTree,
 	mediaReferencesIn,
@@ -17,24 +16,25 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import type { InstallConfig } from "../config.ts";
 import { editableField } from "../content/editable.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
+import { homePageId, publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
-import { linksIn } from "../content/field-values.ts";
+import { type Languages, linksIn } from "../content/field-values.ts";
 import { type BuiltInField, storedFields } from "../content/fields.ts";
 import { globalsVersion } from "../content/globals.ts";
 import {
-	candidatePatterns,
-	findPublishedPage,
-	isPagePostType,
-	type PageTree,
-	pathIn,
-	pathText,
-	publishedPageTree,
-} from "../content/pages.ts";
+	languageNamed,
+	languageOfPath,
+	languagePath,
+	type SiteLanguage,
+	type SiteLanguages,
+	siteLanguages,
+} from "../content/languages.ts";
+import { candidatePatterns, findPublishedPage, isPagePostType } from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { publishedEntries } from "../content/relationships.ts";
 import { entryParts, globalsParts, type Parts, type RelatedEntry, resolvePath } from "../content/render-values.ts";
 import { specialPageId } from "../content/special-pages.ts";
-import { pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
+import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
 import { uuidsIn } from "../ids.ts";
@@ -42,7 +42,7 @@ import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
 import type { DataLayer, Site, SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
-import { slugOfStagingHostname } from "./addresses.ts";
+import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
 
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 export { reservedSlugs, stagingHostname, stagingUrl } from "./addresses.ts";
@@ -54,6 +54,11 @@ export type SiteHost = {
 	address: "staging";
 	/** The Site's Default language. */
 	defaultLanguage: string;
+	/**
+	 * Where the hostname's pages are, such as `https://bakery.sites.example.com`: what absolute
+	 * addresses on the page (`hreflang` alternates) start with.
+	 */
+	origin: string;
 	/**
 	 * The Site's page cache generation: a page rendered now stays valid until a publish raises it.
 	 * Read before the page, so a page is never kept under a newer generation than its content.
@@ -71,6 +76,8 @@ export type SiteAnswer = ({ kind: "page" } & SitePage) | { kind: "redirect"; loc
 export type PageContent = {
 	/** The Entry (or Page) the page shows; null on the built-in 404 page. */
 	entryId: string | null;
+	/** The language the page is in. */
+	language: string;
 	/** Whether the page's Templates read the Globals. */
 	readsGlobals: boolean;
 	/** Whether the path has no page, so the 404 page shows there. */
@@ -98,10 +105,11 @@ export type SitePages = {
 	 */
 	render(host: SiteHost, pathname: string, editing?: PageEditing): Promise<SiteAnswer | null>;
 	/**
-	 * The Site's 404 page, for a path with no page: the Page Staff chose, once published, else the
-	 * built-in one, in the Site template. With `editing`, for Edit mode, as `render` does.
+	 * The Site's 404 page, for `pathname` with no page, in the path's language: the Page Staff chose,
+	 * once published, else the built-in one, in the Site template. With `editing`, for Edit mode, as
+	 * `render` does.
 	 */
-	notFound(host: SiteHost, editing?: PageEditing): Promise<SitePage>;
+	notFound(host: SiteHost, pathname: string, editing?: PageEditing): Promise<SitePage>;
 	/**
 	 * What the page at `pathname` shows from the content store, found as `render` finds it: its Entry
 	 * (none on the built-in 404 page) and whether it reads the Globals (`site.x`). For Edit mode's
@@ -161,38 +169,43 @@ export function createSitePages(options: {
 				site: { id: row.id, workspaceId: row.workspaceId, name: row.name, slug: row.slug, createdAt: row.createdAt },
 				address: "staging",
 				defaultLanguage: row.defaultLanguage,
+				origin: stagingUrl(config, row.slug) ?? `https://${hostname}`,
 				cacheGeneration: row.pageCacheGeneration,
 			};
 		},
 
 		async render(host, pathname, editing) {
 			const view = viewFor(data, host, editing);
-			const located = await locate(view.scope, host, pathname);
+			const located = await locate(view.scope, pathname);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
-			return { kind: "page", html: await renderEntryPage(view, host, await stylesOf(host), located.found) };
+			return { kind: "page", html: await renderEntryPage(view, host, await stylesOf(host), located) };
 		},
 
 		async pageContent(host, pathname) {
 			const scope = data.visitors(host.site);
-			const located = await locate(scope, host, pathname);
-			const found = located?.kind === "found" ? located.found : located ? undefined : await chosenNotFoundPage(scope);
+			const located = await locate(scope, pathname);
+			const place = located?.kind === "found" ? located : await notFoundPlace(scope, pathname);
+			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
 			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
-			const trees = [siteTemplate, found?.content ?? builtInNotFoundPage(host.defaultLanguage).content];
+			const trees = [siteTemplate, found?.content ?? builtInNotFoundPage(place.language.code).content];
 			return {
 				entryId: found?.entry.id ?? null,
+				language: place.language.code,
 				readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
 				notFound: located === null,
 			};
 		},
 
-		async notFound(host, editing) {
+		async notFound(host, pathname, editing) {
 			const view = viewFor(data, host, editing);
-			const found = await chosenNotFoundPage(view.scope);
+			const place = await notFoundPlace(view.scope, pathname);
 			const styles = await stylesOf(host);
-			if (found) return { html: await renderEntryPage(view, host, styles, found) };
-			const builtIn = builtInNotFoundPage(host.defaultLanguage);
-			return { html: await renderSitePage(view, host, styles, { ...builtIn, values: () => undefined }) };
+			if (place.found) return { html: await renderEntryPage(view, host, styles, { ...place, found: place.found }) };
+			const builtIn = builtInNotFoundPage(place.language.code);
+			return {
+				html: await renderSitePage(view, host, styles, place, { ...builtIn, values: () => undefined }),
+			};
 		},
 
 		mediaFile(host, name) {
@@ -216,35 +229,55 @@ export function isReservedPath(segments: readonly string[]): boolean {
 	return (segments[0]?.startsWith("_") ?? false) || segments.some((segment) => segment.includes("."));
 }
 
+/** Where a page is: its language among the Site's, with the Default language values fall back to. */
+type Place = { site: SiteLanguages; language: SiteLanguage; languages: Languages };
+
+/** A page found at a path: the Entry it shows, in its language. */
+type Located = Place & { kind: "found"; found: FoundEntry };
+
 /**
- * What a path finds on the Site, as visitors find it: the published Entry a Post Type's URL pattern
- * finds there, else the published Page at that path (the home page at `/`, its own path redirecting
+ * What a path finds on the Site, as visitors find it: in the language its prefix names (the Default
+ * language without one), the published Entry a Post Type's URL pattern finds there, else the
+ * published Page at that path (the home page at the language's root, its own path redirecting
  * there); null when there is none.
  */
 async function locate(
 	scope: ReadScope,
-	host: SiteHost,
 	pathname: string,
-): Promise<{ kind: "found"; found: FoundEntry } | { kind: "redirect"; location: string } | null> {
+): Promise<Located | { kind: "redirect"; location: string } | null> {
 	const segments = pathSegments(pathname);
 	if (!segments || isReservedPath(segments)) return null;
+	const site = await siteLanguages(scope);
+	const inLanguage = languageOfPath(site, segments);
+	if ("redirect" in inLanguage) return { kind: "redirect", location: canonicalPath(inLanguage.redirect) };
+	const { languages, rest } = inLanguage;
+	const place = { site, languages, language: languageNamed(site, languages.language) };
 	const postTypes = await listPostTypes(scope);
-	const home = await specialPageId(scope, "home");
+	const home = await homePageId(scope);
 	// Post Types' URL patterns own every path they match; Pages live outside them.
 	const found =
-		segments.length === 0
+		rest.length === 0
 			? home && (await publishedPage(scope, postTypes, home))
-			: ((await findPublishedEntry(scope, postTypes, segments, host.defaultLanguage)) ??
-				(await findPage(scope, postTypes, segments, host.defaultLanguage)));
+			: ((await findPublishedEntry(scope, postTypes, rest, languages.language)) ??
+				(await findPage(scope, postTypes, rest, languages.language)));
 	if (!found) return null;
-	if (segments.length > 0 && found.entry.id === home) return { kind: "redirect", location: "/" };
-	return { kind: "found", found };
+	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: languagePath(languages, "/") };
+	return { kind: "found", found, ...place };
 }
 
-/** The Page Staff chose as the 404 page, once published; undefined for the built-in one. */
-async function chosenNotFoundPage(scope: ReadScope): Promise<FoundEntry | undefined> {
+/**
+ * The 404 page for a path: in the path's language (the Default language when it names none), the
+ * Page Staff chose, once published; no Page for the built-in one.
+ */
+async function notFoundPlace(scope: ReadScope, pathname: string): Promise<Place & { found?: FoundEntry }> {
+	const site = await siteLanguages(scope);
+	const inLanguage = languageOfPath(site, pathSegments(pathname) ?? []);
+	const code = "languages" in inLanguage ? inLanguage.languages.language : site.defaultLanguage;
+	const languages = { language: code, defaultLanguage: site.defaultLanguage };
+	const place = { site, languages, language: languageNamed(site, code) };
 	const chosen = await specialPageId(scope, "notFound");
-	return (chosen && (await publishedPage(scope, await listPostTypes(scope), chosen))) || undefined;
+	const found = (chosen && (await publishedPage(scope, await listPostTypes(scope), chosen))) || undefined;
+	return { ...place, found };
 }
 
 /**
@@ -377,11 +410,15 @@ async function publishedPage(
 	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT };
 }
 
-async function renderEntryPage(view: View, host: SiteHost, styles: SiteStyles, found: FoundEntry): Promise<string> {
+async function renderEntryPage(
+	view: View,
+	host: SiteHost,
+	styles: SiteStyles,
+	located: Place & { found: FoundEntry },
+): Promise<string> {
 	const { scope } = view;
+	const { found, languages } = located;
 	const { postType, entry, content } = found;
-	const language = host.defaultLanguage;
-	const languages = { language, defaultLanguage: host.defaultLanguage };
 	const draft = view.version === "draft";
 	const version = storedVersion(draft ? entry.draft : entry.published);
 	const published = entryValues(version, postType.fields, languages);
@@ -414,6 +451,7 @@ async function renderEntryPage(view: View, host: SiteHost, styles: SiteStyles, f
 		view,
 		host,
 		styles,
+		located,
 		{ title: published.title, content, values: (path) => resolvePath(root, path) },
 		// Media values the content may read: its own, and its related Entries'.
 		[published.fields, [...related.values()].map((entry) => entry.values)],
@@ -422,7 +460,7 @@ async function renderEntryPage(view: View, host: SiteHost, styles: SiteStyles, f
 }
 
 /** The Site's Globals as `site.x` reads them: published for visitors, the Draft in Edit mode. */
-async function siteParts(view: View, languages: { language: string; defaultLanguage: string }): Promise<Parts> {
+async function siteParts(view: View, languages: Languages): Promise<Parts> {
 	const site = globalsVersion(await view.scope.first(globals), languages, view.version);
 	return globalsParts(site.fields, site.values);
 }
@@ -436,14 +474,14 @@ async function renderSitePage(
 	view: View,
 	host: SiteHost,
 	styles: SiteStyles,
+	place: Place,
 	page: Pick<PageToRender, "title" | "content" | "values">,
 	contentValues: unknown = null,
 	/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
 	entry: { id: string; fields: readonly FieldDefinition[] } | null = null,
 ): Promise<string> {
 	const { scope, editing } = view;
-	const language = host.defaultLanguage;
-	const languages = { language, defaultLanguage: host.defaultLanguage };
+	const { languages, language } = place;
 	const globalsRow = await scope.first(globals);
 	const globalValues = globalsVersion(globalsRow, languages, view.version);
 	const site = globalsParts(globalValues.fields, globalValues.values);
@@ -461,7 +499,7 @@ async function renderSitePage(
 	);
 	return renderPage({
 		...page,
-		site: { name: host.site.name, language, direction: directionOf(language) },
+		site: { name: host.site.name, language: language.code, direction: language.direction },
 		siteTemplate,
 		siteValues: (path) => resolvePath(siteRoot, path),
 		className: styles.className,
@@ -485,30 +523,28 @@ async function relatedEntries(
 	scope: ReadScope,
 	found: FoundEntry,
 	ids: readonly string[],
-	languages: { language: string; defaultLanguage: string },
+	languages: Languages,
 ): Promise<Map<string, RelatedEntry>> {
 	const byId = new Map(found.postTypes.map((postType) => [postType.id, postType]));
 	const related = new Map<string, RelatedEntry>();
-	let pageTree: PageTree | undefined;
-	for (const row of await publishedEntries(scope, [...new Set(ids)])) {
+	const rows = await publishedEntries(scope, [...new Set(ids)]);
+	const addresses = new Map<string, { slug: string; path: string }>();
+	for (const postType of found.postTypes) {
+		const own = rows.filter((row) => row.postTypeId === postType.id).map((row) => row.id);
+		for (const [id, address] of await publishedAddresses(scope, postType, own, languages)) addresses.set(id, address);
+	}
+	for (const row of rows) {
 		const postType = byId.get(row.postTypeId);
 		if (!postType) continue;
 		const values = entryValues(storedVersion(row.published), postType.fields, languages);
-		let url: string | null = null;
-		if (isPagePostType(postType)) {
-			pageTree ??= await publishedPageTree(scope, postType.id, languages.language);
-			const parts = pathIn(pageTree, row.id);
-			url = parts ? pathText(parts) : null;
-		} else if (values.slug) {
-			url = pathFor(postType.urlPattern, values.slug);
-		}
+		const address = addresses.get(row.id);
 		related.set(row.id, {
 			fields: postType.fields,
 			values: values.fields,
 			builtIns: {
 				title: values.title,
-				slug: values.slug,
-				url,
+				slug: address?.slug ?? values.slug,
+				url: address?.path ?? null,
 				createdAt: row.createdAt,
 				updatedAt: row.lastPublishedAt,
 				publishedAt: row.publishedAt,

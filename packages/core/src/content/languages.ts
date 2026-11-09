@@ -130,3 +130,40 @@ export async function addDefaultLanguage(scope: WorkspaceScope, siteId: string, 
 		createdAt: scope.now(),
 	});
 }
+
+/**
+ * A path on the Site as visitors write it in a language: the Default language's as it is, every
+ * other language's under its prefix (`/blog/bread` in French is `/fr/blog/bread`, `/` is `/fr`).
+ */
+export function languagePath(languages: Languages, path: string): string {
+	if (languages.language === languages.defaultLanguage) return path;
+	return `/${prefixOf(languages.language)}${path === "/" ? "" : path}`;
+}
+
+/**
+ * Which language a request path is in, and the path within that language: a first part naming
+ * another language's prefix is that language (`/fr/blog/bread` is `/blog/bread` in French);
+ * anything else is the Default language. The Default language's own prefix answers where its
+ * address is (`/en/blog/bread` goes to `/blog/bread`), so its pages' old addresses keep working
+ * after the Default language changes.
+ */
+export function languageOfPath(
+	site: SiteLanguages,
+	segments: readonly string[],
+): { languages: Languages; rest: readonly string[] } | { redirect: readonly string[] } {
+	const [first, ...rest] = segments;
+	const defaultLanguage = site.defaultLanguage;
+	if (first !== undefined && first === prefixOf(defaultLanguage)) return { redirect: rest };
+	const language = first === undefined ? undefined : site.languages.find((candidate) => candidate.prefix === first);
+	if (language) return { languages: { language: language.code, defaultLanguage }, rest };
+	return { languages: { language: defaultLanguage, defaultLanguage }, rest: segments };
+}
+
+/** The Site language with a code; the Default language when it has none by that code. */
+export function languageNamed(site: SiteLanguages, code: string): SiteLanguage {
+	return (
+		site.languages.find((language) => language.code === code) ??
+		site.languages.find((language) => language.default) ??
+		toSiteLanguage(code, languageName(code), directionOf(code), null, true)
+	);
+}

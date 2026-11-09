@@ -90,12 +90,12 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 async function visitorPage(services: InstallServices, cache: PageCache, request: Request, host: SiteHost) {
 	const { pathname } = new URL(request.url);
 	const segments = pathSegments(pathname);
-	if (!segments) return notFoundPage(services, host);
+	if (!segments) return notFoundPage(services, host, pathname);
 	const key = canonicalPath(segments);
 	const cached = cache.get(host.site.id, host.cacheGeneration, key);
 	if (cached) return pageResponse(request, host, cached, "HIT");
 	const answer = await services.sitePages.render(host, pathname);
-	if (!answer) return notFoundPage(services, host);
+	if (!answer) return notFoundPage(services, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, answer.location);
 	const page = { html: answer.html, etag: await etagOf(answer.html) };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
@@ -118,7 +118,7 @@ async function editModePage(
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
 	}
 	if (answer) return editModeHtml(200, answer.html);
-	return editModeHtml(404, (await services.sitePages.notFound(host, editing)).html);
+	return editModeHtml(404, (await services.sitePages.notFound(host, pathname, editing)).html);
 }
 
 /**
@@ -212,8 +212,8 @@ function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheS
  * page cache, nor by browsers and proxies, so every miss reaches the Site (and its 404 log) and a page
  * published at the path shows at once.
  */
-async function notFoundPage(services: InstallServices, host: SiteHost): Promise<Response> {
-	const page = await services.sitePages.notFound(host);
+async function notFoundPage(services: InstallServices, host: SiteHost, pathname: string): Promise<Response> {
+	const page = await services.sitePages.notFound(host, pathname);
 	return new Response(page.html, {
 		status: 404,
 		headers: {
