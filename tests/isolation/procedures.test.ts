@@ -78,6 +78,12 @@ describe("Workspaces", () => {
 	isolation.refuses("workspaces.get", (api, { workspaceId }) => api.workspaces.get({ workspaceId }), {
 		as: ["staff", "owner", "author"],
 	});
+	isolation.refuses("workspaces.storage", (api, { workspaceId }) => api.workspaces.storage({ workspaceId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("workspaces.setQuota", (api, { workspaceId }) =>
+		api.workspaces.setQuota({ workspaceId, quotaBytes: 1024 * 1024 * 1024 }),
+	);
 });
 
 describe("Sites", () => {
@@ -653,6 +659,15 @@ async function mediaIn(target: IsolationTarget): Promise<{ mediaId: string; fold
 	return { mediaId: media.id, folderId: folder.id };
 }
 
+/** A file in a target's Trash, put there by the Superadmin. */
+async function trashedIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { mediaId } = await mediaIn(target);
+	const asked = await api.media.delete({ siteId: target.siteId, mediaId });
+	if (!asked.trashed) await api.media.delete({ siteId: target.siteId, mediaId, confirmation: asked.confirmation.id });
+	return mediaId;
+}
+
 describe("Media", () => {
 	isolation.refuses("media.list", (api, { siteId }) => api.media.list({ siteId }), { as: ["staff", "author"] });
 	isolation.refuses(
@@ -671,6 +686,60 @@ describe("Media", () => {
 			api.media.update({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId, alt: "Changed" }),
 		{ as: ["staff", "owner"] },
 	);
+	isolation.refuses("media.overview", (api, { siteId }) => api.media.overview({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"media.importUrl",
+		(api, { siteId }) => {
+			install.dns.answer("files.isolation.example", ["93.184.216.34"]);
+			install.http.respond("GET", "https://files.isolation.example/menu.pdf", { body: pdf("Imported") });
+			return api.media.importUrl({ siteId, url: "https://files.isolation.example/menu.pdf" });
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"media.replace",
+		async (api, target) =>
+			api.media.replace({
+				siteId: target.siteId,
+				mediaId: (await mediaIn(target)).mediaId,
+				file: upload(pdf("Replaced"), "replaced.pdf"),
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.suggestAltText",
+		// The file is a document, so it is refused where it is (400); another Workspace's Site before that.
+		async (api, target) =>
+			api.media
+				.suggestAltText({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId })
+				.catch((error: { code?: string }) => {
+					if (error.code !== "ALT_TEXT_UNAVAILABLE") throw error;
+				}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.usage",
+		async (api, target) => api.media.usage({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"media.delete",
+		async (api, target) => api.media.delete({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.restore",
+		async (api, target) => api.media.restore({ siteId: target.siteId, mediaId: await trashedIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.deleteForever",
+		async (api, target) => api.media.deleteForever({ siteId: target.siteId, mediaId: await trashedIn(target) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("media.emptyTrash", (api, { siteId }) => api.media.emptyTrash({ siteId }), {
+		as: ["staff", "editor"],
+	});
 	isolation.refuses("media.folders.list", (api, { siteId }) => api.media.folders.list({ siteId }), {
 		as: ["staff", "author"],
 	});

@@ -67,6 +67,8 @@ export const sites = pgTable(
 		 * version are rebuilt by the `search.rebuild-due` job.
 		 */
 		searchIndexVersion: integer("search_index_version").notNull().default(0),
+		/** When a rebuild of the search index was last queued and hasn't finished; null when none is waiting. */
+		searchRebuildClaimedAt: timestamp("search_rebuild_claimed_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [unique("sites_workspace_id_id_unique").on(table.workspaceId, table.id)],

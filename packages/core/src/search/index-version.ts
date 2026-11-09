@@ -19,6 +19,8 @@ export const SEARCH_INDEX_VERSION = 1;
 export async function markSearchIndexStale(scope: { db: Executor; site: Site }): Promise<void> {
 	await scope.db
 		.update(sites)
-		.set({ searchIndexVersion: 0 })
+		// A rebuild already queued may have read what changed before it changed: it won't mark the
+		// index current (its claim is gone), and the next sweep queues another.
+		.set({ searchIndexVersion: 0, searchRebuildClaimedAt: null })
 		.where(and(eq(sites.id, scope.site.id), eq(sites.workspaceId, scope.site.workspaceId)));
 }

@@ -32,7 +32,9 @@ import {
 	ImagesIcon,
 	LoaderIcon,
 	PencilIcon,
+	ReplaceIcon,
 	SearchIcon,
+	SparklesIcon,
 	Trash2Icon,
 	TriangleAlertIcon,
 	UploadIcon,
@@ -45,13 +47,19 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtcDate } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { type FocalPoint, FocalPointPicker } from "./FocalPointPicker.tsx";
+import { ImportDialog } from "./ImportDialog.tsx";
 import { formatBytes, imagePreview, KIND_ICONS, type MediaItem } from "./preview.ts";
+import { QuotaNotice, StorageMeter } from "./StorageCard.tsx";
+import { DeleteDialog, DeleteForeverDialog, EmptyTrashDialog, RestoreButton } from "./TrashDialogs.tsx";
+import { type MediaUses, UsedIn } from "./UsedIn.tsx";
 
 type MediaList = Awaited<ReturnType<ApiClient["media"]["list"]>>;
 type MediaFolders = Awaited<ReturnType<ApiClient["media"]["folders"]["list"]>>;
 type MediaFolder = MediaFolders["folders"][number];
+type MediaOverview = Awaited<ReturnType<ApiClient["media"]["overview"]>>;
 
-export type MediaLibrarySearch = { folder?: string; q?: string; kind?: MediaKind; file?: string };
+export type MediaLibrarySearch = { folder?: string; q?: string; kind?: MediaKind; file?: string; trash?: boolean };
 
 /**
  * The Media library screen: folders, the files (searched and filtered) and the details of the file
@@ -63,7 +71,9 @@ export function MediaLibrary({
 	permissions,
 	list,
 	folders,
+	overview,
 	selected,
+	usedIn,
 	search,
 	onSearch,
 	onChanged,
@@ -72,19 +82,25 @@ export function MediaLibrary({
 	permissions: readonly string[];
 	list: MediaList;
 	folders: MediaFolders;
+	overview: MediaOverview;
 	selected: MediaItem | null;
+	usedIn: MediaUses;
 	search: MediaLibrarySearch;
 	onSearch(next: MediaLibrarySearch, options?: { replace?: boolean }): void;
 	onChanged(): Promise<void>;
 }) {
 	const t = useT();
-	const canUpload = permissions.includes("media.upload");
+	const inTrash = search.trash === true;
+	const canUpload = permissions.includes("media.upload") && !inTrash;
 	const canManage = permissions.includes("media.manage");
 	const [uploading, setUploading] = useState(0);
 	const [dragging, setDragging] = useState(false);
 	const fileInput = useRef<HTMLInputElement>(null);
 	const folderId = search.folder && search.folder !== "none" ? search.folder : null;
-	const processing = list.items.some((item) => item.status === "processing") || selected?.status === "processing";
+	const processing =
+		list.items.some((item) => item.status === "processing" || item.replacing) ||
+		selected?.status === "processing" ||
+		selected?.replacing === true;
 
 	// The worker cleans images in the background: look again until every file shown is ready, every 2
 	// seconds for the first minute, then every 15 (a worker that is down would otherwise be asked forever).
@@ -132,7 +148,14 @@ export function MediaLibrary({
 
 	return (
 		<div className="grid gap-8 lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_20rem]">
-			<FolderNav siteId={siteId} folders={folders} search={search} canManage={canManage} onChanged={onChanged} />
+			<FolderNav
+				siteId={siteId}
+				folders={folders}
+				overview={overview}
+				search={search}
+				canManage={canManage}
+				onChanged={onChanged}
+			/>
 
 			<section
 				aria-labelledby="media-heading"
@@ -148,12 +171,24 @@ export function MediaLibrary({
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div className="space-y-1">
 						<h1 id="media-heading" className="text-2xl font-semibold tracking-tight">
-							{t("media.heading")}
+							{inTrash ? t("media.trash.heading") : t("media.heading")}
 						</h1>
-						<p className="text-muted-foreground">{t("media.intro", { count: folders.total })}</p>
+						<p className="text-muted-foreground">
+							{inTrash ? t("media.trash.intro") : t("media.intro", { count: folders.total })}
+						</p>
 					</div>
+					{inTrash && canManage && overview.trash.count > 0 ? (
+						<EmptyTrashDialog
+							siteId={siteId}
+							onEmptied={async () => {
+								onSearch({ file: undefined });
+								await onChanged();
+							}}
+						/>
+					) : null}
 					{canUpload ? (
-						<>
+						<div className="flex flex-wrap gap-2">
+							<ImportDialog siteId={siteId} folderId={folderId} onImported={onChanged} />
 							<input
 								ref={fileInput}
 								type="file"
@@ -174,9 +209,11 @@ export function MediaLibrary({
 								)}
 								{t("media.upload")}
 							</Button>
-						</>
+						</div>
 					) : null}
 				</div>
+
+				<QuotaNotice storage={overview.storage} />
 
 				<Toolbar search={search} onSearch={onSearch} />
 
@@ -189,14 +226,20 @@ export function MediaLibrary({
 						<CloudUploadIcon className="size-4" aria-hidden="true" />
 						<span>{t("media.dropHint")}</span>
 						<span aria-hidden="true">·</span>
-						<span>{t("media.formats")}</span>
+						<span>{t("media.formats", { size: formatBytes(overview.maxFileBytes) })}</span>
 					</p>
 				) : null}
 				<p role="status" aria-live="polite" className="sr-only">
 					{uploading > 0 ? t("media.uploading", { count: uploading }) : ""}
 				</p>
 
-				<FileGrid siteId={siteId} items={list.items} total={folders.total} selectedId={selected?.id} />
+				<FileGrid
+					siteId={siteId}
+					items={list.items}
+					total={inTrash ? overview.trash.count : folders.total}
+					selectedId={selected?.id}
+					inTrash={inTrash}
+				/>
 			</section>
 
 			{selected ? (
@@ -205,7 +248,14 @@ export function MediaLibrary({
 					siteId={siteId}
 					item={selected}
 					folders={folders.folders}
+					usedIn={usedIn}
+					permissions={permissions}
+					altTextSuggestions={overview.altTextSuggestions}
 					onChanged={onChanged}
+					onClosed={async () => {
+						onSearch({ file: undefined });
+						await onChanged();
+					}}
 				/>
 			) : null}
 		</div>
@@ -277,17 +327,19 @@ function FileGrid({
 	items,
 	total,
 	selectedId,
+	inTrash,
 }: {
 	siteId: string;
 	items: readonly MediaItem[];
 	total: number;
 	selectedId: string | undefined;
+	inTrash: boolean;
 }) {
 	const t = useT();
 	if (items.length === 0) {
 		return (
 			<p className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
-				{total === 0 ? t("media.empty") : t("media.noMatch")}
+				{total === 0 ? (inTrash ? t("media.trash.empty") : t("media.empty")) : t("media.noMatch")}
 			</p>
 		);
 	}
@@ -340,12 +392,14 @@ function FileGrid({
 function FolderNav({
 	siteId,
 	folders,
+	overview,
 	search,
 	canManage,
 	onChanged,
 }: {
 	siteId: string;
 	folders: MediaFolders;
+	overview: MediaOverview;
 	search: MediaLibrarySearch;
 	canManage: boolean;
 	onChanged(): Promise<void>;
@@ -364,50 +418,72 @@ function FolderNav({
 		})),
 	];
 	return (
-		<nav aria-labelledby="media-folders-heading" className="grid content-start gap-2">
-			<h2 id="media-folders-heading" className="text-muted-foreground px-2 text-xs font-medium uppercase">
-				{t("media.folders.heading")}
-			</h2>
-			<ul className="grid gap-1">
-				{entries.map((entry) => {
-					const current = search.folder === entry.folder;
-					const folder = folders.folders.find((each) => each.id === entry.folder);
-					return (
-						<li key={entry.key} className="flex items-center gap-1">
-							<Link
-								to="/sites/$siteId/media"
-								params={{ siteId }}
-								search={{ folder: entry.folder, q: search.q, kind: search.kind }}
-								aria-current={current ? "page" : undefined}
-								className={`hover:bg-muted focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none focus-visible:ring-3 ${
-									current ? "bg-muted font-medium" : ""
-								}`}
-							>
-								<entry.icon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
-								<span className="truncate">{entry.label}</span>
-								<span className="text-muted-foreground ms-auto text-xs tabular-nums">{entry.count}</span>
-							</Link>
-							{canManage && folder ? <FolderActions siteId={siteId} folder={folder} onChanged={onChanged} /> : null}
-						</li>
-					);
-				})}
-			</ul>
-			{canManage ? (
-				<>
-					<Button ref={newButton} variant="ghost" className="justify-start" onClick={() => setCreating(true)}>
-						<FolderPlusIcon aria-hidden="true" />
-						{t("media.folders.new")}
-					</Button>
-					<FolderNameDialog
-						siteId={siteId}
-						open={creating}
-						onOpenChange={setCreating}
-						finalFocus={newButton}
-						onChanged={onChanged}
-					/>
-				</>
-			) : null}
-		</nav>
+		<div className="grid content-start gap-6">
+			<nav aria-labelledby="media-folders-heading" className="grid content-start gap-2">
+				<h2 id="media-folders-heading" className="text-muted-foreground px-2 text-xs font-medium uppercase">
+					{t("media.folders.heading")}
+				</h2>
+				<ul className="grid gap-1">
+					{entries.map((entry) => {
+						const current = !search.trash && search.folder === entry.folder;
+						const folder = folders.folders.find((each) => each.id === entry.folder);
+						return (
+							<li key={entry.key} className="flex items-center gap-1">
+								<Link
+									to="/sites/$siteId/media"
+									params={{ siteId }}
+									search={{ folder: entry.folder, q: search.q, kind: search.kind }}
+									aria-current={current ? "page" : undefined}
+									className={`hover:bg-muted focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none focus-visible:ring-3 ${
+										current ? "bg-muted font-medium" : ""
+									}`}
+								>
+									<entry.icon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+									<span className="truncate">{entry.label}</span>
+									<span className="text-muted-foreground ms-auto text-xs tabular-nums">{entry.count}</span>
+								</Link>
+								{canManage && folder ? <FolderActions siteId={siteId} folder={folder} onChanged={onChanged} /> : null}
+							</li>
+						);
+					})}
+				</ul>
+				<Link
+					to="/sites/$siteId/media"
+					params={{ siteId }}
+					search={{ trash: true }}
+					aria-current={search.trash ? "page" : undefined}
+					className={`hover:bg-muted focus-visible:ring-ring/50 flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none focus-visible:ring-3 ${
+						search.trash ? "bg-muted font-medium" : ""
+					}`}
+				>
+					<Trash2Icon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+					<span className="truncate">{t("media.trash.folder")}</span>
+					<span className="text-muted-foreground ms-auto text-xs tabular-nums">{overview.trash.count}</span>
+				</Link>
+				{canManage ? (
+					<>
+						<Button ref={newButton} variant="ghost" className="justify-start" onClick={() => setCreating(true)}>
+							<FolderPlusIcon aria-hidden="true" />
+							{t("media.folders.new")}
+						</Button>
+						<FolderNameDialog
+							siteId={siteId}
+							open={creating}
+							onOpenChange={setCreating}
+							finalFocus={newButton}
+							onChanged={onChanged}
+						/>
+					</>
+				) : null}
+			</nav>
+			<section aria-labelledby="media-storage-heading" className="grid gap-1 rounded-lg border p-4">
+				<h2 id="media-storage-heading" className="text-sm font-medium">
+					{t("media.storage.heading")}
+				</h2>
+				<StorageMeter storage={overview.storage} />
+				<p className="text-muted-foreground text-xs">{t("media.storage.shared")}</p>
+			</section>
+		</div>
 	);
 }
 
@@ -608,31 +684,112 @@ function DeleteFolderDialog({
 	);
 }
 
+/** Why the worker refused a file (or the file meant to replace it), in the admin's words. */
+function FailureNote({ item }: { item: MediaItem }) {
+	const t = useT();
+	const failure = item.failure;
+	if (!failure) return null;
+	const reason =
+		failure.reason === "svgUnsafe"
+			? t("media.failure.svgUnsafe", {
+					found: (failure.found ?? ["element"])
+						.map((found) => t(`media.failure.found.${found as SvgFinding}`))
+						.join(", "),
+				})
+			: t(`media.failure.${failure.reason}`);
+	return (
+		<p className="text-destructive flex items-start gap-2 text-sm">
+			<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+			<span>
+				{failure.replacement ? `${t("media.replace.refused")} ` : null}
+				{reason}
+			</span>
+		</p>
+	);
+}
+
+type SvgFinding = "script" | "eventHandler" | "foreignObject" | "outsideReference" | "entity" | "element" | "attribute";
+
+/** Replace file: a new file of the same kind for the item, keeping its id and every use. */
+function ReplaceButton({ siteId, item, onChanged }: { siteId: string; item: MediaItem; onChanged(): Promise<void> }) {
+	const t = useT();
+	const input = useRef<HTMLInputElement>(null);
+	const [busy, setBusy] = useState(false);
+	const replace = async (file: File | undefined) => {
+		if (!file) return;
+		setBusy(true);
+		try {
+			await (await getApi()).media.replace({ siteId, mediaId: item.id, file });
+			toast.success(t("media.replace.replaced", { name: file.name }));
+			await onChanged();
+		} catch (failure) {
+			toast.error(t("media.replace.failed", { name: file.name, reason: t(errorMessage(failure)) }));
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<>
+			<input
+				ref={input}
+				type="file"
+				hidden
+				tabIndex={-1}
+				aria-hidden="true"
+				onChange={(event) => {
+					void replace(event.target.files?.[0]);
+					event.target.value = "";
+				}}
+			/>
+			<Button variant="outline" onClick={() => input.current?.click()} disabled={busy}>
+				{busy ? <LoaderIcon className="animate-spin" aria-hidden="true" /> : <ReplaceIcon aria-hidden="true" />}
+				{t("media.replace.button")}
+			</Button>
+		</>
+	);
+}
+
 /**
- * The open file: a preview, what it is, and its title, alt text and caption in the Site's language
- * (translatable), and its folder. People who may change it get a form; others read it.
+ * The open file: a preview, what it is, where it is used, and its title, alt text and caption in the
+ * Site's language (translatable), its folder and an image's Focal point. People who may change it
+ * get a form, Replace file and Delete; others read it. A file in the Trash shows when it goes for
+ * good, with Restore and Delete for good.
  */
 function DetailsPanel({
 	siteId,
 	item,
 	folders,
+	usedIn,
+	permissions,
+	altTextSuggestions,
 	onChanged,
+	onClosed,
 }: {
 	siteId: string;
 	item: MediaItem;
 	folders: readonly MediaFolder[];
+	usedIn: MediaUses;
+	permissions: readonly string[];
+	altTextSuggestions: boolean;
 	onChanged(): Promise<void>;
+	/** After the file left the view it was open in (moved to the Trash, restored, deleted for good). */
+	onClosed(): Promise<void>;
 }) {
 	const t = useT();
 	const [title, setTitle] = useState(item.title ?? "");
 	const [alt, setAlt] = useState(item.alt ?? "");
 	const [caption, setCaption] = useState(item.caption ?? "");
 	const [folderId, setFolderId] = useState(item.folderId ?? "");
+	const [focalPoint, setFocalPoint] = useState<FocalPoint | null>(item.focalPoint);
 	const [error, setError] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
+	const [suggesting, setSuggesting] = useState(false);
+	const [suggestStatus, setSuggestStatus] = useState("");
 	const preview = imagePreview(siteId, item, 640);
 	const Icon = KIND_ICONS[item.kind];
 	const language = item.language.toUpperCase();
+	const trashed = item.trashedAt !== null;
+	const editable = item.canEdit && !trashed;
 
 	const save = async (event: FormEvent) => {
 		event.preventDefault();
@@ -648,6 +805,7 @@ function DetailsPanel({
 				alt: alt.trim() || null,
 				caption: caption.trim() || null,
 				folderId: folderId || null,
+				...(item.kind === "image" ? { focalPoint } : {}),
 			});
 			toast.success(t("media.details.saved"));
 			await onChanged();
@@ -655,6 +813,26 @@ function DetailsPanel({
 			setError(errorMessage(failure));
 		} finally {
 			setBusy(false);
+		}
+	};
+
+	const suggest = async () => {
+		setSuggesting(true);
+		setSuggestStatus(t("media.altSuggest.working"));
+		try {
+			const { alt: suggested } = await (await getApi()).media.suggestAltText({
+				siteId,
+				mediaId: item.id,
+				language: item.language,
+			});
+			setAlt(suggested);
+			setSuggestStatus(t("media.altSuggest.done"));
+			document.getElementById("media-alt")?.focus();
+		} catch (failure) {
+			setSuggestStatus("");
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setSuggesting(false);
 		}
 	};
 
@@ -702,27 +880,41 @@ function DetailsPanel({
 					<XIcon aria-hidden="true" />
 				</Button>
 			</div>
-			<div className="bg-muted flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
-				{preview ? (
-					<img src={preview} alt="" className="size-full object-contain" />
-				) : (
-					<Icon className="text-muted-foreground size-10" aria-hidden="true" />
-				)}
-			</div>
+			{editable && item.kind === "image" && preview ? null : (
+				<div className="bg-muted flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
+					{preview ? (
+						<img src={preview} alt="" className="size-full object-contain" />
+					) : (
+						<Icon className="text-muted-foreground size-10" aria-hidden="true" />
+					)}
+				</div>
+			)}
 			<div className="grid gap-3">
 				<p className="font-semibold break-all">{item.fileName}</p>
+				{trashed ? (
+					<div className="grid gap-1 text-sm">
+						<Badge variant="secondary" className="w-fit">
+							{t("media.trash.badge")}
+						</Badge>
+						<p>{t("media.trash.deletedOn", { date: formatUtcDate(item.trashedAt ?? item.updatedAt) })}</p>
+						<p className="text-muted-foreground">
+							{t("media.trash.purgeOn", { date: formatUtcDate(item.purgeAt ?? item.updatedAt) })}
+						</p>
+					</div>
+				) : null}
 				{item.status === "processing" ? (
 					<p className="text-muted-foreground flex items-start gap-2 text-sm">
 						<LoaderIcon className="mt-0.5 size-4 shrink-0 animate-spin" aria-hidden="true" />
 						{t("media.details.processingHelp")}
 					</p>
 				) : null}
-				{item.status === "failed" ? (
-					<p className="text-destructive flex items-start gap-2 text-sm">
-						<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-						{t("media.details.failedHelp")}
+				{item.replacing ? (
+					<p className="text-muted-foreground flex items-start gap-2 text-sm">
+						<LoaderIcon className="mt-0.5 size-4 shrink-0 animate-spin" aria-hidden="true" />
+						{t("media.replace.processing")}
 					</p>
 				) : null}
+				<FailureNote item={item} />
 				<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
 					{facts.map(([label, value]) => (
 						<div key={label} className="contents">
@@ -733,12 +925,23 @@ function DetailsPanel({
 				</dl>
 			</div>
 
+			{trashed ? (
+				item.canEdit ? (
+					<div className="flex flex-wrap gap-2">
+						<RestoreButton siteId={siteId} item={item} onRestored={onClosed} />
+						<DeleteForeverDialog siteId={siteId} item={item} onDeleted={onClosed} />
+					</div>
+				) : null
+			) : (
+				<UsedIn siteId={siteId} usedIn={usedIn} permissions={permissions} />
+			)}
+
 			<div className="flex flex-wrap items-center gap-2 border-t pt-4">
 				<p className="text-sm font-medium">{t("media.details.language", { language })}</p>
 				<Badge variant="outline">{t("media.details.translatable")}</Badge>
 			</div>
 
-			{item.canEdit ? (
+			{editable ? (
 				<form onSubmit={save} className="grid gap-5" noValidate>
 					<FieldGroup className="gap-4">
 						<Field>
@@ -764,6 +967,21 @@ function DetailsPanel({
 									aria-describedby="media-alt-help"
 								/>
 								<FieldDescription id="media-alt-help">{t("media.details.altHelp")}</FieldDescription>
+								{altTextSuggestions && item.status === "ready" && item.contentType !== "image/svg+xml" ? (
+									<div className="flex flex-wrap items-center gap-2">
+										<Button type="button" variant="outline" size="sm" onClick={suggest} disabled={suggesting}>
+											{suggesting ? (
+												<LoaderIcon className="animate-spin" aria-hidden="true" />
+											) : (
+												<SparklesIcon aria-hidden="true" />
+											)}
+											{t("media.altSuggest.button")}
+										</Button>
+									</div>
+								) : null}
+								<p role="status" className="text-muted-foreground text-sm empty:hidden">
+									{suggestStatus}
+								</p>
 							</Field>
 						) : null}
 						<Field>
@@ -788,6 +1006,9 @@ function DetailsPanel({
 								))}
 							</NativeSelect>
 						</Field>
+						{item.kind === "image" ? (
+							<FocalPointPicker src={preview} value={focalPoint} onChange={setFocalPoint} />
+						) : null}
 					</FieldGroup>
 					{error ? <FieldError>{t(error)}</FieldError> : null}
 					<div>
@@ -815,9 +1036,16 @@ function DetailsPanel({
 							</div>
 						))}
 					</dl>
-					<p className="text-muted-foreground">{t("media.details.readOnly")}</p>
+					<p className="text-muted-foreground">{t(trashed ? "media.trash.readOnly" : "media.details.readOnly")}</p>
 				</div>
 			)}
+
+			{editable ? (
+				<div className="flex flex-wrap justify-between gap-2 border-t pt-4">
+					<ReplaceButton siteId={siteId} item={item} onChanged={onChanged} />
+					<DeleteDialog siteId={siteId} item={item} onDeleted={onClosed} />
+				</div>
+			) : null}
 		</aside>
 	);
 }

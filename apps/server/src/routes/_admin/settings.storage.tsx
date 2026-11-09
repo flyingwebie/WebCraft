@@ -20,7 +20,8 @@ export const Route = createFileRoute("/_admin/settings/storage")({
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return null;
 		const api = await getApi();
-		return api.install.storage.get();
+		const [storage, media] = await Promise.all([api.install.storage.get(), api.install.media.get()]);
+		return { storage, media };
 	},
 	head: ({ match }) => ({
 		meta: [{ title: pageTitle(match.context.shell.language.code, "storageSettings.pageTitle") }],
@@ -33,15 +34,82 @@ type StorageView = Awaited<ReturnType<ApiClient["install"]["storage"]["get"]>>;
 /** Install settings › Storage: local disk or an S3-compatible bucket, for files uploaded from now on. */
 function StorageSettingsPage() {
 	const t = useT();
-	const view = Route.useLoaderData();
+	const data = Route.useLoaderData();
 	// A new form after each save, so it starts from what was saved.
 	const [version, setVersion] = useState(0);
-	if (!view) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
+	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 	return (
 		<>
 			<PageHeader heading={t("storageSettings.heading")}>{t("storageSettings.intro")}</PageHeader>
-			<StorageForm key={version} view={view} onSaved={() => setVersion((current) => current + 1)} />
+			<div className="flex max-w-3xl flex-col gap-10">
+				<StorageForm key={version} view={data.storage} onSaved={() => setVersion((current) => current + 1)} />
+				<LargestFileForm key={`largest-${version}`} maxFileBytes={data.media.maxFileBytes} />
+			</div>
 		</>
+	);
+}
+
+const MB = 1024 * 1024;
+
+/** The largest file the Media library takes, in MB (1 to 1024): the Superadmin's Install setting. */
+function LargestFileForm({ maxFileBytes }: { maxFileBytes: number }) {
+	const t = useT();
+	const router = useRouter();
+	const [megabytes, setMegabytes] = useState(String(Math.round(maxFileBytes / MB)));
+	const [error, setError] = useState<MessageKey | null>(null);
+	const [busy, setBusy] = useState(false);
+	const save = async (event: FormEvent) => {
+		event.preventDefault();
+		const value = Number(megabytes);
+		if (!/^\d+$/.test(megabytes.trim()) || value < 1 || value > 1024) {
+			setError("storageSettings.largestFile.invalid");
+			document.getElementById("storage-largest-file")?.focus();
+			return;
+		}
+		setBusy(true);
+		setError(null);
+		try {
+			await (await getApi()).install.media.update({ maxFileBytes: value * MB });
+			toast.success(t("storageSettings.largestFile.saved"));
+			await router.invalidate();
+		} catch (failure) {
+			setError(errorMessage(failure));
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<section aria-labelledby="storage-largest-file-heading" className="grid gap-4">
+			<h2 id="storage-largest-file-heading" className="text-lg font-semibold tracking-tight">
+				{t("storageSettings.largestFile.heading")}
+			</h2>
+			<form onSubmit={save} className="grid max-w-sm gap-4" noValidate>
+				<Field data-invalid={error ? true : undefined}>
+					<FieldLabel htmlFor="storage-largest-file">{t("storageSettings.largestFile.label")}</FieldLabel>
+					<Input
+						id="storage-largest-file"
+						type="number"
+						inputMode="numeric"
+						min={1}
+						max={1024}
+						step={1}
+						value={megabytes}
+						onChange={(event) => setMegabytes(event.target.value)}
+						aria-invalid={error ? true : undefined}
+						aria-describedby={["storage-largest-file-help", error ? "storage-largest-file-error" : null]
+							.filter(Boolean)
+							.join(" ")}
+					/>
+					<FieldDescription id="storage-largest-file-help">{t("storageSettings.largestFile.help")}</FieldDescription>
+					{error ? <FieldError id="storage-largest-file-error">{t(error)}</FieldError> : null}
+				</Field>
+				<div>
+					<Button type="submit" disabled={busy}>
+						{t("storageSettings.largestFile.save")}
+					</Button>
+				</div>
+			</form>
+		</section>
 	);
 }
 
@@ -152,7 +220,7 @@ function StorageForm({ view, onSaved }: { view: StorageView; onSaved(): void }) 
 	);
 
 	return (
-		<form onSubmit={save} className="flex max-w-3xl flex-col gap-6" noValidate>
+		<form onSubmit={save} className="flex flex-col gap-6" noValidate>
 			<fieldset className="grid gap-3">
 				<legend className="mb-3 text-sm font-medium">{t("storageSettings.where")}</legend>
 				<KindOption

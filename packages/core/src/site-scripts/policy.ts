@@ -86,6 +86,28 @@ export const FILE_POLICY = FIXED_DIRECTIVES.join("; ");
  */
 export const MEDIA_POLICY = FIXED_DIRECTIVES.filter((directive) => !directive.startsWith("object-src")).join("; ");
 
+/**
+ * The policy of an SVG Media file, which a browser opened by itself treats as a document: it runs
+ * nothing (`script-src 'none'`, `sandbox`) and loads nothing from elsewhere, whatever the cleaning
+ * missed. Its own styles and inline raster images still show.
+ */
+export const SVG_POLICY = [
+	"default-src 'none'",
+	"script-src 'none'",
+	"style-src 'unsafe-inline'",
+	"img-src data:",
+	"font-src data:",
+	"sandbox",
+	"base-uri 'none'",
+	"form-action 'none'",
+	"frame-ancestors 'self'",
+].join("; ");
+
+/** The policy a Media file is served with, by its type. */
+export function mediaPolicy(contentType: string): string {
+	return contentType === "image/svg+xml" ? SVG_POLICY : MEDIA_POLICY;
+}
+
 /** What a page's policy is worked out from. */
 export type PagePolicyInput = {
 	mode: CspMode;

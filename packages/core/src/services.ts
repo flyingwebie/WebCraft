@@ -2,6 +2,7 @@ import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 
 import type { Account } from "./account.ts";
+import type { AiProviders } from "./ai.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { CodeMode } from "./code-mode/index.ts";
@@ -99,6 +100,8 @@ export type InstallPorts = {
 	tls: TlsProbe;
 	/** The country of an address, for Site analytics (never kept). */
 	countries: Countries;
+	/** AI providers, called directly with a Workspace's AI key (ADR 0011). */
+	ai: AiProviders;
 	clock: Clock;
 	log: Logger;
 	/**

@@ -137,6 +137,8 @@ export {
 	TemplateMarkupInvalidError,
 } from "./markup/problems.ts";
 export {
+	FOCAL_POINT_STEP,
+	focalPointClasses,
 	type ImagePriority,
 	type MediaReader,
 	mediaReference,

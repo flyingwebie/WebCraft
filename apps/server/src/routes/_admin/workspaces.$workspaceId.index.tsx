@@ -15,17 +15,23 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@w
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { AppWindowIcon, GlobeIcon, PlusIcon } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
 import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
+import { formatBytes } from "../../ui/media/preview.ts";
+import { type MediaStorageView, QuotaNotice, StorageMeter } from "../../ui/media/StorageCard.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 import type { AdminPlace } from "../../ui/shell/levels.ts";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
 	staticData: { crumb: "sites.pageTitle" },
+	loader: async ({ params }) => {
+		const api = await getApi();
+		return { storage: await api.workspaces.storage({ workspaceId: params.workspaceId }) };
+	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "sites.pageTitle") }] }),
 	component: SitesPage,
 });
@@ -37,6 +43,7 @@ function SitesPage() {
 	const t = useT();
 	const place = Route.useRouteContext().place as WorkspacePlace;
 	const canCreate = place.permissions.includes("site.create");
+	const { storage } = Route.useLoaderData();
 
 	return (
 		<>
@@ -85,6 +92,123 @@ function SitesPage() {
 					))}
 				</ul>
 			)}
+			<WorkspaceStorage
+				workspaceId={place.workspace.id}
+				storage={storage}
+				canSetQuota={place.permissions.includes("quota.manage")}
+			/>
+		</>
+	);
+}
+
+/**
+ * The Workspace's Media storage: what its Sites' Media takes, its quota and the 80% notice; Staff set
+ * or remove the quota.
+ */
+function WorkspaceStorage({
+	workspaceId,
+	storage,
+	canSetQuota,
+}: {
+	workspaceId: string;
+	storage: MediaStorageView;
+	canSetQuota: boolean;
+}) {
+	const t = useT();
+	return (
+		<section aria-labelledby="workspace-storage-heading" className="mt-10 grid max-w-xl gap-4">
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div className="grid gap-1">
+					<h2 id="workspace-storage-heading" className="text-lg font-semibold tracking-tight">
+						{t("workspaceStorage.heading")}
+					</h2>
+					<p className="text-muted-foreground text-sm">{t("workspaceStorage.intro")}</p>
+				</div>
+				{canSetQuota ? <QuotaDialog workspaceId={workspaceId} storage={storage} /> : null}
+			</div>
+			<QuotaNotice storage={storage} />
+			<StorageMeter storage={storage} />
+			<p className="text-muted-foreground text-sm">
+				{storage.quotaBytes === null
+					? t("workspaceStorage.noQuota")
+					: t("workspaceStorage.quota", { quota: formatBytes(storage.quotaBytes) })}
+			</p>
+		</section>
+	);
+}
+
+const GB = 1024 * 1024 * 1024;
+
+/** Sets the Workspace's quota in GB (decimals allowed, at least 1 MB), or removes it when left empty. */
+function QuotaDialog({ workspaceId, storage }: { workspaceId: string; storage: MediaStorageView }) {
+	const t = useT();
+	const router = useRouter();
+	const trigger = useRef<HTMLButtonElement>(null);
+	const [open, setOpen] = useState(false);
+	const [gigabytes, setGigabytes] = useState(storage.quotaBytes === null ? "" : String(storage.quotaBytes / GB));
+	const [error, setError] = useState<MessageKey | null>(null);
+	const [busy, setBusy] = useState(false);
+	const save = async (event: FormEvent) => {
+		event.preventDefault();
+		const text = gigabytes.trim().replace(",", ".");
+		const value = Number(text);
+		const quotaBytes = text === "" ? null : Math.round(value * GB);
+		if (quotaBytes !== null && (!Number.isFinite(value) || quotaBytes < 1024 * 1024)) {
+			setError("workspaceStorage.invalid");
+			return;
+		}
+		setBusy(true);
+		setError(null);
+		try {
+			await (await getApi()).workspaces.setQuota({ workspaceId, quotaBytes });
+			toast.success(t(quotaBytes === null ? "workspaceStorage.removed" : "workspaceStorage.saved"));
+			setOpen(false);
+			await router.invalidate();
+		} catch (failure) {
+			setError(errorMessage(failure));
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<>
+			<Button ref={trigger} variant="outline" onClick={() => setOpen(true)}>
+				{storage.quotaBytes === null ? t("workspaceStorage.set") : t("workspaceStorage.change")}
+			</Button>
+			<Dialog open={open} onOpenChange={setOpen}>
+				<DialogContent closeLabel={t("workspaceStorage.close")} finalFocus={trigger}>
+					<form onSubmit={save} className="grid gap-6" noValidate>
+						<DialogHeader>
+							<DialogTitle>{t("workspaceStorage.dialogTitle")}</DialogTitle>
+							<DialogDescription>{t("workspaceStorage.dialogBody")}</DialogDescription>
+						</DialogHeader>
+						<Field data-invalid={error ? true : undefined}>
+							<FieldLabel htmlFor="workspace-quota">{t("workspaceStorage.quotaLabel")}</FieldLabel>
+							<Input
+								id="workspace-quota"
+								inputMode="decimal"
+								value={gigabytes}
+								onChange={(event) => setGigabytes(event.target.value)}
+								autoComplete="off"
+								aria-invalid={error ? true : undefined}
+								aria-describedby={["workspace-quota-help", error ? "workspace-quota-error" : null]
+									.filter(Boolean)
+									.join(" ")}
+							/>
+							<FieldDescription id="workspace-quota-help">{t("workspaceStorage.quotaHelp")}</FieldDescription>
+							{error ? <FieldError id="workspace-quota-error">{t(error)}</FieldError> : null}
+						</Field>
+						<DialogFooter>
+							<DialogClose render={<Button variant="outline" type="button" />}>
+								{t("workspaceStorage.cancel")}
+							</DialogClose>
+							<Button type="submit" disabled={busy}>
+								{t("workspaceStorage.save")}
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }
