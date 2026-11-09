@@ -2302,6 +2302,8 @@
 			"seoTitlePatternLength": "Uno schema di titolo ha da 1 a {max} caratteri.",
 			"seoTitleToken": "{token} non è un segnaposto valido: i segnaposto sono title, site, postType e separator, ciascuno tra parentesi graffe.",
 			"seoDescriptionField": "La descrizione viene da un campo di testo, testo formattato o Body, non da {field}.",
+			"summaryField": "Il riepilogo viene da un campo di testo, testo formattato o Body, non da {field}.",
+			"summaryFieldTwice": "Il campo riepilogo è stato indicato due volte, come due campi diversi.",
 			"seoImageField": "L'immagine social viene da un campo media o Body, non da {field}.",
 			"schemaTypeUnknown": "{type} non è uno dei tipi Schema.",
 			"schemaPropertyUnknown": "Questo tipo Schema non ha la proprietà {property}.",

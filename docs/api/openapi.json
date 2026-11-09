@@ -1156,7 +1156,21 @@
 											}
 										}
 									},
+									"summaryField": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 300
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
 									"revisions": {
+										"type": "boolean"
+									},
+									"sitemap": {
 										"type": "boolean"
 									}
 								},
@@ -1621,7 +1635,21 @@
 											}
 										}
 									},
+									"summaryField": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 300
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
 									"revisions": {
+										"type": "boolean"
+									},
+									"sitemap": {
 										"type": "boolean"
 									}
 								},

@@ -372,3 +372,28 @@ describe("the Staging address", () => {
 		expect(index.headers.get("x-robots-tag")).toBe("noindex");
 	});
 });
+
+describe("a Post Type Staff leave out", () => {
+	test("has no sitemap, while its Entries' pages still answer; only Staff choose", async () => {
+		const site = await newSite();
+		await published(site, site.blogId, { title: "Fresh bread" });
+		await published(site, site.pagesId, { title: "About" });
+
+		const { postType } = await staff.api.postTypes.update({
+			siteId: site.siteId,
+			postTypeId: site.blogId,
+			sitemap: false,
+		});
+
+		expect(postType.sitemap).toBe(false);
+		expect(readSitemapIndex(await file(`${site.origin}/sitemap.xml`)).map((sitemap) => sitemap.loc)).toEqual([
+			`${site.origin}/sitemaps/page-1.xml`,
+		]);
+		expect((await install.request(`${site.origin}/sitemaps/blog-1.xml`)).status).toBe(404);
+		expect((await install.request(`${site.origin}/blog/fresh-bread`)).status).toBe(200);
+		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
+		await expect(
+			owner.api.postTypes.update({ siteId: site.siteId, postTypeId: site.blogId, sitemap: true }),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});

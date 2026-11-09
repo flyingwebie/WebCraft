@@ -85,6 +85,8 @@ describe("the Page Post Type", () => {
 						},
 					},
 				},
+				summaryField: null,
+				sitemap: true,
 				revisions: true,
 				createdAt: install.clock.now(),
 				updatedAt: install.clock.now(),

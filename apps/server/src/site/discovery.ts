@@ -1,5 +1,6 @@
 import {
 	type InstallServices,
+	LLMS_FILE,
 	ROBOTS_PATH,
 	SITEMAP_LIMITS,
 	SITEMAP_PATH,
@@ -15,7 +16,7 @@ import type { CachedPage, PageCache } from "./page-cache.ts";
 
 /**
  * The Site's discovery files (spec stories 117, 118, 119), at the Site pipeline's reserved-path step:
- * robots.txt and the sitemaps. Each is built on request on one of the Site's domains and kept in the page cache under
+ * robots.txt, the sitemaps and each language's llms.txt. Each is built on request on one of the Site's domains and kept in the page cache under
  * the Site's page cache generation, like a page, so a publish or a change to a setting shows at once
  * on every web process. The Staging address offers none of them: its robots.txt keeps every crawler out.
  */
@@ -67,13 +68,22 @@ export async function discoveryFile(
 		const name = pathname.slice(SITEMAPS_FOLDER.length);
 		return kept(services, cache, request, host, pathname, XML, () => services.discovery.sitemap(host, name, limits));
 	}
+	if (pathname === `/${LLMS_FILE}` || pathname.endsWith(`/${LLMS_FILE}`)) {
+		return kept(services, cache, request, host, pathname, TEXT, async () => {
+			const answer = await services.discovery.llms(host, pathname);
+			return answer && "location" in answer ? { redirect: answer.location } : (answer?.text ?? null);
+		});
+	}
 	return null;
 }
 
 const TEXT = "text/plain; charset=utf-8";
 const XML = "application/xml; charset=utf-8";
 
-/** A file kept in the page cache under its address, built with `build` on a miss (null: no such file). */
+/**
+ * A file kept in the page cache under its address, built with `build` on a miss: its text, where it
+ * is instead (a 301, kept by nobody), or null for no such file.
+ */
 async function kept(
 	services: InstallServices,
 	cache: PageCache,
@@ -81,13 +91,19 @@ async function kept(
 	host: SiteHost,
 	pathname: string,
 	contentType: string,
-	build: () => Promise<string | null>,
+	build: () => Promise<string | { redirect: string } | null>,
 ): Promise<Response | null> {
 	const key = `${host.origin}${pathname}`;
 	const found = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
 	if (found) return fileResponse(request, found, "HIT");
 	const text = await build();
 	if (text === null) return null;
+	if (typeof text !== "string") {
+		return new Response(null, {
+			status: 301,
+			headers: { location: text.redirect, "cache-control": FILE_CACHE_CONTROL },
+		});
+	}
 	const file: CachedPage = { html: text, etag: await etagOf(text), headers: { "content-type": contentType } };
 	cache.set(host.site.id, host.cacheGeneration, key, file);
 	return fileResponse(request, file, "MISS");

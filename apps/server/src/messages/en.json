@@ -2302,6 +2302,8 @@
 			"seoTitlePatternLength": "A title pattern has 1 to {max} characters.",
 			"seoTitleToken": "{token} isn't a token a title pattern knows: the tokens are title, site, postType and separator, each in curly brackets.",
 			"seoDescriptionField": "A description comes from a text, rich text or Body field, not {field}.",
+			"summaryField": "A Summary comes from a text, rich text or Body field, not {field}.",
+			"summaryFieldTwice": "The Summary field was given twice, as two different Fields.",
 			"seoImageField": "A social image comes from a media Field or a Body field, not {field}.",
 			"schemaTypeUnknown": "{type} isn't one of the Schema types.",
 			"schemaPropertyUnknown": "This Schema type has no property {property}.",

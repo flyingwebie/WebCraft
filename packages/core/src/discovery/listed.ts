@@ -105,8 +105,8 @@ function originOf(host: SiteHost, site: SiteLanguages, language: string): string
 }
 
 /**
- * The Post Types whose Entries have pages, in the order discovery files list them: Pages first, then
- * the rest by name.
+ * The Post Types whose Entries have pages and that Staff haven't left out of the Site's discovery
+ * files (`sitemap`), in the order they list them: Pages first, then the rest by name.
  */
 export async function listedPostTypes(list: Listing): Promise<PostType[]> {
 	const rendered = new Set(
@@ -115,7 +115,7 @@ export async function listedPostTypes(list: Listing): Promise<PostType[]> {
 		),
 	);
 	return list.postTypes
-		.filter((postType) => isPagePostType(postType) || rendered.has(postType.id))
+		.filter((postType) => postType.sitemap && (isPagePostType(postType) || rendered.has(postType.id)))
 		.sort((a, b) => Number(isPagePostType(b)) - Number(isPagePostType(a)) || a.name.localeCompare(b.name));
 }
 

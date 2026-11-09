@@ -190,6 +190,8 @@ export const SETTING_RULES = [
 	"seoTitlePatternLength",
 	"seoTitleToken",
 	"seoDescriptionField",
+	"summaryField",
+	"summaryFieldTwice",
 	"seoImageField",
 	"schemaTypeUnknown",
 	"schemaPropertyUnknown",

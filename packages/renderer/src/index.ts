@@ -131,6 +131,7 @@ export {
 	SEARCH_LOOP,
 	SEARCH_QUERY_VALUE,
 } from "./loops.ts";
+export { escapeMarkdown, escapeMarkdownLine, markdownLink, markdownUrl } from "./markdown.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export {
 	ID_ATTRIBUTE,
