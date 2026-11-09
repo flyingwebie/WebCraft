@@ -275,6 +275,30 @@ describe("Pages", () => {
 	);
 });
 
+describe("Languages", () => {
+	isolation.refuses("languages.list", (api, { siteId }) => api.languages.list({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("languages.add", (api, { siteId }) => api.languages.add({ siteId, code: "fr" }));
+	isolation.refuses("languages.update", (api, { siteId }) =>
+		api.languages.update({ siteId, code: "en", name: "Inglese" }),
+	);
+	// Without a confirmation it only answers what the change would do.
+	isolation.refuses("languages.setDefault", async (api, target) => {
+		const admin = await install.superadmin();
+		await admin.api.languages.add({ siteId: target.siteId, code: "fr" }).catch(() => undefined);
+		return api.languages.setDefault({ siteId: target.siteId, code: "fr" });
+	});
+	isolation.refuses("languages.remove", async (api, target) => {
+		const admin = await install.superadmin();
+		await admin.api.languages.add({ siteId: target.siteId, code: "de" }).catch(() => undefined);
+		return api.languages.remove({ siteId: target.siteId, code: "de" });
+	});
+	isolation.refuses("languages.setBrowserRedirect", (api, { siteId }) =>
+		api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: true }),
+	);
+});
+
 describe("Edit mode", () => {
 	isolation.refuses("editMode.open", (api, { siteId }) => api.editMode.open({ siteId, path: "/" }), {
 		as: ["staff", "author"],

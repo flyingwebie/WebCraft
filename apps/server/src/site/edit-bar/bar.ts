@@ -29,7 +29,8 @@ export function editingBar(config: EditingBarConfig): void {
 		pages: { title: string; path: string }[];
 		person: { name: string };
 		site: { name: string };
-		language: { code: string };
+		language: { code: string; name: string };
+		languages: { code: string; name: string; path: string; current: boolean }[];
 		words?: Words;
 	};
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string };
@@ -297,13 +298,58 @@ export function editingBar(config: EditingBarConfig): void {
 			devices.append(choice);
 		}
 
-		const language = el(
-			"span",
-			{ class: "language" },
-			icon("language"),
-			el("span", { class: "sr-only" }, word("language")),
-			s.language.code.toUpperCase(),
-		);
+		// With more than one language, the page in each of them is a menu away.
+		const languageMenu = el("div", { class: "popup menu", role: "menu", "aria-label": word("languages"), hidden: "" });
+		let language: HTMLElement;
+		if (s.languages.length > 1) {
+			const languageButton = button(
+				{
+					class: "control language",
+					"aria-haspopup": "menu",
+					"aria-expanded": "false",
+					// The name holds the code it shows, then the language's name.
+					"aria-label": word("languageSwitcher", {
+						language: `${s.language.code.toUpperCase()} (${s.language.name})`,
+					}),
+				},
+				icon("language"),
+				el("span", {}, s.language.code.toUpperCase()),
+				icon("chevron"),
+			);
+			popupTrigger({
+				trigger: languageButton,
+				panel: languageMenu,
+				focus: () => focusMenuItem(languageMenu, 0),
+				render() {
+					languageMenu.replaceChildren(
+						...(state?.languages ?? []).map((choice) =>
+							el(
+								"a",
+								{
+									role: "menuitem",
+									tabindex: "-1",
+									href: choice.path,
+									hreflang: choice.code,
+									...(choice.current ? { "aria-current": "page" } : {}),
+								},
+								el("span", { class: "menu-title", lang: choice.code }, choice.name),
+								el("span", { class: "menu-sub" }, choice.code),
+							),
+						),
+					);
+				},
+			});
+			languageMenu.addEventListener("keydown", (event) => menuKeys(event, languageMenu));
+			language = languageButton;
+		} else {
+			language = el(
+				"span",
+				{ class: "language" },
+				icon("language"),
+				el("span", { class: "sr-only" }, word("language")),
+				s.language.code.toUpperCase(),
+			);
+		}
 
 		publishButton = button({ class: "publish", "aria-haspopup": "dialog", "aria-expanded": "false" });
 		const publishPanel = el("div", {
@@ -370,7 +416,7 @@ export function editingBar(config: EditingBarConfig): void {
 				savedNote,
 			),
 			el("div", { class: "middle" }, modes, devices),
-			el("div", { class: "end" }, language, publishButton, publishPanel, account, accountMenu),
+			el("div", { class: "end" }, language, languageMenu, publishButton, publishPanel, account, accountMenu),
 		);
 		const section = el(
 			"section",
@@ -708,8 +754,7 @@ export function editingBar(config: EditingBarConfig): void {
 			});
 		}
 		doc.addEventListener("selectionchange", () => {
-			const range = doc.getSelection()?.rangeCount ? doc.getSelection()?.getRangeAt(0) : undefined;
-			if (range && current?.contains(range.commonAncestorContainer)) selection = range.cloneRange();
+			rememberSelection();
 			if (current?.dataset.wcType === "richText") updatePressed();
 		});
 		const reposition = () => {
@@ -774,6 +819,8 @@ export function editingBar(config: EditingBarConfig): void {
 		}
 		if (event.key === "F10" && event.altKey) {
 			event.preventDefault();
+			// The selection as it is now: a "selectionchange" for it may not have come yet.
+			rememberSelection();
 			toolbarDismissed = false;
 			showToolbar(region);
 			toolbar.querySelector<HTMLElement>('button[tabindex="0"]')?.focus();
@@ -796,7 +843,12 @@ export function editingBar(config: EditingBarConfig): void {
 		if (ended || value === lastSaved.get(region)) return;
 		const run = (async () => {
 			savedNote.textContent = word("saving");
-			const answer = await call("save", { item: region.dataset.wcItem, field: region.dataset.wcField, value });
+			const answer = await call("save", {
+				item: region.dataset.wcItem,
+				field: region.dataset.wcField,
+				value,
+				language: state?.language.code,
+			});
 			if (!answer.ok) {
 				const reason = errorText(answer.code);
 				savedNote.textContent = word("saveFailed", { reason });
@@ -1011,6 +1063,13 @@ export function editingBar(config: EditingBarConfig): void {
 			}
 			toolbar.querySelector(`[data-tool="${name}"]`)?.setAttribute("aria-pressed", String(on));
 		}
+	}
+
+	/** Keeps the selection in the text being edited, for the toolbar's tools to act on. */
+	function rememberSelection(): void {
+		const chosen = doc.getSelection();
+		const range = chosen?.rangeCount ? chosen.getRangeAt(0) : undefined;
+		if (range && current?.contains(range.commonAncestorContainer)) selection = range.cloneRange();
 	}
 
 	/** Runs an editing command on the text being edited, its selection put back first. */

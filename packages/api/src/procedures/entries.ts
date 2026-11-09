@@ -36,6 +36,7 @@ export const entries = {
 				title: z.string().trim().min(1).max(ENTRY_TITLE_MAX_LENGTH),
 				slug: z.string().max(500).optional(),
 				parentId: id.nullable().optional(),
+				hiddenLanguages: z.array(language).max(100).optional(),
 				fields: fieldValues.optional(),
 			}),
 		)
@@ -62,6 +63,8 @@ export const entries = {
 				slug: z.string().max(500).optional(),
 				/** A Page's parent Page; null moves it to the top level. */
 				parentId: id.nullable().optional(),
+				/** Every language the Entry is hidden in: it has no page there once published. */
+				hiddenLanguages: z.array(language).max(100).optional(),
 				fields: fieldValues.optional(),
 			}),
 		)

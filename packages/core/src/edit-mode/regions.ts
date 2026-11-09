@@ -22,6 +22,8 @@ export type RegionChange = {
 	field: string;
 	/** Plain text, or rich text's HTML (cleaned on save). */
 	value: string;
+	/** The language of the page the region is on: the value is saved in it (the Default language when absent). */
+	language?: string;
 };
 
 /** What saving a region did: the item's status, the value as stored, and its problems. */
@@ -48,24 +50,25 @@ export function readEditItem(item: string): EditItem {
  */
 export async function saveRegion(scope: SiteScope, change: RegionChange): Promise<SavedRegion> {
 	const item = readEditItem(change.item);
+	const { language } = change;
 	if (item.kind === "globals") {
-		const globals = await getGlobals(scope);
+		const globals = await getGlobals(scope, language);
 		if (!editableField(globals.fields, change.field)) throw new EditFieldInvalidError();
-		const saved = await saveGlobalsDraft(scope, { fields: nested(change.field, change.value) });
+		const saved = await saveGlobalsDraft(scope, { language, fields: nested(change.field, change.value) });
 		return {
 			status: saved.status,
 			value: valueAt(saved.draft, change.field),
 			problems: problemsAt(saved.problems, `fields.${change.field}`),
 		};
 	}
-	const entry = await getEntry(scope, item.id);
+	const entry = await getEntry(scope, item.id, language);
 	if (change.field === "title") {
-		const saved = await saveDraft(scope, item.id, { title: change.value });
+		const saved = await saveDraft(scope, item.id, { language, title: change.value });
 		return { status: saved.status, value: saved.draft.title, problems: problemsAt(saved.problems, "title") };
 	}
 	const postType = await getPostType(scope, entry.postTypeId);
 	if (!editableField(postType.fields, change.field)) throw new EditFieldInvalidError();
-	const saved = await saveDraft(scope, item.id, { fields: nested(change.field, change.value) });
+	const saved = await saveDraft(scope, item.id, { language, fields: nested(change.field, change.value) });
 	return {
 		status: saved.status,
 		value: valueAt(saved.draft.fields, change.field),

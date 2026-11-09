@@ -1,6 +1,5 @@
 import { postTypes } from "@webcraft/db/schema";
 import { asc, eq } from "drizzle-orm";
-
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -14,6 +13,7 @@ import {
 	RESERVED_FIELD_KEYS,
 	storedFields,
 } from "./fields.ts";
+import { checkPatternOutsidePrefixes } from "./language-paths.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { checkPatternLeavesPages, isPagePostType, lockSitePaths, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
 import { slugify } from "./slugs.ts";
@@ -81,6 +81,7 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 		scope.transaction(async (tx) => {
 			await lockSitePaths(tx);
 			await checkPatternLeavesPages(tx, urlPattern);
+			await checkPatternOutsidePrefixes(tx, urlPattern);
 			const now = tx.now();
 			const row = await tx.insert(postTypes, { key, name, urlPattern, fields, createdAt: now, updatedAt: now });
 			await tx.audit("postType.create", { postTypeId: row.id, key, name, urlPattern });
@@ -119,6 +120,7 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 			if (urlPattern !== existing.urlPattern) {
 				await lockSitePaths(tx);
 				await checkPatternLeavesPages(tx, urlPattern);
+				await checkPatternOutsidePrefixes(tx, urlPattern, existing.id);
 			}
 			const [row] = await tx.update(
 				postTypes,

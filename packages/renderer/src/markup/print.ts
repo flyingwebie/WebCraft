@@ -7,12 +7,20 @@
  *   end of text prints as a character reference, so it can't run into a following `{{`.
  * - Values print as `{{ path }}` or `{{ path | formatter }}`, comments as `<!--text-->`, Template
  *   commands as `{{@name …}} … {{/name}}`.
+ * - Fixed text with values in other languages prints as `{{ "Read more" fr: "Lire la suite" }}`.
  * - Placements print as their Component's PascalCase tag with their Prop values as attributes, in
  *   order, then `data-wc-id`, closing themselves: `<PostCard heading="{{ title }}" featured data-wc-id="…" />`.
  */
 import { commandForNode } from "../commands.ts";
 import { writeFormat } from "../formatters.ts";
-import { type Attribute, type AttributePart, type ElementTree, type TreeNode, VOID_ELEMENTS } from "../tree.ts";
+import {
+	type Attribute,
+	type AttributePart,
+	type ElementTree,
+	type TextNode,
+	type TreeNode,
+	VOID_ELEMENTS,
+} from "../tree.ts";
 import { ID_ATTRIBUTE } from "./parse.ts";
 
 export type PrintMarkupOptions = {
@@ -52,7 +60,7 @@ function printNodes(nodes: readonly TreeNode[], options: PrintMarkupOptions): st
 function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 	switch (node.type) {
 		case "text":
-			return markupText(node.text, false);
+			return node.translations ? translatedText(node) : markupText(node.text, false);
 		case "value":
 			return `{{ ${node.path}${node.format ? ` | ${writeFormat(node.format)}` : ""} }}`;
 		case "comment":
@@ -98,8 +106,22 @@ function printAttribute(attribute: Attribute): string {
 }
 
 function printPart(part: AttributePart): string {
-	if (part.type === "text") return markupText(part.text, true);
+	if (part.type === "text") return part.translations ? translatedText(part) : markupText(part.text, true);
 	return `{{ ${part.path}${part.format ? ` | ${writeFormat(part.format)}` : ""} }}`;
+}
+
+/**
+ * Fixed text with values in other languages: `{{ "Read more" fr: "Lire la suite" }}`, the languages
+ * in alphabetical order. The same in text and in attribute values.
+ */
+function translatedText(node: TextNode): string {
+	const languages = Object.entries(node.translations ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+	return `{{ ${quoted(node.text)}${languages.map(([language, text]) => ` ${language}: ${quoted(text)}`).join("")} }}`;
+}
+
+/** Text in double quotes: `\"` for a quote, `\\` for a backslash, `\r` for a carriage return. */
+function quoted(text: string): string {
+	return `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("\r", "\\r")}"`;
 }
 
 /**

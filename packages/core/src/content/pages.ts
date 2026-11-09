@@ -5,7 +5,7 @@ import { isUuid } from "../ids.ts";
 import type { SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
 import { type ContentProblem, EntryInvalidError, PageParentUnpublishedError, PathTakenError } from "./errors.ts";
 import { BUILT_IN_FIELDS } from "./fields.ts";
-import { siteLanguages } from "./languages.ts";
+import { languagePath, siteLanguages } from "./languages.ts";
 import type { PostType } from "./post-types.ts";
 import { bySpecificity, canonicalPath, ENTRY_SLUG, parseUrlPattern, slugIn, type UrlPattern } from "./url-patterns.ts";
 import { type EntryVersion, type LanguageValue, readValue, storedVersion, type Writer } from "./values.ts";
@@ -262,19 +262,18 @@ export async function checkPatternLeavesPages(
 	if ("problem" in pattern) return;
 	const pages = await scope.first(postTypes, eq(postTypes.builtIn, PAGE_POST_TYPE.builtIn));
 	if (!pages) return;
-	const { defaultLanguage } = await siteLanguages(scope);
-	const tree = await publishedPageTree(scope, pages.id, defaultLanguage);
-	for (const pageId of tree.keys()) {
-		const parts = pathIn(tree, pageId);
-		if (!parts || slugIn(pattern, parts) === undefined) continue;
-		const row = await scope.first(entries, eq(entries.id, pageId));
-		const title =
-			readValue(storedVersion(row?.published), {
-				key: "title",
-				language: defaultLanguage,
-				defaultLanguage,
-			}) ?? "";
-		throw new PathTakenError(pathText(parts), { kind: "page", id: pageId, title });
+	const site = await siteLanguages(scope);
+	// A pattern owns its paths in every language: under each prefix too.
+	for (const language of site.languages) {
+		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
+		const tree = await publishedPageTree(scope, pages.id, language.code);
+		for (const pageId of tree.keys()) {
+			const parts = pathIn(tree, pageId);
+			if (!parts || slugIn(pattern, parts) === undefined) continue;
+			const row = await scope.first(entries, eq(entries.id, pageId));
+			const title = readValue(storedVersion(row?.published), { key: "title", ...languages }) ?? "";
+			throw new PathTakenError(languagePath(languages, pathText(parts)), { kind: "page", id: pageId, title });
+		}
 	}
 }
 

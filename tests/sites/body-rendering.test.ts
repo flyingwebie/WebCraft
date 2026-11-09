@@ -387,3 +387,68 @@ describe("in Edit mode", () => {
 		);
 	});
 });
+
+describe("in the Site's other languages", () => {
+	test("each language keeps its own Blocks, each naming the Block it translates; a language without falls back", async () => {
+		const french = (await install.createSite((await install.createWorkspace("Maison Ltd")).id, { slug: "maison" })).id;
+		const owner = await install.superadmin();
+		await owner.api.languages.add({ siteId: french, code: "fr" });
+		const { postType } = await owner.api.postTypes.create({
+			siteId: french,
+			name: "Articles",
+			urlPattern: "/articles/{slug}",
+			fields: [{ key: "body", label: "Body", type: "body" }],
+		});
+		const saved = await owner.api.templates.saveEntryTemplateMarkup({
+			siteId: french,
+			postTypeId: postType.id,
+			markup: "<article>{{ body }}</article>",
+		});
+		await owner.api.templates.publish({ siteId: french, templateId: saved.template.id });
+		const create = async (slug: string) =>
+			(
+				await owner.api.entries.create({
+					siteId: french,
+					postTypeId: postType.id,
+					title: "Bread",
+					slug,
+					fields: {
+						body: [
+							{ id: "intro", type: "paragraph", text: "Fresh bread." },
+							{ id: "film", type: "video", url: "https://vimeo.com/76979871" },
+						],
+					},
+				})
+			).entry;
+		const translated = await create("translated");
+		const untranslated = await create("untranslated");
+
+		const { entry } = await owner.api.entries.saveDraft({
+			siteId: french,
+			entryId: translated.id,
+			language: "fr",
+			fields: {
+				body: [
+					{ id: "intro-fr", type: "paragraph", text: "Pain frais.", source: { id: "intro", by: "person" } },
+					{ id: "film-fr", type: "video", url: "https://vimeo.com/76979871", source: { id: "film", by: "ai" } },
+				],
+			},
+		});
+		expect(entry.draft.fields.body).toEqual([
+			{ id: "intro-fr", type: "paragraph", text: [{ text: "Pain frais." }], source: { id: "intro", by: "person" } },
+			{ id: "film-fr", type: "video", url: "https://vimeo.com/76979871", title: "", source: { id: "film", by: "ai" } },
+		]);
+		const english = (await owner.api.entries.get({ siteId: french, entryId: translated.id })).entry;
+		expect((english.draft.fields.body as { id: string }[]).map((block) => block.id)).toEqual(["intro", "film"]);
+
+		await owner.api.entries.publish({ siteId: french, entryId: translated.id });
+		await owner.api.entries.publish({ siteId: french, entryId: untranslated.id });
+		const page = async (path: string) =>
+			mainOf(await (await install.request(`https://maison.sites.test${path}`)).text());
+		expect(await page("/fr/articles/translated")).toStartWith(
+			'<article><p>Pain frais.</p><figure class="wc-embed"><a href="https://vimeo.com/76979871" data-wc-embed="https://player.vimeo.com/video/76979871?autoplay=1&amp;dnt=1" data-wc-title="Vidéo">Lire la vidéo</a></figure>',
+		);
+		expect(await page("/articles/translated")).toStartWith("<article><p>Fresh bread.</p>");
+		expect(await page("/fr/articles/untranslated")).toStartWith("<article><p>Fresh bread.</p>");
+	});
+});

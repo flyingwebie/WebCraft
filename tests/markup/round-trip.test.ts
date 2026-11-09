@@ -283,7 +283,17 @@ describe("generated trees", () => {
 		fc.record({ type: fc.constant("truncate"), length: fc.integer({ min: 1, max: 10_000 }) }),
 	);
 	const valueArb = fc.record({ path, format }).map(({ path: name, format: chosen }) => value(name, chosen));
-	const part = fc.oneof(textArb.map(text), valueArb);
+	// Fixed text with values in other languages.
+	const translatedArb = fc
+		.record({
+			text: textArb,
+			translations: fc.dictionary(fc.constantFrom("fr", "de", "pt-BR", "zh-Hant"), textArb.filter(Boolean), {
+				minKeys: 1,
+				maxKeys: 3,
+			}),
+		})
+		.map(({ text: written, translations }) => ({ type: "text", text: written, translations }) as const);
+	const part = fc.oneof(textArb.map(text), valueArb, translatedArb);
 	const attributes = fc.uniqueArray(
 		fc.record({
 			name: fc.constantFrom("title", "aria-label", "data-x", "href", "lang", "hidden", "alt", "data-long-name"),
@@ -328,11 +338,12 @@ describe("generated trees", () => {
 	);
 	const containers = ["div", "section", "span", "em", "strong", "article", "aside", "blockquote", "pre", "nav"];
 	const voids = ["br", "hr", "img", "wbr"];
-	const { nodes } = fc.letrec((tie) => ({
+	const { node } = fc.letrec((tie) => ({
 		node: fc.oneof(
 			{ depthSize: "small", withCrossShrink: true },
 			textArb.map(text),
 			valueArb,
+			translatedArb,
 			placement,
 			commentText.map((comment) => ({ type: "comment", text: comment })),
 			fc
@@ -367,6 +378,8 @@ describe("generated trees", () => {
 		),
 		nodes: fc.array(tie("node"), { maxLength: 4 }),
 	}));
+	// The Language switcher renders a <nav>, so it goes where one can: here, at the top level.
+	const nodes = fc.array(fc.oneof(node, fc.constant({ type: "languageSwitcher" })), { maxLength: 4 });
 
 	test("print → save gives the same tree, and the same markup", async () => {
 		await fc.assert(

@@ -1,4 +1,4 @@
-import { entries, people, publishedSlugs, specialPages } from "@webcraft/db/schema";
+import { entries, people, publishedSlugs } from "@webcraft/db/schema";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
@@ -6,6 +6,7 @@ import { isUuid } from "../ids.ts";
 import { actingPerson } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { bodyChecksOf, type EntryCheck } from "./body-checks.ts";
+import { publishedAddresses } from "./entry-paths.ts";
 import {
 	type ContentProblem,
 	EntryInvalidError,
@@ -29,7 +30,7 @@ import {
 	writeFields,
 } from "./field-values.ts";
 import { sameJson } from "./json.ts";
-import { siteLanguages } from "./languages.ts";
+import { canonicalLanguage, languagesFor, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import {
 	checkDraftParent,
@@ -38,16 +39,14 @@ import {
 	lockSitePaths,
 	pageSlugTaken,
 	parentIn,
-	pathIn,
-	pathText,
-	publishedPageTree,
 	withParent,
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, type LinkBack, linkingEntries, linksBack, saveLinks } from "./relationships.ts";
 import { slugify } from "./slugs.ts";
-import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH, pathFor } from "./url-patterns.ts";
+import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
 import { type EntryVersion, emptyVersion, readValue, storedVersion, type Writer, writeValue } from "./values.ts";
+import { hiddenLanguagesIn, withHiddenLanguages } from "./visibility.ts";
 
 export type { EntryCheck } from "./body-checks.ts";
 export { sameJson } from "./json.ts";
@@ -65,6 +64,8 @@ export type EntryValues = {
 	slug: string;
 	/** A Page's parent Page; null for a top-level Page and for every other Entry. */
 	parentId: string | null;
+	/** The Site languages the Entry is hidden in: it has no page and no place in lists there. */
+	hiddenLanguages: string[];
 	/** Every Field of the Post Type, by key, as its type gives it (see the Field types). */
 	fields: Record<string, Json>;
 };
@@ -117,6 +118,11 @@ export type DraftChange = {
 	 */
 	parentId?: string | null;
 	/**
+	 * Every Site language the Entry is hidden in (none: shown in all of them), shared by every
+	 * language. Hiding goes live when the Entry is published.
+	 */
+	hiddenLanguages?: string[];
+	/**
 	 * Values of the Post Type's Fields, by key, each as its type takes it; null or "" clears one. A
 	 * Group's value is its Fields' values by key (only those given change); a Repeater's is its whole
 	 * list of rows (rows keep their `id`; rows left out are removed).
@@ -158,26 +164,14 @@ export async function createEntry(scope: SiteScope, input: NewEntry): Promise<En
 			createdAt: now,
 			updatedAt: now,
 		});
-		const languages = await siteLanguages(tx);
-		const language = input.language ?? languages.defaultLanguage;
+		const languages = await entryLanguages(tx, input.language);
 		const taken = isPagePostType(postType)
-			? (candidate: string) =>
-					pageSlugTaken(tx, row, input.parentId ?? null, {
-						language,
-						defaultLanguage: languages.defaultLanguage,
-						value: candidate,
-					})
-			: (candidate: string) => slugTaken(tx, postType.id, row.id, language, candidate);
+			? (candidate: string) => pageSlugTaken(tx, row, input.parentId ?? null, { ...languages, value: candidate })
+			: (candidate: string) => slugTaken(tx, postType.id, row.id, languages.language, candidate);
 		const slug = input.slug ?? (await freeSlug(taken, slugify(input.title) || slugify(postType.name) || "entry"));
 		const { postTypeId: _, ...change } = input;
-		const saved = await changeDraft(
-			tx,
-			row,
-			postType,
-			{ change: { ...change, slug }, withDefaults: true },
-			languages.defaultLanguage,
-		);
-		return toEntry(tx, saved, postType, language, languages.defaultLanguage);
+		const saved = await changeDraft(tx, row, postType, { change: { ...change, slug }, withDefaults: true }, languages);
+		return toEntry(tx, saved, postType, languages);
 	});
 }
 
@@ -190,11 +184,11 @@ export async function saveDraft(scope: SiteScope, entryId: string, change: Draft
 	return scope.transaction(async (tx) => {
 		// Moving a Page is checked against the other Pages' parents: hold them first.
 		if (change.parentId !== undefined) await lockSitePaths(tx);
+		const languages = await entryLanguages(tx, change.language);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
-		const { defaultLanguage } = await siteLanguages(tx);
-		const saved = await changeDraft(tx, row, postType, { change }, defaultLanguage);
-		return toEntry(tx, saved, postType, change.language ?? defaultLanguage, defaultLanguage);
+		const saved = await changeDraft(tx, row, postType, { change }, languages);
+		return toEntry(tx, saved, postType, languages);
 	});
 }
 
@@ -203,19 +197,17 @@ export async function getEntry(scope: SiteScope, entryId: string, language?: str
 	const row = isUuid(entryId) ? await scope.first(entries, eq(entries.id, entryId)) : undefined;
 	if (!row) throw new EntryNotFoundError();
 	const postType = await getPostType(scope, row.postTypeId);
-	const { defaultLanguage } = await siteLanguages(scope);
-	return toEntry(scope, row, postType, checkLanguage(language, defaultLanguage), defaultLanguage);
+	return toEntry(scope, row, postType, await entryLanguages(scope, language));
 }
 
 /** The Entries of a Post Type, newest first, in a language (the Default language unless given). */
 export async function listEntries(scope: SiteScope, postTypeId: string, language?: string): Promise<Entry[]> {
 	const postType = await getPostType(scope, postTypeId);
-	const { defaultLanguage } = await siteLanguages(scope);
-	const chosen = checkLanguage(language, defaultLanguage);
+	const languages = await entryLanguages(scope, language);
 	const rows = await scope.select(entries, eq(entries.postTypeId, postType.id), {
 		orderBy: [desc(entries.createdAt), asc(entries.id)],
 	});
-	return entryViews(scope, rows, postType, chosen, defaultLanguage);
+	return entryViews(scope, rows, postType, languages);
 }
 
 /**
@@ -259,7 +251,7 @@ export async function deleteEntry(scope: SiteScope, entryId: string, confirmatio
 			const source = await lockEntry(tx, linked.entryId);
 			const postType = byId.get(source.postTypeId);
 			if (!postType) continue;
-			await changeDraft(tx, source, postType, { unlink: row.id }, defaultLanguage);
+			await changeDraft(tx, source, postType, { unlink: row.id }, { language: defaultLanguage, defaultLanguage });
 			if (source.published !== null) {
 				const published = { values: withoutLinksTo(storedVersion(source.published).values, postType.fields, row.id) };
 				await tx.update(entries, { published }, eq(entries.id, source.id));
@@ -286,11 +278,11 @@ export async function undoDraftChanges(
 	keys: readonly string[] | "all",
 ): Promise<Entry> {
 	return scope.transaction(async (tx) => {
+		const languages = await entryLanguages(tx);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
-		const { defaultLanguage } = await siteLanguages(tx);
-		const saved = await changeDraft(tx, row, postType, { restore: keys }, defaultLanguage);
-		return toEntry(tx, saved, postType, defaultLanguage, defaultLanguage);
+		const saved = await changeDraft(tx, row, postType, { restore: keys }, languages);
+		return toEntry(tx, saved, postType, languages);
 	});
 }
 
@@ -314,13 +306,13 @@ async function changeDraft(
 	row: EntryRow,
 	postType: PostType,
 	edit: DraftEdit,
-	defaultLanguage: string,
+	languages: Languages,
 ): Promise<EntryRow> {
+	const { language, defaultLanguage } = languages;
 	const by = writerOf(scope);
 	const before = storedVersion(row.draft);
 	let version = before;
 	let slug: string | undefined;
-	let language = defaultLanguage;
 	if ("unlink" in edit) {
 		version = { values: withoutLinksTo(version.values, postType.fields, edit.unlink) };
 		if (sameJson(version, before)) return row;
@@ -330,11 +322,6 @@ async function changeDraft(
 	} else {
 		const { change } = edit;
 		const problems: ContentProblem[] = [];
-		language = change.language ?? defaultLanguage;
-		if (language !== defaultLanguage) {
-			problems.push({ at: "language", message: `The Site has no language ${language}.` });
-		}
-		const languages = { language, defaultLanguage };
 		if (edit.withDefaults) {
 			version = { values: { ...defaultValues(postType.fields, { ...languages, by }), ...version.values } };
 		}
@@ -361,6 +348,16 @@ async function changeDraft(
 			if (change.parentId !== null) await checkDraftParent(scope, row, change.parentId, defaultLanguage, problems);
 			version = withParent(version, change.parentId, defaultLanguage, by);
 		}
+		if (change.hiddenLanguages !== undefined) {
+			const site = await siteLanguages(scope);
+			const hidden: string[] = [];
+			for (const code of change.hiddenLanguages) {
+				const known = site.languages.find((candidate) => candidate.code === canonicalLanguage(code));
+				if (known) hidden.push(known.code);
+				else problems.push({ at: "hiddenLanguages", message: `The Site has no language ${code}.` });
+			}
+			version = withHiddenLanguages(version, hidden, defaultLanguage, by);
+		}
 		if (change.fields !== undefined) {
 			const context: WriteContext = { ...languages, by, problems, references: [], newRowId: randomRowId };
 			version = {
@@ -379,10 +376,10 @@ async function changeDraft(
 			const parentId = parentIn(version, defaultLanguage);
 			const moved = slug || change.parentId !== undefined;
 			if (moved && pageSlug && (await pageSlugTaken(scope, row, parentId, { ...languages, value: pageSlug }))) {
-				throw new EntrySlugTakenError(pageSlug, "siblingPages");
+				throw new EntrySlugTakenError(pageSlug, "siblingPages", languages);
 			}
 		} else if (slug && (await slugTaken(scope, postType.id, row.id, language, slug))) {
-			throw new EntrySlugTakenError(slug);
+			throw new EntrySlugTakenError(slug, "postType", languages);
 		}
 	}
 
@@ -460,11 +457,16 @@ async function freeSlug(taken: (candidate: string) => Promise<boolean>, stem: st
 	}
 }
 
-function checkLanguage(language: string | undefined, defaultLanguage: string): string {
-	if (language !== undefined && language !== defaultLanguage) {
+/**
+ * The scope's Site's language `language` names (its Default language when absent), with the Default
+ * language values fall back to. A language the Site doesn't have is refused (`EntryInvalidError`).
+ */
+export async function entryLanguages(scope: Pick<SiteScope, "db" | "site">, language?: string): Promise<Languages> {
+	const languages = languagesFor(await siteLanguages(scope), language);
+	if (!languages) {
 		throw new EntryInvalidError([{ at: "language", message: `The Site has no language ${language}.` }]);
 	}
-	return defaultLanguage;
+	return languages;
 }
 
 function writerOf(scope: Pick<SiteScope, "access">): Writer {
@@ -491,14 +493,8 @@ export function versionFindings(
 	return findings;
 }
 
-async function toEntry(
-	scope: SiteScope,
-	row: EntryRow,
-	postType: PostType,
-	language: string,
-	defaultLanguage: string,
-): Promise<Entry> {
-	const [entry] = await entryViews(scope, [row], postType, language, defaultLanguage);
+async function toEntry(scope: SiteScope, row: EntryRow, postType: PostType, languages: Languages): Promise<Entry> {
+	const [entry] = await entryViews(scope, [row], postType, languages);
 	if (!entry) throw new EntryNotFoundError();
 	return entry;
 }
@@ -508,10 +504,8 @@ async function entryViews(
 	scope: SiteScope,
 	rows: readonly EntryRow[],
 	postType: PostType,
-	language: string,
-	defaultLanguage: string,
+	languages: Languages,
 ): Promise<Entry[]> {
-	const languages = { language, defaultLanguage };
 	const authors = await authorNames(
 		scope,
 		rows.map((row) => row.authorId),
@@ -522,7 +516,12 @@ async function entryViews(
 		await listPostTypes(scope),
 		languages,
 	);
-	const paths = await publishedPaths(scope, postType, rows, language);
+	const addresses = await publishedAddresses(
+		scope,
+		postType,
+		rows.filter((row) => row.published !== null).map((row) => row.id),
+		languages,
+	);
 	const findings = rows.map((row) => versionFindings(storedVersion(row.draft), postType.fields, languages));
 	await checkReferences(
 		scope,
@@ -538,6 +537,7 @@ async function entryViews(
 		languages,
 	);
 	return rows.map((row, index) => {
+		const address = addresses.get(row.id);
 		const authorName = row.authorId ? authors.get(row.authorId) : undefined;
 		return {
 			id: row.id,
@@ -549,47 +549,19 @@ async function entryViews(
 			updatedAt: row.updatedAt,
 			publishedAt: row.publishedAt,
 			lastPublishedAt: row.lastPublishedAt,
-			language,
+			language: languages.language,
 			draft: drafts[index] ?? values(storedVersion(row.draft)),
-			published: row.published === null ? null : values(storedVersion(row.published)),
+			// Visitors find it by the slug it was published with in this language, which never changes on its own.
+			published:
+				row.published === null
+					? null
+					: { ...values(storedVersion(row.published)), ...(address ? { slug: address.slug } : {}) },
 			problems: findings[index]?.problems ?? [],
 			checks: checks[index] ?? [],
 			linkedFrom: back.get(row.id) ?? [],
-			path: paths.get(row.id) ?? null,
+			path: address?.path ?? null,
 		};
 	});
-}
-
-/**
- * Where visitors find each published Entry, by id: its Post Type's URL pattern with its slug, or a
- * Page's parents and slug (the home page at `/`).
- */
-async function publishedPaths(
-	scope: SiteScope,
-	postType: PostType,
-	rows: readonly EntryRow[],
-	language: string,
-): Promise<Map<string, string>> {
-	const paths = new Map<string, string>();
-	if (isPagePostType(postType)) {
-		const tree = await publishedPageTree(scope, postType.id, language);
-		const home = (await scope.first(specialPages, eq(specialPages.role, "home")))?.entryId;
-		for (const row of rows) {
-			const parts = pathIn(tree, row.id);
-			// The home page is found at `/`; its own path sends visitors there.
-			if (parts) paths.set(row.id, row.id === home ? "/" : pathText(parts));
-		}
-		return paths;
-	}
-	const slugs = await scope.select(
-		publishedSlugs,
-		and(eq(publishedSlugs.postTypeId, postType.id), eq(publishedSlugs.language, language)),
-	);
-	for (const { entryId, slug } of slugs) {
-		const path = pathFor(postType.urlPattern, slug);
-		if (path) paths.set(entryId, path);
-	}
-	return paths;
 }
 
 /** The names of the people who wrote Entries, by id. */
@@ -613,6 +585,7 @@ export function entryValues(
 		title: readValue(version, { key: "title", ...languages }) ?? "",
 		slug: readValue(version, { key: "slug", ...languages }) ?? "",
 		parentId: parentIn(version, languages.defaultLanguage),
+		hiddenLanguages: hiddenLanguagesIn(version, languages.defaultLanguage),
 		fields: readFields(version.values, fields, languages),
 	};
 }

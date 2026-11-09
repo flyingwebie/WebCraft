@@ -64,6 +64,7 @@ describe("creating an Entry", () => {
 				title: "Sourdough starter",
 				slug: "sourdough-starter",
 				parentId: null,
+				hiddenLanguages: [],
 				fields: { summary: "Feed it daily.", sku: null },
 			},
 			published: null,

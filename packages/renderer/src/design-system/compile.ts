@@ -42,7 +42,8 @@ const RESET = [
 
 /**
  * WebCraft's own parts of every page: the focus style (from the focus token), the skip link (out of
- * sight until it has focus) and the theme toggle. They use no token names, which Staff may change,
+ * sight until it has focus), the theme toggle and the Language switcher (a row of links, each big
+ * enough to tap). They use no token names, which Staff may change,
  * and can be restyled in the Site's custom CSS, never removed.
  */
 const PAGE_PARTS = [
@@ -50,6 +51,9 @@ const PAGE_PARTS = [
 	".wc-skip-link{position:absolute;inset-block-start:0.5rem;inset-inline-start:0.5rem;z-index:2147483647;padding:0.5rem 1rem;background-color:Canvas;color:CanvasText;text-decoration:underline}",
 	".wc-skip-link:not(:focus){clip-path:inset(50%);block-size:1px;inline-size:1px;overflow:hidden;white-space:nowrap;padding:0}",
 	".wc-theme-toggle{display:inline-flex;align-items:center;min-block-size:24px;min-inline-size:24px;padding:0.25em 0.75em;border:1px solid currentColor;border-radius:999px;background-color:transparent;color:inherit;font:inherit;cursor:pointer}",
+	".wc-language-switcher ul{display:flex;flex-wrap:wrap;gap:0.25em 1em;margin:0;padding:0;list-style:none}",
+	".wc-language-switcher a{display:inline-flex;align-items:center;min-block-size:24px;min-inline-size:24px}",
+	".wc-language-switcher a[aria-current]{font-weight:bolder}",
 ];
 
 /**

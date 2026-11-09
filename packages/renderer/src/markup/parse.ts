@@ -1,7 +1,8 @@
 /**
  * Reading Template markup into an element tree (ADR 0017). Template markup is HTML plus
- * `{{ value }}` bindings (with an optional formatter), `{{@command}} … {{/command}}` blocks and
- * `\{{` for a literal `{{`. Each element's id is written as `data-wc-id`; an element without one
+ * `{{ value }}` bindings (with an optional formatter), `{{@command}} … {{/command}}` blocks, fixed
+ * text with values in other languages (`{{ "Read more" fr: "Lire la suite" }}`) and `\{{` for a
+ * literal `{{`. Each element's id is written as `data-wc-id`; an element without one
  * gets a new id. Classes are written by name in `class`, and an inline `style` becomes a generated
  * Class with a notice. A PascalCase tag places a Component, its Props written as attributes.
  *
@@ -25,6 +26,7 @@ import {
 import { URL_ATTRIBUTES } from "../escape.ts";
 import { type Expression, expressionPaths, readExpression } from "../expressions.ts";
 import { readFormat } from "../formatters.ts";
+import { canonicalLanguage, languageTagMessage, type Translations } from "../languages.ts";
 import { mediaReference } from "../media.ts";
 import {
 	type Attribute,
@@ -36,12 +38,14 @@ import {
 	type ElementTree,
 	ElementTreeInvalidError,
 	elementProblem,
+	hasText,
 	isElementId,
 	isValuePath,
 	MAX_PROBLEMS,
 	nestingProblem,
 	parseElementTree,
 	randomElementId,
+	type TextNode,
 	TREE_LIMITS,
 	type TreeCheck,
 	type TreeNode,
@@ -320,6 +324,11 @@ class MarkupParser {
 					}
 				} else if (inner.startsWith("/")) {
 					return { nodes, end: { kind: "close", name: inner.slice(1).trim(), offset: curly.offset } };
+				} else if (inner.startsWith('"')) {
+					const node = this.readTranslatedText(curly);
+					const misplaced = node && hasText(node) ? textPlacementProblem(ancestors.at(-1)) : undefined;
+					if (misplaced) this.problem(curly.offset, misplaced);
+					add(node, curly.offset);
 				} else {
 					const misplaced = textPlacementProblem(ancestors.at(-1));
 					if (misplaced) this.problem(curly.offset, misplaced.replace(/^Text/, "A value"));
@@ -475,6 +484,92 @@ class MarkupParser {
 			return undefined;
 		}
 		return { type: "value", path, format: read.format };
+	}
+
+	/**
+	 * Reads fixed text with values in other languages: `{{ "Read more" fr: "Lire la suite" }}`, the
+	 * text as written in double quotes, then each language's (`\"` for a quote, `\\` for a
+	 * backslash, `\r` for a carriage return).
+	 */
+	private readTranslatedText(curly: Curly): TextNode | undefined {
+		const source = curly.inner;
+		const at = (index: number) => curly.innerOffset + index;
+		const layout = 'Write each language as fr: "…", after the text as written.';
+		let index = 0;
+		const skipSpace = () => {
+			while (index < source.length && /\s/.test(source[index] ?? "")) index++;
+		};
+		const readQuoted = (): string | undefined => {
+			const start = index;
+			index++;
+			let value = "";
+			for (;;) {
+				if (index >= source.length) {
+					this.problem(at(start), 'This text never ends: close it with ".');
+					return undefined;
+				}
+				const char = source[index] ?? "";
+				if (char === '"') {
+					index++;
+					return value;
+				}
+				if (char === "\\") {
+					const next = source[index + 1];
+					if (next === '"' || next === "\\") value += next;
+					else if (next === "r") value += "\r";
+					else {
+						this.problem(
+							at(index),
+							'In quoted text, write \\" for a quote, \\\\ for a backslash and \\r for a carriage return.',
+						);
+						return undefined;
+					}
+					index += 2;
+					continue;
+				}
+				value += char;
+				index++;
+			}
+		};
+		skipSpace();
+		const text = readQuoted();
+		if (text === undefined) return undefined;
+		const refused = textProblem(text);
+		if (refused) this.problem(curly.offset, refused);
+		const translations: Translations = {};
+		for (;;) {
+			skipSpace();
+			if (index >= source.length) break;
+			const tagStart = index;
+			const tag = /^[A-Za-z0-9-]+/.exec(source.slice(index))?.[0];
+			if (!tag) {
+				this.problem(at(index), layout);
+				return undefined;
+			}
+			index += tag.length;
+			skipSpace();
+			if (source[index] !== ":") {
+				this.problem(at(tagStart), layout);
+				return undefined;
+			}
+			index++;
+			skipSpace();
+			if (source[index] !== '"') {
+				this.problem(at(index), layout);
+				return undefined;
+			}
+			const value = readQuoted();
+			if (value === undefined) return undefined;
+			const language = canonicalLanguage(tag);
+			if (!language) this.problem(at(tagStart), languageTagMessage(tag));
+			else if (Object.hasOwn(translations, language)) this.problem(at(tagStart), `${language} is given twice.`);
+			else {
+				const refusedValue = textProblem(value);
+				if (refusedValue) this.problem(at(tagStart), refusedValue);
+				if (value !== "") translations[language] = value;
+			}
+		}
+		return Object.keys(translations).length > 0 ? { type: "text", text, translations } : { type: "text", text };
 	}
 
 	private readExpression(text: string, offset: number): Expression | undefined {
@@ -941,6 +1036,12 @@ class MarkupParser {
 				if (inner.startsWith("@") || inner.startsWith("/")) {
 					if (!commandReported) this.problem(curly.offset, "Template commands can't be used inside attribute values.");
 					commandReported = true;
+					continue;
+				}
+				if (inner.startsWith('"')) {
+					const text = this.readTranslatedText(curly);
+					if (text) parts.push(text);
+					bound = true;
 					continue;
 				}
 				const value = this.readValue(curly);

@@ -128,12 +128,13 @@ describe("opening a Site", () => {
 		});
 	});
 
-	test("a Site answers its languages: the Default language first, alone until Sites get more", async () => {
+	test("a Site answers its languages: the Default language first", async () => {
 		const { site } = await admin.api.sites.create({ workspaceId: acme, name: "Acme Deli", slug: "deli" });
+		expect((await staff.api.sites.get({ siteId: site.id })).languages).toEqual({ default: "en", all: ["en"] });
 
-		const { languages } = await staff.api.sites.get({ siteId: site.id });
+		await staff.api.languages.add({ siteId: site.id, code: "fr" });
 
-		expect(languages).toEqual({ default: "en", all: ["en"] });
+		expect((await staff.api.sites.get({ siteId: site.id })).languages).toEqual({ default: "en", all: ["en", "fr"] });
 	});
 
 	test("people who aren't signed in can't list, open or create Sites", async () => {
