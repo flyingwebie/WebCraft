@@ -830,14 +830,16 @@ const filterCommand: TemplateCommand<FilterNode> = {
 
 /**
  * The Filters a tree places whose Loop the tree doesn't show (`{{@loop <name>}}`): a Filter acts on
- * its one Loop, so the Template or Component placing it shows that Loop too.
+ * its one Loop, so the Template or Component placing its form shows that Loop too. A control shown on
+ * its own (`control="search"`) may sit in another tree of the page, such as the Site template's
+ * header: it shows only on pages that show its Loop.
  */
 export function filtersWithoutTheirLoop(nodes: readonly TreeNode[]): FilterNode[] {
 	const placed: FilterNode[] = [];
 	const shown = new Set<string>();
 	const visit = (list: readonly TreeNode[]) => {
 		for (const node of list) {
-			if (node.type === "filter") placed.push(node);
+			if (node.type === "filter" && node.control === undefined) placed.push(node);
 			if (node.type === "loop") shown.add(node.source);
 			if (node.type === "element") visit(node.children);
 			else if (node.type !== "text" && node.type !== "value" && node.type !== "comment" && node.type !== "component") {

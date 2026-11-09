@@ -12,7 +12,7 @@ import { Segmented } from "./Segmented.tsx";
 const CANVAS_URL = "/api/builder/canvas";
 
 /** How wide the preview shows the page: a desktop's width, scaled to fit, or a phone's. */
-const WIDTHS = { desktop: 1280, phone: 390 } as const;
+const WIDTHS = { desktop: 1024, phone: 390 } as const;
 
 export type Previewed = Awaited<ReturnType<Awaited<ReturnType<typeof getApi>>["filters"]["preview"]>>;
 
@@ -119,16 +119,29 @@ export function Preview({
 		sheet.replaceSync(`${shown.css}\n${outline}\n*{cursor:default}input,select,label,a,summary,button{cursor:pointer}`);
 		document.adoptedStyleSheets = [sheet];
 		document.body.innerHTML = shown.html;
+		// As visitors see it once the Filter's script runs: Live mode hides Apply, sliders show.
+		for (const form of document.body.querySelectorAll<HTMLFormElement>("form.wc-filter")) {
+			for (const apply of form.querySelectorAll<HTMLElement>(".wc-filter-apply")) {
+				apply.hidden = form.dataset.wcMode === "live";
+			}
+		}
+		for (const slider of document.body.querySelectorAll<HTMLElement>("[data-wc-slider]")) slider.hidden = false;
 		// Nothing in the frame is a tab stop: the address sets the choices from the keyboard.
 		for (const element of document.body.querySelectorAll<HTMLElement>(
 			"a[href], button, input, select, textarea, summary, iframe, [tabindex], [contenteditable]",
 		)) {
 			element.tabIndex = -1;
 		}
-		const height = Math.max(document.documentElement.scrollHeight, 480);
-		iframe.style.height = `${height}px`;
-		const box = holder.current;
-		if (box) box.style.height = `${Math.ceil(height * scale)}px`;
+		const fit = () => {
+			const height = Math.max(document.documentElement.scrollHeight, 480);
+			iframe.style.height = `${height}px`;
+			const box = holder.current;
+			if (box) box.style.height = `${Math.ceil(height * scale)}px`;
+		};
+		fit();
+		// Once the page has laid out (its fonts and images), its height again.
+		const later = requestAnimationFrame(fit);
+		return () => cancelAnimationFrame(later);
 	}, [ready, shown, selected, filterName, scale]);
 
 	// The frame keeps a desktop's or a phone's width, scaled down to fit the panel.

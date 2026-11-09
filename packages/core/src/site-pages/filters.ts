@@ -125,6 +125,8 @@ export async function pageFilters(
 	postTypes: readonly PostType[],
 ): Promise<PageFilters> {
 	const nodes = trees.flatMap((tree) => (tree ? filterNodesIn(tree.nodes) : []));
+	// The Loops the page shows: a control shown on its own elsewhere shows only where its Loop does.
+	const loopsShown = new Set(trees.flatMap((tree) => (tree ? loopSourcesIn(tree.nodes) : [])));
 	const ids = [...new Set(nodes.map((node) => node.filter))].filter((id) => !place.only || id === place.only.id);
 	if (ids.length === 0) return NO_FILTERS_ON_PAGE;
 	const rows = await scope.select(filterRows, inArray(filterRows.id, ids));
@@ -205,13 +207,23 @@ export async function pageFilters(
 				shown.set(key, occurrence);
 				if (node.control === undefined) return renderFilter(view, occurrence, apart);
 				const index = indexOf(node.control);
-				if (index < 0) return "";
+				if (index < 0 || !loopsShown.has(filter.loop)) return "";
 				const form = placed.some((each) => each.control === undefined) ? `wc-filter-${view.name}` : null;
 				return renderFilterPart(view, index, occurrence, form);
 			};
 			return { html, announce: (filterId) => views.get(filterId)?.announce };
 		},
 	};
+}
+
+/** The names of the Loops of the Site a tree's nodes show (`{{@loop <name>}}`). */
+function loopSourcesIn(nodes: readonly TreeNode[]): string[] {
+	const found: string[] = [];
+	for (const node of nodes) {
+		if (node.type === "loop") found.push(node.source);
+		for (const children of childListsOf(node)) found.push(...loopSourcesIn(children));
+	}
+	return found;
 }
 
 /** The Filters placed in a tree's nodes, in order (never inside a Loop's items, which can't hold one). */

@@ -164,6 +164,7 @@ function filterParts(phoneWidth: number): string[] {
 		".wc-filter-slider>input{inline-size:100%;min-block-size:1.5rem;margin:0}",
 		".wc-filter-badge{display:inline-flex;align-items:center;justify-content:center;min-inline-size:1.5em;padding:0 0.4em;border-radius:999px;background-color:CanvasText;color:Canvas;font-size:0.875em;font-variant-numeric:tabular-nums}",
 		`.wc-filter-open,.wc-filter-pop-button{${button}}`,
+		".wc-filter-open{justify-self:start}",
 		".wc-filter[data-wc-layout=topbar]{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0.75em}",
 		".wc-filter[data-wc-layout=topbar] .wc-filter-control[data-wc-control=sort]{margin-inline-start:auto}",
 		".wc-filter[data-wc-layout=topbar]>.wc-filter-chips,.wc-filter[data-wc-layout=topbar]>.wc-filter-count{flex-basis:100%}",

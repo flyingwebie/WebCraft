@@ -393,3 +393,37 @@ describe("ranges", () => {
 		expect(html).toContain('<input type="number" id="wc-filter-shop-5-min" name="price.min" value="2"');
 	});
 });
+
+describe("a control placed in the Site template", () => {
+	let shop: Shop;
+
+	beforeAll(async () => {
+		shop = await buildShop(install, "header");
+		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });
+		await publishFilter(shop, {
+			controls: filter.draft.controls.map((control) =>
+				control.type === "search" ? { ...control, id: "search" } : control,
+			),
+		});
+		const { template } = await shop.staff.api.templates.saveSiteTemplateMarkup({
+			siteId: shop.siteId,
+			markup: '<header>{{@filter shop for="products" control="search"}}</header><main>{{@outlet}}</main>',
+		});
+		await shop.staff.api.templates.publish({ siteId: shop.siteId, templateId: template.id });
+	});
+
+	test("shows on the pages showing its Loop, part of the Filter there, and nowhere else", async () => {
+		const shopPage = await visit(shop, "/shop?q=bun");
+		expect(shopPage.html).toContain(
+			'<header><div class="wc-filter-part" id="wc-filter-shop-1-part" data-wc-filter="shop">',
+		);
+		expect(shopPage.html).toContain('name="q" form="wc-filter-shop" value="bun"');
+		expect(listed(shopPage.html)).toEqual(["Cinnamon bun"]);
+
+		// The 404 page is in the Site template too, without the Loop.
+		const missing = await visit(shop, "/no-such-page");
+		expect(missing.response.status).toBe(404);
+		expect(missing.html).toContain("<header></header>");
+		expect(missing.html).not.toContain("wc-filter");
+	});
+});

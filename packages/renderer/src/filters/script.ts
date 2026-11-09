@@ -119,8 +119,12 @@ const SCRIPT = `(() => {
 	const restoreFocus = (state) => {
 		if (!state) return;
 		if (state.popover) {
+			// The dropdown opens again from its button, so Escape puts focus back there.
+			const panel = document.getElementById(state.popover);
+			const button = panel && document.querySelector('[popovertarget="' + panel.id + '"]');
+			button?.focus({ preventScroll: true });
 			try {
-				document.getElementById(state.popover)?.showPopover();
+				panel?.showPopover({ source: button ?? undefined });
 			} catch {}
 		}
 		let target = document.getElementById(state.id);
