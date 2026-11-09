@@ -102,7 +102,7 @@ export async function unlistedPageSeo(
 		mediaOrigin(site, place.languages),
 	);
 	return {
-		title: titleFor(site, pages?.seo ?? null, title, null),
+		title: titleFor(site.name, site.settings.separator, pages?.seo ?? null, title, null),
 		description: null,
 		canonical: null,
 		noindex: true,
@@ -122,7 +122,7 @@ export async function entryPageSeo(
 	const { languages } = place;
 	const settings = postType.seo;
 	const ownTitle = seo.title ?? entry.title;
-	const title = seo.title ?? titleFor(site, settings, entry.title, postType.name);
+	const title = seo.title ?? titleFor(site.name, site.settings.separator, settings, entry.title, postType.name);
 	const description = seo.description ?? descriptionFrom(postType, settings, entry.values);
 	const address = pageAddress(site, languages, entry.path, entry.page);
 	const canonical = entry.answersMissing ? null : seo.canonical ? canonicalOf(site, seo.canonical) : address;
@@ -231,7 +231,7 @@ export async function archivePageSeo(
 		{ name: archive.postType.name, item: pageAddress(site, languages, archive.path, 1) },
 	];
 	return {
-		title: titleFor(site, archive.postType.seo, archive.title, archive.postType.name),
+		title: titleFor(site.name, site.settings.separator, archive.postType.seo, archive.title, archive.postType.name),
 		description: null,
 		canonical: address,
 		noindex: false,
@@ -345,12 +345,23 @@ async function entryCrumbs(
 }
 
 /** A page's whole title: its Post Type's title pattern (the Page Post Type's for other pages) filled in. */
-function titleFor(site: SeoSite, settings: PostTypeSeo | null, title: string, postType: string | null): string {
+/**
+ * The title of a page without an SEO title of its own: the Post Type's title pattern (the default one
+ * without a Post Type) filled with the page's title, the Site's name, the Post Type and the separator.
+ * The SEO check works out the same title, so its warnings are about what the page shows.
+ */
+export function titleFor(
+	siteName: string,
+	separator: string,
+	settings: PostTypeSeo | null,
+	title: string,
+	postType: string | null,
+): string {
 	return applyTitlePattern(settings?.titlePattern ?? DEFAULT_TITLE_PATTERN, {
 		title,
-		site: site.name,
+		site: siteName,
 		postType: postType ?? "",
-		separator: site.settings.separator,
+		separator,
 	});
 }
 
