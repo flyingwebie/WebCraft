@@ -18,6 +18,7 @@ import {
 	LanguagesIcon,
 	LayoutDashboardIcon,
 	LayoutTemplateIcon,
+	ListFilterIcon,
 	type LucideIcon,
 	MailIcon,
 	NewspaperIcon,
@@ -288,6 +289,7 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						to: "/sites/$siteId/components",
 					},
 					{ id: "site-loops", label: "shell.nav.loops", icon: RepeatIcon, to: "/sites/$siteId/loops" },
+					{ id: "site-filters", label: "shell.nav.filters", icon: ListFilterIcon, to: "/sites/$siteId/filters" },
 					{
 						id: "site-forms",
 						label: "shell.nav.forms",

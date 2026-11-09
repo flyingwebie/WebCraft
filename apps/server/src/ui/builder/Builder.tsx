@@ -65,6 +65,7 @@ import {
 	type NodePath,
 	nodeAt,
 	type Place,
+	pathOfFilter,
 	pathOfId,
 	placeOf,
 	type Refused,
@@ -96,11 +97,14 @@ export function Builder({
 	target,
 	initial,
 	back,
+	select,
 }: {
 	siteId: string;
 	target: BuilderTarget;
 	initial: Opened;
 	back: { to: "/sites/$siteId/templates" | "/sites/$siteId/components"; label: string };
+	/** What is selected when the builder opens: where a Filter is placed (the Filter builder opens it so). */
+	select?: { filter: string };
 }) {
 	const t = useT();
 	const [opened, setOpened] = useState(initial);
@@ -108,7 +112,10 @@ export function Builder({
 	const [saved, setSaved] = useState(() => JSON.stringify(docOf(initial)));
 	const history = useRef<{ past: BuilderDoc[]; future: BuilderDoc[] }>({ past: [], future: [] });
 	const [, setHistoryVersion] = useState(0);
-	const [selection, setSelection] = useState<Selection | null>(null);
+	const [selection, setSelection] = useState<Selection | null>(() => {
+		const path = select ? pathOfFilter(initial.tree, select.filter) : undefined;
+		return path ? { kind: "node", path } : null;
+	});
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 	const [grab, setGrab] = useState<{ doc: BuilderDoc; selection: Selection; past: BuilderDoc[] } | null>(null);
 	const [view, setView] = useState<"visual" | "markup">("visual");

@@ -41,6 +41,7 @@ import type { Template } from "../content/templates.ts";
 import { type ClassCatalogue, classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles, draftTrees } from "../design-system/stylesheet.ts";
+import { listFilters } from "../filters/filters.ts";
 import { siteFormList } from "../forms/forms.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { adminMediaPath, renderPreview } from "./preview.ts";
@@ -73,6 +74,11 @@ export type BuilderCatalogue = {
 	loops: { name: string }[];
 	/** The Site's Forms. */
 	forms: { id: string; key: string; name: string }[];
+	/**
+	 * The Site's Filters, each with the Loop it narrows and its controls in its Draft (each one can be
+	 * shown on its own with `control="<id>"`).
+	 */
+	filters: { id: string; name: string; loop: string; controls: { id: string; type: string; label: string | null }[] }[];
 	/** What bindings may read here: Fields and their parts, the Globals (`site.x`), Props (`props.x`). */
 	values: { path: string; label: string | null; type: string; group: "entry" | "globals" | "props" }[];
 };
@@ -313,6 +319,16 @@ async function catalogueOf(
 		components,
 		loops: (await listLoops(scope)).map((loop) => ({ name: loop.name })),
 		forms: await siteFormList(scope),
+		filters: (await listFilters(scope)).map((filter) => ({
+			id: filter.id,
+			name: filter.name,
+			loop: filter.loop,
+			controls: filter.draft.controls.map((control) => ({
+				id: control.id,
+				type: control.type,
+				label: "label" in control ? (control.label?.text ?? null) : null,
+			})),
+		})),
 		values,
 	};
 }

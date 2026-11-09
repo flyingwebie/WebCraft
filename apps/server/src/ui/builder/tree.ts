@@ -193,6 +193,28 @@ export function pathOfId(tree: ElementTree, id: string): NodePath | undefined {
 	return search(tree.nodes, []);
 }
 
+/** The path of the first place a Filter is shown (its form before any of its controls shown on its own). */
+export function pathOfFilter(tree: ElementTree, filterId: string): NodePath | undefined {
+	let apart: NodePath | undefined;
+	const search = (nodes: readonly TreeNode[], prefix: number[]): NodePath | undefined => {
+		for (let index = 0; index < nodes.length; index++) {
+			const node = nodes[index] as TreeNode;
+			const here = [...prefix, index];
+			if (node.type === "filter" && node.filter === filterId) {
+				if (node.control === undefined) return here;
+				apart ??= here;
+			}
+			const lists = childLists(node);
+			for (let list = 0; list < lists.length; list++) {
+				const found = search(lists[list] ?? [], [...here, list]);
+				if (found) return found;
+			}
+		}
+		return undefined;
+	};
+	return search(tree.nodes, []) ?? apart;
+}
+
 /** A change's result: the new tree and where the node it moved or made is now. */
 export type Changed = { tree: ElementTree; path: NodePath };
 
