@@ -1,6 +1,7 @@
 import type { Database } from "@webcraft/db";
 import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
 import {
+	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
 	directionOf,
 	type EditModePage,
@@ -9,6 +10,7 @@ import {
 	type PageToRender,
 	renderPage,
 	type TemplateValue,
+	valuePathsOf,
 } from "@webcraft/renderer";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
@@ -70,6 +72,16 @@ export type SitePage = { html: string };
 /** What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to `/`). */
 export type SiteAnswer = ({ kind: "page" } & SitePage) | { kind: "redirect"; location: string };
 
+/** What a page shows from the content store: see `SitePages.pageContent`. */
+export type PageContent = {
+	/** The Entry (or Page) the page shows; null on the built-in 404 page. */
+	entryId: string | null;
+	/** Whether the page's Templates read the Globals. */
+	readsGlobals: boolean;
+	/** Whether the path has no page, so the 404 page shows there. */
+	notFound: boolean;
+};
+
 /**
  * A page rendered for Edit mode rather than for visitors: the Site opened for the person editing,
  * and what WebCraft adds to `<head>` (its header token, its own scripts and stylesheets).
@@ -95,6 +107,12 @@ export type SitePages = {
 	 * built-in one, in the Site template. With `editing`, for Edit mode, as `render` does.
 	 */
 	notFound(host: SiteHost, editing?: PageEditing): Promise<SitePage>;
+	/**
+	 * What the page at `pathname` shows from the content store, found as `render` finds it: its Entry
+	 * (none on the built-in 404 page) and whether it reads the Globals (`site.x`). For Edit mode's
+	 * Publish menu, which lists and publishes the page's changes.
+	 */
+	pageContent(host: SiteHost, pathname: string): Promise<PageContent>;
 	/**
 	 * A Media file of the Site by the name it is served under (`/_media/<name>`): an original or a
 	 * variant, never a raw upload. Null when the Site has none by that name.
@@ -124,28 +142,29 @@ export function createSitePages(options: {
 		},
 
 		async render(host, pathname, editing) {
-			const segments = pathSegments(pathname);
-			if (!segments || isReservedPath(segments)) return null;
 			const view = viewFor(data, host, editing);
-			const { scope } = view;
-			const postTypes = await listPostTypes(scope);
-			const home = await specialPageId(scope, "home");
-			// Post Types' URL patterns own every path they match; Pages live outside them.
-			const found =
-				segments.length === 0
-					? home && (await publishedPage(scope, postTypes, home))
-					: ((await findPublishedEntry(scope, postTypes, segments, host.defaultLanguage)) ??
-						(await findPage(scope, postTypes, segments, host.defaultLanguage)));
-			if (!found) return null;
-			if (segments.length > 0 && found.entry.id === home) return { kind: "redirect", location: "/" };
-			return { kind: "page", html: await renderEntryPage(view, host, found) };
+			const located = await locate(view.scope, host, pathname);
+			if (!located) return null;
+			if (located.kind === "redirect") return located;
+			return { kind: "page", html: await renderEntryPage(view, host, located.found) };
+		},
+
+		async pageContent(host, pathname) {
+			const scope = data.visitors(host.site);
+			const located = await locate(scope, host, pathname);
+			const found = located?.kind === "found" ? located.found : located ? undefined : await chosenNotFoundPage(scope);
+			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
+			const trees = [siteTemplate, found?.content ?? builtInNotFoundPage(host.defaultLanguage).content];
+			return {
+				entryId: found?.entry.id ?? null,
+				readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
+				notFound: located === null,
+			};
 		},
 
 		async notFound(host, editing) {
 			const view = viewFor(data, host, editing);
-			const { scope } = view;
-			const chosen = await specialPageId(scope, "notFound");
-			const found = chosen && (await publishedPage(scope, await listPostTypes(scope), chosen));
+			const found = await chosenNotFoundPage(view.scope);
 			if (found) return { html: await renderEntryPage(view, host, found) };
 			const builtIn = builtInNotFoundPage(host.defaultLanguage);
 			return { html: await renderSitePage(view, host, { ...builtIn, values: () => undefined }) };
@@ -166,6 +185,37 @@ export function createSitePages(options: {
  */
 export function isReservedPath(segments: readonly string[]): boolean {
 	return (segments[0]?.startsWith("_") ?? false) || segments.some((segment) => segment.includes("."));
+}
+
+/**
+ * What a path finds on the Site, as visitors find it: the published Entry a Post Type's URL pattern
+ * finds there, else the published Page at that path (the home page at `/`, its own path redirecting
+ * there); null when there is none.
+ */
+async function locate(
+	scope: ReadScope,
+	host: SiteHost,
+	pathname: string,
+): Promise<{ kind: "found"; found: FoundEntry } | { kind: "redirect"; location: string } | null> {
+	const segments = pathSegments(pathname);
+	if (!segments || isReservedPath(segments)) return null;
+	const postTypes = await listPostTypes(scope);
+	const home = await specialPageId(scope, "home");
+	// Post Types' URL patterns own every path they match; Pages live outside them.
+	const found =
+		segments.length === 0
+			? home && (await publishedPage(scope, postTypes, home))
+			: ((await findPublishedEntry(scope, postTypes, segments, host.defaultLanguage)) ??
+				(await findPage(scope, postTypes, segments, host.defaultLanguage)));
+	if (!found) return null;
+	if (segments.length > 0 && found.entry.id === home) return { kind: "redirect", location: "/" };
+	return { kind: "found", found };
+}
+
+/** The Page Staff chose as the 404 page, once published; undefined for the built-in one. */
+async function chosenNotFoundPage(scope: ReadScope): Promise<FoundEntry | undefined> {
+	const chosen = await specialPageId(scope, "notFound");
+	return (chosen && (await publishedPage(scope, await listPostTypes(scope), chosen))) || undefined;
 }
 
 /**

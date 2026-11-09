@@ -8,14 +8,18 @@ import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
 import { type PersonActor, personIdOf } from "../permissions/can.ts";
 import { stagingUrl } from "../site-pages/addresses.ts";
-import type { SiteHost } from "../site-pages/index.ts";
+import type { PageContent, SiteHost } from "../site-pages/index.ts";
 import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+import { discardChanges, type PageDeps, type PageState, pageState, publishPage, undoChange } from "./page.ts";
+import { isEditPath } from "./paths.ts";
 import { type RegionChange, type SavedRegion, saveRegion } from "./regions.ts";
 
 export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+export type { PageChange, PageState } from "./page.ts";
+export { isEditPath } from "./paths.ts";
 export type { EditItem, RegionChange, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */
@@ -88,6 +92,14 @@ export type EditMode = {
 	 * can't be changed in place (`EditFieldInvalidError`), and an Entry that isn't the Site's.
 	 */
 	save(session: EditSession, change: RegionChange): Promise<SavedRegion>;
+	/** What the editing bar shows for the page at `path`: its changes, the Site's pages, who is editing. */
+	pageState(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/** Undoes one of the page's changes (`key` of `item`), answering the page's state afterwards. */
+	undo(session: EditSession, host: SiteHost, input: { path: string; item: string; key: string }): Promise<PageState>;
+	/** Discards every change of the page, answering the page's state afterwards. */
+	discard(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/** Publishes the page's changes, all or none (needs `entry.publish`), answering the page's state afterwards. */
+	publish(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
 };
 
 export function createEditMode(options: {
@@ -99,8 +111,11 @@ export function createEditMode(options: {
 	actors: { person(personId: string): Promise<PersonActor> };
 	/** Signs header tokens (HMAC-SHA256), derived from the Master key. */
 	signingKey: CryptoKey;
+	/** What a page shows from the content store (`SitePages.pageContent`). */
+	pageContent(host: SiteHost, pathname: string): Promise<PageContent>;
 }): EditMode {
 	const { database, clock, config, auth, data, actors, signingKey } = options;
+	const deps: PageDeps = { config, data, pageContent: options.pageContent };
 	const { db } = database;
 
 	/**
@@ -232,6 +247,10 @@ export function createEditMode(options: {
 		},
 
 		save: (session, change) => saveRegion(session.scope, change),
+		pageState: (session, host, path) => pageState(deps, session, host, path),
+		undo: (session, host, input) => undoChange(deps, session, host, input),
+		discard: (session, host, path) => discardChanges(deps, session, host, path),
+		publish: (session, host, path) => publishPage(deps, session, host, path),
 	};
 }
 
@@ -241,12 +260,4 @@ export function createEditMode(options: {
  */
 function onSite(table: typeof editLinks | typeof editSessions, site: Site, where: SQL | undefined): SQL {
 	return and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id), where) as SQL;
-}
-
-/**
- * Whether `path` is a path on a Site that Edit mode may open: it starts with one `/`, and holds no
- * query, fragment, backslash or whitespace, so a link can never send the browser anywhere else.
- */
-export function isEditPath(path: string): boolean {
-	return path.length <= 2000 && /^\/(?![/\\])[^\s\\?#]*$/.test(path);
 }

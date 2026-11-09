@@ -51,6 +51,8 @@ export {
 	type EditSession,
 	type EnteredEditMode,
 	isEditPath,
+	type PageChange,
+	type PageState,
 	type RegionChange,
 	type SavedRegion,
 } from "./edit-mode/index.ts";
@@ -142,6 +144,7 @@ export {
 export {
 	canonicalPath,
 	isReservedPath,
+	type PageContent,
 	type PageEditing,
 	pathSegments,
 	reservedSlugs,

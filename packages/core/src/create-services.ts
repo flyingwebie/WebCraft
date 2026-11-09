@@ -99,6 +99,7 @@ export async function createInstallServices(
 		log,
 		directory: config.storageDir,
 	});
+	const sitePages = createSitePages({ database, config, data, storage });
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -139,7 +140,7 @@ export async function createInstallServices(
 			setNotFoundPage: (scope, pageId) => setSpecialPage(scope, "notFound", pageId),
 		},
 		publishing: { publish },
-		sitePages: createSitePages({ database, config, data, storage }),
+		sitePages,
 		editMode: createEditMode({
 			database,
 			clock,
@@ -148,6 +149,7 @@ export async function createInstallServices(
 			data,
 			actors,
 			signingKey: await editModeSigningKey(masterKey),
+			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
 		memberships,
 		members: createMembers({ database, email }),

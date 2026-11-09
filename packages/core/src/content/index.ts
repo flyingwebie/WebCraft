@@ -14,6 +14,7 @@ export {
 	listEntries,
 	type NewEntry,
 	saveDraft,
+	undoDraftChanges,
 } from "./entries.ts";
 export {
 	type ContentProblem,
@@ -61,6 +62,7 @@ export {
 	getGlobals,
 	saveGlobalsDraft,
 	setGlobalFields,
+	undoGlobalsChanges,
 } from "./globals.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {

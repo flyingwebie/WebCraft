@@ -52,6 +52,18 @@ export const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
 const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
+	/** What the editing bar shows for a page: its changes, the Site's pages, who is editing. */
+	state: async (services, session, body, _request, host) =>
+		json(200, await services.editMode.pageState(session, host, parse(pagePath, body).path)),
+	/** Undoes one of the page's changes. */
+	undo: async (services, session, body, _request, host) =>
+		json(200, await services.editMode.undo(session, host, parse(pageChange, body))),
+	/** Discards every change of the page. */
+	discard: async (services, session, body, _request, host) =>
+		json(200, await services.editMode.discard(session, host, parse(pagePath, body).path)),
+	/** Publishes the page's changes. */
+	publish: async (services, session, body, _request, host) =>
+		json(200, await services.editMode.publish(session, host, parse(pagePath, body).path)),
 	/** Ends Edit mode for this browser: the cookie is cleared and opens nothing any more. */
 	end: async (services, session, _body, request) => {
 		await services.editMode.end(session);
@@ -66,7 +78,12 @@ type EditAction = (
 	session: EditSession,
 	body: unknown,
 	request: Request,
+	host: SiteHost,
 ) => Promise<Response>;
+
+const pagePath = z.object({ path: z.string().max(2000) });
+
+const pageChange = z.object({ path: z.string().max(2000), item: z.string().max(100), key: z.string().max(200) });
 
 const regionChange = z.object({
 	item: z.string().max(100),
@@ -118,7 +135,7 @@ async function editRequest(
 		const body: unknown = await request.json().catch(() => {
 			throw new BadEditRequest("The request isn't valid JSON.");
 		});
-		return await answer(services, edit.session, body, request);
+		return await answer(services, edit.session, body, request, host);
 	} catch (error) {
 		if (error instanceof BadEditRequest) return json(400, { code: "BAD_REQUEST", message: error.message });
 		const refusal = toApiError(error);

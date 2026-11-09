@@ -263,10 +263,33 @@ export async function deleteEntry(scope: SiteScope, entryId: string, confirmatio
 }
 
 /**
- * How a Draft changes: a change people make (with the Fields' defaults first, for a new Entry), or
- * removing the links to an Entry being deleted.
+ * Puts values of an Entry's Draft back as they are published (open the Site with `entry.edit`):
+ * the stored values named in `keys` (`title`, `slug`, `parent` and Field keys), or every value. A
+ * value the published version doesn't have is removed. Edit mode's Publish menu undoes changes and
+ * discards a page's Drafts with it.
  */
-type DraftEdit = { change: DraftChange; withDefaults?: boolean } | { unlink: string };
+export async function undoDraftChanges(
+	scope: SiteScope,
+	entryId: string,
+	keys: readonly string[] | "all",
+): Promise<Entry> {
+	return scope.transaction(async (tx) => {
+		const row = await lockEntry(tx, entryId);
+		const postType = await getPostType(tx, row.postTypeId);
+		const { defaultLanguage } = await siteLanguages(tx);
+		const saved = await changeDraft(tx, row, postType, { restore: keys }, defaultLanguage);
+		return toEntry(tx, saved, postType, defaultLanguage, defaultLanguage);
+	});
+}
+
+/**
+ * How a Draft changes: a change people make (with the Fields' defaults first, for a new Entry),
+ * removing the links to an Entry being deleted, or putting values back as they are published.
+ */
+type DraftEdit =
+	| { change: DraftChange; withDefaults?: boolean }
+	| { unlink: string }
+	| { restore: readonly string[] | "all" };
 
 /**
  * The one place an Entry's Draft is written. Checks a change against the Post Type, refuses values
@@ -288,6 +311,9 @@ async function changeDraft(
 	let language = defaultLanguage;
 	if ("unlink" in edit) {
 		version = { values: withoutLinksTo(version.values, postType.fields, edit.unlink) };
+		if (sameJson(version, before)) return row;
+	} else if ("restore" in edit) {
+		version = restoredVersion(before, storedVersion(row.published), edit.restore);
 		if (sameJson(version, before)) return row;
 	} else {
 		const { change } = edit;
@@ -352,6 +378,24 @@ async function changeDraft(
 	if (!saved) throw new EntryNotFoundError();
 	await saveLinks(scope, row.id, "draft", linksIn(version.values, postType.fields));
 	return saved;
+}
+
+/**
+ * A Draft with values put back as `published` has them, exactly (who wrote them included): those
+ * stored under `keys`, or all of them. A key `published` doesn't have is removed.
+ */
+export function restoredVersion(
+	draft: EntryVersion,
+	published: EntryVersion,
+	keys: readonly string[] | "all",
+): EntryVersion {
+	if (keys === "all") return { values: { ...published.values } };
+	const values = { ...draft.values };
+	for (const key of keys) {
+		if (Object.hasOwn(published.values, key)) values[key] = published.values[key];
+		else delete values[key];
+	}
+	return { values };
 }
 
 /** Reads an Entry for a change, holding it until the transaction ends so changes don't overlap. */
