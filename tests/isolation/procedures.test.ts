@@ -602,6 +602,15 @@ async function mediaIn(target: IsolationTarget): Promise<{ mediaId: string; fold
 	return { mediaId: media.id, folderId: folder.id };
 }
 
+/** A file in a target's Trash, put there by the Superadmin. */
+async function trashedIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { mediaId } = await mediaIn(target);
+	const asked = await api.media.delete({ siteId: target.siteId, mediaId });
+	if (!asked.trashed) await api.media.delete({ siteId: target.siteId, mediaId, confirmation: asked.confirmation.id });
+	return mediaId;
+}
+
 describe("Media", () => {
 	isolation.refuses("media.list", (api, { siteId }) => api.media.list({ siteId }), { as: ["staff", "author"] });
 	isolation.refuses(
@@ -621,6 +630,29 @@ describe("Media", () => {
 		{ as: ["staff", "owner"] },
 	);
 	isolation.refuses("media.overview", (api, { siteId }) => api.media.overview({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"media.usage",
+		async (api, target) => api.media.usage({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"media.delete",
+		async (api, target) => api.media.delete({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.restore",
+		async (api, target) => api.media.restore({ siteId: target.siteId, mediaId: await trashedIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.deleteForever",
+		async (api, target) => api.media.deleteForever({ siteId: target.siteId, mediaId: await trashedIn(target) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("media.emptyTrash", (api, { siteId }) => api.media.emptyTrash({ siteId }), {
+		as: ["staff", "editor"],
+	});
 	isolation.refuses("media.folders.list", (api, { siteId }) => api.media.folders.list({ siteId }), {
 		as: ["staff", "author"],
 	});

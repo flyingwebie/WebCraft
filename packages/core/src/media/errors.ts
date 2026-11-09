@@ -52,6 +52,22 @@ export class MediaTooLargeError extends Error {
 	}
 }
 
+/** The file is in the Trash: restore it before changing it. */
+export class MediaInTrashError extends Error {
+	override name = "MediaInTrashError";
+	constructor() {
+		super("This file is in the Trash; restore it first.");
+	}
+}
+
+/** The file isn't in the Trash, so it can't be restored or deleted for good. */
+export class MediaNotInTrashError extends Error {
+	override name = "MediaNotInTrashError";
+	constructor() {
+		super("This file isn't in the Trash.");
+	}
+}
+
 /** The file would take the Workspace's Media past its storage quota. */
 export class MediaQuotaFullError extends Error {
 	override name = "MediaQuotaFullError";

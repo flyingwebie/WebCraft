@@ -18,11 +18,15 @@ const folderName = z.string().trim().min(1).max(MEDIA_FOLDER_NAME_MAX_LENGTH);
  * (`media.manage`) change every file and the folders.
  */
 export const media = {
-	/** The files of the library, newest first: in a folder (`none` for no folder), matching a search, of a kind. */
+	/**
+	 * The files of the library, newest first: in a folder (`none` for no folder), matching a search, of
+	 * a kind; with `trash`, the files in the Trash, most recently deleted first.
+	 */
 	list: signedIn
 		.input(
 			z.object({
 				siteId: id,
+				trash: z.boolean().optional(),
 				folderId: z.union([id, z.literal("none")]).optional(),
 				search: z.string().max(200).optional(),
 				kind: z.enum(MEDIA_KINDS).optional(),
@@ -93,6 +97,46 @@ export const media = {
 			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
 			const { siteId: _, mediaId, ...change } = input;
 			return { media: await context.services.media.update(site, mediaId, change) };
+		}),
+
+	/** Every place the file is used on the Site: Entries, the Globals, Templates, Components, Loops, the Design system. */
+	usage: signedIn.input(z.object({ siteId: id, mediaId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "site.view");
+		return { usedIn: await context.services.media.usage(site, input.mediaId) };
+	}),
+
+	/**
+	 * Puts a file in the Trash, in two steps: without `confirmation`, answers where it is used and a
+	 * confirmation id; with it, puts it there. Pages stop showing it at once; it is deleted for good
+	 * after 30 days unless restored. Your own uploads with `media.upload`; every file with `media.manage`.
+	 */
+	delete: signedIn
+		.input(z.object({ siteId: id, mediaId: id, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
+			return context.services.media.trash(site, input.mediaId, input.confirmation);
+		}),
+
+	/** Takes a file out of the Trash, as it was; pages that use it show it again. */
+	restore: signedIn.input(z.object({ siteId: id, mediaId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "media.upload");
+		return { media: await context.services.media.restore(site, input.mediaId) };
+	}),
+
+	/** Deletes a file in the Trash for good, in two steps; its stored bytes go unless another file shares them. */
+	deleteForever: signedIn
+		.input(z.object({ siteId: id, mediaId: id, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
+			return context.services.media.deleteForever(site, input.mediaId, input.confirmation);
+		}),
+
+	/** Deletes every file in the Trash for good, in two steps: the first answers how many. */
+	emptyTrash: signedIn
+		.input(z.object({ siteId: id, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "media.manage");
+			return context.services.media.emptyTrash(site, input.confirmation);
 		}),
 
 	/** The library's folders. */

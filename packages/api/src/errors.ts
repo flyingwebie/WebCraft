@@ -55,8 +55,10 @@ import {
 	LoopNotFoundError,
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
+	MediaInTrashError,
 	MediaInvalidError,
 	MediaNotFoundError,
+	MediaNotInTrashError,
 	MediaQuotaFullError,
 	MediaTooLargeError,
 	MediaTypeRefusedError,
@@ -487,6 +489,12 @@ export function toApiError(error: unknown): unknown {
 			data: { maxBytes: error.maxBytes },
 			cause: error,
 		});
+	}
+	if (error instanceof MediaInTrashError) {
+		return new ORPCError("MEDIA_IN_TRASH", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof MediaNotInTrashError) {
+		return new ORPCError("MEDIA_NOT_IN_TRASH", { status: 409, message: error.message, cause: error });
 	}
 	if (error instanceof MediaQuotaFullError) {
 		return new ORPCError("MEDIA_QUOTA_FULL", {

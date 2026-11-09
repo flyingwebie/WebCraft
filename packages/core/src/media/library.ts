@@ -1,6 +1,7 @@
 import { media, mediaFiles, mediaFolders, people } from "@webcraft/db/schema";
-import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import type { Clock } from "../clock.ts";
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -15,8 +16,10 @@ import { PermissionDeniedError } from "../tenancy/errors.ts";
 import {
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
+	MediaInTrashError,
 	MediaInvalidError,
 	MediaNotFoundError,
+	MediaNotInTrashError,
 	MediaTooLargeError,
 	MediaTypeRefusedError,
 } from "./errors.ts";
@@ -29,6 +32,8 @@ import { assertRoom, type MediaStorage, mediaStorage, noticeQuotaUse, setMediaQu
 import { gifSize, sniff } from "./sniff.ts";
 import { type ByteRange, type StorageBackend, type StorageKind, siteFolder } from "./storage.ts";
 import { MEDIA_TEXTS, type MediaText, readText, storedTexts, writeText } from "./texts.ts";
+import { deleteForGood, removeUnusedFiles, TRASH_LIFETIME_MS } from "./trash.ts";
+import { type MediaUse, mediaUses } from "./usage.ts";
 
 export const MEDIA_FOLDER_NAME_MAX_LENGTH = 100;
 
@@ -68,12 +73,19 @@ export type MediaItem = {
 	uploadedBy: { id: string; name: string } | null;
 	createdAt: Date;
 	updatedAt: Date;
+	/** When it went to the Trash, and when it will be deleted for good; null while it is in the library. */
+	trashedAt: Date | null;
+	purgeAt: Date | null;
 	/** Whether the person asking may change it: their own upload, or every file with `media.manage`. */
 	canEdit: boolean;
 };
 
-/** Which files to list: in a folder (`none`: in no folder), matching a search, of a kind. */
+/**
+ * Which files to list: in a folder (`none`: in no folder), matching a search, of a kind; with
+ * `trash`, the files in the Trash instead (most recently deleted first).
+ */
 export type MediaQuery = {
+	trash?: boolean;
 	folderId?: string;
 	search?: string;
 	kind?: MediaKind;
@@ -100,7 +112,25 @@ export type MediaOverview = {
 	maxFileBytes: number;
 	/** The Workspace's Media storage: what its Sites take, and its quota if Staff set one. */
 	storage: MediaStorage;
+	/** How many files are in the Site's Trash. */
+	trash: { count: number };
 };
+
+/**
+ * Putting a file in the Trash, in two steps: the first answers where it is used and a confirmation
+ * id; the second, with the id, puts it there.
+ */
+export type MediaTrashing =
+	| { trashed: false; usedIn: MediaUse[]; confirmation: Confirmation }
+	| { trashed: true; media: MediaItem };
+
+/** Deleting a file in the Trash for good, in two steps like putting it there. */
+export type MediaDeletion = { deleted: false; usedIn: MediaUse[]; confirmation: Confirmation } | { deleted: true };
+
+/** Emptying the Trash, in two steps: the first answers how many files it holds. */
+export type TrashEmptying =
+	| { emptied: false; count: number; confirmation: Confirmation }
+	| { emptied: true; count: number };
 
 /** A file as it was uploaded. */
 export type NewUpload = { fileName: string; data: Uint8Array; folderId?: string | null };
@@ -126,7 +156,20 @@ export type MediaLibrary = {
 	get(scope: SiteScope, mediaId: string, language?: string): Promise<MediaItem>;
 	/** Changes texts or the folder: a person's own upload, or any with `media.manage`. */
 	update(scope: SiteScope, mediaId: string, change: MediaChange): Promise<MediaItem>;
-	/** An original or variant by the name it is served under, or null. */
+	/** Every place a file is used on the Site (Used in). */
+	usage(scope: SiteScope, mediaId: string): Promise<MediaUse[]>;
+	/**
+	 * Puts a file in the Trash, in two steps (`confirmation` from the first): your own upload, or
+	 * any with `media.manage`. Pages stop showing it at once; it is deleted for good after 30 days.
+	 */
+	trash(scope: SiteScope, mediaId: string, confirmation?: string): Promise<MediaTrashing>;
+	/** Takes a file out of the Trash, as it was: your own upload, or any with `media.manage`. */
+	restore(scope: SiteScope, mediaId: string): Promise<MediaItem>;
+	/** Deletes a file in the Trash for good, in two steps: your own upload, or any with `media.manage`. */
+	deleteForever(scope: SiteScope, mediaId: string, confirmation?: string): Promise<MediaDeletion>;
+	/** Deletes every file in the Trash for good, in two steps. Open the Site with `media.manage`. */
+	emptyTrash(scope: SiteScope, confirmation?: string): Promise<TrashEmptying>;
+	/** An original or variant by the name it is served under, or null (files in the Trash too, for the admin). */
 	file(scope: SiteScope, name: string): Promise<StoredMediaFile | null>;
 	/** What the library takes and holds: the largest file, the Workspace's storage. */
 	overview(scope: SiteScope): Promise<MediaOverview>;
@@ -184,7 +227,8 @@ export function createMediaLibrary(options: {
 		return folder;
 	};
 
-	const folderCount = async (scope: SiteScope, folderId: string) => scope.count(media, eq(media.folderId, folderId));
+	const folderCount = async (scope: SiteScope, folderId: string) =>
+		scope.count(media, and(eq(media.folderId, folderId), isNull(media.trashedAt)));
 
 	const saveFolderName = async <Result>(save: () => Promise<Result>) => {
 		try {
@@ -265,19 +309,19 @@ export function createMediaLibrary(options: {
 
 		async list(scope, query = {}) {
 			const { language, defaultLanguage } = await mediaLanguages(scope, query.language);
-			const conditions: SQL[] = [];
+			const conditions: SQL[] = [query.trash ? isNotNull(media.trashedAt) : isNull(media.trashedAt)];
 			if (query.folderId === "none") conditions.push(isNull(media.folderId));
 			else if (query.folderId !== undefined)
 				conditions.push(eq(media.folderId, (await findFolder(scope, query.folderId)).id));
 			if (query.kind) conditions.push(eq(media.kind, query.kind));
 			const search = query.search?.trim();
 			if (search) conditions.push(matching(search));
-			const where = conditions.length > 0 ? and(...conditions) : undefined;
+			const where = and(...conditions);
 			const rows = await scope.db
 				.select()
 				.from(media)
 				.where(scope.where(media, where))
-				.orderBy(desc(media.createdAt), asc(media.id))
+				.orderBy(...(query.trash ? [desc(media.trashedAt)] : []), desc(media.createdAt), asc(media.id))
 				.limit(Math.min(Math.max(query.limit ?? 100, 1), 200))
 				.offset(Math.max(query.offset ?? 0, 0));
 			return {
@@ -301,6 +345,7 @@ export function createMediaLibrary(options: {
 					: [];
 				if (!row) throw new MediaNotFoundError();
 				if (!mayChange(tx, row)) throw new PermissionDeniedError("media.manage");
+				if (row.trashedAt) throw new MediaInTrashError();
 
 				const changed: string[] = [];
 				let texts = storedTexts(row.texts);
@@ -331,13 +376,99 @@ export function createMediaLibrary(options: {
 			return get(scope, mediaId, language);
 		},
 
+		usage: (scope, mediaId) => mediaUses(scope, mediaId),
+
+		async trash(scope, mediaId, confirmation) {
+			const trashed = await scope.transaction(async (tx) => {
+				const row = await changeable(tx, mediaId);
+				if (row.trashedAt) throw new MediaInTrashError();
+				const request = { action: "media.trash", target: row.id, preview: { usedIn: await mediaUses(tx, row.id) } };
+				if (confirmation === undefined) {
+					return { trashed: false as const, ...request.preview, confirmation: await askConfirmation(tx, request) };
+				}
+				await useConfirmation(tx, confirmation, request);
+				await tx.update(
+					media,
+					{ trashedAt: tx.now(), trashedBy: actingPerson(tx.access.actor), updatedAt: tx.now() },
+					eq(media.id, row.id),
+				);
+				await tx.audit("media.trash", { mediaId: row.id, fileName: row.fileName });
+				// Pages showing it stop at once; nothing else changes until it is deleted for good.
+				await clearPageCache(tx);
+				return null;
+			});
+			return trashed ?? { trashed: true, media: await get(scope, mediaId) };
+		},
+
+		async restore(scope, mediaId) {
+			await scope.transaction(async (tx) => {
+				const row = await changeable(tx, mediaId);
+				if (!row.trashedAt) throw new MediaNotInTrashError();
+				await tx.update(media, { trashedAt: null, trashedBy: null, updatedAt: tx.now() }, eq(media.id, row.id));
+				await tx.audit("media.restore", { mediaId: row.id, fileName: row.fileName });
+				await clearPageCache(tx);
+			});
+			return get(scope, mediaId);
+		},
+
+		async deleteForever(scope, mediaId, confirmation) {
+			const result = await scope.transaction(async (tx) => {
+				const row = await changeable(tx, mediaId);
+				if (!row.trashedAt) throw new MediaNotInTrashError();
+				const request = {
+					action: "media.deleteForever",
+					target: row.id,
+					preview: { usedIn: await mediaUses(tx, row.id) },
+				};
+				if (confirmation === undefined) {
+					return { deleted: false as const, ...request.preview, confirmation: await askConfirmation(tx, request) };
+				}
+				await useConfirmation(tx, confirmation, request);
+				const files = await deleteForGood(tx, [row.id]);
+				await tx.audit("media.deleteForever", { mediaId: row.id, fileName: row.fileName });
+				return { deleted: true as const, files };
+			});
+			if (!result.deleted) return result;
+			await removeUnusedFiles(scope, storage, result.files);
+			await noticeQuotaUse(scope.db, noticePorts, scope.workspace);
+			return { deleted: true };
+		},
+
+		async emptyTrash(scope, confirmation) {
+			const result = await scope.transaction(async (tx) => {
+				const rows = await tx.db
+					.select({ id: media.id })
+					.from(media)
+					.where(tx.where(media, isNotNull(media.trashedAt)))
+					.orderBy(asc(media.id))
+					.for("update");
+				const ids = rows.map((row) => row.id);
+				const request = { action: "mediaTrash.empty", target: tx.site.id, preview: { ids } };
+				if (confirmation === undefined) {
+					return { emptied: false as const, count: ids.length, confirmation: await askConfirmation(tx, request) };
+				}
+				await useConfirmation(tx, confirmation, request);
+				const files = await deleteForGood(tx, ids);
+				await tx.audit("mediaTrash.empty", { count: ids.length });
+				return { emptied: true as const, count: ids.length, files };
+			});
+			if (!result.emptied) return result;
+			await removeUnusedFiles(scope, storage, result.files);
+			await noticeQuotaUse(scope.db, noticePorts, scope.workspace);
+			return { emptied: true, count: result.count };
+		},
+
 		async file(scope, name) {
-			return storedFile(scope, storage, name);
+			return storedFile(scope, storage, name, { trashed: true });
 		},
 
 		async overview(scope) {
 			const { maxFileBytes } = await settings.media();
-			return { maxFileBytes, storage: await mediaStorage(scope.db, scope.workspace.id) };
+			return {
+				maxFileBytes,
+				storage: await mediaStorage(scope.db, scope.workspace.id),
+				trash: { count: await scope.count(media, isNotNull(media.trashedAt)) },
+			};
 		},
 
 		quota: {
@@ -353,7 +484,7 @@ export function createMediaLibrary(options: {
 				const counts = await scope.db
 					.select({ folderId: media.folderId, count: count() })
 					.from(media)
-					.where(scope.where(media))
+					.where(scope.where(media, isNull(media.trashedAt)))
 					.groupBy(media.folderId);
 				const byFolder = new Map(counts.map((row) => [row.folderId, row.count]));
 				return {
@@ -416,6 +547,23 @@ async function keyIsStored(scope: Pick<SiteScope, "count">, kind: StorageKind, k
 /** Removes a stored file nothing records any more (an upload that was refused once stored). */
 async function forgetStored(scope: Pick<SiteScope, "count">, backend: StorageBackend, key: string): Promise<void> {
 	if (!(await keyIsStored(scope, backend.kind, key))) await backend.delete(key);
+}
+
+/**
+ * A Media item the scope's person may change (their own upload, or any with `media.manage`),
+ * locked until the transaction ends.
+ */
+async function changeable(scope: SiteScope, mediaId: string): Promise<MediaRow> {
+	const [row] = isUuid(mediaId)
+		? await scope.db
+				.select()
+				.from(media)
+				.where(scope.where(media, eq(media.id, mediaId)))
+				.for("update")
+		: [];
+	if (!row) throw new MediaNotFoundError();
+	if (!mayChange(scope, row)) throw new PermissionDeniedError("media.manage");
+	return row;
 }
 
 /** Whether the scope's person may change a Media item: their own upload, or any with `media.manage`. */
@@ -500,6 +648,8 @@ async function views(
 			uploadedBy: row.uploadedBy && uploader !== undefined ? { id: row.uploadedBy, name: uploader } : null,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
+			trashedAt: row.trashedAt,
+			purgeAt: row.trashedAt ? new Date(row.trashedAt.getTime() + TRASH_LIFETIME_MS) : null,
 			canEdit: manages || row.uploadedBy === personId,
 		};
 	});
@@ -526,15 +676,29 @@ export function variantsOf(files: readonly FileRow[]): MediaVariant[] {
 
 /** A stored original or variant of the scope's Site by the name it is served under, or null. */
 export async function storedFile(
-	scope: Pick<SiteScope, "first">,
+	scope: Pick<SiteScope, "first" | "db" | "where">,
 	storage: InstallStorage,
 	name: string,
+	options: { trashed?: boolean } = {},
 ): Promise<StoredMediaFile | null> {
 	if (!SERVED_NAME.test(name)) return null;
-	const row = await scope.first(
-		mediaFiles,
-		and(eq(mediaFiles.name, name), inArray(mediaFiles.role, ["original", "variant"])),
-	);
+	// Visitors never get a file in the Trash (the admin still shows it there).
+	const [found] = await scope.db
+		.select({ file: mediaFiles })
+		.from(mediaFiles)
+		.innerJoin(media, and(eq(media.id, mediaFiles.mediaId), eq(media.siteId, mediaFiles.siteId)))
+		.where(
+			scope.where(
+				mediaFiles,
+				and(
+					eq(mediaFiles.name, name),
+					inArray(mediaFiles.role, ["original", "variant"]),
+					options.trashed ? undefined : isNull(media.trashedAt),
+				),
+			),
+		)
+		.limit(1);
+	const row = found?.file;
 	if (!row) return null;
 	const backend = await storage.holding(row.storage === "s3" ? "s3" : "disk");
 	return {

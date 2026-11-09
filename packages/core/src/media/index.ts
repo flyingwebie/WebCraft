@@ -6,8 +6,10 @@
 export {
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
+	MediaInTrashError,
 	MediaInvalidError,
 	MediaNotFoundError,
+	MediaNotInTrashError,
 	type MediaProblem,
 	MediaQuotaFullError,
 	MediaTooLargeError,
@@ -37,18 +39,23 @@ export { MEDIA_KINDS, type MediaKind } from "./kinds.ts";
 export {
 	MEDIA_FOLDER_NAME_MAX_LENGTH,
 	type MediaChange,
+	type MediaDeletion,
 	type MediaFolder,
 	type MediaItem,
 	type MediaLibrary,
 	type MediaOverview,
 	type MediaQuery,
 	type MediaStatus,
+	type MediaTrashing,
 	type MediaVariant,
 	type NewUpload,
 	type StoredMediaFile,
+	type TrashEmptying,
 } from "./library.ts";
 export { MEDIA_PATH } from "./names.ts";
 export { MEDIA_QUOTA_MIN_BYTES, type MediaStorage, QUOTA_WARNING_SHARE } from "./quota.ts";
 export type { S3Settings } from "./s3-storage.ts";
 export type { ByteRange, StorageBackend, StorageKind } from "./storage.ts";
 export { MEDIA_TEXT_MAX_LENGTH, type MediaText } from "./texts.ts";
+export { mediaPurge, mediaPurgeSchedule, TRASH_LIFETIME_MS } from "./trash.ts";
+export type { MediaUse, MediaUseSource, UseVersion } from "./usage.ts";

@@ -1,5 +1,5 @@
 import { entries, entryLinks, media, postTypes } from "@webcraft/db/schema";
-import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import type { ContentProblem } from "./errors.ts";
@@ -92,10 +92,11 @@ async function checkMedia(
 ): Promise<void> {
 	const ids = [...new Set(checks.flatMap((check) => check.ids))];
 	if (ids.length === 0) return;
+	// A file in the Trash is no longer in the library: it can't be chosen.
 	const rows = await scope.db
 		.select({ id: media.id })
 		.from(media)
-		.where(scope.where(media, inArray(media.id, ids)));
+		.where(scope.where(media, and(inArray(media.id, ids), isNull(media.trashedAt))));
 	const found = new Set(rows.map((row) => row.id));
 	for (const check of checks) {
 		const wrong = check.ids.find((id) => !found.has(id));
