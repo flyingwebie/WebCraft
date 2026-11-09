@@ -165,6 +165,29 @@ export async function saveConsentTextDraft(scope: SiteScope, change: ConsentText
 }
 
 /**
+ * Puts a Revision's or Checkpoint's version into the words' Draft (open the Site with `entry.edit`):
+ * history's restore, a change to the Draft like any other, which never publishes.
+ */
+export async function restoreConsentTextDraft(scope: SiteScope, version: unknown): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const row = await lockBanner(tx);
+		const draft = storedVersion(version);
+		if (sameJson(draft, row.draft)) return;
+		await tx.update(
+			consentBanners,
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(consentBanners.id, row.id),
+		);
+		await noteDraftChange(
+			tx,
+			{ kind: "consentBanner" },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+			draft,
+		);
+	});
+}
+
+/**
  * Publishes the words' Draft, inside `publish`'s transaction: refuses broken rules in any language
  * (`ConsentBannerInvalidError`), and makes a new banner version, which the Consent records made from
  * now on name.

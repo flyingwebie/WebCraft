@@ -173,6 +173,24 @@ export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string
 }
 
 /**
+ * Puts a Revision's or Checkpoint's version into the Globals' Draft (open the Site with `entry.edit`):
+ * history's restore, a change to the Draft like any other, which never publishes.
+ */
+export async function restoreGlobalsDraft(scope: SiteScope, version: unknown): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const row = await lockGlobals(tx);
+		const draft = storedVersion(version);
+		if (sameJson(draft, row.draft)) return;
+		await tx.update(
+			globals,
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(globals.id, row.id),
+		);
+		await noteGlobalsChange(tx, row, draft);
+	});
+}
+
+/**
  * Writes translations into the Globals (AI translation's, a person confirming or approving one), as
  * `writeEntryTranslations` does for an Entry: `change` gets the Draft and published version, locked,
  * and answers what to write. Open the Site with `entry.edit`, and `entry.publish` for the published

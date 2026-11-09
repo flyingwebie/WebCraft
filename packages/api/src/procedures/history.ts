@@ -1,4 +1,4 @@
-import { HISTORY_PAGE, historyReadPermission } from "@webcraft/core";
+import { HISTORY_PAGE, historyEditPermission, historyReadPermission } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
@@ -56,6 +56,21 @@ export const history = {
 			const { item, copy } = await context.services.history.get(site, input.item, input.copy);
 			const { content, ...summary } = copy;
 			return { item, copy: summary, content };
+		}),
+
+	/**
+	 * Restores a Revision or Checkpoint into the item's Draft: anyone who may change the Draft may
+	 * restore (Authors too, for Entries). The Draft as it is is saved as a Checkpoint first (answered as
+	 * `checkpoint`, null when the newest Revision or Checkpoint holds it already), then the copy's
+	 * version replaces the Draft, checked as any save is (`ELEMENT_TREE_INVALID` for a Template placing a
+	 * Component deleted since). Nothing is published: visitors see it once someone publishes the item.
+	 * Logged as `draft.restore`.
+	 */
+	restore: signedIn
+		.input(z.object({ siteId: id, item: publishItem, copy: copyRef }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, historyEditPermission(input.item));
+			return await context.services.history.restore(site, input.item, input.copy);
 		}),
 
 	/**

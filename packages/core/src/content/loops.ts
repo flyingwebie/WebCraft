@@ -252,6 +252,24 @@ export async function saveLoopItems(scope: SiteScope, loopId: string, change: Lo
 	});
 }
 
+/**
+ * Puts a Revision's or Checkpoint's version into a Loop's Draft (open the Site with `structure.edit`):
+ * history's restore, a change to the Draft like any other, which never publishes. Its query and Loop
+ * items are checked again when it is published.
+ */
+export async function restoreLoopDraft(scope: SiteScope, loopId: string, version: unknown): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const row = await lockLoop(tx, loopId);
+		const draft = storedLoopVersion(version);
+		await tx.update(
+			loops,
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(loops.id, row.id),
+		);
+		await noteLoopChange(tx, row, draft);
+	});
+}
+
 /** Notes a change to a Loop's Draft for its history: who changed what, and Checkpoints. */
 async function noteLoopChange(scope: SiteScope, row: LoopRow, draft: unknown): Promise<void> {
 	await noteDraftChange(

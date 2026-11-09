@@ -372,6 +372,29 @@ export async function replaceDraft(scope: SiteScope, entryId: string, version: u
 	});
 }
 
+/**
+ * Puts a Revision's or Checkpoint's version into an Entry's Draft (open the Site with `entry.edit`):
+ * history's restore, a change to the Draft like any other, which never publishes. Links to Entries
+ * deleted since are left out, as deleting them removed them from the Draft.
+ */
+export async function restoreEntryDraft(scope: SiteScope, entryId: string, version: unknown): Promise<Entry> {
+	return scope.transaction(async (tx) => {
+		const languages = await entryLanguages(tx);
+		const row = await lockEntry(tx, entryId);
+		const postType = await getPostType(tx, row.postTypeId);
+		let { values } = storedVersion(version);
+		const targets = [...new Set(linksIn(values, postType.fields).map((link) => link.targetId))];
+		const existing =
+			targets.length > 0
+				? new Set((await tx.select(entries, inArray(entries.id, targets))).map((target) => target.id))
+				: new Set<string>();
+		for (const gone of targets.filter((id) => !existing.has(id)))
+			values = withoutLinksTo(values, postType.fields, gone);
+		const saved = await changeDraft(tx, row, postType, { replace: { values } }, languages);
+		return toEntry(tx, saved, postType, languages);
+	});
+}
+
 /** What translations change in an Entry: its Draft, its published version, or both (unchanged when absent). */
 export type TranslationWrite = { draft?: EntryVersion; published?: EntryVersion } | null;
 

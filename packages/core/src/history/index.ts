@@ -13,6 +13,7 @@ import {
 	type StoredCopy,
 } from "./copies.ts";
 import { type HistoryItem, type HistoryItemSummary, itemState } from "./items.ts";
+import { type Restored, restoreCopy } from "./restore.ts";
 import { changeHistorySettings, type HistorySettings, readHistorySettings } from "./settings.ts";
 
 export { type Attribution, clientOf } from "./attribution.ts";
@@ -43,6 +44,7 @@ export {
 	historyEditPermission,
 	historyReadPermission,
 } from "./items.ts";
+export type { Restored } from "./restore.ts";
 export { HISTORY_LIMITS, type HistorySettings } from "./settings.ts";
 
 /** One page of an item's history, as `history.list` answers it. */
@@ -76,6 +78,11 @@ export type HistoryService = {
 	/** One saved copy with the whole version it holds, every language included. */
 	get(scope: SiteScope, item: HistoryItem, ref: CopyRef): Promise<{ item: HistoryItemSummary; copy: StoredCopy }>;
 	/**
+	 * Restores a Revision or Checkpoint into the item's Draft (open the Site with
+	 * `historyEditPermission(item)`), saving the Draft as a Checkpoint first; never publishes.
+	 */
+	restore(scope: SiteScope, item: HistoryItem, ref: CopyRef): Promise<Restored>;
+	/**
 	 * The last person editing an item's Draft left (open the Site with `historyReadPermission(item)`):
 	 * its Draft is saved as a Checkpoint unless nothing changed since the newest Revision or Checkpoint.
 	 * The admin's editors call it as they close; Co-editing (#71) calls it when its last participant goes.
@@ -101,6 +108,7 @@ export function createHistory(deps: { database: Database; componentSources: Comp
 			const state = await itemState(scope, item);
 			return { item: state.summary, copy: await getCopy(scope, item, ref) };
 		},
+		restore: (scope, item, ref) => restoreCopy(scope, item, ref, deps.componentSources),
 		async leave(scope, item) {
 			await itemState(scope, item);
 			return draftLeft(scope, item);

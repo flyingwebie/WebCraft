@@ -244,6 +244,9 @@ export const PROCEDURES = {
 	),
 	"history.get": read("One Revision or Checkpoint of an item, with the whole version it holds in every language."),
 	"history.leave": internal(),
+	"history.restore": write(
+		"Restores a Revision or Checkpoint into the item's Draft, keeping the Draft as a Checkpoint first; never publishes.",
+	),
 	"media.list": read("Lists files of the Site's Media library, or its Trash."),
 	"media.overview": read("What the Media library takes and holds."),
 	"media.suggestAltText": internal(),
