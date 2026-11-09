@@ -372,3 +372,51 @@ describe("a Relationship that points at a Page", () => {
 		expect(html).toContain('<article><a href="/about/team">Team</a></article>');
 	});
 });
+
+// Two people changing the Site's paths at the same moment: both checks would pass against the state
+// before the other change, so the Site holds them one at a time. Each race runs a few rounds, since
+// the requests only overlap on some of them.
+describe("at the same moment", () => {
+	test("a Post Type's URL pattern and a Page at a path it would own never both succeed", async () => {
+		for (let round = 0; round < 5; round++) {
+			const site = await newSite();
+			const { entry } = await editor.api.entries.create({
+				siteId: site.siteId,
+				postTypeId: site.pagesId,
+				title: "Team",
+			});
+
+			const [pattern, page] = await Promise.allSettled([
+				staff.api.postTypes.create({ siteId: site.siteId, name: "Posts", urlPattern: "/{slug}" }),
+				editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id }),
+			]);
+
+			expect([pattern.status, page.status].sort()).toEqual(["fulfilled", "rejected"]);
+			const refused = pattern.status === "rejected" ? pattern.reason : page.status === "rejected" ? page.reason : null;
+			expect(refused).toMatchObject({ code: "PATH_TAKEN" });
+		}
+	});
+
+	test("two Pages each moved under the other never both move: one is refused, and there is no loop", async () => {
+		for (let round = 0; round < 5; round++) {
+			const site = await newSite();
+			const first = await publishPage(site, "First");
+			const second = await publishPage(site, "Second");
+
+			const moves = await Promise.allSettled([
+				editor.api.entries.saveDraft({ siteId: site.siteId, entryId: first, parentId: second }),
+				editor.api.entries.saveDraft({ siteId: site.siteId, entryId: second, parentId: first }),
+			]);
+
+			expect(moves.map((move) => move.status).sort()).toEqual(["fulfilled", "rejected"]);
+			const refused = moves.find((move) => move.status === "rejected");
+			expect(refused?.status === "rejected" ? refused.reason : null).toMatchObject({ code: "ENTRY_INVALID" });
+			const parents = await Promise.all(
+				[first, second].map(
+					async (entryId) => (await editor.api.entries.get({ siteId: site.siteId, entryId })).entry.draft.parentId,
+				),
+			);
+			expect(parents.filter(Boolean)).toHaveLength(1);
+		}
+	});
+});

@@ -36,6 +36,7 @@
 		"IDENTITY_CHECK_CANCELLED": "Nothing was changed: confirm it's you to continue.",
 		"SENSITIVE_ACTION_REFUSED": "Only a person signed in to the admin can do this.",
 		"SESSION_NOT_FOUND": "That session has already ended.",
+		"CHANGED_MEANWHILE": "Someone changed this at the same moment. Try again.",
 		"MEDIA_NOT_FOUND": "There is no such file in this Media library.",
 		"MEDIA_FOLDER_NOT_FOUND": "There is no such folder in this Media library.",
 		"MEDIA_FOLDER_TAKEN": "Another folder already has this name.",
