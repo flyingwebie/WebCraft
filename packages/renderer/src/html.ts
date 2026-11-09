@@ -150,6 +150,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		themeToggle: () => options.themeToggle?.() ?? "",
 		languageSwitcher: () => options.languageSwitcher?.() ?? "",
 		form: (formId) => options.form?.(formId) ?? "",
+		consentSettings: () => options.consentSettings?.() ?? "",
 	});
 }
 

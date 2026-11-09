@@ -149,6 +149,7 @@ export {
 	type CommentNode,
 	type ConditionBranch,
 	type ConditionNode,
+	type ConsentSettingsNode,
 	childListsOf,
 	ELEMENT_TREE_VERSION,
 	type ElementNode,

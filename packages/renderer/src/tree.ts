@@ -87,6 +87,9 @@ export type ThemeToggleNode = { type: "themeToggle" };
 /** The Language switcher (`{{@languageSwitcher}}`): links to the page in each of the Site's languages. */
 export type LanguageSwitcherNode = { type: "languageSwitcher" };
 
+/** "Cookie settings" (`{{@consentSettings}}`): a button opening the Consent banner again. */
+export type ConsentSettingsNode = { type: "consentSettings" };
+
 /**
  * A Form placed here (`{{@form <key>}}`): the Site's Form, by id, so changing its key changes
  * nothing placed. It renders the Form's published version where Forms run on the Site.

@@ -1210,7 +1210,8 @@
 				"if": "Condizione",
 				"outlet": "Dove va il contenuto di ogni pagina",
 				"themeToggle": "Pulsante per il tema chiaro e scuro",
-				"languageSwitcher": "Link alla pagina in ogni lingua"
+				"languageSwitcher": "Link alla pagina in ogni lingua",
+				"consentSettings": "Pulsante delle impostazioni dei cookie (riapre il banner del consenso)"
 			},
 			"createClass": "Crea la classe “{name}”",
 			"classCreated": "Classe {name} aggiunta alla bozza del design system",

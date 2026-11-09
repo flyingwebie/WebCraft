@@ -1210,7 +1210,8 @@
 				"if": "Condition",
 				"outlet": "Where each page's content goes",
 				"themeToggle": "Light and dark theme button",
-				"languageSwitcher": "Links to the page in each language"
+				"languageSwitcher": "Links to the page in each language",
+				"consentSettings": "Cookie settings button (opens the Consent banner)"
 			},
 			"createClass": "Create Class “{name}”",
 			"classCreated": "Class {name} added to the Design system's Draft",
