@@ -104,7 +104,17 @@ async function siteAnswer(
 	if (editing) return editing;
 	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
 		// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
-		const answer = await services.modules.answerSiteRoute(host.site, request);
+		// The Module learns of the visitor only what WebCraft tells it (never the address or WebCraft's cookies).
+		const edit = await editSessionOf(services, request, host);
+		const answer = await services.modules.answerSiteRoute(
+			{
+				site: host.site,
+				via: host.address === "staging" ? "staging" : "domain",
+				clientAddress: clientAddress(request, services.config),
+				editing: edit.session !== null,
+			},
+			request,
+		);
 		if (!answer) return plainText(404, "Not Found", addressHeaders(host));
 		for (const [name, value] of Object.entries(addressHeaders(host))) answer.headers.set(name, value);
 		return answer;

@@ -13,16 +13,19 @@ import type pg from "pg";
  * - leave a table in its schema that it doesn't declare, a view, or a table that doesn't follow the
  *   tenant rule (a Site table's `(workspace_id, site_id)` points at `sites (workspace_id, id)`, a
  *   Workspace table's `workspace_id` at `workspaces (id)`, both deleting with them);
- * - miss a table or column the Module declares;
+ * - miss a table or column the Module declares, or make a table it keeps in monthly partitions
+ *   (SDK 1.4) without partitioning it by range on the declared column;
  * - changed, or lost, a migration that was applied before.
+ *
+ * The partitions of a partitioned table are WebCraft's to make and drop, not the migrations'.
  */
 export type ModuleSchema = {
 	moduleId: string;
 	/** Its Postgres schema, `m_<id>`. */
 	schema: string;
 	migrations: readonly { name: string; sql: string }[];
-	/** The tables it declares, with their columns. */
-	tables: readonly { name: string; kind: "site" | "workspace"; columns: readonly string[] }[];
+	/** The tables it declares, with their columns (and the column a partitioned one is partitioned by). */
+	tables: readonly { name: string; kind: "site" | "workspace"; columns: readonly string[]; partitionedBy?: string }[];
 };
 
 /** A Module's migrations broke a rule: nothing was applied. */
@@ -242,7 +245,7 @@ async function checkTables(client: Client, module: ModuleSchema): Promise<void> 
 	};
 	const relations = await client.query<{ name: string; kind: string }>(
 		`SELECT c.relname AS name, c.relkind AS kind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-			WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f')`,
+			WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND NOT c.relispartition`,
 		[schema],
 	);
 	const declared = new Map(module.tables.map((table) => [table.name, table]));
@@ -264,6 +267,21 @@ async function checkTables(client: Client, module: ModuleSchema): Promise<void> 
 		const byName = new Map(columns.rows.map((column) => [column.name, column]));
 		for (const name of table.columns) {
 			if (!byName.has(name)) refuse(`it declares the column ${qualified}.${name}, which its migrations don't make.`);
+		}
+		if (table.partitionedBy !== undefined) {
+			const key = await client.query<{ strategy: string; columns: string[] }>(
+				`SELECT p.partstrat AS strategy,
+					(SELECT array_agg(a.attname::text ORDER BY k.ord) FROM unnest(p.partattrs) WITH ORDINALITY k(attnum, ord)
+						JOIN pg_attribute a ON a.attrelid = p.partrelid AND a.attnum = k.attnum) AS columns
+					FROM pg_partitioned_table p WHERE p.partrelid = $1::regclass`,
+				[`${ident(schema)}.${ident(table.name)}`],
+			);
+			const [found] = key.rows;
+			if (found?.strategy !== "r" || !same(found.columns, [table.partitionedBy])) {
+				refuse(
+					`${qualified} is kept in monthly partitions, so it must be made PARTITION BY RANGE (${table.partitionedBy}).`,
+				);
+			}
 		}
 		const tenantColumns = table.kind === "site" ? ["workspace_id", "site_id"] : ["workspace_id"];
 		for (const name of tenantColumns) {

@@ -40,6 +40,11 @@ export type InstallConfig = {
 	 * record to the admin host.
 	 */
 	publicAddresses: readonly string[];
+	/**
+	 * A file of address ranges and their countries (`WEBCRAFT_COUNTRY_FILE`), which Site analytics
+	 * counts visits by country with; null when not set: every country is then unknown.
+	 */
+	countryFile: string | null;
 };
 
 /** What answers HTTPS for an Install: Caddy on a VPS, or the platform's proxy (ADR 0015). */
@@ -65,6 +70,7 @@ export function loadInstallConfig(env: Environment): InstallConfig {
 		storageDir: loadStorageDir(env),
 		edge: loadEdge(env),
 		publicAddresses: loadPublicAddresses(env),
+		countryFile: loadCountryFile(env),
 	};
 }
 
@@ -115,6 +121,12 @@ function loadAdminHost(env: Environment): string {
 		);
 	}
 	return host;
+}
+
+/** Reads `WEBCRAFT_COUNTRY_FILE`, which is optional: a path, relative to the folder the process starts in or absolute. */
+function loadCountryFile(env: Environment): string | null {
+	const value = env.WEBCRAFT_COUNTRY_FILE?.trim();
+	return value ? resolve(value) : null;
 }
 
 /**

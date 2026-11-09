@@ -1,4 +1,4 @@
-import type { InstallServices, Person } from "@webcraft/core";
+import { type InstallServices, KEEP_MONTHS, type Person } from "@webcraft/core";
 import { z } from "zod";
 
 import { onInstall, sensitive, signedIn } from "../context.ts";
@@ -42,6 +42,23 @@ export const modules = {
 		.handler(async ({ context, input }) => {
 			await context.services.modules.withdraw(context.install, input.moduleId);
 			return { withdrawn: true as const };
+		}),
+
+	/**
+	 * How many whole months the Install keeps the rows of one of a Module's partitioned tables (such as
+	 * Site analytics' raw events): an Install setting. Months older than that are dropped every day.
+	 */
+	setKeepMonths: onInstall("module.approve")
+		.input(
+			z.object({
+				moduleId,
+				table: z.string().min(1).max(63),
+				months: z.number().int().min(KEEP_MONTHS.min).max(KEEP_MONTHS.max),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			await context.services.modules.setKeepMonths(context.install, input.moduleId, input.table, input.months);
+			return { keepMonths: input.months };
 		}),
 
 	/** A Module's newest Module log lines, newest first. */

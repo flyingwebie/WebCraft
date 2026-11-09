@@ -18,6 +18,8 @@ const SESSION_SIGNING_LABEL = "webcraft session cookie signing";
 const EDIT_MODE_LABEL = "webcraft edit mode header token";
 const DOMAIN_VERIFICATION_LABEL = "webcraft domain verification";
 const FORM_TIME_LABEL = "webcraft form time trap";
+const VISITOR_ID_LABEL = "webcraft visitor daily ids hmac-sha256 key";
+const RATE_LIMIT_LABEL = "webcraft rate limit keys hmac-sha256 key";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -155,6 +157,35 @@ export async function formTimeKey(masterKey: MasterKey): Promise<CryptoKey> {
 		{ name: "HMAC", hash: "SHA-256", length: 256 },
 		false,
 		["sign", "verify"],
+	);
+}
+
+/**
+ * The key visitors' daily ids are made with (HMAC-SHA256, ADR 0020), derived from the Master key,
+ * together with the day's salt: someone holding the database alone can't work out whose an id is,
+ * and once the day's salt is deleted nobody can. Only the Install's start-up uses it.
+ */
+export async function visitorIdKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(VISITOR_ID_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key rate limit counters are kept under (HMAC-SHA256): their keys name client addresses, which
+ * are never kept. Derived from the Master key, so every process counts under the same hashes.
+ */
+export async function rateLimitKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(RATE_LIMIT_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
 	);
 }
 

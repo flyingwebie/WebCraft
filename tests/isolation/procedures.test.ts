@@ -5,6 +5,7 @@ import { traverseContractProcedures } from "@orpc/server";
 import { type ApiClient, apiRouter } from "@webcraft/api";
 import type forms from "@webcraft/module-forms";
 import type { ModuleApi, ModuleDefinition, ModuleProcedures } from "@webcraft/module-sdk";
+import type siteAnalytics from "@webcraft/module-site-analytics";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
@@ -22,6 +23,7 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
 });
 
 afterAll(async () => {
@@ -764,8 +766,43 @@ describe("Media", () => {
 	);
 });
 
+describe("Site analytics", () => {
+	const day = { from: new Date("2026-03-02T00:00:00Z"), to: new Date("2026-03-03T00:00:00Z") };
+	/** Site analytics' procedures, on a Site where the Superadmin switched it on (it is off by default). */
+	const analytics = async (api: ApiClient, siteId: string) => {
+		await (await install.superadmin()).api.modules.setOnSite({ siteId, moduleId: "site-analytics", on: true });
+		return moduleOf<typeof siteAnalytics>(api, "site-analytics");
+	};
+	isolation.refuses(
+		"m.site-analytics.stats.totals",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.totals({ siteId, ...day }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.series",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.series({ siteId, ...day, interval: "hour" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.breakdown",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.breakdown({ siteId, ...day, dimension: "page" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.coverage",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.coverage({ siteId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.site-analytics.settings.get", async (api, { siteId }) =>
+		(await analytics(api, siteId)).settings.get({ siteId }),
+	);
+	isolation.refuses("m.site-analytics.settings.update", async (api, { siteId }) =>
+		(await analytics(api, siteId)).settings.update({ siteId, excludedRanges: ["203.0.113.0/24"] }),
+	);
+});
+
 /** A Module's procedures, from the person's Management API (`m.<module id>`). */
-function moduleOf<Definition extends typeof sample | typeof sampleBoard | typeof forms>(
+function moduleOf<Definition extends typeof sample | typeof sampleBoard | typeof forms | typeof siteAnalytics>(
 	api: ApiClient,
 	moduleId: string,
 ) {

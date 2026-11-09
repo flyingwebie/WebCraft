@@ -53,14 +53,25 @@ export function createRateLimits({
 	database,
 	clock,
 	log,
+	keyHash,
 }: {
 	database: Database;
 	clock: Clock;
 	log: Logger;
+	/**
+	 * The key counters are kept under (HMAC-SHA256, derived from the Master key): a counter's key
+	 * names a client address, which is never kept, so the table holds only a keyed hash of it.
+	 */
+	keyHash: CryptoKey;
 }): RateLimits {
 	const { db } = database;
+	const hashed = async (key: string) => {
+		const signature = await crypto.subtle.sign("HMAC", keyHash, new TextEncoder().encode(key));
+		return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join("");
+	};
 	/** Counts one request under `key` in its current window, and answers the count and when the window ends. */
-	const counted = async (key: string, rule: RateLimitRule) => {
+	const counted = async (plainKey: string, rule: RateLimitRule) => {
+		const key = await hashed(plainKey);
 		const now = clock.now();
 		const windowEndsAt = new Date(now.getTime() + rule.windowMs);
 		const ended = sql`${rateLimits.windowEndsAt} <= ${now.toISOString()}::timestamptz`;
