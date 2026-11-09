@@ -70,9 +70,10 @@ export type ParseMarkupOptions = {
 	classNamed?: (name: string) => string | undefined;
 	/**
 	 * The generated Class for an inline style's declarations (canonical, such as `color: red;`): one
-	 * the Site has, or a new one. Inline styles are refused when absent.
+	 * the Site has, or a new one; or why the style can't become one. Inline styles are refused when
+	 * absent.
 	 */
-	classForStyle?: (declarations: string) => { id: string; name: string };
+	classForStyle?: (declarations: string) => { id: string; name: string } | { problem: string };
 	/**
 	 * The Components the markup may place, by name (`<PostCard … />`) and by id, with their Props and
 	 * trees. Every PascalCase tag is refused when absent.
@@ -503,6 +504,8 @@ class MarkupParser {
 		depth: number,
 	): TreeNode | undefined {
 		if (depth > TREE_LIMITS.depth) this.stop(opened.offset, `Elements nest at most ${TREE_LIMITS.depth} deep.`);
+		const misplaced = command.placementProblem?.(ancestors);
+		if (misplaced) this.problem(opened.offset, misplaced);
 		const sections: MarkupSection[] = [];
 		let current = { ...opened, keyword: command.name };
 		if (command.block) {
@@ -798,6 +801,10 @@ class MarkupParser {
 			return;
 		}
 		const generated = this.options.classForStyle(read.declarations);
+		if ("problem" in generated) {
+			this.problem(style.valueOffset, generated.problem);
+			return;
+		}
 		if (!classes.includes(generated.id)) classes.push(generated.id);
 		this.notice(
 			style.offset,

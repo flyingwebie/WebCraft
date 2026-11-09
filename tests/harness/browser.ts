@@ -4,7 +4,8 @@ import type { ApiClient } from "@webcraft/api";
 
 /**
  * One person's browser on the admin: it keeps the cookies answers set and sends them back, and
- * sends the admin's origin with every request, as a browser on the admin's own pages does.
+ * sends the admin's origin with every request, as a browser on the admin's own pages does. Give it
+ * another `origin` for a browser on another site's pages (a Site in Edit mode, or an attacker's).
  */
 export type TestBrowser = {
 	/** The Management API, called the way the admin calls it, with this browser's cookies. */
@@ -65,7 +66,8 @@ export function createTestBrowser(
 			headers.set("cookie", Array.from(cookies, ([name, value]) => `${name}=${value}`).join("; "));
 		}
 		if (outgoing.method !== "GET" && outgoing.method !== "HEAD") headers.set("origin", origin);
-		headers.set("sec-fetch-site", origin === options.adminOrigin ? "same-origin" : "cross-site");
+		// Browsers say whether a request goes to the origin of the page that makes it.
+		headers.set("sec-fetch-site", new URL(outgoing.url).origin === origin ? "same-origin" : "cross-site");
 		if (options.userAgent !== undefined) headers.set("user-agent", options.userAgent);
 		const response = await options.send(fromAddress(new Request(outgoing, { headers }), browser.address));
 		for (const line of response.headers.getSetCookie()) keepCookie(cookies, line);

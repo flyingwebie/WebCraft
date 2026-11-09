@@ -26,6 +26,8 @@ export type RenderOptions = {
 	className?: (classId: string) => string | undefined;
 	/** What `{{@outlet}}` shows: the page's content, already rendered. Nothing when absent. */
 	outlet?: () => string;
+	/** What `{{@themeToggle}}` shows. Nothing when absent. */
+	themeToggle?: () => string;
 	/**
 	 * Attributes WebCraft adds to an element, written after the element's own (such as the id of
 	 * the page's <main>, which the skip link points at); their values are escaped.
@@ -44,6 +46,13 @@ export type RenderOptions = {
 	 * as it is). Undefined renders nothing, as a Placement of a Component the page can't show.
 	 */
 	component?: PlacementRenderer;
+	/**
+	 * Edit mode's tags (ADR 0022): the attributes that mark an element showing one binding alone
+	 * (`<h1>{{ title }}</h1>`) as an editable region, or undefined when that binding isn't editable.
+	 * A tagged element also carries its element id as `data-wc-id`, so Edit mode can find it in the
+	 * tree. Absent for the pages visitors get, which carry no such attributes.
+	 */
+	editRegion?: (value: ValueNode) => readonly (readonly [name: string, value: string])[] | undefined;
 };
 
 /** Finds what a Placement shows: see `RenderOptions.component`. */
@@ -88,7 +97,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
 			for (const attribute of node.attributes) attributes += renderAttribute(attribute, options);
-			for (const [name, value] of options.extraAttributes?.(node) ?? []) {
+			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
@@ -106,6 +115,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		read: options.values,
 		nodes: (children) => renderNodes(children, options, state),
 		outlet: () => options.outlet?.() ?? "",
+		themeToggle: () => options.themeToggle?.() ?? "",
 	});
 }
 
@@ -131,9 +141,23 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 	}
 	const shown = options.component(node.component, props, options.values);
 	if (!shown) return "";
-	// Inside a Component its bindings read its Props and the Globals; it holds no outlet.
-	const inner: RenderOptions = { ...options, values: shown.values, outlet: undefined };
+	// Inside a Component its bindings read its Props and the Globals; it holds no outlet. Edit mode
+	// tags regions of the page's own Template: a Component's elements are the Component's.
+	const inner: RenderOptions = { ...options, values: shown.values, outlet: undefined, editRegion: undefined };
 	return renderNodes(shown.tree.nodes, inner, { depth: state.depth + 1, budget: state.budget });
+}
+
+/**
+ * Edit mode's tags for an element: when its only content is one binding (comments aside) and that
+ * binding is editable, the region's attributes and the element's id. Nothing otherwise.
+ */
+function editTags(node: ElementNode, options: RenderOptions): readonly (readonly [string, string])[] {
+	if (!options.editRegion || VOID_ELEMENTS.has(node.tag)) return [];
+	const content = node.children.filter((child) => child.type !== "comment");
+	const [only] = content;
+	if (content.length !== 1 || only?.type !== "value") return [];
+	const region = options.editRegion(only);
+	return region ? [...region, ["data-wc-id", node.id]] : [];
 }
 
 /** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */

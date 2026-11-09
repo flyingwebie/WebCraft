@@ -1,24 +1,34 @@
 // What every Site page gives visitors, in a real browser: axe-core finds nothing against WCAG 2.2 A
 // and AA or its best practices, the first Tab reaches the skip link, following it moves focus into
 // the page's <main>, and every link shows focus. Checked on an Entry's page and the 404 page, inside
-// a Site template with a header, navigation and footer, the footer and the Entry's article each
-// shown through a Component.
-import { afterAll, beforeAll, describe, test } from "bun:test";
+// a Site template with a header, navigation and footer, styled by the default Design system, the
+// footer and the Entry's article each shown through a Component; and on a Site with dark mode and a
+// theme toggle, in the device's light and dark themes.
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
 const slug = "bakery";
+const darkSlug = "night-bakery";
 
-beforeAll(async () => {
-	install = await startBrowserInstall();
+/** The Site template both Sites use: a header with the Site's name and a list of links, and a footer. */
+const SITE_TEMPLATE = [
+	'<header><p><a href="/">Acme Bakery</a></p><nav aria-label="Main"><ul>',
+	'<li><a href="/blog/fresh-bread">Fresh bread</a></li><li><a href="/about">About us</a></li><li><a href="/contact">Contact</a></li>',
+	"</ul></nav>{{@themeToggle}}</header>",
+	"<main>{{@outlet}}</main>",
+	'<footer><OpeningHours from="seven" /></footer>',
+].join("");
+
+/** A Site with the Site template above and a published post at /blog/fresh-bread. */
+async function siteWithPost(siteSlug: string, darkMode: boolean): Promise<void> {
 	const local = install.install;
 	const { api } = await local.superadmin();
-	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
-	const siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
-
-	/** A published Component with Props and markup. */
+	const workspaceId = (await local.createWorkspace(`Acme ${siteSlug}`)).id;
+	const siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: siteSlug })).id;
+	/** A published Component with required text Props and its markup. */
 	const component = async (name: string, props: { key: string; label: string }[], markup: string) => {
 		const made = await api.components.create({
 			siteId,
@@ -34,19 +44,7 @@ beforeAll(async () => {
 		[{ key: "heading", label: "Heading" }],
 		'<article><h1>{{ props.heading }}</h1><p>Out of the oven at seven. <a href="/about">About us</a></p></article>',
 	);
-
-	// Sites have no stylesheet until the Design system, so the header's links sit in sentences: a
-	// list of bare links would be too close together to tap (target size), which Staff fix with Classes.
-	const site = await api.templates.saveSiteTemplateMarkup({
-		siteId,
-		markup: [
-			'<header><p>Welcome to <a href="/">Acme Bakery</a>.</p><nav aria-label="Main">',
-			'<p>Read about <a href="/blog/fresh-bread">fresh bread</a>, or find out more <a href="/about">about us</a>.</p>',
-			"</nav></header>",
-			"<main>{{@outlet}}</main>",
-			'<footer><OpeningHours from="seven" /></footer>',
-		].join(""),
-	});
+	const site = await api.templates.saveSiteTemplateMarkup({ siteId, markup: SITE_TEMPLATE });
 	await api.templates.publish({ siteId, templateId: site.template.id });
 	const { postType } = await api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const entry = await api.templates.saveEntryTemplateMarkup({
@@ -57,6 +55,16 @@ beforeAll(async () => {
 	await api.templates.publish({ siteId, templateId: entry.template.id });
 	const { entry: post } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await api.entries.publish({ siteId, entryId: post.id });
+	if (darkMode) {
+		await api.designSystem.saveDraft({ siteId, darkMode: true });
+		await api.designSystem.publish({ siteId });
+	}
+}
+
+beforeAll(async () => {
+	install = await startBrowserInstall();
+	await siteWithPost(slug, false);
+	await siteWithPost(darkSlug, true);
 });
 
 afterAll(async () => {
@@ -65,13 +73,14 @@ afterAll(async () => {
 
 for (const theme of THEMES) {
 	describe(`Site pages, ${theme}`, () => {
-		for (const [name, path] of [
-			["an Entry's page", "/blog/fresh-bread"],
-			["the built-in 404 page", "/no-such-page"],
+		for (const [name, siteSlug, path] of [
+			["an Entry's page", slug, "/blog/fresh-bread"],
+			["the built-in 404 page", slug, "/no-such-page"],
+			["an Entry's page with dark mode and a theme toggle", darkSlug, "/blog/fresh-bread"],
 		] as const) {
 			test(name, async () => {
 				const page = await install.newPage(theme);
-				await page.goto(install.siteUrl(slug, path));
+				await page.goto(install.siteUrl(siteSlug, path));
 				await page.waitForLoadState("load");
 
 				await expectAccessibleScreen(page, `${name} (${theme})`);
@@ -79,3 +88,66 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+describe("the Design system's page parts", () => {
+	test("the skip link stays out of sight until it has focus, then shows at the top of the page", async () => {
+		const page = await install.newPage("light");
+		await page.goto(install.siteUrl(slug, "/blog/fresh-bread"));
+		const link = page.getByRole("link", { name: "Skip to main content" });
+
+		const hidden = await link.boundingBox();
+		await page.keyboard.press("Tab");
+		const shown = await link.boundingBox();
+
+		expect(hidden?.width ?? 0).toBeLessThanOrEqual(1);
+		expect(shown?.width ?? 0).toBeGreaterThan(24);
+		expect(shown?.height ?? 0).toBeGreaterThanOrEqual(24);
+		expect(shown?.y ?? -1).toBeGreaterThanOrEqual(0);
+	});
+
+	test("the theme toggle switches the page's theme from the keyboard, and the choice is kept", async () => {
+		const page = await install.newPage("light");
+		await page.goto(install.siteUrl(darkSlug, "/blog/fresh-bread"));
+		const toggle = page.getByRole("button", { name: "Dark theme" });
+		// The colour people see: read after the next paint, once any change has been drawn.
+		const background = () =>
+			page.evaluate(
+				() =>
+					new Promise<string>((resolve) =>
+						requestAnimationFrame(() =>
+							requestAnimationFrame(() => resolve(getComputedStyle(document.body).backgroundColor)),
+						),
+					),
+			);
+		const light = await background();
+
+		await expect(toggle.getAttribute("aria-pressed")).resolves.toBe("false");
+		await toggle.focus();
+		await page.keyboard.press("Enter");
+
+		await expect(toggle.getAttribute("aria-pressed")).resolves.toBe("true");
+		const dark = await background();
+		expect(dark).not.toBe(light);
+		await expectAccessibleScreen(page, "a page switched to the dark theme");
+
+		await page.reload();
+		await expect(page.getByRole("button", { name: "Dark theme" }).getAttribute("aria-pressed")).resolves.toBe("true");
+		expect(await background()).toBe(dark);
+
+		await page.getByRole("button", { name: "Dark theme" }).focus();
+		await page.keyboard.press("Space");
+		// A button pressed with Space acts when the key comes up, a moment after the press.
+		await page.waitForFunction(
+			() => document.querySelector(".wc-theme-toggle")?.getAttribute("aria-pressed") === "false",
+		);
+		expect(await background()).toBe(light);
+	});
+
+	test("without dark mode, pages carry no script and no toggle", async () => {
+		const page = await install.newPage("dark");
+		await page.goto(install.siteUrl(slug, "/blog/fresh-bread"));
+
+		expect(await page.locator("script").count()).toBe(0);
+		expect(await page.getByRole("button").count()).toBe(0);
+	});
+});

@@ -11,7 +11,7 @@ let install: TestInstall;
 let staff: TestBrowser;
 let siteId: string;
 let postTypeId: string;
-/** Two generated Classes of the Site: their ids, and their names in markup. */
+/** Two generated Classes of the Site and a token utility: their ids, and their names in markup. */
 let classes: { id: string; name: string }[];
 /** A Component with text Props, one of them written in camelCase. */
 let cardId: string;
@@ -37,6 +37,13 @@ beforeAll(async () => {
 		id: (node as { classes: string[] }).classes[0] ?? "",
 		name: /the Class (style-[0-9a-f]{8})/.exec(saved.notices[index]?.message ?? "")?.[1] ?? "",
 	}));
+	// The padding utility of the default spacing step m: stored by an id made from the token's.
+	const utility = await staff.api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId,
+		markup: '<p class="p-m">c</p>',
+	});
+	classes.push({ id: (utility.template.draft.nodes[0] as { classes: string[] }).classes[0] ?? "", name: "p-m" });
 	const { component } = await staff.api.components.create({
 		siteId,
 		name: "Card",
@@ -329,7 +336,7 @@ describe("generated trees", () => {
 			placement,
 			commentText.map((comment) => ({ type: "comment", text: comment })),
 			fc
-				.record({ tag: fc.constantFrom(...voids), attributes, classes: fc.subarray([0, 1]) })
+				.record({ tag: fc.constantFrom(...voids), attributes, classes: fc.subarray([0, 1, 2]) })
 				.map(({ tag, attributes: list, classes: chosen }) => ({
 					type: "element",
 					tag,
@@ -341,7 +348,7 @@ describe("generated trees", () => {
 				.record({
 					tag: fc.constantFrom(...containers),
 					attributes,
-					classes: fc.subarray([1, 0]),
+					classes: fc.subarray([2, 1, 0]),
 					children: tie("nodes"),
 				})
 				.map(({ tag, attributes: list, classes: chosen, children }) => ({
@@ -351,6 +358,7 @@ describe("generated trees", () => {
 					classes: chosen.map((index) => classes[index]?.id ?? ""),
 					children,
 				})),
+			fc.constant({ type: "themeToggle" }),
 			fc.record({
 				type: fc.constant("condition"),
 				branches: fc.array(fc.record({ test: expression, children: tie("nodes") }), { minLength: 1, maxLength: 3 }),

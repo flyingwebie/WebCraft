@@ -31,6 +31,17 @@ export function pageErrors(page: Page): readonly string[] {
 	return PAGE_ERRORS.get(page) ?? [];
 }
 
+/**
+ * Forgets the errors the page reported from the `from`-th on that `isNoise` picks out: reports
+ * caused by a check itself rather than by the page.
+ */
+export function forgetPageErrors(page: Page, from: number, isNoise: (error: string) => boolean): void {
+	const errors = PAGE_ERRORS.get(page);
+	if (!errors) return;
+	const kept = errors.slice(from).filter((error) => !isNoise(error));
+	errors.splice(from, errors.length - from, ...kept);
+}
+
 export const THEMES: readonly Theme[] = ["light", "dark"];
 
 export type BrowserInstall = {

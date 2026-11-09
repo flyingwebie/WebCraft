@@ -12,7 +12,8 @@ import {
 import { and, eq, isNull, type SQL } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
-import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
+import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
+import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
@@ -194,7 +195,7 @@ async function saveTemplate(
 		scope.transaction(async (tx) => {
 			// The Components it places can't be deleted while it is saved.
 			await lockComponents(tx);
-			const { ids } = classCatalogue(await listClasses(tx));
+			const { ids } = classCatalogue(await draftDesignSystem(tx));
 			const draft = parseTemplate(tree, target, ids, await siteComponents(tx, "draft", sources));
 			return writeTemplateDraft(tx, target, draft);
 		}),
@@ -234,7 +235,7 @@ async function saveTemplateMarkup(
 		scope.transaction(async (tx) => {
 			// The Components it places can't be deleted while it is saved.
 			await lockComponents(tx);
-			const catalogue = classCatalogue(await listClasses(tx));
+			const catalogue = classCatalogue(await draftDesignSystem(tx));
 			const components = await siteComponents(tx, "draft", sources);
 			const { tree, notices } = parseTemplateMarkup(markup, {
 				...rulesFor(target, components),
@@ -271,7 +272,7 @@ async function templateMarkup(
 	sources: ComponentSources,
 ): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
 	if (!template) return { template: null, markup: null };
-	const catalogue = classCatalogue(await listClasses(scope));
+	const catalogue = classCatalogue(await draftDesignSystem(scope));
 	const components = await siteComponents(scope, "draft", sources);
 	return {
 		template,
@@ -313,8 +314,7 @@ async function retryOnRace<T>(save: () => Promise<T>): Promise<T> {
 			return await save();
 		} catch (error) {
 			const raced =
-				isUniqueViolation(error, "templates_site_id_kind_post_type_id_unique") ||
-				isUniqueViolation(error, "classes_site_id_name_unique");
+				isUniqueViolation(error, "templates_site_id_kind_post_type_id_unique") || error instanceof ClassRaceError;
 			if (!raced || attempt >= 3) throw error;
 		}
 	}
@@ -347,7 +347,7 @@ export async function checkTemplateForPublish(
 		row.kind === "site"
 			? await siteTemplateTarget(scope)
 			: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
-	const { ids } = classCatalogue(await listClasses(scope));
+	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	// Visitors will see the Components it places as they are published.
 	return parseTemplate(row.draft, target, ids, await siteComponents(scope, "published", sources));
 }

@@ -33,7 +33,8 @@ import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
-import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
+import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
+import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import {
@@ -224,7 +225,7 @@ export async function saveComponentDraft(
 		const props = await nextProps(tx, row, change.props);
 		const context = await readContext(tx);
 		const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
-		const { ids } = classCatalogue(await listClasses(tx));
+		const { ids } = classCatalogue(await draftDesignSystem(tx));
 		const tree = parseElementTree(change.tree ?? storedVersion(row.draft).tree, {
 			...componentTreeRules(props, context, catalogue),
 			classIds: ids,
@@ -251,7 +252,7 @@ export async function saveComponentMarkup(
 			const props = await nextProps(tx, row, input.props);
 			const context = await readContext(tx);
 			const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
-			const classes = classCatalogue(await listClasses(tx));
+			const classes = classCatalogue(await draftDesignSystem(tx));
 			const { tree, notices } = parseTemplateMarkup(input.markup, {
 				...componentTreeRules(props, context, catalogue),
 				classNamed: classes.named,
@@ -272,7 +273,7 @@ export async function getComponentMarkup(
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<{ component: Component; markup: ComponentMarkup; usage: ComponentUsage }> {
 	const component = await findComponent(scope, componentId, sources);
-	const classes = classCatalogue(await listClasses(scope));
+	const classes = classCatalogue(await draftDesignSystem(scope));
 	const names = await siteComponents(scope, "draft", sources);
 	return {
 		component,
@@ -453,7 +454,7 @@ async function retryOnClassRace<T>(save: () => Promise<T>): Promise<T> {
 		try {
 			return await save();
 		} catch (error) {
-			if (!isUniqueViolation(error, "classes_site_id_name_unique") || attempt >= 3) throw error;
+			if (!(error instanceof ClassRaceError) || attempt >= 3) throw error;
 		}
 	}
 }

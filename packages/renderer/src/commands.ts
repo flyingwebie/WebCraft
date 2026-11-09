@@ -9,11 +9,11 @@
  * and Popups) are reserved: markup naming them is refused for now.
  */
 import { type Expression, passes, writeExpression } from "./expressions.ts";
-import type { ConditionBranch, ConditionNode, OutletNode, TreeNode } from "./tree.ts";
+import type { ConditionBranch, ConditionNode, OutletNode, ThemeToggleNode, TreeNode } from "./tree.ts";
 import type { TemplateValue } from "./values.ts";
 
 /** The node kinds Template commands store. */
-export type CommandNode = ConditionNode | OutletNode;
+export type CommandNode = ConditionNode | OutletNode | ThemeToggleNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -48,6 +48,8 @@ export type RenderTools = {
 	nodes(nodes: readonly TreeNode[]): string;
 	/** The page's content, rendered: what the Site template's `{{@outlet}}` shows. */
 	outlet(): string;
+	/** The theme toggle, rendered: nothing when the Site has no dark mode. */
+	themeToggle(): string;
 };
 
 /** A section as it prints: `{{@<keyword> <argument>}}` then its children. */
@@ -68,6 +70,8 @@ export type TemplateCommand<Node extends CommandNode = CommandNode> = {
 	/** The node's lists of children, for walking a tree. */
 	children(node: Node): readonly (readonly TreeNode[])[];
 	render(node: Node, tools: RenderTools): string;
+	/** Why the command can't sit inside `ancestors` (element tags, outermost first), or undefined. */
+	placementProblem?(ancestors: readonly string[]): string | undefined;
 };
 
 /** `{{@if test}} … {{@else if test}} … {{@else}} … {{/if}}`: a Condition. */
@@ -181,8 +185,57 @@ const outletCommand: TemplateCommand<OutletNode> = {
 	},
 };
 
+/** Elements a button can't go inside: a browser would break the page's controls apart. */
+const INTERACTIVE = new Set(["a", "button", "label", "select", "textarea", "summary", "details", "audio", "video"]);
+
+/**
+ * `{{@themeToggle}}`: a button that switches the page between the light and dark values of the
+ * Design system, remembering the visitor's choice. It renders only when the Site's published Design
+ * system has dark mode, starts hidden, and shows once its script (a file, never inline) runs.
+ */
+const themeToggleCommand: TemplateCommand<ThemeToggleNode> = {
+	name: "themeToggle",
+	nodeType: "themeToggle",
+	block: false,
+	branches: [],
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		if (section?.argument.trim()) {
+			const leading = section.argument.length - section.argument.trimStart().length;
+			tools.problem(section.argumentOffset + leading, "{{@themeToggle}} takes nothing: write it alone.");
+			return undefined;
+		}
+		return { type: "themeToggle" };
+	},
+
+	toMarkup() {
+		return [{ keyword: "themeToggle", argument: "", children: [] }];
+	},
+
+	check() {
+		return { type: "themeToggle" };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(_node, tools) {
+		return tools.themeToggle();
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => INTERACTIVE.has(tag));
+		if (inside) return `{{@themeToggle}} is a button: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@themeToggle}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
 /** Every Template command there is. */
-export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [ifCommand, outletCommand];
+export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [ifCommand, outletCommand, themeToggleCommand];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
 export const RESERVED_COMMANDS: ReadonlySet<string> = new Set([

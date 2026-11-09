@@ -107,6 +107,13 @@ export type Auth = {
 	 * renewed, so it lasts another 7 days from now, and records the address it was used from.
 	 */
 	session(request: AuthRequest): Promise<{ session: Session | null; setCookie: string[] }>;
+	/**
+	 * A session by its id, or null once it has ended: signed out, revoked, unused for 7 days or
+	 * started more than 30 days ago. Reading it doesn't renew it. For checks made away from the
+	 * admin's own hostname, which never sees the session cookie (Edit mode on a Site's domain).
+	 * `sessionId` is an id WebCraft stored, never one a request gave.
+	 */
+	activeSession(sessionId: string): Promise<Session | null>;
 	/** Ends the session a request carries, if any, and answers the `Set-Cookie` values that clear it. */
 	signOut(headers: Headers): Promise<{ setCookie: string[] }>;
 	/**
@@ -232,6 +239,21 @@ export function createAuth(options: AuthOptions): Auth {
 				session.lastActiveAt = now;
 			}
 			return { session, setCookie: answer.getSetCookie() };
+		},
+
+		async activeSession(sessionId) {
+			const [row] = await database.db.select().from(sessions).where(eq(sessions.id, sessionId));
+			if (!row) return null;
+			const now = clock.now().getTime();
+			if (now - row.lastActiveAt.getTime() >= SESSION_IDLE_LIMIT_MS) return null;
+			if (now - row.startedAt.getTime() >= SESSION_MAX_AGE_MS) return null;
+			return {
+				id: row.id,
+				personId: row.personId,
+				startedAt: row.startedAt,
+				lastActiveAt: row.lastActiveAt,
+				identityCheckedAt: row.identityCheckedAt,
+			};
 		},
 
 		async signOut(headers) {

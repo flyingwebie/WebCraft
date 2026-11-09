@@ -27,6 +27,60 @@ export {
 	placementProblems,
 	placementsIn,
 } from "./components.ts";
+export {
+	CASCADE_LAYERS,
+	compileStylesheet,
+	contentHash,
+	type StylesheetUse,
+} from "./design-system/compile.ts";
+export {
+	CSS_MAX_LENGTH,
+	type CssKind,
+	type CssNames,
+	type CssPart,
+	type CssPrintNames,
+	type CssProblem,
+	type CssText,
+	printCss,
+	readCss,
+	referencesIn,
+} from "./design-system/css.ts";
+export {
+	BASE_TARGETS,
+	CLASS_NAME,
+	DESIGN_SYSTEM_LIMITS,
+	type DesignClass,
+	type DesignSystem,
+	DesignSystemInvalidError,
+	type DesignSystemNames,
+	type DesignSystemProblem,
+	defaultDesignSystem,
+	designSystemNames,
+	designSystemProblems,
+	isReservedName,
+	readCssAt,
+	readDesignSystem,
+} from "./design-system/document.ts";
+export { DTCG_EXTENSION, type DtcgProblem, exportTokens, importTokens } from "./design-system/dtcg.ts";
+export { SCRIPT_PATH, THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
+export {
+	type Breakpoint,
+	type ColourToken,
+	DEFAULT_TOKENS,
+	type Dimension,
+	type DimensionToken,
+	type FontToken,
+	type Range,
+	type Scale,
+	type ScaleStep,
+	type ShadowLayer,
+	type ShadowToken,
+	type TokenRef,
+	type Tokens,
+	tokenNames,
+	UTILITY_ID_PREFIX,
+	utilitiesOf,
+} from "./design-system/tokens.ts";
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 export {
 	COMPARE_OPERATORS,
@@ -67,7 +121,9 @@ export {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
 	directionOf,
+	type EditModePage,
 	PAGE_HOOKS,
+	type PageStyles,
 	type PageToRender,
 	pageWords,
 	renderPage,
@@ -91,6 +147,7 @@ export {
 	randomElementId,
 	TEMPLATE_ELEMENTS,
 	type TextNode,
+	type ThemeToggleNode,
 	TREE_LIMITS,
 	type TreeCheck,
 	type TreeNode,

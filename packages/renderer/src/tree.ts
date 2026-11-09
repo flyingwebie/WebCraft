@@ -76,6 +76,9 @@ export type ConditionBranch = { test: Expression; children: TreeNode[] };
 /** The content outlet (`{{@outlet}}`): where the Site template shows each page's content. */
 export type OutletNode = { type: "outlet" };
 
+/** The theme toggle (`{{@themeToggle}}`): a button switching the page between light and dark. */
+export type ThemeToggleNode = { type: "themeToggle" };
+
 export type Attribute = {
 	/** A lower-case attribute name. */
 	name: string;
@@ -706,7 +709,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		}
 		const command = commandForNode(raw.type);
 		if (command) {
-			const refused = options.refuseCommand?.(command.name);
+			const refused = options.refuseCommand?.(command.name) ?? command.placementProblem?.(ancestors);
 			if (refused) {
 				problem(at, refused);
 				return undefined;
