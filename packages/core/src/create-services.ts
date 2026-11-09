@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import { createCodeMode } from "./code-mode/index.ts";
+import { createConsent } from "./consent/index.ts";
 import {
 	addLanguage,
 	createComponent,
@@ -266,6 +267,7 @@ export async function createInstallServices(
 		},
 		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
+		consent: createConsent(),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,

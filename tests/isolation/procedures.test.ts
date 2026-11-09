@@ -214,6 +214,12 @@ describe("Scripts", () => {
 });
 
 describe("Site script safety", () => {
+	isolation.refuses("consentBanner.get", (api, { siteId }) => api.consentBanner.get({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("consentBanner.setSettings", (api, { siteId }) =>
+		api.consentBanner.setSettings({ siteId, mode: "optOut", layout: "box" }),
+	);
 	isolation.refuses("csp.get", (api, { siteId }) => api.csp.get({ siteId }));
 	isolation.refuses("csp.setMode", (api, { siteId }) => api.csp.setMode({ siteId, mode: "relaxed" }));
 	isolation.refuses("csp.addHost", (api, { siteId }) => api.csp.addHost({ siteId, host: "tags.example.com" }));
