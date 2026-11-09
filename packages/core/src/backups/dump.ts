@@ -7,7 +7,7 @@ import { createGunzip, createGzip } from "node:zlib";
 import type pg from "pg";
 import { from as copyFrom, to as copyTo } from "pg-copy-streams";
 
-import type { BackupManifest } from "./manifest.ts";
+import { type BackupManifest, PARTITION_BOUND } from "./manifest.ts";
 
 /**
  * WebCraft writes a Backup's database dump itself, through `pg`, so web, worker and the CLI need no
@@ -89,12 +89,17 @@ export async function loadTable(
 	return copy.rowCount ?? 0;
 }
 
-/** Makes the partitions a dump's partitioned tables had, before their rows are loaded. */
+/**
+ * Makes the partitions a dump's partitioned tables had, before their rows are loaded. The statement is
+ * built again from the bound's two timestamps, never from the manifest's text (`PARTITION_BOUND`).
+ */
 export async function makePartitions(client: pg.ClientBase, partitions: DatabasePart["partitions"]): Promise<void> {
 	for (const partition of partitions) {
+		const [, from, to] = PARTITION_BOUND.exec(partition.bound) ?? [];
+		if (!from || !to) throw new Error(`The partition ${partition.name} has a bound WebCraft doesn't make.`);
 		const [schema = "public"] = partition.parent.split(".");
 		await client.query(
-			`CREATE TABLE IF NOT EXISTS ${ident(schema)}.${ident(partition.name)} PARTITION OF ${qualifiedName(partition.parent)} ${partition.bound}`,
+			`CREATE TABLE IF NOT EXISTS ${ident(schema)}.${ident(partition.name)} PARTITION OF ${qualifiedName(partition.parent)} FOR VALUES FROM (${literal(from)}) TO (${literal(to)})`,
 		);
 	}
 }
@@ -201,7 +206,13 @@ async function partitionsOf(client: pg.ClientBase, tables: HeldTable[]): Promise
 				WHERE i.inhparent = $1::regclass ORDER BY c.relname`,
 			[table.qualified],
 		);
-		for (const row of rows) partitions.push({ parent: table.name, name: row.name, bound: row.bound });
+		for (const row of rows) {
+			// A restore makes only the monthly partitions WebCraft makes: refuse to write one it couldn't.
+			if (!PARTITION_BOUND.test(row.bound)) {
+				throw new Error(`The partition ${table.name}.${row.name} has a bound a restore can't make: ${row.bound}`);
+			}
+			partitions.push({ parent: table.name, name: row.name, bound: row.bound });
+		}
 	}
 	return partitions;
 }
@@ -214,4 +225,8 @@ function qualifiedName(name: string): string {
 
 function ident(name: string): string {
 	return `"${name.replaceAll('"', '""')}"`;
+}
+
+function literal(value: string): string {
+	return `'${value.replaceAll("'", "''")}'`;
 }
