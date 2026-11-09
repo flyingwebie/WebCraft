@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
 
@@ -37,6 +37,8 @@ export const installSettings = pgTable(
 		 * unless the Superadmin switches it off, such as for an Install that is always offline.
 		 */
 		leakedPasswordCheck: boolean("leaked_password_check").notNull().default(true),
+		/** The largest file the Media library takes, in bytes; null for the default (50 MB). */
+		mediaMaxFileBytes: bigint("media_max_file_bytes", { mode: "number" }),
 	},
 	(table) => [check("install_settings_single_row", sql`${table.id} = 1`)],
 );

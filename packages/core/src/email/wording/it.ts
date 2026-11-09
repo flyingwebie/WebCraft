@@ -1,4 +1,5 @@
 import { wordsIn } from "@webcraft/module-sdk";
+import { formatSize } from "./sizes.ts";
 import type { EmailWording } from "./types.ts";
 
 const days = (count: number) => (count === 1 ? "1 giorno" : `${count} giorni`);
@@ -161,6 +162,15 @@ export const it: EmailWording = {
 				`Il Domain check non è riuscito a raggiungere ${siteName} su ${domain}. Il dominio potrebbe puntare altrove, oppure il suo certificato potrebbe mancare o essere in scadenza.`,
 			],
 			action: { label: "Controlla i domini", path: domainsPath },
+		}),
+		"media-quota-warning": ({ workspaceName, percent, usedBytes, quotaBytes, workspacePath }) => ({
+			subject: `${workspaceName} ha usato il ${percent}% dello spazio per i Media`,
+			heading: `È usato il ${percent}% dello spazio per i Media`,
+			paragraphs: [
+				`Le librerie Media dei Siti di ${workspaceName} occupano ${formatSize(usedBytes, ",")} su ${formatSize(quotaBytes, ",")}. I caricamenti che supererebbero la quota vengono rifiutati.`,
+				"Elimina i file che non servono più (svuotare il Cestino libera subito il loro spazio), oppure chiedi una quota più grande.",
+			],
+			action: { label: "Vedi lo spazio", path: workspacePath },
 		}),
 		"webhook-switched-off": ({ webhookName, host, siteName, failures, webhooksPath }) => ({
 			subject: `Un Webhook di ${siteName} è stato disattivato`,

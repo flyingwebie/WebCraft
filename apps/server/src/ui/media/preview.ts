@@ -17,11 +17,12 @@ export function imagePreview(siteId: string, item: MediaItem, width: number): st
 	return previewPath(siteId, fitting?.url ?? item.url);
 }
 
-/** A file size as people read it: `840 B`, `12.4 KB`, `1.8 MB`. */
+/** A file size as people read it: `840 B`, `12.4 KB`, `1.8 MB`, `4.2 GB`. */
 export function formatBytes(bytes: number): string {
 	if (bytes < 1024) return `${bytes} B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 /** The icon shown for a file that has no image preview. */

@@ -1,6 +1,7 @@
 import { ADMIN_API_PREFIX, createAdminApi } from "@webcraft/api";
 import {
 	type InstallServices,
+	mediaPolicy,
 	normaliseHostname,
 	PermissionDeniedError,
 	SiteNotFoundError,
@@ -71,7 +72,10 @@ async function mediaPreview(services: InstallServices, request: Request, rest: s
 	}
 	const file = await services.media.file(site, name);
 	const response = file
-		? await mediaFileResponse(request, file, { "cache-control": "private, max-age=31536000, immutable" })
+		? await mediaFileResponse(request, file, {
+				"cache-control": "private, max-age=31536000, immutable",
+				"content-security-policy": mediaPolicy(file.contentType),
+			})
 		: null;
 	return response ?? notFound();
 }

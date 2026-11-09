@@ -10,9 +10,9 @@ import { defineSchedule } from "../jobs/schedules.ts";
  */
 export const searchRebuild = defineJob({
 	name: "search.rebuild",
-	payload: z.object({ siteId: z.uuid() }),
+	payload: z.object({ siteId: z.uuid(), claimedAt: z.iso.datetime() }),
 	queue: { retryLimit: 5, retryDelay: 60, retryBackoff: true, expireInSeconds: 3600 },
-	run: ({ siteId }, context) => context.search.rebuild(siteId),
+	run: ({ siteId, claimedAt }, context) => context.search.rebuild(siteId, claimedAt),
 });
 
 /** Every minute: a `search.rebuild` job for each Site whose search index is behind. */
@@ -21,7 +21,7 @@ export const searchRebuildDue = defineJob({
 	payload: z.object({}),
 	queue: { retryLimit: 0 },
 	run: async (_payload, context) => {
-		for (const siteId of await context.search.claimStaleIndexes()) await context.jobs.send(searchRebuild, { siteId });
+		for (const claim of await context.search.claimStaleIndexes()) await context.jobs.send(searchRebuild, claim);
 	},
 });
 

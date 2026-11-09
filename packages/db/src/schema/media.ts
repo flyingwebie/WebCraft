@@ -8,6 +8,7 @@ import {
 	integer,
 	jsonb,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	unique,
@@ -16,7 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
-import { sites } from "./tenancy.ts";
+import { sites, workspaces } from "./tenancy.ts";
 
 // The Media library (`@webcraft/core` › media). Folders, Media items and their stored files are Site
 // data: each carries `workspace_id` and `site_id`, with a foreign key to `sites (workspace_id, id)`.
@@ -74,6 +75,20 @@ export const media = pgTable(
 		uploadedBy: uuid("uploaded_by").references(() => people.id, { onDelete: "set null" }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		/**
+		 * When it went to the Trash, and who put it there; null while it is in the library. A file in the
+		 * Trash isn't served or shown on pages, and is deleted for good 30 days later.
+		 */
+		trashedAt: timestamp("trashed_at", { withTimezone: true }),
+		trashedBy: uuid("trashed_by").references(() => people.id, { onDelete: "set null" }),
+		/** An image's Focal point, as percentages of its width and height (0 to 100); null for none. */
+		focalX: integer("focal_x"),
+		focalY: integer("focal_y"),
+		/**
+		 * Why the worker refused the file (`failed`), or the file meant to replace it (the item keeps
+		 * its own): `{ reason, replacement?, found? }`. Null when nothing was refused.
+		 */
+		failure: jsonb("failure"),
 	},
 	(table) => [
 		foreignKey({
@@ -89,8 +104,13 @@ export const media = pgTable(
 		}),
 		unique("media_site_id_id_unique").on(table.siteId, table.id),
 		index("media_site_id_created_at_index").on(table.siteId, table.createdAt),
+		index("media_site_id_trashed_at_index").on(table.siteId, table.trashedAt),
 		check("media_kind_known", sql`${table.kind} in ('image', 'document', 'video', 'audio')`),
 		check("media_status_known", sql`${table.status} in ('processing', 'ready', 'failed')`),
+		check(
+			"media_focal_point_known",
+			sql`(${table.focalX} is null and ${table.focalY} is null) or (${table.focalX} between 0 and 100 and ${table.focalY} between 0 and 100)`,
+		),
 	],
 );
 
@@ -119,6 +139,11 @@ export const mediaFiles = pgTable(
 		/** Where the storage keeps it: `<workspace id>/<site id>/media/<name>`. */
 		key: text("key").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		/**
+		 * When Replace file put another file in its place: it is still served under its name for 30
+		 * days, for pages loaded before, then deleted. Null for the item's current files.
+		 */
+		retiredAt: timestamp("retired_at", { withTimezone: true }),
 	},
 	(table) => [
 		foreignKey({
@@ -133,6 +158,8 @@ export const mediaFiles = pgTable(
 		}).onDelete("cascade"),
 		index("media_files_site_id_name_index").on(table.siteId, table.name),
 		index("media_files_media_id_index").on(table.mediaId),
+		// Identical bytes uploaded twice share one stored file: it is removed only once no row names it.
+		index("media_files_key_index").on(table.key),
 		check("media_files_role_known", sql`${table.role} in ('upload', 'original', 'variant')`),
 		check("media_files_storage_known", sql`${table.storage} in ('disk', 's3')`),
 	],
@@ -164,5 +191,28 @@ export const installStorage = pgTable(
 	(table) => [
 		check("install_storage_single_row", sql`${table.id} = 1`),
 		check("install_storage_kind_known", sql`${table.kind} in ('disk', 's3')`),
+	],
+);
+
+/**
+ * A Workspace's Media storage quota, set by Staff: the most bytes its Sites' Media may take in the
+ * Install's storage (identical files stored once counted once). Uploads that would go past it are
+ * refused. `warned_at` is when the Workspace was last told it passed 80%; cleared once it is back
+ * under, so the next time it passes 80% it is told again. No row: no quota.
+ */
+export const mediaQuotas = pgTable(
+	"media_quotas",
+	{
+		workspaceId: uuid("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+		quotaBytes: bigint("quota_bytes", { mode: "number" }).notNull(),
+		warnedAt: timestamp("warned_at", { withTimezone: true }),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
+	},
+	(table) => [
+		primaryKey({ columns: [table.workspaceId] }),
+		check("media_quotas_positive", sql`${table.quotaBytes} > 0`),
 	],
 );

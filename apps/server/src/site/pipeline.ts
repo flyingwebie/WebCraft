@@ -7,7 +7,7 @@ import {
 	isRobot,
 	LIBRARY_PATH,
 	MEDIA_PATH,
-	MEDIA_POLICY,
+	mediaPolicy,
 	normaliseHostname,
 	PAGE_PARAMETER,
 	pageHref,
@@ -319,7 +319,7 @@ async function mediaFile(services: InstallServices, request: Request, host: Site
 	const response = file
 		? await mediaFileResponse(request, file, {
 				"cache-control": MEDIA_CACHE_CONTROL,
-				"content-security-policy": MEDIA_POLICY,
+				"content-security-policy": mediaPolicy(file.contentType),
 				...addressHeaders(host),
 			})
 		: null;

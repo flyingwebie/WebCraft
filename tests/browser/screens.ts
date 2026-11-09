@@ -24,8 +24,10 @@ export type ScreenFixture = {
 	siteId: string;
 	inviteToken: string;
 	joinToken: string;
-	/** A photo in the Site's Media library, in a folder, with its sizes made. */
+	/** A photo in the Site's Media library, in a folder, with its sizes made, used by a published Entry. */
 	mediaId: string;
+	/** A document in the Site's Trash. */
+	trashedMediaId: string;
 };
 
 export const ADMIN_SCREENS: readonly Screen[] = [
@@ -50,6 +52,12 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 		as: "owner",
 	},
 	{ name: "Site › Media, no match", path: ({ siteId }) => `/sites/${siteId}/media?q=nothing-matches`, as: "staff" },
+	{ name: "Site › Media, the Trash", path: ({ siteId }) => `/sites/${siteId}/media?trash=true`, as: "staff" },
+	{
+		name: "Site › Media, a file in the Trash",
+		path: ({ siteId, trashedMediaId }) => `/sites/${siteId}/media?trash=true&file=${trashedMediaId}`,
+		as: "staff",
+	},
 	{ name: "Install settings › Storage", path: "/settings/storage", as: "superadmin" },
 	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
 	{ name: "Install › Email log", path: "/email-log", as: "superadmin" },

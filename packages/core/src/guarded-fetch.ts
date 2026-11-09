@@ -18,8 +18,11 @@ import type { OutgoingHttp } from "./http.ts";
 export type GuardedFetch = (request: Request, options: GuardedFetchOptions) => Promise<Response>;
 
 export type GuardedFetchOptions = {
-	/** The host names that may be called, in lower case. */
-	allowedHosts: readonly string[];
+	/**
+	 * The host names that may be called, in lower case; `any` for any host on the public internet
+	 * (Import from URL, where a person gives the address). Every address is checked either way.
+	 */
+	allowedHosts: readonly string[] | "any";
 	/** At most 3 (the default); 0 hands a redirect back without following it. */
 	maxRedirects?: number;
 	timeoutMs?: number;
@@ -63,15 +66,31 @@ export class GuardedFetchError extends Error {
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 
-export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns }): GuardedFetch {
+/**
+ * The guarded fetcher on top of outgoing HTTP and DNS. `ceilings` raise the most a caller may ask
+ * for (`GUARDED_FETCH_LIMITS.maxMaxBytes`, `.maxTimeoutMs`): only Import from URL does, for files up
+ * to the Install's largest; the fetcher Modules and Webhooks use keeps the usual ones.
+ */
+export function createGuardedFetch({
+	http,
+	dns,
+	ceilings = {},
+}: {
+	http: OutgoingHttp;
+	dns: Dns;
+	ceilings?: { maxBytes?: number; timeoutMs?: number };
+}): GuardedFetch {
+	const maxMaxBytes = ceilings.maxBytes ?? GUARDED_FETCH_LIMITS.maxMaxBytes;
+	const maxTimeoutMs = ceilings.timeoutMs ?? GUARDED_FETCH_LIMITS.maxTimeoutMs;
 	return async (request, options) => {
 		const maxRedirects = Math.min(
 			options.maxRedirects ?? GUARDED_FETCH_LIMITS.maxRedirects,
 			GUARDED_FETCH_LIMITS.maxRedirects,
 		);
-		const timeoutMs = Math.min(options.timeoutMs ?? GUARDED_FETCH_LIMITS.timeoutMs, GUARDED_FETCH_LIMITS.maxTimeoutMs);
-		const maxBytes = Math.min(options.maxBytes ?? GUARDED_FETCH_LIMITS.maxBytes, GUARDED_FETCH_LIMITS.maxMaxBytes);
-		const allowed = new Set(options.allowedHosts.map((host) => host.toLowerCase()));
+		const timeoutMs = Math.min(options.timeoutMs ?? GUARDED_FETCH_LIMITS.timeoutMs, maxTimeoutMs);
+		const maxBytes = Math.min(options.maxBytes ?? GUARDED_FETCH_LIMITS.maxBytes, maxMaxBytes);
+		const allowed =
+			options.allowedHosts === "any" ? "any" : new Set(options.allowedHosts.map((host) => host.toLowerCase()));
 		const own = new Set((options.installAddresses ?? []).map(canonicalAddress));
 		const controller = new AbortController();
 		const timer = setTimeout(
@@ -111,7 +130,10 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
 				const location = response.headers.get("location");
 				// With no redirects allowed, a redirect is handed back as it is, for the caller to read.
 				if (!REDIRECTS.has(response.status) || location === null || maxRedirects === 0) {
-					return await Promise.race([readLimited(response, maxBytes), aborted]);
+					const read = await Promise.race([readLimited(response, maxBytes), aborted]);
+					// As `fetch` does, the answer says where it finally came from.
+					Object.defineProperty(read, "url", { value: hop.url.toString() });
+					return read;
 				}
 				await response.body?.cancel();
 				if (redirects >= maxRedirects) {
@@ -131,7 +153,7 @@ export function createGuardedFetch({ http, dns }: { http: OutgoingHttp; dns: Dns
  */
 async function checkTarget(
 	url: URL,
-	allowed: ReadonlySet<string>,
+	allowed: ReadonlySet<string> | "any",
 	own: ReadonlySet<string>,
 	dns: Dns,
 ): Promise<string> {
@@ -142,7 +164,9 @@ async function checkTarget(
 		);
 	}
 	const host = url.hostname.toLowerCase();
-	if (!allowed.has(host)) throw new GuardedFetchError("host", `${host} isn't one of the hosts that may be called.`);
+	if (allowed !== "any" && !allowed.has(host)) {
+		throw new GuardedFetchError("host", `${host} isn't one of the hosts that may be called.`);
+	}
 	const literal = host.startsWith("[") ? host.slice(1, -1) : host;
 	let addresses: string[];
 	if (isIP(literal)) {

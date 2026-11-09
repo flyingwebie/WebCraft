@@ -10,6 +10,7 @@ import {
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
 import { mediaProcess, mediaVariants } from "../media/jobs.ts";
+import { mediaPurge, mediaPurgeSchedule } from "../media/trash.ts";
 import {
 	moduleDailyJobs,
 	moduleDailyJobsSchedule,
@@ -39,6 +40,7 @@ export const coreJobs = [
 	rateLimitsPurge,
 	mediaProcess,
 	mediaVariants,
+	mediaPurge,
 	moduleEventJob,
 	moduleJob,
 	moduleMissesJob,
@@ -65,6 +67,7 @@ export const coreSchedules = [
 	moduleHourlyJobsSchedule,
 	moduleDailyJobsSchedule,
 	siteFilesPurgeSchedule,
+	mediaPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
 	searchRebuildDueSchedule,

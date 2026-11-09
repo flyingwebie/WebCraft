@@ -132,6 +132,16 @@ export const SYSTEM_EMAIL_TYPES = {
 		category: "alert",
 		data: z.object({ siteName: name, lastResponse: z.string().max(1000), settingsPath: adminPath }),
 	},
+	"media-quota-warning": {
+		category: "alert",
+		data: z.object({
+			workspaceName: name,
+			percent: z.number().int().min(80).max(100),
+			usedBytes: z.number().int().min(0),
+			quotaBytes: z.number().int().positive(),
+			workspacePath: adminPath,
+		}),
+	},
 	"webhook-switched-off": {
 		category: "alert",
 		data: z.object({
