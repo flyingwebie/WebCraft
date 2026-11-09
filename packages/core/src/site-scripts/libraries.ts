@@ -134,8 +134,8 @@ export async function listLibraries(scope: SiteScope): Promise<Library[]> {
  * Refuses what can't be one (`LibraryRefusedError`, with the problem).
  */
 export async function addLibrary(scope: SiteScope, deps: LibraryDeps, input: LibraryInput): Promise<Library> {
-	const download = await downloadLibrary(deps.fetch, input);
 	if ((await scope.count(libraries)) >= LIBRARIES_PER_SITE) throw new LibraryRefusedError("limit");
+	const download = await downloadLibrary(deps.fetch, input);
 	const file = await keep(scope, deps.storage, download.bytes, download.fileName);
 	return scope.transaction(async (tx) => {
 		const [last] = await tx.select(libraries, undefined, { orderBy: [sql`${libraries.position} desc`], limit: 1 });

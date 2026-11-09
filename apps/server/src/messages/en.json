@@ -80,7 +80,9 @@
 		"DOMAIN_TAKEN": "That domain is already one of this Install's domains. To move it here, remove it from its Site first.",
 		"DOMAIN_NOT_FOUND": "This Site doesn't have that domain any more.",
 		"DOMAIN_NOT_VERIFIED": "Only a verified domain can become the Primary domain. Wait until it is verified.",
-		"DOMAIN_IS_LANGUAGES": "This is a language's domain: change it in Languages."
+		"DOMAIN_IS_LANGUAGES": "This is a language's domain: change it in Languages.",
+		"LIBRARY_NOT_FOUND": "This Library is no longer on the Site. Reload the page.",
+		"OUTSIDE_SCRIPT_NOT_FOUND": "This outside script is no longer on the Site. Reload the page."
 	},
 	"roles": {
 		"superadmin": "Superadmin",

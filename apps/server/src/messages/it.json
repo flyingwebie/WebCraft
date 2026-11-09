@@ -80,7 +80,9 @@
 		"DOMAIN_TAKEN": "Quel dominio è già uno dei domini di questa Install. Per spostarlo qui, rimuovilo prima dal suo sito.",
 		"DOMAIN_NOT_FOUND": "Questo sito non ha più quel dominio.",
 		"DOMAIN_NOT_VERIFIED": "Solo un dominio verificato può diventare il dominio principale. Aspetta che sia verificato.",
-		"DOMAIN_IS_LANGUAGES": "Questo è il dominio di una lingua: cambialo in Lingue."
+		"DOMAIN_IS_LANGUAGES": "Questo è il dominio di una lingua: cambialo in Lingue.",
+		"LIBRARY_NOT_FOUND": "Questa libreria non è più nel sito. Ricarica la pagina.",
+		"OUTSIDE_SCRIPT_NOT_FOUND": "Questo script esterno non è più nel sito. Ricarica la pagina."
 	},
 	"roles": {
 		"superadmin": "Superadmin",

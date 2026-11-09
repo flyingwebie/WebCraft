@@ -313,8 +313,3 @@ export async function outsideScriptCode(scope: Pick<VisitorScope, "first">, hash
 	const part = stored(row).find((candidate) => candidate.kind === "code" && candidate.hash === hash);
 	return part?.kind === "code" ? part.code : null;
 }
-
-/** Whether `value` is a placement. */
-export function isPlacement(value: string): value is OutsideScriptPlacement {
-	return (OUTSIDE_SCRIPT_PLACEMENTS as readonly string[]).includes(value);
-}
