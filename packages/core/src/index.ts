@@ -38,6 +38,7 @@ export {
 } from "./confirmations.ts";
 export * from "./content/index.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
+export * from "./design-system/index.ts";
 export * from "./email/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export { fetchHttp, type OutgoingHttp } from "./http.ts";

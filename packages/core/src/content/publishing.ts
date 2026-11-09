@@ -2,6 +2,8 @@ import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
 import { and, eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
+import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
+import { keepReplacedStylesheet, siteStyles } from "../design-system/stylesheet.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -29,10 +31,14 @@ import { pathFor } from "./url-patterns.ts";
 import { storedVersion } from "./values.ts";
 
 /**
- * One item to publish. Components, Forms and the Design system join Entries, Templates and the
- * Globals; Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
+ * One item to publish. Components and Forms join Entries, Templates, the Globals and the Design
+ * system; Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
  */
-export type PublishItem = { kind: "entry"; id: string } | { kind: "template"; id: string } | { kind: "globals" };
+export type PublishItem =
+	| { kind: "entry"; id: string }
+	| { kind: "template"; id: string }
+	| { kind: "globals" }
+	| { kind: "designSystem" };
 
 /** A published path that a publish changed: where visitors found an Entry or Page, and where now. */
 export type PathChange = { entryId: string; language: string; from: string; to: string };
@@ -45,10 +51,15 @@ export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Da
 
 /**
  * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
- * (Editors, Owners, Staff); Structure, such as a Template, takes `structure.edit` (Staff only).
+ * (Editors, Owners, Staff); Structure (Templates, the Design system) takes `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
-	return item.kind === "template" ? "structure.edit" : "entry.publish";
+	return item.kind === "template" || item.kind === "designSystem" ? "structure.edit" : "entry.publish";
+}
+
+/** Items whose publish can change the Site's stylesheet: what it is built from. */
+function changesStyles(item: PublishItem): boolean {
+	return item.kind === "template" || item.kind === "designSystem";
 }
 
 /**
@@ -61,23 +72,37 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
  * values are empty (`EntryIncompleteError`), an Entry whose slug another published Entry of its Post
  * Type has (`EntrySlugTakenError`; for a Page, another published Page under the same parent), a Page
  * whose parent Page isn't published (`PageParentUnpublishedError`) or whose path, or that of a Page
- * under it, a Post Type's URL pattern owns (`PathTakenError`), and a Template that no longer fits
- * what it renders (`ElementTreeInvalidError`).
+ * under it, a Post Type's URL pattern owns (`PathTakenError`), a Template that no longer fits
+ * what it renders (`ElementTreeInvalidError`), and a Design system that can't be used as it is
+ * (`DesignSystemInvalidError`). Publishing a Template or the Design system keeps the stylesheet it
+ * replaces for a while, for pages loaded just before.
  */
 export async function publish(scope: SiteScope, item: PublishItem): Promise<Published> {
 	const permission = publishPermission(item);
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
 	return scope.transaction(async (tx) => {
-		const published =
-			item.kind === "entry"
-				? await publishEntry(tx, item.id)
-				: item.kind === "template"
-					? await publishTemplate(tx, item.id)
-					: await publishGlobals(tx);
+		const stylesBefore = changesStyles(item) ? await siteStyles(tx) : undefined;
+		const published = await publishItem(tx, item);
+		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);
 		return published;
 	});
+}
+
+async function publishItem(scope: SiteScope, item: PublishItem): Promise<Published> {
+	switch (item.kind) {
+		case "entry":
+			return publishEntry(scope, item.id);
+		case "template":
+			return publishTemplate(scope, item.id);
+		case "globals":
+			return publishGlobals(scope);
+		case "designSystem": {
+			const published = await publishDesignSystem(scope);
+			return { kind: "designSystem", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
+		}
+	}
 }
 
 async function publishEntry(scope: SiteScope, entryId: string): Promise<Published> {
@@ -195,6 +220,7 @@ async function publishTemplate(scope: SiteScope, templateId: string): Promise<Pu
 	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes)
 	// may have changed since the Draft was saved.
 	const tree = await checkTemplateForPublish(scope, row);
+	await publishGeneratedClasses(scope, tree);
 	const now = scope.now();
 	await scope.update(
 		templates,

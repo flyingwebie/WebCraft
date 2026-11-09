@@ -25,7 +25,13 @@ export const COLOUR_STEPS: readonly string[] = [...SHADE_STEPS, ...TRANSPARENCY_
 export type ColourMode = "light" | "dark";
 
 /** How far each step sits from the base towards the end of the ramp it is on (0 is the base, 1 the end). */
-const TOWARDS_BACKGROUND: Readonly<Record<string, number>> = { "10": 1, "20": 0.86, "30": 0.68, "40": 0.48, "50": 0.25 };
+const TOWARDS_BACKGROUND: Readonly<Record<string, number>> = {
+	"10": 1,
+	"20": 0.86,
+	"30": 0.68,
+	"40": 0.48,
+	"50": 0.25,
+};
 const TOWARDS_TEXT: Readonly<Record<string, number>> = { "70": 0.22, "80": 0.46, "90": 0.7, "95": 0.88 };
 
 /** The lightness at each end of the ramp, by mode: the background end and the text end. */
@@ -48,8 +54,7 @@ export function normaliseHex(value: string): string | undefined {
 export function normaliseHexWithAlpha(value: string): string | undefined {
 	if (!HEX_WITH_ALPHA.test(value)) return undefined;
 	let digits = value.slice(1).toLowerCase();
-	if (digits.length <= 4)
-		digits = [...digits].map((digit) => digit + digit).join("");
+	if (digits.length <= 4) digits = [...digits].map((digit) => digit + digit).join("");
 	return `#${digits.length === 6 ? `${digits}ff` : digits}`;
 }
 

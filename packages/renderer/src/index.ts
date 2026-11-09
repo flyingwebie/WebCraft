@@ -10,6 +10,47 @@ export {
 	TEMPLATE_COMMANDS,
 	type TemplateCommand,
 } from "./commands.ts";
+export {
+	CASCADE_LAYERS,
+	compileStylesheet,
+	contentHash,
+	type StylesheetUse,
+} from "./design-system/compile.ts";
+export {
+	CSS_MAX_LENGTH,
+	type CssKind,
+	type CssNames,
+	type CssPart,
+	type CssPrintNames,
+	type CssProblem,
+	type CssText,
+	printCss,
+	readCss,
+	referencesIn,
+} from "./design-system/css.ts";
+export {
+	BASE_TARGETS,
+	CLASS_NAME,
+	DESIGN_SYSTEM_LIMITS,
+	type DesignClass,
+	type DesignSystem,
+	DesignSystemInvalidError,
+	type DesignSystemNames,
+	type DesignSystemProblem,
+	defaultDesignSystem,
+	designSystemNames,
+	designSystemProblems,
+	isReservedName,
+	readCssAt,
+	readDesignSystem,
+} from "./design-system/document.ts";
+export {
+	DEFAULT_TOKENS,
+	type TokenRef,
+	type Tokens,
+	UTILITY_ID_PREFIX,
+	utilitiesOf,
+} from "./design-system/tokens.ts";
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 export {
 	COMPARE_OPERATORS,
@@ -51,6 +92,7 @@ export {
 	builtInNotFoundPage,
 	directionOf,
 	PAGE_HOOKS,
+	type PageStyles,
 	type PageToRender,
 	pageWords,
 	renderPage,

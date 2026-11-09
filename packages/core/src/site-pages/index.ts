@@ -2,6 +2,7 @@ import type { Database } from "@webcraft/db";
 import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
 import {
 	builtInNotFoundPage,
+	designSystemNames,
 	directionOf,
 	type ElementTree,
 	mediaReferencesIn,
@@ -37,7 +38,7 @@ import {
 	type UrlPattern,
 } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
-import { listClasses } from "../design-system/classes.ts";
+import { type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
@@ -89,7 +90,15 @@ export type SitePages = {
 	 * variant, never a raw upload. Null when the Site has none by that name.
 	 */
 	mediaFile(host: SiteHost, name: string): Promise<StoredMediaFile | null>;
+	/**
+	 * A stylesheet of the Site by the name it is served under (`/_wc/css/<name>`): the current
+	 * one, or one a publish replaced lately. Null for any other name.
+	 */
+	stylesheet(host: SiteHost, name: string): Promise<string | null>;
 };
+
+/** How many Sites' styles a web process keeps built at most. */
+const KEPT_STYLES = 500;
 
 export function createSitePages(options: {
 	database: Database;
@@ -98,6 +107,22 @@ export function createSitePages(options: {
 	storage: InstallStorage;
 }): SitePages {
 	const { database, config, data, storage } = options;
+	// Each Site's styles, built once per page cache generation: a publish that changes them raises it.
+	const built = new Map<string, { generation: number; styles: Promise<SiteStyles> }>();
+	const stylesOf = (host: SiteHost): Promise<SiteStyles> => {
+		const kept = built.get(host.site.id);
+		if (kept && kept.generation === host.cacheGeneration) return kept.styles;
+		const styles = siteStyles(data.visitors(host.site));
+		// A request that read an older generation never replaces newer styles.
+		if (kept && kept.generation > host.cacheGeneration) return styles;
+		built.delete(host.site.id);
+		built.set(host.site.id, { generation: host.cacheGeneration, styles });
+		if (built.size > KEPT_STYLES) built.delete(built.keys().next().value as string);
+		styles.catch(() => {
+			if (built.get(host.site.id)?.styles === styles) built.delete(host.site.id);
+		});
+		return styles;
+	};
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
@@ -126,20 +151,25 @@ export function createSitePages(options: {
 						(await findPage(scope, postTypes, segments, host.defaultLanguage)));
 			if (!found) return null;
 			if (segments.length > 0 && found.entry.id === home) return { kind: "redirect", location: "/" };
-			return { kind: "page", html: await renderEntryPage(scope, host, found) };
+			return { kind: "page", html: await renderEntryPage(scope, host, await stylesOf(host), found) };
 		},
 
 		async notFound(host) {
 			const scope = data.visitors(host.site);
 			const chosen = await specialPageId(scope, "notFound");
 			const found = chosen && (await publishedPage(scope, await listPostTypes(scope), chosen));
-			if (found) return { html: await renderEntryPage(scope, host, found) };
+			const styles = await stylesOf(host);
+			if (found) return { html: await renderEntryPage(scope, host, styles, found) };
 			const builtIn = builtInNotFoundPage(host.defaultLanguage);
-			return { html: await renderSitePage(scope, host, { ...builtIn, values: () => undefined }) };
+			return { html: await renderSitePage(scope, host, styles, { ...builtIn, values: () => undefined }) };
 		},
 
 		mediaFile(host, name) {
 			return storedFile(data.visitors(host.site), storage, name);
+		},
+
+		async stylesheet(host, name) {
+			return stylesheetFile(data.visitors(host.site), await stylesOf(host), name);
 		},
 	};
 }
@@ -236,7 +266,12 @@ async function publishedPage(
 	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT };
 }
 
-async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: FoundEntry): Promise<string> {
+async function renderEntryPage(
+	scope: VisitorScope,
+	host: SiteHost,
+	styles: SiteStyles,
+	found: FoundEntry,
+): Promise<string> {
 	const { postType, entry, content } = found;
 	const language = host.defaultLanguage;
 	const languages = { language, defaultLanguage: host.defaultLanguage };
@@ -270,6 +305,7 @@ async function renderEntryPage(scope: VisitorScope, host: SiteHost, found: Found
 	return renderSitePage(
 		scope,
 		host,
+		styles,
 		{ title: published.title, content, values: (path) => resolvePath(root, path) },
 		// Media values the content may read: its own, and its related Entries'.
 		[published.fields, [...related.values()].map((entry) => entry.values)],
@@ -286,12 +322,14 @@ async function siteParts(
 }
 
 /**
- * A page of the Site in its Site template (the published one, or the built-in one), with its
- * Classes. The Site template reads the Globals as `site.x`.
+ * A page of the Site in its Site template (the published one, or the built-in one), with the names
+ * of its Classes and its stylesheet from the published Design system. The Site template reads the
+ * Globals as `site.x`.
  */
 async function renderSitePage(
 	scope: VisitorScope,
 	host: SiteHost,
+	styles: SiteStyles,
 	page: Pick<PageToRender, "title" | "content" | "values">,
 	contentValues: unknown = null,
 ): Promise<string> {
@@ -300,7 +338,7 @@ async function renderSitePage(
 	const globalValues = publishedGlobals(await scope.first(globals), languages);
 	const site = globalsParts(globalValues.fields, globalValues.values);
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
-	const classNames = new Map((await listClasses(scope)).map((siteClass) => [siteClass.id, siteClass.name]));
+	const names = designSystemNames(styles.designSystem);
 	const siteTemplate = await publishedSiteTemplate(scope);
 	// The Media the page may show: `media:<id>` written in either template, and every media value the
 	// page reads (its content's, the Globals'). Ids that aren't the Site's ready Media find nothing.
@@ -317,8 +355,9 @@ async function renderSitePage(
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		siteTemplate,
 		siteValues: (path) => resolvePath(siteRoot, path),
-		className: (classId) => classNames.get(classId),
+		className: names.nameOf,
 		media: (id) => shown.get(id),
+		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
 	});
 }
 

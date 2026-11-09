@@ -11,7 +11,8 @@ import {
 import { and, eq, isNull, type SQL } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
-import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
+import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
+import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PagesHaveNoEntryTemplateError, TemplateNotFoundError } from "./errors.ts";
@@ -156,7 +157,7 @@ export async function saveSiteTemplate(scope: SiteScope, tree: unknown): Promise
 }
 
 async function saveTemplate(scope: SiteScope, target: TemplateTarget, tree: unknown): Promise<Template> {
-	const { ids } = classCatalogue(await listClasses(scope));
+	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	const draft = parseTemplate(tree, target, ids);
 	return retryOnRace(() => scope.transaction((tx) => writeTemplateDraft(tx, target, draft)));
 }
@@ -185,7 +186,7 @@ async function saveTemplateMarkup(
 	markup: string,
 ): Promise<SavedTemplateMarkup> {
 	return retryOnRace(async () => {
-		const catalogue = classCatalogue(await listClasses(scope));
+		const catalogue = classCatalogue(await draftDesignSystem(scope));
 		const { tree, notices } = parseTemplateMarkup(markup, {
 			...rulesFor(target),
 			classNamed: catalogue.named,
@@ -219,7 +220,7 @@ async function templateMarkup(
 	template: Template | null,
 ): Promise<{ template: Template | null; markup: TemplateMarkup | null }> {
 	if (!template) return { template: null, markup: null };
-	const catalogue = classCatalogue(await listClasses(scope));
+	const catalogue = classCatalogue(await draftDesignSystem(scope));
 	return {
 		template,
 		markup: {
@@ -259,8 +260,7 @@ async function retryOnRace<T>(save: () => Promise<T>): Promise<T> {
 			return await save();
 		} catch (error) {
 			const raced =
-				isUniqueViolation(error, "templates_site_id_kind_post_type_id_unique") ||
-				isUniqueViolation(error, "classes_site_id_name_unique");
+				isUniqueViolation(error, "templates_site_id_kind_post_type_id_unique") || error instanceof ClassRaceError;
 			if (!raced || attempt >= 3) throw error;
 		}
 	}
@@ -289,7 +289,7 @@ export async function checkTemplateForPublish(scope: SiteScope, row: TemplateRow
 		row.kind === "site"
 			? await siteTemplateTarget(scope)
 			: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
-	const { ids } = classCatalogue(await listClasses(scope));
+	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	return parseTemplate(row.draft, target, ids);
 }
 

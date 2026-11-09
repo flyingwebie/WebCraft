@@ -6,6 +6,7 @@ import {
 	normaliseHostname,
 	pathSegments,
 	type SiteHost,
+	STYLESHEET_PATH,
 } from "@webcraft/core";
 
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
@@ -39,6 +40,9 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		return readOnly(request, async () => {
 			if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
 				return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));
+			}
+			if (url.pathname.startsWith(STYLESHEET_PATH)) {
+				return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));
 			}
 			const segments = pathSegments(url.pathname);
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
@@ -75,6 +79,33 @@ async function mediaFile(services: InstallServices, request: Request, host: Site
 		services.log.error("A Media file is missing from storage", { siteId: host.site.id, name });
 	}
 	return response ?? plainText(404, "Not Found", addressHeaders(host));
+}
+
+/**
+ * The Site's stylesheet, `/_wc/css/<hash>.css`: named by the hash of what it holds, so it may
+ * be kept for a year like Media files. Any other name is a plain 404.
+ */
+async function stylesheet(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	name: string,
+): Promise<Response> {
+	const css = await services.sitePages.stylesheet(host, name);
+	if (css === null) return plainText(404, "Not Found", addressHeaders(host));
+	return immutableFile(request, host, css, "text/css; charset=utf-8", `"${name.slice(0, -".css".length)}"`);
+}
+
+/** A file named by its content hash: kept for a year, answered with 304 while the ETag holds. */
+function immutableFile(request: Request, host: SiteHost, body: string, type: string, etag: string): Response {
+	const headers: Record<string, string> = {
+		"cache-control": MEDIA_CACHE_CONTROL,
+		etag,
+		"x-content-type-options": "nosniff",
+		...addressHeaders(host),
+	};
+	if (matchesETag(request.headers.get("if-none-match"), etag)) return new Response(null, { status: 304, headers });
+	return new Response(body, { status: 200, headers: { "content-type": type, ...headers } });
 }
 
 /**

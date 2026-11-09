@@ -60,9 +60,10 @@ export type ParseMarkupOptions = {
 	classNamed?: (name: string) => string | undefined;
 	/**
 	 * The generated Class for an inline style's declarations (canonical, such as `color: red;`): one
-	 * the Site has, or a new one. Inline styles are refused when absent.
+	 * the Site has, or a new one; or why the style can't become one. Inline styles are refused when
+	 * absent.
 	 */
-	classForStyle?: (declarations: string) => { id: string; name: string };
+	classForStyle?: (declarations: string) => { id: string; name: string } | { problem: string };
 	/** Makes an id for an element written without one; random by default. */
 	newId?: () => string;
 };
@@ -703,6 +704,10 @@ class MarkupParser {
 			return;
 		}
 		const generated = this.options.classForStyle(read.declarations);
+		if ("problem" in generated) {
+			this.problem(style.valueOffset, generated.problem);
+			return;
+		}
 		if (!classes.includes(generated.id)) classes.push(generated.id);
 		this.notice(
 			style.offset,

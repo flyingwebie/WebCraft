@@ -53,6 +53,16 @@ export type PageToRender = {
 	className?: (classId: string) => string | undefined;
 	/** The Site's Media items that `media:<id>` refers to, for both templates. */
 	media?: MediaReader;
+	/** How the page is styled: the Site's published Design system (ADR 0009). */
+	styles?: PageStyles;
+};
+
+/** What a page needs from the Site's published Design system. */
+export type PageStyles = {
+	/** The address of the Site's stylesheet, such as `/_wc/css/3f9a1c2b7d4e5f60.css`. */
+	stylesheet: string;
+	/** Whether the Design system has dark values, which follow the visitor's device (and the theme toggle). */
+	darkMode: boolean;
 };
 
 /**
@@ -87,6 +97,7 @@ export function renderPage(page: PageToRender): string {
 		'<meta charset="utf-8">',
 		'<meta name="viewport" content="width=device-width, initial-scale=1">',
 		`<title>${escapeText(title)}</title>`,
+		...headStyles(page.styles),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
@@ -95,6 +106,15 @@ export function renderPage(page: PageToRender): string {
 		"</html>",
 		"",
 	].join("\n");
+}
+
+/** The page's stylesheet, and the colour schemes it supports when it has dark values. */
+function headStyles(styles: PageStyles | undefined): string[] {
+	if (!styles) return [];
+	return [
+		...(styles.darkMode ? ['<meta name="color-scheme" content="light dark">'] : []),
+		`<link rel="stylesheet" href="${escapeAttribute(styles.stylesheet)}">`,
+	];
 }
 
 function mainAttributes(element: ElementNode): readonly (readonly [string, string])[] {

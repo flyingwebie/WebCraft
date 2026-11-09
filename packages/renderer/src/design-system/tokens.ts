@@ -313,7 +313,11 @@ export function tokenNames(tokens: Tokens): TokenNames {
 		properties.push({ property: `--font-${font.name}`, ref: { token: font.id }, light: fontFamilyCss(font.family) });
 	}
 	for (const radius of tokens.radius) {
-		properties.push({ property: `--radius-${radius.name}`, ref: { token: radius.id }, light: dimensionCss(radius.value) });
+		properties.push({
+			property: `--radius-${radius.name}`,
+			ref: { token: radius.id },
+			light: dimensionCss(radius.value),
+		});
 	}
 	for (const each of tokens.shadows) {
 		properties.push({ property: `--shadow-${each.name}`, ref: { token: each.id }, light: shadowCss(each.layers) });

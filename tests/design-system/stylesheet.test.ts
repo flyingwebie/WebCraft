@@ -39,10 +39,10 @@ async function stylesheetOf(path: string): Promise<string> {
 }
 
 describe("every page links the Site's stylesheet", () => {
-	test("an Entry's page and the 404 page link the same content-hashed file under /_webcraft/css/", async () => {
+	test("an Entry's page and the 404 page link the same content-hashed file under /_wc/css/", async () => {
 		const href = await stylesheetOf("/blog/fresh-bread");
 
-		expect(href).toMatch(/^\/_webcraft\/css\/[0-9a-f]{16}\.css$/);
+		expect(href).toMatch(/^\/_wc\/css\/[0-9a-f]{16}\.css$/);
 		expect(await stylesheetOf("/no-such-page")).toBe(href);
 	});
 
@@ -61,7 +61,7 @@ describe("every page links the Site's stylesheet", () => {
 		const other = href.replace(/[0-9a-f]{16}/, "0000000000000000");
 
 		expect((await install.request(`${origin}${other}`)).status).toBe(404);
-		expect((await install.request(`${origin}/_webcraft/css/style.css`)).status).toBe(404);
+		expect((await install.request(`${origin}/_wc/css/style.css`)).status).toBe(404);
 		expect((await install.request(`https://elsewhere.sites.test${href}`)).status).toBe(404);
 	});
 

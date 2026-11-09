@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { stylesheetIn } from "../harness/site-styles.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -58,7 +59,8 @@ describe("create → publish → render → cache → republish", () => {
 
 		expect(page.status).toBe(200);
 		expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
-		expect(await page.text()).toBe(
+		const html = await page.text();
+		expect(html).toBe(
 			[
 				"<!doctype html>",
 				'<html lang="en" dir="ltr">',
@@ -66,6 +68,8 @@ describe("create → publish → render → cache → republish", () => {
 				'<meta charset="utf-8">',
 				'<meta name="viewport" content="width=device-width, initial-scale=1">',
 				"<title>Fresh bread daily · Acme Bakery</title>",
+				// The Site's stylesheet, named by the hash of what it holds.
+				`<link rel="stylesheet" href="${stylesheetIn(html)}">`,
 				"</head>",
 				"<body>",
 				'<a class="wc-skip-link" href="#wc-main">Skip to main content</a>',

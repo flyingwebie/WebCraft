@@ -16,7 +16,7 @@
  */
 import { createHash } from "node:crypto";
 
-import { type CssKind, type CssText, buildCss } from "./css.ts";
+import { buildCss, type CssKind, type CssText } from "./css.ts";
 import { BASE_TARGETS, type DesignSystem, designSystemNames } from "./document.ts";
 
 /** The cascade layers, in order. */
@@ -40,12 +40,16 @@ const RESET = [
 	"@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}}",
 ];
 
-/** WebCraft's own parts of every page, styled from tokens: they can be restyled in custom CSS. */
+/**
+ * WebCraft's own parts of every page: the focus style (from the focus token), the skip link (out of
+ * sight until it has focus) and the theme toggle. They use no token names, which Staff may change,
+ * and can be restyled in the Site's custom CSS, never removed.
+ */
 const PAGE_PARTS = [
 	":focus-visible{outline:var(--wc-focus-width) solid var(--wc-focus-color);outline-offset:var(--wc-focus-offset)}",
-	".wc-skip-link{position:absolute;inset-block-start:var(--space-xs);inset-inline-start:var(--space-xs);z-index:1000;padding:var(--space-2xs) var(--space-s);border-radius:var(--radius-s);background-color:var(--neutral-10);color:var(--primary-80)}",
+	".wc-skip-link{position:absolute;inset-block-start:0.5rem;inset-inline-start:0.5rem;z-index:2147483647;padding:0.5rem 1rem;background-color:Canvas;color:CanvasText;text-decoration:underline}",
 	".wc-skip-link:not(:focus){clip-path:inset(50%);block-size:1px;inline-size:1px;overflow:hidden;white-space:nowrap;padding:0}",
-	".wc-theme-toggle{display:inline-flex;align-items:center;min-block-size:24px;min-inline-size:24px;padding:var(--space-3xs) var(--space-xs);border:1px solid currentColor;border-radius:var(--radius-full);background-color:transparent;color:inherit;font:inherit;cursor:pointer}",
+	".wc-theme-toggle{display:inline-flex;align-items:center;min-block-size:24px;min-inline-size:24px;padding:0.25em 0.75em;border:1px solid currentColor;border-radius:999px;background-color:transparent;color:inherit;font:inherit;cursor:pointer}",
 ];
 
 /** The stylesheet for a Design system and what its pages use. */
@@ -118,7 +122,9 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 	];
 	return `${[
 		`@layer ${CASCADE_LAYERS.join(", ")};`,
-		...layers.filter(([, rules]) => rules.length > 0).map(([layer, rules]) => `@layer ${layer} {\n${rules.join("\n")}\n}`),
+		...layers
+			.filter(([, rules]) => rules.length > 0)
+			.map(([layer, rules]) => `@layer ${layer} {\n${rules.join("\n")}\n}`),
 	].join("\n")}\n`;
 }
 

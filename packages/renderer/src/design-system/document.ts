@@ -245,7 +245,7 @@ export function isReservedName(name: string): boolean {
 export function designSystemProblems(designSystem: DesignSystem): DesignSystemProblem[] {
 	const problems: DesignSystemProblem[] = [];
 	const problem = (at: string, message: string) => problems.push({ at, message });
-	tokenProblems(designSystem.tokens, problem);
+	tokenProblems(designSystem.tokens, problems);
 	if (problems.length > 0) return problems;
 
 	const names = designSystemNames(designSystem);
@@ -285,26 +285,30 @@ export function designSystemProblems(designSystem: DesignSystem): DesignSystemPr
 		checkCss(each.styles, `${at}.styles`);
 		checkCss(each.css, `${at}.css`);
 		for (const [breakpointId, css] of Object.entries(each.breakpoints)) {
-			if (!breakpointIds.has(breakpointId)) problem(`${at}.breakpoints`, "It names a breakpoint that isn't in the Design system.");
+			if (!breakpointIds.has(breakpointId))
+				problem(`${at}.breakpoints`, "It names a breakpoint that isn't in the Design system.");
 			checkCss(css, `${at}.breakpoints`);
 		}
 	});
 	for (const [target, css] of Object.entries(designSystem.baseStyles)) {
-		if (!(BASE_TARGETS as readonly string[]).includes(target)) problem(`baseStyles.${target}`, `Base styles can't style ${target}.`);
+		if (!(BASE_TARGETS as readonly string[]).includes(target))
+			problem(`baseStyles.${target}`, `Base styles can't style ${target}.`);
 		checkCss(css, `baseStyles.${target}`);
 	}
 	checkCss(designSystem.customCss, "customCss");
 	return problems;
 }
 
-function tokenProblems(tokens: Tokens, problem: (at: string, message: string) => void): void {
+function tokenProblems(tokens: Tokens, problems: DesignSystemProblem[]): void {
+	const problem = (at: string, message: string) => problems.push({ at, message });
 	const ids = new Set<string>();
 	const id = (value: string, at: string) => {
 		if (!DESIGN_ID.test(value) || ids.has(value)) problem(`${at}.id`, "Each token needs an id of its own.");
 		ids.add(value);
 	};
 	const named = <T extends { name: string }>(list: readonly T[], at: string, pattern: RegExp, what: string) => {
-		if (list.length > DESIGN_SYSTEM_LIMITS.tokensPerKind) problem(at, `There are at most ${DESIGN_SYSTEM_LIMITS.tokensPerKind} ${what}.`);
+		if (list.length > DESIGN_SYSTEM_LIMITS.tokensPerKind)
+			problem(at, `There are at most ${DESIGN_SYSTEM_LIMITS.tokensPerKind} ${what}.`);
 		const seen = new Set<string>();
 		list.forEach((each, index) => {
 			if (!pattern.test(each.name)) {
@@ -337,7 +341,10 @@ function tokenProblems(tokens: Tokens, problem: (at: string, message: string) =>
 		for (const mode of ["light", "dark"] as const) {
 			for (const [step, value] of Object.entries(colour[mode].steps)) {
 				if (!isShadeStep(step) || step === BASE_STEP) {
-					problem(`${at}.${mode}.steps.${step}`, `Only the shades ${SHADE_STEPS.filter((each) => each !== BASE_STEP).join(", ")} can be overridden; 60 is the base colour.`);
+					problem(
+						`${at}.${mode}.steps.${step}`,
+						`Only the shades ${SHADE_STEPS.filter((each) => each !== BASE_STEP).join(", ")} can be overridden; 60 is the base colour.`,
+					);
 				} else if (normaliseHex(value) !== value) {
 					problem(`${at}.${mode}.steps.${step}`, "Give a colour as #rrggbb.");
 				}
@@ -352,7 +359,8 @@ function tokenProblems(tokens: Tokens, problem: (at: string, message: string) =>
 		positive(scale.base.max, `${at}.base.max`, 1000);
 		if (!(scale.ratio.min >= 1 && scale.ratio.min <= 4)) problem(`${at}.ratio.min`, "A ratio is from 1 to 4.");
 		if (!(scale.ratio.max >= 1 && scale.ratio.max <= 4)) problem(`${at}.ratio.max`, "A ratio is from 1 to 4.");
-		if (scale.steps.length > DESIGN_SYSTEM_LIMITS.scaleSteps) problem(`${at}.steps`, `A scale has at most ${DESIGN_SYSTEM_LIMITS.scaleSteps} steps.`);
+		if (scale.steps.length > DESIGN_SYSTEM_LIMITS.scaleSteps)
+			problem(`${at}.steps`, `A scale has at most ${DESIGN_SYSTEM_LIMITS.scaleSteps} steps.`);
 		named(scale.steps, `${at}.steps`, STEP_NAME, "steps");
 		scale.steps.forEach((step, index) => {
 			id(step.id, `${at}.steps[${index}]`);
@@ -369,7 +377,8 @@ function tokenProblems(tokens: Tokens, problem: (at: string, message: string) =>
 	named(tokens.fonts, "tokens.fonts", TOKEN_NAME, "fonts");
 	tokens.fonts.forEach((font, index) => {
 		id(font.id, `tokens.fonts[${index}]`);
-		if (font.family.length === 0 || font.family.length > 10) problem(`tokens.fonts[${index}].family`, "Give 1 to 10 font names.");
+		if (font.family.length === 0 || font.family.length > 10)
+			problem(`tokens.fonts[${index}].family`, "Give 1 to 10 font names.");
 		for (const name of font.family) {
 			if (!/^[^"'\\;{}<>\p{Cc}]{1,100}$/u.test(name) || name.trim() !== name) {
 				problem(`tokens.fonts[${index}].family`, `${name} isn't a font name: no quotes, backslashes, ; { } < >.`);
@@ -399,9 +408,13 @@ function tokenProblems(tokens: Tokens, problem: (at: string, message: string) =>
 		each.layers.forEach((layer, layerIndex) => {
 			const lengths = [layer.offsetX, layer.offsetY, layer.blur, layer.spread];
 			if (lengths.some((value) => !Number.isFinite(value) || Math.abs(value) > 1000) || layer.blur < 0) {
-				problem(`${at}.layers[${layerIndex}]`, "Offsets, blur and spread are px from -1000 to 1000; blur isn't negative.");
+				problem(
+					`${at}.layers[${layerIndex}]`,
+					"Offsets, blur and spread are px from -1000 to 1000; blur isn't negative.",
+				);
 			}
-			if (normaliseHexWithAlpha(layer.color) !== layer.color) problem(`${at}.layers[${layerIndex}].color`, "Give a colour as #rrggbbaa.");
+			if (normaliseHexWithAlpha(layer.color) !== layer.color)
+				problem(`${at}.layers[${layerIndex}].color`, "Give a colour as #rrggbbaa.");
 		});
 	});
 
@@ -419,7 +432,8 @@ function tokenProblems(tokens: Tokens, problem: (at: string, message: string) =>
 
 	const focus = tokens.focus;
 	const focusColour = tokens.colours.find((each) => each.id === focus.colour.colour);
-	if (!focusColour || !isShadeStep(focus.colour.step)) problem("tokens.focus.colour", "The focus colour is a shade of one of the colours.");
+	if (!focusColour || !isShadeStep(focus.colour.step))
+		problem("tokens.focus.colour", "The focus colour is a shade of one of the colours.");
 	if (!(focus.width >= 1 && focus.width <= 10)) problem("tokens.focus.width", "The focus width is 1 to 10 px.");
 	if (!(focus.offset >= -10 && focus.offset <= 20)) problem("tokens.focus.offset", "The focus offset is -10 to 20 px.");
 

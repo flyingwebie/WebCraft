@@ -124,7 +124,8 @@ export function referencesIn(css: readonly CssPart[]): { tokens: TokenRef[]; cla
 	const classes: string[] = [];
 	for (const part of css) {
 		if (typeof part === "string") continue;
-		if ("token" in part) tokens.push(part.step === undefined ? { token: part.token } : { token: part.token, step: part.step });
+		if ("token" in part)
+			tokens.push(part.step === undefined ? { token: part.token } : { token: part.token, step: part.step });
 		else classes.push(part.class);
 	}
 	return { tokens, classes };
@@ -220,7 +221,9 @@ function checkDeclaration(
 	if (property.startsWith("--")) return;
 	const atrule = context.atrule;
 	const descriptor = atrule && !context.rule && lexer.getAtrule(atrule.name)?.descriptors;
-	const match = descriptor ? lexer.matchAtruleDescriptor(atrule.name, property, node.value) : lexer.matchDeclaration(node);
+	const match = descriptor
+		? lexer.matchAtruleDescriptor(atrule.name, property, node.value)
+		: lexer.matchDeclaration(node);
 	const error = match.error;
 	if (!error || /var\(\)/.test(error.message)) return;
 	if (/^Unknown (?:property|at-rule descriptor)/.test(error.message)) {
@@ -238,7 +241,10 @@ function checkDeclaration(
 function checkAddress(node: CssNode, address: string, at: (node: CssNode, message: string) => void): void {
 	const url = address.trim();
 	if ((url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) || url.startsWith("#")) return;
-	at(node, `${url || "An empty address"} isn't on this Site: styles may load only the Site's own files, such as /_media/….`);
+	at(
+		node,
+		`${url || "An empty address"} isn't on this Site: styles may load only the Site's own files, such as /_media/….`,
+	);
 }
 
 /** The text with token and Class references kept by id: `--primary-70` and `.card` (in selectors). */
@@ -262,10 +268,15 @@ function withReferences(text: string, names: CssNames): CssText {
 				continue;
 			}
 		}
-		if (token.type === tokenTypes.Delim && value === "." && next?.type === tokenTypes.Ident && next.start === token.end) {
+		if (
+			token.type === tokenTypes.Delim &&
+			value === "." &&
+			next?.type === tokenTypes.Ident &&
+			next.start === token.end
+		) {
 			const classId = names.className(text.slice(next.start, next.end));
 			if (classId) {
-				css.push(plain + ".");
+				css.push(`${plain}.`);
 				plain = "";
 				css.push({ class: classId });
 				index += 2;
