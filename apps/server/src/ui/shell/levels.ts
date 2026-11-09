@@ -1,6 +1,7 @@
 import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
 import {
+	ArchiveIcon,
 	Building2Icon,
 	ClipboardListIcon,
 	CookieIcon,
@@ -162,6 +163,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.storage",
 						icon: HardDriveIcon,
 						to: "/settings/storage",
+						requires: "install.manage",
+					},
+					{
+						id: "backups",
+						label: "shell.nav.backups",
+						icon: ArchiveIcon,
+						to: "/settings/backups",
 						requires: "install.manage",
 					},
 					{

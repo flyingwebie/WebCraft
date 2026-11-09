@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, test } from "bun:test";
+import { DEFAULT_UPDATE_FEED } from "@webcraft/core";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { inviteLinkIn, type TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen } from "./checks.ts";
@@ -91,6 +92,20 @@ beforeAll(async () => {
 	big.set(pdf("Catalogue").subarray(0, 64));
 	await admin.api.media.upload({ siteId: site.id, file: upload(big, "catalogue.pdf") });
 	await admin.api.workspaces.setQuota({ workspaceId: workspace.id, quotaBytes: 1024 * 1024 });
+	// A Backup, then one that failed (so every Superadmin page tells them), and a newer release out.
+	await local.backup();
+	await local.backup({ to: "/dev/null/backups/never.tar" }).catch(() => {});
+	local.dns.answer("api.github.com", ["140.82.112.6"]);
+	local.http.respond("GET", DEFAULT_UPDATE_FEED, {
+		body: JSON.stringify({
+			tag_name: "v99.0.0",
+			html_url: "https://github.com/flyingwebie/WebCraft/releases/tag/v99.0.0",
+			body: "## What's new\n\n- Faster pages",
+			draft: false,
+			prerelease: false,
+		}),
+	});
+	await local.checkUpdate();
 	// The Site's languages: French, and Arabic, written right to left.
 	await admin.api.languages.add({ siteId: site.id, code: "fr" });
 	await admin.api.languages.add({ siteId: site.id, code: "ar" });

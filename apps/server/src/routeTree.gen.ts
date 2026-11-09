@@ -17,6 +17,7 @@ import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
 import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
+import { Route as AdminSettingsBackupsRouteImport } from './routes/_admin/settings.backups'
 import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
 import { Route as AdminSettingsModulesRouteImport } from './routes/_admin/settings.modules'
@@ -96,6 +97,11 @@ const AdminEmailLogRoute = AdminEmailLogRouteImport.update({
 const AdminStaffRoute = AdminStaffRouteImport.update({
   id: '/staff',
   path: '/staff',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSettingsBackupsRoute = AdminSettingsBackupsRouteImport.update({
+  id: '/settings/backups',
+  path: '/settings/backups',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsEmailRoute = AdminSettingsEmailRouteImport.update({
@@ -339,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AdminAccountRoute
   '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
+  '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
   '/settings/modules': typeof AdminSettingsModulesRoute
@@ -389,6 +396,7 @@ export interface FileRoutesByTo {
   '/email-log': typeof AdminEmailLogRoute
   '/staff': typeof AdminStaffRoute
   '/': typeof AdminIndexRoute
+  '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
   '/settings/general': typeof AdminSettingsGeneralRoute
   '/settings/modules': typeof AdminSettingsModulesRoute
@@ -434,6 +442,7 @@ export interface FileRoutesById {
   '/_admin/email-log': typeof AdminEmailLogRoute
   '/_admin/staff': typeof AdminStaffRoute
   '/_admin/': typeof AdminIndexRoute
+  '/_admin/settings/backups': typeof AdminSettingsBackupsRoute
   '/_admin/settings/email': typeof AdminSettingsEmailRoute
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
   '/_admin/settings/modules': typeof AdminSettingsModulesRoute
@@ -486,6 +495,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/email-log'
     | '/staff'
+    | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
     | '/settings/modules'
@@ -536,6 +546,7 @@ export interface FileRouteTypes {
     | '/email-log'
     | '/staff'
     | '/'
+    | '/settings/backups'
     | '/settings/email'
     | '/settings/general'
     | '/settings/modules'
@@ -580,6 +591,7 @@ export interface FileRouteTypes {
     | '/_admin/email-log'
     | '/_admin/staff'
     | '/_admin/'
+    | '/_admin/settings/backups'
     | '/_admin/settings/email'
     | '/_admin/settings/general'
     | '/_admin/settings/modules'
@@ -686,6 +698,13 @@ declare module '@tanstack/react-router' {
       path: '/staff'
       fullPath: '/staff'
       preLoaderRoute: typeof AdminStaffRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/settings/backups': {
+      id: '/_admin/settings/backups'
+      path: '/settings/backups'
+      fullPath: '/settings/backups'
+      preLoaderRoute: typeof AdminSettingsBackupsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_admin/settings/email': {
@@ -1140,6 +1159,7 @@ interface AdminRouteChildren {
   AdminEmailLogRoute: typeof AdminEmailLogRoute
   AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminSettingsBackupsRoute: typeof AdminSettingsBackupsRoute
   AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
   AdminSettingsModulesRoute: typeof AdminSettingsModulesRoute
@@ -1155,6 +1175,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminEmailLogRoute: AdminEmailLogRoute,
   AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminSettingsBackupsRoute: AdminSettingsBackupsRoute,
   AdminSettingsEmailRoute: AdminSettingsEmailRoute,
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
   AdminSettingsModulesRoute: AdminSettingsModulesRoute,
