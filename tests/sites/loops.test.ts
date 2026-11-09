@@ -3,6 +3,7 @@
 // Relationship shows each item; Conditions test the items' values, their position and the time.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;
@@ -414,5 +415,22 @@ describe("Conditions", () => {
 		expect(await main("/showcase/here")).toBe("[Apple tart]");
 		await staff.api.loops.publish({ siteId, loopId: loop.id });
 		expect(await main("/showcase/here")).toBe("[Apple tart][Brioche]");
+	});
+});
+
+describe("Edit mode", () => {
+	test("a Loop shows its published items, and what sits inside it isn't tagged as an editable region", async () => {
+		const name = await recipeLoop({ limit: 2 });
+		await template(
+			recipesId,
+			`<h1>{{ title }}</h1><ul>{{@loop ${name} as r}}<li>{{ r.title }}</li><li>{{ title }}</li>{{/loop}}</ul>`,
+		);
+		const editing = await openEditMode(install, staff, siteId, "/recipes/crumble");
+
+		const html = await (await editing.page("/recipes/crumble")).text();
+
+		const main = /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "";
+		expect(main).toMatch(/^<h1 data-wc-item="entry:[^"]+" data-wc-field="title"/);
+		expect(main).toContain("<ul><li>Apple tart</li><li>Crumble</li><li>Brioche</li><li>Crumble</li></ul>");
 	});
 });

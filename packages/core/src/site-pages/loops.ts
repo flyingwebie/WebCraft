@@ -18,6 +18,7 @@ import { loopItems, type StoredLoopVersion, storedLoopVersion } from "../content
 import type { PostType } from "../content/post-types.ts";
 import { entryParts, type Parts, resolvePath, valuesParts } from "../content/render-values.ts";
 import { storedVersion } from "../content/values.ts";
+import { publishedVisibleIn } from "../content/visibility.ts";
 import { namesOf, type ReadScope, relatedEntries } from "./related.ts";
 
 /**
@@ -276,10 +277,14 @@ class QuerySql {
 		this.column = place.version === "draft" ? entries.draft : entries.published;
 	}
 
-	/** Entries shown in the page's language: not hidden there (see `content/visibility.ts`). */
+	/**
+	 * Entries shown in the page's language: not hidden there, by the one rule every list asks
+	 * (`publishedVisibleIn`, `content/visibility.ts`), read from the Drafts for the Data tab.
+	 */
 	visible(): SQL {
 		const { language, defaultLanguage } = this.place.languages;
-		return sql`not coalesce((${this.column} -> 'values' -> 'hiddenLanguages' -> ${defaultLanguage}::text -> 'value') @> jsonb_build_array(${language}::text), false)`;
+		if (this.place.version === "published") return publishedVisibleIn(this.place.languages);
+		return sql`not coalesce((${entries.draft} -> 'values' -> 'hiddenLanguages' -> ${defaultLanguage}::text -> 'value') @> jsonb_build_array(${language}::text), false)`;
 	}
 
 	filters(query: LoopQuery): SQL | undefined {

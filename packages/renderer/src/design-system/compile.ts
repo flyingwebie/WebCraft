@@ -42,8 +42,8 @@ const RESET = [
 
 /**
  * WebCraft's own parts of every page: the focus style (from the focus token), the skip link (out of
- * sight until it has focus), the theme toggle and the Language switcher (a row of links, each big
- * enough to tap). They use no token names, which Staff may change,
+ * sight until it has focus), the theme toggle, the Language switcher and a Loop's pagination (rows of
+ * links, each big enough to tap). They use no token names, which Staff may change,
  * and can be restyled in the Site's custom CSS, never removed.
  */
 const PAGE_PARTS = [
@@ -54,6 +54,9 @@ const PAGE_PARTS = [
 	".wc-language-switcher ul{display:flex;flex-wrap:wrap;gap:0.25em 1em;margin:0;padding:0;list-style:none}",
 	".wc-language-switcher a{display:inline-flex;align-items:center;min-block-size:24px;min-inline-size:24px}",
 	".wc-language-switcher a[aria-current]{font-weight:bolder}",
+	".wc-pagination ul{display:flex;flex-wrap:wrap;align-items:center;gap:0.25em 0.75em;margin:0;padding:0;list-style:none}",
+	".wc-pagination a{display:inline-flex;align-items:center;justify-content:center;min-block-size:24px;min-inline-size:24px}",
+	".wc-pagination a[aria-current]{font-weight:bolder;text-decoration:none}",
 ];
 
 /**

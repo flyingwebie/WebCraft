@@ -23,6 +23,8 @@ export const PAGE_HOOKS = {
 	calloutClass: "wc-callout",
 	/** The class of a body's video (`<figure class="wc-embed">`), which holds its play link, then the player. */
 	embedClass: "wc-embed",
+	/** The class of a Loop's pagination (`<nav class="wc-pagination">`), a row of links to its pages. */
+	paginationClass: "wc-pagination",
 	/** The CSS custom properties a callout's tones read, set in the base layer; Staff restyle them in custom CSS. */
 	calloutTones: {
 		info: "--wc-callout-info",
