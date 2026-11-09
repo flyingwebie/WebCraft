@@ -226,6 +226,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 				label: "shell.nav.siteSettingsGroup",
 				items: [
 					{
+						id: "site-domains",
+						label: "shell.nav.domains",
+						icon: GlobeIcon,
+						to: "/sites/$siteId/domains",
+						requires: "structure.edit",
+					},
+					{
 						id: "site-languages",
 						label: "shell.nav.languages",
 						icon: LanguagesIcon,

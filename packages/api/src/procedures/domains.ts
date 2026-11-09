@@ -15,12 +15,16 @@ const name = z.string().max(300);
 export const domains = {
 	/**
 	 * The Site's domains, the Primary domain first, then the Redirect domains, then the languages'
-	 * domains, each with its status and the DNS records to create; and the Install's `edge`, which
-	 * decides the steps to take (on Coolify and Railway the domain is also added in the platform's panel).
+	 * domains, each with its status and the DNS records to create; the Install's `edge`, which decides
+	 * the steps to take (on Coolify and Railway the domain is also added in the platform's panel); and
+	 * the Site's Staging address (`stagingUrl`, null without a sites domain).
 	 */
 	list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "site.view");
-		return await context.services.domains.list(site);
+		return {
+			...(await context.services.domains.list(site)),
+			stagingUrl: context.services.sites.stagingUrl(site.site),
+		};
 	}),
 
 	/**
