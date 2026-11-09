@@ -54,7 +54,7 @@ import {
 import { specialPageId } from "../content/special-pages.ts";
 import { pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
-import { type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
+import { draftStyles, type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
 import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
@@ -97,9 +97,12 @@ export type PageContent = {
 
 /**
  * A page rendered for Edit mode rather than for visitors: the Site opened for the person editing,
- * and what WebCraft adds to `<head>` (its header token, its own scripts and stylesheets).
+ * and what WebCraft adds to `<head>` (its header token, its own scripts and stylesheets). With
+ * `code`, the page is rendered for Code mode (ADR 0016): it shows the Drafts of the Site's Structure
+ * (its Templates, the Components they place, the Design system), every element tagged with where it
+ * comes from. Open `scope` with `structure.edit` for it.
  */
-export type PageEditing = { scope: SiteScope; head: Omit<EditModePage, "region"> };
+export type PageEditing = { scope: SiteScope; head: Omit<EditModePage, "region" | "code">; code?: boolean };
 
 /**
  * The Site side of the content store, for the web process's Site request pipeline: which Site a
@@ -172,6 +175,9 @@ export function createSitePages(options: {
 		});
 		return styles;
 	};
+	/** The styles a page is shown with: the published ones (built once per generation), or the Drafts' in Code mode. */
+	const viewStyles = (view: View): Promise<SiteStyles> =>
+		view.structure === "draft" ? draftStyles(view.scope) : stylesOf(view.host);
 	return {
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
@@ -191,7 +197,7 @@ export function createSitePages(options: {
 			const located = await locate(view.scope, host, pathname);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
-			return { kind: "page", html: await renderEntryPage(view, host, await stylesOf(host), located.found) };
+			return { kind: "page", html: await renderEntryPage(view, host, await viewStyles(view), located.found) };
 		},
 
 		async pageContent(host, pathname) {
@@ -213,7 +219,7 @@ export function createSitePages(options: {
 		async notFound(host, editing) {
 			const view = viewFor(data, host, editing, sources);
 			const found = await chosenNotFoundPage(view.scope);
-			const styles = await stylesOf(host);
+			const styles = await viewStyles(view);
 			if (found) return { html: await renderEntryPage(view, host, styles, found) };
 			const builtIn = builtInNotFoundPage(host.defaultLanguage);
 			return { html: await renderSitePage(view, host, styles, { ...builtIn, values: () => undefined }) };
@@ -278,12 +284,17 @@ async function chosenNotFoundPage(scope: ReadScope): Promise<FoundEntry | undefi
 type ReadScope = Pick<VisitorScope, "select" | "first" | "count" | "where" | "db" | "site" | "now">;
 
 /**
- * How a page is being viewed: by visitors (the published version of its Content) or in Edit mode
- * (the Drafts, with editable regions tagged).
+ * How a page is being viewed: by visitors (the published version of its Content and Structure), in
+ * Edit mode (the Drafts of its Content through the published Structure, with editable regions
+ * tagged) or in Code mode (the Drafts of both, every element tagged).
  */
 type View = {
+	host: SiteHost;
 	scope: ReadScope;
+	/** Which version of the page's Content shows: its Entry's and the Globals'. */
 	version: "published" | "draft";
+	/** Which version of the Site's Structure shows: its Templates', Components' and Design system's. */
+	structure: "published" | "draft";
 	editing?: PageEditing;
 	/** Where the Components of the Modules running on the Site come from. */
 	sources: ComponentSources;
@@ -291,8 +302,15 @@ type View = {
 
 function viewFor(data: DataLayer, host: SiteHost, editing: PageEditing | undefined, sources: ComponentSources): View {
 	return editing
-		? { scope: editing.scope, version: "draft", editing, sources }
-		: { scope: data.visitors(host.site), version: "published", sources };
+		? {
+				host,
+				scope: editing.scope,
+				version: "draft",
+				structure: editing.code ? "draft" : "published",
+				editing,
+				sources,
+			}
+		: { host, scope: data.visitors(host.site), version: "published", structure: "published", sources };
 }
 
 /**
@@ -337,7 +355,10 @@ type FoundEntry = {
 	/** Every Post Type of the Site, for what Relationships point at. */
 	postTypes: readonly PostType[];
 	entry: typeof entries.$inferSelect;
+	/** What the content renders through, as published: its Entry template, a Page's layout. */
 	content: ElementTree;
+	/** The same in its Draft, as Code mode shows it. */
+	contentDraft: ElementTree;
 };
 
 /**
@@ -376,7 +397,13 @@ async function findPublishedEntry(
 			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id), isNotNull(templates.published)),
 		);
 		if (!template) return undefined;
-		return { postType, postTypes, entry, content: template.published as ElementTree };
+		return {
+			postType,
+			postTypes,
+			entry,
+			content: template.published as ElementTree,
+			contentDraft: template.draft as ElementTree,
+		};
 	}
 	return undefined;
 }
@@ -404,12 +431,13 @@ async function publishedPage(
 	const pages = postTypes.find(isPagePostType);
 	const entry = await scope.first(entries, and(eq(entries.id, pageId), isNotNull(entries.published)));
 	if (!pages || entry?.postTypeId !== pages.id) return undefined;
-	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT };
+	return { postType: pages, postTypes, entry, content: EMPTY_PAGE_LAYOUT, contentDraft: EMPTY_PAGE_LAYOUT };
 }
 
 async function renderEntryPage(view: View, host: SiteHost, styles: SiteStyles, found: FoundEntry): Promise<string> {
 	const { scope } = view;
-	const { postType, entry, content } = found;
+	const { postType, entry } = found;
+	const content = view.structure === "draft" ? found.contentDraft : found.content;
 	const language = host.defaultLanguage;
 	const languages = { language, defaultLanguage: host.defaultLanguage };
 	const draft = view.version === "draft";
@@ -478,8 +506,15 @@ async function renderSitePage(
 	const globalValues = globalsVersion(globalsRow, languages, view.version);
 	const site = globalsParts(globalValues.fields, globalValues.values);
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
-	const siteTemplate = await publishedSiteTemplate(scope);
-	const placed = await pageComponents(scope, [page.content, siteTemplate], view.sources, site, languages);
+	const siteTemplate = view.structure === "draft" ? await draftSiteTemplate(scope) : await publishedSiteTemplate(scope);
+	const placed = await pageComponents(
+		scope,
+		[page.content, siteTemplate],
+		view.sources,
+		site,
+		languages,
+		view.structure,
+	);
 	// The Media the page may show: `media:<id>` written in either template or a Component it places,
 	// and every media value the page reads (its content's, the Globals'). Ids that aren't the Site's
 	// ready Media find nothing.
@@ -499,7 +534,11 @@ async function renderSitePage(
 		className: styles.className,
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
-		editMode: editing && { ...editing.head, region: editRegions(entry, storedFields(globalsRow?.fields)) },
+		editMode: editing && {
+			...editing.head,
+			region: editRegions(entry, storedFields(globalsRow?.fields)),
+			code: view.structure === "draft",
+		},
 		component: placed.render,
 	});
 }
@@ -507,14 +546,16 @@ async function renderSitePage(
 /**
  * The published Components the trees place, directly or through other Components, that can show on
  * the Site (a Component that isn't published, or a Module's that doesn't run there, shows nothing).
- * Components are Structure: even in Edit mode, pages show their published versions.
+ * Components are Structure: in Edit mode, pages show their published versions; Code mode shows their
+ * Drafts (`which`).
  */
 async function placedComponents(
 	scope: ReadScope,
 	trees: readonly (ElementTree | undefined)[],
 	sources: ComponentSources,
+	which: "published" | "draft" = "published",
 ): Promise<{ catalogue: SiteComponents; used: Map<string, ComponentVersion> }> {
-	const catalogue = await siteComponents(scope, "published", sources);
+	const catalogue = await siteComponents(scope, which, sources);
 	const used = new Map<string, ComponentVersion>();
 	const visit = (tree: ElementTree) => {
 		for (const placement of placementsIn(tree.nodes)) {
@@ -540,8 +581,9 @@ async function pageComponents(
 	sources: ComponentSources,
 	site: Parts,
 	languages: { language: string; defaultLanguage: string },
+	which: "published" | "draft",
 ): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
-	const { catalogue, used } = await placedComponents(scope, trees, sources);
+	const { catalogue, used } = await placedComponents(scope, trees, sources, which);
 	const shownTrees = [...used.values()].map((version) => version.tree);
 	const related = await relatedOfProps(scope, [...trees, ...shownTrees], catalogue, languages);
 	return {
@@ -584,6 +626,12 @@ async function relatedOfProps(
 		related.set(id, { ...entry, postTypeKey: keys.get(entry.postTypeId) ?? "" });
 	}
 	return related;
+}
+
+/** The Site template's Draft, as Code mode shows it, or undefined while the Site has none (the built-in one shows). */
+async function draftSiteTemplate(scope: ReadScope): Promise<ElementTree | undefined> {
+	const row = await scope.first(templates, and(eq(templates.kind, "site"), isNull(templates.postTypeId)));
+	return (row?.draft as ElementTree | undefined) ?? undefined;
 }
 
 /** The Site template visitors see, or undefined while none is published (pages get the built-in one). */

@@ -99,7 +99,7 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
-export { type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
+export { CODE_ATTRIBUTE, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
 export { type PrintMarkupOptions, printTemplateMarkup } from "./markup/print.ts";

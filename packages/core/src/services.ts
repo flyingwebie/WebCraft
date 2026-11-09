@@ -4,6 +4,7 @@ import type { Database } from "@webcraft/db";
 import type { Account } from "./account.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
+import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
 import type {
 	Component,
@@ -257,6 +258,11 @@ export type InstallServices = InstallPorts & {
 	 * own domain, each checked again with every request.
 	 */
 	editMode: EditMode;
+	/**
+	 * Code mode (ADR 0016): Staff in Edit mode edit the Template markup, CSS and scripts of what they
+	 * select on the page, saved to the Drafts. Open its Site with `codeMode.open(session)`.
+	 */
+	codeMode: CodeMode;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
 	/** Members of a Workspace: inviting them, their role and Sites, removing them, pending invites. */

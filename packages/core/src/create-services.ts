@@ -3,6 +3,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
+import { createCodeMode } from "./code-mode/index.ts";
 import {
 	createComponent,
 	createEntry,
@@ -214,6 +215,7 @@ export async function createInstallServices(
 			signingKey: await editModeSigningKey(masterKey),
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
+		codeMode: createCodeMode({ data }),
 		memberships,
 		members: createMembers({ database, email }),
 		staff: createStaff({ email }),

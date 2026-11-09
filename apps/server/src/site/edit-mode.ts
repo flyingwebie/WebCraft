@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
+	CODE_MODE_STYLESHEET_PATH,
 	EDIT_MODE_PATH,
 	type EditSession,
 	type InstallServices,
@@ -10,6 +11,7 @@ import {
 	type PageEditing,
 	RateLimitedError,
 	type SiteHost,
+	type SiteScope,
 	WEBCRAFT_COOKIE_PREFIX,
 } from "@webcraft/core";
 import { z } from "zod";
@@ -38,6 +40,12 @@ export async function editModeEndpoint(
 		return enter(services, request, host, url.searchParams.get("token") ?? "");
 	}
 	if (rest.startsWith(EDIT_API_PREFIX)) return editRequest(services, request, host, rest.slice(EDIT_API_PREFIX.length));
+	if (url.pathname.startsWith(CODE_MODE_STYLESHEET_PATH)) {
+		if (request.method !== "GET" && request.method !== "HEAD") {
+			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
+		}
+		return codeModeStylesheet(services, request, host);
+	}
 	if (url.pathname.startsWith(EDIT_ASSETS_PATH)) {
 		if (request.method !== "GET" && request.method !== "HEAD") {
 			return plainText(405, "Method Not Allowed", { allow: "GET, HEAD" });
@@ -58,6 +66,23 @@ export const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
 
 /** What an edit request may do, by action: each gets the session and the request's JSON body. */
 const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
+	/**
+	 * Turns Code mode on for this browser (ADR 0016): its pages then show the Drafts of the Site's
+	 * Structure, every element tagged. Only for someone who may change the Structure (`structure.edit`).
+	 */
+	"code/start": async (services, session, _body, request) => {
+		await services.codeMode.open(session);
+		const response = json(200, { code: true });
+		const maxAge = Math.max(0, Math.floor((session.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
+		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "on", maxAge));
+		return response;
+	},
+	/** Turns Code mode off for this browser: its pages are Content editing's again. */
+	"code/stop": async (_services, _session, _body, request) => {
+		const response = json(200, { code: false });
+		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "", 0));
+		return response;
+	},
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
 	/**
@@ -238,9 +263,27 @@ export const EDIT_MODE_PAGE_HEADERS: Readonly<Record<string, string>> = {
 	"content-security-policy": EDIT_MODE_POLICY,
 };
 
-/** What a page needs to render for Edit mode: the person's scope, and WebCraft's files in <head>. */
-export async function pageEditing(session: EditSession): Promise<PageEditing> {
+/**
+ * What a page needs to render for Edit mode: the person's scope, and WebCraft's files in <head>. With
+ * `code` (the Site opened with `structure.edit`), the page is rendered for Code mode, which loads its
+ * own script after the editing bar's.
+ */
+export async function pageEditing(session: EditSession, code?: SiteScope | null): Promise<PageEditing> {
 	const files = await editBarAssets();
+	if (code) {
+		return {
+			scope: code,
+			code: true,
+			head: {
+				meta: [
+					["webcraft-edit-token", session.headerToken],
+					["webcraft-code-mode", "on"],
+				],
+				scripts: [files.script.path, files.codeScript.path],
+				stylesheets: [files.pageStyles.path],
+			},
+		};
+	}
 	return {
 		scope: session.scope,
 		head: {
@@ -249,6 +292,38 @@ export async function pageEditing(session: EditSession): Promise<PageEditing> {
 			stylesheets: [files.pageStyles.path],
 		},
 	};
+}
+
+/**
+ * The Site opened for Code mode when the request asks for it (its Code mode cookie) and the person
+ * may change the Site's Structure; null otherwise, and the page is Content editing's.
+ */
+export async function codeModeOf(
+	services: InstallServices,
+	request: Request,
+	session: EditSession,
+): Promise<SiteScope | null> {
+	if (cookieValue(request, siteCookieName(new URL(request.url).hostname, "code")) !== "on") return null;
+	return services.codeMode.openIfAllowed(session);
+}
+
+/**
+ * The stylesheet a page in Code mode links, built from the Design system's Draft and the Drafts of
+ * the Site's trees: only for Staff in Code mode, never kept by anyone. A plain 404 for everyone else.
+ */
+async function codeModeStylesheet(services: InstallServices, request: Request, host: SiteHost): Promise<Response> {
+	const edit = await editSessionOf(services, request, host);
+	const scope = edit.session && (await services.codeMode.openIfAllowed(edit.session));
+	if (!scope) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
+	const css = await services.codeMode.stylesheet(scope);
+	return new Response(request.method === "HEAD" ? null : css, {
+		headers: {
+			"content-type": "text/css; charset=utf-8",
+			"cache-control": "no-store",
+			"x-content-type-options": "nosniff",
+			"x-robots-tag": "noindex",
+		},
+	});
 }
 
 /** A page in Edit mode, as HTML with Edit mode's headers. */
@@ -317,12 +392,26 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
  * WebCraft sets on a Site's domain, so Modules' Site routes never see it (`isWebCraftCookie`).
  */
 export function editCookieName(hostname: string): string {
-	const name = `${WEBCRAFT_COOKIE_PREFIX}.edit`;
-	return isDevelopmentHostname(hostname) ? name : `__Host-${name}`;
+	return siteCookieName(hostname, "edit");
 }
 
 /** The `Set-Cookie` line for the edit cookie: `HttpOnly`, `Secure` (but in development), `SameSite=Lax`. */
 function editCookie(hostname: string, value: string, maxAge: number): string {
+	return siteCookie(hostname, "edit", value, maxAge);
+}
+
+/**
+ * The name of a cookie Edit mode sets on a Site's domain: `webcraft.<what>`, so Modules' Site routes
+ * never see it, with the `__Host-` prefix but on a development hostname. `code` is Code mode's,
+ * which says only that this browser has it on: the edit cookie's session still decides everything.
+ */
+function siteCookieName(hostname: string, what: "edit" | "code"): string {
+	const name = `${WEBCRAFT_COOKIE_PREFIX}.${what}`;
+	return isDevelopmentHostname(hostname) ? name : `__Host-${name}`;
+}
+
+/** The `Set-Cookie` line for one of Edit mode's cookies: `HttpOnly`, `Secure` (but in development), `SameSite=Lax`. */
+function siteCookie(hostname: string, what: "edit" | "code", value: string, maxAge: number): string {
 	const secure = isDevelopmentHostname(hostname) ? "" : "; Secure";
-	return `${editCookieName(hostname)}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly${secure}; SameSite=Lax`;
+	return `${siteCookieName(hostname, what)}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly${secure}; SameSite=Lax`;
 }

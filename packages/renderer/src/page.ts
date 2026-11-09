@@ -88,6 +88,12 @@ export type EditModePage = {
 	scripts: readonly string[];
 	/** WebCraft's own stylesheets, as paths on the Site's domain. */
 	stylesheets: readonly string[];
+	/**
+	 * Code mode (ADR 0016): every element is tagged with the Template or Component it comes from
+	 * (`RenderOptions.codeSource`: `content` for the page's content, `site` for the Site template)
+	 * instead of the editable regions, since selecting an element opens its code.
+	 */
+	code?: boolean;
 };
 
 /**
@@ -117,7 +123,8 @@ export function renderPage(page: PageToRender): string {
 		priorityImage: { given: false },
 		component: page.component,
 		themeToggle,
-		editRegion: editMode && ((value) => editMode.region(value, "content")),
+		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "content") : undefined,
+		codeSource: editMode?.code ? "content" : undefined,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
@@ -128,7 +135,8 @@ export function renderPage(page: PageToRender): string {
 		extraAttributes: mainAttributes,
 		component: page.component,
 		themeToggle,
-		editRegion: editMode && ((value) => editMode.region(value, "site")),
+		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
+		codeSource: editMode?.code ? "site" : undefined,
 	});
 	return [
 		"<!doctype html>",

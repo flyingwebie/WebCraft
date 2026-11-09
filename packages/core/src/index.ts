@@ -21,6 +21,7 @@ export {
 	recordAudit,
 } from "./audit.ts";
 export { type Clock, systemClock } from "./clock.ts";
+export type { CodeMode } from "./code-mode/index.ts";
 export {
 	adminOriginFor,
 	ConfigError,
@@ -42,6 +43,7 @@ export { type CreateServicesOptions, createInstallServices } from "./create-serv
 export * from "./design-system/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
 export {
+	CODE_MODE_STYLESHEET_PATH,
 	EDIT_LINK_LIFETIME_MS,
 	EDIT_MODE_PATH,
 	EDIT_SESSION_LIFETIME_MS,

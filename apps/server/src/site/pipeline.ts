@@ -8,6 +8,7 @@ import {
 	pathSegments,
 	SCRIPT_PATH,
 	type SiteHost,
+	type SiteScope,
 	STYLESHEET_PATH,
 	siteScript,
 } from "@webcraft/core";
@@ -16,6 +17,7 @@ import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import {
 	clearEditCookie,
+	codeModeOf,
 	EDIT_MODE_PAGE_HEADERS,
 	editModeEndpoint,
 	editModeHtml,
@@ -75,7 +77,15 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
 			const edit = await editSessionOf(services, request, host);
-			if (edit.session) return editModePage(services, host, edit.session, url.pathname);
+			if (edit.session) {
+				return editModePage(
+					services,
+					host,
+					edit.session,
+					url.pathname,
+					await codeModeOf(services, request, edit.session),
+				);
+			}
 			const page = await visitorPage(services, cache, request, host);
 			return edit.stale ? withEditCookieCleared(request, page) : page;
 		});
@@ -104,15 +114,18 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 
 /**
  * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
- * with the Drafts of its Content and its editable regions tagged. It never touches the page cache.
+ * with the Drafts of its Content and its editable regions tagged; in Code mode (`code`, the Site
+ * opened with `structure.edit`), with the Drafts of the Structure too, every element tagged. It never
+ * touches the page cache.
  */
 async function editModePage(
 	services: InstallServices,
 	host: SiteHost,
 	session: EditSession,
 	pathname: string,
+	code: SiteScope | null,
 ): Promise<Response> {
-	const editing = await pageEditing(session);
+	const editing = await pageEditing(session, code);
 	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing) : null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
