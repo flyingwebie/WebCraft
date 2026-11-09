@@ -20,8 +20,9 @@ import {
 import type { VariantFormat } from "./images.ts";
 import type { InstallStorage } from "./install-storage.ts";
 import { mediaProcess } from "./jobs.ts";
+import type { MediaKind } from "./kinds.ts";
 import { contentHash, MEDIA_PATH, SERVED_NAME, servedName } from "./names.ts";
-import { gifSize, type MediaKind, sniff } from "./sniff.ts";
+import { gifSize, sniff } from "./sniff.ts";
 import { type ByteRange, siteFolder } from "./storage.ts";
 import { MEDIA_TEXTS, type MediaText, readText, storedTexts, writeText } from "./texts.ts";
 

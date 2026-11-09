@@ -32,6 +32,7 @@ import { specialPageId } from "../content/special-pages.ts";
 import { pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { listClasses } from "../design-system/classes.ts";
+import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
@@ -297,7 +298,7 @@ async function renderSitePage(
 		scope,
 		[
 			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null])),
-			...idsIn(JSON.stringify([contentValues, globalValues.values])),
+			...uuidsIn(JSON.stringify([contentValues, globalValues.values])),
 		],
 		languages,
 	);
@@ -318,11 +319,6 @@ async function publishedSiteTemplate(scope: VisitorScope): Promise<ElementTree |
 		and(eq(templates.kind, "site"), isNull(templates.postTypeId), isNotNull(templates.published)),
 	);
 	return (row?.published as ElementTree | null) ?? undefined;
-}
-
-/** Every id (UUID) written in a piece of text. */
-function idsIn(text: string): string[] {
-	return [...text.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)].map((match) => match[0]);
 }
 
 /** The published Entries the page's Relationships point at, read in the page's language. */

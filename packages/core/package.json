@@ -8,7 +8,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./admin-languages": "./src/admin-languages.ts",
-		"./email-branding": "./src/email/branding-rules.ts"
+		"./email-branding": "./src/email/branding-rules.ts",
+		"./media-kinds": "./src/media/kinds.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"
