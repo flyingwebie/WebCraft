@@ -239,6 +239,14 @@ export type SiteForms = FormCatalogue & {
 	version(formId: string): FormVersion | undefined;
 };
 
+/** The Site's Forms by name, with their keys: what a builder offers to place with `{{@form <key>}}`. */
+export async function siteFormList(
+	scope: Pick<SiteScope, "select">,
+): Promise<{ id: string; key: string; name: string }[]> {
+	const rows = await scope.select(forms, undefined, { orderBy: [asc(forms.name)] });
+	return rows.map((row) => ({ id: row.id, key: row.key, name: row.name }));
+}
+
 /**
  * The Site's Forms in one version: Drafts (what Drafts of Templates and Components may place) or
  * published (what published ones place; a Form never published can't be placed there yet).
