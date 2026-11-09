@@ -50,12 +50,15 @@ import {
 	HostInvalidError,
 	IdentityCheckRequiredError,
 	ImportFileNotFoundError,
+	ImportFileNotReadyError,
 	ImportInvalidError,
 	ImportNotFoundError,
 	ImportPostTypeFixedError,
 	ImportRunNotFoundError,
 	ImportRunningError,
+	ImportSourceNotFoundError,
 	ImportUndoRefusedError,
+	ImportUploadRefusedError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	LanguageInvalidError,
@@ -516,6 +519,25 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ImportFileNotFoundError) {
 		return new ORPCError("IMPORT_FILE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ImportFileNotReadyError) {
+		return new ORPCError("IMPORT_FILE_NOT_READY", {
+			status: 409,
+			message: error.message,
+			data: { status: error.status },
+			cause: error,
+		});
+	}
+	if (error instanceof ImportSourceNotFoundError) {
+		return new ORPCError("IMPORT_SOURCE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ImportUploadRefusedError) {
+		return new ORPCError("IMPORT_UPLOAD_REFUSED", {
+			status: error.reason === "size" && "maxBytes" in error.details ? 413 : error.reason === "status" ? 409 : 400,
+			message: error.message,
+			data: { reason: error.reason, ...error.details },
+			cause: error,
+		});
 	}
 	if (error instanceof ImportNotFoundError) {
 		return new ORPCError("IMPORT_NOT_FOUND", { status: 404, message: error.message, cause: error });

@@ -22,6 +22,8 @@ export type RedirectPaths = {
 	hasPage(path: string): Promise<boolean>;
 	/** The language of a Site path. */
 	languageOf(path: string): string;
+	/** Where a file of the Site's Media library is served now (`/_media/…`); null when visitors can't get it. */
+	mediaPath(mediaId: string): Promise<string | null>;
 };
 
 /** Asks the Module keeping Redirect rules on a Site (`ModuleHost.redirectFor`). */

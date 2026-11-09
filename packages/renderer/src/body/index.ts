@@ -56,6 +56,14 @@ export {
 } from "./body.ts";
 export { BODY_CHECKS, type BodyCheck, type BodyCheckContext, type BodyCheckKind, bodyChecks } from "./checks.ts";
 export {
+	blocksFromHtml,
+	type HtmlBody,
+	type HtmlImage,
+	type HtmlLeftover,
+	shortcodeIn,
+	textFromHtml,
+} from "./from-html.ts";
+export {
 	canonicalInline,
 	hasText,
 	type InlineText,

@@ -10,5 +10,7 @@ to `FIRST_PARTY_MODULES` in `packages/core/src/modules/first-party.ts`.
 
 See `docs/development.md` › "Modules" for the SDK, `tests/modules/sample/` for a Module that uses
 every extension point up to SDK 1.3, `modules/site-analytics/` for SDK 1.4's, and `modules/redirects/`
-for SDK 1.5's (Redirect rules and the 404 log). One Module of a build keeps Form Submissions,
-Redirect rules and the 404 log: `modules/forms` and `modules/redirects` show those.
+for SDK 1.5's (Redirect rules and the 404 log), and `modules/wordpress-import/` for SDK 1.7's import
+sources (a Module reads its file into items; WebCraft's Import pipeline does the rest). One Module of
+a build keeps Form Submissions, Redirect rules and the 404 log: `modules/forms` and
+`modules/redirects` show those.

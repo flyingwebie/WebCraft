@@ -13,7 +13,7 @@ import {
 	people,
 	postTypes,
 } from "@webcraft/db/schema";
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { siteLanguages } from "../content/languages.ts";
@@ -21,12 +21,14 @@ import { readValue, storedVersion } from "../content/values.ts";
 import { isUuid } from "../ids.ts";
 import { defineJob, type JobContext, type JobQueue } from "../jobs/define.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
+import type { ModuleHost } from "../modules/host.ts";
 import { actingPerson } from "../permissions/can.ts";
 import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { type CsvDetails, type CsvSeparator, csvColumns, csvRecords } from "./csv.ts";
 import { type CsvSettings, csvItem, csvMapping, csvSettingsSchema, matchKey, skippedColumns } from "./csv-source.ts";
 import {
+	ImportFileNotReadyError,
 	ImportInvalidError,
 	ImportNotFoundError,
 	ImportPostTypeFixedError,
@@ -45,15 +47,22 @@ import {
 	resolveFinds,
 	writeItem,
 } from "./pipeline.ts";
+import { checkSourceRun, runSourceImport, type SourceRunSummary } from "./source-runs.ts";
+import { type SourceSettings, sourceMapping, sourceSettingsSchema } from "./source-settings.ts";
 import { undoState } from "./undo.ts";
+import { sourceFor } from "./uploads.ts";
 
 /** How long an Import report is kept after its run ends. */
 export const IMPORT_REPORT_LIFETIME_MS = 90 * 24 * 60 * 60_000;
 
-/** The kinds of source an Import reads. CSV files for now; the WordPress import (#112) adds its own. */
+/** The kinds of source WebCraft itself reads: CSV files. Modules add theirs (`<module id>.<key>`). */
 export const IMPORT_SOURCES = ["csv"] as const;
 
-export type ImportSource = (typeof IMPORT_SOURCES)[number];
+/** An Import's source: `csv`, or a Module's import source such as `wordpress-import.export`. */
+export type ImportSource = string;
+
+/** An Import's settings, as its source reads them. */
+export type ImportSettings = CsvSettings | SourceSettings;
 
 /** Where a run stands. */
 export type ImportRunStatus = "waiting" | "running" | "stopped" | "done" | "failed" | "undone";
@@ -98,6 +107,8 @@ export type ImportProblem = {
 export type ImportChange = {
 	row: number;
 	entryId: string | null;
+	/** Its Post Type, while it exists. */
+	postTypeId: string | null;
 	title: string | null;
 	/** Why it was skipped: `edited` (someone changed it since an earlier run). */
 	reason: string | null;
@@ -124,8 +135,20 @@ export type ImportRunReport = ImportRunSummary & {
 	skipped: ImportChange[];
 	/** How many files it fetched into the Media library. */
 	files: number;
-	/** Its Import leftovers, for a source that has them (none in a CSV file). */
+	/** Its Import leftovers, for a source that has them (none in a CSV file): the first, and how many. */
 	leftovers: ImportLeftover[];
+	leftoversTotal: number;
+	/** A Module source's run: files it couldn't fetch, Redirect rules it made, Post Types and Fields it created, what it skipped. */
+	notFetched: { row: number; address: string; problem: string | null }[];
+	notFetchedTotal: number;
+	redirects: { on: boolean; count: number; rules: { from: string; to: string }[] };
+	structure: {
+		postTypes: { id: string | null; name: string }[];
+		fields: { postType: string; key: string; label: string }[];
+	};
+	skippedTypes: { type: string; label: string; count: number }[];
+	skippedKeys: { type: string; label: string; keys: string[] }[];
+	skippedItems: number;
 	failure: { reason: string } | null;
 	undoneAt: Date | null;
 	undoneBy: PersonRef;
@@ -140,7 +163,7 @@ export type Import = {
 	id: string;
 	name: string;
 	source: ImportSource;
-	settings: CsvSettings;
+	settings: ImportSettings;
 	postType: { id: string; name: string } | null;
 	createdBy: PersonRef;
 	createdAt: Date;
@@ -167,13 +190,13 @@ export type ImportPreview = {
 };
 
 /** A new Import. */
-export type NewImport = { name: string; source: ImportSource; settings: CsvSettings };
+export type NewImport = { name: string; source: ImportSource; settings: ImportSettings };
 
 type ImportRow = typeof imports.$inferSelect;
 type RunRow = typeof importRuns.$inferSelect;
 
-/** The summary a run keeps: its counts and the columns it skipped. */
-type RunSummaryJson = ImportCounts & { skippedColumns: string[] };
+/** The summary a run keeps: its counts and the columns it skipped (and, for a Module's source, more). */
+type RunSummaryJson = ImportCounts & { skippedColumns: string[] } & Partial<SourceRunSummary>;
 
 /** How many rows one job goes through before it hands the rest to the next one. */
 const ROWS_PER_JOB = 500;
@@ -192,15 +215,44 @@ export const importsRun = defineJob({
 	run: ({ siteId, runId }, context) => runImport(context, siteId, runId),
 });
 
+/**
+ * An Import's settings checked against the Site for its source: a CSV file's, or a Module source's
+ * (the source must run on the Site, for a person who may import from it).
+ */
+async function checkedSettings(
+	scope: SiteScope,
+	modules: ModuleHost,
+	source: ImportSource,
+	settings: unknown,
+): Promise<ImportSettings> {
+	if (source === "csv") {
+		const parsed = csvSettingsSchema.safeParse(settings);
+		if (!parsed.success) throw settingsKind();
+		await csvMapping(scope, parsed.data);
+		return parsed.data;
+	}
+	await sourceFor(scope, modules, source);
+	const parsed = sourceSettingsSchema.safeParse(settings);
+	if (!parsed.success) throw settingsKind();
+	await sourceMapping(scope, parsed.data, null);
+	return parsed.data;
+}
+
+function settingsKind(): ImportInvalidError {
+	return new ImportInvalidError([
+		{ at: "settings", rule: "settingsKind", message: "These settings aren't for this Import's source." },
+	]);
+}
+
 /** Creates an Import (logged `import.create`). Its settings must fit the Site. */
-export async function createImport(scope: SiteScope, input: NewImport): Promise<Import> {
-	await csvMapping(scope, input.settings);
+export async function createImport(scope: SiteScope, modules: ModuleHost, input: NewImport): Promise<Import> {
+	const settings = await checkedSettings(scope, modules, input.source, input.settings);
 	const now = scope.now();
 	return scope.transaction(async (tx) => {
 		const row = await tx.insert(imports, {
 			name: input.name.trim(),
 			source: input.source,
-			settings: input.settings,
+			settings,
 			createdBy: actingPerson(tx.access.actor),
 			createdAt: now,
 			updatedAt: now,
@@ -216,21 +268,25 @@ export async function createImport(scope: SiteScope, input: NewImport): Promise<
  */
 export async function updateImport(
 	scope: SiteScope,
+	modules: ModuleHost,
 	importId: string,
-	change: { name?: string; settings?: CsvSettings },
+	change: { name?: string; settings?: ImportSettings },
 ): Promise<Import> {
 	const row = await findImport(scope, importId);
+	let settings: ImportSettings | undefined;
 	if (change.settings) {
-		await csvMapping(scope, change.settings);
-		const before = csvSettingsSchema.safeParse(row.settings);
-		const movesPostType = !before.success || before.data.postTypeId !== change.settings.postTypeId;
-		if (movesPostType && (await trackedEntries(scope, [row.id])).has(row.id)) throw new ImportPostTypeFixedError();
+		settings = await checkedSettings(scope, modules, row.source, change.settings);
+		if (row.source === "csv") {
+			const before = csvSettingsSchema.safeParse(row.settings);
+			const movesPostType = !before.success || before.data.postTypeId !== (settings as CsvSettings).postTypeId;
+			if (movesPostType && (await trackedEntries(scope, [row.id])).has(row.id)) throw new ImportPostTypeFixedError();
+		}
 	}
 	const [saved] = await scope.update(
 		imports,
 		{
 			...(change.name !== undefined ? { name: change.name.trim() } : {}),
-			...(change.settings ? { settings: change.settings } : {}),
+			...(settings ? { settings } : {}),
 			updatedAt: scope.now(),
 		},
 		eq(imports.id, row.id),
@@ -264,6 +320,7 @@ export async function listImports(scope: SiteScope): Promise<Import[]> {
 export async function startRun(
 	scope: SiteScope,
 	jobs: JobQueue,
+	modules: ModuleHost,
 	importId: string,
 	fileId: string,
 ): Promise<ImportRunReport> {
@@ -282,22 +339,31 @@ export async function startRun(
 		);
 		if (going) throw new ImportRunningError(going.id);
 		const file = await ownFile(tx, fileId);
-		const settings = csvSettingsSchema.parse(row.settings);
-		const mapping = await csvMapping(tx, settings);
-		const details = file.details as CsvDetails;
+		let settings: ImportSettings;
+		let total: number;
+		let summary: RunSummaryJson;
+		if (row.source === "csv") {
+			if (file.source !== "csv") throw new ImportFileNotReadyError("source");
+			settings = csvSettingsSchema.parse(row.settings);
+			const mapping = await csvMapping(tx, settings);
+			const details = file.details as CsvDetails;
+			total = details.rows;
+			summary = {
+				created: 0,
+				updated: 0,
+				unchanged: 0,
+				skipped: 0,
+				problemRows: 0,
+				skippedColumns: skippedColumns(
+					mapping,
+					details.columns.map((column) => column.name),
+				),
+			};
+		} else {
+			({ settings, total, summary } = await checkSourceRun(tx, { modules }, row, file));
+		}
 		const number = row.runs + 1;
 		await tx.update(imports, { runs: number }, eq(imports.id, row.id));
-		const summary: RunSummaryJson = {
-			created: 0,
-			updated: 0,
-			unchanged: 0,
-			skipped: 0,
-			problemRows: 0,
-			skippedColumns: skippedColumns(
-				mapping,
-				details.columns.map((column) => column.name),
-			),
-		};
 		const created = await tx.insert(importRuns, {
 			importId: row.id,
 			number,
@@ -306,7 +372,7 @@ export async function startRun(
 			settings,
 			fileId: file.id,
 			fileName: file.fileName,
-			total: details.rows,
+			total,
 			summary,
 			startedAt: tx.now(),
 		});
@@ -409,12 +475,14 @@ export async function runReport(scope: SiteScope, runId: string): Promise<Import
 	const [summary] = await runSummaries(scope, [run]);
 	const settings = csvSettingsSchema.safeParse(run.settings);
 	const postTypeId = settings.success ? settings.data.postTypeId : null;
+	const sourceSettings = settings.success ? null : sourceSettingsSchema.safeParse(run.settings);
 	const postType = postTypeId ? await scope.first(postTypes, eq(postTypes.id, postTypeId)) : undefined;
-	const problems = await scope.select(importRunProblems, eq(importRunProblems.runId, run.id), {
+	const ofRun = (extra: ReturnType<typeof eq>) => and(eq(importRunProblems.runId, run.id), extra);
+	const problems = await scope.select(importRunProblems, ofRun(ne(importRunProblems.rule, "leftover")), {
 		orderBy: [asc(importRunProblems.position), asc(importRunProblems.ordinal)],
 		limit: REPORT_LIST_LIMIT,
 	});
-	const problemsTotal = await scope.count(importRunProblems, eq(importRunProblems.runId, run.id));
+	const problemsTotal = await scope.count(importRunProblems, ofRun(ne(importRunProblems.rule, "leftover")));
 	const { defaultLanguage } = await siteLanguages(scope);
 	const changes = async (action: string) =>
 		changeViews(
@@ -441,7 +509,7 @@ export async function runReport(scope: SiteScope, runId: string): Promise<Import
 		importName: parent?.name ?? "",
 		source: (parent?.source ?? "csv") as ImportSource,
 		postType: postType ? { id: postType.id, name: postType.name } : null,
-		language: settings.success ? settings.data.language : null,
+		language: settings.success ? settings.data.language : sourceSettings?.success ? sourceSettings.data.language : null,
 		skippedColumns: json.skippedColumns ?? [],
 		problems: problems.map((problem) => ({
 			row: problem.position,
@@ -454,12 +522,112 @@ export async function runReport(scope: SiteScope, runId: string): Promise<Import
 		updated: await changes("updated"),
 		skipped: await changes("skipped"),
 		files,
-		leftovers: [],
+		...(await sourceReport(scope, run, defaultLanguage)),
 		failure: (run.failure as { reason: string } | null) ?? null,
 		undoneAt: run.undoneAt,
 		undoneBy: run.undoneBy && undoneBy ? { id: run.undoneBy, name: undoneBy } : null,
 		undo: await undoState(scope, run),
 		expiresAt: run.expiresAt,
+	};
+}
+
+/**
+ * What a Module source's run adds to its report: its Import leftovers (with the Entry each is in),
+ * the files it couldn't fetch, the Redirect rules it made, the Post Types and Fields it created, and
+ * the types and keys it skipped. A CSV run has none of them.
+ */
+async function sourceReport(scope: SiteScope, run: RunRow, defaultLanguage: string) {
+	const json = run.summary as RunSummaryJson;
+	const ofRun = (extra: ReturnType<typeof eq>) => and(eq(importRunProblems.runId, run.id), extra);
+	const leftoverRows = await scope.select(importRunProblems, ofRun(eq(importRunProblems.rule, "leftover")), {
+		orderBy: [asc(importRunProblems.position), asc(importRunProblems.ordinal)],
+		limit: REPORT_LIST_LIMIT,
+	});
+	const positions = [...new Set(leftoverRows.map((row) => row.position))];
+	const entryChanges =
+		positions.length > 0
+			? await scope.select(
+					importRunChanges,
+					and(
+						eq(importRunChanges.runId, run.id),
+						eq(importRunChanges.kind, "entry"),
+						inArray(importRunChanges.position, positions),
+					),
+				)
+			: [];
+	const views = await changeViews(scope, defaultLanguage, entryChanges);
+	const byPosition = new Map(views.map((view) => [view.row, view]));
+	const entryIds = views.flatMap((view) => (view.entryId ? [view.entryId] : []));
+	const entryTypes =
+		entryIds.length > 0
+			? new Map(
+					(
+						await scope.db
+							.select({ id: entries.id, postTypeId: postTypes.id, name: postTypes.name })
+							.from(entries)
+							.innerJoin(postTypes, eq(postTypes.id, entries.postTypeId))
+							.where(scope.where(entries, inArray(entries.id, entryIds)))
+					).map((row) => [row.id, { id: row.postTypeId, name: row.name }]),
+				)
+			: new Map<string, { id: string; name: string }>();
+	const leftovers: ImportLeftover[] = leftoverRows.map((row) => {
+		const params = (row.params ?? {}) as Record<string, string>;
+		const view = byPosition.get(row.position);
+		return {
+			row: row.position,
+			entryId: view?.entryId ?? null,
+			title: view?.title ?? null,
+			text: params.text ?? "",
+			markup: params.markup ?? "",
+			key: row.column,
+			blockId: params.blockId || null,
+			postType: view?.entryId ? (entryTypes.get(view.entryId) ?? null) : null,
+		};
+	});
+	const notFetchedRows = await scope.select(importRunProblems, ofRun(eq(importRunProblems.rule, "notFetched")), {
+		orderBy: [asc(importRunProblems.position)],
+		limit: REPORT_LIST_LIMIT,
+	});
+	const changesOf = (kind: string) =>
+		scope.select(importRunChanges, and(eq(importRunChanges.runId, run.id), eq(importRunChanges.kind, kind)), {
+			orderBy: [asc(importRunChanges.position), asc(importRunChanges.id)],
+			limit: REPORT_LIST_LIMIT,
+		});
+	const ruleRows = await changesOf("redirect");
+	const typeRows = await changesOf("postType");
+	const fieldRows = await changesOf("field");
+	const typeNames = new Map((await scope.select(postTypes)).map((postType) => [postType.id, postType.name] as const));
+	return {
+		leftovers,
+		leftoversTotal: json.leftovers ?? leftovers.length,
+		notFetchedTotal: json.notFetched ?? notFetchedRows.length,
+		notFetched: notFetchedRows.map((row) => {
+			const params = (row.params ?? {}) as Record<string, string>;
+			return { row: row.position, address: params.address ?? "", problem: params.problem ?? null };
+		}),
+		redirects: {
+			on: json.redirectsOn ?? false,
+			count: json.redirects ?? 0,
+			rules: ruleRows.map((row) => row.details as { from: string; to: string }),
+		},
+		structure: {
+			postTypes: typeRows
+				.map((row) => ({
+					id: row.postTypeId && typeNames.has(row.postTypeId) ? row.postTypeId : null,
+					name: (row.postTypeId ? typeNames.get(row.postTypeId) : undefined) ?? (row.details as { name: string }).name,
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name)),
+			fields: fieldRows
+				.map((row) => ({
+					postType: (row.postTypeId ? typeNames.get(row.postTypeId) : undefined) ?? "",
+					key: (row.details as { key: string }).key,
+					label: (row.details as { label: string }).label,
+				}))
+				.sort((a, b) => a.postType.localeCompare(b.postType) || a.key.localeCompare(b.key)),
+		},
+		skippedTypes: json.skippedTypes ?? [],
+		skippedKeys: json.skippedKeys ?? [],
+		skippedItems: json.skippedItems ?? 0,
 	};
 }
 
@@ -486,6 +654,13 @@ async function runImport(context: JobContext, siteId: string, runId: string): Pr
 	}
 	try {
 		if (run.status === "waiting") await scope.update(importRuns, { status: "running" }, eq(importRuns.id, run.id));
+		const parent = await scope.first(imports, eq(imports.id, run.importId));
+		if (!parent) return finish("failed", { reason: "settings" });
+		if (parent.source !== "csv") {
+			return await runSourceImport(context, scope, run, parent, finish, async () => {
+				await context.jobs.send(importsRun, { siteId, runId });
+			});
+		}
 		const settings = csvSettingsSchema.parse(run.settings);
 		let mapping: Awaited<ReturnType<typeof csvMapping>>;
 		try {
@@ -636,15 +811,16 @@ async function importViews(scope: SiteScope, rows: readonly ImportRow[]): Promis
 		rows.flatMap((row) => (row.createdBy ? [row.createdBy] : [])),
 	);
 	return rows.map((row) => {
-		const settings = row.settings as CsvSettings;
-		const typeName = types.get(settings.postTypeId);
+		const settings = row.settings as ImportSettings;
+		const postTypeId = "postTypeId" in settings ? settings.postTypeId : null;
+		const typeName = postTypeId ? types.get(postTypeId) : undefined;
 		const creator = row.createdBy ? creators.get(row.createdBy) : undefined;
 		return {
 			id: row.id,
 			name: row.name,
 			source: row.source as ImportSource,
 			settings,
-			postType: typeName !== undefined ? { id: settings.postTypeId, name: typeName } : null,
+			postType: postTypeId && typeName !== undefined ? { id: postTypeId, name: typeName } : null,
 			createdBy: row.createdBy && creator !== undefined ? { id: row.createdBy, name: creator } : null,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
@@ -699,9 +875,11 @@ async function changeViews(
 			readValue(storedVersion(row.draft), { key: "title", language, defaultLanguage: language }),
 		]),
 	);
+	const types = new Map(found.map((row) => [row.id, row.postTypeId]));
 	return rows.map((row) => ({
 		row: row.position,
 		entryId: row.entryId && titles.has(row.entryId) ? row.entryId : null,
+		postTypeId: row.entryId ? (types.get(row.entryId) ?? null) : null,
 		title: row.entryId ? (titles.get(row.entryId) ?? null) : null,
 		reason: row.reason,
 	}));

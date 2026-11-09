@@ -81,7 +81,9 @@ describe("matching existing Entries", () => {
 		);
 
 		expect(run.counts).toMatchObject({ created: 1, updated: 1, problemRows: 0 });
-		expect(run.updated).toEqual([{ row: 2, entryId: rye.id, title: "Seeded rye", reason: null }]);
+		expect(run.updated).toEqual([
+			{ row: 2, entryId: rye.id, postTypeId: postType.id, title: "Seeded rye", reason: null },
+		]);
 		// Matching ignores case; the row's own values are written, its SKU included.
 		expect(await bySku(postType.id)).toEqual({
 			"ry-650": { title: "Seeded rye", price: 5.2, status: "changed" },

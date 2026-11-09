@@ -1,0 +1,137 @@
+// The WordPress import in a browser, in light and dark: the Source step with the export file uploaded
+// in parts and read by the worker, the Map step (mapping variant B: the types, each key's card and the
+// live sample Entry) and the Preview (real Entries with their Blocks and Import leftovers), driven
+// from the keyboard; and a WordPress run's Import report with its leftovers and Redirect rules tabs.
+import { afterAll, beforeAll, describe, test } from "bun:test";
+import type { Page } from "playwright";
+import { photo } from "../harness/images.ts";
+import type { TestAccount } from "../harness/index.ts";
+import { OLD_MILL, runImport, serveOldSite, surveyedExport } from "../imports/wordpress.ts";
+import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
+import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
+
+let install: BrowserInstall;
+let staff: TestAccount;
+let siteId: string;
+let importId: string;
+let runId: string;
+
+beforeAll(async () => {
+	install = await startBrowserInstall();
+	await install.createSuperadmin();
+	const { api: admin } = await install.install.superadmin();
+	await admin.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });
+	await admin.modules.approve({ moduleId: "redirects", version: "1.1.0" });
+	const workspaceId = (await install.install.createWorkspace("Acme Ltd")).id;
+	siteId = (await install.install.createSite(workspaceId, { name: "Old Mill", slug: "old-mill" })).id;
+	const member = await install.install.createStaff({ workspaces: [workspaceId] });
+	staff = member.account;
+	serveOldSite(install.install, {
+		"https://oldmill.example/wp-content/uploads/2024/03/loaf.jpg": await photo({ width: 320, height: 240 }),
+		"https://oldmill.example/wp-content/uploads/2023/11/oven.png": await photo({
+			width: 200,
+			height: 150,
+			format: "png",
+		}),
+	});
+	// A run that ended, with Import leftovers and Redirect rules, for its report.
+	const file = await surveyedExport(install.install, member.browser.api, siteId);
+	const done = await runImport(
+		install.install,
+		member.browser.api,
+		siteId,
+		file.id,
+		file.suggested ?? { language: null, types: [] },
+	);
+	importId = done.importId;
+	runId = done.run.id;
+});
+
+afterAll(async () => {
+	await install.close();
+});
+
+async function open(page: Page, account: TestAccount, path: string) {
+	await install.signIn(page, account);
+	await page.goto(install.adminUrl(path));
+	await page.waitForLoadState("networkidle");
+}
+
+async function press(page: Page, name: string) {
+	const button = page.getByRole("button", { name, exact: true });
+	await button.focus();
+	await page.keyboard.press("Enter");
+}
+
+/**
+ * Lets the worker run what the page queued (the survey, the preview), until the page shows `text`.
+ * The web process queues on the real clock, so the test Install's clock catches up first.
+ */
+async function drainUntil(page: Page, text: string | RegExp) {
+	for (let attempt = 0; attempt < 40; attempt++) {
+		await install.install.clock.set(new Date());
+		await install.install.drainJobs();
+		if (await page.getByText(text).first().isVisible()) return;
+		await page.waitForTimeout(250);
+	}
+	await page.getByText(text).first().waitFor();
+}
+
+for (const theme of THEMES) {
+	describe(`The WordPress import, ${theme}`, () => {
+		test("Source, Map with the live sample Entry, and Preview, from the keyboard", async () => {
+			const page = await install.newPage(theme);
+			await open(page, staff, `/sites/${siteId}/imports/new?source=wordpress-import.export`);
+			await page.getByRole("heading", { name: "WordPress export file" }).waitFor();
+			await expectAccessibleScreen(page, `WordPress import, Source (${theme})`);
+
+			await page.getByLabel("Export file", { exact: true }).setInputFiles({
+				name: "oldmill.xml",
+				mimeType: "text/xml",
+				buffer: Buffer.from(OLD_MILL),
+			});
+			await drainUntil(page, "oldmill.xml was read");
+			await expectAccessibleScreen(page, `WordPress import, Source read (${theme})`);
+
+			await press(page, "Continue to mapping");
+			await page.getByRole("heading", { name: "Sample Entry" }).waitFor();
+			// The first type in the file: the categories, with the first of them as the sample.
+			await page.getByText("News", { exact: true }).first().waitFor();
+			await expectAccessibleScreen(page, `WordPress import, Map (${theme})`);
+
+			// The posts, and their next sample, from the keyboard.
+			const posts = page.getByRole("button", { name: /^Posts · 3/ });
+			await posts.focus();
+			await page.keyboard.press("Enter");
+			await page.getByText("Spring opening hours", { exact: true }).first().waitFor();
+			await press(page, "Next sample");
+			await page.getByText("Rye week", { exact: true }).first().waitFor();
+			await expectNoAxeViolations(page, `WordPress import, Map of the posts (${theme})`);
+
+			await press(page, "Preview");
+			await drainUntil(page, /Entries as Drafts/);
+			await expectAccessibleScreen(page, `WordPress import, Preview (${theme})`);
+			const postsTab = page.getByRole("tab", { name: "Posts", exact: true });
+			await postsTab.focus();
+			await page.keyboard.press("Enter");
+			const rye = page.getByRole("button", { name: /^Rye week/ });
+			await rye.focus();
+			await page.keyboard.press("Enter");
+			await page.getByText("Import leftover: markup no Block reads", { exact: false }).waitFor();
+			await expectNoAxeViolations(page, `WordPress import, Preview of an Entry (${theme})`);
+		});
+
+		test("a WordPress run's Import report, its leftovers and Redirect rules", async () => {
+			const page = await install.newPage(theme);
+			await open(page, staff, `/sites/${siteId}/imports/${importId}/runs/${runId}`);
+			await page.getByRole("tab", { name: "Import leftovers (4)" }).waitFor();
+			await expectAccessibleScreen(page, `WordPress import report (${theme})`);
+
+			const rules = page.getByRole("tab", { name: "Redirect rules (5)" });
+			await rules.focus();
+			await page.keyboard.press("Enter");
+			await page.getByText("/2024/03/spring-opening-hours").first().waitFor();
+			await expectNoAxeViolations(page, `WordPress import report, Redirect rules (${theme})`);
+		});
+	});
+}

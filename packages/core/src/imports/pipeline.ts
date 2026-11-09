@@ -11,6 +11,7 @@
  *    id and what the run left, so a later run (and Undo) can tell whether anyone touched it since.
  */
 import { entries, importItems, importRunChanges, importRunProblems, importRuns, media } from "@webcraft/db/schema";
+import type { SourceFileRef } from "@webcraft/module-sdk";
 import { and, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import { createEntry, lockEntry, saveDraft } from "../content/entries.ts";
 import { EntryInvalidError, EntryNotFoundError, EntrySlugTakenError } from "../content/errors.ts";
@@ -23,6 +24,7 @@ import {
 	MediaTypeRefusedError,
 } from "../media/index.ts";
 import type { MediaLibrary } from "../media/library.ts";
+import { MEDIA_TEXT_MAX_LENGTH, readText, storedTexts } from "../media/texts.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { matchKey, setAt } from "./csv-source.ts";
 import type { EntryItem, ItemDestination, ItemProblem } from "./items.ts";
@@ -36,11 +38,14 @@ type EntryState = { hash: string; updatedAt: Date };
 export type PipelineContext = {
 	scope: SiteScope;
 	importId: string | null;
-	/** Where the source's items go. */
-	mapping: ItemDestination;
+	/** Where the source's items go, unless an item names its own destination (a CSV file's one Post Type). */
+	mapping: ItemDestination | null;
 	/** Existing Entries of the Post Type by their matching value (from their Drafts). */
 	index: Map<string, string[]>;
-	/** The Import's items by Source id, and by Entry. */
+	/**
+	 * The Import's items by Post Type and Source id (`itemKey`), and by Entry: a Source id is looked up
+	 * within the Post Type its item goes to, so an item whose type now goes elsewhere comes in anew.
+	 */
 	items: Map<string, ItemRow>;
 	itemsByEntry: Map<string, ItemRow>;
 	/** The Import's files fetched before, by address. */
@@ -53,6 +58,8 @@ export type PipelineContext = {
 	found: Map<string, string[]>;
 	/** The Site's Post Types' ids by key. */
 	postTypeIds: Map<string, string>;
+	/** The language a source's items are written in (a CSV file's is its destination's). */
+	languages?: { language: string; defaultLanguage: string };
 };
 
 /** Where an item goes. */
@@ -62,23 +69,30 @@ export type Decision =
 	| { kind: "skip"; entryId: string; reason: "edited" }
 	| { kind: "problem" };
 
+/** Where the Import keeps an Entry it brought in: its Post Type and Source id. */
+export function itemKey(postTypeId: string | null, sourceId: string): string {
+	return `${postTypeId ?? ""}\n${sourceId}`;
+}
+
 /** Reads what a run needs to know about the Site before it goes through the items. */
 export async function pipelineContext(
 	scope: SiteScope,
 	importId: string | null,
-	mapping: ItemDestination,
+	mapping: ItemDestination | null,
 ): Promise<PipelineContext> {
 	const index = new Map<string, string[]>();
-	const path = matchPath(mapping.match.to);
-	const rows = await scope.db
-		.select({ id: entries.id, values: sql<unknown>`${entries.draft} #> ${path}` })
-		.from(entries)
-		.where(scope.where(entries, eq(entries.postTypeId, mapping.postType.id)));
-	for (const row of rows) {
-		const value = valueIn(row.values, mapping.languages);
-		if (value === null || value === "") continue;
-		const key = matchKey(value);
-		index.set(key, [...(index.get(key) ?? []), row.id]);
+	if (mapping?.match) {
+		const path = matchPath(mapping.match.to);
+		const rows = await scope.db
+			.select({ id: entries.id, values: sql<unknown>`${entries.draft} #> ${path}` })
+			.from(entries)
+			.where(scope.where(entries, eq(entries.postTypeId, mapping.postType.id)));
+		for (const row of rows) {
+			const value = valueIn(row.values, mapping.languages);
+			if (value === null || value === "") continue;
+			const key = matchKey(value);
+			index.set(key, [...(index.get(key) ?? []), row.id]);
+		}
 	}
 	const items = new Map<string, ItemRow>();
 	const itemsByEntry = new Map<string, ItemRow>();
@@ -88,7 +102,7 @@ export async function pipelineContext(
 		for (const item of await scope.select(importItems, eq(importItems.importId, importId))) {
 			if (item.kind === "media") files.set(item.sourceId, item);
 			else {
-				items.set(item.sourceId, item);
+				items.set(itemKey(item.postTypeId, item.sourceId), item);
 				if (item.entryId) itemsByEntry.set(item.entryId, item);
 			}
 		}
@@ -110,18 +124,31 @@ export async function pipelineContext(
 	};
 }
 
-/** Where an item goes; row problems it meets are added to the item. */
+/** Where an item goes: its own destination, or the source's. */
+export function destinationOf(context: PipelineContext, item: EntryItem): ItemDestination {
+	const destination = item.destination ?? context.mapping;
+	if (!destination) throw new TypeError("An Import item has nowhere to go.");
+	return destination;
+}
+
+/**
+ * Where an item goes; row problems it meets are added to the item. An item matches the Entry this
+ * Import brought in with its Source id, in the Post Type it goes to; a CSV row also matches an Entry
+ * of the Post Type whose Draft has its matching value.
+ */
 export function decide(context: PipelineContext, item: EntryItem): Decision {
-	if (item.problems.some((problem) => problem.row) || !item.match || !item.sourceId) return { kind: "problem" };
-	const key = matchKey(item.match.value);
+	if (item.problems.some((problem) => problem.row) || !item.sourceId) return { kind: "problem" };
+	const destination = destinationOf(context, item);
+	if (!item.match && destination.match) return { kind: "problem" };
+	const key = item.match ? matchKey(item.match.value) : `source:${itemKey(destination.postType.id, item.sourceId)}`;
 	const first = context.seen.get(key);
 	if (first !== undefined) {
 		item.problems.push({ column: null, rule: "matchedTwice", params: { row: first }, row: true });
 		return { kind: "problem" };
 	}
 	context.seen.set(key, item.position);
-	let entryId = context.items.get(item.sourceId)?.entryId ?? undefined;
-	if (!entryId) {
+	let entryId = context.items.get(itemKey(destination.postType.id, item.sourceId))?.entryId ?? undefined;
+	if (!entryId && item.match) {
 		const matching = context.index.get(key) ?? [];
 		if (matching.length > 1) {
 			item.problems.push({ column: null, rule: "matchesSeveral", params: { count: matching.length }, row: true });
@@ -130,7 +157,7 @@ export function decide(context: PipelineContext, item: EntryItem): Decision {
 		entryId = matching[0];
 	}
 	if (!entryId) {
-		const { language, defaultLanguage } = context.mapping.languages;
+		const { language, defaultLanguage } = destination.languages;
 		if (language !== defaultLanguage) {
 			item.problems.push({ column: null, rule: "translationWithoutEntry", row: true });
 			return { kind: "problem" };
@@ -149,24 +176,33 @@ export function touched(state: EntryState, written: { writtenHash: string | null
 }
 
 /**
- * Finds what an item's values point at: Entries by slug or title, and Media library files by id.
- * Files given by address are fetched only when `fetchFiles` is given (a run; the preview only counts
- * them). Whatever can't be found is a problem at its column, its value left out.
+ * Finds what an item's values point at: Entries by slug or title, or by the Source id this Import
+ * gave them (in the Relationship's Post Types), and Media library files by id. Files given by address
+ * are fetched only when `fetchFiles` is given (a run; the preview only counts them). Whatever can't be
+ * found is a problem at its column, its value left out.
  */
 export async function resolveFinds(
 	context: PipelineContext,
 	item: EntryItem,
-	fetchFiles?: (address: string) => Promise<{ mediaId: string } | { problem: ItemProblem["params"] }>,
+	fetchFiles?: (
+		address: string,
+		ref?: SourceFileRef,
+	) => Promise<{ mediaId: string } | { problem: ItemProblem["params"] }>,
 ): Promise<{ files: number }> {
 	let files = 0;
 	for (const find of item.finds) {
 		const { reading, field, column } = find;
-		if ("entries" in reading) {
+		const put = (value: Json) => (find.apply ? find.apply(value) : setAt(item.values.fields, find.path, value));
+		if ("entries" in reading || "sources" in reading) {
 			const postTypes = field.type === "relationship" ? field.postTypes : [];
 			const ids: string[] = [];
 			let failed = false;
-			for (const name of reading.entries) {
-				const matching = await entriesNamed(context, postTypes, name);
+			const names = "entries" in reading ? reading.entries : reading.sources;
+			for (const name of names) {
+				const matching =
+					"entries" in reading
+						? await entriesNamed(context, postTypes, name)
+						: entriesBrought(context, postTypes, name);
 				if (matching.length !== 1) {
 					item.problems.push({
 						column,
@@ -174,28 +210,55 @@ export async function resolveFinds(
 						params: { name },
 					});
 					failed = true;
-					break;
+					if ("entries" in reading) break;
+					continue;
 				}
 				ids.push(matching[0] as string);
 			}
-			if (!failed) setAt(item.values.fields, find.path, field.type === "relationship" && field.multiple ? ids : ids[0]);
+			if ("sources" in reading ? ids.length > 0 : !failed) {
+				put(field.type === "relationship" && field.multiple ? ids : (ids[0] ?? null));
+			}
 		} else if ("media" in reading) {
 			const found = await context.scope.first(
 				media,
 				and(eq(media.id, reading.media.toLowerCase()), isNull(media.trashedAt)),
 			);
-			if (found) setAt(item.values.fields, find.path, found.id);
+			if (found) put(found.id);
 			else item.problems.push({ column, rule: "mediaNotFound" });
 		} else {
 			files++;
 			if (!fetchFiles) continue;
-			const fetched = await fetchFiles(reading.file);
-			if ("mediaId" in fetched) setAt(item.values.fields, find.path, fetched.mediaId);
-			else item.problems.push({ column, rule: "notFetched", ...(fetched.problem ? { params: fetched.problem } : {}) });
+			const fetched = await fetchFiles(reading.file, reading.ref);
+			if ("mediaId" in fetched) put(fetched.mediaId);
+			else {
+				item.problems.push({
+					column,
+					rule: "notFetched",
+					// A source's files are listed by address in its report; a CSV cell is found by its row and column.
+					params: { ...(fetched.problem ?? {}), ...(reading.ref ? { address: reading.file.slice(0, 300) } : {}) },
+				});
+			}
 		}
 	}
 	return { files };
 }
+
+/**
+ * The Entries this Import brought in with a Source id, in one of `postTypes` (keys): the items a
+ * source's item points at (the terms of a post).
+ */
+function entriesBrought(context: PipelineContext, postTypes: readonly string[], sourceId: string): string[] {
+	const found: string[] = [];
+	for (const key of postTypes) {
+		const id = context.postTypeIds.get(key);
+		const entryId = id ? context.items.get(itemKey(id, sourceId))?.entryId : null;
+		if (entryId) found.push(entryId);
+	}
+	return found;
+}
+
+/** How many slugs a source's item tries (`-2`, `-3`, …) when its own is taken. */
+const MAX_SLUG_TRIES = 50;
 
 /** What writing an item did. */
 export type Outcome = "created" | "updated" | "unchanged" | "skipped" | "problem";
@@ -214,8 +277,9 @@ export async function writeItem(
 	item: EntryItem,
 	decision: Decision,
 ): Promise<Outcome> {
-	const { scope, mapping } = context;
-	const language = mapping.languages.language;
+	const { scope } = context;
+	const destination = destinationOf(context, item);
+	const language = destination.languages.language;
 	if (decision.kind === "problem") return "problem";
 	if (decision.kind === "skip") {
 		await scope.insert(importRunChanges, {
@@ -233,12 +297,14 @@ export async function writeItem(
 			let entryId: string;
 			let before: unknown = null;
 			if (decision.kind === "create") {
-				const { title = "", slug, fields } = item.values;
+				const { title = "", slug, fields, seo, parentId } = item.values;
 				const entry = await createEntry(tx, {
-					postTypeId: mapping.postType.id,
+					postTypeId: destination.postType.id,
 					language,
 					title,
 					...(slug ? { slug } : {}),
+					...(seo ? { seo } : {}),
+					...(parentId ? { parentId } : {}),
 					fields,
 				});
 				entryId = entry.id;
@@ -253,8 +319,9 @@ export async function writeItem(
 			if (!state || !after) throw new Unchanged();
 			if (decision.kind === "update" && JSON.stringify(after.draft) === JSON.stringify(before)) throw new Unchanged();
 			const sourceId = item.sourceId as string;
-			const existing = context.items.get(sourceId) ?? context.itemsByEntry.get(entryId);
-			const written = { writtenHash: state.hash, writtenAt: state.updatedAt, lastRunId: runId };
+			const postTypeId = destination.postType.id;
+			const existing = context.items.get(itemKey(postTypeId, sourceId)) ?? context.itemsByEntry.get(entryId);
+			const written = { writtenHash: state.hash, writtenAt: state.updatedAt, lastRunId: runId, postTypeId };
 			let saved: ItemRow;
 			if (existing) {
 				[saved] = (await tx.update(
@@ -297,6 +364,19 @@ export async function writeItem(
 			return "unchanged";
 		}
 		if (error instanceof EntrySlugTakenError) {
+			// A source's own slug another Entry has: the new Entry takes the next free one, and the report says so.
+			const slug = item.values.slug;
+			if (item.freeSlug && decision.kind === "create" && slug) {
+				const [, base = slug, number = "1"] = /^(.*?)(?:-(\d+))?$/.exec(slug) ?? [];
+				const next = Number(number) + 1;
+				if (next <= MAX_SLUG_TRIES) {
+					if (!item.problems.some((problem) => problem.rule === "slugChanged")) {
+						item.problems.push({ column: "slug", rule: "slugChanged", params: { slug: item.freeSlug.from } });
+					}
+					item.values.slug = `${base}-${next}`;
+					return writeItem(context, runId, item, decision);
+				}
+			}
 			item.problems.push({ column: null, rule: "slugTaken", params: { slug: error.slug }, row: true });
 			return "problem";
 		}
@@ -311,7 +391,7 @@ export async function writeItem(
 
 /** Keeps what the run just wrote, so later items of the same run see it. */
 function remember(context: PipelineContext, item: ItemRow, state: EntryState): void {
-	context.items.set(item.sourceId, item);
+	context.items.set(itemKey(item.postTypeId, item.sourceId), item);
 	if (item.entryId) {
 		context.itemsByEntry.set(item.entryId, item);
 		context.states.set(item.entryId, state);
@@ -329,12 +409,16 @@ export async function fetchFile(
 	runId: string,
 	position: number,
 	address: string,
-): Promise<{ mediaId: string } | { problem: ItemProblem["params"] }> {
+	ref?: SourceFileRef,
+): Promise<{ mediaId: string; fresh: boolean } | { problem: ItemProblem["params"] }> {
 	const { scope } = context;
 	const known = context.files.get(address);
 	if (known?.mediaId) {
 		const kept = await scope.first(media, and(eq(media.id, known.mediaId), isNull(media.trashedAt)));
-		if (kept) return { mediaId: kept.id };
+		if (kept) {
+			if (ref) await fillTexts(context, library, kept, ref);
+			return { mediaId: kept.id, fresh: false };
+		}
 	}
 	let mediaId: string;
 	try {
@@ -361,7 +445,33 @@ export async function fetchFile(
 		if (item) context.files.set(address, item);
 		await tx.insert(importRunChanges, { runId, position, kind: "media", action: "created", mediaId });
 	});
-	return { mediaId };
+	if (ref) {
+		const fetched = await scope.first(media, eq(media.id, mediaId));
+		if (fetched) await fillTexts(context, library, fetched, ref);
+	}
+	return { mediaId, fresh: true };
+}
+
+/**
+ * Gives a fetched file the title, alt text and caption the source gives it, in the run's language,
+ * where it has none yet: never over what someone wrote.
+ */
+async function fillTexts(
+	context: PipelineContext,
+	library: MediaLibrary,
+	row: typeof media.$inferSelect,
+	ref: SourceFileRef,
+): Promise<void> {
+	const languages = (context.mapping ?? null)?.languages ?? context.languages;
+	if (!languages) return;
+	const texts = storedTexts(row.texts);
+	const change: { title?: string; alt?: string; caption?: string } = {};
+	for (const key of ["title", "alt", "caption"] as const) {
+		const given = ref[key]?.trim();
+		if (given && !readText(texts, key, languages)) change[key] = given.slice(0, MEDIA_TEXT_MAX_LENGTH[key]);
+	}
+	if (Object.keys(change).length === 0) return;
+	await library.update(context.scope, row.id, { language: languages.language, ...change });
 }
 
 /** Records an item's problems in the run's report. */
@@ -388,15 +498,16 @@ export async function countOutcome(
 	outcome: Outcome,
 	hasProblems: boolean,
 	done: number,
+	extra: Record<string, number> = {},
 ): Promise<void> {
-	const keys = [
-		...(outcome === "problem" ? [] : [outcome]),
-		...(hasProblems || outcome === "problem" ? ["problemRows"] : []),
-	];
+	const counts: Record<string, number> = { ...extra };
+	if (outcome !== "problem") counts[outcome] = (counts[outcome] ?? 0) + 1;
+	if (hasProblems || outcome === "problem") counts.problemRows = (counts.problemRows ?? 0) + 1;
 	let summary: SQL = sql`${importRuns.summary}`;
-	for (const key of keys) {
+	for (const [key, by] of Object.entries(counts)) {
+		if (by === 0) continue;
 		const inner = summary;
-		summary = sql`jsonb_set(${inner}, ${`{${key}}`}::text[], to_jsonb(coalesce((${inner} ->> ${key}::text)::int, 0) + 1))`;
+		summary = sql`jsonb_set(${inner}, ${`{${key}}`}::text[], to_jsonb(coalesce((${inner} ->> ${key}::text)::int, 0) + ${by}))`;
 	}
 	await scope.db
 		.update(importRuns)

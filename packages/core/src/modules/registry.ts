@@ -4,6 +4,8 @@ import {
 	type AdminPage,
 	type ComponentProp,
 	type ConsentCategory,
+	IMPORT_FILE_MAX_BYTES,
+	type ImportSource,
 	type Label,
 	labelProblem,
 	MODULE_EVENTS,
@@ -97,6 +99,8 @@ export type RunnableModule = {
 	redirects: RedirectRules | null;
 	/** How it keeps the Sites' 404 log, when it does (SDK 1.5; at most one Module of a build). */
 	notFoundLog: NotFoundLog | null;
+	/** The sources it imports content from (SDK 1.7), by key. */
+	importSources: ReadonlyMap<string, ImportSource>;
 };
 
 /** One of a Module's tables kept in monthly partitions, as WebCraft keeps it. */
@@ -144,6 +148,7 @@ const DEFINITION_KEYS = new Set([
 	"partitions",
 	"redirectRules",
 	"notFoundLog",
+	"importSources",
 	"widgets",
 ]);
 
@@ -159,6 +164,8 @@ const PAGE_PATH = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ROUTE_PART = /^(?:[a-z0-9]+(?:[-_.][a-z0-9]+)*|:[a-zA-Z][a-zA-Z0-9]*)$/;
 const MIGRATION_NAME = /^[0-9A-Za-z][0-9A-Za-z._-]{0,99}$/;
 const JOB_NAME = /^[a-z][a-zA-Z0-9-]{0,63}$/;
+const SOURCE_KEY = /^[a-z]+(?:-[a-z]+)*$/;
+const FILE_EXTENSION = /^\.[a-z0-9]{1,10}$/;
 const ROUTE_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 /** Input keys WebCraft adds to every Module procedure. */
 const PLACE_KEYS = ["siteId", "workspaceId"];
@@ -490,6 +497,41 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		if (level !== "site") problem("Only Site-level Modules keep the 404 log: it is a Site's.");
 		if (typeof notFound.record !== "function") problem("Its notFoundLog has no record function.");
 	}
+	if (redirects !== null) {
+		const { add, remove } = redirects;
+		if ((add === undefined) !== (remove === undefined)) {
+			problem("Its redirectRules adds rules for Imports without removing them for Undo, or the other way round.");
+		}
+		if ((add !== undefined && typeof add !== "function") || (remove !== undefined && typeof remove !== "function")) {
+			problem("Its redirectRules' add and remove are functions.");
+		}
+	}
+
+	const importSources = new Map<string, ImportSource>();
+	for (const source of definition.importSources ?? []) {
+		if (level !== "site") problem("Only Site-level Modules import content: an Import brings it into a Site.");
+		if (typeof source?.key !== "string" || !SOURCE_KEY.test(source.key)) {
+			problem(`The import source key ${String(source?.key)} isn't lower-case letters and dashes.`);
+		}
+		if (importSources.has(source.key)) problem(`The import source ${source.key} is declared twice.`);
+		for (const [what, words] of [
+			["label", source.label],
+			["description", source.description],
+		] as const) {
+			const missing = labelProblem(words ?? {}, manifest.adminLanguages);
+			if (missing) problem(`The import source ${source.key}'s ${what}: ${missing}`);
+		}
+		checkPermission(source.permission, `The import source ${source.key}`);
+		const { maxBytes, extensions } = source.file ?? {};
+		if (!isWhole(maxBytes, 1, IMPORT_FILE_MAX_BYTES)) {
+			problem(`The import source ${source.key} takes files of 1 to ${IMPORT_FILE_MAX_BYTES} whole bytes.`);
+		}
+		if (!Array.isArray(extensions) || extensions.length === 0 || !extensions.every((ext) => FILE_EXTENSION.test(ext))) {
+			problem(`The import source ${source.key} names the file endings it takes, such as .xml.`);
+		}
+		if (typeof source.read !== "function") problem(`The import source ${source.key} has no read function.`);
+		importSources.set(source.key, source);
+	}
 
 	return {
 		runnable: true,
@@ -512,6 +554,7 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		partitions,
 		redirects,
 		notFoundLog: notFound,
+		importSources,
 	};
 }
 

@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, foreignKey, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
-import { entries } from "./content.ts";
+import { entries, postTypes } from "./content.ts";
 import { media } from "./media.ts";
 import { people } from "./people.ts";
 import { sites } from "./tenancy.ts";
@@ -46,9 +46,11 @@ export const imports = pgTable(
 );
 
 /**
- * A file uploaded for an Import, such as a CSV file. It is private: never in the Media library and
- * never served, kept apart in the Site's storage folder (`…/imports/<id>`), read by the worker as a
- * stream, and deleted once the run that took it ends (or a day after it was uploaded, if no run did).
+ * A file uploaded for an Import, such as a CSV file or a source's export file. It is private: never
+ * in the Media library and never served, kept apart in the Site's storage folder (`…/imports/<id>`),
+ * read by the worker as a stream, and deleted once the run that took it ends (or a day after it was
+ * last used, if no run did). A source's file comes in parts (`parts`), each kept as its own object
+ * under `key`, so a large upload can stop and go on where it got to.
  */
 export const importFiles = pgTable(
 	"import_files",
@@ -59,7 +61,18 @@ export const importFiles = pgTable(
 		/** Who uploaded it: only they may use it. */
 		uploadedBy: uuid("uploaded_by").references(() => people.id, { onDelete: "cascade" }),
 		fileName: text("file_name").notNull(),
+		/** The source it is for: `csv`, or a Module's import source (`wordpress-import.export`). */
+		source: text("source").notNull().default("csv"),
+		/** `uploading` (parts still coming), `surveying` (the worker reads it), `ready` or `refused`. */
+		status: text("status").notNull().default("ready"),
 		sizeBytes: integer("size_bytes").notNull(),
+		/** How many bytes of a file uploaded in parts have come, and how large each part is. */
+		receivedBytes: integer("received_bytes").notNull().default(0),
+		partBytes: integer("part_bytes"),
+		/** Each part's SHA-256, in hexadecimal, in order. */
+		parts: jsonb("parts").notNull().default([]),
+		/** A source file's preview: the settings it was worked out for, how far it got, and what it found. */
+		preview: jsonb("preview"),
 		/** Which storage holds it (`disk`, `s3`), and its key there. */
 		storage: text("storage").notNull(),
 		key: text("key").notNull(),
@@ -77,6 +90,7 @@ export const importFiles = pgTable(
 		}).onDelete("cascade"),
 		index("import_files_site_id_idx").on(table.siteId),
 		index("import_files_expires_at_idx").on(table.expiresAt),
+		check("import_files_status_known", sql`${table.status} in ('uploading', 'surveying', 'ready', 'refused')`),
 	],
 );
 
@@ -155,9 +169,14 @@ export const importItems = pgTable(
 		workspaceId: uuid("workspace_id").notNull(),
 		siteId: uuid("site_id").notNull(),
 		importId: uuid("import_id").notNull(),
-		/** `entry` or `media` (later Redirect rules). */
+		/** `entry` or `media`. */
 		kind: text("kind").notNull(),
 		sourceId: text("source_id").notNull(),
+		/**
+		 * An Entry's Post Type: a Source id is looked up within the Post Type an item goes to, so a run
+		 * after its source type was mapped elsewhere brings it into the new Post Type.
+		 */
+		postTypeId: uuid("post_type_id").references(() => postTypes.id, { onDelete: "cascade" }),
 		entryId: uuid("entry_id").references(() => entries.id, { onDelete: "cascade" }),
 		mediaId: uuid("media_id").references(() => media.id, { onDelete: "cascade" }),
 		/** The Draft the last run left (a hash) and when it saved it: anything else since is someone's edit. */
@@ -176,7 +195,9 @@ export const importItems = pgTable(
 			columns: [table.siteId, table.importId],
 			foreignColumns: [imports.siteId, imports.id],
 		}).onDelete("cascade"),
-		unique("import_items_import_id_kind_source_id_unique").on(table.importId, table.kind, table.sourceId),
+		unique("import_items_import_id_kind_post_type_id_source_id_unique")
+			.on(table.importId, table.kind, table.postTypeId, table.sourceId)
+			.nullsNotDistinct(),
 		index("import_items_entry_id_idx").on(table.entryId),
 		index("import_items_media_id_idx").on(table.mediaId),
 		check("import_items_kind_known", sql`${table.kind} in ('entry', 'media')`),
@@ -186,7 +207,8 @@ export const importItems = pgTable(
 /**
  * What one run did with each item it went through: created, updated (with the Draft as it was
  * before, so Undo can put it back), left unchanged, or skipped (someone edited it since an earlier
- * run). Undo checks each Entry is still as the run left it. Purged with the run's report.
+ * run); and the Post Types and Fields it created, the files it fetched and the Redirect rules it
+ * added. Undo checks each Entry is still as the run left it. Purged with the run's report.
  */
 export const importRunChanges = pgTable(
 	"import_run_changes",
@@ -204,6 +226,12 @@ export const importRunChanges = pgTable(
 		reason: text("reason"),
 		entryId: uuid("entry_id").references(() => entries.id, { onDelete: "set null" }),
 		mediaId: uuid("media_id").references(() => media.id, { onDelete: "set null" }),
+		/** A Post Type the run created, or the one it added a Field to. */
+		postTypeId: uuid("post_type_id").references(() => postTypes.id, { onDelete: "set null" }),
+		/** A Redirect rule it added, by the id the Module keeping them gave it. */
+		ruleId: uuid("rule_id"),
+		/** What else tells the change: a Field's key, a Redirect rule's path and target. */
+		details: jsonb("details"),
 		/** An updated Entry's Draft before the run changed it. */
 		before: jsonb("before"),
 		/** The Draft the run left (a hash), when it saved it, and when the Entry was last published then. */
@@ -223,7 +251,7 @@ export const importRunChanges = pgTable(
 			foreignColumns: [importRuns.siteId, importRuns.id],
 		}).onDelete("cascade"),
 		index("import_run_changes_run_id_position_idx").on(table.runId, table.position),
-		check("import_run_changes_kind_known", sql`${table.kind} in ('entry', 'media')`),
+		check("import_run_changes_kind_known", sql`${table.kind} in ('entry', 'media', 'postType', 'field', 'redirect')`),
 		check("import_run_changes_action_known", sql`${table.action} in ('created', 'updated', 'unchanged', 'skipped')`),
 	],
 );

@@ -107,6 +107,9 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 		...(adds.submissions ? [t("modules.consent.submissions")] : []),
 		...(adds.redirectRules ? [t("modules.consent.redirectRules")] : []),
 		...(adds.notFoundLog ? [t("modules.consent.notFoundLog")] : []),
+		...(adds.importSources.length > 0
+			? [t("modules.consent.importSources", { sources: joinWords(adds.importSources, and) })]
+			: []),
 		...[...new Set(adds.schedules)].map((every) => t("modules.consent.schedule", { every })),
 		...(adds.events.length > 0
 			? [

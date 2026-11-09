@@ -18,6 +18,101 @@ export type CsvFileView = Awaited<ReturnType<ApiClient["imports"]["uploadCsv"]>>
 /** A Post Type with its Fields. */
 export type ImportPostType = Awaited<ReturnType<ApiClient["postTypes"]["get"]>>["postType"];
 
+/** A file uploaded in parts for a Module's import source, and what the worker found in it. */
+export type SourceFileView = Awaited<ReturnType<ApiClient["imports"]["file"]>>["file"];
+
+/** A Module source's Import settings: where each type and key goes. */
+export type SourceSettings = NonNullable<SourceFileView["suggested"]>;
+
+/** The Map step's live sample: one item read with the settings as they are. */
+export type SourceSampleView = Awaited<ReturnType<ApiClient["imports"]["sample"]>>["sample"];
+
+/** What a run of a source's file would do, worked out in the worker. */
+export type SourcePreviewView = Awaited<ReturnType<ApiClient["imports"]["previewSource"]>>["preview"];
+
+/** An Entry as the Preview and the sample show it. */
+export type PreviewEntryView = SourcePreviewView["entries"][number];
+
+/**
+ * A Block in short, for the Preview: its text, a list's items, an image's file (with its alt text),
+ * a video's address, a table's size.
+ */
+export function blockSummary(
+	block: NonNullable<PreviewEntryView["body"]>["blocks"][number],
+	images: readonly { blockId: string; address: string }[] = [],
+): string {
+	const runs = (text: unknown) =>
+		Array.isArray(text) ? text.map((run) => (run as { text?: string }).text ?? "").join("") : "";
+	const value = block as unknown as Record<string, unknown>;
+	switch (block.type) {
+		case "paragraph":
+		case "quote":
+		case "callout":
+		case "heading":
+			return runs(value.text);
+		case "list": {
+			const items = (value.items as { text: unknown }[] | undefined) ?? [];
+			return items.map((item) => `• ${runs(item.text)}`).join("  ");
+		}
+		case "image":
+			return (
+				images
+					.find((image) => image.blockId === block.id)
+					?.address.split("/")
+					.pop() ?? ""
+			);
+		case "video":
+			return String(value.url ?? "");
+		case "table":
+			return `${((value.rows as unknown[]) ?? []).length} × ${(((value.rows as unknown[][]) ?? [])[0] ?? []).length}`;
+		case "code":
+			return String(value.code ?? "").split("\n")[0] ?? "";
+		case "toggle":
+			return runs(value.summary);
+		default:
+			return "";
+	}
+}
+
+/** A refused upload, worded: why, with what fills it in. Null for any other error. */
+export function uploadRefusal(error: unknown): { key: MessageKey; values: Record<string, number> } | null {
+	const { code, data } = (error ?? {}) as { code?: unknown; data?: Record<string, unknown> };
+	if (code !== "IMPORT_UPLOAD_REFUSED") return null;
+	const maxBytes = typeof data?.maxBytes === "number" ? data.maxBytes : 0;
+	switch (data?.reason) {
+		case "size":
+			return { key: "imports.sourceFlow.uploadRefused.size", values: { gigabytes: Math.round(maxBytes / 1024 ** 3) } };
+		case "hash":
+		case "offset":
+		case "part":
+		case "status":
+			return { key: `imports.sourceFlow.uploadRefused.${data.reason}`, values: {} };
+		default:
+			return { key: "errors.generic", values: {} };
+	}
+}
+
+/** A Module source's settings refused (`IMPORT_INVALID`), worded by its first problem. Null for any other error. */
+export function sourceSettingWording(error: unknown): MessageKey | null {
+	const { code, data } = (error ?? {}) as { code?: unknown; data?: { problems?: { rule: string }[] } };
+	if (code !== "IMPORT_INVALID") return null;
+	const rule = data?.problems?.[0]?.rule;
+	switch (rule) {
+		case "keyKind":
+		case "fieldKeyTaken":
+		case "bodyOnPage":
+		case "bodyTwice":
+		case "relationshipTarget":
+		case "targetTwice":
+		case "targetUnknown":
+		case "postTypeNotFound":
+		case "typeTwice":
+			return `imports.sourceFlow.settingRules.${rule}`;
+		default:
+			return "imports.sourceFlow.settingRules.other";
+	}
+}
+
 export type { CsvSettings, ImportProblem };
 
 /** Where a column can go: the title, the slug, or a Field (inside Groups too), with how people see it. */
@@ -191,9 +286,9 @@ export function settingWording(rule: string): MessageKey {
 	}
 }
 
-/** A file name without its `.csv` (or `.tsv`, `.txt`) ending: an Import's name until people give one. */
+/** A file name without its `.csv` (or `.tsv`, `.txt`, `.xml`) ending: an Import's name until people give one. */
 export function nameOfFile(fileName: string): string {
-	return fileName.replace(/\.(csv|tsv|txt)$/i, "") || fileName;
+	return fileName.replace(/\.(csv|tsv|txt|xml)$/i, "") || fileName;
 }
 
 /** Whether a run is still going (waiting for the worker, or running). */
