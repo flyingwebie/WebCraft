@@ -3,6 +3,7 @@ import type { Permission } from "@webcraft/core";
 import {
 	Building2Icon,
 	ClipboardListIcon,
+	ComponentIcon,
 	CookieIcon,
 	DatabaseIcon,
 	FileCodeIcon,
@@ -13,6 +14,7 @@ import {
 	InboxIcon,
 	LanguagesIcon,
 	LayoutDashboardIcon,
+	LayoutTemplateIcon,
 	type LucideIcon,
 	MailIcon,
 	NewspaperIcon,
@@ -230,6 +232,18 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.postTypes",
 						icon: DatabaseIcon,
 						to: "/sites/$siteId/post-types",
+					},
+					{
+						id: "site-templates",
+						label: "shell.nav.templates",
+						icon: LayoutTemplateIcon,
+						to: "/sites/$siteId/templates",
+					},
+					{
+						id: "site-components",
+						label: "shell.nav.components",
+						icon: ComponentIcon,
+						to: "/sites/$siteId/components",
 					},
 					{ id: "site-loops", label: "shell.nav.loops", icon: RepeatIcon, to: "/sites/$siteId/loops" },
 					{

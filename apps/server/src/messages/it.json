@@ -271,7 +271,9 @@
 			"staffOnly": "Solo staff",
 			"loops": "Loop",
 			"forms": "Form",
-			"libraries": "Librerie"
+			"libraries": "Librerie",
+			"templates": "Template",
+			"components": "Componenti"
 		}
 	},
 	"masterKeyBanner": {
@@ -2849,6 +2851,406 @@
 			"RULE_LOOP": "I visitatori girerebbero in tondo, o passerebbero per più di 5 regole. Scegli un'altra destinazione.",
 			"RULE_NOT_FOUND": "Questa regola non esiste più. Forse qualcuno l'ha rimossa.",
 			"MISS_NOT_FOUND": "Questo percorso non è più nel registro 404."
+		}
+	},
+	"templates": {
+		"pageTitle": "Template",
+		"intro": "Ogni Template che questo Sito può avere: il Site template intorno a ogni pagina, il Search results template e, per ogni Post Type, l'Entry template e l'Archive template. Aprine uno nel builder visuale. Le Pagine non ne hanno: si compongono con i Page layout.",
+		"columns": {
+			"template": "Template",
+			"status": "Stato",
+			"open": "Apri"
+		},
+		"notMade": "Non ancora creato",
+		"noAddress": "Nessun indirizzo d'archivio: lo schema dell'URL inizia con '{slug}'",
+		"open": "Apri nel builder",
+		"openNamed": "Apri {name} nel builder"
+	},
+	"components": {
+		"pageTitle": "Componenti",
+		"intro": "Composizioni di elementi riutilizzabili con Prop, inserite nei Template e in altri Component. Modificarne uno cambia ogni copia, una volta pubblicato.",
+		"none": "Ancora nessun Component.",
+		"columns": {
+			"name": "Component",
+			"status": "Stato",
+			"usage": "Usato in",
+			"open": "Apri"
+		},
+		"fromModule": "Dal Modulo {module}",
+		"pages": "{count, plural, =0 {Nessuna pagina pubblicata} one {# pagina pubblicata} other {# pagine pubblicate}}",
+		"create": {
+			"open": "Nuovo Component",
+			"close": "Chiudi",
+			"title": "Nuovo Component",
+			"intro": "Dai al Component il nome con cui il Template markup lo inserisce. Poi si apre il builder.",
+			"name": "Nome",
+			"nameHelp": "Una lettera maiuscola, poi lettere e cifre, per esempio PostCard.",
+			"nameRequired": "Dai un nome al Component.",
+			"cancel": "Annulla",
+			"submit": "Crea Component"
+		}
+	},
+	"builder": {
+		"backToTemplates": "Template",
+		"backToComponents": "Componenti",
+		"kinds": {
+			"siteTemplate": "Site template",
+			"searchTemplate": "Search results template",
+			"entryTemplate": "Entry template",
+			"archiveTemplate": "Archive template",
+			"component": "Component"
+		},
+		"titles": {
+			"entryTemplate": "{postType} · Entry template",
+			"archiveTemplate": "{postType} · Archive template"
+		},
+		"status": {
+			"new": "Non ancora creato",
+			"unsaved": "Modifiche non salvate"
+		},
+		"view": {
+			"label": "Vista",
+			"visual": "Visuale",
+			"markup": "Template markup",
+			"toMarkup": "Vista Template markup. La stessa Bozza, come testo.",
+			"toVisual": "Vista visuale.",
+			"cantSwitch": "Il markup non si può ancora leggere: correggi i problemi elencati, poi cambia vista."
+		},
+		"width": {
+			"label": "Larghezza della tela",
+			"desktop": "Larghezza desktop",
+			"tablet": "Larghezza tablet (768 px)",
+			"phone": "Larghezza telefono (390 px)"
+		},
+		"theme": {
+			"dark": "Anteprima scura",
+			"darkOn": "La tela mostra i valori scuri del Sito.",
+			"lightOn": "La tela mostra i valori chiari del Sito.",
+			"noDarkMode": "La Modalità scura è spenta nel Design system di questo Sito, quindi la tela non ha valori scuri da mostrare."
+		},
+		"undo": "Annulla",
+		"redo": "Ripeti",
+		"undone": "Annullato.",
+		"redone": "Ripetuto.",
+		"save": "Salva",
+		"saving": "Salvataggio…",
+		"saved": "{name} è salvato nella sua Bozza.",
+		"notSaved": "La Bozza non è salvata: correggi i problemi elencati.",
+		"saveFirst": "Prima salvalo: non c'è ancora niente da pubblicare.",
+		"publish": "Pubblica",
+		"publishing": "Pubblicazione…",
+		"published": "{name} è pubblicato.",
+		"problems": "Non si può ancora salvare:",
+		"showLayer": "Mostra il livello",
+		"selected": "{name} selezionato.",
+		"canvas": {
+			"label": "Tela",
+			"title": "Tela: {name} come lo mostrano le pagine",
+			"placeholders": {
+				"outlet": "Qui va il contenuto di ogni pagina",
+				"form": "Form {name}",
+				"search": "Casella di ricerca",
+				"themeToggle": "Selettore del tema",
+				"languageSwitcher": "Selettore della lingua",
+				"consentSettings": "Impostazioni dei cookie"
+			}
+		},
+		"layers": {
+			"heading": "Livelli",
+			"actions": "Livello selezionato",
+			"none": "Ancora niente. Inserisci un elemento per iniziare.",
+			"keys": "Le frecce si muovono tra i livelli. Alt con le frecce sposta quello selezionato (dentro il livello precedente, fuori dal suo genitore). Spazio lo prende e lo posa; Esc lo rimette a posto. Ctrl X, C, V, D: taglia, copia, incolla, duplica. Canc lo elimina, F2 lo rinomina.",
+			"action": {
+				"moveUp": "Sposta su",
+				"moveDown": "Sposta giù",
+				"moveIn": "Sposta dentro il livello precedente",
+				"moveOut": "Sposta fuori dal genitore",
+				"cut": "Taglia",
+				"copy": "Copia",
+				"paste": "Incolla dopo",
+				"duplicate": "Duplica",
+				"rename": "Rinomina",
+				"delete": "Elimina"
+			},
+			"renameLabel": "Etichetta del livello di {tag}",
+			"renamed": "Rinominato {name}.",
+			"unnamed": "L'etichetta del livello è rimossa.",
+			"renameElementsOnly": "Solo gli elementi hanno un'etichetta di livello.",
+			"text": "testo",
+			"value": "valore",
+			"comment": "commento",
+			"component": "Component",
+			"condition": "Condition",
+			"command": "Template command",
+			"if": "Se",
+			"elseIf": "Altrimenti se",
+			"else": "Altrimenti",
+			"empty": "Quando non ci sono elementi",
+			"loop": "Loop",
+			"form": "Form",
+			"pagination": "Paginazione"
+		},
+		"moves": {
+			"moved": "Spostato {name}: {where}.",
+			"where": "{position} di {count} in {owner}",
+			"top": "il primo livello",
+			"copied": "Copiato {name}.",
+			"cut": "Tagliato {name}.",
+			"deleted": "Eliminato {name}.",
+			"duplicated": "Duplicato {name}: {where}.",
+			"pasted": "Incollato {name}: {where}.",
+			"inserted": "Inserito {name}: {where}.",
+			"nothingToPaste": "Niente da incollare: prima taglia o copia un livello.",
+			"picked": "Preso {name}. Le frecce lo spostano, Spazio lo posa, Esc lo rimette a posto.",
+			"dropped": "Posato {name}: {where}.",
+			"putBack": "{name} è tornato dov'era.",
+			"refused": {
+				"first": "{name} è già il primo.",
+				"last": "{name} è già l'ultimo.",
+				"top": "{name} è già al primo livello.",
+				"holds-nothing": "Il livello prima di {name} non può contenere niente.",
+				"inside-itself": "{name} non può andare dentro se stesso.",
+				"gone": "{name} non c'è più."
+			}
+		},
+		"insert": {
+			"open": "Inserisci",
+			"close": "Chiudi",
+			"title": "Inserisci",
+			"intro": "Prima gli elementi semantici. Scrivi per filtrare, poi premi Invio.",
+			"search": "Trova un elemento",
+			"searchPlaceholder": "Titolo, elenco, Loop…",
+			"none": "Nessun risultato.",
+			"where": "Dove",
+			"whereOptions": {
+				"inside": "Dentro il livello selezionato",
+				"after": "Dopo",
+				"before": "Prima"
+			},
+			"groups": {
+				"sections": "Sezioni",
+				"text": "Testo",
+				"media": "Media e altro",
+				"values": "Valori",
+				"commands": "Template command",
+				"components": "Componenti",
+				"other": "Altro"
+			},
+			"tags": {
+				"section": "Sezione",
+				"header": "Intestazione",
+				"nav": "Navigazione",
+				"main": "Contenuto principale",
+				"article": "Articolo",
+				"aside": "Approfondimento",
+				"footer": "Piè di pagina",
+				"search": "Area di ricerca",
+				"div": "Divisione (senza significato)",
+				"address": "Recapiti"
+			},
+			"heading": "Titolo {level}",
+			"paragraph": "Paragrafo",
+			"list": "Elenco",
+			"numberedList": "Elenco numerato",
+			"listItem": "Voce di elenco",
+			"link": "Link",
+			"button": "Pulsante",
+			"buttonHint": "Un link con lo stile di un pulsante: i Template non eseguono script",
+			"quote": "Citazione",
+			"image": "Immagine",
+			"imageHint": "Un'immagine Media, con le sue dimensioni e il testo alternativo",
+			"figure": "Figura con didascalia",
+			"table": "Tabella",
+			"details": "Sezione espandibile",
+			"value": "Valore",
+			"valueHint": "Un Field, una Prop o un Global, letto dove la pagina viene generata",
+			"commands": {
+				"if": "Condition",
+				"loop": "Loop",
+				"form": "Form",
+				"pagination": "Paginazione",
+				"outlet": "Contenuto della pagina",
+				"search": "Casella di ricerca",
+				"themeToggle": "Selettore del tema",
+				"languageSwitcher": "Selettore della lingua",
+				"consentSettings": "Impostazioni dei cookie"
+			},
+			"componentHint": "Component",
+			"text": "Testo",
+			"textHint": "Testo fisso",
+			"comment": "Commento",
+			"anyElement": "Qualsiasi elemento",
+			"anyElementHint": "Dal nome del tag",
+			"defaults": {
+				"heading": "Titolo",
+				"paragraph": "Paragrafo",
+				"listItem": "Voce di elenco",
+				"link": "Link",
+				"button": "Pulsante",
+				"quote": "Citazione",
+				"caption": "Didascalia",
+				"cell": "Cella",
+				"summary": "Riepilogo",
+				"text": "Testo",
+				"comment": "Una nota per lo Staff"
+			},
+			"chooseImage": "Scegli un'immagine.",
+			"chooseValue": "Scegli un valore o scrivine il percorso.",
+			"chooseLoop": "Scegli un Loop o scrivi un elenco.",
+			"chooseForm": "Scegli un Form.",
+			"valueChoice": "Valore",
+			"valueNone": "Scegli…",
+			"valuePath": "Oppure il suo percorso",
+			"valuePathHelp": "Per esempio summary, site.phone o post.title dentro un Loop.",
+			"requiredProp": "{label} (obbligatoria)",
+			"loopChoice": "Loop",
+			"loopList": "Oppure un elenco che la pagina legge",
+			"loopListHelp": "Un Loop del Sito per nome, o un Repeater o una Relationship dal suo percorso, per esempio gallery.",
+			"loopAlias": "Ogni elemento si chiama",
+			"formChoice": "Form",
+			"test": "Mostra quando",
+			"testHelp": "Per esempio summary, status == \"published\" o loop.first.",
+			"tag": "Nome del tag",
+			"tagHelp": "Qualsiasi elemento dei Template: niente script, stili o iframe.",
+			"tagRefused": "Questo tipo di Template non può contenere <{tag}>.",
+			"back": "Indietro",
+			"submit": "Inserisci"
+		},
+		"inspector": {
+			"heading": "Impostazioni",
+			"nothing": "Seleziona un livello per modificarlo.",
+			"branch": "Seleziona un livello dentro questo ramo, o inseriscine uno.",
+			"tabs": "Elemento selezionato",
+			"settings": "Impostazioni",
+			"style": "Stile",
+			"changed": "Modificato.",
+			"label": "Etichetta del livello",
+			"labelHelp": "Come lo chiama il pannello Livelli. Mai mostrata nelle pagine.",
+			"tag": "Tag",
+			"tagHelp": "L'elemento HTML, per esempio section o h2.",
+			"attributes": "Attributi",
+			"noAttributes": "Nessun attributo.",
+			"attributeName": "Nome dell'attributo {number}",
+			"attributeValue": "Valore dell'attributo {number}",
+			"attributeTwice": "{name} è indicato due volte.",
+			"unsafeUrl": "{name}: le pagine possono collegarsi solo a indirizzi http, https, mailto e tel, percorsi e #ancore.",
+			"removeAttribute": "Rimuovi l'attributo {name}",
+			"addAttribute": "Aggiungi attributo",
+			"text": "Testo",
+			"textHelp": "Testo fisso: i clienti non possono cambiarlo finché non diventa una Prop, un Field o un Global.",
+			"translations": "Questo testo ha parole sue nelle altre lingue; restano come sono.",
+			"valuePath": "Legge",
+			"valuePathHelp": "Un Field, una Prop o un Global dal suo percorso.",
+			"format": "Formattatore",
+			"formatHelp": "Facoltativo: date: long, number: 2 o truncate: 120.",
+			"comment": "Commento",
+			"commentHelp": "Resta per lo Staff; i visitatori non lo ricevono mai.",
+			"placement": "Una copia del Component, con i suoi valori delle Prop. Modifica il Component nel suo builder.",
+			"propHelp": "props.{key}: testo, o un valore come title.",
+			"test": "Mostra quando",
+			"elseIfTest": "Altrimenti, quando ({number})",
+			"addElse": "Aggiungi Altrimenti",
+			"removeElse": "Rimuovi Altrimenti",
+			"loopSource": "Elenca",
+			"addEmpty": "Aggiungi cosa mostrare quando non ci sono elementi",
+			"removeEmpty": "Rimuovi cosa mostrare quando non ci sono elementi"
+		},
+		"commands": {
+			"outlet": "Contenuto della pagina",
+			"search": "Casella di ricerca",
+			"themeToggle": "Selettore del tema",
+			"languageSwitcher": "Selettore della lingua",
+			"consentSettings": "Impostazioni dei cookie"
+		},
+		"commandHelp": {
+			"outlet": "Dove va il contenuto di ogni pagina. Il Site template ne ha uno, dentro il suo elemento main.",
+			"search": "Una casella che porta i visitatori alla pagina dei risultati di ricerca del Sito.",
+			"themeToggle": "Un pulsante per passare tra chiaro e scuro, mostrato quando la Modalità scura è attiva.",
+			"languageSwitcher": "Link alla pagina in ognuna delle lingue del Sito.",
+			"consentSettings": "Un pulsante che riapre il Consent banner."
+		},
+		"style": {
+			"classes": "Class",
+			"noClasses": "Ancora nessuna Class.",
+			"edit": "Modifica gli stili di {name}",
+			"moveUp": "Sposta {name} su",
+			"moveDown": "Sposta {name} giù",
+			"remove": "Rimuovi {name}",
+			"moved": "Spostata {name}: {position} di {count}.",
+			"added": "Aggiunta {name}.",
+			"removed": "Rimossa {name}.",
+			"created": "Creata la Class {name} nella Bozza del Design system.",
+			"already": "L'elemento ha già {name}.",
+			"add": "Aggiungi una Class",
+			"addHelp": "Una Class o una Token utility del Sito, o un nome nuovo per creare una Class.",
+			"addSubmit": "Aggiungi",
+			"classStyles": "Stili di {name}",
+			"classStylesHelp": "Per ogni elemento con questa Class. Salvati nella Bozza del Design system; le pagine li mostrano quando il Design system è pubblicato.",
+			"property": "Proprietà {number}",
+			"value": "Valore {number}",
+			"saveClass": "Salva {name}",
+			"oneOff": "Stile singolo",
+			"oneOffLabel": "Dichiarazioni",
+			"oneOffHelp": "Solo per questo elemento, per esempio margin-top: var(--space-m). Al salvataggio diventa una Generated Class: le pagine non hanno mai stili inline.",
+			"oneOffApply": "Applica",
+			"oneOffApplied": "Stile singolo applicato.",
+			"oneOffRemoved": "Stile singolo rimosso."
+		},
+		"fixedText": {
+			"badge": "Testo fisso",
+			"show": "Testo fisso ({count})",
+			"heading": "Testo fisso",
+			"help": "I clienti non possono modificare il testo fisso. Rendilo un valore che possono modificare.",
+			"make": {
+				"prop": "Rendilo una Prop",
+				"field": "Rendilo un Field",
+				"global": "Rendilo un Global"
+			},
+			"intro": {
+				"prop": "Ogni copia del Component mostrerà il suo valore. “{text}” diventa il valore predefinito della Prop, quindi nulla cambia finché qualcuno non ne indica un altro.",
+				"field": "Ogni Entry mostrerà il suo valore. “{text}” diventa il valore predefinito del Field per le nuove Entry. Il Field si aggiunge subito al Post Type.",
+				"global": "I clienti lo cambieranno nei Global, per ogni pagina. “{text}” diventa il valore in Bozza del Global. Il Global si aggiunge subito."
+			},
+			"mode": {
+				"new": {
+					"prop": "Una nuova Prop",
+					"field": "Un nuovo Field",
+					"global": "Un nuovo Global"
+				},
+				"existing": {
+					"prop": "Una Prop che ha già",
+					"field": "Un Field del Post Type",
+					"global": "Un Global del Sito"
+				}
+			},
+			"existing": {
+				"prop": "Prop",
+				"field": "Field",
+				"global": "Global"
+			},
+			"none": "Scegli…",
+			"label": "Etichetta",
+			"key": "Chiave",
+			"keyHelp": "Il Template markup la legge come {binding}.",
+			"labelRequired": "Dagli un'etichetta.",
+			"keyInvalid": "Una chiave inizia con una lettera minuscola, poi lettere, cifre e trattini bassi.",
+			"keyTaken": "Questa chiave è già usata.",
+			"chooseExisting": "Scegline uno.",
+			"made": "Il testo ora legge {binding}.",
+			"cancel": "Annulla",
+			"close": "Chiudi"
+		},
+		"markup": {
+			"label": "Template markup",
+			"help": "La stessa Bozza della vista visuale. Tornando indietro diventa livelli; nulla si salva finché non premi Salva.",
+			"at": "Riga {line}, colonna {column}:"
+		},
+		"conflict": {
+			"title": "Salvato da qualcun altro nel frattempo",
+			"body": "Qualcuno ha salvato {name} da quando l'hai aperto. Ricarica la sua versione, o salva la tua sopra.",
+			"reload": "Ricarica la sua",
+			"overwrite": "Salva la mia sopra",
+			"close": "Chiudi"
 		}
 	}
 }

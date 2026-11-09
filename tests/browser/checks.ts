@@ -10,9 +10,16 @@ import { forgetPageErrors, pageErrors } from "./harness.ts";
 /** WCAG 2.0, 2.1 and 2.2 at levels A and AA, and axe's best practices. */
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa", "best-practice"];
 
+/**
+ * What a check leaves out: `exclude` names parts of the page axe doesn't look inside, each with its
+ * reason at the call (the visual builder's canvas shows Staff's own Template, which Checks look at,
+ * and runs no script, so axe can't look inside it anyway).
+ */
+export type CheckOptions = { exclude?: readonly string[] };
+
 /** Runs every check on the page as it is now. */
-export async function expectAccessibleScreen(page: Page, where: string): Promise<void> {
-	await expectNoAxeViolations(page, where);
+export async function expectAccessibleScreen(page: Page, where: string, options: CheckOptions = {}): Promise<void> {
+	await expectNoAxeViolations(page, where, [], options);
 	await expectKeyboardUsable(page, where);
 	expect({ where, errors: pageErrors(page) }).toEqual({ where, errors: [] });
 }
@@ -21,10 +28,17 @@ export async function expectAccessibleScreen(page: Page, where: string): Promise
  * axe-core finds no violation of WCAG 2.2 A or AA, or of its best practices. `skipRules` names
  * rules that don't apply to the state being checked, each with its reason at the call.
  */
-export async function expectNoAxeViolations(page: Page, where: string, skipRules: string[] = []): Promise<void> {
+export async function expectNoAxeViolations(
+	page: Page,
+	where: string,
+	skipRules: string[] = [],
+	options: CheckOptions = {},
+): Promise<void> {
 	await nextPaint(page);
 	const reported = pageErrors(page).length;
-	const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).disableRules(skipRules).analyze();
+	let builder = new AxeBuilder({ page }).withTags(AXE_TAGS).disableRules(skipRules);
+	for (const selector of options.exclude ?? []) builder = builder.exclude(selector);
+	const results = await builder.analyze();
 	// axe sets inline styles while it measures, which a page under a strict CSP (Edit mode) reports;
 	// those reports are axe's own, not the page's.
 	forgetPageErrors(page, reported, (error) => error.startsWith("Applying inline style violates"));
@@ -114,6 +128,7 @@ export async function expectOverlayUsable(
 	trigger: Locator,
 	overlayRole: "menu" | "dialog",
 	where: string,
+	options: CheckOptions = {},
 ): Promise<void> {
 	await trigger.focus();
 	await page.keyboard.press("Enter");
@@ -122,7 +137,7 @@ export async function expectOverlayUsable(
 	await page.waitForTimeout(250);
 	// An open menu or dialog is placed at the end of the page, outside the landmarks, as menus and
 	// dialogs are: people reach it from the control that opened it, so the landmark rule is skipped.
-	await expectNoAxeViolations(page, `${where} (open)`, ["region"]);
+	await expectNoAxeViolations(page, `${where} (open)`, ["region"], options);
 	const focusInside = await overlay.evaluate((element) => {
 		let active = document.activeElement;
 		while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
