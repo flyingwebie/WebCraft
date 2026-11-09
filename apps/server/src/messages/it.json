@@ -965,6 +965,8 @@
 			"tables": "Tenere i propri dati su ogni {level, select, site {Site} other {Workspace}}",
 			"components": "Aggiungere Componenti che lo Staff può inserire nei Site dove è attivo: {names}",
 			"submissions": "Conservare ciò che i visitatori inviano con i Form dei Site (gli invii, con una cartella Spam)",
+			"redirectRules": "Conservare le regole di reindirizzamento dei Site, che rispondono ai visitatori prima delle pagine dei Site",
+			"notFoundLog": "Conservare il registro 404 dei Site: i percorsi richiesti dai visitatori che non hanno una pagina, senza query string né chi li ha richiesti",
 			"schedule": "Svolgere il proprio lavoro {every, select, hour {ogni ora} other {ogni giorno}} in ogni posto dove è attivo",
 			"events": "Agire dopo che {events}",
 			"addsNothing": "Nient'altro.",
@@ -993,7 +995,8 @@
 			"entryPublished": "una Entry viene pubblicata",
 			"entryDeleted": "una Entry viene eliminata",
 			"templatePublished": "un Template viene pubblicato",
-			"globalsPublished": "i Globals vengono pubblicati"
+			"globalsPublished": "i Globals vengono pubblicati",
+			"pathsChanged": "cambiano indirizzi pubblicati senza una pubblicazione (un URL pattern o la lingua predefinita)"
 		},
 		"log": {
 			"title": "Registro del Modulo {name}",
@@ -1350,7 +1353,7 @@
 		"makeDefaultTitle": "Rendere {name} la lingua predefinita?",
 		"makeDefaultWarning": "{name} perde il prefisso e {current} ne riceve uno (/{prefix}/…). I campi traducibili ricorreranno a {name}, quindi i valori senza un testo proprio in {name} lì non mostrano nulla. I valori condivisi restano invariati.",
 		"checkChanges": "Controlla cosa cambia",
-		"changedPaths": "{count, plural, one {# indirizzo pubblicato cambia; quello vecchio è elencato per i reindirizzamenti.} other {# indirizzi pubblicati cambiano; quelli vecchi sono elencati per i reindirizzamenti.}}",
+		"changedPaths": "{count, plural, one {# indirizzo pubblicato cambia; dove è attivo il Modulo Reindirizzamenti e registro 404, quello vecchio porta i visitatori al nuovo.} other {# indirizzi pubblicati cambiano; dove è attivo il Modulo Reindirizzamenti e registro 404, quelli vecchi portano i visitatori ai nuovi.}}",
 		"withoutOwnTitle": "{count, plural, one {# voce non ha un titolo proprio in {name}.} other {# voci non hanno un titolo proprio in {name}.}}",
 		"makeDefaultConfirm": "Rendila lingua predefinita",
 		"defaultChanged": "{name} ora è la lingua predefinita.",

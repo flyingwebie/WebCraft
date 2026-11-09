@@ -965,6 +965,8 @@
 			"tables": "Keep its own data on each {level, select, site {Site} other {Workspace}}",
 			"components": "Add Components Staff can place on the Sites it is on: {names}",
 			"submissions": "Keep what visitors send through the Sites' Forms (Form Submissions, with a Spam folder)",
+			"redirectRules": "Keep the Sites' Redirect rules, which answer visitors before the Sites' own pages",
+			"notFoundLog": "Keep the Sites' 404 log: the paths visitors asked for that have no page, without their query strings or who asked",
 			"schedule": "Run its own work {every, select, hour {every hour} other {every day}} on each place it is on",
 			"events": "Act after {events}",
 			"addsNothing": "Nothing else.",
@@ -993,7 +995,8 @@
 			"entryPublished": "an Entry is published",
 			"entryDeleted": "an Entry is deleted",
 			"templatePublished": "a Template is published",
-			"globalsPublished": "the Globals are published"
+			"globalsPublished": "the Globals are published",
+			"pathsChanged": "published addresses change without a publish (a URL pattern or the Default language)"
 		},
 		"log": {
 			"title": "Module log of {name}",
@@ -1350,7 +1353,7 @@
 		"makeDefaultTitle": "Make {name} the Default language?",
 		"makeDefaultWarning": "{name} loses its prefix and {current} gets one (/{prefix}/…). Translatable fields will fall back to {name}, so values without their own {name} text show nothing there. Shared values keep their value.",
 		"checkChanges": "Check what changes",
-		"changedPaths": "{count, plural, one {# published address changes; the old one is listed for redirects.} other {# published addresses change; the old ones are listed for redirects.}}",
+		"changedPaths": "{count, plural, one {# published address changes; where the Redirects and 404 log Module runs, the old one sends visitors on to the new one.} other {# published addresses change; where the Redirects and 404 log Module runs, the old ones send visitors on to the new ones.}}",
 		"withoutOwnTitle": "{count, plural, one {# Entry has no title of its own in {name}.} other {# Entries have no title of their own in {name}.}}",
 		"makeDefaultConfirm": "Make it the Default language",
 		"defaultChanged": "{name} is the Default language now.",
