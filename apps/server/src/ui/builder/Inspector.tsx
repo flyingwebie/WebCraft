@@ -492,7 +492,13 @@ function AttributesEditor({
 			if (read.some((each) => each.name === name)) return setProblem(t("builder.inspector.attributeTwice", { name }));
 			const parts = readParts(row.value);
 			if ("problem" in parts) return setProblem(parts.problem);
-			const fixed = parts.parts.every((part) => part.type === "text") ? row.value.trim() : "";
+			// The text the attribute will hold (character references read), for the URL check.
+			const fixed = parts.parts.every((part) => part.type === "text")
+				? parts.parts
+						.map((part) => (part.type === "text" ? part.text : ""))
+						.join("")
+						.trim()
+				: "";
 			if (URL_ATTRIBUTES.has(name) && fixed && !/^media:/i.test(fixed) && safeUrl(fixed) !== fixed) {
 				return setProblem(t("builder.inspector.unsafeUrl", { name }));
 			}

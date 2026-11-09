@@ -404,6 +404,10 @@ _Avoid_: Transactional email (too broad), notification (that is a Form email), a
 The sender name, logo, accent colour and footer text the Superadmin sets for every System email of an Install.
 _Avoid_: White label, email theme, agency branding
 
+**Site SMTP**:
+A Site's own mail server, set by Staff, that sends the Site's mail: its Form Notifications and Auto-replies, and the emails of Modules running on it. Without one, the Site's mail goes through the Install's mail server under the Site's name. When it fails, its mail is retried and never sent another way, and the Site's Owners and Staff are told.
+_Avoid_: Client SMTP, custom mail server
+
 **Email log**:
 The record of every email an Install sends, one line per email with its type, recipient, subject, status and the mail server's last answer, but never its body. Each person sees only the lines for what they can reach.
 _Avoid_: Mail log, delivery report, outbox

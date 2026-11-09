@@ -99,7 +99,7 @@ export async function receiveFormPost(
 	if (!row) return { kind: "notFound" };
 	const version = storedFormVersion(row.published);
 	const receivedAt = clock.now();
-	const keep = (submission: Omit<FormSubmission, "formId" | "formKey" | "formName" | "receivedAt">) =>
+	const keep = (submission: Omit<FormSubmission, "formId" | "formKey" | "formName" | "receivedAt" | "sender">) =>
 		modules.receiveSubmission(
 			host.site,
 			{ formId: row.id, formKey: row.key, formName: row.name, receivedAt, ...submission },

@@ -43,6 +43,8 @@ export const SENSITIVE_ACTIONS = {
 	"webhook.change": "sends Site data to an outside address",
 	/** A Site's CAPTCHA for its Forms: its secret key is a secret. */
 	"formCaptcha.change": "changes a secret",
+	/** A Site's email settings: its own mail server's password is a secret, and it decides where the Site's mail comes from. */
+	"siteSmtp.change": "changes a secret",
 	/**
 	 * A Site's staging password: a shared secret that lets people without an account see the Site's
 	 * Drafts on its Staging address.

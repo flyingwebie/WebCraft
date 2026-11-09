@@ -512,6 +512,67 @@ describe("publishing them all", () => {
 	});
 });
 
+describe("a Form's emails", () => {
+	test("are Content beside their Form's Structure: an Editor sees and publishes them, Staff publish the Form", async () => {
+		const site = await newSite();
+		const editor = await install.createMember({
+			workspaceId,
+			role: "editor",
+			sites: [site.siteId],
+			name: "Eve Editor",
+		});
+		const { form } = await staff.api.forms.create({ siteId: site.siteId, name: "Contact", key: "contact" });
+		await staff.api.forms.publish({ siteId: site.siteId, formId: form.id });
+		await editor.browser.api.forms.saveEmails({
+			siteId: site.siteId,
+			formId: form.id,
+			emails: {
+				notifications: [
+					{ recipients: ["orders@acmebakery.example"], routing: null, subject: "New message", intro: "" },
+				],
+			},
+		});
+		await staff.api.forms.saveDraft({ siteId: site.siteId, formId: form.id, form: { submitLabel: "Send it" } });
+
+		const { drafts, count } = await editor.browser.api.publishing.drafts({ siteId: site.siteId });
+		expect(
+			drafts.map(({ item, group, name, changes, changedBy, canPublish }) => ({
+				item,
+				group,
+				name,
+				changes,
+				changedBy: changedBy?.name ?? null,
+				canPublish,
+			})),
+		).toEqual([
+			{
+				item: { kind: "formEmails", id: form.id },
+				group: "content",
+				name: "Contact",
+				changes: [],
+				changedBy: "Eve Editor",
+				canPublish: true,
+			},
+			{
+				item: { kind: "form", id: form.id },
+				group: "structure",
+				name: "Contact",
+				changes: [],
+				changedBy: "Ada Staff",
+				canPublish: false,
+			},
+		]);
+		expect(count).toBe(1);
+
+		await publishAll(editor.browser, site.siteId, [{ kind: "formEmails", id: form.id }]);
+		const { form: published } = await editor.browser.api.forms.get({ siteId: site.siteId, formId: form.id });
+		expect(published.emails.status).toBe("published");
+		expect(
+			(await editor.browser.api.publishing.drafts({ siteId: site.siteId })).drafts.map((draft) => draft.item),
+		).toEqual([{ kind: "form", id: form.id }]);
+	});
+});
+
 describe("publishing one item", () => {
 	test("still works on its own, leaving the Site's other Drafts as they are", async () => {
 		const site = await newSite();

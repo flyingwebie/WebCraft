@@ -406,6 +406,35 @@ describe("email", () => {
 		});
 	});
 
+	test("from a Site-level Module, is the Site's mail: through the Site's own SMTP when it has one", async () => {
+		const site = await install.createSite(workspaceId);
+		// Someone who just signed in: setting a Site's SMTP is a Sensitive action.
+		const { browser: signedIn } = await install.createStaff({ workspaces: [workspaceId] });
+		await signedIn.api.siteSmtp.update({
+			siteId: site.id,
+			fromName: "The Site's mail",
+			replyTo: "hello@client.example",
+			server: {
+				host: "smtp.client.example",
+				port: 587,
+				security: "starttls",
+				username: null,
+				fromAddress: "hello@client.example",
+			},
+		});
+		const { note } = await notes(staff).add({ siteId: site.id, body: "Pick up at noon." });
+
+		const { results } = await notes(staff).share({ siteId: site.id, noteId: note.id, email: "baker@client.example" });
+
+		expect(results).toEqual([{ recipient: "baker@client.example", status: "queued" }]);
+		await install.drainJobs();
+		expect(install.mail.sent.findLast((email) => email.to === "baker@client.example")).toMatchObject({
+			from: { name: "The Site's mail", address: "hello@client.example" },
+			replyTo: "hello@client.example",
+			smtp: { host: "smtp.client.example" },
+		});
+	});
+
 	test("is refused to a Module that doesn't declare it uses email", async () => {
 		const quiet = await createTestInstall({ modules: [{ ...sample, manifest: { ...sample.manifest, uses: [] } }] });
 		try {

@@ -7,6 +7,7 @@ import type forms from "@webcraft/module-forms";
 import type redirects from "@webcraft/module-redirects";
 import type { ModuleApi, ModuleDefinition, ModuleProcedures } from "@webcraft/module-sdk";
 import type siteAnalytics from "@webcraft/module-site-analytics";
+import { formVisitor } from "../harness/forms.ts";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
@@ -24,7 +25,7 @@ beforeAll(async () => {
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "forms", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
 });
@@ -448,12 +449,122 @@ describe("Forms", () => {
 	isolation.refuses("forms.delete", async (api, target) =>
 		api.forms.delete({ siteId: target.siteId, formId: await formIn(target) }),
 	);
+	isolation.refuses(
+		"forms.saveEmails",
+		async (api, target) =>
+			api.forms.saveEmails({ siteId: target.siteId, formId: await formIn(target), emails: { notifications: [] } }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"forms.publishEmails",
+		async (api, target) => api.forms.publishEmails({ siteId: target.siteId, formId: await formIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
 	isolation.refuses("forms.captcha.get", (api, { siteId }) => api.forms.captcha.get({ siteId }));
 	isolation.refuses("forms.captcha.set", (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }));
 	isolation.refuses(
 		"m.forms.submissions.list",
 		(api, { siteId }) => moduleOf<typeof forms>(api, "forms").submissions.list({ siteId }),
 		{ as: ["staff", "editor"] },
+	);
+	const someId = "00000000-0000-4000-8000-000000000089";
+	/** Each target's Form on a page of its own, made once by the Superadmin. */
+	const formPages = new Map<string, Promise<{ formId: string; page: string }>>();
+	const formPageIn = (target: IsolationTarget) => {
+		let made = formPages.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				const { siteId } = target;
+				const key = `kept-${++keys}`;
+				const { form } = await api.forms.create({ siteId, name: key, key });
+				await api.forms.saveDraft({
+					siteId,
+					formId: form.id,
+					form: { fields: [{ key: "name", type: "text", label: "Name" }] },
+				});
+				await api.forms.publish({ siteId, formId: form.id });
+				const { postType } = await api.postTypes.create({ siteId, name: key, urlPattern: `/${key}/{slug}` });
+				const { template } = await api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: postType.id,
+					markup: `<div data-wc-id="f1">{{@form ${key}}}</div>`,
+				});
+				await api.templates.publish({ siteId, templateId: template.id });
+				const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Form", slug: "form" });
+				await api.entries.publish({ siteId, entryId: entry.id });
+				const { stagingUrl } = await api.sites.get({ siteId });
+				return { formId: form.id, page: `${stagingUrl}/${key}/form` };
+			})();
+			formPages.set(target.siteId, made);
+		}
+		return made;
+	};
+	/** A Submission sent to the target's Form by a visitor (to its Spam folder when `spam`); answers its id. */
+	const submissionIn = async (target: IsolationTarget, spam = false): Promise<string> => {
+		const { formId, page } = await formPageIn(target);
+		const visitor = formVisitor(install);
+		const loaded = await visitor.open(page);
+		await install.clock.advance(5_000);
+		await visitor.send(loaded, { name: "Ada" }, { hidden: spam ? { "wc-website": "spam" } : {} });
+		const { api } = await install.superadmin();
+		const listed = await moduleOf<typeof forms>(api, "forms").submissions.list({
+			siteId: target.siteId,
+			formId,
+			folder: spam ? "spam" : "inbox",
+			limit: 1,
+		});
+		const id = listed.submissions[0]?.id;
+		if (!id) throw new Error("No Submission was kept.");
+		return id;
+	};
+	const formsModule = (api: Parameters<Parameters<typeof isolation.refuses>[1]>[0]) =>
+		moduleOf<typeof forms>(api, "forms");
+	isolation.refuses(
+		"m.forms.submissions.get",
+		async (api, target) => formsModule(api).submissions.get({ siteId: target.siteId, id: await submissionIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.setRead",
+		(api, { siteId }) => formsModule(api).submissions.setRead({ siteId, ids: [someId], read: true }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.notSpam",
+		async (api, target) =>
+			formsModule(api).submissions.notSpam({ siteId: target.siteId, id: await submissionIn(target, true) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.delete",
+		(api, { siteId }) => formsModule(api).submissions.delete({ siteId, ids: [someId] }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.export",
+		(api, { siteId }) => formsModule(api).submissions.export({ siteId, formId: someId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.retention.get",
+		(api, { siteId }) => formsModule(api).retention.get({ siteId, formId: someId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.retention.set",
+		(api, { siteId }) => formsModule(api).retention.set({ siteId, formId: someId, keepDays: 30 }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Site SMTP", () => {
+	isolation.refuses("siteSmtp.get", (api, { siteId }) => api.siteSmtp.get({ siteId }));
+	isolation.refuses("siteSmtp.update", (api, { siteId }) =>
+		api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
+	);
+	isolation.refuses("siteSmtp.sendTest", (api, { siteId }) =>
+		api.siteSmtp.sendTest({ siteId, to: "test@agency.example", fromName: null, replyTo: null, server: null }),
 	);
 });
 

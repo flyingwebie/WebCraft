@@ -14,17 +14,22 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 	beforeLoad: async ({ params }) => {
 		const api = await getApi();
 		try {
-			const [{ site, workspace, permissions, modulePages, languages }, { postTypes }, { count: drafts }] =
-				await Promise.all([
-					api.sites.get({ siteId: params.siteId }),
-					api.postTypes.list({ siteId: params.siteId }),
-					api.publishing.count({ siteId: params.siteId }),
-				]);
+			const [
+				{ site, workspace, permissions, modulePages, modulePermissions, languages },
+				{ postTypes },
+				{ count: drafts },
+			] = await Promise.all([
+				api.sites.get({ siteId: params.siteId }),
+				api.postTypes.list({ siteId: params.siteId }),
+				api.publishing.count({ siteId: params.siteId }),
+			]);
 			const { sites } = await api.sites.list({ workspaceId: workspace.id });
-			// Each Form has its own sidebar item, for Staff (Structure) for now.
-			const forms = permissions.includes("structure.edit")
-				? (await api.forms.list({ siteId: params.siteId })).forms.map(({ id, name }) => ({ id, name }))
-				: [];
+			// Each Form has its own sidebar item: for Staff (its Structure) and for the clients who read its
+			// Submissions and change its emails, never Authors.
+			const forms =
+				permissions.includes("structure.edit") || permissions.includes("formEmails.edit")
+					? (await api.forms.list({ siteId: params.siteId })).forms.map(({ id, name }) => ({ id, name }))
+					: [];
 			const place: AdminPlace = {
 				level: "site",
 				workspace,
@@ -35,6 +40,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 				postTypes: postTypes.map(({ id, name, builtIn }) => ({ id, name, builtIn })),
 				forms,
 				languages,
+				modulePermissions,
 				drafts,
 			};
 			return { place, site };

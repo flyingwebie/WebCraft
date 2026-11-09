@@ -20,6 +20,7 @@ import {
 	LayoutTemplateIcon,
 	ListIcon,
 	type LucideIcon,
+	MailIcon,
 	PaletteIcon,
 	RepeatIcon,
 	ShieldCheckIcon,
@@ -373,6 +374,8 @@ function kindOf(t: T, draft: SiteDraft): string {
 			return t("publishAll.kinds.loop");
 		case "form":
 			return t("publishAll.kinds.form");
+		case "formEmails":
+			return t("publishAll.kinds.formEmails");
 		case "globals":
 			return t("publishAll.kinds.globals");
 		case "consentBanner":
@@ -385,6 +388,10 @@ function kindOf(t: T, draft: SiteDraft): string {
 /** One changed value: a Field by its label, a built-in value or a Design system section by its name. */
 function changeLabel(t: T, draft: SiteDraft, change: SiteDraft["changes"][number]): string {
 	if (change.label !== null) return change.label;
+	if (draft.item.kind === "formEmails") {
+		if (change.key === "notifications") return t("publishAll.sections.notifications");
+		if (change.key === "autoReply") return t("publishAll.sections.autoReply");
+	}
 	if (draft.item.kind === "designSystem") {
 		switch (change.key) {
 			case "tokens":
@@ -431,6 +438,8 @@ function iconOf(draft: SiteDraft): LucideIcon {
 			return RepeatIcon;
 		case "form":
 			return ListIcon;
+		case "formEmails":
+			return MailIcon;
 		case "template":
 			return LayoutTemplateIcon;
 		case "script":

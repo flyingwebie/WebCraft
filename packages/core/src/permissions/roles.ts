@@ -49,6 +49,12 @@ export const PERMISSIONS = {
 	/** Edit Content and save Drafts. */
 	"entry.edit": ["site"],
 	"entry.publish": ["site"],
+	/**
+	 * Change a Form's emails (Content): where its Submissions are sent (Notification recipients and
+	 * routing), the Notifications' words and the Auto-reply, in their Draft, and publish them. Never
+	 * Authors: recipients decide who gets the Site's leads.
+	 */
+	"formEmails.edit": ["site"],
 	/** Delete an Entry, removing the links other Entries make to it. */
 	"entry.delete": ["site"],
 	/** Upload to the Site's Media library, and change your own uploads. */
@@ -105,6 +111,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"structure.edit",
 			"entry.edit",
 			"entry.publish",
+			"formEmails.edit",
 			"entry.delete",
 			"media.upload",
 			"media.manage",
@@ -122,6 +129,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"staging.manage",
 			"entry.edit",
 			"entry.publish",
+			"formEmails.edit",
 			"entry.delete",
 			"media.upload",
 			"media.manage",
@@ -135,6 +143,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"site.view",
 			"entry.edit",
 			"entry.publish",
+			"formEmails.edit",
 			"entry.delete",
 			"media.upload",
 			"media.manage",

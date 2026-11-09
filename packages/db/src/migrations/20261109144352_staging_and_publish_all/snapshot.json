@@ -2,9 +2,9 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "8fb0c634-e47c-403e-a7b2-80e1ca0f75b8",
+  "id": "00f2dca7-1a99-4ac8-b86d-0bd791ee0a2e",
   "prevIds": [
-    "74464ebd-ca22-441c-8582-5e0ce9ac5d22"
+    "8a4c9996-7b05-4683-989c-15739f04d704"
   ],
   "footprints": [
     {
@@ -188,6 +188,42 @@
       ],
       "reads": [
         "n|tbl|public.design_systems",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "forms",
+        "emails_updated_at"
+      ],
+      "writes": [
+        "s|col|public.forms.emails_updated_at",
+        "n|col|public.forms.emails_updated_at",
+        "e|col|public.forms.emails_updated_at"
+      ],
+      "reads": [
+        "n|tbl|public.forms",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "forms",
+        "emails_updated_by"
+      ],
+      "writes": [
+        "s|col|public.forms.emails_updated_by",
+        "n|col|public.forms.emails_updated_by",
+        "e|col|public.forms.emails_updated_by"
+      ],
+      "reads": [
+        "n|tbl|public.forms",
         "n|sch|public"
       ]
     },
@@ -497,6 +533,29 @@
         "forms"
       ],
       "writes": [
+        "s|fk|public.forms.forms_emails_updated_by_people_id_fkey",
+        "n|fk|public.forms.forms_emails_updated_by_people_id_fkey",
+        "e|fk|public.forms.forms_emails_updated_by_people_id_fkey",
+        "n|con|public.forms.forms_emails_updated_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.forms",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.forms.emails_updated_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "forms"
+      ],
+      "writes": [
         "s|fk|public.forms.forms_updated_by_people_id_fkey",
         "n|fk|public.forms.forms_updated_by_people_id_fkey",
         "e|fk|public.forms.forms_updated_by_people_id_fkey",
@@ -792,6 +851,38 @@
         "schema": "public",
         "table": "design_systems",
         "name": "updated_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "forms",
+        "name": "emails_updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "forms",
+        "name": "emails_updated_by",
         "type": "uuid",
         "typeSchema": null,
         "notNull": false,
@@ -1359,6 +1450,26 @@
         "nameExplicit": false,
         "columns": [
           "updated_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "forms",
+        "name": "forms_emails_updated_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "emails_updated_by"
         ],
         "schemaTo": "public",
         "tableTo": "people",

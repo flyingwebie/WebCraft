@@ -16,8 +16,9 @@ export const sites = {
 	/**
 	 * One Site, its Workspace, the Permissions the person holds on it (the admin shows what they may
 	 * do), its Staging address (null when the Install has no sites domain), the languages its Content
-	 * is written in (the Default language first), and the admin pages of the Modules running on it that
-	 * the person may open.
+	 * is written in (the Default language first), the admin pages of the Modules running on it that
+	 * the person may open, and the Permissions those Modules add that the person holds there
+	 * (`modulePermissions`, such as `forms.submissions.view`).
 	 */
 	get: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const scope = await context.services.data.site(context.access, input.siteId, "site.view");
@@ -34,6 +35,7 @@ export const sites = {
 			stagingUrl: context.services.sites.stagingUrl(site),
 			languages: await languagesOf(scope),
 			modulePages: await context.services.modules.pages(scope, await languageOf(context.services, context.person)),
+			modulePermissions: await context.services.modules.permissionsAt(scope),
 		};
 	}),
 

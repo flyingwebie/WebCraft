@@ -48,6 +48,7 @@ describe("the role table", () => {
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
+				"formEmails.edit",
 				"entry.delete",
 				"media.upload",
 				"media.manage",
@@ -77,6 +78,7 @@ describe("the role table", () => {
 				"structure.edit",
 				"entry.edit",
 				"entry.publish",
+				"formEmails.edit",
 				"entry.delete",
 				"media.upload",
 				"media.manage",
@@ -85,7 +87,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("owner: manages Members and the staging password, publishes and deletes Entries, imports CSV files, but never changes Structure or creates Sites", async () => {
+	test("owner: manages Members and the staging password, publishes and deletes Entries, changes Form emails, imports CSV files, but never changes Structure or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -96,6 +98,7 @@ describe("the role table", () => {
 				"staging.manage",
 				"entry.edit",
 				"entry.publish",
+				"formEmails.edit",
 				"entry.delete",
 				"media.upload",
 				"media.manage",
@@ -104,17 +107,26 @@ describe("the role table", () => {
 		});
 	});
 
-	test("editor: edits, publishes and deletes Content, imports CSV files, and manages every Media file", async () => {
+	test("editor: edits, publishes and deletes Content, changes Form emails, imports CSV files, and manages every Media file", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "editor" });
 
 		expect(await permissionsOf(browser)).toEqual({
 			install: [],
 			workspace: ["workspace.view"],
-			site: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage", "import.run"],
+			site: [
+				"site.view",
+				"entry.edit",
+				"entry.publish",
+				"formEmails.edit",
+				"entry.delete",
+				"media.upload",
+				"media.manage",
+				"import.run",
+			],
 		});
 	});
 
-	test("author: edits Content and uploads Media (changing only their own), but can't publish or delete Entries, nor import", async () => {
+	test("author: edits Content and uploads Media (changing only their own), but can't publish or delete Entries, change Form emails, nor import", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "author" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -179,12 +191,22 @@ describe("each role against Workspace and Site scope", () => {
 			"staging.manage",
 			"entry.edit",
 			"entry.publish",
+			"formEmails.edit",
 			"entry.delete",
 			"media.upload",
 			"media.manage",
 			"import.run",
 		],
-		editor: ["site.view", "entry.edit", "entry.publish", "entry.delete", "media.upload", "media.manage", "import.run"],
+		editor: [
+			"site.view",
+			"entry.edit",
+			"entry.publish",
+			"formEmails.edit",
+			"entry.delete",
+			"media.upload",
+			"media.manage",
+			"import.run",
+		],
 		author: ["site.view", "entry.edit", "media.upload"],
 	} as const;
 

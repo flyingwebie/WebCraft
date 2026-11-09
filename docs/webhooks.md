@@ -1,6 +1,6 @@
 # Receiving Webhooks
 
-A Webhook is a call a WebCraft Install makes to an address you choose when something happens on a Site, such as a publish. Staff add Webhooks per Site in the admin (Site › Webhooks). This page is for whoever builds the system that receives them.
+A Webhook is a call a WebCraft Install makes to an address you choose when something happens on a Site, such as a publish or a visitor sending a Form. Staff add Webhooks per Site in the admin (Site › Webhooks). This page is for whoever builds the system that receives them.
 
 ## The request
 
@@ -18,10 +18,11 @@ WebCraft-Signature: t=1772442000,v1=5d41402abc4b2a76b9719d911017c592ae7b0b0c2f1e
 ```
 
 - `id` is the delivery id, the same as `WebCraft-Delivery`. It stays the same on every attempt of a delivery, so use it to skip a delivery you already handled.
-- `type` is the event: `publish`, or `test` when Staff press Send test.
+- `type` is the event: `publish`, `formSubmitted`, or `test` when Staff press Send test.
 - `site.url` is where visitors find the Site (its Primary domain, or its Staging address while it has none); it is `null` when it has neither.
-- For `publish`, `data.item` says what was published: `kind` is `entry`, `template`, `component`, `script`, `globals`, `form`, `loop` or `designSystem` (later versions add more), with its `id`; an Entry also has its `postTypeId` and `path`. `data.pathChanges` lists the published addresses the publish changed (`{ entryId, language, from, to }`). `data.by` is the person who published it (`null` when nobody did, such as a Module by itself), and `data.via` how (`admin`, `editMode`, `module`, …). Publish all, which publishes several items together, sends one `publish` event per item, once all of them are published.
-- The body never holds a secret, nor the content itself (no titles or text): fetch what you need from the Site or its Content API.
+- For `publish`, `data.item` says what was published: `kind` is `entry`, `template`, `component`, `script`, `globals`, `form`, `formEmails` (a Form's Notifications and Auto-reply), `loop` or `designSystem` (later versions add more), with its `id`; an Entry also has its `postTypeId` and `path`. `data.pathChanges` lists the published addresses the publish changed (`{ entryId, language, from, to }`). `data.by` is the person who published it (`null` when nobody did, such as a Module by itself), and `data.via` how (`admin`, `editMode`, `module`, …). Publish all, which publishes several items together, sends one `publish` event per item, once all of them are published.
+- For `formSubmitted`, a visitor sent one of the Site's Forms and its Submission was kept (never spam; also when someone takes one out of the Spam folder). `data.form` is the Form (`id`, `key`, `name`), and `data.submission` the Submission: its `id` (the same in every delivery about it), `language` (the language the visitor used), `page` (the path it was sent from, or `null`), `receivedAt`, and `values`, the Form's fields in order, each `{ key, label, type, value }`, where `value` is text, a list of texts (checkboxes), a number, `true`/`false` (a consent box) or `null` (left empty). It carries what the visitor typed: treat it as personal data.
+- The body never holds a secret. Apart from a Submission's values in `formSubmitted`, it holds no content either (no titles or text): fetch what you need from the Site or its Content API.
 
 ## Checking the signature
 

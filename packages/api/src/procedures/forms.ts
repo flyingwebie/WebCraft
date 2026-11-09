@@ -1,8 +1,31 @@
-import { publishPermission } from "@webcraft/core";
+import { type Access, can, type InstallServices, PermissionDeniedError, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
 import { onSite, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
+
+/**
+ * The Site opened for reading its Forms: by Staff (Structure), and by the clients who change a Form's
+ * emails (`formEmails.edit`: Owners and Editors), who see each Form's Submissions and Emails. Never
+ * Authors.
+ */
+async function formsReader(context: { services: InstallServices; access: Access }, siteId: string) {
+	const site = await context.services.data.site(context.access, siteId, "site.view");
+	const resource = { level: "site", workspaceId: site.workspace.id, siteId: site.site.id } as const;
+	if (
+		!can(context.access.actor, "structure.edit", resource) &&
+		!can(context.access.actor, "formEmails.edit", resource)
+	) {
+		throw new PermissionDeniedError("formEmails.edit");
+	}
+	return site;
+}
+
+/** A change to a Form's emails Draft: each part given replaces that part; the server checks them. */
+const emailsChange = z.object({
+	notifications: z.array(z.unknown()).max(100).optional(),
+	autoReply: z.unknown().optional(),
+});
 
 /** A Form's name, as people call it; the server checks its length. */
 const formName = z.string().max(400);
@@ -23,19 +46,40 @@ const formChange = z.object({
 
 /**
  * Forms (GLOSSARY.md): what visitors fill in on a Site, placed with `{{@form <key>}}`. Structure,
- * with a Draft and a published version: Staff build and publish them.
+ * with a Draft and a published version: Staff build and publish them. A Form's emails (its
+ * Notifications and Auto-reply) are Content with a Draft of their own: Staff, Owners and Editors
+ * change and publish them (`formEmails.edit`).
  */
 export const forms = {
-	/** The Site's Forms, by name, each with where it is placed. */
+	/** The Site's Forms, by name, each with where it is placed (Staff, and the clients who change their emails). */
 	list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		const site = await formsReader(context, input.siteId);
 		return { forms: await context.services.forms.list(site) };
 	}),
 
-	/** One Form: its Draft and published version, with the Templates and Components placing it. */
+	/** One Form: its Draft and published version and its emails, with the Templates and Components placing it. */
 	get: signedIn.input(z.object({ siteId: id, formId: id })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		const site = await formsReader(context, input.siteId);
 		return context.services.forms.get(site, input.formId);
+	}),
+
+	/**
+	 * Saves a Form's emails Draft: its Notifications (the full list) and its Auto-reply, each part
+	 * given replacing that part. A Submission sets off nothing different until they are published.
+	 */
+	saveEmails: signedIn
+		.input(z.object({ siteId: id, formId: id, emails: emailsChange }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "formEmails.edit");
+			return { form: await context.services.forms.saveEmails(site, input.formId, input.emails) };
+		}),
+
+	/** Publishes a Form's emails Draft: what each Submission sets off from now on. */
+	publishEmails: signedIn.input(z.object({ siteId: id, formId: id })).handler(async ({ context, input }) => {
+		const item = { kind: "formEmails", id: input.formId } as const;
+		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+		const published = await context.services.publishing.publish(site, item);
+		return { published, ...(await context.services.forms.get(site, input.formId)) };
 	}),
 
 	/** Creates a Form with its name (and key, made from the name when not given), as a Draft with no fields. */

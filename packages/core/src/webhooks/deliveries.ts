@@ -14,6 +14,7 @@ import { SecretNotSetError, type Secrets, SecretUnreadableError } from "../secre
 import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { WebhookDeliveryNotFoundError, WebhookRedeliveryRefusedError } from "./errors.ts";
 import { publishedBy, TEST_EVENT, type WebhookEvent } from "./events.ts";
+import type { Webhooks } from "./index.ts";
 import { webhooksDeliver } from "./jobs.ts";
 import { signatureHeader, signingSecretName, WEBHOOK_HEADERS } from "./signing.ts";
 import type { WebhookRow } from "./webhooks.ts";
@@ -85,7 +86,7 @@ type EventActor = { id: string; name: string } | null;
  */
 export async function publishEventOf(
 	ports: DeliveryPorts,
-	queue: (place: { siteId: string }, event: WebhookEvent, data: Record<string, unknown>, at: Date) => Promise<void>,
+	queue: Webhooks["queueEvent"],
 	entry: RecordedAuditEntry,
 ): Promise<void> {
 	const published = entry.siteId ? publishedBy(entry.action, entry.details) : null;
@@ -122,6 +123,7 @@ export async function queueEvent(
 	event: WebhookEvent,
 	data: Record<string, unknown>,
 	occurredAt: Date,
+	related?: { kind: string; id: string },
 ): Promise<void> {
 	const scope = await ports.data.background(place.siteId);
 	if (!scope) return;
@@ -139,6 +141,8 @@ export async function queueEvent(
 			webhookId: webhook.id,
 			event,
 			body,
+			relatedKind: related?.kind ?? null,
+			relatedId: related?.id ?? null,
 			status: "queued",
 			nextAttemptAt: scope.now(),
 			createdAt: scope.now(),

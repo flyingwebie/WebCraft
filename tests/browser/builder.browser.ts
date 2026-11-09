@@ -427,6 +427,63 @@ describe("fixed text", () => {
 	});
 });
 
+test("in the Site template, fixed text becomes a Global in one step; text longer than one holds is refused, adding nothing", async () => {
+	const { api } = await install.install.superadmin();
+	const terms = "Terms apply. ".repeat(200).trim();
+	await api.templates.saveSiteTemplateMarkup({
+		siteId,
+		markup: `<main data-wc-id="m">{{@outlet}}</main><footer data-wc-id="f"><p data-wc-id="hours">Open daily</p><p data-wc-id="terms">${terms}</p></footer>`,
+	});
+	const page = await install.newPage("light");
+	await install.signIn(page, staff);
+	await page.goto(install.adminUrl(`/builder/${siteId}/site-template`));
+	await page.frameLocator("iframe[title^='Canvas']").getByText("Open daily").waitFor();
+	const before = (await api.globals.get({ siteId })).globals.fields.map((field) => field.key);
+
+	await layer(page, /^“Terms apply/).click();
+	await page.getByRole("button", { name: "Make it a Global" }).click();
+	let dialog = page.getByRole("dialog", { name: "Make it a Global" });
+	await dialog.getByRole("textbox", { name: "Label" }).fill("Terms");
+	await dialog.getByRole("button", { name: "Make it a Global" }).click();
+	await dialog.getByText(/at most 2000 characters/).waitFor();
+	expect((await api.globals.get({ siteId })).globals.fields.map((field) => field.key)).toEqual(before);
+	await page.keyboard.press("Escape");
+
+	await layer(page, /^“Open daily”/).click();
+	await page.getByRole("button", { name: "Make it a Global" }).click();
+	dialog = page.getByRole("dialog", { name: "Make it a Global" });
+	await dialog.getByRole("textbox", { name: "Label" }).fill("Hours");
+	await dialog.getByRole("button", { name: "Make it a Global" }).click();
+	await expectAnnounced(page, "The text now reads {{ site.hours }}.");
+
+	const { globals } = await api.globals.get({ siteId });
+	expect(globals.fields.find((field) => field.key === "hours")).toMatchObject({ label: "Hours", type: "text" });
+	expect(globals.draft).toMatchObject({ hours: "Open daily" });
+});
+
+test("an attribute keeps literal {{ as text when it is edited, written as in Template markup", async () => {
+	const { api } = await install.install.superadmin();
+	await api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId,
+		markup: ENTRY_TEMPLATE.replace(
+			'<p data-wc-id="lead">',
+			'<p title="Use \\{{ name }} &amp; more" data-wc-id="lead">',
+		),
+	});
+	const page = await builderPage();
+	await layer(page, /^p/).click();
+	const value = page.getByRole("textbox", { name: "Value of attribute 1" });
+	expect(await value.inputValue()).toBe("Use \\{{ name }} &amp; more");
+
+	await value.fill("Use \\{{ name }} &amp; more!");
+	await value.blur();
+	await page.keyboard.press("ControlOrMeta+s");
+	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+
+	expect(await draftMarkup()).toContain('<p title="Use \\{{ name }} &amp; more!" data-wc-id="lead">');
+});
+
 test("a Component: its fixed text becomes a Prop, saved with it, the text as its default", async () => {
 	const { api } = await install.install.superadmin();
 	const { component } = await api.components.create({ siteId, name: "Notice" });

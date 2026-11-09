@@ -17,10 +17,10 @@ export const EMAIL_STATUSES = ["queued", "retrying", "sent", "failed", "logged"]
 export type EmailStatus = (typeof EMAIL_STATUSES)[number];
 
 /**
- * Which SMTP an email goes through: `install` (the Install SMTP), or `none` when it was written to
- * the log. A Site's SMTP adds its own value.
+ * Which SMTP an email goes through: `install` (the Install SMTP), `site` (its Site's own server, its
+ * Site SMTP), or `none` when it was written to the log.
  */
-export type EmailLogSmtp = "install" | "none";
+export type EmailLogSmtp = "install" | "site" | "none";
 
 /** What an email is about, for the Email log's link, such as `{ kind: "install-smtp", id: "install" }`. */
 export type RelatedItem = { kind: string; id: string };

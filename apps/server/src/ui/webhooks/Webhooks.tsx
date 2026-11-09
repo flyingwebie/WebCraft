@@ -198,7 +198,7 @@ function WebhookList({
 												to="/sites/$siteId/webhooks"
 												params={{ siteId }}
 												search={{ webhook: webhook.id }}
-												className="text-sm underline underline-offset-4"
+												className="inline-flex min-h-6 items-center text-sm underline underline-offset-4"
 											>
 												{t("webhooks.openLog", { name: webhook.name })}
 											</Link>
@@ -220,7 +220,7 @@ function WebhookList({
 }
 
 function eventName(t: ReturnType<typeof useT>, event: string): string {
-	return event === "publish" || event === "test" ? t(`webhooks.events.${event}`) : event;
+	return event === "publish" || event === "formSubmitted" || event === "test" ? t(`webhooks.events.${event}`) : event;
 }
 
 function WebhookStatus({ webhook }: { webhook: WebhookView }) {
@@ -507,7 +507,11 @@ function WebhookDialog({
 									<div className="grid gap-1">
 										<FieldLabel htmlFor={`${id}-event-${event}`}>{eventName(t, event)}</FieldLabel>
 										<FieldDescription id={`${id}-event-${event}-help`}>
-											{event === "publish" ? t("webhooks.eventHelp.publish") : null}
+											{event === "publish"
+												? t("webhooks.eventHelp.publish")
+												: event === "formSubmitted"
+													? t("webhooks.eventHelp.formSubmitted")
+													: null}
 										</FieldDescription>
 									</div>
 								</Field>

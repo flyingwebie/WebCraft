@@ -2,14 +2,17 @@ import type { AuditDetails } from "../audit.ts";
 
 /**
  * The events a Webhook can receive: Staff tick them, and each is the `type` of the body sent. A
- * feature adding one (Forms' `formSubmitted`) adds its key here and queues it with
- * `services.webhooks.queueEvent` once its change is saved; its data holds no secret, and no Content
- * values unless the spec says so.
+ * feature adding one adds its key here and queues it with `services.webhooks.queueEvent` once its
+ * change is saved; its data holds no secret, and no Content values unless the spec says so.
  *
  * - `publish`: something on the Site was published (an Entry, a Page, the Globals, a Template, a
- *   Component, a script, a Form, a Loop or the Design system).
+ *   Component, a script, a Form, a Form's emails, a Loop or the Design system).
+ * - `formSubmitted`: a visitor sent a Form and its Submission was kept (never spam; also when it is
+ *   taken out of the Spam folder). Its data is the Form (`id`, `key`, `name`) and the Submission
+ *   (`id`, `language`, `page`, `receivedAt`, and its `values`, each `{ key, label, type, value }`):
+ *   the spec sends a Submission's values (story 99), so other systems get the lead.
  */
-export const WEBHOOK_EVENTS = ["publish"] as const;
+export const WEBHOOK_EVENTS = ["publish", "formSubmitted"] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 

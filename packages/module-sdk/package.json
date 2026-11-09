@@ -1,6 +1,6 @@
 {
 	"name": "@webcraft/module-sdk",
-	"version": "1.5.0",
+	"version": "1.6.0",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
 	"description": "The Module SDK: the one versioned package a Module may import from WebCraft (ADR 0024). Modules that use only it and Template markup fall under the licence's Module exception (ADR 0012).",

@@ -30,6 +30,8 @@ ALTER TABLE "loops" ADD COLUMN "updated_by" uuid;--> statement-breakpoint
 ALTER TABLE "scripts" ADD COLUMN "updated_by" uuid;--> statement-breakpoint
 ALTER TABLE "templates" ADD COLUMN "updated_by" uuid;--> statement-breakpoint
 ALTER TABLE "design_systems" ADD COLUMN "updated_by" uuid;--> statement-breakpoint
+ALTER TABLE "forms" ADD COLUMN "emails_updated_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "forms" ADD COLUMN "emails_updated_by" uuid;--> statement-breakpoint
 ALTER TABLE "forms" ADD COLUMN "updated_by" uuid;--> statement-breakpoint
 ALTER TABLE "sites" ADD COLUMN "staging_password_hash" text;--> statement-breakpoint
 ALTER TABLE "sites" ADD COLUMN "staging_password_changed_at" timestamp with time zone;--> statement-breakpoint
@@ -44,6 +46,7 @@ ALTER TABLE "loops" ADD CONSTRAINT "loops_updated_by_people_id_fkey" FOREIGN KEY
 ALTER TABLE "scripts" ADD CONSTRAINT "scripts_updated_by_people_id_fkey" FOREIGN KEY ("updated_by") REFERENCES "people"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "templates" ADD CONSTRAINT "templates_updated_by_people_id_fkey" FOREIGN KEY ("updated_by") REFERENCES "people"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "design_systems" ADD CONSTRAINT "design_systems_updated_by_people_id_fkey" FOREIGN KEY ("updated_by") REFERENCES "people"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "forms" ADD CONSTRAINT "forms_emails_updated_by_people_id_fkey" FOREIGN KEY ("emails_updated_by") REFERENCES "people"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "forms" ADD CONSTRAINT "forms_updated_by_people_id_fkey" FOREIGN KEY ("updated_by") REFERENCES "people"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "staging_links" ADD CONSTRAINT "staging_links_person_id_people_id_fkey" FOREIGN KEY ("person_id") REFERENCES "people"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "staging_links" ADD CONSTRAINT "staging_links_admin_session_id_sessions_id_fkey" FOREIGN KEY ("admin_session_id") REFERENCES "sessions"("id") ON DELETE CASCADE;--> statement-breakpoint

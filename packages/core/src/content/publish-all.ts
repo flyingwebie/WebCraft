@@ -33,7 +33,7 @@ import { readValue, storedVersion } from "./values.ts";
 /**
  * Publish all (ADR 0014): every Draft of a Site, listed for the person reviewing them, and the ticked
  * ones published together. A Draft is an item whose Draft differs from what is published: an Entry
- * (never published ones too), the Globals, the Consent banner's words (Content); a Template, a
+ * (never published ones too), the Globals, a Form's emails, the Consent banner's words (Content); a Template, a
  * Component, a Loop, a script, a Form, the Design system (Structure). Site settings have no Draft
  * (ADR 0025) and are never part of it, nor are Redirect rules.
  */
@@ -204,6 +204,38 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 				version: draftVersion(globalsRow.draft),
 			},
 			globalsRow.updatedBy,
+		);
+	}
+	// A Form's emails (its Notifications and Auto-reply) are Content of their own, beside the Form.
+	const changedEmails = await scope.select(
+		forms,
+		sql`${forms.emailsDraft} is not null and ${forms.emailsDraft} is distinct from ${forms.emailsPublished}`,
+		{ orderBy: [forms.name] },
+	);
+	for (const row of changedEmails) {
+		add(
+			{
+				item: { kind: "formEmails", id: row.id },
+				group: "content",
+				name: row.name,
+				postType: null,
+				templateKind: null,
+				scriptKind: null,
+				status: row.emailsPublished === null ? "new" : "changed",
+				changes: (row.emailsPublished === null ? [] : (["notifications", "autoReply"] as const))
+					.filter(
+						(key) =>
+							!sameJson(
+								(row.emailsDraft as Record<string, unknown> | null)?.[key] ?? null,
+								(row.emailsPublished as Record<string, unknown> | null)?.[key] ?? null,
+							),
+					)
+					.map((key) => ({ key, label: null })),
+				changedAt: row.emailsUpdatedAt ?? row.updatedAt,
+				path: null,
+				version: draftVersion(row.emailsDraft),
+			},
+			row.emailsUpdatedBy,
 		);
 	}
 	const banner = await scope.first(consentBanners);
@@ -409,20 +441,21 @@ export async function publishAll(
 
 /**
  * The order items go live in, so each finds what it needs already published: the Design system,
- * Loops, Forms, Components (one before those placing it), Templates, scripts, the Globals, the Consent
- * banner's words, then Entries (a Page after its parent).
+ * Loops, Forms and their emails, Components (one before those placing it), Templates, scripts, the
+ * Globals, the Consent banner's words, then Entries (a Page after its parent).
  */
 async function publishOrder(scope: SiteScope, chosen: readonly SiteDraft[]): Promise<SiteDraft[]> {
 	const rank: Record<PublishItem["kind"], number> = {
 		designSystem: 0,
 		loop: 1,
 		form: 2,
-		component: 3,
-		template: 4,
-		script: 5,
-		globals: 6,
-		consentBanner: 7,
-		entry: 8,
+		formEmails: 3,
+		component: 4,
+		template: 5,
+		script: 6,
+		globals: 7,
+		consentBanner: 8,
+		entry: 9,
 	};
 	const byKind = [...chosen].sort((a, b) => rank[a.item.kind] - rank[b.item.kind]);
 	const componentOrder = await componentsInOrder(

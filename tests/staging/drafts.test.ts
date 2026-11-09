@@ -332,7 +332,7 @@ describe("Structure Drafts", () => {
 
 	test("a Form's Draft shows there", async () => {
 		// Forms show where the Module keeping their Submissions runs.
-		await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.0.0" });
+		await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 		const site = await newSite();
 		const { form } = await staff.api.forms.create({ siteId: site.siteId, name: "Contact", key: "contact" });
 		await staff.api.forms.saveDraft({

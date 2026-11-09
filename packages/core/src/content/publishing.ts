@@ -7,7 +7,7 @@ import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem, lockDesignSystem } from "../design-system/design-systems.ts";
 import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
 import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-system/stylesheet.ts";
-import { publishFormDraft } from "../forms/forms.ts";
+import { publishFormDraft, publishFormEmails } from "../forms/forms.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import { indexPublishedEntry } from "../search/indexing.ts";
@@ -65,6 +65,8 @@ export type PublishItem =
 	| { kind: "loop"; id: string }
 	| { kind: "script"; id: string }
 	| { kind: "form"; id: string }
+	/** A Form's emails (Content): its Notifications and Auto-reply. */
+	| { kind: "formEmails"; id: string }
 	| { kind: "globals" }
 	| { kind: "consentBanner" }
 	| { kind: "designSystem" };
@@ -84,6 +86,7 @@ export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Da
  * `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
+	if (item.kind === "formEmails") return "formEmails.edit";
 	return item.kind === "entry" || item.kind === "globals" || item.kind === "consentBanner"
 		? "entry.publish"
 		: "structure.edit";
@@ -201,6 +204,10 @@ async function publishItem(scope: SiteScope, item: PublishItem, sources: Compone
 		case "form": {
 			const published = await publishFormDraft(scope, item.id);
 			return { kind: "form", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
+		}
+		case "formEmails": {
+			const published = await publishFormEmails(scope, item.id);
+			return { kind: "formEmails", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 	}
 }

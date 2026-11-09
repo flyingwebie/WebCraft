@@ -4,6 +4,7 @@ import {
 	FORM_KEY,
 	FORM_LIMITS,
 	type FormCatalogue,
+	type FormEmails,
 	type FormVersion,
 	formsPlacedIn,
 } from "@webcraft/renderer";
@@ -12,6 +13,7 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { storedComponentVersion } from "../content/component-versions.ts";
 import { lockComponents } from "../content/components.ts";
 import type { ContentProblem } from "../content/errors.ts";
+import { sameJson } from "../content/json.ts";
 import { isPagePostType } from "../content/pages.ts";
 import { slugify } from "../content/slugs.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -19,6 +21,7 @@ import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { type FormVersionInput, newFormVersion, readFormVersion, storedFormVersion } from "./definition.ts";
+import { type FormEmailsInput, readFormEmails, storedFormEmails } from "./emails.ts";
 import {
 	FormInUseError,
 	FormInvalidError,
@@ -49,6 +52,17 @@ export type Form = {
 	updatedAt: Date;
 	publishedAt: Date | null;
 	lastPublishedAt: Date | null;
+	/**
+	 * Its emails (Notifications and the Auto-reply): Content with a Draft of their own, published on
+	 * their own by people who may change them (`formEmails.edit`), apart from the Form's Structure.
+	 */
+	emails: {
+		draft: FormEmails;
+		/** What a Submission sets off; null until first published (nothing goes out until then). */
+		published: FormEmails | null;
+		status: FormStatus;
+		lastPublishedAt: Date | null;
+	};
 };
 
 /** Where a Form is placed: the Templates and Components whose Draft or published version holds it. */
@@ -63,19 +77,26 @@ type FormRow = typeof forms.$inferSelect;
 export function toForm(row: FormRow, language = "en"): Form {
 	const draft = storedFormVersion(row.draft, language);
 	const published = row.published === null ? null : storedFormVersion(row.published, language);
+	const emailsDraft = storedFormEmails(row.emailsDraft);
+	const emailsPublished = row.emailsPublished === null ? null : storedFormEmails(row.emailsPublished);
 	return {
 		id: row.id,
 		siteId: row.siteId,
 		key: row.key,
 		name: row.name,
-		status:
-			published === null ? "draft" : JSON.stringify(published) === JSON.stringify(draft) ? "published" : "changed",
+		status: publishStatus(published, draft),
 		draft,
 		published,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 		publishedAt: row.publishedAt,
 		lastPublishedAt: row.lastPublishedAt,
+		emails: {
+			draft: emailsDraft,
+			published: emailsPublished,
+			status: publishStatus(emailsPublished, emailsDraft),
+			lastPublishedAt: row.emailsLastPublishedAt,
+		},
 	};
 }
 
@@ -148,6 +169,54 @@ export async function saveFormDraft(scope: SiteScope, formId: string, input: For
 		if (!updated) throw new FormNotFoundError();
 		return toForm(updated);
 	});
+}
+
+/**
+ * Saves a Form's emails Draft (open the Site with `formEmails.edit`): each part given
+ * (`notifications`, `autoReply`) replaces that part, checked against the Form's Draft fields.
+ * Refused with every problem where it is (`FormInvalidError`). Nothing goes out differently until
+ * the emails are published.
+ */
+export async function saveFormEmails(scope: SiteScope, formId: string, input: FormEmailsInput): Promise<Form> {
+	return scope.transaction(async (tx) => {
+		const row = await lockForm(tx, formId);
+		const problems: ContentProblem[] = [];
+		const emails = readFormEmails(
+			input,
+			storedFormEmails(row.emailsDraft),
+			storedFormVersion(row.draft).fields,
+			problems,
+		);
+		if (problems.length > 0) throw new FormInvalidError(problems);
+		const [updated] = await tx.update(
+			forms,
+			{
+				emailsDraft: emails,
+				updatedAt: tx.now(),
+				emailsUpdatedAt: tx.now(),
+				emailsUpdatedBy: personIdOf(tx.access.actor),
+			},
+			eq(forms.id, row.id),
+		);
+		if (!updated) throw new FormNotFoundError();
+		return toForm(updated);
+	});
+}
+
+/**
+ * Publishes a Form's emails Draft: what a Submission sets off from now on. Part of `publish` (open the
+ * Site with `formEmails.edit`); the Form's fields stay as they are.
+ */
+export async function publishFormEmails(scope: SiteScope, formId: string): Promise<{ id: string; publishedAt: Date }> {
+	const row = await lockForm(scope, formId);
+	const now = scope.now();
+	await scope.update(
+		forms,
+		{ emailsPublished: storedFormEmails(row.emailsDraft), emailsLastPublishedAt: now, updatedAt: now },
+		eq(forms.id, row.id),
+	);
+	await scope.audit("formEmails.publish", { formEmailsId: row.id, formId: row.id, key: row.key, name: row.name });
+	return { id: row.id, publishedAt: now };
 }
 
 /**
@@ -371,4 +440,10 @@ async function isPage(scope: Pick<SiteScope, "select" | "first">, pageId: string
 	const pages = (await scope.select(postTypes)).find((postType) => isPagePostType({ builtIn: postType.builtIn }));
 	if (!pages) return false;
 	return (await scope.first(entries, and(eq(entries.id, pageId), eq(entries.postTypeId, pages.id)))) !== undefined;
+}
+
+/** Where a Draft stands against what is published: never published, the same, or changed since. */
+function publishStatus(published: unknown, draft: unknown): "draft" | "published" | "changed" {
+	if (published === null) return "draft";
+	return sameJson(published, draft) ? "published" : "changed";
 }

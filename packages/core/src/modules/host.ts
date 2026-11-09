@@ -1,7 +1,9 @@
 import type { ModuleSchema } from "@webcraft/db";
 import { moduleApprovals, moduleSwitches, people, sites, workspaces } from "@webcraft/db/schema";
 import {
+	type FormSender,
 	type FormSubmission,
+	type KeptSubmission,
 	type Label,
 	MODULE_EVENTS,
 	type ModuleContext,
@@ -23,6 +25,7 @@ import { clearEveryPageCache, clearPageCache } from "../content/page-cache.ts";
 import { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
 import type { Countries } from "../countries.ts";
+import type { SubmissionActions } from "../forms/kept.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { RateLimits } from "../rate-limits.ts";
@@ -173,6 +176,11 @@ export type ModuleHost = {
 	removeData(scope: PlaceScope, moduleId: string, confirmation?: string): Promise<ModuleDataRemoval>;
 	/** The admin pages of the Modules running at a place that the scope's person may open. */
 	pages(scope: PlaceScope, language: string): Promise<ModulePageView[]>;
+	/**
+	 * The Permissions Modules add that the scope's person holds at the place, of the Modules running
+	 * there (`forms.submissions.view`): the admin shows what they allow, such as a Form's Submissions.
+	 */
+	permissionsAt(scope: PlaceScope): Promise<string[]>;
 	/** Runs one of a Module's procedures for a person, where the Module runs and they hold its Permission. */
 	callProcedure(call: ProcedureCall): Promise<unknown>;
 	/**
@@ -206,12 +214,13 @@ export type ModuleHost = {
 	/**
 	 * Hands a checked Submission to the Module that keeps them on the Site, at once, and answers its
 	 * id. Throws `ModuleNotFoundError` where none runs, and `ModuleFailedError` when it fails (in the
-	 * Module log). A kept Submission that isn't spam is then told to Modules as `form.submitted`, with
-	 * what WebCraft knows of its sender (`FormSender`), worked out from `sender` (the post).
+	 * Module log). A kept Submission that isn't spam then sets off what follows (its Notifications,
+	 * Auto-reply and Webhooks), and is told to Modules as `form.submitted`, with what WebCraft knows of
+	 * its sender (`FormSender`), worked out from `sender` (the post) and handed to the Module with it.
 	 */
 	receiveSubmission(
 		site: Site,
-		submission: FormSubmission,
+		submission: Omit<FormSubmission, "sender">,
 		sender: { route: SiteRouteRequest; request: Request },
 	): Promise<{ id: string }>;
 	/** Changes how many months the Install keeps a Module's partitioned table's rows (`module.approve`). */
@@ -266,6 +275,8 @@ const SITE_TARGET = /^\/(?![/\\])[^\\\u0000-\u0020\u007f]*$/;
 
 export type ModuleHostOptions = RuntimeDeps & {
 	modules: readonly ModuleDefinition[];
+	/** What follows a kept Form Submission (`forms/kept.ts`). */
+	submissionActions?: SubmissionActions;
 	rateLimits: RateLimits;
 	countries: Countries;
 	/** The key visitors' daily ids are made with (`visitorIdKey`). */
@@ -579,6 +590,27 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		}
 	};
 
+	/**
+	 * What a kept Submission sets off (never spam): its Notifications, Auto-reply and Webhooks, then
+	 * `form.submitted` for other Modules, with its sender when known. Never throws.
+	 */
+	const submissionKept = async (site: Site, submission: KeptSubmission, sender: FormSender | null) => {
+		await hostOptions.submissionActions?.kept(site, submission, { autoReply: true });
+		if (!sender) return;
+		await queueEvent("form.submitted", site.workspaceId, site.id, submission.receivedAt, {
+			formId: submission.formId,
+			formKey: submission.formKey,
+			page: submission.page,
+			language: submission.language,
+			sender,
+		} satisfies ModuleEvents["form.submitted"]);
+	};
+	options.submissions = {
+		kept: submissionKept,
+		deliveries: async (site, submissionId) =>
+			(await hostOptions.submissionActions?.deliveries(site, submissionId)) ?? [],
+	};
+
 	return {
 		registry,
 		schemas: schemasOf(registry),
@@ -720,6 +752,18 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				}
 			}
 			return pages;
+		},
+
+		async permissionsAt(scope) {
+			const held: string[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.level !== scope.level || module.permissions.size === 0) continue;
+				if (!(await runsAt(scope, module))) continue;
+				for (const permission of module.permissions.values()) {
+					if (canAt(scope, permission)) held.push(permission.key);
+				}
+			}
+			return held;
 		},
 
 		async callProcedure(call) {
@@ -885,13 +929,17 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			return module && module.level === "site" && (await runsOnSite(site, module)) ? module.id : null;
 		},
 
-		async receiveSubmission(site, submission, sender) {
+		async receiveSubmission(site, received, sender) {
 			const module = receiving();
 			const receiver = module?.receiver;
 			if (!module || !receiver) throw new ModuleNotFoundError();
 			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
 			const scope = await openForModule(module, place);
 			if (!scope) throw new ModuleNotFoundError();
+			const submission: FormSubmission = {
+				...received,
+				sender: await formSenderOf(visitors.visitorOf(sender.route, sender.request), sender.request),
+			};
 			let kept: { id: string };
 			try {
 				kept = await receiver.receive(submission, moduleContext(module, scope, options));
@@ -903,16 +951,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				log.error("A Module failed to keep a Form Submission", { moduleId: module.id, error });
 				throw new ModuleFailedError();
 			}
-			// Other Modules hear of a kept Submission afterwards (never of spam), as background jobs.
-			if (submission.spam === null) {
-				await queueEvent("form.submitted", site.workspaceId, site.id, submission.receivedAt, {
-					formId: submission.formId,
-					formKey: submission.formKey,
-					page: submission.page,
-					language: submission.language,
-					sender: await formSenderOf(visitors.visitorOf(sender.route, sender.request), sender.request),
-				} satisfies ModuleEvents["form.submitted"]);
-			}
+			// What follows a kept Submission (never spam) is queued afterwards, as background jobs.
+			if (submission.spam === null) await submissionKept(site, { ...submission, id: kept.id }, submission.sender);
 			return { id: kept.id };
 		},
 

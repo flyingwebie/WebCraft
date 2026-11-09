@@ -26,6 +26,18 @@ export const forms = pgTable(
 		draft: jsonb("draft").notNull(),
 		/** What visitors fill in; null until the first publish. */
 		published: jsonb("published"),
+		/**
+		 * The Form's emails (`FormEmails`): its Notifications (recipients, routing, subject, intro) and its
+		 * Auto-reply. Content, unlike the rest of the Form: Staff, Owners and Editors change them in this
+		 * Draft and publish them on their own (`formEmails.edit`). Null: none yet.
+		 */
+		emailsDraft: jsonb("emails_draft"),
+		/** The emails a Submission sets off; null until they are first published. */
+		emailsPublished: jsonb("emails_published"),
+		emailsLastPublishedAt: timestamp("emails_last_published_at", { withTimezone: true }),
+		/** When the emails' Draft was last changed, and by whom: what Publish all says about them. */
+		emailsUpdatedAt: timestamp("emails_updated_at", { withTimezone: true }),
+		emailsUpdatedBy: uuid("emails_updated_by").references(() => people.id, { onDelete: "set null" }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		/** Who last changed the Draft (null when nobody did, or they are gone): what Publish all says. */
