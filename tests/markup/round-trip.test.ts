@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import fc from "fast-check";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import type { TestNode, TestTree } from "../harness/trees.ts";
+import { placedForm, type TestNode, type TestTree } from "../harness/trees.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -15,6 +15,8 @@ let postTypeId: string;
 let classes: { id: string; name: string }[];
 /** A Component with text Props, one of them written in camelCase. */
 let cardId: string;
+/** Two Forms of the Site, placed with `{{@form <key>}}`. */
+let formIds: string[];
 
 beforeAll(async () => {
 	install = await createTestInstall();
@@ -55,6 +57,10 @@ beforeAll(async () => {
 	});
 	cardId = component.id;
 	await staff.api.components.saveMarkup({ siteId, componentId: cardId, markup: "<span>{{ props.heading }}</span>" });
+	formIds = [
+		(await staff.api.forms.create({ siteId, name: "Contact", key: "contact" })).form.id,
+		(await staff.api.forms.create({ siteId, name: "Wedding cake", key: "wedding-cake" })).form.id,
+	];
 });
 
 afterAll(async () => {
@@ -79,6 +85,20 @@ const el = (
 ) => ({ type: "element", id, tag, attributes, classes: classIds, children }) as TestNode;
 const text = (value: string) => ({ type: "text", text: value }) as const;
 const value = (path: string, format?: unknown) => ({ type: "value", path, ...(format ? { format } : {}) }) as TestNode;
+
+describe("a placed Form", () => {
+	test("prints as {{@form <key>}}, and saving the markup gives the same tree", async () => {
+		const tree: TestTree = {
+			version: 1,
+			nodes: [el("box", "section", [placedForm(formIds[1] ?? "")]), placedForm(formIds[0] ?? "")],
+		};
+
+		const { tree: stored, markup, again } = await roundTrip(tree);
+
+		expect(markup).toBe('<section data-wc-id="box">{{@form wedding-cake}}</section>{{@form contact}}');
+		expect(again.template.draft).toEqual(stored);
+	});
+});
 
 describe("every element setting", () => {
 	test("prints as this markup, and saving the markup gives the same tree", async () => {
@@ -378,8 +398,10 @@ describe("generated trees", () => {
 		),
 		nodes: fc.array(tie("node"), { maxLength: 4 }),
 	}));
-	// The Language switcher renders a <nav>, so it goes where one can: here, at the top level.
-	const nodes = fc.array(fc.oneof(node, fc.constant({ type: "languageSwitcher" })), { maxLength: 4 });
+	// The Language switcher renders a <nav>, and a Form a <form>, so they go where one can: here, at
+	// the top level.
+	const placedForm = fc.constantFrom(0, 1).map((index) => ({ type: "form", form: formIds[index] }));
+	const nodes = fc.array(fc.oneof(node, fc.constant({ type: "languageSwitcher" }), placedForm), { maxLength: 4 });
 
 	test("print → save gives the same tree, and the same markup", async () => {
 		await fc.assert(
