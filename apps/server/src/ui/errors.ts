@@ -36,6 +36,14 @@ export function errorMessage(error: unknown): MessageKey {
 		case "MEDIA_FOLDER_TAKEN":
 		case "MEDIA_TOO_LARGE":
 		case "MEDIA_INVALID":
+		case "MEDIA_QUOTA_FULL":
+		case "MEDIA_IN_TRASH":
+		case "MEDIA_NOT_IN_TRASH":
+		case "MEDIA_REPLACE_REFUSED":
+		case "MEDIA_TYPE_REFUSED":
+		case "AI_KEY_MISSING":
+		case "AI_PROVIDER_FAILED":
+		case "ALT_TEXT_UNAVAILABLE":
 		case "STORAGE_UNREACHABLE":
 		case "POST_TYPE_NOT_FOUND":
 		case "POST_TYPE_INVALID":
@@ -94,10 +102,24 @@ export function errorMessage(error: unknown): MessageKey {
 				: data?.problem === "changed"
 					? "errors.CONFIRMATION_CHANGED"
 					: "errors.CONFIRMATION_INVALID";
-		case "MEDIA_TYPE_REFUSED":
-			return (data as { reason?: unknown } | undefined)?.reason === "svg"
-				? "errors.MEDIA_TYPE_REFUSED_SVG"
-				: "errors.MEDIA_TYPE_REFUSED";
+		case "MEDIA_IMPORT_REFUSED":
+			switch (data?.problem) {
+				case "scheme":
+					return "errors.MEDIA_IMPORT_REFUSED_SCHEME";
+				case "host":
+				case "address":
+					return "errors.MEDIA_IMPORT_REFUSED_ADDRESS";
+				case "redirects":
+					return "errors.MEDIA_IMPORT_REFUSED_REDIRECTS";
+				case "timeout":
+					return "errors.MEDIA_IMPORT_REFUSED_TIMEOUT";
+				case "size":
+					return "errors.MEDIA_IMPORT_REFUSED_SIZE";
+				case "status":
+					return "errors.MEDIA_IMPORT_REFUSED_STATUS";
+				default:
+					return "errors.MEDIA_IMPORT_REFUSED_UNREACHABLE";
+			}
 		case "ACCESS_NOT_HELD":
 			return data?.problem === "manage" ? "errors.ACCESS_NOT_HELD_MANAGE" : "errors.ACCESS_NOT_HELD_GRANT";
 		case "SLUG_INVALID":
