@@ -1,13 +1,10 @@
-import { webhooks as webhooksTable } from "@webcraft/db/schema";
-import { eq, sql } from "drizzle-orm";
-
 import type { RecordedAuditEntry } from "../audit.ts";
+import type { Email } from "../email/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	type AttemptPayload,
 	type DeliveryPage,
 	type DeliveryPorts,
-	type DeliveryScope,
 	type DeliveryView,
 	listDeliveries,
 	publishEventOf,
@@ -18,6 +15,7 @@ import {
 	sendTest,
 } from "./deliveries.ts";
 import type { WebhookEvent } from "./events.ts";
+import { countFinished } from "./failing.ts";
 import {
 	addWebhook,
 	changeWebhookSecret,
@@ -29,7 +27,6 @@ import {
 	updateWebhook,
 	type WebhookChange,
 	type WebhookRemoval,
-	type WebhookRow,
 	type WebhookView,
 	type WebhookWithSecret,
 } from "./webhooks.ts";
@@ -46,6 +43,7 @@ export {
 	WebhookRedeliveryRefusedError,
 } from "./errors.ts";
 export { isWebhookEvent, type PublishedItem, TEST_EVENT, WEBHOOK_EVENTS, type WebhookEvent } from "./events.ts";
+export { SWITCH_OFF_AFTER } from "./failing.ts";
 export { webhooksDeliver, webhooksPurgeLog, webhooksPurgeLogSchedule } from "./jobs.ts";
 export { WEBHOOK_HEADERS } from "./signing.ts";
 export {
@@ -113,10 +111,16 @@ export type Webhooks = {
 	purgeLog(): Promise<number>;
 };
 
-export type WebhooksOptions = Omit<DeliveryPorts, "onFinished">;
+export type WebhooksOptions = Omit<DeliveryPorts, "onFinished"> & {
+	/** System emails, for the `webhook-switched-off` email to the Site's Owners. */
+	email: Email;
+};
 
 export function createWebhooks(options: WebhooksOptions): Webhooks {
-	const ports: DeliveryPorts = { ...options, onFinished };
+	const ports: DeliveryPorts = {
+		...options,
+		onFinished: (scope, webhook, delivered) => countFinished(options, scope, webhook, delivered),
+	};
 	const queue: Webhooks["queueEvent"] = (place, event, data, at) => queueEvent(ports, place, event, data, at);
 	return {
 		list: listWebhooks,
@@ -137,12 +141,4 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 		runAttempt: (payload) => runAttempt(ports, payload),
 		purgeLog: () => purgeDeliveries(options.database, options.clock.now()),
 	};
-}
-
-/** A delivery ended: a delivered one starts the count of failures in a row again, a failed one adds to it. */
-async function onFinished(scope: DeliveryScope, webhook: WebhookRow, delivered: boolean): Promise<void> {
-	await scope.db
-		.update(webhooksTable)
-		.set({ failuresInARow: delivered ? 0 : sql`${webhooksTable.failuresInARow} + 1` })
-		.where(scope.where(webhooksTable, eq(webhooksTable.id, webhook.id)));
 }

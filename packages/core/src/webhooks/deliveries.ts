@@ -61,7 +61,7 @@ export type DeliveryPorts = {
 	jobs: JobQueue;
 	clock: Clock;
 	log: Logger;
-	/** Told when a delivery ends, so a Webhook that keeps failing is switched off (see `failing.ts`). */
+	/** Told when a delivery (not a test send) ends, so a Webhook that keeps failing is switched off (`failing.ts`). */
 	onFinished(scope: DeliveryScope, webhook: WebhookRow, delivered: boolean): Promise<void>;
 };
 

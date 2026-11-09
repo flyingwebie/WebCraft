@@ -150,6 +150,7 @@ export async function createInstallServices(
 		jobs: ports.jobs,
 		clock,
 		log,
+		email,
 	});
 	const modules = createModuleHost({
 		database,

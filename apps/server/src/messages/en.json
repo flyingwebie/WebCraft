@@ -571,6 +571,10 @@
 		"site-smtp-failing": {
 			"name": "Site SMTP failing",
 			"description": "When the SMTP server of a Site keeps failing."
+		},
+		"webhook-switched-off": {
+			"name": "Webhook switched off",
+			"description": "When a Site's Webhook keeps failing and is switched off."
 		}
 	},
 	"workspaces": {
