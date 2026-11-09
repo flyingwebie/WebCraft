@@ -9,4 +9,6 @@ depends on `@webcraft/module-sdk` and its own outside packages only; Biome and
 to `FIRST_PARTY_MODULES` in `packages/core/src/modules/first-party.ts`.
 
 See `docs/development.md` › "Modules" for the SDK, `tests/modules/sample/` for a Module that uses
-every extension point up to SDK 1.3, and `modules/site-analytics/` for SDK 1.4's.
+every extension point up to SDK 1.3, `modules/site-analytics/` for SDK 1.4's, and `modules/redirects/`
+for SDK 1.5's (Redirect rules and the 404 log). One Module of a build keeps Form Submissions,
+Redirect rules and the 404 log: `modules/forms` and `modules/redirects` show those.

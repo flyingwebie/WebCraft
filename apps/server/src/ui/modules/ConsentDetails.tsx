@@ -27,6 +27,7 @@ const EVENT_KEYS = {
 	"template.published": "modules.events.templatePublished",
 	"globals.published": "modules.events.globalsPublished",
 	"form.submitted": "modules.events.formSubmitted",
+	"paths.changed": "modules.events.pathsChanged",
 } as const satisfies Record<string, MessageKey>;
 
 /** `a`, `a and b`, `a, b and c`: the same on the server and in the browser, so hydration matches. */
@@ -104,6 +105,8 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 			? [t("modules.consent.components", { names: joinWords(adds.components, and) })]
 			: []),
 		...(adds.submissions ? [t("modules.consent.submissions")] : []),
+		...(adds.redirectRules ? [t("modules.consent.redirectRules")] : []),
+		...(adds.notFoundLog ? [t("modules.consent.notFoundLog")] : []),
 		...[...new Set(adds.schedules)].map((every) => t("modules.consent.schedule", { every })),
 		...(adds.events.length > 0
 			? [

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { traverseContractProcedures } from "@orpc/server";
 import { type ApiClient, apiRouter } from "@webcraft/api";
 import type forms from "@webcraft/module-forms";
+import type redirects from "@webcraft/module-redirects";
 import type { ModuleApi, ModuleDefinition, ModuleProcedures } from "@webcraft/module-sdk";
 import type siteAnalytics from "@webcraft/module-site-analytics";
 import { pdf, upload } from "../harness/images.ts";
@@ -24,6 +25,7 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.0.0" });
 });
 
 afterAll(async () => {
@@ -427,6 +429,50 @@ describe("Forms", () => {
 	);
 });
 
+describe("Redirect rules and the 404 log", () => {
+	let paths = 0;
+	const redirectsOf = (api: ApiClient) => moduleOf<typeof redirects>(api, "redirects");
+	/** A Redirect rule in a target's Site, made by the Superadmin. */
+	async function ruleIn(target: IsolationTarget) {
+		const admin = await install.superadmin();
+		const from = `/isolation-${++paths}`;
+		return (await redirectsOf(admin.api).rules.add({ siteId: target.siteId, from, to: "/", status: 301 })).rule.id;
+	}
+	/** A path of a target's 404 log: a visitor's browser asked for it. */
+	async function missIn(target: IsolationTarget) {
+		const admin = await install.superadmin();
+		const { stagingUrl } = await admin.api.sites.get({ siteId: target.siteId });
+		const path = `/missing-${++paths}`;
+		const userAgent = "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/131.0";
+		await install.request(new Request(`${stagingUrl}${path}`, { headers: { "user-agent": userAgent } }));
+		await install.drainJobs();
+		const { misses } = await redirectsOf(admin.api).notFound.list({ siteId: target.siteId });
+		const miss = misses.find((each) => each.path === path);
+		if (!miss) throw new Error(`${path} should be in the 404 log.`);
+		return miss.id;
+	}
+	isolation.refuses("m.redirects.rules.list", (api, { siteId }) => redirectsOf(api).rules.list({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses(
+		"m.redirects.rules.add",
+		(api, { siteId }) => redirectsOf(api).rules.add({ siteId, from: `/ours-${++paths}`, to: "/", status: 302 }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.redirects.rules.update", async (api, target) =>
+		redirectsOf(api).rules.update({ siteId: target.siteId, ruleId: await ruleIn(target), status: 302 }),
+	);
+	isolation.refuses("m.redirects.rules.remove", async (api, target) =>
+		redirectsOf(api).rules.remove({ siteId: target.siteId, ruleId: await ruleIn(target) }),
+	);
+	isolation.refuses("m.redirects.notFound.list", (api, { siteId }) => redirectsOf(api).notFound.list({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses("m.redirects.notFound.ignore", async (api, target) =>
+		redirectsOf(api).notFound.ignore({ siteId: target.siteId, missId: await missIn(target) }),
+	);
+});
+
 describe("Loops", () => {
 	/** A name no other call has used. */
 	let names = 0;
@@ -802,10 +848,9 @@ describe("Site analytics", () => {
 });
 
 /** A Module's procedures, from the person's Management API (`m.<module id>`). */
-function moduleOf<Definition extends typeof sample | typeof sampleBoard | typeof forms | typeof siteAnalytics>(
-	api: ApiClient,
-	moduleId: string,
-) {
+function moduleOf<
+	Definition extends typeof sample | typeof sampleBoard | typeof forms | typeof siteAnalytics | typeof redirects,
+>(api: ApiClient, moduleId: string) {
 	return (api as unknown as { m: Record<string, ModuleApi<Definition>> }).m[moduleId] as ModuleApi<Definition>;
 }
 

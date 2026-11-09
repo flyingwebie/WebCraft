@@ -18,6 +18,7 @@ import {
 	moduleHourlyJobs,
 	moduleHourlyJobsSchedule,
 	moduleJob,
+	moduleMissesJob,
 } from "../modules/jobs.ts";
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { modulePartitionsJob, modulePartitionsSchedule } from "../modules/partitions.ts";
@@ -44,6 +45,7 @@ export const coreJobs = [
 	mediaPurge,
 	moduleEventJob,
 	moduleJob,
+	moduleMissesJob,
 	moduleHourlyJobs,
 	moduleDailyJobs,
 	moduleLogPurge,

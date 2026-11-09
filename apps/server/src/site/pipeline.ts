@@ -4,6 +4,7 @@ import {
 	FILE_POLICY,
 	type InstallServices,
 	isReservedPath,
+	isRobot,
 	LIBRARY_PATH,
 	MEDIA_PATH,
 	mediaPolicy,
@@ -69,9 +70,11 @@ export type SitePipelineOptions = {
  * Language switcher's links (`/_wc/lang/…`) remember the visitor's choice in a cookie, and a Site may
  * send a first visit to its home page on to the browser's language.
  *
- * Steps still to come, in their places: Redirect domains and Redirect rules before everything else,
- * language domains (with domain verification), each reserved path's feature (Forms, the Content API,
- * `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies), and the 404 log.
+ * Redirect domains and then the Site's Redirect rules (kept by the Module that keeps them, SDK 1.5)
+ * come before everything else; a visitor's request the 404 page answers goes to the Site's 404 log.
+ *
+ * Steps still to come, in their places: each reserved path's feature (the Content API,
+ * `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies).
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();
@@ -100,6 +103,12 @@ async function siteAnswer(
 	const url = new URL(request.url);
 	// A Redirect domain sends every request on to the same path on the Primary domain (ADR 0015).
 	if (host.address === "redirect") return domainRedirect(host, url);
+	// Redirect rules come next, before anything the Site answers itself (the Install's own `/_…`
+	// paths aside): its pages, files and Edit mode.
+	if (request.method === "GET" || request.method === "HEAD") {
+		const redirected = await ruleRedirect(services, host, url);
+		if (redirected) return redirected;
+	}
 	const editing = await editModeEndpoint(services, request, host);
 	if (editing) return editing;
 	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
@@ -251,7 +260,11 @@ async function visitorPage(
 		page: number,
 		search: searchQueryIn(url.searchParams),
 	});
-	if (!answer) return notFoundPage(services, host, pathname);
+	if (!answer) {
+		// A path with no page: the Site's 404 log hears of it (a page past a paginated Loop's last isn't one).
+		if (number === 1) noteMiss(services, request, host);
+		return notFoundPage(services, host, pathname);
+	}
 	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
 	// The search results page shows one visitor's search: never kept, never indexed (ADR 0021).
 	if (answer.searchPage) return searchResponse(services, host, answer.html, answer.headers);
@@ -467,6 +480,59 @@ async function notFoundPage(services: InstallServices, host: SiteHost, pathname:
 			...addressHeaders(host),
 		},
 	});
+}
+
+/**
+ * A Redirect rule's answer: a 301 or 302 to where the rule sends the path, keeping the request's query
+ * parameters the target doesn't set itself. Browsers check it again each time (it is kept like a
+ * page, `max-age=0, must-revalidate`), so a changed rule shows at once; it is never kept as a page.
+ */
+async function ruleRedirect(services: InstallServices, host: SiteHost, url: URL): Promise<Response | null> {
+	const answer = await services.sitePages.redirect(host, url.pathname);
+	if (!answer) return null;
+	return new Response(null, {
+		status: answer.status,
+		headers: {
+			location: withRequestQuery(answer.location, url),
+			"cache-control": PAGE_CACHE_CONTROL,
+			...addressHeaders(host),
+		},
+	});
+}
+
+/** A redirect's location with the request's query parameters added, those it sets itself left as they are. */
+function withRequestQuery(location: string, url: URL): string {
+	if (url.search === "") return location;
+	const absolute = !location.startsWith("/");
+	const target = new URL(location, url.origin);
+	const own = new Set(target.searchParams.keys());
+	for (const [name, value] of url.searchParams) {
+		if (!own.has(name)) target.searchParams.append(name, value);
+	}
+	return absolute ? target.href : `${target.pathname}${target.search}${target.hash}`;
+}
+
+/**
+ * Hands a request the 404 page answered to the Site's 404 log: only a person's browser asking for the
+ * page (`GET`, not a robot by its user agent, not a prefetch), with the host of the page that linked
+ * there. The query string is never kept: it may hold personal data. Nothing waits for it.
+ */
+function noteMiss(services: InstallServices, request: Request, host: SiteHost): void {
+	if (request.method !== "GET" || isRobot(request.headers.get("user-agent"))) return;
+	const purpose = `${request.headers.get("sec-purpose") ?? ""} ${request.headers.get("purpose") ?? ""}`;
+	if (/prefetch|prerender/i.test(purpose)) return;
+	services.sitePages.noteMiss(host, new URL(request.url).pathname, referrerHost(request.headers.get("referer")));
+}
+
+/** The host of the page a request came from, in lower case; null without a `Referer` on the web. */
+function referrerHost(referer: string | null): string | null {
+	if (!referer) return null;
+	try {
+		const url = new URL(referer);
+		return url.protocol === "https:" || url.protocol === "http:" ? url.hostname.toLowerCase() : null;
+	} catch {
+		return null;
+	}
 }
 
 /** A permanent redirect within the Site, such as the home page's own path to `/`. */

@@ -1,9 +1,10 @@
 import type { Database } from "@webcraft/db";
 import {
+	isModuleError,
 	type Label,
 	labelProblem,
 	type ModuleContext,
-	ModuleError,
+	type ModuleError,
 	type ModuleHttpOptions,
 	type ModulePlace,
 	ModuleRefusedError,
@@ -129,7 +130,10 @@ export function moduleContext(
 		module: { id: module.id, version: manifest.version },
 		place: place as ModulePlace,
 		now: () => scope.now(),
-		data: moduleData(module, scope, deps.ensurePartition),
+		data: moduleData(module, scope, {
+			inTransaction: afterCommit !== null,
+			ensurePartition: deps.ensurePartition,
+		}),
 		async audit(action, details) {
 			if (!AUDIT_ACTION.test(action)) {
 				throw new TypeError(`An Audit log action is <noun>.<verb>, such as note.add: not ${action}.`);
@@ -346,5 +350,5 @@ async function moduleHttp(
 
 /** Whether an error is a Module's own answer (`ModuleError`), which isn't a failure. */
 export function isModuleAnswer(error: unknown): error is ModuleError {
-	return error instanceof ModuleError;
+	return isModuleError(error);
 }
