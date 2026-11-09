@@ -7,6 +7,7 @@ import {
 	ArrowLeftIcon,
 	ArrowRightIcon,
 	CalendarClockIcon,
+	FileCodeIcon,
 	FileLockIcon,
 	LoaderIcon,
 	PlayIcon,
@@ -32,29 +33,146 @@ import {
 	suggestedMatch,
 } from "./model.ts";
 import { Note } from "./Note.tsx";
+import { type SourceChoice, SourceImportFlow } from "./SourceFlow.tsx";
 import { type ImportStep, Stepper } from "./Stepper.tsx";
 
 type Step = Extract<ImportStep, "source" | "map" | "preview">;
 
 /**
- * The first three steps of an Import: Source (the file, the Post Type, a name), Map (where each column
- * goes, what rows match Entries by) and Preview (what the run would do), then Start, which opens the
- * run. For a new Import, or to run an Import again with a new file (its settings kept, columns
- * matched by name).
+ * A new Import's first step starts with its source: a CSV file, or one a Module adds that the person
+ * may import from (a WordPress export file, for Staff), each with its own steps. Running an Import
+ * again keeps its source.
  */
 export function ImportFlow({
-	siteId,
-	postTypes,
-	languages,
-	existing,
+	initialSource,
+	...props
 }: {
 	siteId: string;
 	postTypes: readonly { id: string; name: string; builtIn: string | null }[];
 	languages: { default: string; all: readonly string[] };
 	existing: ImportView | null;
+	/** The source a new Import starts with (`csv` unless given). */
+	initialSource?: string;
+}) {
+	const t = useT();
+	const ids = useId();
+	const [source, setSource] = useState(props.existing?.source ?? initialSource ?? "csv");
+	const [found, setFound] = useState<{ sources: SourceChoice[]; redirectsOn: boolean } | null>(null);
+	useEffect(() => {
+		let current = true;
+		void (async () => {
+			try {
+				const api = await getApi();
+				const answer = await api.imports.sources({ siteId: props.siteId });
+				if (current) setFound(answer);
+			} catch {
+				if (current) setFound({ sources: [], redirectsOn: false });
+			}
+		})();
+		return () => {
+			current = false;
+		};
+	}, [props.siteId]);
+	const choices = found?.sources ?? [];
+	const chooser = (
+		<fieldset className="grid content-start gap-3">
+			<legend className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
+				{t("imports.flow.source")}
+			</legend>
+			{[
+				{
+					id: "csv",
+					label: t("imports.sources.csv.title"),
+					description: t("imports.sources.csv.short"),
+					icon: <TableIcon className="size-4" aria-hidden="true" />,
+				},
+				...choices.map((choice) => ({
+					id: choice.id,
+					label: choice.label,
+					description: choice.description,
+					icon: <FileCodeIcon className="size-4" aria-hidden="true" />,
+				})),
+			]
+				.filter((choice) => !props.existing || choice.id === props.existing.source)
+				.map((choice) => (
+					<label
+						key={choice.id}
+						className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 ${choice.id === source ? "border-primary border-2" : ""}`}
+					>
+						<input
+							type="radio"
+							name={`${ids}-source`}
+							value={choice.id}
+							checked={choice.id === source}
+							onChange={() => setSource(choice.id)}
+							className="accent-primary mt-1"
+						/>
+						<span className="grid gap-0.5">
+							<span className="flex items-center gap-2 font-medium">
+								{choice.icon}
+								{choice.label}
+							</span>
+							<span className="text-muted-foreground text-sm">{choice.description}</span>
+						</span>
+					</label>
+				))}
+		</fieldset>
+	);
+	if (source !== "csv") {
+		const choice = choices.find((each) => each.id === source);
+		if (!choice) {
+			// A source asked for in the address that isn't offered here: start from a CSV file.
+			if (found && !props.existing) {
+				setSource("csv");
+				return null;
+			}
+			return found ? (
+				<p className="text-muted-foreground max-w-3xl" role="status">
+					{t("imports.sourceFlow.sourceOff")}
+				</p>
+			) : (
+				<p className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
+					<LoaderIcon className="size-4 animate-spin" aria-hidden="true" />
+					{t("imports.sourceFlow.loading")}
+				</p>
+			);
+		}
+		return (
+			<SourceImportFlow
+				siteId={props.siteId}
+				source={choice}
+				chooser={chooser}
+				postTypes={props.postTypes}
+				redirectsOn={found?.redirectsOn ?? false}
+				existing={props.existing}
+			/>
+		);
+	}
+	return <CsvImportFlow {...props} chooser={chooser} />;
+}
+
+/**
+ * The first three steps of a CSV Import: Source (the file, the Post Type, a name), Map (where each
+ * column goes, what rows match Entries by) and Preview (what the run would do), then Start, which
+ * opens the run. For a new Import, or to run an Import again with a new file (its settings kept,
+ * columns matched by name).
+ */
+function CsvImportFlow({
+	siteId,
+	postTypes,
+	languages,
+	existing: given,
+	chooser,
+}: {
+	siteId: string;
+	postTypes: readonly { id: string; name: string; builtIn: string | null }[];
+	languages: { default: string; all: readonly string[] };
+	existing: ImportView | null;
+	chooser: ReactNode;
 }) {
 	const t = useT();
 	const navigate = useNavigate();
+	const existing = given as (ImportView & { settings: CsvSettings }) | null;
 	const ids = useId();
 	const heading = useRef<HTMLHeadingElement>(null);
 	const [step, setStep] = useState<Step>("source");
@@ -252,21 +370,7 @@ export function ImportFlow({
 
 			{step === "source" ? (
 				<div className="grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]">
-					<fieldset className="grid content-start gap-3">
-						<legend className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
-							{t("imports.flow.source")}
-						</legend>
-						<label className="border-primary flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4">
-							<input type="radio" name={`${ids}-source`} value="csv" defaultChecked className="accent-primary mt-1" />
-							<span className="grid gap-0.5">
-								<span className="flex items-center gap-2 font-medium">
-									<TableIcon className="size-4" aria-hidden="true" />
-									{t("imports.sources.csv.title")}
-								</span>
-								<span className="text-muted-foreground text-sm">{t("imports.sources.csv.short")}</span>
-							</span>
-						</label>
-					</fieldset>
+					{chooser}
 					<section aria-labelledby={`${ids}-csv`} className="grid content-start gap-6 rounded-lg border p-6">
 						<div className="grid gap-1">
 							<h2 id={`${ids}-csv`} className="text-lg font-semibold">

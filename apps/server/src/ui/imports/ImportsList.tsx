@@ -2,8 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { InfoIcon, PlusIcon, TableIcon } from "lucide-react";
+import { FileCodeIcon, InfoIcon, PlusIcon, TableIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
+import { getApi } from "../api.ts";
 import { formatUtc } from "../format.ts";
 import { useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
@@ -15,6 +17,11 @@ import { type ImportView, isGoing } from "./model.ts";
  */
 export function ImportsList({ siteId, imports }: { siteId: string; imports: readonly ImportView[] }) {
 	const t = useT();
+	const sources = useSources(siteId);
+	const labelOf = (source: string) =>
+		source === "csv"
+			? t("imports.sourceNames.csv")
+			: (sources.find((each) => each.id === source)?.label ?? t("imports.sourceNames.other"));
 	return (
 		<>
 			<PageHeader
@@ -47,7 +54,7 @@ export function ImportsList({ siteId, imports }: { siteId: string; imports: read
 							</TableHeader>
 							<TableBody>
 								{imports.map((row) => (
-									<ImportRow key={row.id} siteId={siteId} row={row} />
+									<ImportRow key={row.id} siteId={siteId} row={row} sourceLabel={labelOf(row.source)} />
 								))}
 							</TableBody>
 						</Table>
@@ -69,6 +76,21 @@ export function ImportsList({ siteId, imports }: { siteId: string; imports: read
 							</span>
 							<span className="text-muted-foreground text-sm">{t("imports.sources.csv.body")}</span>
 						</Link>
+						{sources.map((source) => (
+							<Link
+								key={source.id}
+								to="/sites/$siteId/imports/new"
+								params={{ siteId }}
+								search={{ source: source.id }}
+								className="hover:bg-muted/50 focus-visible:ring-ring/50 grid gap-2 rounded-lg border p-4 outline-none focus-visible:ring-3"
+							>
+								<span className="flex items-center gap-2 font-medium">
+									<FileCodeIcon className="size-4" aria-hidden="true" />
+									{source.label}
+								</span>
+								<span className="text-muted-foreground text-sm">{t("imports.sources.module.body")}</span>
+							</Link>
+						))}
 					</div>
 				</section>
 				<p className="bg-muted/50 flex items-start gap-2 rounded-lg border p-3 text-sm">
@@ -80,8 +102,29 @@ export function ImportsList({ siteId, imports }: { siteId: string; imports: read
 	);
 }
 
+/** The import sources Modules add on the Site that the person may import from. */
+function useSources(siteId: string) {
+	const [sources, setSources] = useState<{ id: string; label: string }[]>([]);
+	useEffect(() => {
+		let current = true;
+		void (async () => {
+			try {
+				const api = await getApi();
+				const answer = await api.imports.sources({ siteId });
+				if (current) setSources(answer.sources);
+			} catch {
+				// The list shows CSV only.
+			}
+		})();
+		return () => {
+			current = false;
+		};
+	}, [siteId]);
+	return sources;
+}
+
 /** One Import: its name, file and Post Type, its last run and what it did. */
-function ImportRow({ siteId, row }: { siteId: string; row: ImportView }) {
+function ImportRow({ siteId, row, sourceLabel }: { siteId: string; row: ImportView; sourceLabel: string }) {
 	const t = useT();
 	const run = row.lastRun;
 	return (
@@ -92,13 +135,15 @@ function ImportRow({ siteId, row }: { siteId: string; row: ImportView }) {
 					<span className="text-muted-foreground text-sm">
 						{t("imports.list.into", {
 							file: run?.fileName ?? "—",
-							postType: row.postType?.name ?? t("imports.list.noPostType"),
+							postType:
+								row.postType?.name ??
+								(row.source === "csv" ? t("imports.list.noPostType") : t("imports.list.severalTypes")),
 						})}
 					</span>
 				</div>
 			</TableCell>
 			<TableCell>
-				<Badge variant="outline">{t(`imports.sourceNames.${row.source}`)}</Badge>
+				<Badge variant="outline">{sourceLabel}</Badge>
 			</TableCell>
 			<TableCell className="whitespace-normal">
 				{run ? (

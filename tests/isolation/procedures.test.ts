@@ -13,6 +13,7 @@ import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
 import { element, outlet, text, tree, value } from "../harness/trees.ts";
+import { OLD_MILL, partsDigest, sendParts, WORDPRESS } from "../imports/wordpress.ts";
 
 import type { sampleBoard } from "../modules/sample/board.ts";
 import type { sample } from "../modules/sample/index.ts";
@@ -27,6 +28,7 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });
 });
 
 afterAll(async () => {
@@ -899,7 +901,84 @@ async function csvFileIn(api: ApiClient, target: IsolationTarget): Promise<strin
 	}
 }
 
+/**
+ * A WordPress export file the caller uploaded (in parts) to the target's Site and the worker
+ * surveyed, with the mapping it suggests. Another Workspace's Site refuses the upload, so a made-up
+ * id stands in there.
+ */
+async function exportIn(api: ApiClient, target: IsolationTarget) {
+	try {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		const { file } = await api.imports.startUpload({
+			siteId: target.siteId,
+			source: WORDPRESS,
+			fileName: "export.xml",
+			size: bytes.length,
+			partBytes: 4096,
+		});
+		const hashes = await sendParts(api, target.siteId, file, bytes);
+		await api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: partsDigest(hashes) });
+		await install.drainJobs();
+		const { file: surveyed } = await api.imports.file({ siteId: target.siteId, fileId: file.id });
+		return { fileId: file.id, settings: surveyed.suggested ?? { language: null, types: [] } };
+	} catch {
+		return { fileId: crypto.randomUUID(), settings: { language: null, types: [] } };
+	}
+}
+
 describe("Imports", () => {
+	isolation.refuses("imports.sources", (api, { siteId }) => api.imports.sources({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses("imports.startUpload", (api, { siteId }) =>
+		api.imports.startUpload({ siteId, source: WORDPRESS, fileName: "export.xml", size: 100 }),
+	);
+	isolation.refuses("imports.uploadPart", async (api, target) => {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		let file = { id: crypto.randomUUID(), partBytes: bytes.length };
+		try {
+			file = (
+				await api.imports.startUpload({
+					siteId: target.siteId,
+					source: WORDPRESS,
+					fileName: "export.xml",
+					size: bytes.length,
+				})
+			).file;
+		} catch {
+			// Another Workspace's Site: refused before the file is looked for.
+		}
+		return sendParts(api, target.siteId, file, bytes);
+	});
+	isolation.refuses("imports.finishUpload", async (api, target) => {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		let file = { id: crypto.randomUUID(), partBytes: bytes.length };
+		try {
+			file = (
+				await api.imports.startUpload({
+					siteId: target.siteId,
+					source: WORDPRESS,
+					fileName: "export.xml",
+					size: bytes.length,
+				})
+			).file;
+			const hashes = await sendParts(api, target.siteId, file, bytes);
+			return api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: partsDigest(hashes) });
+		} catch {
+			return api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: "0".repeat(64) });
+		}
+	});
+	isolation.refuses("imports.file", async (api, target) =>
+		api.imports.file({ siteId: target.siteId, fileId: (await exportIn(api, target)).fileId }),
+	);
+	isolation.refuses("imports.sample", async (api, target) => {
+		const { fileId, settings } = await exportIn(api, target);
+		return api.imports.sample({ siteId: target.siteId, fileId, settings, type: "post", index: 0 });
+	});
+	isolation.refuses("imports.previewSource", async (api, target) => {
+		const { fileId, settings } = await exportIn(api, target);
+		return api.imports.previewSource({ siteId: target.siteId, fileId, settings });
+	});
 	isolation.refuses("imports.uploadCsv", (api, { siteId }) => api.imports.uploadCsv({ siteId, file: csvFile() }), {
 		as: ["staff", "editor"],
 	});

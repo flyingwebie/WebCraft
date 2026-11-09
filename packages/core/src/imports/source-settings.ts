@@ -21,32 +21,10 @@ import { slugify } from "../content/slugs.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { ImportInvalidError, type ImportSettingProblem } from "./errors.ts";
 import type { ItemDestination } from "./items.ts";
+import { NEW_FIELD_TYPES, SOURCE_KEY_TARGETS, takes } from "./source-rules.ts";
 import type { SourceSurvey, SurveyKey } from "./survey.ts";
 
-/** Where a key can go besides a Field. */
-export const SOURCE_KEY_TARGETS = [
-	"title",
-	"slug",
-	"seo.title",
-	"seo.description",
-	"seo.canonical",
-	"seo.noindex",
-	"seo.image",
-] as const;
-
-/** The Field types a run can add for a key. */
-export const NEW_FIELD_TYPES = [
-	"text",
-	"richText",
-	"body",
-	"date",
-	"media",
-	"relationship",
-	"number",
-	"boolean",
-	"email",
-	"link",
-] as const;
+export { NEW_FIELD_TYPES, SOURCE_KEY_TARGETS, takes };
 
 const FIELD_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;
 
@@ -114,33 +92,6 @@ export type SourceMapping = {
 	/** The Site's Post Types' ids by key, planned ones too. */
 	postTypeIds: Map<string, string>;
 };
-
-/** What kinds of value each place takes. */
-const TAKES: Readonly<Record<string, readonly SurveyKey["kind"][]>> = {
-	title: ["title", "slug", "text", "html", "date"],
-	slug: ["slug", "text"],
-	"seo.title": ["title", "text", "html"],
-	"seo.description": ["title", "text", "html"],
-	"seo.canonical": ["text"],
-	"seo.noindex": ["text"],
-	"seo.image": ["file"],
-	text: ["title", "slug", "text", "html", "date"],
-	richText: ["title", "text", "html"],
-	body: ["html", "text"],
-	date: ["date", "text"],
-	media: ["file", "text"],
-	relationship: ["items"],
-	number: ["text"],
-	boolean: ["text"],
-	email: ["text"],
-	link: ["text"],
-	select: ["text"],
-};
-
-/** Whether a key whose values are `kind` can go to `place` (a key target or a Field type). */
-export function takes(place: string, kind: SurveyKey["kind"]): boolean {
-	return (TAKES[place] ?? []).includes(kind);
-}
 
 /** The id a Post Type the run will create has until it does. */
 export function plannedId(type: string): string {

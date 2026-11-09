@@ -107,6 +107,8 @@ export type ImportProblem = {
 export type ImportChange = {
 	row: number;
 	entryId: string | null;
+	/** Its Post Type, while it exists. */
+	postTypeId: string | null;
 	title: string | null;
 	/** Why it was skipped: `edited` (someone changed it since an earlier run). */
 	reason: string | null;
@@ -138,6 +140,7 @@ export type ImportRunReport = ImportRunSummary & {
 	leftoversTotal: number;
 	/** A Module source's run: files it couldn't fetch, Redirect rules it made, Post Types and Fields it created, what it skipped. */
 	notFetched: { row: number; address: string; problem: string | null }[];
+	notFetchedTotal: number;
 	redirects: { on: boolean; count: number; rules: { from: string; to: string }[] };
 	structure: {
 		postTypes: { id: string | null; name: string }[];
@@ -597,6 +600,7 @@ async function sourceReport(scope: SiteScope, run: RunRow, defaultLanguage: stri
 	return {
 		leftovers,
 		leftoversTotal: json.leftovers ?? leftovers.length,
+		notFetchedTotal: json.notFetched ?? notFetchedRows.length,
 		notFetched: notFetchedRows.map((row) => {
 			const params = (row.params ?? {}) as Record<string, string>;
 			return { row: row.position, address: params.address ?? "", problem: params.problem ?? null };
@@ -871,9 +875,11 @@ async function changeViews(
 			readValue(storedVersion(row.draft), { key: "title", language, defaultLanguage: language }),
 		]),
 	);
+	const types = new Map(found.map((row) => [row.id, row.postTypeId]));
 	return rows.map((row) => ({
 		row: row.position,
 		entryId: row.entryId && titles.has(row.entryId) ? row.entryId : null,
+		postTypeId: row.entryId ? (types.get(row.entryId) ?? null) : null,
 		title: row.entryId ? (titles.get(row.entryId) ?? null) : null,
 		reason: row.reason,
 	}));
