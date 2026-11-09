@@ -7,7 +7,8 @@
  * 2. `tokens`: every token as a custom property on `:root`, and the dark values when dark mode is on
  *    (following the device, or the theme toggle's choice in `data-wc-theme`);
  * 3. `base`: base styles of plain elements, the focus style (its custom properties set from tokens)
- *    and WebCraft's own page parts (the skip link, the theme toggle, a body's callouts and videos);
+ *    and WebCraft's own page parts (the skip link, the theme toggle, a body's callouts and videos,
+ *    Forms, the Consent banner);
  * 4. `classes`: the Classes some published element has, then their styles from each breakpoint up;
  * 5. `utilities`: the token utilities some published element has;
  * 6. `custom`: those Classes' own custom CSS, Components' (#63), then the Site-wide custom CSS.
@@ -103,6 +104,61 @@ const FORM_PARTS = [
 	".wc-form-hp{position:absolute;inset-inline-start:-10000px;inline-size:1px;block-size:1px;overflow:hidden}",
 ];
 
+/**
+ * The Consent banner's hooks (`CONSENT_HOOKS`, ADR 0020): the banner in its three layouts (a bar along
+ * the bottom, a box in a corner, a centred modal dialog), its categories and buttons, the "Cookie
+ * settings" button and a held-back embed's placeholder. Colours are the page's own (`Canvas`,
+ * `CanvasText`), so they follow dark values and keep their contrast; "Accept all" and "Reject all" look
+ * the same. Spacing, corners, shadow and the checkboxes' colour are `--wc-consent-*` custom properties
+ * set from the Design tokens (`consentTokens`); Staff restyle any of it in the Site's custom CSS. The
+ * banner slides in only for visitors who haven't asked for reduced motion.
+ */
+const CONSENT_PARTS = [
+	".wc-consent{box-sizing:border-box;z-index:2147483646;max-block-size:calc(100dvh - 2rem);overflow:auto;margin:0;padding:var(--wc-consent-space);border:1px solid color-mix(in oklab,CanvasText 30%,Canvas);background-color:Canvas;color:CanvasText;box-shadow:var(--wc-consent-shadow);font:inherit}",
+	".wc-consent[data-layout=bar]{position:fixed;inset-inline:0;inset-block-end:0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--wc-consent-space) calc(var(--wc-consent-space) * 2);max-block-size:80dvh;border-inline:0;border-block-end:0}",
+	".wc-consent[data-layout=box]{position:fixed;inset-block-end:1rem;inset-inline-end:1rem;inline-size:min(28rem,calc(100% - 2rem));border-radius:var(--wc-consent-radius)}",
+	".wc-consent[data-layout=dialog]{inline-size:min(36rem,calc(100% - 2rem));border-radius:var(--wc-consent-radius)}",
+	".wc-consent::backdrop{background-color:rgb(0 0 0 / 0.5)}",
+	".wc-consent-text{flex:1 1 24rem;min-inline-size:0}",
+	".wc-consent-title{margin:0 0 0.25em;font-size:1.25em;line-height:1.3}",
+	".wc-consent-message,.wc-consent-policy{margin:0 0 0.5em}",
+	".wc-consent a{color:inherit;text-decoration:underline}",
+	".wc-consent-categories{flex:1 1 100%;display:grid;gap:0.75em;margin:0 0 var(--wc-consent-space);padding:0;border:0;min-inline-size:0}",
+	".wc-consent-category{display:grid;grid-template-columns:auto 1fr;gap:0.125em 0.5em;align-items:center}",
+	".wc-consent-category input{inline-size:1.5rem;block-size:1.5rem;margin:0;accent-color:var(--wc-consent-accent)}",
+	".wc-consent-category label{font-weight:bolder}",
+	".wc-consent-description{grid-column:2;margin:0;font-size:0.9em}",
+	".wc-consent-actions{display:flex;flex-wrap:wrap;gap:0.5em}",
+	".wc-consent-button{min-block-size:2.75rem;padding:0.5em 1.25em;border:1px solid CanvasText;border-radius:var(--wc-consent-radius);background-color:CanvasText;color:Canvas;font:inherit;cursor:pointer}",
+	".wc-consent-button[data-wc-consent-action=choose]{background-color:Canvas;color:CanvasText}",
+	".wc-consent-settings{display:inline-flex;align-items:center;min-block-size:24px;min-inline-size:24px;padding:0;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}",
+	".wc-embed:has(>.wc-consent-placeholder:not([hidden])){aspect-ratio:auto}",
+	".wc-consent-placeholder{display:flex;flex-direction:column;justify-content:center;gap:0.75em;min-block-size:12rem;padding:var(--wc-consent-space);border:1px solid CanvasText;background-color:Canvas;color:CanvasText}",
+	".wc-consent-placeholder p{margin:0}",
+	".wc-consent-placeholder-actions{display:flex;flex-wrap:wrap;align-items:center;gap:0.5em 1em}",
+	".wc-consent-remember{display:inline-flex;align-items:center;gap:0.5em;min-block-size:24px}",
+	".wc-consent-remember input{inline-size:1.25rem;block-size:1.25rem;margin:0;accent-color:var(--wc-consent-accent)}",
+	"@keyframes wc-consent-in{from{opacity:0;translate:0 0.5rem}}",
+	"@media (prefers-reduced-motion:no-preference){.wc-consent[data-layout=bar]:not([hidden]),.wc-consent[data-layout=box]:not([hidden]),.wc-consent[open]{animation:wc-consent-in 0.2s ease-out}}",
+];
+
+/**
+ * The Consent banner's custom properties, from the Design tokens by id (so a rename follows), each
+ * with a value of its own while the Site has no such token.
+ */
+function consentTokens(names: { propertyOf(ref: { token: string; step?: string }): string | undefined }): string {
+	const token = (id: string, fallback: string, step?: string) => {
+		const property = names.propertyOf({ token: id, step });
+		return property ? `var(${property})` : fallback;
+	};
+	return [
+		`--wc-consent-space:${token("space-m", "1rem")};`,
+		`--wc-consent-radius:${token("radius-m", "0.5rem")};`,
+		`--wc-consent-shadow:${token("shadow-l", "0 10px 15px -3px #0000001a")};`,
+		`--wc-consent-accent:${token("colour-primary", "#2563eb", "60")};`,
+	].join("");
+}
+
 /** The tones of a body's callouts: info follows the primary colour (while the Site has it). */
 function calloutTones(primary: string | undefined): string {
 	return [
@@ -135,12 +191,13 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 	const baseRules = [
 		`:root{--wc-focus-color:var(${focusColour});--wc-focus-width:${tokens.focus.width}px;--wc-focus-offset:${tokens.focus.offset}px;}`,
 		`:root{${calloutTones(primary)}}`,
+		`:root{${consentTokens(names.tokens)}}`,
 	];
 	for (const target of BASE_TARGETS) {
 		const declarations = build(designSystem.baseStyles[target] ?? [], "declarations");
 		if (declarations) baseRules.push(`${target}{${declarations}}`);
 	}
-	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS);
+	baseRules.push(...PAGE_PARTS, ...BODY_PARTS, ...FORM_PARTS, ...CONSENT_PARTS);
 
 	const used = designSystem.classes.filter((each) => use.classIds.has(each.id));
 	const classRules: string[] = [];

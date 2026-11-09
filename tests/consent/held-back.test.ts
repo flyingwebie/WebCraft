@@ -113,6 +113,30 @@ describe("on an Opt-in Site (the default)", () => {
 		expect(policyOf(page).get("script-src")).toContain("https://widgets.example.com");
 	});
 
+	test("the Site's stylesheet styles the banner's parts in its base layer, from the Design system's tokens", async () => {
+		const site = await newSite();
+		const html = await (await install.request(site.url("/"))).text();
+		const stylesheet = /<link rel="stylesheet" href="([^"]+)">/.exec(html)?.[1] ?? "";
+
+		const css = await (await install.request(site.url(stylesheet))).text();
+		const base = /@layer base \{\n([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+
+		for (const hook of [
+			".wc-consent{",
+			".wc-consent[data-layout=bar]{",
+			".wc-consent[data-layout=box]{",
+			".wc-consent[data-layout=dialog]{",
+			".wc-consent-button{",
+			".wc-consent-settings{",
+			".wc-consent-placeholder{",
+		]) {
+			expect({ hook, styled: base.includes(hook) }).toEqual({ hook, styled: true });
+		}
+		// Its spacing, corners and shadow follow the Design tokens (and custom CSS can change them).
+		expect(base).toContain("--wc-consent-radius:var(--radius-m)");
+		expect(base).toContain("--wc-consent-shadow:var(--shadow-l)");
+	});
+
 	test("the consent script is a file on the Site's domain, kept for a year", async () => {
 		const site = await newSite();
 		const html = await (await install.request(site.url("/"))).text();
