@@ -14,6 +14,7 @@ import {
 	contentHash,
 	type DesignSystem,
 	defaultDesignSystem,
+	designSystemNames,
 	type ElementTree,
 	elementsOf,
 	readDesignSystem,
@@ -35,6 +36,8 @@ export const RETIRED_STYLESHEET_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 /** The Site's styling as visitors get it: its published Design system and the stylesheet built from it. */
 export type SiteStyles = {
 	designSystem: DesignSystem;
+	/** The class name of a Class or token utility id, as published. */
+	className(classId: string): string | undefined;
 	stylesheet: { hash: string; css: string; href: string };
 };
 
@@ -66,7 +69,11 @@ export async function siteStyles(scope: Reader): Promise<SiteStyles> {
 	const designSystem = await publishedDesignSystem(scope);
 	const css = compileStylesheet(designSystem, { classIds: classIdsIn(await publishedTrees(scope)) });
 	const hash = contentHash(css);
-	return { designSystem, stylesheet: { hash, css, href: `${STYLESHEET_PATH}${hash}.css` } };
+	return {
+		designSystem,
+		className: designSystemNames(designSystem).nameOf,
+		stylesheet: { hash, css, href: `${STYLESHEET_PATH}${hash}.css` },
+	};
 }
 
 /**
@@ -90,9 +97,17 @@ export async function keepReplacedStylesheet(scope: SiteScope, before: SiteStyle
 	const now = scope.now();
 	await scope.delete(stylesheets, lt(stylesheets.retiredAt, new Date(now.getTime() - RETIRED_STYLESHEET_LIFETIME_MS)));
 	if (after.stylesheet.hash === before.stylesheet.hash) return;
-	const kept = await scope.first(stylesheets, eq(stylesheets.hash, before.stylesheet.hash));
-	if (kept) await scope.update(stylesheets, { retiredAt: now }, eq(stylesheets.id, kept.id));
-	else await scope.insert(stylesheets, { hash: before.stylesheet.hash, css: before.stylesheet.css, retiredAt: now });
+	// Two publishes at once may both replace the same stylesheet: the later one keeps it longer.
+	await scope.db
+		.insert(stylesheets)
+		.values({
+			workspaceId: scope.site.workspaceId,
+			siteId: scope.site.id,
+			hash: before.stylesheet.hash,
+			css: before.stylesheet.css,
+			retiredAt: now,
+		})
+		.onConflictDoUpdate({ target: [stylesheets.siteId, stylesheets.hash], set: { retiredAt: now } });
 }
 
 export { SCRIPT_PATH } from "@webcraft/renderer";

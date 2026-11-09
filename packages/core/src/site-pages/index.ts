@@ -2,7 +2,6 @@ import type { Database } from "@webcraft/db";
 import { entries, globals, people, publishedSlugs, sites, templates } from "@webcraft/db/schema";
 import {
 	builtInNotFoundPage,
-	designSystemNames,
 	directionOf,
 	type ElementTree,
 	mediaReferencesIn,
@@ -338,7 +337,6 @@ async function renderSitePage(
 	const globalValues = publishedGlobals(await scope.first(globals), languages);
 	const site = globalsParts(globalValues.fields, globalValues.values);
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
-	const names = designSystemNames(styles.designSystem);
 	const siteTemplate = await publishedSiteTemplate(scope);
 	// The Media the page may show: `media:<id>` written in either template, and every media value the
 	// page reads (its content's, the Globals'). Ids that aren't the Site's ready Media find nothing.
@@ -355,7 +353,7 @@ async function renderSitePage(
 		site: { name: host.site.name, language, direction: directionOf(language) },
 		siteTemplate,
 		siteValues: (path) => resolvePath(siteRoot, path),
-		className: names.nameOf,
+		className: styles.className,
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
 	});
