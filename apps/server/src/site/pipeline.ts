@@ -249,29 +249,18 @@ async function visitorPage(
 ) {
 	const url = new URL(request.url);
 	const { pathname } = url;
-	const segments = pathSegments(pathname);
-	if (!segments) return notFoundPage(services, host, pathname);
-	// A Form just sent shows its message on a page answered for the visitor alone, before the cache.
-	const sent = await sentPage(services, request, host, number, addressHeaders(host));
-	if (sent) return sent;
-	// Searches are never cached: one client address runs a limited number of them (ADR 0021).
-	const query = searchQueryIn(url.searchParams);
-	if (query && (await services.sitePages.isSearchPage(host, pathname))) {
-		const address = clientAddress(request, services.config) ?? "unknown";
-		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
-			return tooManySearches(host);
-		}
-	}
+	const first = await beforePage(services, request, host, number);
+	if ("response" in first) return first.response;
 	// The same path is another page on each of the Site's addresses (its language, its links), and
 	// each page of a paginated Loop another page.
-	const key = `${host.origin}${pageHref(canonicalPath(segments), number)}`;
+	const key = `${host.origin}${pageHref(canonicalPath(first.segments), number)}`;
 	const cached = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
 	if (cached) return pageResponse(services, request, host, cached, "HIT");
 	// A page kept in the cache holds no visitor's Form token: each answer fills in its own.
 	const answer = await services.sitePages.render(host, pathname, undefined, {
 		forms: { cached: true },
 		page: number,
-		search: searchQueryIn(url.searchParams),
+		search: first.search,
 	});
 	if (!answer) {
 		// A path with no page: the Site's 404 log hears of it (a page past a paginated Loop's last isn't one).
@@ -292,6 +281,35 @@ async function visitorPage(
 }
 
 /**
+ * What a page request checks before its page is rendered, on a Site's domains and on its Staging
+ * address alike: a path that can't be a page (the 404 page), a Form just sent (its message, on a page
+ * answered for the visitor alone, before any cache), and a search past the client address's limit
+ * (searches are never cached, ADR 0021). Answers a response to send as it is, or the path's segments
+ * and the search to render with.
+ */
+async function beforePage(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	number: number,
+): Promise<{ response: Response } | { segments: string[]; search: ReturnType<typeof searchQueryIn> }> {
+	const url = new URL(request.url);
+	const { pathname } = url;
+	const segments = pathSegments(pathname);
+	if (!segments) return { response: await notFoundPage(services, host, pathname) };
+	const sent = await sentPage(services, request, host, number, addressHeaders(host));
+	if (sent) return { response: sent };
+	const search = searchQueryIn(url.searchParams);
+	if (search && (await services.sitePages.isSearchPage(host, pathname))) {
+		const address = clientAddress(request, services.config) ?? "unknown";
+		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
+			return { response: tooManySearches(host) };
+		}
+	}
+	return { segments, search };
+}
+
+/**
  * A page on the Staging address (ADR 0014): the Site as it would be with all its Drafts published,
  * rendered afresh for each request and never kept, by the page cache, browsers or proxies (a CDN in
  * front of the Install never keeps it either: `private, no-store`), and never indexed.
@@ -299,17 +317,9 @@ async function visitorPage(
 async function draftPage(services: InstallServices, request: Request, host: SiteHost, number: number) {
 	const url = new URL(request.url);
 	const { pathname } = url;
-	if (!pathSegments(pathname)) return notFoundPage(services, host, pathname);
-	const sent = await sentPage(services, request, host, number, addressHeaders(host));
-	if (sent) return sent;
-	const query = searchQueryIn(url.searchParams);
-	if (query && (await services.sitePages.isSearchPage(host, pathname))) {
-		const address = clientAddress(request, services.config) ?? "unknown";
-		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
-			return tooManySearches(host);
-		}
-	}
-	const answer = await services.sitePages.render(host, pathname, undefined, { page: number, search: query });
+	const first = await beforePage(services, request, host, number);
+	if ("response" in first) return first.response;
+	const answer = await services.sitePages.render(host, pathname, undefined, { page: number, search: first.search });
 	if (!answer) return notFoundPage(services, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
 	return new Response(answer.html, {

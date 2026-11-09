@@ -14,8 +14,23 @@ import { useT } from "../i18n.tsx";
  */
 export function StagingButton({ siteId, path = "/" }: { siteId: string; path?: string }) {
 	const t = useT();
+	const { opening, open } = useOpenStaging(siteId);
+	return (
+		<Button variant="ghost" size="sm" onClick={() => open(path)} disabled={opening}>
+			<EyeIcon aria-hidden="true" />
+			{t("staging.button")}
+		</Button>
+	);
+}
+
+/**
+ * Opens a page of the Site's Staging address in a new tab, through the single-use link the admin
+ * asks for (the admin's session never reaches the Staging address). Answers whether it is opening.
+ */
+export function useOpenStaging(siteId: string): { opening: boolean; open(path: string): Promise<void> } {
+	const t = useT();
 	const [opening, setOpening] = useState(false);
-	const open = async () => {
+	const open = async (path: string) => {
 		setOpening(true);
 		// The tab opens on the click itself (browsers let only a click open one); the address arrives in it.
 		const tab = window.open("about:blank", "_blank");
@@ -25,17 +40,12 @@ export function StagingButton({ siteId, path = "/" }: { siteId: string; path?: s
 			const { url } = await api.staging.open({ siteId, path });
 			if (tab) tab.location.href = url;
 			else window.location.assign(url);
-		} catch (error) {
+		} catch (failure) {
 			tab?.close();
-			toast.error(t(errorMessage(error)));
+			toast.error(t(errorMessage(failure)));
 		} finally {
 			setOpening(false);
 		}
 	};
-	return (
-		<Button variant="ghost" size="sm" onClick={open} disabled={opening}>
-			<EyeIcon aria-hidden="true" />
-			{t("staging.button")}
-		</Button>
-	);
+	return { opening, open };
 }
