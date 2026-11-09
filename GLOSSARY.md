@@ -236,6 +236,18 @@ _Avoid_: Variable, setting, style value
 A named set of styles that Staff create in the builder and give to elements, so every element with that Class looks the same.
 _Avoid_: Style, preset, global style
 
+**Generated Class**:
+A Class WebCraft makes from a one-off inline style in Template markup, so pages never carry inline styles. It goes live with the Template that made it, and stops being generated once Staff change it.
+_Avoid_: Inline class, auto class
+
+**Token utility**:
+A class made from one Design token for one property, such as a background colour or a padding, that elements can be given like a Class. Only the token utilities published elements use are sent to visitors.
+_Avoid_: Utility class, helper class, atomic class
+
+**Dark mode**:
+A Site's dark values for its colours, which follow the visitor's device and an optional theme toggle.
+_Avoid_: Night mode
+
 ### Publishing
 
 **Publish**:

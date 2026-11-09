@@ -307,17 +307,43 @@ function addressProblem(address: string): string | undefined {
 	return `${trimmed || "An empty address"} isn't on this Site: styles may load only the Site's own files, such as /_media/….`;
 }
 
-/** The text with token and Class references kept by id: `--primary-70` and `.card` (in selectors). */
+/** Pseudo-classes whose brackets hold selectors, where `.card` names a Class. */
+const SELECTOR_FUNCTIONS = new Set([
+	"is",
+	"not",
+	"has",
+	"where",
+	"nth-child",
+	"nth-last-child",
+	"host",
+	"host-context",
+]);
+
+/**
+ * The text with token and Class references kept by id: `--primary-70` anywhere, and `.card` where a
+ * selector names a Class (not inside an attribute selector or a value's brackets).
+ */
 function withReferences(text: string, names: CssNames): CssText {
 	const tokens: { type: number; start: number; end: number }[] = [];
 	tokenize(text, (type, start, end) => tokens.push({ type, start, end }));
 	const css: CssText = [];
 	let plain = "";
+	// The brackets the current token sits in: whether each holds selectors.
+	const brackets: boolean[] = [];
 	let index = 0;
 	while (index < tokens.length) {
 		const token = tokens[index] as { type: number; start: number; end: number };
 		const value = text.slice(token.start, token.end);
 		const next = tokens[index + 1];
+		if (token.type === tokenTypes.Function) {
+			const previous = tokens[index - 1];
+			const pseudo = previous?.type === tokenTypes.Colon && previous.end === token.start;
+			brackets.push(pseudo && SELECTOR_FUNCTIONS.has(ident.decode(value.slice(0, -1)).toLowerCase()));
+		} else if (token.type === tokenTypes.LeftParenthesis || token.type === tokenTypes.LeftSquareBracket) {
+			brackets.push(false);
+		} else if (token.type === tokenTypes.RightParenthesis || token.type === tokenTypes.RightSquareBracket) {
+			brackets.pop();
+		}
 		if (token.type === tokenTypes.Ident && value.startsWith("--")) {
 			const ref = names.token(value);
 			if (ref) {
@@ -332,7 +358,8 @@ function withReferences(text: string, names: CssNames): CssText {
 			token.type === tokenTypes.Delim &&
 			value === "." &&
 			next?.type === tokenTypes.Ident &&
-			next.start === token.end
+			next.start === token.end &&
+			brackets.every(Boolean)
 		) {
 			const classId = names.className(text.slice(next.start, next.end));
 			if (classId) {
