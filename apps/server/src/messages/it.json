@@ -36,6 +36,7 @@
 		"IDENTITY_CHECK_CANCELLED": "Non è cambiato nulla: conferma che sei tu per continuare.",
 		"SENSITIVE_ACTION_REFUSED": "Solo una persona che ha effettuato l'accesso all'admin può farlo.",
 		"SESSION_NOT_FOUND": "Questa sessione è già terminata.",
+		"CHANGED_MEANWHILE": "Qualcun altro l'ha modificato nello stesso momento. Riprova.",
 		"MEDIA_NOT_FOUND": "Questo file non c'è in questa libreria Media.",
 		"MEDIA_FOLDER_NOT_FOUND": "Questa cartella non c'è in questa libreria Media.",
 		"MEDIA_FOLDER_TAKEN": "Un'altra cartella ha già questo nome.",

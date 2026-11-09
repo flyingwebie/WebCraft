@@ -343,5 +343,26 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof InvalidCredentialsError) {
 		return new ORPCError("INVALID_CREDENTIALS", { status: 401, message: error.message, cause: error });
 	}
+	if (isConcurrencyFailure(error)) {
+		return new ORPCError("CHANGED_MEANWHILE", {
+			status: 409,
+			message: "Someone changed this at the same moment. Try again.",
+			cause: error,
+		});
+	}
 	return error;
+}
+
+/**
+ * Whether Postgres gave up on a transaction because another one changed the same rows at the same
+ * moment (a deadlock, or a serialization failure): nothing was saved, and trying again works.
+ */
+function isConcurrencyFailure(error: unknown): boolean {
+	let current: unknown = error;
+	for (let depth = 0; current && depth < 5; depth++) {
+		const code = (current as { code?: unknown }).code;
+		if (code === "40P01" || code === "40001") return true;
+		current = (current as { cause?: unknown }).cause;
+	}
+	return false;
 }

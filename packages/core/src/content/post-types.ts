@@ -15,7 +15,7 @@ import {
 	storedFields,
 } from "./fields.ts";
 import { clearPageCache } from "./page-cache.ts";
-import { checkPatternLeavesPages, isPagePostType, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
+import { checkPatternLeavesPages, isPagePostType, lockSitePaths, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
 import { slugify } from "./slugs.ts";
 import { parseUrlPattern } from "./url-patterns.ts";
 
@@ -76,10 +76,11 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 	// A Relationship may point at the Post Type's own Entries.
 	const fields = parseFields(input.fields ?? [], problems, await defineContext(scope, key));
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
-	await checkPatternLeavesPages(scope, urlPattern);
 
 	return saving(() =>
 		scope.transaction(async (tx) => {
+			await lockSitePaths(tx);
+			await checkPatternLeavesPages(tx, urlPattern);
 			const now = tx.now();
 			const row = await tx.insert(postTypes, { key, name, urlPattern, fields, createdAt: now, updatedAt: now });
 			await tx.audit("postType.create", { postTypeId: row.id, key, name, urlPattern });
@@ -112,10 +113,13 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 			? existing.fields
 			: parseFields(change.fields, problems, await defineContext(scope, existing.key, existing), existing.fields);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
-	if (urlPattern !== existing.urlPattern) await checkPatternLeavesPages(scope, urlPattern);
 
 	return saving(() =>
 		scope.transaction(async (tx) => {
+			if (urlPattern !== existing.urlPattern) {
+				await lockSitePaths(tx);
+				await checkPatternLeavesPages(tx, urlPattern);
+			}
 			const [row] = await tx.update(
 				postTypes,
 				{ name, urlPattern, fields, updatedAt: tx.now() },

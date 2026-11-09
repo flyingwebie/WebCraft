@@ -32,6 +32,7 @@ import {
 	checkDraftParent,
 	childPagesOf,
 	isPagePostType,
+	lockSitePaths,
 	pageSlugTaken,
 	parentIn,
 	pathIn,
@@ -178,6 +179,8 @@ export async function createEntry(scope: SiteScope, input: NewEntry): Promise<En
  */
 export async function saveDraft(scope: SiteScope, entryId: string, change: DraftChange): Promise<Entry> {
 	return scope.transaction(async (tx) => {
+		// Moving a Page is checked against the other Pages' parents: hold them first.
+		if (change.parentId !== undefined) await lockSitePaths(tx);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
 		const { defaultLanguage } = await siteLanguages(tx);
