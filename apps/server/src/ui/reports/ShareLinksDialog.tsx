@@ -14,7 +14,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@we
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { CopyIcon, LinkIcon, PlusIcon } from "lucide-react";
-import { type FormEvent, type RefObject, useEffect, useId, useState } from "react";
+import { type FormEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
@@ -129,7 +129,7 @@ export function ShareLinksDialog({
 						</ul>
 					)}
 					{canManage && !making ? (
-						<Button variant="outline" onClick={() => setMaking(true)} aria-controls={`${id}-new`}>
+						<Button variant="outline" onClick={() => setMaking(true)}>
 							<PlusIcon aria-hidden="true" />
 							{t("shareLinks.new")}
 						</Button>
@@ -162,6 +162,12 @@ function MadeLink({ name, url }: { name: string; url: string }) {
 	const t = useT();
 	const id = useId();
 	const [said, setSaid] = useState("");
+	const address = useRef<HTMLInputElement>(null);
+	// The form that made it is gone: focus goes to its address, to copy.
+	useEffect(() => {
+		address.current?.focus();
+		address.current?.select();
+	}, []);
 	const copy = async () => {
 		try {
 			await navigator.clipboard.writeText(url);
@@ -179,7 +185,14 @@ function MadeLink({ name, url }: { name: string; url: string }) {
 			<Field>
 				<FieldLabel htmlFor={`${id}-url`}>{t("shareLinks.address")}</FieldLabel>
 				<div className="flex gap-2">
-					<Input id={`${id}-url`} value={url} readOnly className="font-mono" aria-describedby={`${id}-help`} />
+					<Input
+						ref={address}
+						id={`${id}-url`}
+						value={url}
+						readOnly
+						className="font-mono"
+						aria-describedby={`${id}-help`}
+					/>
 					<Button type="button" variant="outline" onClick={() => void copy()}>
 						<CopyIcon aria-hidden="true" />
 						{t("shareLinks.copy")}
@@ -220,6 +233,11 @@ function NewLink({
 	);
 	const [problem, setProblem] = useState<{ field: string | null; message: MessageKey } | null>(null);
 	const [busy, setBusy] = useState(false);
+	const nameInput = useRef<HTMLInputElement>(null);
+	// The form opens where the person asked for it: focus goes to its first field.
+	useEffect(() => {
+		nameInput.current?.focus();
+	}, []);
 	const make = async (event: FormEvent) => {
 		event.preventDefault();
 		setBusy(true);
@@ -254,6 +272,7 @@ function NewLink({
 				<Field data-invalid={invalid("name") ? true : undefined}>
 					<FieldLabel htmlFor={`${id}-name`}>{t("shareLinks.name")}</FieldLabel>
 					<Input
+						ref={nameInput}
 						id={`${id}-name`}
 						value={name}
 						required
