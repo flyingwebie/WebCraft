@@ -171,6 +171,8 @@ describe("Translate now", () => {
 
 		const { queued } = await site.owner.api.translations.translateNow({ siteId: site.siteId });
 		expect(queued).toBe(6);
+		// Pressed twice before the worker ran: the same work is queued once.
+		expect((await site.owner.api.translations.translateNow({ siteId: site.siteId })).queued).toBe(6);
 		expect((await install.drainJobs()).failed).toEqual([]);
 
 		const it = async (entryId: string) =>
