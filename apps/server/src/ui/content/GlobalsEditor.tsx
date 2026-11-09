@@ -1,17 +1,20 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
-import { CircleAlertIcon, UploadIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
 import { errorCode, errorMessage } from "../errors.ts";
-import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { useAutosave } from "./autosave.ts";
-import { LanguageTabs, ProblemSummary, SaveStatusText, StatusBadge } from "./DraftParts.tsx";
+import {
+	DraftStatusCard,
+	LanguageTabs,
+	SaveErrorBanner,
+	SaveStatusText,
+	StatusBadge,
+	useDraftPublish,
+} from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
 import type { FieldValues, GlobalsView, Json, Problem } from "./model.ts";
 
@@ -39,10 +42,7 @@ export function GlobalsEditor({
 	const [values, setValues] = useState(() => loaded.draft as FieldValues);
 	const [refused, setRefused] = useState<Problem[]>([]);
 	const [saveError, setSaveError] = useState<MessageKey | null>(null);
-	const [publishError, setPublishError] = useState<string | null>(null);
-	const [publishing, setPublishing] = useState(false);
 	const [media, setMedia] = useState(knownMedia);
-	const summary = useRef<HTMLDivElement>(null);
 	const canPublish = permissions.includes("entry.publish");
 
 	const autosave = useAutosave<Record<string, Json>>({
@@ -74,31 +74,17 @@ export function GlobalsEditor({
 		markShared: true,
 	};
 
-	const publish = async () => {
-		setPublishing(true);
-		setPublishError(null);
-		try {
-			if (!(await autosave.flush())) {
-				setPublishError(t("entries.editor.saveFirst"));
-				return;
-			}
+	const publishing = useDraftPublish({
+		flush: autosave.flush,
+		invalid: ["GLOBALS_INVALID", "GLOBALS_INCOMPLETE"],
+		publish: async () => {
 			const api = await getApi();
 			const { globals: published } = await api.globals.publish({ siteId });
 			setGlobals(published);
 			toast.success(t("globals.published"));
 			await router.invalidate();
-		} catch (error) {
-			const code = errorCode(error);
-			if (code === "GLOBALS_INVALID" || code === "GLOBALS_INCOMPLETE") {
-				setPublishError(t("entries.editor.fixFirst"));
-				requestAnimationFrame(() => summary.current?.focus());
-			} else {
-				setPublishError(t(errorMessage(error)));
-			}
-		} finally {
-			setPublishing(false);
-		}
-	};
+		},
+	});
 
 	return (
 		<div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -129,18 +115,7 @@ export function GlobalsEditor({
 					})}
 				/>
 
-				{saveError ? (
-					<div
-						role="alert"
-						className="border-destructive/50 text-destructive flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"
-					>
-						<CircleAlertIcon className="size-4 shrink-0" aria-hidden="true" />
-						<span className="flex-1">{t(saveError)}</span>
-						<Button type="button" size="sm" variant="outline" onClick={() => void autosave.flush()}>
-							{t("entries.editor.retry")}
-						</Button>
-					</div>
-				) : null}
+				{saveError ? <SaveErrorBanner error={saveError} onRetry={() => void autosave.flush()} /> : null}
 
 				{globals.fields.length === 0 ? (
 					<div className="text-muted-foreground grid gap-2 rounded-lg border border-dashed p-8 text-center">
@@ -171,56 +146,19 @@ export function GlobalsEditor({
 			</div>
 
 			<div className="grid content-start gap-6">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("entries.editor.statusHeading")}</h2>
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="grid gap-4">
-						<div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-							<StatusBadge status={globals.status} />
-							{globals.lastPublishedAt ? (
-								<span className="text-muted-foreground">
-									{t("entries.editor.liveSince", { date: formatUtc(globals.lastPublishedAt) })}
-								</span>
-							) : null}
-						</div>
-						<div className="flex flex-wrap gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								disabled={autosave.status === "saved"}
-								onClick={() => void autosave.flush()}
-							>
-								{t("entries.editor.saveDraft")}
-							</Button>
-							{canPublish ? (
-								<Button type="button" disabled={publishing || globals.fields.length === 0} onClick={publish}>
-									<UploadIcon aria-hidden="true" />
-									{t("entries.editor.publish")}
-								</Button>
-							) : null}
-						</div>
-						<p className="text-muted-foreground text-sm">
-							{t(canPublish ? "globals.publishHelp" : "entries.editor.authorHelp")}
-						</p>
-						{publishError ? (
-							<p role="alert" className="text-destructive flex items-start gap-2 text-sm">
-								<CircleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-								{publishError}
-							</p>
-						) : null}
-						<div ref={summary} tabIndex={-1} className="outline-none">
-							<ProblemSummary
-								problems={problems}
-								fields={globals.fields}
-								idPrefix="globals"
-								headingId="globals-problems-heading"
-							/>
-						</div>
-					</CardContent>
-				</Card>
+				<DraftStatusCard
+					status={globals.status}
+					lastPublishedAt={globals.lastPublishedAt}
+					autosave={autosave}
+					canPublish={canPublish}
+					publishDisabled={globals.fields.length === 0}
+					publishing={publishing}
+					publishHelp="globals.publishHelp"
+					problems={problems}
+					fields={globals.fields}
+					idPrefix="globals"
+					headingId="globals-problems-heading"
+				/>
 			</div>
 		</div>
 	);

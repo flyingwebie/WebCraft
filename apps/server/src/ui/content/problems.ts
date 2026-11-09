@@ -1,4 +1,12 @@
-import { VALUE_RULES, type ValueRule } from "@webcraft/core/field-rules";
+import {
+	FIELD_TYPES,
+	type FieldType,
+	SETTING_RULES,
+	type SettingRule,
+	VALUE_RULES,
+	type ValueRule,
+} from "@webcraft/core/field-rules";
+import { isBlockType } from "@webcraft/renderer/body";
 
 import type { useT } from "../i18n.tsx";
 import { type FieldDefinition, fieldAtPath, type Problem } from "./model.ts";
@@ -40,6 +48,8 @@ export function problemText(t: Translate, problem: Problem, subject: ProblemSubj
 		case "url":
 		case "postTypes":
 		case "media":
+		case "blockType":
+		case "video":
 			return t(`content.problems.${rule}`);
 	}
 }
@@ -78,6 +88,33 @@ function settingNumber(field: FieldDefinition | null, setting: "minLength" | "ma
 	return typeof value === "number" ? value : 0;
 }
 
+function isFieldType(type: string): type is FieldType {
+	return (FIELD_TYPES as readonly string[]).includes(type);
+}
+
+function isSettingRule(rule: string | undefined): rule is SettingRule {
+	return (SETTING_RULES as readonly string[]).includes(rule ?? "");
+}
+
+/**
+ * A refused setting of a Post Type, a Field or the Globals, in the person's Admin language, worded
+ * from its `rule` code and `params`. A problem without a known code (from a newer server) keeps the
+ * English the server sent.
+ */
+export function settingProblemText(t: Translate, problem: Problem): string {
+	if (!isSettingRule(problem.rule)) return problem.message;
+	const params: Record<string, string | number> = { ...problem.params };
+	// Field and Block types by their names in the Admin language, not their ids.
+	const type = params.type;
+	if (problem.rule === "typeChanged" && typeof type === "string" && isFieldType(type)) {
+		params.type = t(`content.types.${type}`);
+	}
+	if (problem.rule === "blockAlwaysOn" && typeof type === "string" && isBlockType(type)) {
+		params.type = t(`body.types.${type}`);
+	}
+	return t(`content.settingProblems.${problem.rule}`, params);
+}
+
 /** A value refused when it was saved: the wrong kind for its Field. */
 function refusedText(t: Translate, problem: Problem, subject: ProblemSubject): string {
 	if (subject === "slug") return t("content.problems.slugShape");
@@ -112,7 +149,14 @@ export function problemPlace(t: Translate, fields: readonly FieldDefinition[], a
 	if (at === "parentId") return t("content.builtIn.parent");
 	const found = fieldAtPath(fields, at);
 	if (!found) return t("content.problems.elsewhere");
+	// A Body field's `[n]` is one of its Blocks, not a Repeater's row.
+	const blocks = found.field.type === "body";
 	return found.trail
-		.map((part) => (part.row ? t("content.problems.inRow", { label: part.label, row: part.row }) : part.label))
+		.map((part, index) => {
+			if (!part.row) return part.label;
+			return blocks && index === found.trail.length - 1
+				? t("content.problems.inBlock", { label: part.label, block: part.row })
+				: t("content.problems.inRow", { label: part.label, row: part.row });
+		})
 		.join(" › ");
 }

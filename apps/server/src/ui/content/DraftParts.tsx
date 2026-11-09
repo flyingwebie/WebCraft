@@ -1,9 +1,13 @@
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
-import { CircleAlertIcon, CircleCheckIcon, LoaderIcon } from "lucide-react";
+import { Button } from "@webcraft/ui/components/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
+import { CircleAlertIcon, CircleCheckIcon, LoaderIcon, UploadIcon } from "lucide-react";
+import { type ReactNode, type RefObject, useRef, useState } from "react";
 
+import { errorCode, errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
-import { useT } from "../i18n.tsx";
+import { type MessageKey, useT } from "../i18n.tsx";
 import type { AutosaveStatus } from "./autosave.ts";
 import { controlId, type FieldDefinition, type Problem } from "./model.ts";
 import { problemPlace, problemText, subjectOf } from "./problems.ts";
@@ -122,4 +126,155 @@ export function languageName(language: string): string {
 	} catch {
 		return language;
 	}
+}
+
+/**
+ * A Draft that failed to save: what went wrong and Try again, plus Reload when someone else changed
+ * it meanwhile (`CHANGED_MEANWHILE`), since trying again can't help then.
+ */
+export function SaveErrorBanner({ error, onRetry }: { error: MessageKey; onRetry: () => void }) {
+	const t = useT();
+	return (
+		<div
+			role="alert"
+			className="border-destructive/50 text-destructive flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"
+		>
+			<CircleAlertIcon className="size-4 shrink-0" aria-hidden="true" />
+			<span className="flex-1">{t(error)}</span>
+			<Button type="button" size="sm" variant="outline" onClick={onRetry}>
+				{t("entries.editor.retry")}
+			</Button>
+			{error === "errors.CHANGED_MEANWHILE" ? (
+				<Button type="button" size="sm" variant="outline" onClick={() => window.location.reload()}>
+					{t("entries.editor.reload")}
+				</Button>
+			) : null}
+		</div>
+	);
+}
+
+/** Publishing from an editor, as `useDraftPublish` gives it. */
+export type DraftPublishing = {
+	publish: () => Promise<void>;
+	publishing: boolean;
+	error: string | null;
+	/** The list of problems, which gets focus when the Draft has some to fix first. */
+	summary: RefObject<HTMLDivElement | null>;
+};
+
+/**
+ * Publishing a Draft from its editor: what is still waiting to be saved is saved first, then
+ * `publish` runs. A Draft refused for its problems (one of the `invalid` error codes) says so and
+ * moves focus to the list of them.
+ */
+export function useDraftPublish(options: {
+	flush: () => Promise<boolean>;
+	publish: () => Promise<void>;
+	invalid: readonly string[];
+}): DraftPublishing {
+	const t = useT();
+	const summary = useRef<HTMLDivElement>(null);
+	const [publishing, setPublishing] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const publish = async () => {
+		setPublishing(true);
+		setError(null);
+		try {
+			if (!(await options.flush())) {
+				setError(t("entries.editor.saveFirst"));
+				return;
+			}
+			await options.publish();
+		} catch (failure) {
+			if (options.invalid.includes(errorCode(failure) ?? "")) {
+				setError(t("entries.editor.fixFirst"));
+				requestAnimationFrame(() => summary.current?.focus());
+			} else {
+				setError(t(errorMessage(failure)));
+			}
+		} finally {
+			setPublishing(false);
+		}
+	};
+	return { publish, publishing, error, summary };
+}
+
+/**
+ * The Status card beside an editor: where the Draft stands, Save Draft, Publish (for those who may
+ * publish), what publishing does, why it failed, and the Draft's problems. `children` adds what is
+ * particular to the item, such as an Entry's address.
+ */
+export function DraftStatusCard(props: {
+	status: "draft" | "published" | "changed";
+	lastPublishedAt: Date | string | null;
+	autosave: { status: AutosaveStatus; flush: () => Promise<boolean> };
+	canPublish: boolean;
+	publishDisabled?: boolean;
+	publishing: DraftPublishing;
+	publishHelp: MessageKey;
+	problems: readonly Problem[];
+	fields: readonly FieldDefinition[];
+	idPrefix: string;
+	headingId: string;
+	children?: ReactNode;
+}) {
+	const t = useT();
+	const { publishing } = props;
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>
+					<h2>{t("entries.editor.statusHeading")}</h2>
+				</CardTitle>
+			</CardHeader>
+			<CardContent className="grid gap-4">
+				<div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+					<StatusBadge status={props.status} />
+					{props.lastPublishedAt ? (
+						<span className="text-muted-foreground">
+							{t("entries.editor.liveSince", { date: formatUtc(props.lastPublishedAt) })}
+						</span>
+					) : null}
+				</div>
+				<div className="flex flex-wrap gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						disabled={props.autosave.status === "saved"}
+						onClick={() => void props.autosave.flush()}
+					>
+						{t("entries.editor.saveDraft")}
+					</Button>
+					{props.canPublish ? (
+						<Button
+							type="button"
+							disabled={publishing.publishing || props.publishDisabled}
+							onClick={publishing.publish}
+						>
+							<UploadIcon aria-hidden="true" />
+							{t("entries.editor.publish")}
+						</Button>
+					) : null}
+				</div>
+				<p className="text-muted-foreground text-sm">
+					{t(props.canPublish ? props.publishHelp : "entries.editor.authorHelp")}
+				</p>
+				{publishing.error ? (
+					<p role="alert" className="text-destructive flex items-start gap-2 text-sm">
+						<CircleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+						{publishing.error}
+					</p>
+				) : null}
+				<div ref={publishing.summary} tabIndex={-1} className="outline-none">
+					<ProblemSummary
+						problems={props.problems}
+						fields={props.fields}
+						idPrefix={props.idPrefix}
+						headingId={props.headingId}
+					/>
+				</div>
+				{props.children}
+			</CardContent>
+		</Card>
+	);
 }

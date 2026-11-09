@@ -5,6 +5,8 @@
  * underscore, which a fixed segment can't, so no pattern reaches them.
  */
 
+import type { SettingParams, SettingRule } from "./field-rules.ts";
+
 type Segment = { kind: "fixed"; text: string } | { kind: "slug" };
 
 export type UrlPattern = { pattern: string; segments: readonly Segment[] };
@@ -19,15 +21,26 @@ const MAX_SEGMENTS = 6;
 export const ENTRY_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const ENTRY_SLUG_MAX_LENGTH = 200;
 
+/** Why a URL pattern was refused: in English, and as a `SETTING_RULES` code for the admin to word. */
+export type UrlPatternProblem = { problem: string; rule: SettingRule; params?: SettingParams };
+
 /** Reads a URL pattern, or answers why it can't be one. */
-export function parseUrlPattern(input: string): UrlPattern | { problem: string } {
+export function parseUrlPattern(input: string): UrlPattern | UrlPatternProblem {
 	const pattern = input.trim();
-	const problem = {
+	const problem: UrlPatternProblem = {
 		problem: `A URL pattern is a path with fixed parts (lower-case letters, digits and dashes) and one ${SLUG_SEGMENT}, such as /blog/${SLUG_SEGMENT}.`,
+		rule: "urlPatternFormat",
+		params: { slug: SLUG_SEGMENT },
 	};
 	if (!pattern.startsWith("/") || pattern.endsWith("/")) return problem;
 	const parts = pattern.slice(1).split("/");
-	if (parts.length > MAX_SEGMENTS) return { problem: `A URL pattern has at most ${MAX_SEGMENTS} parts.` };
+	if (parts.length > MAX_SEGMENTS) {
+		return {
+			problem: `A URL pattern has at most ${MAX_SEGMENTS} parts.`,
+			rule: "urlPatternParts",
+			params: { max: MAX_SEGMENTS },
+		};
+	}
 	const segments: Segment[] = [];
 	for (const part of parts) {
 		if (part === SLUG_SEGMENT) segments.push({ kind: "slug" });

@@ -8,6 +8,7 @@ import {
 	pathSegments,
 	SCRIPT_PATH,
 	type SiteHost,
+	type SiteScope,
 	STYLESHEET_PATH,
 	siteScript,
 	VERIFY_PATH,
@@ -17,6 +18,7 @@ import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import {
 	clearEditCookie,
+	codeModeOf,
 	EDIT_MODE_PAGE_HEADERS,
 	editModeEndpoint,
 	editModeHtml,
@@ -83,14 +85,24 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			if (url.pathname.startsWith(STYLESHEET_PATH)) {
 				return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));
 			}
-			if (url.pathname.startsWith(SCRIPT_PATH)) return script(request, host, url.pathname.slice(SCRIPT_PATH.length));
+			if (url.pathname.startsWith(SCRIPT_PATH)) {
+				return script(services, request, host, url.pathname.slice(SCRIPT_PATH.length));
+			}
 			const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
 			if (chosen) return chosen;
 			const segments = pathSegments(url.pathname);
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
 			const edit = await editSessionOf(services, request, host);
-			if (edit.session) return editModePage(services, host, edit.session, url.pathname);
+			if (edit.session) {
+				return editModePage(
+					services,
+					host,
+					edit.session,
+					url.pathname,
+					await codeModeOf(services, request, edit.session),
+				);
+			}
 			const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
 			if (redirected) return redirected;
 			const page = await visitorPage(services, cache, request, host);
@@ -149,15 +161,18 @@ async function visitorPage(services: InstallServices, cache: PageCache, request:
 
 /**
  * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
- * with the Drafts of its Content and its editable regions tagged. It never touches the page cache.
+ * with the Drafts of its Content and its editable regions tagged; in Code mode (`code`, the Site
+ * opened with `structure.edit`), with the Drafts of the Structure too, every element tagged. It never
+ * touches the page cache.
  */
 async function editModePage(
 	services: InstallServices,
 	host: SiteHost,
 	session: EditSession,
 	pathname: string,
+	code: SiteScope | null,
 ): Promise<Response> {
-	const editing = await pageEditing(session);
+	const editing = await pageEditing(session, code);
 	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing) : null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
@@ -211,11 +226,13 @@ async function stylesheet(
 }
 
 /**
- * A script WebCraft's own page parts need (the theme toggle's), `/_wc/js/<hash>.js`: never inline,
- * so the Site's Content Security Policy can allow only its own files (ADR 0023).
+ * A script a page runs, `/_wc/js/<hash>.js`: one WebCraft's own page parts need (the theme
+ * toggle's), or the Site's published Site script or a page script. Never inline, so the Site's
+ * Content Security Policy can allow only its own files (ADR 0023); named by its hash, so it may be
+ * kept for a year.
  */
-function script(request: Request, host: SiteHost, name: string): Response {
-	const text = siteScript(name);
+async function script(services: InstallServices, request: Request, host: SiteHost, name: string): Promise<Response> {
+	const text = siteScript(name) ?? (await services.sitePages.script(host, name));
 	if (text === null) return plainText(404, "Not Found", addressHeaders(host));
 	return immutableFile(request, host, text, "text/javascript; charset=utf-8", `"${name.slice(0, -".js".length)}"`);
 }

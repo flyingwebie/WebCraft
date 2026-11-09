@@ -44,6 +44,7 @@ import {
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, saveLinks } from "./relationships.ts";
+import { publishScriptDraft } from "./scripts.ts";
 import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
 import { pathFor } from "./url-patterns.ts";
 import { type EntryVersion, ownValue, storedVersion } from "./values.ts";
@@ -57,6 +58,7 @@ export type PublishItem =
 	| { kind: "entry"; id: string }
 	| { kind: "template"; id: string }
 	| { kind: "component"; id: string }
+	| { kind: "script"; id: string }
 	| { kind: "globals" }
 	| { kind: "designSystem" };
 
@@ -71,7 +73,7 @@ export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Da
 
 /**
  * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
- * (Editors, Owners, Staff); Structure (Templates, Components, the Design system) takes
+ * (Editors, Owners, Staff); Structure (Templates, Components, scripts, the Design system) takes
  * `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
@@ -137,6 +139,10 @@ async function publishItem(scope: SiteScope, item: PublishItem, sources: Compone
 		case "designSystem": {
 			const published = await publishDesignSystem(scope);
 			return { kind: "designSystem", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
+		}
+		case "script": {
+			const published = await publishScriptDraft(scope, item.id);
+			return { kind: "script", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 	}
 }

@@ -2,12 +2,11 @@ import {
 	FIELD_HELP_MAX_LENGTH,
 	FIELD_LABEL_MAX_LENGTH,
 	FIELD_TYPE_TRAITS,
-	FIELD_TYPES,
 	type FieldType,
 	isContainerType,
-	MAX_FIELD_DEPTH,
 	PATTERN_MAX_LENGTH,
 } from "@webcraft/core/field-rules";
+import { ALWAYS_ON_BLOCKS, BLOCK_TYPES } from "@webcraft/renderer/body";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
@@ -19,7 +18,7 @@ import { ArrowDownIcon, ArrowUpIcon, CircleAlertIcon, PlusIcon, Trash2Icon, XIco
 import type { ReactNode } from "react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
-import { FIELD_TYPE_ICONS, type FieldOwner } from "./FieldBuilder.tsx";
+import { FIELD_TYPE_ICONS, type FieldOwner, offeredTypes } from "./FieldBuilder.tsx";
 import { FieldValue, type ValueContext } from "./FieldValues.tsx";
 import { changeField, type FieldDraft, freeKey, keyFromLabel, newField, replaceDraft } from "./field-drafts.ts";
 import { emptyValue, type FieldDefinition, type Json } from "./model.ts";
@@ -45,6 +44,7 @@ const SHOWN_SETTINGS = [
 	"multiple",
 	"postTypes",
 	"twoWay",
+	"blocksOff",
 	"default",
 	"required",
 	"translatable",
@@ -194,11 +194,7 @@ export function FieldSettingsPanel({
 							}}
 							className="w-full"
 						>
-							{FIELD_TYPES.filter(
-								(type) =>
-									!(owner === "globals" && type === "relationship") &&
-									!(isContainerType(type) && depth >= MAX_FIELD_DEPTH),
-							).map((type) => (
+							{offeredTypes(owner, depth, all, draft.uid).map((type) => (
 								<NativeSelectOption key={type} value={type}>
 									{t(`content.types.${type}`)}
 								</NativeSelectOption>
@@ -533,6 +529,39 @@ function TypeSettings({
 			return (
 				<div className="grid gap-4 border-t pt-5">
 					<CountSettings min={field.min} max={field.max} at={at} update={update} kind="rows" />
+				</div>
+			);
+		case "body":
+			return (
+				<div className="grid gap-4 border-t pt-5">
+					<fieldset className="grid gap-2" aria-describedby="setting-blocksOff-help">
+						<legend className="mb-1 text-sm font-medium">{t("postTypes.settings.blocks")}</legend>
+						<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+							{BLOCK_TYPES.filter((type) => !ALWAYS_ON_BLOCKS.includes(type)).map((type) => (
+								<div key={type} className="flex items-center gap-2">
+									<Checkbox
+										id={`setting-blocks-${type}`}
+										checked={!field.blocksOff.includes(type)}
+										onCheckedChange={(checked) =>
+											update({
+												blocksOff:
+													checked === true
+														? field.blocksOff.filter((off) => off !== type)
+														: BLOCK_TYPES.filter((each) => each === type || field.blocksOff.includes(each)),
+											})
+										}
+									/>
+									<Label htmlFor={`setting-blocks-${type}`} className="font-normal">
+										{t(`body.types.${type}`)}
+									</Label>
+								</div>
+							))}
+						</div>
+						<p id="setting-blocksOff-help" className="text-muted-foreground text-sm">
+							{t("postTypes.settings.blocksHelp")}
+						</p>
+						<SettingNotes id="setting-blocksOff" problems={at("blocksOff")} />
+					</fieldset>
 				</div>
 			);
 		case "group":

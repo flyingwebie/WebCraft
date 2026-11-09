@@ -17,6 +17,8 @@ export type PageMedia = {
 	height: number | null;
 	/** The Media library's alt text in the page's language, or null when it has none. */
 	alt: string | null;
+	/** The Media library's caption in the page's language (a Body's image shows it), or null when it has none. */
+	caption?: string | null;
 	/** The variants by format, AVIF first; empty until the worker made them. */
 	sources: { type: string; candidates: { url: string; width: number }[] }[];
 };

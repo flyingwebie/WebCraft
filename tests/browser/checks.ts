@@ -155,8 +155,8 @@ export async function expectOverlayUsable(
 
 /**
  * Numbers every element the keyboard should reach, in document order, as `data-tab-stop`: links,
- * buttons and form fields that are rendered and enabled, text people edit in place, and one radio
- * button per group. Elements inside open shadow roots (Edit mode's editing bar) count where their
+ * buttons and form fields that are rendered and enabled, text people edit in place (once, links in it
+ * included), and one radio button per group. Elements inside open shadow roots (Edit mode's editing bar) count where their
  * host is, as the keyboard reaches them.
  */
 async function markTabbableElements(page: Page) {
@@ -188,6 +188,8 @@ async function markTabbableElements(page: Page) {
 		const elements = everything.filter((element) => {
 			if (!element.matches(selector)) return false;
 			if (element.tabIndex < 0 || element.matches(":disabled") || !rendered(element)) return false;
+			// A link inside text being edited is part of that text: the keyboard stops at the text once.
+			if (element.parentElement?.closest("[contenteditable]:not([contenteditable=false])")) return false;
 			if (element instanceof HTMLInputElement && element.type === "radio") {
 				const group = element.name;
 				const checked = document.querySelector<HTMLInputElement>(`input[type=radio][name="${group}"]:checked`);

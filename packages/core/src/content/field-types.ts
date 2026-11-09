@@ -1,4 +1,17 @@
-import { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, safeUrl } from "@webcraft/renderer";
+import {
+	ALWAYS_ON_BLOCKS,
+	BLOCK_TYPES,
+	type BlockType,
+	bodyHasContent,
+	cleanRichText,
+	isBlockType,
+	RICH_TEXT_MAX_LENGTH,
+	readBody,
+	richTextToText,
+	safeUrl,
+	storedBlocks,
+	videoAt,
+} from "@webcraft/renderer";
 import { RE2JS } from "re2js";
 import { isUuid } from "../ids.ts";
 import type { ContentProblem } from "./errors.ts";
@@ -13,6 +26,8 @@ import {
 	MAX_OPTIONS,
 	MAX_ROWS,
 	PATTERN_MAX_LENGTH,
+	type SettingParams,
+	type SettingRule,
 	TEXT_VALUE_MAX_LENGTH,
 } from "./field-rules.ts";
 
@@ -31,7 +46,6 @@ export {
  * The Field-type registry: everything the content store knows about each Field type, in one place.
  * A type checks its own settings, checks and reads its values, and lists the rules a value breaks.
  * Group and Repeater are containers: the content store walks into their Fields (`field-values.ts`).
- * The Body field (#78) plugs in here.
  */
 
 /** A JSON value, as Field values are stored and as the APIs give them. */
@@ -69,6 +83,15 @@ export type TextField = Common<"text", string | null> & {
 export type RichTextField = Common<"richText", string | null> & {
 	/** The most characters of text (tags not counted). */
 	maxLength: number | null;
+};
+/**
+ * A Body field (ADR 0018): long-form text as a list of typed Blocks with stable ids, each language
+ * keeping its own list. A Post Type has at most one, at the top of its Fields; Pages, the Globals and
+ * Components' Props have none.
+ */
+export type BodyField = Common<"body", null> & {
+	/** The Block types Staff switched off: people can't add them, and those already there keep it from publishing. */
+	blocksOff: BlockType[];
 };
 export type NumberField = Common<"number", number | null> & {
 	min: number | null;
@@ -115,6 +138,7 @@ export type RepeaterField = Common<"repeater", null> & {
 export type FieldDefinition =
 	| TextField
 	| RichTextField
+	| BodyField
 	| NumberField
 	| BooleanField
 	| DateField
@@ -148,6 +172,7 @@ export type FieldInput = {
 	multiple?: boolean;
 	postTypes?: string[];
 	twoWay?: boolean;
+	blocksOff?: string[];
 	fields?: FieldInput[];
 };
 
@@ -157,16 +182,21 @@ export type DefineContext = {
 	postTypeKeys: ReadonlySet<string>;
 	/**
 	 * Whose Fields these are: Globals can't hold Relationships, nor can a Module's Component's Props
-	 * (each Site has its own Post Types). A Component's Props are declared with the Field types.
+	 * (each Site has its own Post Types). A Component's Props are declared with the Field types. Only
+	 * a Post Type other than the Page Post Type (`page`) has a Body field.
 	 */
-	owner: "postType" | "globals" | "component" | "moduleComponent";
+	owner: "postType" | "page" | "globals" | "component" | "moduleComponent";
 };
 
 /** Reports a problem with a setting, at a path below the Field (`maxLength`, `options[1].value`). */
-type Report = (setting: string, message: string) => void;
+/** Refuses a setting: why (`SETTING_RULES`), in English for API clients, and what fills in its wording. */
+export type Report = (setting: string, rule: SettingRule, message: string, params?: SettingParams) => void;
 
-/** A rule a value breaks: which rule, and why in words. */
-export type BrokenRule = { rule: string; message: string };
+/**
+ * A rule a value breaks: which rule, and why in words. `within` places it inside the value (a Body's
+ * Block: `[2]`), after the Field's path.
+ */
+export type BrokenRule = { rule: string; message: string; within?: string };
 
 /**
  * What a value points at, checked against the Site once every value is read: Entries of some Post
@@ -182,16 +212,26 @@ export type ValueSpec<Field extends LeafField> = {
 	empty(field: Field): Json;
 	/**
 	 * Reads a value people give (never null or "", which clear a value), answering the value to store,
-	 * or null for empty. A value of the wrong kind is reported with `fail` (the save is refused);
-	 * `refer` names Entries it points at.
+	 * or null for empty. A value of the wrong kind is reported with `fail` (the save is refused), at a
+	 * place inside the value when given (`[2].text`); `refer` names Entries it points at.
 	 */
-	parse(input: unknown, field: Field, fail: (message: string) => null, refer: (reference: Reference) => void): Json;
+	parse(
+		input: unknown,
+		field: Field,
+		fail: (message: string, within?: string) => null,
+		refer: (reference: Reference) => void,
+	): Json;
 	/** Reads a stored value; null when it isn't one this Field holds (its settings changed since). */
 	read(stored: unknown, field: Field): Json;
 	/** The rules a (non-empty) value breaks: min/max, pattern and the like. */
 	rules(value: Json, field: Field): BrokenRule[];
 	/** Whether a value counts as empty (for `required`); null and [] are by default. */
 	isEmpty?(value: Json): boolean;
+	/**
+	 * What a stored value points at, checked against the Site whenever the version is checked (a
+	 * reference that is gone is a broken rule), each at a place inside the value.
+	 */
+	references?(value: Json, field: Field): (Reference & { within: string })[];
 };
 
 /** Everything the content store knows about one Field type: its traits (`field-rules.ts`) and what it does. */
@@ -217,7 +257,7 @@ const text: FieldTypeSpec<TextField> = {
 		const minLength = whole(input.minLength, "minLength", report, { min: 0, max: TEXT_VALUE_MAX_LENGTH });
 		const maxLength = whole(input.maxLength, "maxLength", report, { min: 1, max: TEXT_VALUE_MAX_LENGTH });
 		if (minLength !== null && maxLength !== null && maxLength < minLength) {
-			report("maxLength", "The longest length can't be shorter than the shortest.");
+			report("maxLength", "lengthOrder", "The longest length can't be shorter than the shortest.");
 		}
 		return { minLength, maxLength, pattern: pattern(input.pattern, report) };
 	},
@@ -275,13 +315,82 @@ const richText: FieldTypeSpec<RichTextField> = {
 	},
 };
 
+const body: FieldTypeSpec<BodyField> = {
+	...FIELD_TYPE_TRAITS.body,
+	settings(input, report, context) {
+		// Where a Body field may be (only one, at the top) is checked with the whole list (`parseFields`).
+		if (context.owner !== "postType") {
+			if (context.owner === "page") {
+				report("type", "bodyOnPage", "Pages are arranged with a Page layout, so they have no Body field.");
+			} else {
+				report("type", "bodyNotHere", "Only a Post Type has a Body field.");
+			}
+		}
+		const blocksOff: BlockType[] = [];
+		if (input.blocksOff !== undefined && input.blocksOff !== null) {
+			if (!Array.isArray(input.blocksOff)) {
+				report("blocksOff", "blocksOffList", "The Blocks switched off are a list of Block types.");
+			} else {
+				input.blocksOff.forEach((type, index) => {
+					if (!isBlockType(type)) {
+						report(
+							`blocksOff[${index}]`,
+							"blockUnknown",
+							`There is no Block type ${String(type)}; they are ${BLOCK_TYPES.join(", ")}.`,
+							{ type: String(type) },
+						);
+					} else if (ALWAYS_ON_BLOCKS.includes(type)) {
+						report(`blocksOff[${index}]`, "blockAlwaysOn", `A body always has ${type}s.`, { type });
+					} else if (!blocksOff.includes(type)) {
+						blocksOff.push(type);
+					}
+				});
+			}
+		}
+		return { blocksOff: BLOCK_TYPES.filter((type) => blocksOff.includes(type)) };
+	},
+	value: {
+		empty: () => [],
+		parse(input, _field, fail) {
+			const { blocks, problems } = readBody(input);
+			for (const problem of problems) fail(problem.message, problem.at);
+			if (problems.length > 0) return null;
+			return blocks.length === 0 ? null : (blocks as unknown as Json);
+		},
+		read: (stored) => (Array.isArray(stored) ? stored : null),
+		rules(value, field) {
+			const broken: BrokenRule[] = [];
+			storedBlocks(value).forEach((block, index) => {
+				if (field.blocksOff.includes(block.type)) {
+					broken.push({
+						rule: "blockType",
+						within: `[${index}]`,
+						message: `The Body field has ${block.type} Blocks switched off.`,
+					});
+				}
+				if (block.type === "video" && block.url !== "" && !videoAt(block.url)) {
+					broken.push({ rule: "video", within: `[${index}].url`, message: "A video is on YouTube or Vimeo." });
+				}
+			});
+			return broken;
+		},
+		isEmpty: (value) => !bodyHasContent(storedBlocks(value)),
+		references: (value) =>
+			storedBlocks(value).flatMap((block, index) =>
+				block.type === "image" && block.media
+					? [{ kind: "media" as const, ids: [block.media], within: `[${index}].media` }]
+					: [],
+			),
+	},
+};
+
 const number: FieldTypeSpec<NumberField> = {
 	...FIELD_TYPE_TRAITS.number,
 	settings(input, report) {
 		const min = finite(input.min, "min", report);
 		const max = finite(input.max, "max", report);
 		if (min !== null && max !== null && max < min)
-			report("max", "The largest number can't be smaller than the smallest.");
+			report("max", "numberOrder", "The largest number can't be smaller than the smallest.");
 		return { min, max, integer: flag(input.integer, "integer", report, false) };
 	},
 	value: {
@@ -324,19 +433,22 @@ const date: FieldTypeSpec<DateField> = {
 	settings(input, report) {
 		const mode = (input.mode ?? "date") as DateMode;
 		if (!DATE_MODES.includes(mode)) {
-			report("mode", `A date Field's mode is ${DATE_MODES.join(", ")}.`);
+			report("mode", "dateMode", `A date Field's mode is ${DATE_MODES.join(", ")}.`);
 			return { mode: "date", min: null, max: null };
 		}
 		const bound = (value: unknown, setting: "min" | "max") => {
 			if (value === undefined || value === null) return null;
 			const parsed = typeof value === "string" ? parseDate(value, mode) : null;
 			if (parsed === null)
-				report(setting, `Not a ${mode === "time" ? "time" : "date"} written as ${DATE_FORMATS[mode]}.`);
+				report(setting, "dateFormat", `Not a ${mode === "time" ? "time" : "date"} written as ${DATE_FORMATS[mode]}.`, {
+					format: DATE_FORMATS[mode],
+				});
 			return parsed;
 		};
 		const min = bound(input.min, "min");
 		const max = bound(input.max, "max");
-		if (min !== null && max !== null && max < min) report("max", "The latest can't be before the earliest.");
+		if (min !== null && max !== null && max < min)
+			report("max", "dateOrder", "The latest can't be before the earliest.");
 		return { mode, min, max };
 	},
 	value: {
@@ -364,7 +476,7 @@ const select: FieldTypeSpec<SelectField> = {
 	settings(input, report) {
 		const options: SelectOption[] = [];
 		if (!Array.isArray(input.options) || input.options.length === 0 || input.options.length > MAX_OPTIONS) {
-			report("options", `A select Field has 1 to ${MAX_OPTIONS} choices.`);
+			report("options", "optionsCount", `A select Field has 1 to ${MAX_OPTIONS} choices.`, { max: MAX_OPTIONS });
 		} else {
 			const seen = new Set<string>();
 			input.options.forEach((option, index) => {
@@ -373,13 +485,19 @@ const select: FieldTypeSpec<SelectField> = {
 				if (!OPTION_VALUE.test(value)) {
 					report(
 						`options[${index}].value`,
+						"optionValueFormat",
 						"A choice's value is letters, digits, dashes and underscores (at most 64).",
 					);
 				} else if (seen.has(value)) {
-					report(`options[${index}].value`, `Two choices have the value ${value}.`);
+					report(`options[${index}].value`, "optionValueTwice", `Two choices have the value ${value}.`, { value });
 				}
 				if (!label || label.length > OPTION_LABEL_MAX_LENGTH) {
-					report(`options[${index}].label`, `A choice's label has 1 to ${OPTION_LABEL_MAX_LENGTH} characters.`);
+					report(
+						`options[${index}].label`,
+						"optionLabelLength",
+						`A choice's label has 1 to ${OPTION_LABEL_MAX_LENGTH} characters.`,
+						{ max: OPTION_LABEL_MAX_LENGTH },
+					);
 				}
 				seen.add(value);
 				options.push({ value, label });
@@ -500,21 +618,26 @@ const relationship: FieldTypeSpec<RelationshipField> = {
 	...FIELD_TYPE_TRAITS.relationship,
 	settings(input, report, context) {
 		if (context.owner === "globals" || context.owner === "moduleComponent") {
-			report(
-				"type",
-				context.owner === "globals"
-					? "Globals can't hold Relationships."
-					: "A Module's Component can't have Relationship Props: each Site has its own Post Types.",
-			);
+			if (context.owner === "globals") {
+				report("type", "relationshipInGlobals", "Globals can't hold Relationships.");
+			} else {
+				report(
+					"type",
+					"relationshipInModuleComponent",
+					"A Module's Component can't have Relationship Props: each Site has its own Post Types.",
+				);
+			}
 			return { postTypes: [], multiple: false, twoWay: true, min: null, max: null };
 		}
 		const postTypes: string[] = [];
 		if (!Array.isArray(input.postTypes) || input.postTypes.length === 0 || input.postTypes.length > 20) {
-			report("postTypes", "A Relationship points at Entries of 1 to 20 Post Types.");
+			report("postTypes", "postTypesCount", "A Relationship points at Entries of 1 to 20 Post Types.", { max: 20 });
 		} else {
 			input.postTypes.forEach((key, index) => {
 				if (typeof key !== "string" || !context.postTypeKeys.has(key)) {
-					report(`postTypes[${index}]`, `The Site has no Post Type ${String(key)}.`);
+					report(`postTypes[${index}]`, "postTypeUnknown", `The Site has no Post Type ${String(key)}.`, {
+						key: String(key),
+					});
 				} else if (!postTypes.includes(key)) {
 					postTypes.push(key);
 				}
@@ -558,7 +681,8 @@ const repeater: FieldTypeSpec<RepeaterField> = {
 	settings(input, report) {
 		const min = whole(input.min, "min", report, { min: 0, max: MAX_ROWS });
 		const max = whole(input.max, "max", report, { min: 1, max: MAX_ROWS });
-		if (min !== null && max !== null && max < min) report("max", "The most rows can't be fewer than the fewest.");
+		if (min !== null && max !== null && max < min)
+			report("max", "rowsOrder", "The most rows can't be fewer than the fewest.");
 		return { fields: [], min, max };
 	},
 };
@@ -569,6 +693,7 @@ export const FIELD_TYPE_SPECS: {
 } = {
 	text,
 	richText,
+	body,
 	number,
 	boolean,
 	date,
@@ -602,7 +727,7 @@ function isSafeUrl(url: string): boolean {
 function whole(value: unknown, setting: string, report: Report, range: { min: number; max: number }): number | null {
 	if (value === undefined || value === null) return null;
 	if (typeof value !== "number" || !Number.isInteger(value) || value < range.min || value > range.max) {
-		report(setting, `A whole number from ${range.min} to ${range.max}.`);
+		report(setting, "wholeNumber", `A whole number from ${range.min} to ${range.max}.`, range);
 		return null;
 	}
 	return value;
@@ -611,7 +736,7 @@ function whole(value: unknown, setting: string, report: Report, range: { min: nu
 function finite(value: unknown, setting: string, report: Report): number | null {
 	if (value === undefined || value === null) return null;
 	if (typeof value !== "number" || !Number.isFinite(value)) {
-		report(setting, "A number.");
+		report(setting, "number", "A number.");
 		return null;
 	}
 	return value;
@@ -620,7 +745,7 @@ function finite(value: unknown, setting: string, report: Report): number | null 
 function flag(value: unknown, setting: string, report: Report, fallback: boolean): boolean {
 	if (value === undefined || value === null) return fallback;
 	if (typeof value !== "boolean") {
-		report(setting, "true or false.");
+		report(setting, "boolean", "true or false.");
 		return fallback;
 	}
 	return value;
@@ -630,13 +755,15 @@ function flag(value: unknown, setting: string, report: Report, fallback: boolean
 function counts(input: FieldInput, report: Report, multiple: boolean, most: number) {
 	if (!multiple) {
 		if (input.min !== undefined && input.min !== null)
-			report("min", "Only a Field holding several values has a fewest.");
-		if (input.max !== undefined && input.max !== null) report("max", "Only a Field holding several values has a most.");
+			report("min", "minNotMultiple", "Only a Field holding several values has a fewest.");
+		if (input.max !== undefined && input.max !== null)
+			report("max", "maxNotMultiple", "Only a Field holding several values has a most.");
 		return { min: null, max: null };
 	}
 	const min = whole(input.min, "min", report, { min: 0, max: most });
 	const max = whole(input.max, "max", report, { min: 1, max: most });
-	if (min !== null && max !== null && max < min) report("max", "The most can't be fewer than the fewest.");
+	if (min !== null && max !== null && max < min)
+		report("max", "countsOrder", "The most can't be fewer than the fewest.");
 	return { min, max };
 }
 
@@ -679,13 +806,24 @@ function patternRule(value: string, source: string | null): BrokenRule[] {
 function pattern(value: unknown, report: Report): string | null {
 	if (value === undefined || value === null || value === "") return null;
 	if (typeof value !== "string" || value.length > PATTERN_MAX_LENGTH) {
-		report("pattern", `A pattern is a regular expression of at most ${PATTERN_MAX_LENGTH} characters.`);
+		report(
+			"pattern",
+			"patternLength",
+			`A pattern is a regular expression of at most ${PATTERN_MAX_LENGTH} characters.`,
+			{
+				max: PATTERN_MAX_LENGTH,
+			},
+		);
 		return null;
 	}
 	try {
 		compiledPattern(value);
 	} catch {
-		report("pattern", "Not a regular expression WebCraft can run (look-around and back-references aren't supported).");
+		report(
+			"pattern",
+			"patternInvalid",
+			"Not a regular expression WebCraft can run (look-around and back-references aren't supported).",
+		);
 		return null;
 	}
 	return value;
@@ -723,5 +861,6 @@ export function parseDate(value: string, mode: DateMode): string | null {
 
 /** Adds a problem for a Field's setting, at `<at>.<setting>`. */
 export function reporterAt(at: string, problems: ContentProblem[]): Report {
-	return (setting, message) => problems.push({ at: `${at}.${setting}`, message });
+	return (setting, rule, message, params) =>
+		problems.push({ at: `${at}.${setting}`, message, rule, ...(params ? { params } : {}) });
 }

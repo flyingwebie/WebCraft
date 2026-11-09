@@ -16,6 +16,7 @@ import {
 	CircleAlertIcon,
 	CornerDownRightIcon,
 	EllipsisIcon,
+	FileTextIcon,
 	HashIcon,
 	ImageIcon,
 	LinkIcon,
@@ -40,6 +41,7 @@ import { Announcer, DragHandle, moveItem, useDragOrder } from "./reorder.tsx";
 export const FIELD_TYPE_ICONS: { readonly [Type in FieldType]: LucideIcon } = {
 	text: TypeIcon,
 	richText: PilcrowIcon,
+	body: FileTextIcon,
 	number: HashIcon,
 	boolean: ToggleLeftIcon,
 	date: CalendarIcon,
@@ -52,8 +54,23 @@ export const FIELD_TYPE_ICONS: { readonly [Type in FieldType]: LucideIcon } = {
 	repeater: ListOrderedIcon,
 };
 
-/** Who the Fields belong to: a Post Type's Entries, or the Globals (which hold no Relationships). */
-export type FieldOwner = "postType" | "globals";
+/** Whose Fields the builder shows: a Post Type's, the Page Post Type's or the Globals'. */
+export type FieldOwner = "postType" | "page" | "globals";
+
+/**
+ * The Field types a new Field can be, at a depth among `all` (every Field on the screen, `uid` being
+ * the one changing type): Globals hold no Relationships, Groups and Repeaters nest 3 deep, and only a
+ * Post Type other than Pages has a Body field, one at most, at the top of its Fields.
+ */
+export function offeredTypes(owner: FieldOwner, depth: number, all: readonly FieldDraft[], uid?: string): FieldType[] {
+	const hasBody = all.some((draft) => draft.field.type === "body" && draft.uid !== uid);
+	return FIELD_TYPES.filter(
+		(type) =>
+			!(owner === "globals" && type === "relationship") &&
+			!((type === "group" || type === "repeater") && !canHoldFields(type, depth)) &&
+			!(type === "body" && (owner !== "postType" || depth > 1 || hasBody)),
+	);
+}
 
 /**
  * The Field builder: a Post Type's (or the Globals') Fields as one list, the Fields inside Groups
@@ -142,6 +159,7 @@ export function FieldBuilder({
 							id="field-list-add"
 							owner={owner}
 							depth={1}
+							all={drafts}
 							label={t("postTypes.fields.add")}
 							description={t("postTypes.fields.addHelp")}
 							onAdd={(type) => add(null, drafts, type)}
@@ -367,6 +385,7 @@ function FieldRow({
 						<AddFieldMenu
 							owner={owner}
 							depth={depth + 1}
+							all={all}
 							label={t("postTypes.fields.addInside", { label })}
 							onAdd={(type) => onAdd(draft.uid, draft.children, type)}
 							size="sm"
@@ -383,6 +402,7 @@ function AddFieldMenu({
 	id,
 	owner,
 	depth,
+	all,
 	label,
 	description,
 	onAdd,
@@ -391,17 +411,15 @@ function AddFieldMenu({
 	id?: string;
 	owner: FieldOwner;
 	depth: number;
+	/** Every Field on the screen, top level first. */
+	all: readonly FieldDraft[];
 	label: string;
 	description?: string;
 	onAdd(type: FieldType): void;
 	size?: "default" | "sm";
 }) {
 	const t = useT();
-	const types = FIELD_TYPES.filter(
-		(type) =>
-			!(owner === "globals" && type === "relationship") &&
-			!((type === "group" || type === "repeater") && !canHoldFields(type, depth)),
-	);
+	const types = offeredTypes(owner, depth, all);
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger render={<Button id={id} type="button" variant="ghost" size={size} />}>

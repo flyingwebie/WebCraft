@@ -213,7 +213,7 @@ function ToolbarButton({ command, onRun }: { command: Command; onRun(command: Co
 }
 
 /** Asks for a link's address: the selected text becomes the link (or the address itself, with no selection). */
-function LinkDialog({
+export function LinkDialog({
 	open,
 	onOpenChange,
 	finalFocus,

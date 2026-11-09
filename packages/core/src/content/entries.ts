@@ -5,6 +5,7 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { isUuid } from "../ids.ts";
 import { actingPerson } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { bodyChecksOf, type EntryCheck } from "./body-checks.ts";
 import { publishedAddresses } from "./entry-paths.ts";
 import {
 	type ContentProblem,
@@ -47,6 +48,7 @@ import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
 import { type EntryVersion, emptyVersion, readValue, storedVersion, type Writer, writeValue } from "./values.ts";
 import { hiddenLanguagesIn, withHiddenLanguages } from "./visibility.ts";
 
+export type { EntryCheck } from "./body-checks.ts";
 export { sameJson } from "./json.ts";
 export { siteLanguages };
 
@@ -93,6 +95,11 @@ export type Entry = {
 	 * `fields.team[1].name`) with the rule: empty required values and values that break a rule.
 	 */
 	problems: ContentProblem[];
+	/**
+	 * Warnings about the Draft that never stop it being published (Checks): a body's skipped heading
+	 * levels, images without alt text, vague link text, tables without a header row, untitled videos.
+	 */
+	checks: EntryCheck[];
 	/** The Entries whose Drafts point at this one through a two-way Relationship. */
 	linkedFrom: LinkBack[];
 	/** Where visitors find it (`/blog/fresh-bread`, `/about/team`, `/` for the home page); null until it is published. */
@@ -521,8 +528,15 @@ async function entryViews(
 		findings.flatMap((found) => found.references),
 		"rule",
 	);
+	const values = (version: EntryVersion) => entryValues(version, postType.fields, languages);
+	const drafts = rows.map((row) => values(storedVersion(row.draft)));
+	const checks = await bodyChecksOf(
+		scope,
+		postType.fields,
+		drafts.map((draft) => draft.fields),
+		languages,
+	);
 	return rows.map((row, index) => {
-		const values = (version: EntryVersion) => entryValues(version, postType.fields, languages);
 		const address = addresses.get(row.id);
 		const authorName = row.authorId ? authors.get(row.authorId) : undefined;
 		return {
@@ -536,13 +550,14 @@ async function entryViews(
 			publishedAt: row.publishedAt,
 			lastPublishedAt: row.lastPublishedAt,
 			language: languages.language,
-			draft: values(storedVersion(row.draft)),
+			draft: drafts[index] ?? values(storedVersion(row.draft)),
 			// Visitors find it by the slug it was published with in this language, which never changes on its own.
 			published:
 				row.published === null
 					? null
 					: { ...values(storedVersion(row.published)), ...(address ? { slug: address.slug } : {}) },
 			problems: findings[index]?.problems ?? [],
+			checks: checks[index] ?? [],
 			linkedFrom: back.get(row.id) ?? [],
 			path: address?.path ?? null,
 		};

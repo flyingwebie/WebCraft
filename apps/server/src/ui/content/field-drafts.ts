@@ -78,6 +78,8 @@ export function newField(type: FieldType, key: string, label: string): FieldDefi
 			return { ...common, type, minLength: null, maxLength: null, pattern: null };
 		case "richText":
 			return { ...common, type, maxLength: null };
+		case "body":
+			return { ...common, type, blocksOff: [] };
 		case "number":
 			return { ...common, type, min: null, max: null, integer: false };
 		case "boolean":

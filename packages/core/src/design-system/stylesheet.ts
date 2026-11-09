@@ -19,11 +19,13 @@ import {
 	elementsOf,
 	readDesignSystem,
 	THEME_TOGGLE_SCRIPT,
+	VIDEO_SCRIPT,
 } from "@webcraft/renderer";
 import { eq, isNotNull, lt } from "drizzle-orm";
-
 import { storedComponentVersion } from "../content/component-versions.ts";
+import { CODE_MODE_STYLESHEET_PATH } from "../edit-mode/paths.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { draftDesignSystem } from "./design-systems.ts";
 
 /** Where every Site serves its stylesheets: `/_wc/css/<hash>.css`. */
 export const STYLESHEET_PATH = "/_wc/css/";
@@ -85,6 +87,38 @@ export async function siteStyles(scope: Reader): Promise<SiteStyles> {
 }
 
 /**
+ * The Drafts of the Site's element trees: its Templates' and its own Components' (a Module's hold no
+ * Classes), as Code mode shows them.
+ */
+export async function draftTrees(scope: Pick<VisitorScope, "select">): Promise<ElementTree[]> {
+	const rows = await scope.select(templates);
+	const placed = await scope.select(components);
+	return [
+		...rows.map((row) => row.draft as ElementTree),
+		...placed.map((row) => storedComponentVersion(row.draft).tree),
+	];
+}
+
+/**
+ * The Site's styling as Code mode shows it (ADR 0016): the Design system's Draft, with the Classes
+ * and token utilities the Drafts of its trees use. Its stylesheet is served only to Staff in Code
+ * mode, at `/_webcraft/edit/css/<hash>.css`. A preview gives the Draft and trees it shows instead.
+ */
+export async function draftStyles(
+	scope: Pick<VisitorScope, "select" | "first">,
+	preview: { designSystem?: DesignSystem; trees?: readonly ElementTree[] } = {},
+): Promise<SiteStyles> {
+	const designSystem = preview.designSystem ?? (await draftDesignSystem(scope));
+	const css = compileStylesheet(designSystem, { classIds: classIdsIn(preview.trees ?? (await draftTrees(scope))) });
+	const hash = contentHash(css);
+	return {
+		designSystem,
+		className: designSystemNames(designSystem).nameOf,
+		stylesheet: { hash, css, href: `${CODE_MODE_STYLESHEET_PATH}${hash}.css` },
+	};
+}
+
+/**
  * A stylesheet of the Site by its file name: the current one, or one a publish replaced in the last
  * 30 days. Null for any other name.
  */
@@ -121,9 +155,10 @@ export async function keepReplacedStylesheet(scope: SiteScope, before: SiteStyle
 export { SCRIPT_PATH } from "@webcraft/renderer";
 
 /**
- * A script WebCraft serves on every Site by its file name (`/_wc/js/<name>`): the theme toggle's,
- * named by its hash. Null for any other name.
+ * A script WebCraft serves on every Site by its file name (`/_wc/js/<name>`): the theme toggle's and
+ * the embed script (a body's videos), each named by its hash. Null for any other name.
  */
 export function siteScript(name: string): string | null {
-	return name === THEME_TOGGLE_SCRIPT.name ? THEME_TOGGLE_SCRIPT.text : null;
+	for (const script of [THEME_TOGGLE_SCRIPT, VIDEO_SCRIPT]) if (name === script.name) return script.text;
+	return null;
 }

@@ -1,4 +1,16 @@
-import { type PropArgument, richText, type TemplateValue, type ValueReader } from "@webcraft/renderer";
+import {
+	bodyExcerpt,
+	bodyImage,
+	bodyReadingTime,
+	bodyToc,
+	bodyValue,
+	type PropArgument,
+	richText,
+	storedBlocks,
+	type TemplateValue,
+	tocValue,
+	type ValueReader,
+} from "@webcraft/renderer";
 
 import type { FieldDefinition, Json, LinkValue } from "./field-types.ts";
 import { BUILT_IN_FIELDS } from "./fields.ts";
@@ -9,7 +21,8 @@ import { BUILT_IN_FIELDS } from "./fields.ts";
  *
  * - a built-in Field (`title`, `publishedAt`) or a Field of the Entry's Post Type (`summary`);
  * - a part of a Field: a Group's Field (`address.city`), a Repeater's Field across its rows
- *   (`team.name`: every row's name), a link's `url` or `text`, a select's `value` or `label`;
+ *   (`team.name`: every row's name), a link's `url` or `text`, a select's `value` or `label`, what
+ *   a body says of itself (`body.excerpt`, `body.image`, `body.reading_time`, `body.toc`);
  * - what a Relationship points at, one level deep: its published Entries' built-in Fields, `url`
  *   and Fields (`category.title`, `category.url`, `authors.name`), unpublished Entries left out;
  * - `site.x`: the Site's published Globals (`site.phone`, `site.address.city`);
@@ -17,7 +30,7 @@ import { BUILT_IN_FIELDS } from "./fields.ts";
  *   (`props.link.url`), or the value a Prop passes on from where it is placed.
  *
  * On its own, a select shows its label, a link its text (or address), a Relationship its Entries'
- * titles, rich text its cleaned HTML; Groups and Repeater rows show nothing. A path through a list
+ * titles, rich text its cleaned HTML, a body its Blocks as HTML; Groups and Repeater rows show nothing. A path through a list
  * gives a list, which a text position shows joined with commas until Loops show items one by one.
  */
 
@@ -124,6 +137,8 @@ function fieldValue(field: FieldDefinition, value: Json, sources: ValueSources |
 			return (Array.isArray(value) ? value : []).map((row) => fieldParts(field.fields, record(row), sources, null));
 		case "richText":
 			return typeof value === "string" ? richText(value) : null;
+		case "body":
+			return bodyParts(value);
 		case "select": {
 			const option = (choice: Json): Parts | null => {
 				const found = field.options.find((candidate) => candidate.value === choice);
@@ -160,6 +175,37 @@ function fieldValue(field: FieldDefinition, value: Json, sources: ValueSources |
 		default:
 			return value as TemplateValue;
 	}
+}
+
+/** The parts a body's value has, besides its Blocks: what Templates and Loops read of it (ADR 0018). */
+export const BODY_PARTS = ["excerpt", "image", "reading_time", "toc"] as const;
+
+/**
+ * A body: its Blocks on their own (rendered as HTML), and the values worked out from them: the first
+ * paragraph as plain text, the first image (read as `media:<id>`, so an `<img>` bound to it renders
+ * as a Media image), the minutes reading it takes and its headings with their anchors.
+ */
+function bodyParts(value: Json): Parts {
+	const blocks = storedBlocks(value);
+	return {
+		text: bodyValue(blocks),
+		part(name) {
+			switch (name) {
+				case "excerpt":
+					return bodyExcerpt(blocks);
+				case "image": {
+					const id = bodyImage(blocks);
+					return id === null ? null : `media:${id}`;
+				}
+				case "reading_time":
+					return bodyReadingTime(blocks);
+				case "toc":
+					return tocValue(bodyToc(blocks));
+				default:
+					return undefined;
+			}
+		},
+	};
 }
 
 function relatedParts(entry: RelatedEntry): Parts {
@@ -308,6 +354,8 @@ function fieldShape(
 			return named(["value", "label"]);
 		case "link":
 			return named(["url", "text"]);
+		case "body":
+			return named(BODY_PARTS);
 		case "relationship": {
 			if (!postTypes) return undefined;
 			const targets = postTypes.filter((postType) => field.postTypes.includes(postType.key));

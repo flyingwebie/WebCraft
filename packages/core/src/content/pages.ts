@@ -58,8 +58,9 @@ export function isPagePostType(postType: { builtIn: string | null }): boolean {
 	return postType.builtIn === PAGE_POST_TYPE.builtIn;
 }
 
-/** How deep Pages nest: a Page's path has at most this many parts. */
-export const MAX_PAGE_DEPTH = 10;
+import { MAX_PAGE_DEPTH } from "./field-rules.ts";
+
+export { MAX_PAGE_DEPTH };
 
 /**
  * The parent Page a version names, or null for a top-level Page. It is stored beside `title` and

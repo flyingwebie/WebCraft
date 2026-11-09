@@ -4,6 +4,8 @@
  * a tree and its values into semantic HTML. It reads nothing itself: core finds the Entry and its
  * published Template and hands them over. It runs inside the web process.
  */
+export * from "./body/index.ts";
+export { VIDEO_SCRIPT } from "./body/video-script.ts";
 export {
 	type CommandNode,
 	RESERVED_COMMANDS,
@@ -99,7 +101,7 @@ export {
 	TRUNCATE_MAX_LENGTH,
 	type ValueFormat,
 } from "./formatters.ts";
-export { type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
+export { CODE_ATTRIBUTE, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
 export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
@@ -139,6 +141,7 @@ export {
 	type CommentNode,
 	type ConditionBranch,
 	type ConditionNode,
+	childListsOf,
 	ELEMENT_TREE_VERSION,
 	type ElementNode,
 	type ElementTree,
@@ -160,4 +163,13 @@ export {
 	VOID_ELEMENTS,
 	valuePathsOf,
 } from "./tree.ts";
-export { type RichText, richText, type TemplateValue, type ValueReader } from "./values.ts";
+export {
+	type BodyValue,
+	bodyValue,
+	type RichText,
+	richText,
+	type TemplateValue,
+	type TocValue,
+	tocValue,
+	type ValueReader,
+} from "./values.ts";

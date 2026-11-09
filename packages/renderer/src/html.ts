@@ -1,3 +1,4 @@
+import { renderBody, renderToc } from "./body/body.ts";
 import { commandForNode } from "./commands.ts";
 import { COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, URL_ATTRIBUTES } from "./escape.ts";
@@ -13,7 +14,7 @@ import {
 	type ValueNode,
 	VOID_ELEMENTS,
 } from "./tree.ts";
-import { isList, isRichText, joinList, type TemplateValue, textOf, type ValueReader } from "./values.ts";
+import { isBody, isList, isRichText, isToc, joinList, type TemplateValue, textOf, type ValueReader } from "./values.ts";
 
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
@@ -46,6 +47,10 @@ export type RenderOptions = {
 	media?: MediaReader;
 	/** Present while rendering `<main>`: its first Media image loads eagerly, with high priority. */
 	priorityImage?: ImagePriority;
+	/** WebCraft's own words in the page's language, which a body's video says ("Play video"). */
+	words?: { playVideo: string; video: string };
+	/** Counts what the page shows that needs a script of WebCraft's: a body's videos. */
+	shown?: { videos: number };
 	/**
 	 * What a Placement shows: its Component's (published) tree, and what that tree's bindings read
 	 * given the Placement's Prop values (`props.x`, read through `outer` where a value is passed on
@@ -59,7 +64,18 @@ export type RenderOptions = {
 	 * tree. Absent for the pages visitors get, which carry no such attributes.
 	 */
 	editRegion?: (value: ValueNode) => readonly (readonly [name: string, value: string])[] | undefined;
+	/**
+	 * Code mode's tags (ADR 0016): where the tree being rendered comes from, such as `content` (the
+	 * page's Entry template) or `site` (the Site template). Every element is tagged with it and its own
+	 * id as `data-wc-code="<source>#<id>"`, and a Component's elements with the Placements that show
+	 * them (`content/<placement id>#<id>`), so selecting an element on the page opens the Template or
+	 * Component it comes from. Absent for the pages visitors get, which carry no such attributes.
+	 */
+	codeSource?: string;
 };
+
+/** The attribute Code mode's tags are written in: see `RenderOptions.codeSource`. */
+export const CODE_ATTRIBUTE = "data-wc-code";
 
 /** Finds what a Placement shows: see `RenderOptions.component`. */
 export type PlacementRenderer = (
@@ -106,6 +122,9 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
+			if (options.codeSource !== undefined) {
+				attributes += ` ${CODE_ATTRIBUTE}="${escapeAttribute(`${options.codeSource}#${node.id}`)}"`;
+			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
 			let children = renderNodes(node.children, options, state);
 			// An HTML parser drops a newline right after <pre>; repeat it so the content stays as written.
@@ -149,8 +168,15 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 	const shown = options.component(node.component, props, options.values);
 	if (!shown) return "";
 	// Inside a Component its bindings read its Props and the Globals; it holds no outlet. Edit mode
-	// tags regions of the page's own Template: a Component's elements are the Component's.
-	const inner: RenderOptions = { ...options, values: shown.values, outlet: undefined, editRegion: undefined };
+	// tags regions of the page's own Template: a Component's elements are the Component's. Code mode
+	// tags them as the Component's, reached through this Placement.
+	const inner: RenderOptions = {
+		...options,
+		values: shown.values,
+		outlet: undefined,
+		editRegion: undefined,
+		codeSource: options.codeSource === undefined ? undefined : `${options.codeSource}/${node.id}`,
+	};
 	return renderNodes(shown.tree.nodes, inner, { depth: state.depth + 1, budget: state.budget });
 }
 
@@ -167,10 +193,22 @@ function editTags(node: ElementNode, options: RenderOptions): readonly (readonly
 	return region ? [...region, ["data-wc-id", node.id]] : [];
 }
 
-/** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */
+/**
+ * A value in a text position: escaped text, cleaned rich text, a body's Blocks or a table of contents
+ * as HTML, or a list of them joined with commas. Through a formatter, each is its text.
+ */
 function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions): string {
 	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options)));
 	if (!node.format && isRichText(value)) return cleanRichText(value.html);
+	if (!node.format && isBody(value)) {
+		return renderBody(value.blocks, {
+			media: options.media,
+			priorityImage: options.priorityImage,
+			words: options.words ?? { playVideo: "Play video", video: "Video" },
+			shown: options.shown,
+		});
+	}
+	if (!node.format && isToc(value)) return renderToc(value.headings);
 	return escapeText(valueText(node, value, options));
 }
 
@@ -193,6 +231,7 @@ function mediaImage(node: ElementNode, media: MediaReader, options: RenderOption
 	const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 	const own: [string, string][] = classNames.length > 0 ? [["class", classNames.join(" ")]] : [];
 	for (const attribute of node.attributes) own.push([attribute.name, attributeText(attribute, options)]);
+	if (options.codeSource !== undefined) own.push([CODE_ATTRIBUTE, `${options.codeSource}#${node.id}`]);
 	return renderMediaImage(image, own, options.priorityImage);
 }
 

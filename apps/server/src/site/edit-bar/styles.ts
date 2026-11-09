@@ -1,6 +1,7 @@
 /**
  * The stylesheet a page in Edit mode loads into the page itself: room for the editing bar above the
- * page (focus never ends up under it), outlines on the editable regions, and the device widths.
+ * page (focus never ends up under it) and for Code mode's panels below it, outlines on the editable
+ * regions, and the device widths.
  * Everything the bar shows is styled inside its own shadow root (`BAR_STYLES`), out of the Site's reach.
  */
 export const PAGE_STYLES = `
@@ -18,6 +19,12 @@ html.wc-edit-on [data-wc-field]:focus {
 	box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.9);
 }
 html.wc-edit-on [data-wc-field][data-wc-invalid] { outline: 2px solid #b91c1c; }
+webcraft-code-mode { display: block !important; }
+html.wc-code { scroll-padding-bottom: calc(42vh + 1rem); }
+html.wc-code body { padding-bottom: calc(42vh + 1rem); }
+html.wc-code.wc-code-collapsed { scroll-padding-bottom: 6rem; }
+html.wc-code.wc-code-collapsed body { padding-bottom: 6rem; }
+html.wc-code [data-wc-code] { cursor: pointer; }
 html.wc-edit-tablet body { max-width: 48rem; margin-inline: auto; }
 html.wc-edit-phone body { max-width: 24.375rem; margin-inline: auto; }
 `;

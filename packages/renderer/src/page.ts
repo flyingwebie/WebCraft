@@ -1,3 +1,4 @@
+import { VIDEO_SCRIPT } from "./body/video-script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
 import type { MediaReader } from "./media.ts";
@@ -16,6 +17,17 @@ export const PAGE_HOOKS = {
 	skipLinkClass: "wc-skip-link",
 	/** The CSS custom properties the focus style reads; the Design system sets them from Design tokens. */
 	focusStyle: { color: "--wc-focus-color", width: "--wc-focus-width", offset: "--wc-focus-offset" },
+	/** The class of a body's callout (`<aside class="wc-callout" data-tone="…">`), the only class a body has besides videos'. */
+	calloutClass: "wc-callout",
+	/** The class of a body's video (`<figure class="wc-embed">`), which holds its play link, then the player. */
+	embedClass: "wc-embed",
+	/** The CSS custom properties a callout's tones read, set in the base layer; Staff restyle them in custom CSS. */
+	calloutTones: {
+		info: "--wc-callout-info",
+		success: "--wc-callout-success",
+		warning: "--wc-callout-warning",
+		danger: "--wc-callout-danger",
+	},
 } as const;
 
 /**
@@ -69,10 +81,15 @@ export type PageToRender = {
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
+	 * The Site's own scripts the page runs (ADR 0023): the Site script, then the page's, as paths of
+	 * files on the Site's domain, loaded with `defer` after everything else in `<head>`. Never inline.
+	 * They run in Edit mode too (ADR 0022); Safe mode (#99) leaves them out.
+	 */
+	scripts?: readonly string[];
+	/**
 	 * Renders the page for Edit mode (ADR 0022) rather than for visitors: never indexed, with WebCraft's
-	 * own files first in `<head>` and the editable regions tagged. Edit mode pages carry no script but
-	 * WebCraft's own: the Site's scripts (#99) are written only where this is absent or allows them,
-	 * and outside scripts never are.
+	 * own files first in `<head>` and the editable regions tagged. The Site's own scripts (`scripts`)
+	 * run there too (ADR 0022); outside scripts never do, and Safe mode (#99) runs none.
 	 */
 	editMode?: EditModePage;
 };
@@ -107,6 +124,12 @@ export type EditModePage = {
 	scripts: readonly string[];
 	/** WebCraft's own stylesheets, as paths on the Site's domain. */
 	stylesheets: readonly string[];
+	/**
+	 * Code mode (ADR 0016): every element is tagged with the Template or Component it comes from
+	 * (`RenderOptions.codeSource`: `content` for the page's content, `site` for the Site template)
+	 * instead of the editable regions, since selecting an element opens its code.
+	 */
+	code?: boolean;
 };
 
 /**
@@ -115,7 +138,8 @@ export type EditModePage = {
  * one <main> gets the id the skip link points at, and `tabindex="-1"` so following the link moves
  * focus there. The first Media image of the page's content loads eagerly with high priority; every
  * other Media image lazily. Pages link the Site's stylesheet and carry no inline styles and no inline
- * scripts: a page showing a theme toggle links its script file, and no other page has any script.
+ * scripts: a page showing a theme toggle links its script file, and the Site script and the page's
+ * script are files too.
  */
 export function renderPage(page: PageToRender): string {
 	const { site } = page;
@@ -129,20 +153,28 @@ export function renderPage(page: PageToRender): string {
 		return `<button type="button" class="wc-theme-toggle" aria-pressed="false" hidden>${escapeText(pageWords(site.language).themeToggle)}</button>`;
 	};
 	const languageSwitcher = () => languageSwitcherHtml(page.languageLinks ?? [], site);
+	const words = pageWords(site.language);
+	// The embed script comes only with a video to play.
+	const shown = { videos: 0 };
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
+		words,
+		shown,
 		className: page.className,
 		media: page.media,
 		priorityImage: { given: false },
 		component: page.component,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && ((value) => editMode.region(value, "content")),
+		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "content") : undefined,
+		codeSource: editMode?.code ? "content" : undefined,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
 		language: site.language,
+		words,
+		shown,
 		className: page.className,
 		media: page.media,
 		outlet: () => content,
@@ -150,7 +182,8 @@ export function renderPage(page: PageToRender): string {
 		component: page.component,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && ((value) => editMode.region(value, "site")),
+		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
+		codeSource: editMode?.code ? "site" : undefined,
 	});
 	return [
 		"<!doctype html>",
@@ -166,6 +199,8 @@ export function renderPage(page: PageToRender): string {
 		),
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
+		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
+		...(page.scripts ?? []).map((src) => `<script src="${escapeAttribute(src)}" defer></script>`),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
@@ -235,6 +270,10 @@ type PageWords = {
 	themeToggle: string;
 	/** The Language switcher's name. */
 	languages: string;
+	/** A body's video link, before its title: "Play video: Our ovens". */
+	playVideo: string;
+	/** A video's player title when the video has none. */
+	video: string;
 };
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
@@ -244,6 +283,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "There is no page at this address.",
 		themeToggle: "Dark theme",
 		languages: "Language",
+		playVideo: "Play video",
+		video: "Video",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
@@ -251,6 +292,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "Non c'è nessuna pagina a questo indirizzo.",
 		themeToggle: "Tema scuro",
 		languages: "Lingua",
+		playVideo: "Riproduci il video",
+		video: "Video",
 	},
 	fr: {
 		skipLink: "Aller au contenu principal",
@@ -258,6 +301,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "Il n’y a aucune page à cette adresse.",
 		themeToggle: "Thème sombre",
 		languages: "Langue",
+		playVideo: "Lire la vidéo",
+		video: "Vidéo",
 	},
 	de: {
 		skipLink: "Zum Hauptinhalt springen",
@@ -265,6 +310,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "Unter dieser Adresse gibt es keine Seite.",
 		themeToggle: "Dunkles Design",
 		languages: "Sprache",
+		playVideo: "Video abspielen",
+		video: "Video",
 	},
 	es: {
 		skipLink: "Ir al contenido principal",
@@ -272,6 +319,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "No hay ninguna página en esta dirección.",
 		themeToggle: "Tema oscuro",
 		languages: "Idioma",
+		playVideo: "Reproducir el vídeo",
+		video: "Vídeo",
 	},
 	pt: {
 		skipLink: "Ir para o conteúdo principal",
@@ -279,6 +328,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "Não há nenhuma página neste endereço.",
 		themeToggle: "Tema escuro",
 		languages: "Idioma",
+		playVideo: "Reproduzir o vídeo",
+		video: "Vídeo",
 	},
 	nl: {
 		skipLink: "Naar de hoofdinhoud",
@@ -286,6 +337,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundText: "Er is geen pagina op dit adres.",
 		themeToggle: "Donker thema",
 		languages: "Taal",
+		playVideo: "Video afspelen",
+		video: "Video",
 	},
 };
 

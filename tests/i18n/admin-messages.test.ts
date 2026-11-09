@@ -2,6 +2,7 @@
 // must say everything English says, with the same placeholders, in valid message syntax.
 import { describe, expect, test } from "bun:test";
 import { ADMIN_LANGUAGES } from "@webcraft/core";
+import { SETTING_RULES } from "@webcraft/core/field-rules";
 import { createTranslator } from "use-intl/core";
 
 const MESSAGES = new URL("../../apps/server/src/messages/", import.meta.url);
@@ -23,11 +24,75 @@ function flatten(messages: Messages, prefix = ""): Map<string, string> {
 	return flat;
 }
 
+/**
+ * The names of a message's arguments, in ICU message syntax: `{name}`, `{name, number}`, and those
+ * of `select` and `plural`, whose branches are messages of their own (`{kind, select, prop {A Prop}
+ * other {A Field}}` has one argument, `kind`, whatever words each language puts in its branches).
+ */
 function placeholders(message: string): string[] {
-	return [...message.matchAll(/\{\s*(\w+)/g)].map((match) => match[1] ?? "").sort();
+	const names: string[] = [];
+	let at = 0;
+	const skipSpace = () => {
+		while (/\s/.test(message[at] ?? "")) at++;
+	};
+	const word = () => {
+		const start = at;
+		while (/[\w=]/.test(message[at] ?? "")) at++;
+		return message.slice(start, at);
+	};
+	/** Reads message text up to the `}` closing it (a branch) or the end; `{` starts an argument. */
+	const text = () => {
+		while (at < message.length && message[at] !== "}") {
+			if (message[at] === "{") {
+				at++;
+				argument();
+			} else {
+				at++;
+			}
+		}
+	};
+	/** Reads an argument after its `{`, up to and past its `}`. */
+	const argument = () => {
+		skipSpace();
+		names.push(word());
+		skipSpace();
+		if (message[at] === ",") {
+			at++;
+			skipSpace();
+			const type = word();
+			skipSpace();
+			if (type === "select" || type === "plural" || type === "selectordinal") {
+				if (message[at] === ",") at++;
+				for (;;) {
+					skipSpace();
+					if (message[at] === "}" || at >= message.length) break;
+					word();
+					skipSpace();
+					if (message[at] !== "{") break;
+					at++;
+					text();
+					at++;
+				}
+			} else {
+				while (at < message.length && message[at] !== "}") at++;
+			}
+		}
+		if (message[at] === "}") at++;
+	};
+	text();
+	return names.sort();
 }
 
 const english = flatten(await load("en"));
+
+test("every reason a setting can be refused has its wording", () => {
+	const missing = SETTING_RULES.filter((rule) => !english.has(`content.settingProblems.${rule}`));
+	expect(missing).toEqual([]);
+	const extra = [...english.keys()]
+		.filter((key) => key.startsWith("content.settingProblems."))
+		.filter((key) => !(SETTING_RULES as readonly string[]).includes(key.slice("content.settingProblems.".length)));
+	expect(extra).toEqual([]);
+});
 
 describe("admin message files", () => {
 	for (const { code } of ADMIN_LANGUAGES) {

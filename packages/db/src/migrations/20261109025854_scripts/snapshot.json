@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "77f2ad32-769c-41a5-8d5c-1dde7e34a11f",
+  "id": "c4ec0b9a-907b-410f-968b-c06d1d6c0b50",
   "prevIds": [
     "86c06daf-a06c-4a18-9bca-36f7f2ec08c8"
   ],
@@ -12,15 +12,16 @@
       "statementTarget": [
         "table",
         "public",
-        "site_domains"
+        "scripts"
       ],
       "writes": [
-        "s|tbl|public.site_domains",
-        "n|tbl|public.site_domains",
-        "e|tbl|public.site_domains",
-        "n|rel|public.site_domains",
-        "n|type|public.site_domains",
-        "n|rel|public.site_domains_pkey"
+        "s|tbl|public.scripts",
+        "n|tbl|public.scripts",
+        "e|tbl|public.scripts",
+        "n|rel|public.scripts",
+        "n|type|public.scripts",
+        "n|rel|public.scripts_pkey",
+        "n|rel|public.scripts_site_id_kind_entry_id_unique"
       ],
       "reads": [
         "n|sch|public"
@@ -31,19 +32,20 @@
       "statementTarget": [
         "index",
         "public",
-        "site_domains",
-        "site_domains_name_unique"
+        "scripts",
+        "scripts_site_id_published_hash_idx"
       ],
       "writes": [
-        "s|idx|public.site_domains_name_unique",
-        "n|idx|public.site_domains_name_unique",
-        "e|idx|public.site_domains_name_unique",
-        "n|rel|public.site_domains_name_unique"
+        "s|idx|public.scripts_site_id_published_hash_idx",
+        "n|idx|public.scripts_site_id_published_hash_idx",
+        "e|idx|public.scripts_site_id_published_hash_idx",
+        "n|rel|public.scripts_site_id_published_hash_idx"
       ],
       "reads": [
-        "n|tbl|public.site_domains",
+        "n|tbl|public.scripts",
         "n|sch|public",
-        "n|col|public.site_domains.name"
+        "n|col|public.scripts.site_id",
+        "n|col|public.scripts.published_hash"
       ]
     },
     {
@@ -51,60 +53,20 @@
       "statementTarget": [
         "index",
         "public",
-        "site_domains",
-        "site_domains_one_primary"
+        "scripts",
+        "scripts_site_id_draft_hash_idx"
       ],
       "writes": [
-        "s|idx|public.site_domains_one_primary",
-        "n|idx|public.site_domains_one_primary",
-        "e|idx|public.site_domains_one_primary",
-        "n|rel|public.site_domains_one_primary"
+        "s|idx|public.scripts_site_id_draft_hash_idx",
+        "n|idx|public.scripts_site_id_draft_hash_idx",
+        "e|idx|public.scripts_site_id_draft_hash_idx",
+        "n|rel|public.scripts_site_id_draft_hash_idx"
       ],
       "reads": [
-        "n|tbl|public.site_domains",
+        "n|tbl|public.scripts",
         "n|sch|public",
-        "n|col|public.site_domains.site_id"
-      ]
-    },
-    {
-      "statementType": "create_index",
-      "statementTarget": [
-        "index",
-        "public",
-        "site_domains",
-        "site_domains_one_per_language"
-      ],
-      "writes": [
-        "s|idx|public.site_domains_one_per_language",
-        "n|idx|public.site_domains_one_per_language",
-        "e|idx|public.site_domains_one_per_language",
-        "n|rel|public.site_domains_one_per_language"
-      ],
-      "reads": [
-        "n|tbl|public.site_domains",
-        "n|sch|public",
-        "n|col|public.site_domains.site_id",
-        "n|col|public.site_domains.language"
-      ]
-    },
-    {
-      "statementType": "create_index",
-      "statementTarget": [
-        "index",
-        "public",
-        "site_domains",
-        "site_domains_next_check_at_idx"
-      ],
-      "writes": [
-        "s|idx|public.site_domains_next_check_at_idx",
-        "n|idx|public.site_domains_next_check_at_idx",
-        "e|idx|public.site_domains_next_check_at_idx",
-        "n|rel|public.site_domains_next_check_at_idx"
-      ],
-      "reads": [
-        "n|tbl|public.site_domains",
-        "n|sch|public",
-        "n|col|public.site_domains.next_check_at"
+        "n|col|public.scripts.site_id",
+        "n|col|public.scripts.draft_hash"
       ]
     },
     {
@@ -112,21 +74,21 @@
       "statementTarget": [
         "table",
         "public",
-        "site_domains"
+        "scripts"
       ],
       "writes": [
-        "s|fk|public.site_domains.site_domains_site_fkey",
-        "n|fk|public.site_domains.site_domains_site_fkey",
-        "e|fk|public.site_domains.site_domains_site_fkey",
-        "n|con|public.site_domains.site_domains_site_fkey"
+        "s|fk|public.scripts.scripts_site_fkey",
+        "n|fk|public.scripts.scripts_site_fkey",
+        "e|fk|public.scripts.scripts_site_fkey",
+        "n|con|public.scripts.scripts_site_fkey"
       ],
       "reads": [
-        "n|tbl|public.site_domains",
+        "n|tbl|public.scripts",
         "n|sch|public",
         "n|tbl|public.sites",
         "n|sch|public",
-        "n|col|public.site_domains.workspace_id",
-        "n|col|public.site_domains.site_id",
+        "n|col|public.scripts.workspace_id",
+        "n|col|public.scripts.site_id",
         "n|col|public.sites.workspace_id",
         "n|col|public.sites.id",
         "e|uniqueness|public.sites.id.workspace_id"
@@ -137,24 +99,24 @@
       "statementTarget": [
         "table",
         "public",
-        "site_domains"
+        "scripts"
       ],
       "writes": [
-        "s|fk|public.site_domains.site_domains_language_fkey",
-        "n|fk|public.site_domains.site_domains_language_fkey",
-        "e|fk|public.site_domains.site_domains_language_fkey",
-        "n|con|public.site_domains.site_domains_language_fkey"
+        "s|fk|public.scripts.scripts_entry_fkey",
+        "n|fk|public.scripts.scripts_entry_fkey",
+        "e|fk|public.scripts.scripts_entry_fkey",
+        "n|con|public.scripts.scripts_entry_fkey"
       ],
       "reads": [
-        "n|tbl|public.site_domains",
+        "n|tbl|public.scripts",
         "n|sch|public",
-        "n|tbl|public.site_languages",
+        "n|tbl|public.entries",
         "n|sch|public",
-        "n|col|public.site_domains.site_id",
-        "n|col|public.site_domains.language",
-        "n|col|public.site_languages.site_id",
-        "n|col|public.site_languages.code",
-        "e|uniqueness|public.site_languages.code.site_id"
+        "n|col|public.scripts.site_id",
+        "n|col|public.scripts.entry_id",
+        "n|col|public.entries.site_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id.site_id"
       ]
     }
   ],
@@ -163,7 +125,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "name": "site_domains",
+        "name": "scripts",
         "isRlsEnabled": false,
         "entityType": "tables"
       }
@@ -172,7 +134,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
+        "table": "scripts",
         "name": "id",
         "type": "uuid",
         "typeSchema": null,
@@ -188,7 +150,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
+        "table": "scripts",
         "name": "workspace_id",
         "type": "uuid",
         "typeSchema": null,
@@ -204,7 +166,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
+        "table": "scripts",
         "name": "site_id",
         "type": "uuid",
         "typeSchema": null,
@@ -220,8 +182,8 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "name",
+        "table": "scripts",
+        "name": "kind",
         "type": "text",
         "typeSchema": null,
         "notNull": true,
@@ -236,8 +198,24 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "role",
+        "table": "scripts",
+        "name": "entry_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "draft",
         "type": "text",
         "typeSchema": null,
         "notNull": true,
@@ -252,8 +230,24 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "language",
+        "table": "scripts",
+        "name": "draft_hash",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "published",
         "type": "text",
         "typeSchema": null,
         "notNull": false,
@@ -268,72 +262,8 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "verified_at",
-        "type": "timestamp with time zone",
-        "typeSchema": null,
-        "notNull": false,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
-        "name": "verify_started_at",
-        "type": "timestamp with time zone",
-        "typeSchema": null,
-        "notNull": false,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
-        "name": "next_check_at",
-        "type": "timestamp with time zone",
-        "typeSchema": null,
-        "notNull": false,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
-        "name": "last_checked_at",
-        "type": "timestamp with time zone",
-        "typeSchema": null,
-        "notNull": false,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
-        "name": "last_problem",
+        "table": "scripts",
+        "name": "published_hash",
         "type": "text",
         "typeSchema": null,
         "notNull": false,
@@ -348,39 +278,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "unreachable_since",
-        "type": "timestamp with time zone",
-        "typeSchema": null,
-        "notNull": false,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
-        "name": "certificate_expires_at",
-        "type": "timestamp with time zone",
-        "typeSchema": null,
-        "notNull": false,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
+        "table": "scripts",
         "name": "created_at",
         "type": "timestamp with time zone",
         "typeSchema": null,
@@ -396,56 +294,56 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "site_domains_name_unique",
-        "nameExplicit": true,
-        "columns": [
-          {
-            "value": "name",
-            "isExpression": false,
-            "asc": true,
-            "nullsFirst": false,
-            "opclass": null
-          }
-        ],
-        "isUnique": true,
-        "where": null,
-        "with": "",
-        "method": "btree",
-        "concurrently": false,
-        "entityType": "indexes"
+        "table": "scripts",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
       }
     },
     {
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "site_domains_one_primary",
-        "nameExplicit": true,
-        "columns": [
-          {
-            "value": "site_id",
-            "isExpression": false,
-            "asc": true,
-            "nullsFirst": false,
-            "opclass": null
-          }
-        ],
-        "isUnique": true,
-        "where": "\"role\" = 'primary'",
-        "with": "",
-        "method": "btree",
-        "concurrently": false,
-        "entityType": "indexes"
+        "table": "scripts",
+        "name": "published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
       }
     },
     {
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "site_domains_one_per_language",
+        "table": "scripts",
+        "name": "last_published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "scripts_site_id_published_hash_idx",
         "nameExplicit": true,
         "columns": [
           {
@@ -456,31 +354,7 @@
             "opclass": null
           },
           {
-            "value": "language",
-            "isExpression": false,
-            "asc": true,
-            "nullsFirst": false,
-            "opclass": null
-          }
-        ],
-        "isUnique": true,
-        "where": null,
-        "with": "",
-        "method": "btree",
-        "concurrently": false,
-        "entityType": "indexes"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_domains",
-        "name": "site_domains_next_check_at_idx",
-        "nameExplicit": true,
-        "columns": [
-          {
-            "value": "next_check_at",
+            "value": "published_hash",
             "isExpression": false,
             "asc": true,
             "nullsFirst": false,
@@ -499,8 +373,39 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "site_domains_site_fkey",
+        "table": "scripts",
+        "name": "scripts_site_id_draft_hash_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "draft_hash",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "scripts_site_fkey",
         "nameExplicit": true,
         "columns": [
           "workspace_id",
@@ -521,18 +426,18 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "site_domains_language_fkey",
+        "table": "scripts",
+        "name": "scripts_entry_fkey",
         "nameExplicit": true,
         "columns": [
           "site_id",
-          "language"
+          "entry_id"
         ],
         "schemaTo": "public",
-        "tableTo": "site_languages",
+        "tableTo": "entries",
         "columnsTo": [
           "site_id",
-          "code"
+          "id"
         ],
         "onUpdate": "NO ACTION",
         "onDelete": "CASCADE",
@@ -543,13 +448,29 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_domains",
-        "name": "site_domains_pkey",
+        "table": "scripts",
+        "name": "scripts_pkey",
         "columns": [
           "id"
         ],
         "nameExplicit": false,
         "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "scripts_site_id_kind_entry_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "kind",
+          "entry_id"
+        ],
+        "nullsNotDistinct": true,
+        "entityType": "uniques"
       }
     }
   ]

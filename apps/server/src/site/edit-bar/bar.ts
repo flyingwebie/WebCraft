@@ -24,6 +24,7 @@ export function editingBar(config: EditingBarConfig): void {
 	type State = {
 		page: { title: string; path: string; item: string | null };
 		canPublish: boolean;
+		canCode: boolean;
 		changes: Change[];
 		publishAll: { url: string; otherDrafts: number };
 		pages: { title: string; path: string }[];
@@ -49,6 +50,9 @@ export function editingBar(config: EditingBarConfig): void {
 	const path = win.location.pathname;
 	const SVG = "http://www.w3.org/2000/svg";
 	const HINT_KEY = "webcraft-edit-hint";
+	const PREVIEW_KEY = "webcraft-edit-preview";
+	/** Whether the page was rendered for Code mode (ADR 0016): its own script then runs its panels. */
+	const coding = doc.querySelector('meta[name="webcraft-code-mode"]')?.getAttribute("content") === "on";
 	/** Lucide-style icons (24 × 24, stroked), by name. */
 	const ICONS: Record<string, string[]> = {
 		edit: [
@@ -59,6 +63,7 @@ export function editingBar(config: EditingBarConfig): void {
 			"M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0",
 			"M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6",
 		],
+		code: ["m18 16 4-4-4-4", "m6 8-4 4 4 4", "m14.5 4-5 16"],
 		desktop: ["M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M8 21h8", "M12 17v4"],
 		tablet: ["M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M12 18h.01"],
 		phone: ["M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M12 18h.01"],
@@ -275,13 +280,47 @@ export function editingBar(config: EditingBarConfig): void {
 		const modePreview = button({ class: "segment", "aria-pressed": "false" }, icon("preview"), word("preview"));
 		const modes = el("div", { class: "segments", role: "group", "aria-label": word("modes") }, modeEdit, modePreview);
 		const setMode = (on: boolean) => {
-			editing = on && !ended;
+			editing = on && !ended && !coding;
 			modeEdit.setAttribute("aria-pressed", String(editing));
-			modePreview.setAttribute("aria-pressed", String(!editing));
+			modePreview.setAttribute("aria-pressed", String(!editing && !coding));
 			applyMode();
 		};
-		modeEdit.addEventListener("click", () => setMode(true));
-		modePreview.addEventListener("click", () => setMode(false));
+		// Code mode (ADR 0016) is Staff's: turning it on or off renders the page again, with the Drafts
+		// of the Site's Structure or without them.
+		const switchCode = async (on: boolean, preview = false) => {
+			const answer = await call(on ? "code/start" : "code/stop", {});
+			if (!answer.ok) return;
+			try {
+				if (preview) win.sessionStorage.setItem(PREVIEW_KEY, "on");
+			} catch {
+				// Without storage the page opens in Edit.
+			}
+			win.location.reload();
+		};
+		modeEdit.addEventListener("click", () => (coding ? void switchCode(false) : setMode(true)));
+		modePreview.addEventListener("click", () => (coding ? void switchCode(false, true) : setMode(false)));
+		if (s.canCode || coding) {
+			const modeCode = button({ class: "segment", "aria-pressed": String(coding) }, icon("code"), word("codeButton"));
+			modeCode.addEventListener("click", () => {
+				if (!coding) void switchCode(true);
+			});
+			modes.append(modeCode);
+		}
+		if (coding) {
+			// In Code mode a click selects an element instead: nothing is edited in place.
+			editing = false;
+			modeEdit.setAttribute("aria-pressed", "false");
+			modePreview.setAttribute("aria-pressed", "false");
+		} else {
+			try {
+				if (win.sessionStorage.getItem(PREVIEW_KEY) === "on") {
+					win.sessionStorage.removeItem(PREVIEW_KEY);
+					later(() => setMode(false), 0);
+				}
+			} catch {
+				// Nothing kept: the page opens in Edit.
+			}
+		}
 
 		const devices = el("div", { class: "segments devices optional", role: "group", "aria-label": word("devices") });
 		for (const device of ["desktop", "tablet", "phone"] as const) {
@@ -460,6 +499,8 @@ export function editingBar(config: EditingBarConfig): void {
 	}
 
 	function buildHint(): HTMLElement | null {
+		// Code mode's panels say how to start there.
+		if (coding) return null;
 		try {
 			if (win.localStorage.getItem(HINT_KEY) === "seen") return null;
 		} catch {
