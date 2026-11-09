@@ -4,10 +4,39 @@
  * archive is read in memory (the guarded fetcher limits its size).
  */
 
-/** The bytes of a gzipped archive, unpacked. */
-export async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
-	const stream = new Blob([bytes as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("gzip"));
-	return new Uint8Array(await new Response(stream).arrayBuffer());
+/** An archive unpacks to more than may be read. */
+export class ArchiveTooLargeError extends Error {
+	override name = "ArchiveTooLargeError";
+}
+
+/**
+ * The bytes of a gzipped archive, unpacked, at most `maxBytes` of them (`ArchiveTooLargeError`
+ * beyond): a small archive can unpack to far more than it weighs.
+ */
+export async function gunzip(bytes: Uint8Array, maxBytes: number): Promise<Uint8Array> {
+	const reader = new Blob([bytes as Uint8Array<ArrayBuffer>])
+		.stream()
+		.pipeThrough(new DecompressionStream("gzip"))
+		.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		total += value.byteLength;
+		if (total > maxBytes) {
+			await reader.cancel();
+			throw new ArchiveTooLargeError(`The archive unpacks to more than ${maxBytes} bytes.`);
+		}
+		chunks.push(value);
+	}
+	const unpacked = new Uint8Array(total);
+	let at = 0;
+	for (const chunk of chunks) {
+		unpacked.set(chunk, at);
+		at += chunk.byteLength;
+	}
+	return unpacked;
 }
 
 /** A file of an archive: its path, as stored, and its bytes. */

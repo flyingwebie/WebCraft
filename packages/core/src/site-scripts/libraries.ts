@@ -33,6 +33,7 @@ import {
 	readVersion,
 } from "./npm.ts";
 import { retiredLibrary, retireLibraryFile, unretireLibraryFile } from "./retired.ts";
+import { lockSite } from "./site-lock.ts";
 import { outsideAddress } from "./snippets.ts";
 
 /** Where every Site serves its Libraries: `/_wc/lib/<hash>-<file name>`. */
@@ -134,10 +135,14 @@ export async function listLibraries(scope: SiteScope): Promise<Library[]> {
  * Refuses what can't be one (`LibraryRefusedError`, with the problem).
  */
 export async function addLibrary(scope: SiteScope, deps: LibraryDeps, input: LibraryInput): Promise<Library> {
+	// Checked before downloading, so a full Site is refused at once, and again under the Site's lock,
+	// since another add may have finished meanwhile.
 	if ((await scope.count(libraries)) >= LIBRARIES_PER_SITE) throw new LibraryRefusedError("limit");
 	const download = await downloadLibrary(deps.fetch, input);
 	const file = await keep(scope, deps.storage, download.bytes, download.fileName);
 	return scope.transaction(async (tx) => {
+		await lockSite(tx);
+		if ((await tx.count(libraries)) >= LIBRARIES_PER_SITE) throw new LibraryRefusedError("limit");
 		const [last] = await tx.select(libraries, undefined, { orderBy: [sql`${libraries.position} desc`], limit: 1 });
 		const now = tx.now();
 		const row = await tx.insert(libraries, {

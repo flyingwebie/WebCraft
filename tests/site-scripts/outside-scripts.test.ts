@@ -3,6 +3,7 @@
 // file the Site serves under its hash, never inline (ADR 0023); the hosts they load from are allowed
 // by themselves. They never run in Edit mode, which shows a labelled placeholder for each instead.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { ALLOWED_HOSTS_PER_SITE } from "@webcraft/core";
 
 import { headOf } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
@@ -187,6 +188,28 @@ describe("outside scripts on visitors' pages", () => {
 			}),
 		).rejects.toMatchObject({ code: "OUTSIDE_SCRIPT_INVALID" });
 		expect((await staff.api.outsideScripts.list({ siteId: site.siteId })).outsideScripts).toEqual([]);
+	});
+});
+
+describe("the Site's allowed hosts", () => {
+	test("a snippet whose code reaches more hosts than a Site may allow is refused, and nothing is kept", async () => {
+		const site = await newSite();
+		const loads = Array.from(
+			{ length: ALLOWED_HOSTS_PER_SITE + 1 },
+			(_, index) => `load("https://cdn-${index}.example.com/a.js");`,
+		);
+
+		await expect(
+			staff.api.outsideScripts.add({
+				siteId: site.siteId,
+				name: "Many hosts",
+				placement: "head",
+				consentCategory: "marketing",
+				source: { kind: "snippet", snippet: `<script>${loads.join("\n")}</script>` },
+			}),
+		).rejects.toMatchObject({ code: "TOO_MANY_HOSTS" });
+		expect((await staff.api.outsideScripts.list({ siteId: site.siteId })).outsideScripts).toEqual([]);
+		expect(JSON.stringify([...policyOf(await install.request(site.url("/")))])).not.toContain("cdn-0.example.com");
 	});
 });
 

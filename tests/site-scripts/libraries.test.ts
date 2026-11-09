@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { LIBRARIES_PER_SITE, LIBRARY_ARCHIVE_UNPACKED_MAX_BYTES } from "@webcraft/core";
 
 import { headOf } from "../harness/code-mode.ts";
 import { fakeNpmPackage, integrityOf, NPM_HOST } from "../harness/fake-npm.ts";
@@ -226,6 +227,61 @@ describe("adding a Library by address", () => {
 		await expect(
 			staff.api.libraries.add({ siteId: site.siteId, library: { source: "url", url: "http://cdn.example.org/a.js" } }),
 		).rejects.toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "url" } });
+	});
+});
+
+describe("a Site's Libraries", () => {
+	test("two added at once never take a Site past its limit", async () => {
+		const site = await newSite();
+		install.dns.answer("libs.example.org", ["93.184.215.20"]);
+		install.http.respond("GET", /^https:\/\/libs\.example\.org\/lib-\d+\.js$/, (request) => ({
+			body: `window.lib = ${JSON.stringify(new URL(request.url).pathname)};`,
+		}));
+		const add = (index: number) =>
+			staff.api.libraries.add({
+				siteId: site.siteId,
+				library: { source: "url", url: `https://libs.example.org/lib-${index}.js` },
+			});
+		for (let index = 0; index < LIBRARIES_PER_SITE - 1; index++) await add(index);
+		// The last two downloads answer only once both have started, so both adds are under way at once.
+		let started = 0;
+		let bothStarted: () => void = () => {};
+		const together = new Promise<void>((resolve) => {
+			bothStarted = resolve;
+		});
+		install.http.respond("GET", /^https:\/\/libs\.example\.org\/last-\d+\.js$/, async (request) => {
+			if (++started === 2) bothStarted();
+			await together;
+			return { body: `window.last = ${JSON.stringify(new URL(request.url).pathname)};` };
+		});
+		const last = (index: number) =>
+			staff.api.libraries.add({
+				siteId: site.siteId,
+				library: { source: "url", url: `https://libs.example.org/last-${index}.js` },
+			});
+
+		const results = await Promise.allSettled([last(1), last(2)]);
+
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		expect(results.find((result) => result.status === "rejected")).toMatchObject({
+			reason: { code: "LIBRARY_REFUSED", data: { problem: "limit" } },
+		});
+		expect((await staff.api.libraries.list({ siteId: site.siteId })).libraries).toHaveLength(LIBRARIES_PER_SITE);
+	});
+
+	test("a package whose archive unpacks to more than WebCraft reads is refused, however small it is", async () => {
+		const site = await newSite();
+		fakeNpmPackage(install, "padded-kit", {
+			"1.0.0": { files: { "index.js": "ok()", "padding.txt": "0".repeat(LIBRARY_ARCHIVE_UNPACKED_MAX_BYTES) } },
+		});
+
+		await expect(
+			staff.api.libraries.add({
+				siteId: site.siteId,
+				library: { source: "npm", packageName: "padded-kit", version: "1.0.0" },
+			}),
+		).rejects.toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "size" } });
+		expect((await staff.api.libraries.list({ siteId: site.siteId })).libraries).toEqual([]);
 	});
 });
 

@@ -143,3 +143,6 @@ export function editModePolicy(hosts: readonly string[] = []): string {
 		"frame-ancestors 'none'",
 	].join("; ");
 }
+
+/** How many allowed hosts a Site holds at most, those Staff add and those its outside scripts need. */
+export const ALLOWED_HOSTS_PER_SITE = 100;

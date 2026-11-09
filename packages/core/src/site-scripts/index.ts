@@ -32,18 +32,13 @@ import {
 } from "./outside-scripts.ts";
 import type { CspMode } from "./policy.ts";
 
-export {
-	ALLOWED_HOSTS_PER_SITE,
-	type AllowedHost,
-	type CspSettings,
-	type ModuleOutsideHost,
-	TooManyHostsError,
-} from "./csp.ts";
+export type { AllowedHost, CspSettings, ModuleOutsideHost } from "./csp.ts";
 export {
 	LibraryNotFoundError,
 	type LibraryProblem,
 	LibraryRefusedError,
 	OutsideScriptNotFoundError,
+	TooManyHostsError,
 } from "./errors.ts";
 export {
 	LIBRARIES_PER_SITE,
@@ -53,7 +48,7 @@ export {
 	type LibraryFile,
 	type LibraryInput,
 } from "./libraries.ts";
-export { NPM_REGISTRY } from "./npm.ts";
+export { LIBRARY_ARCHIVE_UNPACKED_MAX_BYTES, NPM_REGISTRY } from "./npm.ts";
 export {
 	CONSENT_CATEGORIES,
 	OUTSIDE_SCRIPT_NAME_MAX_LENGTH,
@@ -64,6 +59,7 @@ export {
 	type OutsideScriptPlacement,
 } from "./outside-scripts.ts";
 export {
+	ALLOWED_HOSTS_PER_SITE,
 	CSP_MODES,
 	type CspMode,
 	editModePolicy,

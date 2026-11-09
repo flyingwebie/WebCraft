@@ -8,11 +8,10 @@ import { and, asc, eq } from "drizzle-orm";
 
 import { clearPageCache } from "../content/page-cache.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { TooManyHostsError } from "./errors.ts";
 import { hostUses } from "./outside-scripts.ts";
-import { type CspMode, isCspMode, readHost } from "./policy.ts";
-
-/** How many allowed hosts a Site holds at most. */
-export const ALLOWED_HOSTS_PER_SITE = 100;
+import { ALLOWED_HOSTS_PER_SITE, type CspMode, isCspMode, readHost } from "./policy.ts";
+import { lockSite } from "./site-lock.ts";
 
 /** One of a Site's allowed hosts: how it got there, and the outside scripts that need it. */
 export type AllowedHost = { host: string; source: "hand" | "auto"; usedBy: { id: string; name: string }[] };
@@ -95,23 +94,7 @@ export async function removeAllowedHost(scope: SiteScope, input: string): Promis
 	});
 }
 
-async function lockSite(scope: SiteScope): Promise<void> {
-	await scope.db
-		.select({ id: sites.id })
-		.from(sites)
-		.where(and(eq(sites.id, scope.site.id), eq(sites.workspaceId, scope.site.workspaceId)))
-		.for("update");
-}
-
 /** The Site's allowed hosts as its policy names them. */
 export async function siteAllowedHosts(scope: Pick<VisitorScope, "select">): Promise<string[]> {
 	return (await scope.select(allowedHosts)).map((row) => row.host);
-}
-
-/** A Site holds as many allowed hosts as it may. */
-export class TooManyHostsError extends Error {
-	override name = "TooManyHostsError";
-	constructor() {
-		super(`A Site allows at most ${ALLOWED_HOSTS_PER_SITE} hosts.`);
-	}
 }
