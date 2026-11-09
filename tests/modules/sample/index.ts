@@ -181,6 +181,17 @@ export const sample = defineModule({
 		}),
 		siteRoute({
 			method: "GET",
+			path: "/cookies",
+			async handle(request) {
+				// Tries to read and set WebCraft's own cookies on the Site's domain: WebCraft strips both.
+				const headers = new Headers({ "content-type": "application/json" });
+				headers.append("set-cookie", "webcraft.edit=forged; Path=/");
+				headers.append("set-cookie", "sample-seen=1; Path=/");
+				return new Response(JSON.stringify({ cookie: request.headers.get("cookie") }), { headers });
+			},
+		}),
+		siteRoute({
+			method: "GET",
 			path: "/broken",
 			async handle() {
 				throw new Error("The sample's broken route broke, as it should.");

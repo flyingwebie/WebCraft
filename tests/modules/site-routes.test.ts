@@ -92,6 +92,17 @@ describe("a Module's Site routes", () => {
 		expect([undeclared.status, await undeclared.text()]).toEqual([404, "Not Found"]);
 	});
 
+	test("never see or set WebCraft's own cookies", async () => {
+		const site = await newSite();
+
+		const answer = await install.request(site.url("/_wc/m/sample/cookies"), {
+			headers: { cookie: "webcraft.edit=secret; __Secure-webcraft.session_token=also-secret; theme=dark" },
+		});
+
+		expect(await answer.json()).toEqual({ cookie: "theme=dark" });
+		expect(answer.headers.getSetCookie()).toEqual(["sample-seen=1; Path=/"]);
+	});
+
 	test("that fail answer a plain 500 and leave the reason in the Module log", async () => {
 		const site = await newSite();
 
