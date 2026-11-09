@@ -401,7 +401,7 @@ export async function createInstallServices(
 			count: countDrafts,
 			publishAll: (scope, items, confirmation) => publishAll(scope, items, confirmation, componentSources),
 		},
-		history: createHistory({ database }),
+		history: createHistory({ database, componentSources }),
 		sitePages,
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),

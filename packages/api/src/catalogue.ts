@@ -239,6 +239,9 @@ export const PROCEDURES = {
 	"history.list": read(
 		"One page of an item's history: the Revisions its publishes saved and the Checkpoints of its Draft, newest first.",
 	),
+	"history.compare": read(
+		"A Revision or Checkpoint next to the item's Draft: what differs, in each language, and who changed it last.",
+	),
 	"history.get": read("One Revision or Checkpoint of an item, with the whole version it holds in every language."),
 	"history.leave": internal(),
 	"media.list": read("Lists files of the Site's Media library, or its Trash."),

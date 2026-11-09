@@ -2,6 +2,7 @@ import { HISTORY_PAGE, historyReadPermission } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
+import { language } from "../fields.ts";
 import { id, publishItem } from "../inputs.ts";
 
 /** One saved copy of an item: a Revision or a Checkpoint, by id. */
@@ -31,6 +32,20 @@ export const history = {
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, historyReadPermission(input.item));
 			return await context.services.history.list(site, input.item, { cursor: input.cursor, limit: input.limit });
+		}),
+
+	/**
+	 * A Revision or Checkpoint next to the item's Draft, part by part: an Entry's built-in values and
+	 * Fields (the Globals' and the Consent banner's Fields) in one `language` (the Site's Default language
+	 * unless given), a Structure item's sections. Each part says whether it differs, how each side reads
+	 * (a Body Block by Block, markup and settings line by line) and who changed the Draft's value last and
+	 * when ("<person> via <client>" for an API or AI client). `languages` counts the differences in each.
+	 */
+	compare: signedIn
+		.input(z.object({ siteId: id, item: publishItem, copy: copyRef, language: language.optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, historyReadPermission(input.item));
+			return await context.services.history.compare(site, input.item, input.copy, input.language);
 		}),
 
 	/** One Revision or Checkpoint with the whole version it holds, every language included, as the item stores it. */
