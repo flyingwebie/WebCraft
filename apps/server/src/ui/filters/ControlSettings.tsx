@@ -13,9 +13,9 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
-import { Announcer } from "../content/reorder.tsx";
+import { Announcer, moveItem } from "../content/reorder.tsx";
 import { type MessageKey, useT } from "../i18n.tsx";
-import { type FilterProblem, type FilterSources, keyFrom, moveItem, optionalText } from "./model.ts";
+import { type FilterProblem, type FilterSources, keyFrom, optionalText } from "./model.ts";
 import { Segmented } from "./Segmented.tsx";
 
 /**
