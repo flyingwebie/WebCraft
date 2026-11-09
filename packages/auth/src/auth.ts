@@ -1,9 +1,12 @@
 import type { Database, Transaction } from "@webcraft/db";
 import { credentials, people, sessions, verifications } from "@webcraft/db/schema";
-import { betterAuth } from "better-auth";
+import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthEndpoint } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
 import { and, desc, eq, gt, ne } from "drizzle-orm";
+import * as z from "zod";
+
 import { type AccountLock, AccountLockedError, createLockout } from "./lockout.ts";
 import {
 	assertNewPasswordAllowed,
@@ -14,6 +17,29 @@ import {
 	verifyPassword,
 } from "./passwords.ts";
 import { createPerson, type NewPerson, normaliseEmail, PASSWORD_PROVIDER } from "./people.ts";
+import { SignInExpiredError, TwoFactorCodeInvalidError } from "./two-factor/errors.ts";
+import { createPasskeyStore } from "./two-factor/passkeys.ts";
+import { base64url, createPendingSignIns } from "./two-factor/pending.ts";
+import {
+	type AlsoInTransaction,
+	createSecondFactorStore,
+	type FactorChange,
+	type PasskeySummary,
+	type SecondFactorKeys,
+	type SecondFactorSummary,
+	type SecondStepMethod,
+} from "./two-factor/second-factors.ts";
+import {
+	type AssertionCredential,
+	challengeOf,
+	creationOptions,
+	PasskeyInvalidError,
+	type RegistrationCredential,
+	type RelyingParty,
+	requestOptions,
+	verifyAssertion,
+	verifyRegistration,
+} from "./two-factor/webauthn.ts";
 
 /** Sessions end after this long without being used. */
 export const SESSION_IDLE_LIMIT_MS = 7 * 24 * 60 * 60 * 1000;
@@ -48,7 +74,27 @@ export type AuthOptions = {
 	 * told and the lock recorded there. A failure here is logged; the account stays locked.
 	 */
 	onAccountLocked?: (lock: AccountLock) => Promise<void>;
+	/** Where authenticator secrets are kept and how backup codes are hashed (see `SecondFactorKeys`). */
+	secondFactorKeys: SecondFactorKeys;
 };
+
+/**
+ * What a right email and password lead to: a session (`personId`), or, for a person with a second
+ * factor, the second step (`secondStep`, the ways they can take it). Either way `setCookie` holds
+ * what the browser keeps: the session cookie, or the cookie that ties the second step to it.
+ */
+export type SignInResult =
+	| { personId: string; secondStep: null; setCookie: string[] }
+	| { personId: null; secondStep: { methods: SecondStepMethod[] }; setCookie: string[] };
+
+/** How a person proves who they are again, for Sensitive actions: their password, authenticator app or a passkey. */
+export type IdentityProof = { password: string } | { authenticatorCode: string } | { passkey: AssertionCredential };
+
+/** Registration options for `navigator.credentials.create`, as JSON. */
+export type PasskeyCreationOptions = ReturnType<typeof creationOptions>;
+
+/** Options for `navigator.credentials.get`, as JSON. */
+export type PasskeyRequestOptions = ReturnType<typeof requestOptions>;
 
 /** A signed-in session, as WebCraft sees it. */
 export type Session = {
@@ -97,10 +143,18 @@ export type Auth = {
 	 * the account is locked (and when this wrong password locks it), so the answer never tells which
 	 * addresses have an account.
 	 */
-	signIn(
-		input: { email: string; password: string },
+	signIn(input: { email: string; password: string }, request: AuthRequest): Promise<SignInResult>;
+	/**
+	 * The second step of signing in, in the browser a right password started it in (within 5
+	 * minutes): a code from the person's authenticator app, or one of their backup codes, which is
+	 * then used up. Starts the session. Throws `SignInExpiredError` without a waiting sign-in,
+	 * `TwoFactorCodeInvalidError` for a wrong code (which counts towards the lockout, like a wrong
+	 * password) and `AccountLockedError` when the account is locked (the person knows the password).
+	 */
+	secondStep(
+		input: { method: "authenticator" | "backupCode"; code: string },
 		request: AuthRequest,
-	): Promise<{ personId: string; setCookie: string[] }>;
+	): Promise<{ personId: string; method: "authenticator" | "backupCode"; setCookie: string[] }>;
 	/**
 	 * The session a request carries, or null. A session unused for 7 days, or started more than 30
 	 * days ago, has ended: it is deleted and `setCookie` clears the cookie. A session in use is
@@ -124,7 +178,7 @@ export type Auth = {
 	 */
 	confirmIdentity(
 		session: Session,
-		proof: { password: string },
+		proof: IdentityProof,
 		request: Pick<AuthRequest, "clientAddress">,
 	): Promise<{ identityCheckedAt: Date }>;
 	/** The person's sessions that haven't ended, most recently used first. */
@@ -145,11 +199,153 @@ export type Auth = {
 	): Promise<{ signedOutSessions: number }>;
 	/** Creates a person who signs in with an email and password, inside the caller's transaction. */
 	createPerson(tx: Transaction, person: NewPerson): Promise<{ personId: string }>;
+
+	/** The person's second factors and how many backup codes they have left. */
+	secondFactors(personId: string): Promise<SecondFactorSummary>;
+	/** Whether the person has a second factor: an authenticator app or a passkey. */
+	hasSecondFactor(personId: string): Promise<boolean>;
+	/**
+	 * Starts adding an authenticator app: a new secret, shown to the person (as text and as the
+	 * address in a QR code) and kept until a code from the app confirms it. Throws
+	 * `AuthenticatorExistsError` when they have one.
+	 */
+	startAuthenticator(
+		personId: string,
+		label: { issuer: string; accountName: string },
+	): Promise<{ secret: string; uri: string }>;
+	/**
+	 * Adds the authenticator app being added once `code` comes from it (`TwoFactorCodeInvalidError`
+	 * otherwise), and ends every other session of the person. Answers the backup codes, made when it
+	 * is their first second factor (null otherwise). `also` runs in the same transaction.
+	 */
+	confirmAuthenticator(
+		session: Session,
+		code: string,
+		also?: AlsoInTransaction<FactorChange>,
+	): Promise<FactorChange & { backupCodes: string[] | null }>;
+	/**
+	 * Removes the person's authenticator app and ends their other sessions; their backup codes go
+	 * too when it was their last second factor. `also` runs in the same transaction.
+	 */
+	removeAuthenticator(
+		session: Session,
+		also?: AlsoInTransaction<FactorChange & { last: boolean }>,
+	): Promise<FactorChange & { last: boolean }>;
+	/**
+	 * Starts adding a passkey: options for the person's device, with the admin's hostname as the
+	 * relying party (`rpName` is what the device shows), their passkeys excluded, user verification
+	 * required and no attestation asked for.
+	 */
+	passkeyRegistrationOptions(
+		personId: string,
+		user: { name: string; displayName: string },
+		rpName: string,
+	): Promise<PasskeyCreationOptions>;
+	/**
+	 * Adds the passkey the device made for those options (`PasskeyInvalidError` when its answer
+	 * doesn't check out), ends every other session of the person, and answers their backup codes when
+	 * it is their first second factor. `also` runs in the same transaction.
+	 */
+	addPasskey(
+		session: Session,
+		credential: RegistrationCredential,
+		name: string,
+		also?: AlsoInTransaction<FactorChange>,
+	): Promise<FactorChange & { passkey: PasskeySummary; backupCodes: string[] | null }>;
+	/** Removes one of the person's passkeys and ends their other sessions (`SecondFactorNotFoundError` for any other). */
+	removePasskey(
+		session: Session,
+		passkeyId: string,
+		also?: AlsoInTransaction<FactorChange & { last: boolean; name: string }>,
+	): Promise<FactorChange & { last: boolean; name: string }>;
+	/**
+	 * Options for signing in with a passkey. After a right password in this browser (the second
+	 * step) they list that person's passkeys; otherwise none, and the device offers its own.
+	 */
+	passkeySignInOptions(request: AuthRequest): Promise<PasskeyRequestOptions>;
+	/**
+	 * Signs in with a passkey: it counts as both factors, as the device verified the person. Ends a
+	 * waiting second step. Throws `PasskeyInvalidError` when the answer doesn't check out (an unknown
+	 * passkey, another hostname or page, no user verification, a used challenge, a signature count
+	 * that went backwards) and `AccountLockedError` while the account is locked.
+	 */
+	signInWithPasskey(
+		credential: AssertionCredential,
+		request: AuthRequest,
+	): Promise<{ personId: string; setCookie: string[] }>;
+	/** Options for confirming who the person is with one of their passkeys. */
+	identityPasskeyOptions(session: Session): Promise<PasskeyRequestOptions>;
+	/** Replaces the person's backup codes with 10 new ones, answered once. */
+	regenerateBackupCodes(personId: string, also?: AlsoInTransaction<undefined>): Promise<string[]>;
+	/**
+	 * Removes every second factor of a person (a reset: by the Superadmin, their Staff, or the
+	 * server's `reset-2fa` command), ends all their sessions and lifts a lock on their account.
+	 */
+	resetSecondFactors(
+		personId: string,
+		also?: AlsoInTransaction<{ authenticator: boolean; passkeys: number; signedOutSessions: number }>,
+	): Promise<{ authenticator: boolean; passkeys: number; signedOutSessions: number }>;
 };
 
 export function createAuth(options: AuthOptions): Auth {
 	const { database, clock, log } = options;
 	const library = createLibrary(options);
+	const secure = new URL(options.adminOrigin).protocol === "https:";
+	const factors = createSecondFactorStore({ database, clock, keys: options.secondFactorKeys });
+	const pending = createPendingSignIns({ database, clock, secure });
+	const passkeys = createPasskeyStore({ database, clock });
+	const adminUrl = new URL(options.adminOrigin);
+	const relyingParty = (name = "WebCraft"): RelyingParty => ({ id: adminUrl.hostname, origin: adminUrl.origin, name });
+
+	/** Logs why a passkey was refused (people see one plain message), and refuses it. */
+	const refusePasskey = (error: PasskeyInvalidError): never => {
+		log.warn("A passkey was refused", { reason: error.reason, during: error.during });
+		throw error;
+	};
+
+	/**
+	 * Checks an assertion: its challenge (given for `purpose`, and to `personId` when it names one),
+	 * the stored passkey it names, its signature and count; records the use and answers the passkey.
+	 */
+	const checkAssertion = async (
+		credential: AssertionCredential,
+		purpose: "sign-in" | "identity",
+		personId: string | null,
+	) => {
+		const refuse = (reason: string) => refusePasskey(new PasskeyInvalidError(reason, purpose));
+		const challenge = challengeOf(credential.response.clientDataJSON);
+		if (!challenge) return refuse("no challenge in the client data");
+		const given = await passkeys.takeChallenge(challenge, purpose);
+		if (!given) return refuse("challenge unknown, used or expired");
+		const stored = await passkeys.byCredentialId(credential.rawId);
+		if (!stored) return refuse("no such passkey");
+		const owner = personId ?? given.personId;
+		if ((given.personId && given.personId !== stored.personId) || (owner && owner !== stored.personId)) {
+			return refuse("another person's passkey");
+		}
+		const handle = credential.response.userHandle;
+		if (handle && handle !== base64url(new TextEncoder().encode(stored.personId))) return refuse("user handle differs");
+		await lockout.assertUnlocked(stored.personId);
+		try {
+			const use = await verifyAssertion(credential, { challenge, rp: relyingParty(), during: purpose }, stored);
+			if (!(await passkeys.recordUse(stored, use))) return refuse("used meanwhile");
+		} catch (error) {
+			if (error instanceof PasskeyInvalidError) return refusePasskey(error);
+			throw error;
+		}
+		return stored;
+	};
+
+	/** Starts a session for a person who proved who they are, recording the address WebCraft saw. */
+	const startSession = async (personId: string, { headers, clientAddress }: AuthRequest) => {
+		const { headers: answer, response } = await library.api.startSessionFor({
+			body: { personId },
+			headers,
+			returnHeaders: true,
+		});
+		await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, response.token));
+		return answer.getSetCookie();
+	};
 	const lockout = createLockout({
 		database,
 		clock,
@@ -185,6 +381,18 @@ export function createAuth(options: AuthOptions): Auth {
 					throw new InvalidCredentialsError();
 				}
 			}
+			const methods = person ? await factors.secondStepMethods(person.id) : [];
+			if (person && methods.length > 0) {
+				if (!(await passwordMatches(database, person.id, password))) {
+					await lockout.recordFailure(person.id, clientAddress).catch((lockError: unknown) => {
+						if (!(lockError instanceof AccountLockedError)) throw lockError;
+					});
+					throw new InvalidCredentialsError();
+				}
+				// The count of wrong attempts goes on until the second step is right too, so a guesser who
+				// knows the password can't start it again by signing in between wrong codes.
+				return { personId: null, secondStep: { methods }, setCookie: [await pending.start(person.id)] };
+			}
 			try {
 				const { headers: answer, response } = await library.api.signInEmail({
 					body: { email: email.trim(), password },
@@ -194,7 +402,7 @@ export function createAuth(options: AuthOptions): Auth {
 				// The library would read the address from headers any client can send; WebCraft's own is used.
 				await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, response.token));
 				await lockout.recordSuccess(response.user.id);
-				return { personId: response.user.id, setCookie: answer.getSetCookie() };
+				return { personId: response.user.id, secondStep: null, setCookie: answer.getSetCookie() };
 			} catch (error) {
 				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) {
 					if (person) {
@@ -207,6 +415,23 @@ export function createAuth(options: AuthOptions): Auth {
 				}
 				throw error;
 			}
+		},
+
+		async secondStep({ method, code }, request) {
+			const personId = await pending.personOf(request.headers);
+			if (!personId) throw new SignInExpiredError();
+			await lockout.assertUnlocked(personId);
+			const accepted =
+				method === "authenticator"
+					? await factors.useAuthenticatorCode(personId, code)
+					: await factors.useBackupCode(personId, code);
+			if (!accepted) {
+				await lockout.recordFailure(personId, request.clientAddress);
+				throw new TwoFactorCodeInvalidError("sign-in");
+			}
+			await lockout.recordSuccess(personId);
+			const finished = await pending.finish(request.headers);
+			return { personId, method, setCookie: [...(await startSession(personId, request)), finished] };
 		},
 
 		async session({ headers, clientAddress }) {
@@ -261,11 +486,19 @@ export function createAuth(options: AuthOptions): Auth {
 			return { setCookie: answer.getSetCookie() };
 		},
 
-		async confirmIdentity(session, { password }, { clientAddress }) {
+		async confirmIdentity(session, proof, { clientAddress }) {
 			await lockout.assertUnlocked(session.personId);
-			if (!(await passwordMatches(database, session.personId, password))) {
+			if ("passkey" in proof) {
+				// A passkey can't be guessed, so a refused one doesn't count towards the lockout.
+				await checkAssertion(proof.passkey, "identity", session.personId);
+			} else if ("password" in proof) {
+				if (!(await passwordMatches(database, session.personId, proof.password))) {
+					await lockout.recordFailure(session.personId, clientAddress);
+					throw new InvalidCredentialsError();
+				}
+			} else if (!(await factors.useAuthenticatorCode(session.personId, proof.authenticatorCode))) {
 				await lockout.recordFailure(session.personId, clientAddress);
-				throw new InvalidCredentialsError();
+				throw new TwoFactorCodeInvalidError("identity");
 			}
 			await lockout.recordSuccess(session.personId);
 			const identityCheckedAt = clock.now();
@@ -349,8 +582,86 @@ export function createAuth(options: AuthOptions): Auth {
 		createPerson(tx, person) {
 			return createPerson(tx, person, { now: clock.now(), passwordChecks: options.passwordChecks });
 		},
+
+		secondFactors: (personId) => factors.summary(personId),
+		hasSecondFactor: (personId) => factors.isOn(personId),
+		startAuthenticator: (personId, label) => factors.startAuthenticator(personId, label),
+		confirmAuthenticator: (session, code, also) =>
+			factors.confirmAuthenticator(session.personId, session.id, code, also),
+		removeAuthenticator: (session, also) => factors.removeAuthenticator(session.personId, session.id, also),
+		regenerateBackupCodes: (personId, also) => factors.regenerateBackupCodes(personId, also),
+		resetSecondFactors: (personId, also) => factors.reset(personId, also),
+
+		async passkeyRegistrationOptions(personId, user, rpName) {
+			const challenge = await passkeys.newChallenge("register", personId);
+			return creationOptions(
+				relyingParty(rpName),
+				{ id: personId, ...user },
+				challenge,
+				await passkeys.ofPerson(personId),
+			);
+		},
+
+		async addPasskey(session, credential, name, also) {
+			const challenge = challengeOf(credential.response?.clientDataJSON ?? "");
+			const given = challenge ? await passkeys.takeChallenge(challenge, "register") : null;
+			if (!challenge || !given || given.personId !== session.personId) {
+				return refusePasskey(new PasskeyInvalidError("challenge unknown, used, expired or another person's", "setup"));
+			}
+			let verified: Awaited<ReturnType<typeof verifyRegistration>>;
+			try {
+				verified = await verifyRegistration(credential, { challenge, rp: relyingParty() });
+			} catch (error) {
+				if (error instanceof PasskeyInvalidError) return refusePasskey(error);
+				throw error;
+			}
+			return factors.addPasskey(session.personId, session.id, { ...verified, name }, also);
+		},
+
+		removePasskey: (session, passkeyId, also) => factors.removePasskey(session.personId, session.id, passkeyId, also),
+
+		async passkeySignInOptions({ headers }) {
+			const personId = await pending.personOf(headers);
+			const challenge = await passkeys.newChallenge("sign-in", personId);
+			return requestOptions(relyingParty(), challenge, personId ? await passkeys.ofPerson(personId) : []);
+		},
+
+		async signInWithPasskey(credential, request) {
+			const waiting = await pending.personOf(request.headers);
+			const stored = await checkAssertion(credential, "sign-in", waiting);
+			await lockout.recordSuccess(stored.personId);
+			const finished = await pending.finish(request.headers);
+			return { personId: stored.personId, setCookie: [...(await startSession(stored.personId, request)), finished] };
+		},
+
+		async identityPasskeyOptions(session) {
+			const challenge = await passkeys.newChallenge("identity", session.personId);
+			return requestOptions(relyingParty(), challenge, await passkeys.ofPerson(session.personId));
+		},
 	};
 }
+
+/**
+ * WebCraft's own endpoint in the sign-in library, called only from this file (the library's HTTP
+ * endpoints are never served): starts a session for a person who already proved who they are, such
+ * as after the second step of signing in, with the library's own session cookie.
+ */
+const sessionStarter = {
+	id: "webcraft-sessions",
+	endpoints: {
+		startSessionFor: createAuthEndpoint.serverOnly(
+			{ method: "POST", body: z.object({ personId: z.string() }) },
+			async (ctx) => {
+				const user = await ctx.context.internalAdapter.findUserById(ctx.body.personId);
+				if (!user) throw new APIError("BAD_REQUEST", { message: "No such person." });
+				const session = await ctx.context.internalAdapter.createSession(user.id);
+				if (!session) throw new APIError("INTERNAL_SERVER_ERROR", { message: "The session was not saved." });
+				await setSessionCookie(ctx, { session, user });
+				return { token: session.token };
+			},
+		),
+	},
+} satisfies BetterAuthPlugin;
 
 /** Whether `password` is the person's password. People without one never match. */
 async function passwordMatches(database: Database, personId: string, password: string): Promise<boolean> {
@@ -418,6 +729,7 @@ function createLibrary({ database, clock, adminOrigin, secret, log }: AuthOption
 			// Sessions record the client address WebCraft itself saw (see `signIn`), never a header.
 			ipAddress: { disableIpTracking: true },
 		},
+		plugins: [sessionStarter],
 		// Rate limits and lockout are WebCraft's own, on its own endpoints.
 		rateLimit: { enabled: false },
 		telemetry: { enabled: false },

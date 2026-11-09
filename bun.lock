@@ -158,6 +158,7 @@
         "@webcraft/db": "workspace:*",
         "better-auth": "catalog:",
         "drizzle-orm": "catalog:",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@types/node": "catalog:",

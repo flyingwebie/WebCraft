@@ -75,7 +75,9 @@ export const en: EmailWording = {
 			subject: "Your two-factor authentication was reset",
 			heading: "Your two-factor authentication was reset",
 			paragraphs: [
-				`${resetBy} reset the two-factor authentication of your account on ${installName}. Sign in with your password and set it up again.`,
+				resetBy
+					? `${resetBy} reset the two-factor authentication of your account on ${installName}. Sign in with your password and set it up again.`
+					: `The two-factor authentication of your account on ${installName} was reset with a command on the server. Sign in with your password and set it up again.`,
 				"If you didn't ask for it, tell whoever runs this Install at once.",
 			],
 			action: { label: "Sign in", path: "/sign-in" },

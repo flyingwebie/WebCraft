@@ -131,6 +131,8 @@ import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
 import { offeredToolsets } from "./toolsets.ts";
 import { createTranslations } from "./translation/service.ts";
+import { createTwoFactor } from "./two-factor/index.ts";
+import { createSecondFactorKeys } from "./two-factor/keys.ts";
 import { createUpdates } from "./updates.ts";
 import { createWebhooks } from "./webhooks/index.ts";
 
@@ -178,6 +180,7 @@ export async function createInstallServices(
 		database,
 		clock,
 		adminOrigin: config.adminOrigin,
+		secondFactorKeys: createSecondFactorKeys({ database, secrets: store }),
 		secret: await sessionSigningSecret(masterKey),
 		log,
 		passwordChecks: [
@@ -297,6 +300,13 @@ export async function createInstallServices(
 		secrets: installSecrets,
 		auth,
 		account: createAccount({ database, auth, clock }),
+		twoFactor: createTwoFactor({
+			database,
+			auth,
+			clock,
+			email,
+			issuer: async () => (await settings.read()).name ?? "WebCraft",
+		}),
 		rateLimits,
 		people,
 		aiKeys,
