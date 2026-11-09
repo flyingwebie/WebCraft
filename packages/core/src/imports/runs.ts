@@ -608,7 +608,11 @@ async function sourceReport(scope: SiteScope, run: RunRow, defaultLanguage: stri
 		redirects: {
 			on: json.redirectsOn ?? false,
 			count: json.redirects ?? 0,
-			rules: ruleRows.map((row) => row.details as { from: string; to: string }),
+			rules: ruleRows.map((row) => {
+				const details = row.details as { from: string; to: string; shown?: string };
+				// A rule naming an Entry shows the path it had when the run made it.
+				return { from: details.from, to: details.shown ?? details.to };
+			}),
 		},
 		structure: {
 			postTypes: typeRows

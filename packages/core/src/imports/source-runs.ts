@@ -221,7 +221,7 @@ export async function runSourceImport(
 		const current = await scope.first(importRuns, eq(importRuns.id, run.id));
 		if (!current || current.stopRequestedAt) return finish("stopped");
 		gone++;
-		const rules = (asked: ImportedRule[], position: number) =>
+		const rules = (asked: ShownRule[], position: number) =>
 			redirectsOn ? addRules(context, scope, run.id, position, asked, ruled) : Promise.resolve(0);
 		if (item.kind === "media") {
 			if (!mapping.media.has(item.type)) {
@@ -277,7 +277,10 @@ export async function runSourceImport(
 			if (entryId && converted.path) {
 				const to = await newPathOf(scope, entryId, target.destination.postType, mapping, paths);
 				const from = oldPathOf(converted.path);
-				if (from && to && from !== to) made += await rules([{ from, to }], index);
+				// The rule names the Entry, so it follows the Entry to where it is published, a slug changed
+				// before then included; the report shows the path it has now.
+				if (from && to && from !== to)
+					made += await rules([{ from, to: entryTarget(entryId, mapping), shown: to }], index);
 			}
 		}
 		const problems = converted.item.problems.length > 0;
@@ -370,23 +373,35 @@ async function newPathOf(
 	return path ? `${prefix}${path}` : null;
 }
 
+/** A rule a run asks for, with the path the report shows for its target when that names an Entry. */
+type ShownRule = ImportedRule & { shown?: string };
+
+/** An Entry as a Redirect rule's target: `entry:<id>`, with the language when it isn't the Default one. */
+function entryTarget(entryId: string, mapping: SourceMapping): string {
+	const { language, defaultLanguage } = mapping.languages;
+	return language === defaultLanguage ? `entry:${entryId}` : `entry:${entryId}:${language}`;
+}
+
 /** Adds Redirect rules through the Module keeping them, each from a path once a run, recording those added. */
 async function addRules(
 	context: JobContext,
 	scope: SiteScope,
 	runId: string,
 	position: number,
-	asked: readonly ImportedRule[],
+	asked: readonly ShownRule[],
 	ruled: Set<string>,
 ): Promise<number> {
 	const wanted = asked.flatMap((rule) => {
 		const from = oldPathOf(rule.from);
 		if (!from || ruled.has(from)) return [];
 		ruled.add(from);
-		return [{ from, to: rule.to }];
+		return [{ from, to: rule.to, shown: rule.shown }];
 	});
 	if (wanted.length === 0) return 0;
-	const results = await context.modules.addImportedRules(scope.site, wanted);
+	const results = await context.modules.addImportedRules(
+		scope.site,
+		wanted.map(({ from, to }) => ({ from, to })),
+	);
 	if (!results) return 0;
 	let added = 0;
 	for (const [index, result] of results.entries()) {
@@ -399,7 +414,7 @@ async function addRules(
 			kind: "redirect",
 			action: "created",
 			ruleId: result.ruleId,
-			details: { from: rule.from, to: rule.to },
+			details: { from: rule.from, to: rule.to, ...(rule.shown ? { shown: rule.shown } : {}) },
 		});
 	}
 	return added;

@@ -216,6 +216,11 @@ describe("a run", () => {
 		);
 		expect(report.redirects).toMatchObject({ on: true, count: 5 });
 
+		// A rule names the Entry: it sends visitors on once the Entry is published.
+		const posts = (await staff.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.name === "Posts");
+		const { entries } = await staff.api.entries.list({ siteId, postTypeId: posts?.id ?? "" });
+		const spring = entries.find((entry) => entry.draft.slug === "spring-opening-hours");
+		await staff.api.entries.publish({ siteId, entryId: spring?.id ?? "" });
 		const moved = await install.request(`${origin}/2024/03/spring-opening-hours/`);
 		expect(moved.status).toBe(301);
 		expect(moved.headers.get("location")).toBe("/posts/spring-opening-hours");

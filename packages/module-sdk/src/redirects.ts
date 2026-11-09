@@ -24,8 +24,10 @@ export type RedirectTarget = {
 	/**
 	 * A Site path (`/blog/daily-bread`), an absolute `https://` address on another site, or (SDK 1.7)
 	 * `media:<id>`, a file of the Site's Media library, which WebCraft sends to the file's address as
-	 * it is then (no rule where the file isn't ready, or is in the Trash). WebCraft ignores anything
-	 * else (and says so in the Module log). It keeps the request's query string, adding the parameters
+	 * it is then (no rule where the file isn't ready, or is in the Trash), or `entry:<id>` (with
+	 * `:<language>` for a language other than the Default one), an Entry, which WebCraft sends to where
+	 * it is published then (no rule while it isn't). WebCraft ignores anything else (and says so in
+	 * the Module log). It keeps the request's query string, adding the parameters
 	 * the target doesn't set itself.
 	 */
 	to: string;
@@ -61,7 +63,8 @@ export type RedirectRules = {
 	find(request: RedirectRequest, context: ModuleContext): Promise<RedirectTarget | null>;
 	/**
 	 * Adds the rules an Import run makes where paths changed (SDK 1.7): from where an item was on the
-	 * old site to its new path, or to its Media file (`media:<id>`). Each must step aside where a page
+	 * old site to its Entry (`entry:<id>`, so a slug changed before it is published is followed), or to
+	 * its Media file (`media:<id>`). Each must step aside where a page
 	 * answers its path (as `whereNoPage`), so it never hides a live page, and none may replace a rule
 	 * the Site has at that path. Answers, in order, the id of each rule added, or why it wasn't:
 	 * `taken` (a rule has the path) or `invalid` (not a path a rule can have).
@@ -74,7 +77,7 @@ export type RedirectRules = {
 	remove?(rules: readonly AddedRule[], context: ModuleContext): Promise<number>;
 };
 
-/** A Redirect rule an Import run asks for: from a Site path to a Site path or a Media file (`media:<id>`), a 301. */
+/** A Redirect rule an Import run asks for: from a Site path to an Entry (`entry:<id>`), a Site path or a Media file (`media:<id>`), a 301. */
 export type ImportedRule = { from: string; to: string };
 
 /** What `add` did with a rule: its id, or why it added none. */
