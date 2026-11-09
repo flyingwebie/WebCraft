@@ -52,14 +52,30 @@ beforeAll(async () => {
 		fields: {
 			summary: "Three new loaves.",
 			body: [
-				{ type: "paragraph", text: [{ text: "Spring arrives with " }, { text: "three new loaves", marks: ["bold"] }, { text: ". " }, { text: "Click here", link: "/menu" }, { text: " for the menu." }] },
+				{
+					type: "paragraph",
+					text: [
+						{ text: "Spring arrives with " },
+						{ text: "three new loaves", marks: ["bold"] },
+						{ text: ". " },
+						{ text: "Click here", link: "/menu" },
+						{ text: " for the menu." },
+					],
+				},
 				{ type: "heading", level: 2, text: "Breads" },
 				{ type: "heading", level: 4, text: "Rye" },
 				{ type: "list", style: "bulleted", items: ["Spelt", { text: "Rye", items: ["Dark rye"] }] },
 				{ type: "quote", text: "The best loaf in Cork." },
 				{ type: "image", media: media.id },
 				{ type: "video", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
-				{ type: "table", headerRow: false, rows: [["Loaf", "Price"], ["Rye", "€4"]] },
+				{
+					type: "table",
+					headerRow: false,
+					rows: [
+						["Loaf", "Price"],
+						["Rye", "€4"],
+					],
+				},
 				{ type: "callout", tone: "warning", text: "Contains gluten." },
 				{ type: "code", code: "bake()" },
 				{ type: "divider" },
