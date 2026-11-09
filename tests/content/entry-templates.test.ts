@@ -170,6 +170,12 @@ describe("refused trees", () => {
 		await refuses([{ ...element("p"), classes: ["no-such-class"] }], "nodes[0].classes[0]");
 	});
 
+	test("a layer label that isn't one line of text of at most 100 characters", async () => {
+		await refuses([{ ...element("p"), label: "a".repeat(101) }], "nodes[0].label");
+		await refuses([{ ...element("p"), label: "Two\nlines" }], "nodes[0].label");
+		await refuses([{ ...element("p"), label: 3 }], "nodes[0].label");
+	});
+
 	test("anything that isn't a tree of this version", async () => {
 		await refuses({ version: 2, nodes: [] }, "version");
 		await refuses({ version: 1, nodes: "<h1>Hi</h1>" }, "nodes");

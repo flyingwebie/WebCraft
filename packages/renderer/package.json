@@ -9,7 +9,8 @@
 		".": "./src/index.ts",
 		"./rich-text": "./src/rich-text.ts",
 		"./body": "./src/body/index.ts",
-		"./forms": "./src/forms/version.ts"
+		"./forms": "./src/forms/version.ts",
+		"./builder": "./src/builder.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

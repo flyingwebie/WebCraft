@@ -36,6 +36,8 @@ export type TestNode =
 			type: "element";
 			id?: string;
 			tag: string;
+			/** The layer label Staff gave it in the builder, never rendered. */
+			label?: string;
 			attributes: { name: string; value: TestAttributePart[] }[];
 			classes: string[];
 			children: TestNode[];
