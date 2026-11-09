@@ -52,7 +52,7 @@ export function cleanSvg(input: Uint8Array): CleanedSvg {
 	if (input.length > MAX_SVG_BYTES) throw new SvgRefusedError("svgInvalid", [], "it is too large");
 	let text: string;
 	try {
-		text = new TextDecoder("utf-8", { fatal: true }).decode(input).replace(/^﻿/, "");
+		text = new TextDecoder("utf-8", { fatal: true }).decode(input).replace(/^\uFEFF/, "");
 	} catch {
 		throw new SvgRefusedError("svgInvalid", [], "it isn't UTF-8 text");
 	}
