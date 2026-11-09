@@ -145,7 +145,9 @@ export function isComponentName(name: string): boolean {
 }
 
 /** Prop keys a Component can't use: the words Conditions' tests use, which a path can't end in. */
-const RESERVED_PROP_KEYS: ReadonlySet<string> = new Set([...EXPRESSION_KEYWORDS].map((word) => word.toLowerCase()));
+export const RESERVED_PROP_KEYS: ReadonlySet<string> = new Set(
+	[...EXPRESSION_KEYWORDS].map((word) => word.toLowerCase()),
+);
 
 type ComponentRow = typeof components.$inferSelect;
 
@@ -506,6 +508,26 @@ export function componentTreeRules(
 	};
 }
 
+/**
+ * What a Module's Component's markup may hold: its Props as `props.x` and nothing else to read (the
+ * Globals differ on every Site); no Classes, inline styles or Components (each Site has its own);
+ * neither `<main>` nor `{{@outlet}}`.
+ */
+export function moduleComponentTreeRules(props: readonly FieldDefinition[]) {
+	const known = componentKnownValues({ props, postTypes: [], globalFields: [] });
+	return {
+		isKnownValue: (path: string) => path.startsWith("props.") && known(path),
+		unknownValue: (path: string) =>
+			path.startsWith("props.")
+				? unknownInComponent(path, props)
+				: `${path}: A Module's Component reads only its Props (props.x): the Globals differ on every Site.`,
+		refuseElement: (tag: string) =>
+			tag === "main" ? "A Component goes inside pages, so it holds no <main>." : undefined,
+		refuseCommand: refuseSiteTemplateCommands,
+		placedDepth: 1,
+	};
+}
+
 /** Why a Component can't read `path`. */
 function unknownInComponent(path: string, props: readonly FieldDefinition[]): string {
 	const [head, key = "", ...rest] = path.split(".");
@@ -534,7 +556,13 @@ export type SiteComponents = ComponentCatalogue & {
 	reaches(from: string, target: string): boolean;
 };
 
-type CatalogueEntry = { id: string; name: string; version: ComponentVersion | null };
+type CatalogueEntry = {
+	id: string;
+	name: string;
+	version: ComponentVersion | null;
+	/** Why it can't be placed on this Site at all: its Module doesn't run here. */
+	away?: string;
+};
 
 /**
  * The Site's own Components and those of the Modules running on it, in one version: Drafts (what
@@ -559,10 +587,20 @@ export async function siteComponents(
 		return row.published === null ? null : storedVersion(row.published);
 	};
 	const entries: CatalogueEntry[] = rows.map((row) => ({ id: row.id, name: row.name, version: versionOf(row) }));
-	for (const component of await sources.moduleComponentsAt(scope.site)) {
+	const running = new Set((await sources.moduleComponentsAt(scope.site)).map((component) => component.id));
+	for (const component of sources.allModuleComponents()) {
 		// The Site's own Component keeps a name a Module's Component took later.
 		if (entries.some((entry) => entry.name === component.name)) continue;
-		entries.push({ id: component.id, name: component.name, version: { props: component.props, tree: component.tree } });
+		entries.push(
+			running.has(component.id)
+				? { id: component.id, name: component.name, version: { props: component.props, tree: component.tree } }
+				: {
+						id: component.id,
+						name: component.name,
+						version: null,
+						away: `${component.name} comes from the Module ${component.moduleId}, which isn't on for this Site.`,
+					},
+		);
 	}
 	const byId = new Map(entries.map((entry) => [entry.id, entry]));
 	const byName = new Map(entries.map((entry) => [entry.name, entry]));
@@ -595,7 +633,9 @@ export async function siteComponents(
 		const known = infos.has(entry.id);
 		if (known) return infos.get(entry.id);
 		let found: ReturnType<ComponentCatalogue["byId"]>;
-		if (!entry.version) {
+		if (entry.away) {
+			found = { refused: entry.away };
+		} else if (!entry.version) {
 			found = { refused: `${entry.name} isn't published yet: publish it first.` };
 		} else if (options.self !== undefined && entry.id === options.self) {
 			found = { refused: `A Component can't place itself: ${entry.name} would never end.` };

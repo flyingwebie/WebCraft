@@ -886,6 +886,7 @@
 			"siteRoutes": "Rispondere ai visitatori su {path} nei Site dove è attivo",
 			"adminPages": "Aggiungere pagine all'admin: {pages}",
 			"tables": "Tenere i propri dati su ogni {level, select, site {Site} other {Workspace}}",
+			"components": "Aggiungere Componenti che lo Staff può inserire nei Site dove è attivo: {names}",
 			"events": "Agire dopo che {events}",
 			"addsNothing": "Nient'altro.",
 			"where": "Dove funziona",

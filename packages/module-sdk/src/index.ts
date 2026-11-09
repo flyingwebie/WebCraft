@@ -45,6 +45,12 @@ export {
 	uuid,
 } from "drizzle-orm/pg-core";
 export { z } from "zod";
+export {
+	type ComponentProp,
+	type ComponentPropType,
+	component,
+	type ModuleComponent,
+} from "./component.ts";
 export type {
 	ModuleContext,
 	ModuleData,

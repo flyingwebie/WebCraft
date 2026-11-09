@@ -42,6 +42,8 @@ export type AdditionsView = {
 	tables: number;
 	/** The events it reacts to. */
 	events: string[];
+	/** The names (PascalCase tags) of the Components it adds. */
+	components: string[];
 };
 
 export function consentView(
@@ -70,12 +72,13 @@ export function consentView(
 }
 
 export function additionsView(module: LoadedModule, language: string): AdditionsView {
-	if (!module.runnable) return { siteRoutes: null, adminPages: [], tables: 0, events: [] };
+	if (!module.runnable) return { siteRoutes: null, adminPages: [], tables: 0, events: [], components: [] };
 	const { manifest } = module;
 	return {
 		siteRoutes: module.routes.length > 0 ? `/_wc/m/${manifest.routePrefix}/` : null,
 		adminPages: module.pages.map((page) => wordsIn(page.label, language, manifest.adminLanguages)),
 		tables: module.tables.size,
 		events: [...module.events],
+		components: module.components.map((component) => component.name),
 	};
 }

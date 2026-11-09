@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import type { ModuleComponent } from "./component.ts";
 import type { ModuleContext, ModuleTable, ProcedureContext, SiteRouteContext } from "./context.ts";
 import type { ModuleEvent, ModuleEventName } from "./events.ts";
 import type { Label, ModuleManifestInput } from "./manifest.ts";
@@ -18,6 +19,7 @@ import type { ModuleMigration } from "./tables.ts";
  *       adminPages: [{ path: "notes", label: { en: "Notes" }, permission: "notes.view" }],
  *       events: { "entry.published": async (event, context) => { … } },
  *       jobs: { remind: job({ payload: z.object({ … }), run: async (payload, context) => { … } }) },
+ *       components: [component({ name: "NoteCard", label: { en: "Note card" }, markup: "<aside>…</aside>" })],
  *     });
  *
  * WebCraft checks a definition when it loads it and never runs a Module whose definition breaks a
@@ -43,13 +45,16 @@ export type ModuleDefinition = {
 	events?: ModuleEventHandlers;
 	/** Its own background jobs, queued with `context.jobs.send(name, payload)`. */
 	jobs?: Readonly<Record<string, ModuleJob>>;
+	/**
+	 * Components Staff place with their tags on Sites where it runs (Site-level Modules only); see
+	 * `component`. Added in SDK 1.1.
+	 */
+	components?: readonly ModuleComponent[];
 	// Later SDK versions open more extension points; until then a Module can't use them:
 	/** Structure presets (#110). */
 	structurePresets?: readonly never[];
 	/** Declarative Block types: settings made of Fields, output in Template markup (#103). */
 	blockTypes?: readonly never[];
-	/** Declarative Components (#63). */
-	components?: readonly never[];
 	/** Dashboard Widgets. */
 	widgets?: readonly never[];
 };

@@ -1,5 +1,7 @@
 import {
 	type AdminPage,
+	type ComponentProp,
+	type Label,
 	labelProblem,
 	MODULE_EVENTS,
 	type ModuleDefinition,
@@ -14,10 +16,19 @@ import {
 	SDK_VERSION,
 	type SiteRoute,
 } from "@webcraft/module-sdk";
+import { parseTemplateMarkup, TemplateMarkupInvalidError } from "@webcraft/renderer";
 import { getTableName, isTable } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import semver from "semver";
 
+import {
+	isComponentName,
+	type ModuleComponent,
+	moduleComponentTreeRules,
+	RESERVED_PROP_KEYS,
+} from "../content/components.ts";
+import type { ContentProblem } from "../content/errors.ts";
+import { type FieldInput, parseFields } from "../content/fields.ts";
 import type { AddedPermission } from "../permissions/can.ts";
 import { isPermission, type Level, PERMISSIONS, type Permission } from "../permissions/roles.ts";
 
@@ -64,6 +75,8 @@ export type RunnableModule = {
 	pages: readonly AdminPage[];
 	events: ReadonlySet<ModuleEventName>;
 	jobs: ReadonlyMap<string, ModuleJob>;
+	/** The Components it adds, ready to place: Props checked, markup read into a tree. */
+	components: readonly ModuleComponent[];
 };
 
 /** A Site route with its path split into fixed parts and parameters. */
@@ -89,7 +102,6 @@ const DEFINITION_KEYS = new Set([
 const LATER = {
 	structurePresets: "Structure presets",
 	blockTypes: "Block types",
-	components: "Components",
 	widgets: "Widgets",
 };
 
@@ -115,6 +127,12 @@ export function loadModules(definitions: readonly ModuleDefinition[]): ModuleReg
 					module.manifest.routePrefix !== undefined &&
 					other.manifest.routePrefix === module.manifest.routePrefix),
 		);
+		// A tag names one Component: two Modules can't add Components with the same name.
+		const named = module.runnable
+			? loaded
+					.flatMap((other) => (other.runnable ? other.components.map((added) => ({ other, added })) : []))
+					.find(({ added }) => module.components.some((own) => own.name === added.name))
+			: undefined;
 		loaded.push(
 			clash
 				? broken(
@@ -124,7 +142,13 @@ export function loadModules(definitions: readonly ModuleDefinition[]): ModuleReg
 							? `Another Module of this build has the id ${module.id}.`
 							: `The Module ${clash.id} already answers under /_wc/m/${clash.manifest?.routePrefix}/.`,
 					)
-				: module,
+				: named
+					? broken(
+							definition,
+							module.manifest,
+							`The Module ${named.other.id} already adds a Component named ${named.added.name}.`,
+						)
+					: module,
 		);
 	}
 	const byId = new Map(loaded.map((module) => [module.id, module]));
@@ -317,7 +341,80 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		pages,
 		events,
 		jobs,
+		components: compileComponents(definition, manifest),
 	};
+}
+
+/**
+ * Checks and reads the Components a Module declares: PascalCase names, labels in its languages,
+ * Props declared with the Field types (no Relationships: each Site has its own Post Types), and
+ * markup that reads only its Props. Element ids are numbered, so every process reads the same tree.
+ */
+function compileComponents(definition: ModuleDefinition, manifest: ModuleManifest): ModuleComponent[] {
+	const declared = definition.components ?? [];
+	if (declared.length > 0 && manifest.level !== "site") {
+		problem("Only Site-level Modules add Components: Components are placed on Sites.");
+	}
+	const compiled: ModuleComponent[] = [];
+	for (const component of declared) {
+		const name = component?.name;
+		if (typeof name !== "string" || !isComponentName(name)) {
+			problem(`${String(name)} isn't a Component's name: a PascalCase tag such as NoteCard.`);
+		}
+		if (compiled.some((other) => other.name === name)) problem(`The Component ${name} is declared twice.`);
+		const words = labelProblem(component.label ?? {}, manifest.adminLanguages);
+		if (words) problem(`The Component ${name}'s label: ${words}`);
+		const problems: ContentProblem[] = [];
+		const props = parseFields(propInputs(component.props ?? [], manifest, name), problems, {
+			postTypeKeys: new Set(),
+			owner: "moduleComponent",
+			reservedKeys: RESERVED_PROP_KEYS,
+			listName: "props",
+		});
+		const [first] = problems;
+		if (first) problem(`The Component ${name}'s ${first.at}: ${first.message}`);
+		if (typeof component.markup !== "string") problem(`The Component ${name} has no markup.`);
+		let count = 0;
+		try {
+			const { tree } = parseTemplateMarkup(component.markup, {
+				...moduleComponentTreeRules(props),
+				newId: () => `n${++count}`,
+			});
+			compiled.push({ id: `${manifest.id}:${name}`, moduleId: manifest.id, name, props, tree });
+		} catch (error) {
+			if (!(error instanceof TemplateMarkupInvalidError)) throw error;
+			const where = error.problems
+				.map((each) => `line ${each.line}, column ${each.column}: ${each.message}`)
+				.join("; ");
+			problem(`The Component ${name}'s markup can't be read: ${where}`);
+		}
+	}
+	return compiled;
+}
+
+/**
+ * A Module Component's Props as Fields are declared: labels and help text in the Module's first
+ * language (each checked in all of them).
+ */
+function propInputs(props: readonly ComponentProp[], manifest: ModuleManifest, component: string): FieldInput[] {
+	const first = (words: Label | undefined) => (words ? (words[manifest.adminLanguages[0] ?? ""] ?? "") : undefined);
+	return props.map((prop) => {
+		for (const [what, words] of [
+			["label", prop.label],
+			["help", prop.help],
+		] as const) {
+			const missing =
+				words === undefined && what === "help" ? null : labelProblem(words ?? {}, manifest.adminLanguages);
+			if (missing) problem(`The Component ${component}'s Prop ${prop.key} ${what}: ${missing}`);
+		}
+		return {
+			...prop,
+			label: first(prop.label) ?? "",
+			help: first(prop.help),
+			options: prop.options ? [...prop.options] : undefined,
+			fields: prop.fields ? propInputs(prop.fields, manifest, component) : undefined,
+		} as FieldInput;
+	});
 }
 
 function isProcedure(entry: unknown): entry is ModuleProcedure {

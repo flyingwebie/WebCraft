@@ -13,7 +13,8 @@ import { and, eq, getTableName, isNull } from "drizzle-orm";
 
 import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
-import { type ComponentSources, NO_MODULE_COMPONENTS } from "../content/components.ts";
+import type { ComponentSources, ModuleComponent } from "../content/components.ts";
+import { clearEveryPageCache, clearPageCache } from "../content/page-cache.ts";
 import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
@@ -253,6 +254,38 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 	const runsAt = async (scope: PlaceScope, module: RunnableModule) =>
 		(await isApproved(module)) && (await switchedOn(scope, module));
 
+	/** Whether a Site-level Module runs on a Site, read without opening it (the Site pipeline asks too). */
+	const runsOnSite = async (site: { id: string; workspaceId: string }, module: RunnableModule) => {
+		if (!(await isApproved(module))) return false;
+		const [row] = await db
+			.select({ on: moduleSwitches.on })
+			.from(moduleSwitches)
+			.where(
+				and(
+					eq(moduleSwitches.moduleId, module.id),
+					eq(moduleSwitches.workspaceId, site.workspaceId),
+					eq(moduleSwitches.siteId, site.id),
+				),
+			);
+		return row ? row.on : module.manifest.onByDefault;
+	};
+
+	/** The Components Modules add: placed on Sites where their Module runs. */
+	const components: ComponentSources = {
+		allModuleComponents: () => registry.all().flatMap((module) => (module.runnable ? module.components : [])),
+		async moduleComponentsAt(site) {
+			const found: ModuleComponent[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.level !== "site" || module.components.length === 0) continue;
+				if (await runsOnSite(site, module)) found.push(...module.components);
+			}
+			return found;
+		},
+	};
+
+	/** Pages show a Module's Components only where it runs: a change to where it runs clears the pages. */
+	const addsComponents = (module: LoadedModule) => module.runnable && module.components.length > 0;
+
 	/** The place where a Module acts for an event on a Site: the Site, or its Workspace. */
 	const placeFor = (module: RunnableModule, workspaceId: string, siteId: string): QueuedPlace =>
 		module.level === "site" ? { level: "site", workspaceId, siteId } : { level: "workspace", workspaceId };
@@ -297,7 +330,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 	return {
 		registry,
 		schemas: moduleSchemas(modules),
-		components: NO_MODULE_COMPONENTS,
+		components,
 
 		async list(_scope, language) {
 			const approved = await approvals();
@@ -335,6 +368,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 					.insert(moduleApprovals)
 					.values({ moduleId, ...values })
 					.onConflictDoUpdate({ target: moduleApprovals.moduleId, set: values });
+				if (addsComponents(module)) await clearEveryPageCache(tx);
 				await tx.audit("module.approve", { moduleId, version, granted });
 			});
 		},
@@ -343,6 +377,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 			const module = find(moduleId);
 			await scope.transaction(async (tx) => {
 				await tx.db.delete(moduleApprovals).where(eq(moduleApprovals.moduleId, module.id));
+				if (addsComponents(module)) await clearEveryPageCache(tx);
 				await tx.audit("module.withdraw", { moduleId: module.id });
 			});
 		},
@@ -374,6 +409,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 			if (on && !(await isApproved(module))) throw new ModuleNotApprovedError();
 			await scope.transaction(async (tx) => {
 				await recordSwitch(tx, module, on);
+				if (tx.level === "site" && addsComponents(module)) await clearPageCache(tx);
 				await tx.audit(on ? "module.switchOn" : "module.switchOff", { moduleId: module.id });
 			});
 			const view = (await this.placeList(scope, language)).find((candidate) => candidate.id === module.id);
@@ -407,6 +443,7 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 				for (const table of tables.reverse()) await rows.delete(table);
 				for (const name of secretNames) await tx.secrets.remove(name);
 				await recordSwitch(tx, module, false);
+				if (tx.level === "site" && addsComponents(module)) await clearPageCache(tx);
 				await tx.audit("module.removeData", { moduleId: module.id, tables: counts, secrets: secretNames.length });
 				return { removed: true, tables: counts, secrets: secretNames.length };
 			});
