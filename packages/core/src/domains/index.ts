@@ -15,11 +15,13 @@ import { createVerificationSigner } from "./checks.ts";
 import { checkLiveDomain, type LiveCheckPorts, liveDomains } from "./domain-check.ts";
 import {
 	addDomain,
+	type DomainRemoval,
 	domainView,
 	findDomain,
 	listDomains,
 	makePrimary,
 	type NewDomain,
+	removeDomain,
 	type SiteDomain,
 	type SiteDomainList,
 } from "./domains.ts";
@@ -35,6 +37,7 @@ export { VERIFY_PATH } from "./checks.ts";
 export {
 	type DnsRecord,
 	type DomainProblem,
+	type DomainRemoval,
 	type DomainRole,
 	type DomainStatus,
 	type NewDomain,
@@ -71,6 +74,11 @@ export type Domains = {
 	add(scope: SiteScope, input: NewDomain): Promise<SiteDomain[]>;
 	/** Makes a verified domain the Primary domain; the one before becomes a Redirect domain. */
 	makePrimary(scope: SiteScope, domainId: string): Promise<SiteDomainList>;
+	/**
+	 * Removes a domain in two steps: without `confirmation` it answers what it would remove and a
+	 * confirmation id; with it, the domain is removed and stops working at once.
+	 */
+	remove(scope: SiteScope, domainId: string, confirmation?: string): Promise<DomainRemoval>;
 	/**
 	 * Checks a domain now (Check now): one waiting for DNS is verified when it reaches the Install, and
 	 * otherwise checked every few minutes again, as when it was added; a live one gets its Domain check.
@@ -128,6 +136,7 @@ export function createDomains(options: DomainsOptions): Domains {
 		list: (scope) => listDomains(deps, scope),
 		add: (scope, input) => addDomain(deps, scope, input),
 		makePrimary: (scope, domainId) => makePrimary(deps, scope, domainId),
+		remove: (scope, domainId, confirmation) => removeDomain(deps, scope, domainId, confirmation),
 		async check(scope, domainId) {
 			let row = await findDomain(scope, domainId);
 			if (row.verifiedAt !== null) return domainView(deps, await checkLiveDomain(ports, scope, row));

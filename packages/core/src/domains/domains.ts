@@ -2,6 +2,7 @@ import { siteDomains } from "@webcraft/db/schema";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Edge, InstallConfig } from "../config.ts";
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { siteLanguages } from "../content/languages.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -140,6 +141,42 @@ export async function makePrimary(deps: DomainsDeps, scope: SiteScope, domainId:
 		await tx.audit("domain.makePrimary", { name: row.name, before: before?.name ?? null });
 	});
 	return listDomains(deps, scope);
+}
+
+/** What removing a domain would do (the first step), or did. */
+export type DomainRemoval =
+	| { removed: false; preview: { name: string; role: DomainRole; live: boolean }; confirmation: Confirmation }
+	| { removed: true; domains: SiteDomainList };
+
+/**
+ * Removes a domain from the Site, in two steps: without `confirmation` it removes nothing and answers
+ * what it would remove (its name, role, and whether it serves visitors now) with a confirmation id;
+ * with the id, it removes it. A removed domain stops working at once (Caddy is refused a certificate
+ * for it from then on); to move it to another Site, add it there and verify it again. A language's
+ * domain is changed in Languages.
+ */
+export async function removeDomain(
+	deps: DomainsDeps,
+	scope: SiteScope,
+	domainId: string,
+	confirmation?: string,
+): Promise<DomainRemoval> {
+	const asked = await scope.transaction(async (tx) => {
+		await lockSiteDomains(tx);
+		const row = await findDomain(tx, domainId);
+		if (row.role === "language") throw new DomainChangeRefusedError("language");
+		const preview = { name: row.name, role: row.role as DomainRole, live: row.verifiedAt !== null };
+		const request = { action: "domain.remove", target: row.id, preview };
+		if (confirmation === undefined) {
+			return { removed: false as const, preview, confirmation: await askConfirmation(tx, request) };
+		}
+		await useConfirmation(tx, confirmation, request);
+		await tx.delete(siteDomains, eq(siteDomains.id, row.id));
+		if (preview.live) await clearPageCache(tx);
+		await tx.audit("domain.remove", { name: row.name, role: row.role });
+		return null;
+	});
+	return asked ?? { removed: true, domains: await listDomains(deps, scope) };
 }
 
 /** The Site's domain with this id, or `DomainNotFoundError`. */

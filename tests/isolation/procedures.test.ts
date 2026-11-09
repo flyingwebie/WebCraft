@@ -315,6 +315,10 @@ describe("Domains", () => {
 	isolation.refuses("domains.check", async (api, target) =>
 		api.domains.check({ siteId: target.siteId, domainId: await domainIn(target) }),
 	);
+	// Without a confirmation it only answers what removing would do.
+	isolation.refuses("domains.remove", async (api, target) =>
+		api.domains.remove({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
 	// Making the Primary domain the Primary domain again changes nothing, but must still be allowed.
 	isolation.refuses("domains.makePrimary", async (api, target) =>
 		api.domains.makePrimary({ siteId: target.siteId, domainId: await domainIn(target) }),

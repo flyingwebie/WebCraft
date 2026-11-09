@@ -53,4 +53,17 @@ export const domains = {
 		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 		return await context.services.domains.makePrimary(site, input.domainId);
 	}),
+
+	/**
+	 * Removes a domain, in two steps. The first call removes nothing: it answers what would go
+	 * (`preview`: its name, role, and whether it serves visitors now) and a `confirmation` id, valid
+	 * for 5 minutes; calling again with it removes the domain, which stops working at once. A
+	 * language's domain is changed in Languages (`DOMAIN_CHANGE_REFUSED`).
+	 */
+	remove: signedIn
+		.input(z.object({ siteId: id, domainId: id, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return await context.services.domains.remove(site, input.domainId, input.confirmation);
+		}),
 };
