@@ -9,6 +9,7 @@ import {
 import {
 	AccessNotHeldError,
 	AlreadyMemberError,
+	ArchiveUnavailableError,
 	CaptchaInvalidError,
 	ClassInUseError,
 	ClassNotFoundError,
@@ -48,6 +49,10 @@ import {
 	LanguageTakenError,
 	LibraryNotFoundError,
 	LibraryRefusedError,
+	LoopIncompleteError,
+	LoopInvalidError,
+	LoopNameTakenError,
+	LoopNotFoundError,
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
 	MediaInvalidError,
@@ -171,6 +176,33 @@ export function toApiError(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (error instanceof LoopNotFoundError) {
+		return new ORPCError("LOOP_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof LoopInvalidError) {
+		return new ORPCError("LOOP_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof LoopIncompleteError) {
+		return new ORPCError("LOOP_INCOMPLETE", {
+			status: 400,
+			message: error.message,
+			data: { missing: error.missing },
+			cause: error,
+		});
+	}
+	if (error instanceof LoopNameTakenError) {
+		return new ORPCError("LOOP_NAME_TAKEN", {
+			status: 409,
+			message: error.message,
+			data: { name: error.loopName },
+			cause: error,
+		});
+	}
 	if (error instanceof ComponentFromModuleError) {
 		return new ORPCError("COMPONENT_FROM_MODULE", { status: 409, message: error.message, cause: error });
 	}
@@ -254,6 +286,14 @@ export function toApiError(error: unknown): unknown {
 			status: 409,
 			message: error.message,
 			data: { path: error.path, by: error.by },
+			cause: error,
+		});
+	}
+	if (error instanceof ArchiveUnavailableError) {
+		return new ORPCError("ARCHIVE_UNAVAILABLE", {
+			status: 409,
+			message: error.message,
+			data: { reason: error.reason },
 			cause: error,
 		});
 	}

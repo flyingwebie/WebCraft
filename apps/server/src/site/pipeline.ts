@@ -8,6 +8,9 @@ import {
 	MEDIA_PATH,
 	MEDIA_POLICY,
 	normaliseHostname,
+	PAGE_PARAMETER,
+	pageHref,
+	pageNumberIn,
 	pathSegments,
 	SCRIPT_PATH,
 	SITE_SECURITY_HEADERS,
@@ -122,6 +125,12 @@ async function siteAnswer(
 		// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 		if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
 		const edit = await editSessionOf(services, request, host);
+		// Which page of a paginated Loop: `?page=2`; anything else that isn't a page number is no page.
+		const number = pageNumberIn(url.searchParams);
+		if (number === undefined) return notFoundPage(services, host, url.pathname);
+		if (number === 1 && url.searchParams.has(PAGE_PARAMETER)) {
+			return redirect(host, canonicalPath(segments ?? []));
+		}
 		if (edit.session) {
 			return editModePage(
 				services,
@@ -130,11 +139,12 @@ async function siteAnswer(
 				url.pathname,
 				await codeModeOf(services, request, edit.session),
 				safeModeOf(request),
+				number,
 			);
 		}
 		const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
 		if (redirected) return redirected;
-		const page = await visitorPage(services, cache, request, host);
+		const page = await visitorPage(services, cache, request, host, number);
 		return edit.stale ? withEditCookieCleared(request, page) : page;
 	});
 }
@@ -183,24 +193,39 @@ async function verification(services: InstallServices, hostname: string, token: 
 
 /**
  * The page visitors get at the URL, from the page cache, rendering and keeping it on a miss. Pages
- * are kept by normalised URL: one form of the path, and no query parameters (no parameter changes a
- * page yet; Filters will allow theirs, sorted).
+ * are kept by normalised URL: one form of the path, and of the query parameters only the page of a
+ * paginated Loop (`?page=2`, each page its own entry; Filters will allow theirs, sorted). A page
+ * that shows something time changes is kept until then.
  */
-async function visitorPage(services: InstallServices, cache: PageCache, request: Request, host: SiteHost) {
-	const { pathname } = new URL(request.url);
+async function visitorPage(
+	services: InstallServices,
+	cache: PageCache,
+	request: Request,
+	host: SiteHost,
+	number: number,
+) {
+	const url = new URL(request.url);
+	const { pathname } = url;
 	const segments = pathSegments(pathname);
 	if (!segments) return notFoundPage(services, host, pathname);
-	// A Form just sent shows its message on a page answered for the visitor alone.
-	const sent = await sentPage(services, request, host, addressHeaders(host));
+	// A Form just sent shows its message on a page answered for the visitor alone, before the cache.
+	const sent = await sentPage(services, request, host, number, addressHeaders(host));
 	if (sent) return sent;
-	// The same path is another page on each of the Site's addresses (its language, its links).
-	const key = `${host.origin}${canonicalPath(segments)}`;
-	const cached = cache.get(host.site.id, host.cacheGeneration, key);
+	// The same path is another page on each of the Site's addresses (its language, its links), and
+	// each page of a paginated Loop another page.
+	const key = `${host.origin}${pageHref(canonicalPath(segments), number)}`;
+	const cached = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
 	if (cached) return pageResponse(services, request, host, cached, "HIT");
-	const answer = await services.sitePages.render(host, pathname, undefined, { cached: true });
+	// A page kept in the cache holds no visitor's Form token: each answer fills in its own.
+	const answer = await services.sitePages.render(host, pathname, undefined, { forms: { cached: true }, page: number });
 	if (!answer) return notFoundPage(services, host, pathname);
-	if (answer.kind === "redirect") return redirect(host, withQuery(answer, new URL(request.url)));
-	const page = { html: answer.html, etag: await etagOf(answer.html), headers: answer.headers };
+	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url));
+	const page = {
+		html: answer.html,
+		etag: await etagOf(answer.html),
+		headers: answer.headers,
+		expiresAt: answer.expiresAt?.getTime() ?? null,
+	};
 	cache.set(host.site.id, host.cacheGeneration, key, page);
 	return pageResponse(services, request, host, page, "MISS");
 }
@@ -218,9 +243,10 @@ async function editModePage(
 	pathname: string,
 	code: SiteScope | null,
 	safe: boolean,
+	page: number,
 ): Promise<Response> {
 	const editing = await pageEditing(session, code, safe);
-	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing) : null;
+	const answer = pathSegments(pathname) ? await services.sitePages.render(host, pathname, editing, { page }) : null;
 	if (answer?.kind === "redirect") {
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
 	}

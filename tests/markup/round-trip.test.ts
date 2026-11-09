@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import fc from "fast-check";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { placedForm, type TestNode, type TestTree } from "../harness/trees.ts";
+import { placedForm, type TestExpression, type TestNode, type TestTree } from "../harness/trees.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -17,6 +17,8 @@ let classes: { id: string; name: string }[];
 let cardId: string;
 /** Two Forms of the Site, placed with `{{@form <key>}}`. */
 let formIds: string[];
+/** The key of the Blog posts Post Type, which the Loop latest-posts lists. */
+let postTypeKey: string;
 
 beforeAll(async () => {
 	install = await createTestInstall();
@@ -30,6 +32,14 @@ beforeAll(async () => {
 		fields: [{ key: "summary", label: "Summary", type: "text" }],
 	});
 	postTypeId = postType.id;
+	postTypeKey = postType.key;
+	await staff.api.loops.create({ siteId, name: "latest-posts", source: "query", query: { postTypes: [postTypeKey] } });
+	await staff.api.loops.create({
+		siteId,
+		name: "notes",
+		source: "items",
+		fields: [{ key: "line", label: "Line", type: "text" }],
+	});
 	const saved = await staff.api.templates.saveEntryTemplateMarkup({
 		siteId,
 		postTypeId,
@@ -253,6 +263,82 @@ describe("every element setting", () => {
 		expect(again.markup).toBe(markup);
 	});
 
+	test("Loops, pagination and every Condition operator print as this markup, and read back the same", async () => {
+		const compare = (
+			operator: "<" | "<=" | ">" | ">=" | "contains",
+			left: TestExpression,
+			right: TestExpression,
+		): TestExpression => ({ type: "compare", operator, left, right });
+		const tree = {
+			version: 1,
+			nodes: [
+				{
+					type: "loop",
+					source: "latest-posts",
+					alias: "post",
+					children: [
+						el("item", "p", [
+							value("post.title"),
+							{
+								type: "condition",
+								branches: [
+									{
+										test: {
+											type: "and",
+											left: { type: "value", path: "loop.first" },
+											right: compare("<", { type: "value", path: "latest-posts.count" }, { type: "literal", value: 3 }),
+										},
+										children: [text("!")],
+									},
+								],
+								otherwise: null,
+							},
+						]),
+						{ type: "loop", source: "notes", alias: "item", children: [value("item.line")], empty: null },
+					],
+					empty: [el("none", "p", [text("None")])],
+				},
+				{ type: "pagination", loop: "latest-posts" },
+				{
+					type: "condition",
+					branches: [
+						{
+							test: {
+								type: "or",
+								left: compare(">=", { type: "now" }, { type: "literal", value: "2026-12-01" }),
+								right: {
+									type: "and",
+									left: compare("contains", { type: "value", path: "summary" }, { type: "literal", value: "x" }),
+									right: compare("<=", { type: "value", path: "publishedAt" }, { type: "now" }),
+								},
+							},
+							children: [text("Now")],
+						},
+						{
+							test: compare(">", { type: "value", path: "site.language" }, { type: "literal", value: "a" }),
+							children: [],
+						},
+					],
+					otherwise: null,
+				},
+			],
+		} as TestTree;
+
+		const { tree: stored, markup, again } = await roundTrip(tree);
+
+		expect(stored).toEqual(tree as unknown as typeof stored);
+		expect(markup).toBe(
+			'{{@loop latest-posts as post}}<p data-wc-id="item">{{ post.title }}{{@if loop.first and latest-posts.count < 3}}!{{/if}}</p>' +
+				"{{@loop notes}}{{ item.line }}{{/loop}}" +
+				'{{@empty}}<p data-wc-id="none">None</p>{{/loop}}' +
+				"{{@pagination latest-posts}}" +
+				'{{@if now >= "2026-12-01" or summary contains "x" and publishedAt <= now}}Now' +
+				'{{@else if site.language > "a"}}{{/if}}',
+		);
+		expect(again.template.draft).toEqual(stored);
+		expect(again.markup).toBe(markup);
+	});
+
 	test("markup written by hand reads into its canonical tree, and prints in canonical form", async () => {
 		const handWritten = [
 			"<P Title='Hello &amp; welcome' DATA-X=plain>",
@@ -336,10 +422,23 @@ describe("generated trees", () => {
 			fc.record({ type: fc.constantFrom("and", "or"), left: tie("expression"), right: tie("expression") }),
 			fc.record({
 				type: fc.constant("compare"),
-				operator: fc.constantFrom("==", "!="),
+				operator: fc.constantFrom("==", "!=", "<", "<=", ">", ">=", "contains"),
 				left: tie("expression"),
 				right: tie("expression"),
 			}),
+			// now is only ever compared, in order or for equality, with something else.
+			fc
+				.record({
+					operator: fc.constantFrom("==", "!=", "<", "<=", ">", ">="),
+					other: tie("expression"),
+					nowFirst: fc.boolean(),
+				})
+				.map(({ operator, other, nowFirst }) => ({
+					type: "compare",
+					operator,
+					left: nowFirst ? { type: "now" } : other,
+					right: nowFirst ? other : { type: "now" },
+				})),
 		),
 	}));
 	const placement = fc
@@ -398,10 +497,35 @@ describe("generated trees", () => {
 		),
 		nodes: fc.array(tie("node"), { maxLength: 4 }),
 	}));
-	// The Language switcher renders a <nav>, and a Form a <form>, so they go where one can: here, at
-	// the top level.
-	const placedForm = fc.constantFrom(0, 1).map((index) => ({ type: "form", form: formIds[index] }));
-	const nodes = fc.array(fc.oneof(node, fc.constant({ type: "languageSwitcher" }), placedForm), { maxLength: 4 });
+	// A Loop over a Loop of the Site, reading its items and what is around it, with or without {{@empty}}.
+	const loop = fc
+		.record({
+			source: fc.constantFrom("latest-posts", "notes"),
+			alias: fc.constantFrom("item", "post"),
+			before: fc.array(node, { maxLength: 2 }),
+			after: fc.array(node, { maxLength: 2 }),
+			empty: fc.oneof(fc.constant(null), fc.array(node, { maxLength: 2 })),
+		})
+		.map(({ source, alias, before, after, empty }) => ({
+			type: "loop",
+			source,
+			alias,
+			children: [...before, value(source === "notes" ? `${alias}.line` : `${alias}.title`), ...after],
+			empty,
+		}));
+	// The Language switcher and pagination render a <nav>, and a Form a <form>, so they go where one
+	// can: here, at the top level (a Form never in a Loop's items).
+	const form = fc.constantFrom(0, 1).map((index) => ({ type: "form", form: formIds[index] }));
+	const nodes = fc.array(
+		fc.oneof(
+			node,
+			loop,
+			fc.constant({ type: "languageSwitcher" }),
+			fc.constant({ type: "pagination", loop: "latest-posts" }),
+			form,
+		),
+		{ maxLength: 4 },
+	);
 
 	test("print → save gives the same tree, and the same markup", async () => {
 		await fc.assert(

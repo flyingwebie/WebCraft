@@ -1,7 +1,9 @@
 import { PLAYER_ORIGINS } from "./body/video.ts";
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
+import type { RenderTime } from "./expressions.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
+import type { LoopItemPlace, LoopRun } from "./loops.ts";
 import type { MediaReader } from "./media.ts";
 import type { ElementNode, ElementTree, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
@@ -22,6 +24,8 @@ export const PAGE_HOOKS = {
 	calloutClass: "wc-callout",
 	/** The class of a body's video (`<figure class="wc-embed">`), which holds its play link, then the player. */
 	embedClass: "wc-embed",
+	/** The class of a Loop's pagination (`<nav class="wc-pagination">`), a row of links to its pages. */
+	paginationClass: "wc-pagination",
 	/** The CSS custom properties a callout's tones read, set in the base layer; Staff restyle them in custom CSS. */
 	calloutTones: {
 		info: "--wc-callout-info",
@@ -86,6 +90,10 @@ export type PageToRender = {
 	 * rendered, so only a page showing a Form loads one. They join `outsideScripts`: never in Edit mode.
 	 */
 	formScripts?: () => readonly PageOutsideScript[];
+	/** What each Loop of the Site the page names shows here, in both templates (`RenderOptions.loop`). */
+	loop?: (name: string) => LoopRun | undefined;
+	/** The time the page is rendered, for Conditions reading `now`. */
+	time?: RenderTime;
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
@@ -170,9 +178,14 @@ export type PageStyles = {
 export type EditModePage = {
 	/**
 	 * The attributes that tag an element showing `value` alone as an editable region, or undefined
-	 * when it isn't editable. `template` is where the binding is: the page's content or the Site template.
+	 * when it isn't editable. `template` is where the binding is: the page's content or the Site template;
+	 * `item`, the Loop item it sits in, if any.
 	 */
-	region(value: ValueNode, template: "content" | "site"): readonly (readonly [string, string])[] | undefined;
+	region(
+		value: ValueNode,
+		template: "content" | "site",
+		item?: LoopItemPlace,
+	): readonly (readonly [string, string])[] | undefined;
 	/** `<meta>` elements for WebCraft's own script, by name, such as the Edit mode session's header token. */
 	meta: readonly (readonly [name: string, content: string])[];
 	/** WebCraft's own scripts, as paths on the Site's domain; they run before anything else on the page. */
@@ -216,6 +229,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	const words = pageWords(site.language);
 	// The embed script comes only with a video to play.
 	const shown = { videos: 0 };
+	const loopItemsShown = { count: 0 };
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
@@ -226,9 +240,12 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		priorityImage: { given: false },
 		component: page.component,
 		form: page.form,
+		loop: page.loop,
+		time: page.time,
+		loopItemsShown,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "content") : undefined,
+		editRegion: editMode && !editMode.code ? (value, item) => editMode.region(value, "content", item) : undefined,
 		codeSource: editMode?.code ? "content" : undefined,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
@@ -242,9 +259,12 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		extraAttributes: mainAttributes,
 		component: page.component,
 		form: page.form,
+		loop: page.loop,
+		time: page.time,
+		loopItemsShown,
 		themeToggle,
 		languageSwitcher,
-		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
+		editRegion: editMode && !editMode.code ? (value, item) => editMode.region(value, "site", item) : undefined,
 		codeSource: editMode?.code ? "site" : undefined,
 	});
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
@@ -375,6 +395,11 @@ type PageWords = {
 	playVideo: string;
 	/** A video's player title when the video has none. */
 	video: string;
+	/** Pagination's name, its previous and next links, and a page's link ("Page {n}"). */
+	pagination: string;
+	previousPage: string;
+	nextPage: string;
+	pageNumber: string;
 	/** The name of the list of outside scripts' placeholders in Edit mode. */
 	outsideScripts: string;
 	/** What an outside script's placeholder says in Edit mode. */
@@ -390,6 +415,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Language",
 		playVideo: "Play video",
 		video: "Video",
+		pagination: "Pages",
+		previousPage: "Previous",
+		nextPage: "Next",
+		pageNumber: "Page {n}",
 		outsideScripts: "Outside scripts",
 		notWhileEditing: "doesn't run while editing",
 	},
@@ -401,6 +430,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Lingua",
 		playVideo: "Riproduci il video",
 		video: "Video",
+		pagination: "Pagine",
+		previousPage: "Precedente",
+		nextPage: "Successiva",
+		pageNumber: "Pagina {n}",
 		outsideScripts: "Script esterni",
 		notWhileEditing: "non viene eseguito durante la modifica",
 	},
@@ -412,6 +445,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Langue",
 		playVideo: "Lire la vidéo",
 		video: "Vidéo",
+		pagination: "Pages",
+		previousPage: "Précédente",
+		nextPage: "Suivante",
+		pageNumber: "Page {n}",
 		outsideScripts: "Scripts externes",
 		notWhileEditing: "ne s’exécute pas pendant la modification",
 	},
@@ -423,6 +460,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Sprache",
 		playVideo: "Video abspielen",
 		video: "Video",
+		pagination: "Seiten",
+		previousPage: "Zurück",
+		nextPage: "Weiter",
+		pageNumber: "Seite {n}",
 		outsideScripts: "Externe Skripte",
 		notWhileEditing: "läuft nicht während der Bearbeitung",
 	},
@@ -434,6 +475,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Idioma",
 		playVideo: "Reproducir el vídeo",
 		video: "Vídeo",
+		pagination: "Páginas",
+		previousPage: "Anterior",
+		nextPage: "Siguiente",
+		pageNumber: "Página {n}",
 		outsideScripts: "Scripts externos",
 		notWhileEditing: "no se ejecuta mientras se edita",
 	},
@@ -445,6 +490,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Idioma",
 		playVideo: "Reproduzir o vídeo",
 		video: "Vídeo",
+		pagination: "Páginas",
+		previousPage: "Anterior",
+		nextPage: "Seguinte",
+		pageNumber: "Página {n}",
 		outsideScripts: "Scripts externos",
 		notWhileEditing: "não é executado durante a edição",
 	},
@@ -456,6 +505,10 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Taal",
 		playVideo: "Video afspelen",
 		video: "Video",
+		pagination: "Pagina's",
+		previousPage: "Vorige",
+		nextPage: "Volgende",
+		pageNumber: "Pagina {n}",
 		outsideScripts: "Externe scripts",
 		notWhileEditing: "wordt niet uitgevoerd tijdens het bewerken",
 	},

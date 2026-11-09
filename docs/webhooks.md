@@ -20,7 +20,7 @@ WebCraft-Signature: t=1772442000,v1=5d41402abc4b2a76b9719d911017c592ae7b0b0c2f1e
 - `id` is the delivery id, the same as `WebCraft-Delivery`. It stays the same on every attempt of a delivery, so use it to skip a delivery you already handled.
 - `type` is the event: `publish`, or `test` when Staff press Send test.
 - `site.url` is where visitors find the Site (its Primary domain, or its Staging address while it has none); it is `null` when it has neither.
-- For `publish`, `data.item` says what was published: `kind` is `entry`, `template`, `component`, `script`, `globals`, `form` or `designSystem`, with its `id`; an Entry also has its `postTypeId` and `path`. `data.pathChanges` lists the published addresses the publish changed (`{ entryId, language, from, to }`). `data.by` is the person who published it (`null` when nobody did, such as a Module by itself), and `data.via` how (`admin`, `editMode`, `module`, …).
+- For `publish`, `data.item` says what was published: `kind` is `entry`, `template`, `component`, `script`, `globals`, `form`, `loop` or `designSystem` (later versions add more), with its `id`; an Entry also has its `postTypeId` and `path`. `data.pathChanges` lists the published addresses the publish changed (`{ entryId, language, from, to }`). `data.by` is the person who published it (`null` when nobody did, such as a Module by itself), and `data.via` how (`admin`, `editMode`, `module`, …).
 - The body never holds a secret, nor the content itself (no titles or text): fetch what you need from the Site or its Content API.
 
 ## Checking the signature

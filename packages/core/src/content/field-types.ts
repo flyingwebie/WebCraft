@@ -183,9 +183,10 @@ export type DefineContext = {
 	/**
 	 * Whose Fields these are: Globals can't hold Relationships, nor can a Module's Component's Props
 	 * (each Site has its own Post Types). A Component's Props are declared with the Field types. Only
-	 * a Post Type other than the Page Post Type (`page`) has a Body field.
+	 * a Post Type other than the Page Post Type (`page`) has a Body field. A Loop's own items (`loop`)
+	 * hold neither a Body field nor Relationships.
 	 */
-	owner: "postType" | "page" | "globals" | "component" | "moduleComponent";
+	owner: "postType" | "page" | "globals" | "component" | "moduleComponent" | "loop";
 };
 
 /** Reports a problem with a setting, at a path below the Field (`maxLength`, `options[1].value`). */
@@ -322,6 +323,12 @@ const body: FieldTypeSpec<BodyField> = {
 		if (context.owner !== "postType") {
 			if (context.owner === "page") {
 				report("type", "bodyOnPage", "Pages are arranged with a Page layout, so they have no Body field.");
+			} else if (context.owner === "loop") {
+				report(
+					"type",
+					"bodyInLoop",
+					"Loop items have no Body field: a query Loop over a Post Type reads its Entries' bodies.",
+				);
 			} else {
 				report("type", "bodyNotHere", "Only a Post Type has a Body field.");
 			}
@@ -617,9 +624,11 @@ const email: FieldTypeSpec<EmailField> = {
 const relationship: FieldTypeSpec<RelationshipField> = {
 	...FIELD_TYPE_TRAITS.relationship,
 	settings(input, report, context) {
-		if (context.owner === "globals" || context.owner === "moduleComponent") {
+		if (context.owner === "globals" || context.owner === "moduleComponent" || context.owner === "loop") {
 			if (context.owner === "globals") {
 				report("type", "relationshipInGlobals", "Globals can't hold Relationships.");
+			} else if (context.owner === "loop") {
+				report("type", "relationshipInLoop", "Loop items can't hold Relationships: a query Loop lists Entries.");
 			} else {
 				report(
 					"type",

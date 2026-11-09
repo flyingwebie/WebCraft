@@ -277,13 +277,17 @@ describe("suggestions", () => {
 		// Every command of the registry offers itself, each with its snippet: Languages' switcher and Forms too.
 		expect(inEntry.suggestions.commands.map((command) => command.name)).toEqual([
 			"if",
+			"loop",
+			"pagination",
 			"themeToggle",
 			"languageSwitcher",
 			"form",
 		]);
 		expect(inSite.suggestions.commands.map((command) => command.name)).toEqual([
 			"if",
+			"loop",
 			"outlet",
+			"pagination",
 			"themeToggle",
 			"languageSwitcher",
 			"form",
@@ -291,9 +295,33 @@ describe("suggestions", () => {
 		expect(inEntry.suggestions.commands).toContainEqual({ name: "form", block: false, snippet: "{{@form $0}}" });
 		expect(inSite.suggestions.commands).toContainEqual({ name: "outlet", block: false, snippet: "{{@outlet}}" });
 		expect(inEntry.suggestions.commands[0]).toEqual({ name: "if", block: true, snippet: "{{@if $0}}\n{{/if}}" });
-		// Loops come with their own ticket; until then there are none to suggest.
+		expect(inEntry.suggestions.commands).toContainEqual({
+			name: "loop",
+			block: true,
+			snippet: "{{@loop $0 as item}}\n{{@empty}}\n{{/loop}}",
+		});
+		// The Site has no Loops yet: none to suggest by name.
 		expect(inEntry.suggestions.loops).toEqual([]);
-		expect(inEntry.suggestions.presets.map((preset) => preset.id)).toEqual(["hasValue", "isEmpty", "ifElse"]);
+		expect(inEntry.suggestions.presets.map((preset) => preset.id)).toEqual([
+			"hasValue",
+			"isEmpty",
+			"ifElse",
+			"loopEmpty",
+			"loopFirst",
+			"loopLast",
+			"loopOddEven",
+			"currentLanguage",
+			"betweenDates",
+			"inRelationship",
+		]);
+	});
+
+	test("suggests the Site's Loops by name", async () => {
+		await staff.api.loops.create({ siteId: site.siteId, name: "latest-posts", source: "query" });
+
+		const { suggestions } = await answer<Source>(coding.edit("code/open", { path, ref: "content#title" }));
+
+		expect(suggestions.loops).toEqual([{ name: "latest-posts" }]);
 	});
 
 	test("suggests the Design system's Classes and token utilities by name", async () => {

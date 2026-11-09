@@ -86,7 +86,48 @@ export const templates = {
 			return context.services.templates.saveSiteTemplateMarkup(site, input.markup, { basedOn: input.basedOn });
 		}),
 
-	/** Publishes a Template's Draft: every page it renders changes at once, and the Site's page cache is cleared. */
+	/**
+	 * A Post Type's Archive template, or null while it has none. It lists the Post Type's Entries
+	 * through Loops at the URL pattern's fixed address (`/blog` for `/blog/{slug}`).
+	 */
+	getArchiveTemplate: signedIn.input(z.object({ siteId: id, postTypeId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { template: await context.services.templates.archiveTemplate(site, input.postTypeId) };
+	}),
+
+	/**
+	 * Saves the Draft of a Post Type's Archive template as an element tree, creating it the first
+	 * time. Pages have none, nor has a Post Type whose URL pattern starts with `{slug}` (`ARCHIVE_UNAVAILABLE`).
+	 */
+	saveArchiveTemplate: signedIn
+		.input(z.object({ siteId: id, postTypeId: id, tree: z.unknown() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { template: await context.services.templates.saveArchiveTemplate(site, input.postTypeId, input.tree) };
+		}),
+
+	/** A Post Type's Archive template as Template markup, Draft and published; both null while it has none. */
+	getArchiveTemplateMarkup: signedIn
+		.input(z.object({ siteId: id, postTypeId: id }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.templates.archiveTemplateMarkup(site, input.postTypeId);
+		}),
+
+	/** Saves the Draft of a Post Type's Archive template from Template markup, as `saveEntryTemplateMarkup` does. */
+	saveArchiveTemplateMarkup: signedIn
+		.input(z.object({ siteId: id, postTypeId: id, markup: z.string().max(TEMPLATE_MARKUP_MAX_LENGTH), basedOn }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.templates.saveArchiveTemplateMarkup(site, input.postTypeId, input.markup, {
+				basedOn: input.basedOn,
+			});
+		}),
+
+	/**
+	 * Publishes a Template's Draft: every page it renders changes at once, and the Site's page cache is
+	 * cleared. An Archive template takes its address (`PATH_TAKEN` where a Page or URL pattern has it).
+	 */
 	publish: signedIn.input(z.object({ siteId: id, templateId: id })).handler(async ({ context, input }) => {
 		const item = { kind: "template", id: input.templateId } as const;
 		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));

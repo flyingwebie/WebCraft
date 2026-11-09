@@ -143,7 +143,7 @@ describe("several Webhooks", () => {
 });
 
 describe("publishing other items", () => {
-	test("the Globals, Templates, the Design system and Forms fire `publish` too, naming what was published", async () => {
+	test("the Globals, Templates, the Design system, Forms and Loops fire `publish` too, naming what was published", async () => {
 		const { siteId, postTypeId } = await siteWithEntry("structure-bakery");
 		const url = "https://hooks.agency.example/structure";
 		install.http.respond("POST", url, { status: 200 });
@@ -160,6 +160,13 @@ describe("publishing other items", () => {
 			form: { fields: [{ key: "email", type: "email", label: "Email", required: true }] },
 		});
 		await staff.api.forms.publish({ siteId, formId: form.id });
+		const { loop } = await staff.api.loops.create({
+			siteId,
+			name: "latest-posts",
+			source: "query",
+			query: { postTypes: ["posts"] },
+		});
+		await staff.api.loops.publish({ siteId, loopId: loop.id });
 		await install.drainJobs();
 
 		// Jobs queued in the same instant go out in any order.
@@ -170,6 +177,7 @@ describe("publishing other items", () => {
 			{ kind: "designSystem", id: expect.any(String) },
 			{ kind: "form", id: form.id },
 			{ kind: "globals", id: expect.any(String) },
+			{ kind: "loop", id: loop.id },
 			{ kind: "template", id: template?.id, postTypeId },
 		]);
 	});

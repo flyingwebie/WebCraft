@@ -12,6 +12,7 @@ import type { Logger } from "../log.ts";
 import type { ModuleHost } from "../modules/host.ts";
 import type { RateLimits } from "../rate-limits.ts";
 import { languageOnHost, pageLocation, type SiteHost } from "../site-pages/index.ts";
+import { PAGE_PARAMETER, pageHref, pageNumberIn } from "../site-pages/loops.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
 import { storedFormVersion } from "./definition.ts";
 import { siteCaptcha } from "./page-forms.ts";
@@ -43,7 +44,14 @@ export type FormPost = {
 export type FormPostAnswer =
 	| { kind: "notFound" }
 	| { kind: "tooLarge" }
-	| { kind: "invalid"; page: string; instance: number; state: FormState }
+	| {
+			kind: "invalid";
+			/** The path of the page the Form was sent from, and which page of a paginated Loop it showed. */
+			page: string;
+			pageNumber: number;
+			instance: number;
+			state: FormState;
+	  }
 	| { kind: "sent"; location: string };
 
 /** The largest post a Form takes, in bytes: anything larger is spam. */
@@ -100,9 +108,11 @@ export async function receiveFormPost(
 		return { kind: "tooLarge" };
 	}
 	const sent = post.fields;
-	const page = pageOf(sent.get(FORM_INPUTS.page)?.[0]);
+	const { path, number } = pageOf(sent.get(FORM_INPUTS.page)?.[0]);
+	// The page's address as visitors saw it: page N of a paginated Loop keeps its `?page=N`.
+	const page = pageHref(path, number);
 	const instance = instanceOf(sent.get(FORM_INPUTS.instance)?.[0]);
-	const language = await languageOnHost(scope, host, page);
+	const language = await languageOnHost(scope, host, path);
 	const from = sentFrom(host, page, post.referer);
 	const sentLocation = await afterSending(deps, host, version, page, instance, language);
 
@@ -115,7 +125,13 @@ export async function receiveFormPost(
 	const checked = checkValues(version, sent, language, from);
 	const invalid = Object.keys(checked.errors).length > 0;
 	if (spam === null && invalid) {
-		return { kind: "invalid", page, instance, state: invalidState(sent, checked.errors, null) };
+		return {
+			kind: "invalid",
+			page: path,
+			pageNumber: number,
+			instance,
+			state: invalidState(sent, checked.errors, null),
+		};
 	}
 	// Each kept post counts against the address's limits; one beyond them is spam.
 	if (!(await withinLimits(deps, row.id, version, post.clientAddress)) && spam === null) spam = "rate-limit";
@@ -125,7 +141,8 @@ export async function receiveFormPost(
 		if (captcha === "missing" || captcha === "refused") {
 			return {
 				kind: "invalid",
-				page,
+				page: path,
+				pageNumber: number,
 				instance,
 				state: invalidState(sent, {}, formWords(language).captcha),
 			};
@@ -138,12 +155,26 @@ export async function receiveFormPost(
 	return { kind: "sent", location: sentLocation };
 }
 
-/** The page a Form says it was sent from: a path on the Site, else `/`. */
-function pageOf(text: string | undefined): string {
-	if (!text || text.length > 2000 || !text.startsWith("/") || text.startsWith("//") || /[\s\\?#]/.test(text)) {
-		return "/";
+/**
+ * The page a Form says it was sent from: a path on the Site (else `/`), and which page of a paginated
+ * Loop it showed (`/blog?page=2`; the first for any other query).
+ */
+function pageOf(text: string | undefined): { path: string; number: number } {
+	const [path = "", query, ...rest] = (text ?? "").split("?");
+	if (
+		!text ||
+		text.length > 2000 ||
+		rest.length > 0 ||
+		!path.startsWith("/") ||
+		path.startsWith("//") ||
+		/[\s\\#]/.test(path) ||
+		!pathSegments(path)
+	) {
+		return { path: "/", number: 1 };
 	}
-	return pathSegments(text) ? text : "/";
+	const asked = query === undefined ? 1 : pageNumberIn(new URLSearchParams(query));
+	const onlyPage = query === undefined || query === `${PAGE_PARAMETER}=${asked}`;
+	return { path, number: onlyPage && asked !== undefined ? asked : 1 };
 }
 
 /** Which Form of the page was sent, counting from 1. */
@@ -189,7 +220,7 @@ async function afterSending(
 		const location = await pageLocation(deps.data.visitors(host.site), host, version.success.pageId, language);
 		if (location) return location;
 	}
-	return `${page}?${SENT_PARAMETER}=${instance}#wc-form-${instance}`;
+	return `${page}${page.includes("?") ? "&" : "?"}${SENT_PARAMETER}=${instance}#wc-form-${instance}`;
 }
 
 /** Counts a kept post against the Form's limits for the address it came from: per minute, and per hour. */

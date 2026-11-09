@@ -142,6 +142,33 @@ export function sameValue(a: TemplateValue, b: TemplateValue): boolean {
 	return textOf(a) === textOf(b);
 }
 
+/**
+ * How two values order, as `<`, `<=`, `>` and `>=` in a Condition read them: dates as dates (a date,
+ * or text written `2026-03-02…`), numbers as numbers, other text alphabetically. Undefined when
+ * either is empty, or they can't be put in order (a list, or a date against a number).
+ */
+export function compareValues(a: TemplateValue, b: TemplateValue): number | undefined {
+	if (isEmpty(a) || isEmpty(b) || isList(a) || isList(b)) return undefined;
+	const [leftDate, rightDate] = [toDate(a), toDate(b)];
+	if (leftDate && rightDate) return Math.sign(leftDate.getTime() - rightDate.getTime());
+	if (leftDate || rightDate || typeof a === "boolean" || typeof b === "boolean") return undefined;
+	const [leftNumber, rightNumber] = [toFiniteNumber(a), toFiniteNumber(b)];
+	if (leftNumber !== undefined && rightNumber !== undefined) return Math.sign(leftNumber - rightNumber);
+	if (typeof a === "number" || typeof b === "number") return undefined;
+	const [left, right] = [textOf(a), textOf(b)];
+	return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * Whether `a` holds `b`, as `contains` in a Condition reads it: a list holds a value the same as
+ * `b` (`tags contains "vegan"`), text holds `b`'s text whatever its case. Nothing holds an empty value.
+ */
+export function holds(a: TemplateValue, b: TemplateValue): boolean {
+	if (isEmpty(b) || a === null || a === undefined) return false;
+	if (isList(a)) return a.some((item) => sameValue(item, b) || (isList(item) && holds(item, b)));
+	return textOf(a).toLowerCase().includes(textOf(b).toLowerCase());
+}
+
 /** Reads a date from a value: a date, or text that starts with `YYYY-MM-DD`. */
 export function toDate(value: TemplateValue): Date | undefined {
 	if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;

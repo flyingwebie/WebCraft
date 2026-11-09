@@ -292,7 +292,7 @@ export async function formUsages(scope: Pick<SiteScope, "select">): Promise<(for
 	const names = new Map((await scope.select(postTypes)).map((postType) => [postType.id, postType.name]));
 	for (const row of await scope.select(templates)) {
 		add(placedIn(row.draft, row.published), {
-			kind: row.kind === "site" ? "siteTemplate" : "entryTemplate",
+			kind: row.kind === "site" ? "siteTemplate" : row.kind === "archive" ? "archiveTemplate" : "entryTemplate",
 			id: row.id,
 			name: row.postTypeId ? (names.get(row.postTypeId) ?? null) : null,
 		});

@@ -7,7 +7,7 @@ import type { AuditDetails } from "../audit.ts";
  * values unless the spec says so.
  *
  * - `publish`: something on the Site was published (an Entry, a Page, the Globals, a Template, a
- *   Component, a script, a Form or the Design system).
+ *   Component, a script, a Form, a Loop or the Design system).
  */
 export const WEBHOOK_EVENTS = ["publish"] as const;
 
@@ -20,11 +20,15 @@ export function isWebhookEvent(value: string): value is WebhookEvent {
 	return (WEBHOOK_EVENTS as readonly string[]).includes(value);
 }
 
-/** What a publish published, as the `publish` event names it: the item's kind and id, and where an Entry is. */
+/**
+ * What a publish published, as the `publish` event names it: the item's kind (`entry`, `template`,
+ * `component`, `script`, `globals`, `form`, `loop`, `designSystem`, and every kind publishing gains)
+ * and id; an Entry's Post Type and path, and a Template's Post Type.
+ */
 export type PublishedItem =
 	| { kind: "entry"; id: string; postTypeId: string; path: string | null }
 	| { kind: "template"; id: string; postTypeId: string | null }
-	| { kind: "component" | "script" | "globals" | "designSystem" | "form"; id: string };
+	| { kind: string; id: string };
 
 /** A published path that the publish changed, as `Published.pathChanges` lists them. */
 type PathChange = { entryId: string; language: string; from: string; to: string };
@@ -33,38 +37,30 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
 const textOrNull = (value: unknown): string | null => (typeof value === "string" ? value : null);
 
 /**
- * The Audit log entries that are a publish, and what each published. The publish event is queued
- * from them once the publish is saved (after its transaction commits), whatever published it.
+ * A publish, as the Audit log names it: `<item>.publish`, such as `entry.publish` or `form.publish`,
+ * with the item's id as `<item>Id` in its details. A Module's own actions have three parts
+ * (`sample.note.add`), so they never match.
  */
-const PUBLISHES: Record<string, (details: AuditDetails) => { item: PublishedItem; pathChanges: PathChange[] }> = {
-	"entry.publish": (details) => ({
-		item: {
-			kind: "entry",
-			id: text(details.entryId),
-			postTypeId: text(details.postTypeId),
-			path: textOrNull(details.path),
-		},
-		pathChanges: Array.isArray(details.pathChanges) ? (details.pathChanges as PathChange[]) : [],
-	}),
-	"template.publish": (details) => ({
-		item: { kind: "template", id: text(details.templateId), postTypeId: textOrNull(details.postTypeId) },
-		pathChanges: [],
-	}),
-	"component.publish": (details) => ({ item: { kind: "component", id: text(details.componentId) }, pathChanges: [] }),
-	"script.publish": (details) => ({ item: { kind: "script", id: text(details.scriptId) }, pathChanges: [] }),
-	"globals.publish": (details) => ({ item: { kind: "globals", id: text(details.globalsId) }, pathChanges: [] }),
-	"form.publish": (details) => ({ item: { kind: "form", id: text(details.formId) }, pathChanges: [] }),
-	"designSystem.publish": (details) => ({
-		item: { kind: "designSystem", id: text(details.designSystemId) },
-		pathChanges: [],
-	}),
-};
+const PUBLISH_ACTION = /^([a-z][A-Za-z]*)\.publish$/;
 
-/** What an Audit log action published, or null when it isn't a publish. */
+/**
+ * What an Audit log action published, or null when it isn't a publish. The publish event is queued
+ * from it once the publish is saved (after its transaction commits), whatever published it, so a
+ * new kind of item fires it without a change here.
+ */
 export function publishedBy(
 	action: string,
 	details: AuditDetails,
 ): { item: PublishedItem; pathChanges: PathChange[] } | null {
-	const read = Object.hasOwn(PUBLISHES, action) ? PUBLISHES[action] : undefined;
-	return read ? read(details) : null;
+	const kind = PUBLISH_ACTION.exec(action)?.[1];
+	if (!kind) return null;
+	const id = text(details[`${kind}Id`]);
+	if (kind === "entry") {
+		return {
+			item: { kind, id, postTypeId: text(details.postTypeId), path: textOrNull(details.path) },
+			pathChanges: Array.isArray(details.pathChanges) ? (details.pathChanges as PathChange[]) : [],
+		};
+	}
+	if (kind === "template") return { item: { kind, id, postTypeId: textOrNull(details.postTypeId) }, pathChanges: [] };
+	return { item: { kind, id }, pathChanges: [] };
 }

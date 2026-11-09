@@ -2,7 +2,7 @@ import { POST_TYPE_NAME_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
-import { fieldInputs as fields } from "../fields.ts";
+import { fieldInputs as fields, language } from "../fields.ts";
 import { id } from "../inputs.ts";
 
 /** Post Types: the kinds of Entry a Site holds, with a URL pattern and Fields. Structure: Staff change them. */
@@ -56,5 +56,20 @@ export const postTypes = {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 			const { siteId: _, postTypeId, ...change } = input;
 			return { postType: await context.services.postTypes.update(site, postTypeId, change) };
+		}),
+
+	/**
+	 * The Data tab of a Post Type's Entry template (Staff only): one of its Entries from the Draft (the
+	 * one given, or the one saved last) as JSON shaped the way the template reads it, with the bindings
+	 * Template markup writes to read each value.
+	 */
+	data: signedIn
+		.input(z.object({ siteId: id, postTypeId: id, entryId: id.optional(), language: language.optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.postTypes.data(site, input.postTypeId, {
+				language: input.language,
+				entryId: input.entryId,
+			});
 		}),
 };

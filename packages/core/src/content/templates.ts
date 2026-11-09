@@ -3,6 +3,7 @@ import {
 	checkSiteTemplate,
 	type DesignSystem,
 	type ElementTree,
+	type LoopCatalogue,
 	type MarkupNotice,
 	parseElementTree,
 	parseTemplateMarkup,
@@ -16,6 +17,7 @@ import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { archiveAddressOf } from "./archives.ts";
 import {
 	type ComponentSources,
 	lockComponents,
@@ -27,15 +29,17 @@ import { DraftChangedError, PagesHaveNoEntryTemplateError, TemplateNotFoundError
 import type { FieldDefinition } from "./field-types.ts";
 import { storedFields } from "./fields.ts";
 import { draftVersion, type SaveBase, sameJson } from "./json.ts";
+import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { knownValues } from "./render-values.ts";
 
 /**
- * The kinds of Template: the Site template (one per Site, around every page) and Entry templates
- * (one per Post Type). Archive templates join them.
+ * The kinds of Template: the Site template (one per Site, around every page), Entry templates (one
+ * per Post Type, rendering each Entry) and Archive templates (one per Post Type, listing its Entries
+ * at its archive address, `archives.ts`).
  */
-export type TemplateKind = "entry" | "site";
+export type TemplateKind = "entry" | "site" | "archive";
 
 /** Where a Template stands, as for Entries: never published, published as it is, or changed since. */
 export type TemplateStatus = "draft" | "published" | "changed";
@@ -45,7 +49,7 @@ export type Template = {
 	id: string;
 	siteId: string;
 	kind: TemplateKind;
-	/** The Post Type an Entry template renders; null for the Site template. */
+	/** The Post Type an Entry or Archive template belongs to; null for the Site template. */
 	postTypeId: string | null;
 	status: TemplateStatus;
 	draft: ElementTree;
@@ -118,27 +122,49 @@ function siteTemplateRules(globalFields: readonly FieldDefinition[]) {
 	return { isKnownValue: (path: string) => path.startsWith("site.") && known(path), checkTree: checkSiteTemplate };
 }
 
-/** Which Template a save or read is about, with what it may read: an Entry template, or the Site template. */
-type TemplateTarget =
-	| { kind: "entry"; context: EntryTemplateContext }
-	| { kind: "site"; globalFields: readonly FieldDefinition[] };
-
 /**
- * What the Template `target` names may hold, placing the Components of `components`: their Drafts
- * for a Draft, their published versions for a publish.
+ * What an Archive template may hold: the Globals as `site.x` and the Loops of the Site (no Entry's
+ * values: it lists them through Loops); neither `<main>` nor `{{@outlet}}`, which are the Site
+ * template's, around it.
  */
-function rulesFor(target: TemplateTarget, components: SiteComponents) {
+function archiveTemplateRules(globalFields: readonly FieldDefinition[]) {
+	const known = knownValues({ fields: [], postTypes: [], globalFields });
 	return {
-		...(target.kind === "entry" ? entryTemplateRules(target.context) : siteTemplateRules(target.globalFields)),
-		components,
-		forms: components.forms,
+		isKnownValue: (path: string) => path.startsWith("site.") && known(path),
+		refuseElement: (tag: string) =>
+			tag === "main" ? "An Archive template renders inside the page's <main>; it can't hold another." : undefined,
+		refuseCommand: refuseSiteTemplateCommands,
 	};
 }
 
+/** Which Template a save or read is about, with what it may read: an Entry or Archive template, or the Site template. */
+type TemplateTarget =
+	| { kind: "entry"; context: EntryTemplateContext }
+	| { kind: "archive"; postType: PostType; globalFields: readonly FieldDefinition[] }
+	| { kind: "site"; globalFields: readonly FieldDefinition[] };
+
+/**
+ * What the Template `target` names may hold, placing the Components and Forms of `components` and
+ * naming the Loops of `loops`: their Drafts for a Draft, their published versions for a publish.
+ */
+function rulesFor(target: TemplateTarget, components: SiteComponents, loops: LoopCatalogue) {
+	const rules =
+		target.kind === "entry"
+			? entryTemplateRules(target.context)
+			: target.kind === "archive"
+				? archiveTemplateRules(target.globalFields)
+				: siteTemplateRules(target.globalFields);
+	return { ...rules, components, forms: components.forms, loops };
+}
+
 function whereFor(target: TemplateTarget): SQL {
-	return target.kind === "entry"
-		? (and(eq(templates.kind, "entry"), eq(templates.postTypeId, target.context.postType.id)) as SQL)
-		: (and(eq(templates.kind, "site"), isNull(templates.postTypeId)) as SQL);
+	if (target.kind === "site") return and(eq(templates.kind, "site"), isNull(templates.postTypeId)) as SQL;
+	return and(eq(templates.kind, target.kind), eq(templates.postTypeId, postTypeOf(target).id)) as SQL;
+}
+
+/** The Post Type an Entry or Archive template belongs to. */
+function postTypeOf(target: Exclude<TemplateTarget, { kind: "site" }>): PostType {
+	return target.kind === "entry" ? target.context.postType : target.postType;
 }
 
 /** Checks a tree as the Template `target` names, answering it in canonical form. */
@@ -147,8 +173,9 @@ function parseTemplate(
 	target: TemplateTarget,
 	classIds: ReadonlySet<string>,
 	components: SiteComponents,
+	loops: LoopCatalogue,
 ): ElementTree {
-	return parseElementTree(tree, { ...rulesFor(target, components), classIds });
+	return parseElementTree(tree, { ...rulesFor(target, components, loops), classIds });
 }
 
 /** An Entry template to save: Pages have none, being arranged with a Page layout (`PagesHaveNoEntryTemplateError`). */
@@ -161,6 +188,56 @@ async function entryTemplateTarget(scope: SiteScope, postTypeId: string): Promis
 /** The Site template to save, with the Globals it may read. */
 async function siteTemplateTarget(scope: SiteScope): Promise<TemplateTarget> {
 	return { kind: "site", globalFields: await globalFieldsOf(scope) };
+}
+
+/**
+ * A Post Type's Archive template to save: Pages have none, nor has a Post Type whose URL pattern
+ * starts with `{slug}` (`ArchiveUnavailableError`).
+ */
+async function archiveTemplateTarget(scope: SiteScope, postTypeId: string): Promise<TemplateTarget> {
+	const postType = await getPostType(scope, postTypeId);
+	archiveAddressOf(postType);
+	return { kind: "archive", postType, globalFields: await globalFieldsOf(scope) };
+}
+
+/**
+ * Saves the Draft of a Post Type's Archive template (open the Site with `structure.edit`), creating
+ * it the first time. Visitors see it at the Post Type's archive address once it is published.
+ */
+export async function saveArchiveTemplate(
+	scope: SiteScope,
+	postTypeId: string,
+	tree: unknown,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Template> {
+	return saveTemplate(scope, await archiveTemplateTarget(scope, postTypeId), tree, sources);
+}
+
+/** Saves the Draft of a Post Type's Archive template from Template markup, as `saveEntryTemplateMarkup` does. */
+export async function saveArchiveTemplateMarkup(
+	scope: SiteScope,
+	postTypeId: string,
+	markup: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	base: SaveBase = {},
+): Promise<SavedTemplateMarkup> {
+	return saveTemplateMarkup(scope, await archiveTemplateTarget(scope, postTypeId), markup, sources, base);
+}
+
+/** A Post Type's Archive template, or null while it has none. */
+export async function getArchiveTemplate(scope: SiteScope, postTypeId: string): Promise<Template | null> {
+	const postType = await getPostType(scope, postTypeId);
+	const row = await scope.first(templates, and(eq(templates.kind, "archive"), eq(templates.postTypeId, postType.id)));
+	return row ? toTemplate(row) : null;
+}
+
+/** A Post Type's Archive template as Template markup, or null while it has none. */
+export async function getArchiveTemplateMarkup(
+	scope: SiteScope,
+	postTypeId: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }> {
+	return templateMarkup(scope, await getArchiveTemplate(scope, postTypeId), sources);
 }
 
 /**
@@ -200,7 +277,13 @@ async function saveTemplate(
 			// The Components it places can't be deleted while it is saved.
 			await lockComponents(tx);
 			const { ids } = classCatalogue(await draftDesignSystem(tx));
-			const draft = parseTemplate(tree, target, ids, await siteComponents(tx, "draft", sources));
+			const draft = parseTemplate(
+				tree,
+				target,
+				ids,
+				await siteComponents(tx, "draft", sources),
+				await loopCatalogue(tx, "draft"),
+			);
 			return writeTemplateDraft(tx, target, draft);
 		}),
 	);
@@ -250,7 +333,7 @@ async function saveTemplateMarkup(
 			const catalogue = classCatalogue(await draftDesignSystem(tx));
 			const components = await siteComponents(tx, "draft", sources);
 			const { tree, notices } = parseTemplateMarkup(markup, {
-				...rulesFor(target, components),
+				...rulesFor(target, components, await loopCatalogue(tx, "draft")),
 				classNamed: catalogue.named,
 				classForStyle: catalogue.forStyle,
 			});
@@ -285,7 +368,7 @@ export async function readTemplateMarkup(
 	const designSystem = await draftDesignSystem(scope);
 	const catalogue = classCatalogue(designSystem);
 	const { tree, notices } = parseTemplateMarkup(markup, {
-		...rulesFor(rules, await siteComponents(scope, "draft", sources)),
+		...rulesFor(rules, await siteComponents(scope, "draft", sources), await loopCatalogue(scope, "draft")),
 		classNamed: catalogue.named,
 		classForStyle: catalogue.forStyle,
 	});
@@ -344,7 +427,7 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 		updated ??
 			(await scope.insert(templates, {
 				kind: target.kind,
-				postTypeId: target.kind === "entry" ? target.context.postType.id : null,
+				postTypeId: target.kind === "site" ? null : postTypeOf(target).id,
 				draft,
 				createdAt: now,
 				updatedAt: now,
@@ -394,10 +477,18 @@ export async function checkTemplateForPublish(
 	const target: TemplateTarget =
 		row.kind === "site"
 			? await siteTemplateTarget(scope)
-			: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
+			: row.kind === "archive"
+				? await archiveTemplateTarget(scope, row.postTypeId ?? "")
+				: { kind: "entry", context: await entryTemplateContext(scope, row.postTypeId ?? "") };
 	const { ids } = classCatalogue(await draftDesignSystem(scope));
-	// Visitors will see the Components it places as they are published.
-	return parseTemplate(row.draft, target, ids, await siteComponents(scope, "published", sources));
+	// Visitors will see the Components it places and the Loops it names as they are published.
+	return parseTemplate(
+		row.draft,
+		target,
+		ids,
+		await siteComponents(scope, "published", sources),
+		await loopCatalogue(scope, "published"),
+	);
 }
 
 /** Reads a Template for publishing, holding it until the transaction ends. */

@@ -90,6 +90,7 @@ export {
 	EXPRESSION_KEYWORDS,
 	type Expression,
 	passes,
+	type RenderTime,
 	readExpression,
 	writeExpression,
 } from "./expressions.ts";
@@ -102,8 +103,26 @@ export {
 	type ValueFormat,
 } from "./formatters.ts";
 export * from "./forms/index.ts";
-export { CODE_ATTRIBUTE, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
+export {
+	CODE_ATTRIBUTE,
+	type PaginationWords,
+	type PlacementRenderer,
+	type RenderOptions,
+	renderTree,
+} from "./html.ts";
 export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
+export {
+	DEFAULT_ITEM_NAME,
+	isLoopInfo,
+	LOOP_LIMITS,
+	LOOP_POSITION,
+	LOOP_STATS,
+	type LoopCatalogue,
+	type LoopInfo,
+	type LoopItem,
+	type LoopItemPlace,
+	type LoopRun,
+} from "./loops.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
 export { type PrintMarkupOptions, printTemplateMarkup } from "./markup/print.ts";
@@ -158,7 +177,10 @@ export {
 	type FormFound,
 	type FormNode,
 	type LanguageSwitcherNode,
+	type LoopNode,
+	loopNamesIn,
 	type OutletNode,
+	type PaginationNode,
 	type ParseTreeOptions,
 	parseElementTree,
 	randomElementId,

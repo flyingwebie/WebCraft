@@ -252,6 +252,41 @@ export const scripts = pgTable(
 );
 
 /**
+ * Loops: repeated parts of a Site, made by Staff (Structure) and placed in Templates and Components
+ * by name (`{{@loop latest-posts as post}}`). Each version says where the items come from (a query
+ * over Entries, or the Loop's own Loop items) and holds the Loop items' Fields and values:
+ * `{ source, query, fields, values }`, the items stored like a Repeater's rows under `values.items`,
+ * per Field and per language (ADR 0003). Published as one item.
+ */
+export const loops = pgTable(
+	"loops",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** How Template markup names it, such as `latest-posts`. Unique on the Site; it never changes. */
+		name: text("name").notNull(),
+		/** The Draft: `{ source, query, fields, values }`. */
+		draft: jsonb("draft").notNull(),
+		/** The published version; null until the first publish. */
+		published: jsonb("published"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		publishedAt: timestamp("published_at", { withTimezone: true }),
+		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
+	},
+	(table) => [
+		foreignKey({
+			name: "loops_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		unique("loops_site_id_id_unique").on(table.siteId, table.id),
+		unique("loops_site_id_name_unique").on(table.siteId, table.name),
+	],
+);
+
+/**
  * The links Relationship values make: one row per Entry, version, Relationship Field and Entry
  * pointed at, written whenever a Draft is saved or published. The values themselves stay in the
  * versions; these rows let WebCraft find what points at an Entry (the link back of a two-way

@@ -120,7 +120,9 @@ function FormPage() {
 			? t("forms.placedOnSiteTemplate")
 			: placement.kind === "entryTemplate"
 				? t("forms.placedOnEntryTemplate", { name: placement.name ?? "" })
-				: t("forms.placedOnComponent", { name: placement.name ?? "" }),
+				: placement.kind === "archiveTemplate"
+					? t("forms.placedOnArchiveTemplate", { name: placement.name ?? "" })
+					: t("forms.placedOnComponent", { name: placement.name ?? "" }),
 	);
 
 	return (
