@@ -27,6 +27,7 @@ import { Route as AdminWorkspacesIndexRouteImport } from './routes/_admin/worksp
 import { Route as AdminWorkspacesWorkspaceIdRouteImport } from './routes/_admin/workspaces.$workspaceId'
 import { Route as AdminSitesSiteIdIndexRouteImport } from './routes/_admin/sites.$siteId.index'
 import { Route as AdminSitesSiteIdGlobalsRouteImport } from './routes/_admin/sites.$siteId.globals'
+import { Route as AdminSitesSiteIdLanguagesRouteImport } from './routes/_admin/sites.$siteId.languages'
 import { Route as AdminSitesSiteIdMediaRouteImport } from './routes/_admin/sites.$siteId.media'
 import { Route as AdminSitesSiteIdModulesRouteImport } from './routes/_admin/sites.$siteId.modules'
 import { Route as AdminSitesSiteIdPostTypesRouteImport } from './routes/_admin/sites.$siteId.post-types'
@@ -132,6 +133,12 @@ const AdminSitesSiteIdGlobalsRoute = AdminSitesSiteIdGlobalsRouteImport.update({
   path: '/globals',
   getParentRoute: () => AdminSitesSiteIdRoute,
 } as any)
+const AdminSitesSiteIdLanguagesRoute =
+  AdminSitesSiteIdLanguagesRouteImport.update({
+    id: '/languages',
+    path: '/languages',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
 const AdminSitesSiteIdMediaRoute = AdminSitesSiteIdMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -232,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/workspaces/': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
+  '/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
@@ -263,6 +271,7 @@ export interface FileRoutesByTo {
   '/settings/storage': typeof AdminSettingsStorageRoute
   '/workspaces': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
+  '/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
@@ -296,6 +305,7 @@ export interface FileRoutesById {
   '/_admin/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdRouteWithChildren
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
   '/_admin/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
+  '/_admin/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/_admin/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/_admin/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/_admin/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceId'
     | '/workspaces/'
     | '/sites/$siteId/globals'
+    | '/sites/$siteId/languages'
     | '/sites/$siteId/media'
     | '/sites/$siteId/modules'
     | '/sites/$siteId/post-types'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/settings/storage'
     | '/workspaces'
     | '/sites/$siteId/globals'
+    | '/sites/$siteId/languages'
     | '/sites/$siteId/media'
     | '/sites/$siteId/modules'
     | '/workspaces/$workspaceId/members'
@@ -394,6 +406,7 @@ export interface FileRouteTypes {
     | '/_admin/workspaces/$workspaceId'
     | '/_admin/workspaces/'
     | '/_admin/sites/$siteId/globals'
+    | '/_admin/sites/$siteId/languages'
     | '/_admin/sites/$siteId/media'
     | '/_admin/sites/$siteId/modules'
     | '/_admin/sites/$siteId/post-types'
@@ -546,6 +559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdGlobalsRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/languages': {
+      id: '/_admin/sites/$siteId/languages'
+      path: '/languages'
+      fullPath: '/sites/$siteId/languages'
+      preLoaderRoute: typeof AdminSitesSiteIdLanguagesRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/sites/$siteId/media': {
       id: '/_admin/sites/$siteId/media'
       path: '/media'
@@ -687,6 +707,7 @@ const AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren =
 
 interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdGlobalsRoute: typeof AdminSitesSiteIdGlobalsRoute
+  AdminSitesSiteIdLanguagesRoute: typeof AdminSitesSiteIdLanguagesRoute
   AdminSitesSiteIdMediaRoute: typeof AdminSitesSiteIdMediaRoute
   AdminSitesSiteIdModulesRoute: typeof AdminSitesSiteIdModulesRoute
   AdminSitesSiteIdPostTypesRoute: typeof AdminSitesSiteIdPostTypesRouteWithChildren
@@ -697,6 +718,7 @@ interface AdminSitesSiteIdRouteChildren {
 
 const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdGlobalsRoute: AdminSitesSiteIdGlobalsRoute,
+  AdminSitesSiteIdLanguagesRoute: AdminSitesSiteIdLanguagesRoute,
   AdminSitesSiteIdMediaRoute: AdminSitesSiteIdMediaRoute,
   AdminSitesSiteIdModulesRoute: AdminSitesSiteIdModulesRoute,
   AdminSitesSiteIdPostTypesRoute: AdminSitesSiteIdPostTypesRouteWithChildren,

@@ -5,6 +5,7 @@ import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import { createCodeMode } from "./code-mode/index.ts";
 import {
+	addLanguage,
 	createComponent,
 	createEntry,
 	createPostType,
@@ -25,6 +26,7 @@ import {
 	listEntries,
 	listPostTypes,
 	publish,
+	removeLanguage,
 	renameComponent,
 	saveComponentDraft,
 	saveComponentMarkup,
@@ -36,8 +38,12 @@ import {
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
 	scriptById,
+	setBrowserLanguageRedirect,
+	setDefaultLanguage,
 	setGlobalFields,
 	setSpecialPage,
+	siteLanguages,
+	updateLanguage,
 	updatePostType,
 } from "./content/index.ts";
 import {
@@ -194,10 +200,18 @@ export async function createInstallServices(
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
 		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
+		languages: {
+			get: siteLanguages,
+			add: (scope, input) => addLanguage({ config }, scope, input),
+			update: (scope, code, change) => updateLanguage({ config }, scope, code, change),
+			setDefault: setDefaultLanguage,
+			remove: removeLanguage,
+			setBrowserRedirect: setBrowserLanguageRedirect,
+		},
 		pages: {
 			settings: getSpecialPages,
 			setHomePage: (scope, pageId) => setSpecialPage(scope, "home", pageId),
-			setNotFoundPage: (scope, pageId) => setSpecialPage(scope, "notFound", pageId),
+			setNotFoundPage: (scope, pageId, language) => setSpecialPage(scope, "notFound", pageId, language),
 		},
 		designSystem: {
 			get: getDesignSystem,

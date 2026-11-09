@@ -12,14 +12,18 @@ import type {
 	ComponentDraftChange,
 	ComponentMarkup,
 	ComponentUsage,
+	DefaultLanguageChange,
 	DraftChange,
 	Entry,
 	EntryDeletion,
 	FieldInput,
 	Globals,
 	GlobalsChange,
+	LanguageChange,
+	LanguageRemoval,
 	NewComponent,
 	NewEntry,
+	NewLanguage,
 	NewPostType,
 	PostType,
 	PostTypeChange,
@@ -29,6 +33,7 @@ import type {
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
 	Script,
+	SiteLanguages,
 	SpecialPages,
 	Template,
 	TemplateMarkup,
@@ -193,6 +198,27 @@ export type InstallServices = InstallPorts & {
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 	};
 	/**
+	 * A Site's languages (Structure): the Default language and the others, their names, directions and
+	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.
+	 */
+	languages: {
+		get(scope: SiteScope): Promise<SiteLanguages>;
+		add(scope: SiteScope, input: NewLanguage): Promise<SiteLanguages>;
+		update(scope: SiteScope, code: string, change: LanguageChange): Promise<SiteLanguages>;
+		/**
+		 * Makes another language the Default language, in two steps: without `confirmation` it answers
+		 * what would change and a confirmation id; with it, it goes ahead.
+		 */
+		setDefault(scope: SiteScope, code: string, confirmation?: string): Promise<DefaultLanguageChange>;
+		/**
+		 * Removes a language, in two steps: without `confirmation` it answers how many published pages
+		 * it has and a confirmation id; with it, it goes ahead. Its values are kept.
+		 */
+		remove(scope: SiteScope, code: string, confirmation?: string): Promise<LanguageRemoval>;
+		/** Turns the browser-language redirect on the home page on or off. */
+		setBrowserRedirect(scope: SiteScope, on: boolean): Promise<SiteLanguages>;
+	};
+	/**
 	 * Components: reusable element trees with Props, placed in Templates and other Components, with a
 	 * Draft and a published version (published through `publishing.publish` with `{ kind: "component" }`).
 	 * Structure: open the Site with `structure.edit`. A Module's Components are listed where it runs.
@@ -242,8 +268,11 @@ export type InstallServices = InstallPorts & {
 		settings(scope: SiteScope): Promise<SpecialPages>;
 		/** Chooses the home page, or none with null; it applies at once. */
 		setHomePage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
-		/** Chooses the 404 page, or the built-in one with null; it applies at once. */
-		setNotFoundPage(scope: SiteScope, pageId: string | null): Promise<SpecialPages>;
+		/**
+		 * Chooses the 404 page, or the built-in one with null; with a language, the 404 page of that
+		 * language alone (null: the Site's answers there). It applies at once.
+		 */
+		setNotFoundPage(scope: SiteScope, pageId: string | null, language?: string): Promise<SpecialPages>;
 	};
 	/**
 	 * Each Site's Design system (ADR 0009): tokens, Classes, base styles, custom CSS and dark mode,

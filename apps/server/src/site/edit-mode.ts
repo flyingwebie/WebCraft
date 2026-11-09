@@ -8,13 +8,11 @@ import {
 	type EditSession,
 	type InstallServices,
 	isAdminLanguage,
-	isDevelopmentHostname,
 	type PageEditing,
 	RateLimitedError,
 	SCRIPT_MAX_LENGTH,
 	type SiteHost,
 	type SiteScope,
-	WEBCRAFT_COOKIE_PREFIX,
 } from "@webcraft/core";
 import { z } from "zod";
 
@@ -22,6 +20,7 @@ import { clientAddress } from "../client-address.ts";
 import en from "../messages/en.json" with { type: "json" };
 import it from "../messages/it.json" with { type: "json" };
 import { json, plainText } from "../responses.ts";
+import { cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
 import { EDIT_ASSETS_PATH, editBarAssets } from "./edit-bar/assets.ts";
 
 /**
@@ -239,6 +238,7 @@ const regionChange = z.object({
 	item: z.string().max(100),
 	field: z.string().max(200),
 	value: z.string().max(200_000),
+	language: z.string().max(35).optional(),
 });
 
 /** A body that isn't what the action takes. */
@@ -473,15 +473,6 @@ export function clearEditCookie(request: Request): string {
 	return editCookie(new URL(request.url).hostname, "", 0);
 }
 
-/** One cookie's value from a request's `Cookie` header. */
-function cookieValue(request: Request, name: string): string | undefined {
-	for (const part of (request.headers.get("cookie") ?? "").split(";")) {
-		const separator = part.indexOf("=");
-		if (separator > 0 && part.slice(0, separator).trim() === name) return part.slice(separator + 1).trim() || undefined;
-	}
-	return undefined;
-}
-
 /**
  * Follows an "Edit on site" link: uses it up, sets the edit cookie and sends the browser on to the
  * page, so the link's token never stays in the address bar or the history. A link that doesn't work
@@ -532,20 +523,4 @@ export function editCookieName(hostname: string): string {
 /** The `Set-Cookie` line for the edit cookie: `HttpOnly`, `Secure` (but in development), `SameSite=Lax`. */
 function editCookie(hostname: string, value: string, maxAge: number): string {
 	return siteCookie(hostname, "edit", value, maxAge);
-}
-
-/**
- * The name of a cookie Edit mode sets on a Site's domain: `webcraft.<what>`, so Modules' Site routes
- * never see it, with the `__Host-` prefix but on a development hostname. `code` is Code mode's,
- * which says only that this browser has it on: the edit cookie's session still decides everything.
- */
-function siteCookieName(hostname: string, what: "edit" | "code"): string {
-	const name = `${WEBCRAFT_COOKIE_PREFIX}.${what}`;
-	return isDevelopmentHostname(hostname) ? name : `__Host-${name}`;
-}
-
-/** The `Set-Cookie` line for one of Edit mode's cookies: `HttpOnly`, `Secure` (but in development), `SameSite=Lax`. */
-function siteCookie(hostname: string, what: "edit" | "code", value: string, maxAge: number): string {
-	const secure = isDevelopmentHostname(hostname) ? "" : "; Secure";
-	return `${siteCookieName(hostname, what)}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly${secure}; SameSite=Lax`;
 }

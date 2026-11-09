@@ -6,6 +6,7 @@ export * from "./design-system.ts";
 export * from "./edit-mode.ts";
 export * from "./email.ts";
 export * from "./install.ts";
+export * from "./languages.ts";
 export * from "./media.ts";
 export * from "./modules.ts";
 export * from "./people.ts";

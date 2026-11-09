@@ -2,6 +2,7 @@ import { commandForNode } from "./commands.ts";
 import { COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, URL_ATTRIBUTES } from "./escape.ts";
 import { applyFormat } from "./formatters.ts";
+import { textIn } from "./languages.ts";
 import { type ImagePriority, type MediaReader, mediaReference, renderMediaImage } from "./media.ts";
 import { cleanRichText } from "./rich-text.ts";
 import {
@@ -20,7 +21,10 @@ export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 export type RenderOptions = {
 	/** Reads the value a binding names. */
 	values: ValueReader;
-	/** The page's language, a BCP 47 tag such as `en`, for formatters; English when absent. */
+	/**
+	 * The page's language, a BCP 47 tag such as `en`: fixed text shows its value in it, and formatters
+	 * write in it. English when absent.
+	 */
 	language?: string;
 	/** The class name of a Class id; Class references it doesn't know are left out. */
 	className?: (classId: string) => string | undefined;
@@ -28,6 +32,8 @@ export type RenderOptions = {
 	outlet?: () => string;
 	/** What `{{@themeToggle}}` shows. Nothing when absent. */
 	themeToggle?: () => string;
+	/** What `{{@languageSwitcher}}` shows. Nothing when absent. */
+	languageSwitcher?: () => string;
 	/**
 	 * Attributes WebCraft adds to an element, written after the element's own (such as the id of
 	 * the page's <main>, which the skip link points at); their values are escaped.
@@ -95,7 +101,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 	if (state.depth > 0) state.budget.nodes++;
 	switch (node.type) {
 		case "text":
-			return escapeText(node.text);
+			return escapeText(textIn(node, options.language));
 		case "comment":
 			return "";
 		case "value":
@@ -130,6 +136,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		nodes: (children) => renderNodes(children, options, state),
 		outlet: () => options.outlet?.() ?? "",
 		themeToggle: () => options.themeToggle?.() ?? "",
+		languageSwitcher: () => options.languageSwitcher?.() ?? "",
 	});
 }
 
@@ -215,7 +222,8 @@ function mediaImage(node: ElementNode, media: MediaReader, options: RenderOption
 function attributeText(attribute: Attribute, options: RenderOptions): string {
 	let value = "";
 	for (const part of attribute.value) {
-		value += part.type === "text" ? part.text : valueText(part, options.values(part.path), options);
+		value +=
+			part.type === "text" ? textIn(part, options.language) : valueText(part, options.values(part.path), options);
 	}
 	return value;
 }

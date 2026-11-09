@@ -4,7 +4,13 @@
  * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
  * `postTypes`, `media`: `VALUE_RULES`), so the admin can word it in the person's language.
  */
-export type ContentProblem = { at: string; message: string; rule?: string };
+export type ContentProblem = {
+	at: string;
+	message: string;
+	rule?: string;
+	/** The language of the value it is about, when it isn't the Default language's (or a shared) value. */
+	language?: string;
+};
 
 /** There is no such Post Type on the Site. */
 export class PostTypeNotFoundError extends Error {
@@ -94,17 +100,29 @@ export class EntryInvalidError extends Error {
 	}
 }
 
-/** Another Entry of the Post Type (for a Page, another Page under the same parent) already has the slug. */
+/**
+ * Another Entry of the Post Type (for a Page, another Page under the same parent) already has the
+ * slug in the language.
+ */
 export class EntrySlugTakenError extends Error {
 	override name = "EntrySlugTakenError";
 	readonly slug: string;
-	constructor(slug: string, among: "postType" | "siblingPages" = "postType") {
+	readonly language: string | null;
+	constructor(
+		slug: string,
+		among: "postType" | "siblingPages" = "postType",
+		languages: { language: string; defaultLanguage: string } | null = null,
+	) {
+		const language = languages?.language ?? null;
+		// The Default language goes without saying.
+		const where = language && language !== languages?.defaultLanguage ? ` in ${language}` : "";
 		super(
 			among === "siblingPages"
-				? `Another Page under the same parent already has the slug ${slug}.`
-				: `Another Entry of this Post Type already has the slug ${slug}.`,
+				? `Another Page under the same parent already has the slug ${slug}${where}.`
+				: `Another Entry of this Post Type already has the slug ${slug}${where}.`,
 		);
 		this.slug = slug;
+		this.language = language;
 	}
 }
 
@@ -154,14 +172,19 @@ export class EntryIncompleteError extends Error {
 	}
 }
 
-/** What holds a path on a Site: a Post Type's URL pattern, or a published Page. */
+/**
+ * What holds a path on a Site: a Post Type's URL pattern, a published Page, or a language, whose
+ * prefix starts its pages' paths.
+ */
 export type PathHolder =
 	| { kind: "postType"; id: string; name: string; urlPattern: string }
-	| { kind: "page"; id: string; title: string };
+	| { kind: "page"; id: string; title: string }
+	| { kind: "language"; code: string; name: string };
 
 /**
- * A path already belongs elsewhere: a Post Type's URL pattern owns every path it matches, and Pages
- * live outside them, so a path never belongs to both.
+ * A path already belongs elsewhere: a Post Type's URL pattern owns every path it matches, Pages live
+ * outside them, and each language other than the Default language owns every path under its prefix,
+ * so a path never belongs to two of them.
  */
 export class PathTakenError extends Error {
 	override name = "PathTakenError";
@@ -171,7 +194,9 @@ export class PathTakenError extends Error {
 		super(
 			by.kind === "postType"
 				? `The path ${path} belongs to ${by.name} (${by.urlPattern}): choose another slug or parent Page.`
-				: `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`,
+				: by.kind === "page"
+					? `The URL pattern takes ${path}, where the Page ${by.title} is published: choose another pattern.`
+					: `The path ${path} starts with the prefix of the Site's ${by.name} pages: choose another one.`,
 		);
 		this.path = path;
 		this.by = by;
@@ -274,4 +299,36 @@ export class ComponentFromModuleError extends Error {
 
 function describe(problems: readonly ContentProblem[]): string {
 	return problems.map((problem) => `${problem.at}: ${problem.message}`).join("; ");
+}
+
+/** A language's settings can't be saved: `problems` says what and where (`code`, `name`, `direction`, `domain`). */
+export class LanguageInvalidError extends Error {
+	override name = "LanguageInvalidError";
+	readonly problems: readonly ContentProblem[];
+	constructor(problems: readonly ContentProblem[]) {
+		super(`The language can't be saved: ${describe(problems)}`);
+		this.problems = problems;
+	}
+}
+
+/** The Site already has the language, or another language on the Install already has the domain. */
+export class LanguageTakenError extends Error {
+	override name = "LanguageTakenError";
+	readonly field: "code" | "domain";
+	constructor(field: "code" | "domain") {
+		super(
+			field === "code"
+				? "The Site already has this language."
+				: "Another language on this Install already has this domain.",
+		);
+		this.field = field;
+	}
+}
+
+/** The Site has no such language. */
+export class LanguageNotFoundError extends Error {
+	override name = "LanguageNotFoundError";
+	constructor() {
+		super("The Site has no such language.");
+	}
 }

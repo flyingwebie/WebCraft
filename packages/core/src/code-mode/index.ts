@@ -136,7 +136,7 @@ export function createCodeMode(options: {
 			let answer = await pages.render(host, input.path, shown);
 			// The home page's own path shows the home page.
 			if (answer?.kind === "redirect") answer = await pages.render(host, answer.location, shown);
-			const html = answer?.kind === "page" ? answer.html : (await pages.notFound(host, shown)).html;
+			const html = answer?.kind === "page" ? answer.html : (await pages.notFound(host, input.path, shown)).html;
 			return {
 				html,
 				stylesheet: { hash: preview.styles.stylesheet.hash, css: preview.styles.stylesheet.css },

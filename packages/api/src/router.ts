@@ -8,6 +8,7 @@ import { entries } from "./procedures/entries.ts";
 import { globals } from "./procedures/globals.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
+import { languages } from "./procedures/languages.ts";
 import { me } from "./procedures/me.ts";
 import { media } from "./procedures/media.ts";
 import { members } from "./procedures/members.ts";
@@ -38,6 +39,7 @@ export const apiRouter = {
 	postTypes,
 	entries,
 	globals,
+	languages,
 	templates,
 	components,
 	scripts,

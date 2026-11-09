@@ -43,8 +43,16 @@ export const sites = pgTable(
 			.references(() => workspaces.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		slug: text("slug").notNull().unique(),
-		/** The language the Site is written in first, a BCP 47 tag. Its URLs have no language prefix. */
+		/**
+		 * The Default language: the one the Site is written in first, a BCP 47 tag, one of its
+		 * `site_languages`. Its URLs have no language prefix; other languages fall back to it.
+		 */
 		defaultLanguage: text("default_language").notNull().default("en"),
+		/**
+		 * Whether a visitor's first request to the home page is sent on to the home page in the
+		 * language their browser prefers (ADR 0010). Off by default.
+		 */
+		browserLanguageRedirect: boolean("browser_language_redirect").notNull().default(false),
 		pageCacheGeneration: bigint("page_cache_generation", { mode: "number" }).notNull().default(0),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},

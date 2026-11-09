@@ -174,8 +174,11 @@ export {
 export {
 	canonicalPath,
 	isReservedPath,
+	LANGUAGE_CHOICE_PATH,
+	type LanguageChoice,
 	type PageContent,
 	type PageEditing,
+	type PageInLanguage,
 	pathSegments,
 	reservedSlugs,
 	type SiteAnswer,

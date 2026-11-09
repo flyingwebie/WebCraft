@@ -81,8 +81,8 @@ export function ProblemSummary({
 }
 
 /**
- * The languages a Draft is written in, as tabs: each opens the same Draft in that language. Sites have
- * one language until #80 adds more here.
+ * The languages a Draft is written in, as tabs: each opens the same Draft in that language, the
+ * Site's languages with the Default language first.
  */
 export function LanguageTabs({
 	languages,

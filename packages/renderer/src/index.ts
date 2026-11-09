@@ -100,6 +100,7 @@ export {
 	type ValueFormat,
 } from "./formatters.ts";
 export { CODE_ATTRIBUTE, type PlacementRenderer, type RenderOptions, renderTree } from "./html.ts";
+export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
 export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
 export { type PrintMarkupOptions, printTemplateMarkup } from "./markup/print.ts";
@@ -122,7 +123,9 @@ export {
 	builtInNotFoundPage,
 	directionOf,
 	type EditModePage,
+	type LanguageLink,
 	PAGE_HOOKS,
+	type PageAlternate,
 	type PageStyles,
 	type PageToRender,
 	pageWords,
@@ -142,6 +145,7 @@ export {
 	type ElementTree,
 	ElementTreeInvalidError,
 	elementsOf,
+	type LanguageSwitcherNode,
 	type OutletNode,
 	type ParseTreeOptions,
 	parseElementTree,

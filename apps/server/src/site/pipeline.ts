@@ -24,6 +24,7 @@ import {
 	editSessionOf,
 	pageEditing,
 } from "./edit-mode.ts";
+import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
 
 /** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
@@ -46,8 +47,12 @@ export type SitePipelineOptions = {
  * Modules' Site routes (`/_wc/m/<route prefix>/…`) go to the Module host, which answers them where
  * the Module runs; they are never cached.
  *
+ * Languages: a path's first part may name a language's prefix (`/fr/…`; `sitePages` reads it), the
+ * Language switcher's links (`/_wc/lang/…`) remember the visitor's choice in a cookie, and a Site may
+ * send a first visit to its home page on to the browser's language.
+ *
  * Steps still to come, in their places: Redirect domains and Redirect rules before everything else,
- * language prefixes and domains, each reserved path's feature (Forms, the Content API,
+ * language domains (with domain verification), each reserved path's feature (Forms, the Content API,
  * `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies), and the 404 log.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
@@ -75,6 +80,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 			if (url.pathname.startsWith(SCRIPT_PATH)) {
 				return script(services, request, host, url.pathname.slice(SCRIPT_PATH.length));
 			}
+			const chosen = await languageChoiceResponse(services, request, host, addressHeaders(host));
+			if (chosen) return chosen;
 			const segments = pathSegments(url.pathname);
 			// Paths the Install keeps: each feature answers its own; until then, a plain 404.
 			if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
@@ -88,6 +95,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 					await codeModeOf(services, request, edit.session),
 				);
 			}
+			const redirected = await browserLanguageRedirect(services, request, host, addressHeaders(host));
+			if (redirected) return redirected;
 			const page = await visitorPage(services, cache, request, host);
 			return edit.stale ? withEditCookieCleared(request, page) : page;
 		});
@@ -102,12 +111,12 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 async function visitorPage(services: InstallServices, cache: PageCache, request: Request, host: SiteHost) {
 	const { pathname } = new URL(request.url);
 	const segments = pathSegments(pathname);
-	if (!segments) return notFoundPage(services, host);
+	if (!segments) return notFoundPage(services, host, pathname);
 	const key = canonicalPath(segments);
 	const cached = cache.get(host.site.id, host.cacheGeneration, key);
 	if (cached) return pageResponse(request, host, cached, "HIT");
 	const answer = await services.sitePages.render(host, pathname);
-	if (!answer) return notFoundPage(services, host);
+	if (!answer) return notFoundPage(services, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, answer.location);
 	const page = { html: answer.html, etag: await etagOf(answer.html) };
 	cache.set(host.site.id, host.cacheGeneration, key, page);
@@ -133,7 +142,7 @@ async function editModePage(
 		return new Response(null, { status: 301, headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS } });
 	}
 	if (answer) return editModeHtml(200, answer.html);
-	return editModeHtml(404, (await services.sitePages.notFound(host, editing)).html);
+	return editModeHtml(404, (await services.sitePages.notFound(host, pathname, editing)).html);
 }
 
 /**
@@ -216,6 +225,7 @@ function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheS
 		etag: page.etag,
 		"x-cache": cacheStatus,
 		"x-content-type-options": "nosniff",
+		...languageVary(host, new URL(request.url).pathname),
 		...addressHeaders(host),
 	};
 	if (matchesETag(request.headers.get("if-none-match"), page.etag)) {
@@ -229,8 +239,8 @@ function pageResponse(request: Request, host: SiteHost, page: CachedPage, cacheS
  * page cache, nor by browsers and proxies, so every miss reaches the Site (and its 404 log) and a page
  * published at the path shows at once.
  */
-async function notFoundPage(services: InstallServices, host: SiteHost): Promise<Response> {
-	const page = await services.sitePages.notFound(host);
+async function notFoundPage(services: InstallServices, host: SiteHost, pathname: string): Promise<Response> {
+	const page = await services.sitePages.notFound(host, pathname);
 	return new Response(page.html, {
 		status: 404,
 		headers: {

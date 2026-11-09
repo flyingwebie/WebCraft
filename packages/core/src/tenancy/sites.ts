@@ -1,10 +1,14 @@
 import { sites } from "@webcraft/db/schema";
 import { asc } from "drizzle-orm";
 
+import { addDefaultLanguage } from "../content/languages.ts";
 import { addPagePostType } from "../content/pages.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { can } from "../permissions/can.ts";
 import type { Site, WorkspaceScope } from "./data-layer.ts";
+
+/** The Default language a new Site starts with; Staff can change it (see `content/languages.ts`). */
+export const DEFAULT_SITE_LANGUAGE = "en";
 
 /** The longest Site name, in characters. */
 export const SITE_NAME_MAX_LENGTH = 100;
@@ -78,6 +82,7 @@ export async function createSite(
 		return await scope.transaction(async (tx) => {
 			const site = toSite(await tx.insert(sites, { name, slug, createdAt: tx.now() }));
 			await addPagePostType(tx, site.id);
+			await addDefaultLanguage(tx, site.id, DEFAULT_SITE_LANGUAGE);
 			await tx.audit("site.create", { name, slug }, { siteId: site.id });
 			return site;
 		});
