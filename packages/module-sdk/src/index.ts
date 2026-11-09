@@ -94,8 +94,8 @@ export {
 	type SiteRoute,
 	siteRoute,
 } from "./define.ts";
-export { ModuleError, type ModuleRefusal, ModuleRefusedError } from "./errors.ts";
-export { MODULE_EVENTS, type ModuleEvent, type ModuleEventName, type ModuleEvents } from "./events.ts";
+export { isModuleError, ModuleError, type ModuleRefusal, ModuleRefusedError } from "./errors.ts";
+export { type FormSender, MODULE_EVENTS, type ModuleEvent, type ModuleEventName, type ModuleEvents } from "./events.ts";
 export {
 	CONSENT_CATEGORIES,
 	type ConsentCategory,
@@ -111,6 +111,15 @@ export {
 	moduleManifestSchema,
 	wordsIn,
 } from "./manifest.ts";
+export {
+	type NotFoundLog,
+	notFoundLog,
+	type PageMiss,
+	type RedirectRequest,
+	type RedirectRules,
+	type RedirectTarget,
+	redirectRules,
+} from "./redirects.ts";
 export {
 	type FormSubmission,
 	type ModuleSchedule,

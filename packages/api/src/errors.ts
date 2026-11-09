@@ -117,7 +117,7 @@ import {
 	WebhookRedeliveryRefusedError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
-import { ModuleError } from "@webcraft/module-sdk";
+import { isModuleError } from "@webcraft/module-sdk";
 import { DesignSystemInvalidError, ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
 
 /**
@@ -654,7 +654,7 @@ export function toApiError(error: unknown): unknown {
 			cause: error,
 		});
 	}
-	if (error instanceof ModuleError) {
+	if (isModuleError(error)) {
 		return new ORPCError("MODULE_ERROR", {
 			status: error.status,
 			message: error.message,

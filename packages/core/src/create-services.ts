@@ -229,6 +229,8 @@ export async function createInstallServices(
 		formToken: (site) => formTokens.issue(site.id),
 		moduleHosts: async (site) => (await modules.outsideHostsAt(site, "en")).map((found) => found.host),
 		moduleScripts: (site) => modules.siteScriptsAt(site),
+		redirects: (site, request, paths) => modules.redirectFor(site, request, paths),
+		misses: { keeps: modules.keepsNotFoundLog, note: (site, miss) => modules.noteMiss(site, miss) },
 	});
 	return {
 		...ports,

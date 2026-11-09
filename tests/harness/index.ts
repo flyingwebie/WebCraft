@@ -528,6 +528,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		jobs: services.jobs,
 		drainJobs: async (drainOptions = {}) => {
 			if (!boss) throw new Error(`An Install with an ${mode} database has no job queue to drain.`);
+			// The 404 log's misses wait in the web process for a few seconds; the drain hands them over first.
+			await services.modules.flushMisses();
 			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt);
 			return drainJobs(boss, services, drainOptions.only);
 		},

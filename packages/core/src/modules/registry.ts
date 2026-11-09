@@ -18,6 +18,8 @@ import {
 	type ModuleTable,
 	moduleManifestSchema,
 	moduleSchemaName,
+	type NotFoundLog,
+	type RedirectRules,
 	SDK_VERSION,
 	type SiteRoute,
 	type SubmissionReceiver,
@@ -91,6 +93,10 @@ export type RunnableModule = {
 	siteScript: ModuleSiteScriptFile | null;
 	/** Its tables kept in monthly partitions (SDK 1.4). */
 	partitions: readonly CompiledPartitioning[];
+	/** How it keeps the Sites' Redirect rules, when it does (SDK 1.5; at most one Module of a build). */
+	redirects: RedirectRules | null;
+	/** How it keeps the Sites' 404 log, when it does (SDK 1.5; at most one Module of a build). */
+	notFoundLog: NotFoundLog | null;
 };
 
 /** One of a Module's tables kept in monthly partitions, as WebCraft keeps it. */
@@ -136,6 +142,8 @@ const DEFINITION_KEYS = new Set([
 	"formSubmissions",
 	"siteScript",
 	"partitions",
+	"redirectRules",
+	"notFoundLog",
 	"widgets",
 ]);
 
@@ -173,6 +181,15 @@ export function loadModules(definitions: readonly ModuleDefinition[]): ModuleReg
 			module.runnable && module.receiver
 				? loaded.find((other) => other.runnable && other.receiver !== null)
 				: undefined;
+		// The Site pipeline asks one Module for a Site's Redirect rules, and hands one its 404 log.
+		const redirecting =
+			module.runnable && module.redirects
+				? loaded.find((other) => other.runnable && other.redirects !== null)
+				: undefined;
+		const logging =
+			module.runnable && module.notFoundLog
+				? loaded.find((other) => other.runnable && other.notFoundLog !== null)
+				: undefined;
 		// A tag names one Component: two Modules can't add Components with the same name.
 		const named = module.runnable
 			? loaded
@@ -196,7 +213,11 @@ export function loadModules(definitions: readonly ModuleDefinition[]): ModuleReg
 						)
 					: receiving
 						? broken(definition, module.manifest, `The Module ${receiving.id} already keeps Form Submissions.`)
-						: module,
+						: redirecting
+							? broken(definition, module.manifest, `The Module ${redirecting.id} already keeps Redirect rules.`)
+							: logging
+								? broken(definition, module.manifest, `The Module ${logging.id} already keeps the 404 log.`)
+								: module,
 		);
 	}
 	const byId = new Map(loaded.map((module) => [module.id, module]));
@@ -452,6 +473,21 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		});
 	}
 
+	const redirects = definition.redirectRules ?? null;
+	if (redirects !== null) {
+		if (level !== "site") problem("Only Site-level Modules keep Redirect rules: they are a Site's.");
+		if (typeof redirects.find !== "function") problem("Its redirectRules has no find function.");
+		if (!Array.isArray(redirects.tables)) problem("Its redirectRules doesn't list the tables find reads.");
+		for (const table of redirects.tables) {
+			if (!tables.has(table)) problem("Its redirectRules lists a table that isn't one of the Module's.");
+		}
+	}
+	const notFound = definition.notFoundLog ?? null;
+	if (notFound !== null) {
+		if (level !== "site") problem("Only Site-level Modules keep the 404 log: it is a Site's.");
+		if (typeof notFound.record !== "function") problem("Its notFoundLog has no record function.");
+	}
+
 	return {
 		runnable: true,
 		id: manifest.id,
@@ -471,6 +507,8 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		receiver,
 		siteScript,
 		partitions,
+		redirects,
+		notFoundLog: notFound,
 	};
 }
 

@@ -49,6 +49,10 @@ export type AdditionsView = {
 	components: string[];
 	/** Whether it keeps what visitors send through Forms (the Sites' Form Submissions). */
 	submissions: boolean;
+	/** Whether it keeps the Sites' Redirect rules, which answer before the Sites' own pages (SDK 1.5). */
+	redirectRules: boolean;
+	/** Whether it keeps the Sites' 404 log, the paths visitors asked for that have no page (SDK 1.5). */
+	notFoundLog: boolean;
 	/** Its jobs that run on a schedule: how often each runs. */
 	schedules: ("hour" | "day")[];
 };
@@ -94,6 +98,8 @@ export function additionsView(module: LoadedModule, language: string): Additions
 			events: [],
 			components: [],
 			submissions: false,
+			redirectRules: false,
+			notFoundLog: false,
 			schedules: [],
 		};
 	}
@@ -105,6 +111,8 @@ export function additionsView(module: LoadedModule, language: string): Additions
 		events: [...module.events],
 		components: module.components.map((component) => component.name),
 		submissions: module.receiver !== null,
+		redirectRules: module.redirects !== null,
+		notFoundLog: module.notFoundLog !== null,
 		schedules: module.schedules.map((schedule) => schedule.every),
 	};
 }
