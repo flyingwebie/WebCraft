@@ -139,9 +139,10 @@ export type SiteHost = {
 	/**
 	 * Where the Site's pages are for its visitors, whatever hostname asked: its verified Primary domain
 	 * and languages' domains, or the Staging address while it has no Primary domain. Canonical URLs
-	 * point there, so a live Site's Staging address never sends search engines to itself.
+	 * point there, so a live Site's Staging address never sends search engines to itself. Read only
+	 * when a page renders (on the Staging address it takes a query), then kept for the request.
 	 */
-	visitorAddresses: SiteAddresses;
+	visitorAddresses(): Promise<SiteAddresses>;
 	/** Whether the Site sends a first visit to the home page on to the browser's language (ADR 0010). */
 	browserLanguageRedirect: boolean;
 	/** How the Site's Content Security Policy applies (ADR 0023). */
@@ -410,7 +411,11 @@ export function createSitePages(options: {
 				const origin = stagingUrl(config, row.slug) ?? `https://${hostname}`;
 				// The Staging address shows every language under its prefix, on itself.
 				const addresses = { main: origin, languages: {} };
-				const visitorAddresses = (await siteAddresses(database.db, config, row)) ?? addresses;
+				let live: Promise<SiteAddresses> | undefined;
+				const visitorAddresses = () => {
+					live ??= siteAddresses(database.db, config, row).then((found) => found ?? addresses);
+					return live;
+				};
 				return hostOf(row, {
 					address: "staging",
 					language: null,
@@ -442,7 +447,7 @@ export function createSitePages(options: {
 				redirectTo: address === "redirect" ? primary : null,
 				origin,
 				addresses,
-				visitorAddresses: addresses,
+				visitorAddresses: async () => addresses,
 			});
 		},
 
@@ -1445,7 +1450,7 @@ async function seoSiteOf(view: View, host: SiteHost, place: Place): Promise<SeoS
 		settings,
 		name: settings.siteName ?? host.site.name,
 		languages: place.site,
-		addresses: host.visitorAddresses,
+		addresses: await host.visitorAddresses(),
 		postTypes: await listPostTypes(view.scope),
 		globals: (path) => resolvePath(globalParts, path),
 	};
