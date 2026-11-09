@@ -121,7 +121,7 @@ export type RoleKey = (typeof ROLE_KEYS)[number];
  * - `install`: an Install-level role reaching the whole Install (the Superadmin).
  * - `assigned-workspaces`: an Install-level role reaching the Workspaces its holder is assigned to,
  *   some or all of them, and their Sites (Staff), and holding on the Install itself only the
- *   Install-level Permissions its row lists (the Services list).
+ *   Permissions its row lists that are checked on the Install alone (the Services list).
  * - `membership`: a Workspace role, held on a Membership, reaching that Workspace and the Sites the
  *   Membership reaches.
  */

@@ -16736,6 +16736,1353 @@
 				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
+		"/reports/list": {
+			"post": {
+				"operationId": "reports.list",
+				"summary": "Lists a Dashboard's Reports: schedule, language, recipients and when each goes out next.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.view"]
+			}
+		},
+		"/reports/create": {
+			"post": {
+				"operationId": "reports.create",
+				"summary": "Sets up a Report of a Dashboard: its schedule, language, recipients and review.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"schedule": {
+										"enum": ["weekly", "monthly"],
+										"type": "string"
+									},
+									"language": {
+										"enum": ["en", "it"],
+										"type": "string"
+									},
+									"recipients": {
+										"type": "array",
+										"maxItems": 40,
+										"items": {
+											"type": "string",
+											"maxLength": 320
+										}
+									},
+									"review": {
+										"type": "boolean"
+									},
+									"active": {
+										"type": "boolean"
+									}
+								},
+								"required": ["dashboardId", "name", "schedule", "language", "recipients", "review", "active"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.manage"]
+			}
+		},
+		"/reports/update": {
+			"post": {
+				"operationId": "reports.update",
+				"summary": "Changes a Report's name, schedule, language, recipients, review or whether it goes out.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"reportId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"schedule": {
+										"enum": ["weekly", "monthly"],
+										"type": "string"
+									},
+									"language": {
+										"enum": ["en", "it"],
+										"type": "string"
+									},
+									"recipients": {
+										"type": "array",
+										"maxItems": 40,
+										"items": {
+											"type": "string",
+											"maxLength": 320
+										}
+									},
+									"review": {
+										"type": "boolean"
+									},
+									"active": {
+										"type": "boolean"
+									}
+								},
+								"required": ["reportId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.manage"]
+			}
+		},
+		"/reports/setRecipients": {
+			"post": {
+				"operationId": "reports.setRecipients",
+				"summary": "Changes who a Report goes to.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"reportId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"recipients": {
+										"type": "array",
+										"maxItems": 40,
+										"items": {
+											"type": "string",
+											"maxLength": 320
+										}
+									}
+								},
+								"required": ["reportId", "recipients"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["reportRecipients.edit"]
+			}
+		},
+		"/reports/delete": {
+			"post": {
+				"operationId": "reports.delete",
+				"summary": "Deletes a Report and its history.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"reportId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["reportId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.manage"]
+			}
+		},
+		"/reports/history": {
+			"post": {
+				"operationId": "reports.history",
+				"summary": "A Report's history, newest first: each one made, its state and its emails.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"reportId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"limit": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 50
+									},
+									"before": {
+										"type": "string",
+										"format": "date-time",
+										"x-native-type": "date"
+									}
+								},
+								"required": ["reportId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.view"]
+			}
+		},
+		"/reports/sends/get": {
+			"post": {
+				"operationId": "reports.sends.get",
+				"summary": "One entry of a Report's history, with its AI text.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"sendId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["sendId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.view"]
+			}
+		},
+		"/reports/sends/pdf": {
+			"post": {
+				"operationId": "reports.sends.pdf",
+				"summary": "An entry of a Report's history as its PDF (base64), while it is kept.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"sendId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["sendId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.view"]
+			}
+		},
+		"/reports/sends/editText": {
+			"post": {
+				"operationId": "reports.sends.editText",
+				"summary": "Changes the AI text of a Report waiting for review.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"sendId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"text": {
+										"type": "object",
+										"properties": {
+											"widgets": {
+												"type": "object",
+												"propertyNames": {
+													"type": "string",
+													"format": "uuid"
+												},
+												"additionalProperties": {
+													"type": "string",
+													"maxLength": 1200
+												}
+											},
+											"whatHappened": {
+												"type": "string",
+												"maxLength": 3000
+											},
+											"suggestions": {
+												"type": "array",
+												"maxItems": 5,
+												"items": {
+													"type": "object",
+													"properties": {
+														"text": {
+															"type": "string",
+															"maxLength": 800
+														},
+														"service": {
+															"anyOf": [
+																{
+																	"type": "string",
+																	"maxLength": 100
+																},
+																{
+																	"type": "null"
+																}
+															]
+														}
+													},
+													"required": ["text", "service"]
+												}
+											}
+										},
+										"required": ["widgets", "whatHappened", "suggestions"]
+									}
+								},
+								"required": ["sendId", "text"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.manage"]
+			}
+		},
+		"/reports/sends/approve": {
+			"post": {
+				"operationId": "reports.sends.approve",
+				"summary": "Sends a Report waiting for review.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"sendId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["sendId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.manage"]
+			}
+		},
+		"/reports/sends/discard": {
+			"post": {
+				"operationId": "reports.sends.discard",
+				"summary": "Drops a Report waiting for review.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"sendId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["sendId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.manage"]
+			}
+		},
+		"/reports/sends/resend": {
+			"post": {
+				"operationId": "reports.sends.resend",
+				"summary": "Sends a Report again, or makes its PDF again when that failed.",
+				"tags": ["reports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"sendId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["sendId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["report.manage"]
+			}
+		},
+		"/shareLinks/list": {
+			"post": {
+				"operationId": "shareLinks.list",
+				"summary": "Lists a Dashboard's Share links and how often each was opened.",
+				"tags": ["shareLinks"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["shareLink.view"]
+			}
+		},
+		"/shareLinks/create": {
+			"post": {
+				"operationId": "shareLinks.create",
+				"summary": "Makes a Share link to a Dashboard (Sensitive: admin only).",
+				"tags": ["shareLinks"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"language": {
+										"enum": ["en", "it"],
+										"type": "string"
+									},
+									"password": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 800
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"expiresAt": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "date-time",
+												"x-native-type": "date"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["dashboardId", "name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["shareLink.manage"],
+				"x-webcraft-sensitive": "shareLink.change"
+			}
+		},
+		"/shareLinks/update": {
+			"post": {
+				"operationId": "shareLinks.update",
+				"summary": "Changes a Share link's name, password or expiry (Sensitive: admin only).",
+				"tags": ["shareLinks"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"shareLinkId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									},
+									"language": {
+										"enum": ["en", "it"],
+										"type": "string"
+									},
+									"password": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 800
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"expiresAt": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "date-time",
+												"x-native-type": "date"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["shareLinkId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["shareLink.manage"],
+				"x-webcraft-sensitive": "shareLink.change"
+			}
+		},
+		"/shareLinks/revoke": {
+			"post": {
+				"operationId": "shareLinks.revoke",
+				"summary": "Revokes a Share link: it stops working at once.",
+				"tags": ["shareLinks"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"shareLinkId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["shareLinkId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["shareLink.manage"]
+			}
+		},
+		"/reportBranding/workspace/get": {
+			"post": {
+				"operationId": "reportBranding.workspace.get",
+				"summary": "How a Workspace's Reports and Share links are branded.",
+				"tags": ["reportBranding"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["workspaceId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["reportBranding.manage"]
+			}
+		},
+		"/reportBranding/workspace/update": {
+			"post": {
+				"operationId": "reportBranding.workspace.update",
+				"summary": "Changes how a Workspace's Reports and Share links are branded: its agency and client brand, and what shows.",
+				"tags": ["reportBranding"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"ownAgency": {
+										"type": "boolean"
+									},
+									"agency": {
+										"type": "object",
+										"properties": {
+											"name": {
+												"anyOf": [
+													{
+														"type": "string",
+														"maxLength": 200
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
+											"accentColour": {
+												"anyOf": [
+													{
+														"type": "string",
+														"maxLength": 20
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
+											"logo": {
+												"anyOf": [
+													{
+														"type": "object",
+														"properties": {
+															"contentType": {
+																"type": "string",
+																"maxLength": 40
+															},
+															"data": {
+																"type": "string",
+																"maxLength": 360000
+															}
+														},
+														"required": ["contentType", "data"]
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										}
+									},
+									"client": {
+										"type": "object",
+										"properties": {
+											"name": {
+												"anyOf": [
+													{
+														"type": "string",
+														"maxLength": 200
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
+											"logo": {
+												"anyOf": [
+													{
+														"type": "object",
+														"properties": {
+															"contentType": {
+																"type": "string",
+																"maxLength": 40
+															},
+															"data": {
+																"type": "string",
+																"maxLength": 360000
+															}
+														},
+														"required": ["contentType", "data"]
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										}
+									},
+									"showAgency": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"showClient": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
+									"madeWith": {
+										"anyOf": [
+											{
+												"type": "boolean"
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["workspaceId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["reportBranding.manage"]
+			}
+		},
+		"/reportBranding/site/get": {
+			"post": {
+				"operationId": "reportBranding.site.get",
+				"summary": "A Site's client brand on its Reports and Share links.",
+				"tags": ["reportBranding"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["reportBranding.manage"]
+			}
+		},
+		"/reportBranding/site/update": {
+			"post": {
+				"operationId": "reportBranding.site.update",
+				"summary": "Changes a Site's client brand (name and logo) on its Reports and Share links.",
+				"tags": ["reportBranding"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"client": {
+										"type": "object",
+										"properties": {
+											"name": {
+												"anyOf": [
+													{
+														"type": "string",
+														"maxLength": 200
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
+											"logo": {
+												"anyOf": [
+													{
+														"type": "object",
+														"properties": {
+															"contentType": {
+																"type": "string",
+																"maxLength": 40
+															},
+															"data": {
+																"type": "string",
+																"maxLength": 360000
+															}
+														},
+														"required": ["contentType", "data"]
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										}
+									}
+								},
+								"required": ["siteId", "client"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["reportBranding.manage"]
+			}
+		},
 		"/m/forms/submissions/list": {
 			"post": {
 				"operationId": "m.forms.submissions.list",
