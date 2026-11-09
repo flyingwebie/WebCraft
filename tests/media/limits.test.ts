@@ -211,4 +211,21 @@ describe("a Workspace's storage quota", () => {
 		});
 		expect((await editor.browser.api.media.list({ siteId })).total).toBe(3);
 	});
+
+	test("two uploads at once can't together take a Workspace past its quota", async () => {
+		const workspaceId = (await install.createWorkspace()).id;
+		const siteId = (await install.createSite(workspaceId)).id;
+		await admin.api.workspaces.setQuota({ workspaceId, quotaBytes: MB });
+
+		const answers = await Promise.allSettled([
+			admin.api.media.upload({ siteId, file: upload(pdfOf(600 * KB, "left"), "left.pdf") }),
+			admin.api.media.upload({ siteId, file: upload(pdfOf(600 * KB, "right"), "right.pdf") }),
+		]);
+
+		expect(answers.filter((answer) => answer.status === "fulfilled")).toHaveLength(1);
+		const refused = answers.find((answer) => answer.status === "rejected");
+		expect(refused?.reason).toMatchObject({ code: "MEDIA_QUOTA_FULL", status: 413 });
+		expect((await admin.api.workspaces.storage({ workspaceId })).usedBytes).toBe(600 * KB);
+		expect((await admin.api.media.list({ siteId })).total).toBe(1);
+	});
 });
