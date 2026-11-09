@@ -17,6 +17,8 @@ import { sameJson } from "../content/json.ts";
 import { isPagePostType } from "../content/pages.ts";
 import { slugify } from "../content/slugs.ts";
 import { isUniqueViolation } from "../db-errors.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
+import { saveRevision } from "../history/copies.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
@@ -167,6 +169,12 @@ export async function saveFormDraft(scope: SiteScope, formId: string, input: For
 			eq(forms.id, row.id),
 		);
 		if (!updated) throw new FormNotFoundError();
+		await noteDraftChange(
+			tx,
+			{ kind: "form", id: row.id },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+			version,
+		);
 		return toForm(updated);
 	});
 }
@@ -199,6 +207,7 @@ export async function saveFormEmails(scope: SiteScope, formId: string, input: Fo
 			eq(forms.id, row.id),
 		);
 		if (!updated) throw new FormNotFoundError();
+		await noteEmailsChange(tx, row, emails);
 		return toForm(updated);
 	});
 }
@@ -330,8 +339,21 @@ export async function writeFormEmailsTranslations(
 			},
 			eq(forms.id, row.id),
 		);
+		if (written.draft) await noteEmailsChange(tx, row, written.draft);
+		// Translated words published: a publish, which saves a Revision like any other.
+		if (written.published && row.emailsPublished) await saveRevision(tx, { kind: "formEmails", id: row.id });
 		return true;
 	});
+}
+
+/** Notes a change to a Form's emails Draft for their history: who changed what, and Checkpoints. */
+async function noteEmailsChange(scope: SiteScope, row: FormRow, emails: unknown): Promise<void> {
+	await noteDraftChange(
+		scope,
+		{ kind: "formEmails", id: row.id },
+		{ content: row.emailsDraft, changedAt: row.emailsUpdatedAt ?? row.updatedAt, changedBy: row.emailsUpdatedBy },
+		emails,
+	);
 }
 
 /** A Form's emails, each version and the AI's translations, as stored. */

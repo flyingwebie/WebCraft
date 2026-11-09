@@ -240,6 +240,7 @@ export const PROCEDURES = {
 		"One page of an item's history: the Revisions its publishes saved and the Checkpoints of its Draft, newest first.",
 	),
 	"history.get": read("One Revision or Checkpoint of an item, with the whole version it holds in every language."),
+	"history.leave": internal(),
 	"media.list": read("Lists files of the Site's Media library, or its Trash."),
 	"media.overview": read("What the Media library takes and holds."),
 	"media.suggestAltText": internal(),

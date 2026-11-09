@@ -3,6 +3,7 @@ import { EXPRESSION_KEYWORDS, type LoopCatalogue, type LoopInfo, SEARCH_LOOP } f
 import { asc, eq, sql } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -206,6 +207,7 @@ export async function saveLoopDraft(scope: SiteScope, loopId: string, change: Lo
 			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
 			eq(loops.id, row.id),
 		);
+		await noteLoopChange(tx, row, draft);
 		return toLoop(saved ?? row, await defaultLanguages(tx));
 	});
 }
@@ -245,8 +247,19 @@ export async function saveLoopItems(scope: SiteScope, loopId: string, change: Lo
 			{ draft: { ...draft, values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
 			eq(loops.id, row.id),
 		);
+		await noteLoopChange(tx, row, { ...draft, values });
 		return toLoop(saved ?? row, languages);
 	});
+}
+
+/** Notes a change to a Loop's Draft for its history: who changed what, and Checkpoints. */
+async function noteLoopChange(scope: SiteScope, row: LoopRow, draft: unknown): Promise<void> {
+	await noteDraftChange(
+		scope,
+		{ kind: "loop", id: row.id },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+		draft,
+	);
 }
 
 /**

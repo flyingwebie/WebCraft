@@ -42,4 +42,15 @@ export const history = {
 			const { content, ...summary } = copy;
 			return { item, copy: summary, content };
 		}),
+
+	/**
+	 * The editor of an item closed: the admin's editors say so as they close. When nobody else is
+	 * editing it, its Draft is saved as a Checkpoint unless nothing changed since its newest Revision or
+	 * Checkpoint. Answers the Checkpoint saved, or null. Co-editing will call the same when its last
+	 * participant goes.
+	 */
+	leave: signedIn.input(z.object({ siteId: id, item: publishItem })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, historyReadPermission(input.item));
+		return { checkpoint: await context.services.history.leave(site, input.item) };
+	}),
 };

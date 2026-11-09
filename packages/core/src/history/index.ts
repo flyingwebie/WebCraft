@@ -1,6 +1,7 @@
 import type { Database } from "@webcraft/db";
 
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { draftLeft } from "./checkpoints.ts";
 import {
 	type CopyRef,
 	getCopy,
@@ -14,6 +15,7 @@ import { type HistoryItem, type HistoryItemSummary, itemState } from "./items.ts
 import { changeHistorySettings, type HistorySettings, readHistorySettings } from "./settings.ts";
 
 export { type Attribution, clientOf } from "./attribution.ts";
+export { CHECKPOINT_EVERY_MS, type DraftBefore, noteDraftChange } from "./checkpoints.ts";
 export {
 	CheckpointNotFoundError,
 	type CheckpointReason,
@@ -59,6 +61,12 @@ export type HistoryService = {
 	list(scope: SiteScope, item: HistoryItem, options?: { cursor?: string; limit?: number }): Promise<HistoryPage>;
 	/** One saved copy with the whole version it holds, every language included. */
 	get(scope: SiteScope, item: HistoryItem, ref: CopyRef): Promise<{ item: HistoryItemSummary; copy: StoredCopy }>;
+	/**
+	 * The last person editing an item's Draft left (open the Site with `historyReadPermission(item)`):
+	 * its Draft is saved as a Checkpoint unless nothing changed since the newest Revision or Checkpoint.
+	 * The admin's editors call it as they close; Co-editing (#71) calls it when its last participant goes.
+	 */
+	leave(scope: SiteScope, item: HistoryItem): Promise<HistoryCopy | null>;
 	/** Install settings › Revisions. */
 	settings(): Promise<HistorySettings>;
 	/** Changes Install settings › Revisions (open the Install with `install.manage`). */
@@ -76,6 +84,10 @@ export function createHistory(deps: { database: Database }): HistoryService {
 		async get(scope, item, ref) {
 			const state = await itemState(scope, item);
 			return { item: state.summary, copy: await getCopy(scope, item, ref) };
+		},
+		async leave(scope, item) {
+			await itemState(scope, item);
+			return draftLeft(scope, item);
 		},
 		settings: () => readHistorySettings(deps.database.db),
 		changeSettings: changeHistorySettings,

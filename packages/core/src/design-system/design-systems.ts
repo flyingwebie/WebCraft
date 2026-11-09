@@ -7,6 +7,7 @@
 import { designSystems } from "@webcraft/db/schema";
 import { type DesignSystem, defaultDesignSystem, readDesignSystem } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 
@@ -52,5 +53,11 @@ export async function writeDraft(scope: SiteScope, locked: LockedDesignSystem, d
 		designSystems,
 		{ draft, updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor) },
 		eq(designSystems.id, locked.row.id),
+	);
+	await noteDraftChange(
+		scope,
+		{ kind: "designSystem" },
+		{ content: locked.row.draft, changedAt: locked.row.updatedAt, changedBy: locked.row.updatedBy },
+		draft,
 	);
 }

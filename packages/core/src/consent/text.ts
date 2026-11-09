@@ -26,6 +26,7 @@ import { sameJson } from "../content/json.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
 import type { Published } from "../content/publishing.ts";
 import { storedVersion } from "../content/values.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ConsentBannerRow, lockBanner } from "./banner.ts";
@@ -152,6 +153,12 @@ export async function saveConsentTextDraft(scope: SiteScope, change: ConsentText
 			consentBanners,
 			{ draft: { values }, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
 			eq(consentBanners.id, row.id),
+		);
+		await noteDraftChange(
+			tx,
+			{ kind: "consentBanner" },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+			{ values },
 		);
 		return toText(saved ?? row, languages);
 	});

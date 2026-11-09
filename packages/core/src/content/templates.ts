@@ -18,6 +18,7 @@ import { and, eq, isNull, type SQL } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -583,18 +584,32 @@ function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: S
 async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draft: ElementTree): Promise<Template> {
 	const now = scope.now();
 	const updatedBy = personIdOf(scope.access.actor);
+	const [before] = await scope.db
+		.select()
+		.from(templates)
+		.where(scope.where(templates, whereFor(target)))
+		.for("update");
 	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy }, whereFor(target));
-	return toTemplate(
+	const row =
 		updated ??
-			(await scope.insert(templates, {
-				kind: target.kind,
-				postTypeId: target.kind === "site" || target.kind === "search" ? null : postTypeOf(target).id,
-				draft,
-				createdAt: now,
-				updatedAt: now,
-				updatedBy,
-			})),
+		(await scope.insert(templates, {
+			kind: target.kind,
+			postTypeId: target.kind === "site" || target.kind === "search" ? null : postTypeOf(target).id,
+			draft,
+			createdAt: now,
+			updatedAt: now,
+			updatedBy,
+		}));
+	await noteDraftChange(
+		scope,
+		{ kind: "template", id: row.id },
+		before
+			? { content: before.draft, changedAt: before.updatedAt, changedBy: before.updatedBy }
+			: { content: null, changedAt: now, changedBy: null },
+		draft,
+		{ created: !before },
 	);
+	return toTemplate(row);
 }
 
 /**

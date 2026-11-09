@@ -45,8 +45,10 @@ describe("publishing an Entry", () => {
 		const item = { kind: "entry", id: entry.id } as const;
 		const history = await editor.api.history.list({ siteId, item });
 		expect(history.item).toMatchObject({ kind: "entry", id: entry.id, name: "Fresh bread" });
-		expect(history.copies).toHaveLength(1);
-		const [revision] = history.copies;
+		// Saving the French values first kept the Draft as it was made, as a Checkpoint.
+		const revisions = history.copies.filter((copy) => copy.type === "revision");
+		expect(revisions).toHaveLength(1);
+		const [revision] = revisions;
 		expect(revision).toMatchObject({
 			type: "revision",
 			at: new Date("2026-03-03T10:00:00Z"),
@@ -137,7 +139,8 @@ describe("every publishable item", () => {
 		await publishAll(staff.api, siteId, items);
 		for (const item of items) {
 			const { copies } = await staff.api.history.list({ siteId, item });
-			expect({ item, copies: copies.map(({ type, by }) => ({ type, by: by?.person?.id })) }).toEqual({
+			const revisions = copies.filter((copy) => copy.type === "revision");
+			expect({ item, copies: revisions.map(({ type, by }) => ({ type, by: by?.person?.id })) }).toEqual({
 				item,
 				copies: [{ type: "revision", by: staffId }],
 			});
@@ -147,8 +150,10 @@ describe("every publishable item", () => {
 		await install.clock.advance(60_000);
 		await staff.api.entries.saveDraft({ siteId, entryId: post.id, title: "Spring menu 2027" });
 		await staff.api.entries.publish({ siteId, entryId: post.id });
-		const { copies } = await staff.api.history.list({ siteId, item: { kind: "entry", id: post.id } });
-		expect(copies.map((copy) => copy.type)).toEqual(["revision", "revision"]);
+		const copies = (await staff.api.history.list({ siteId, item: { kind: "entry", id: post.id } })).copies.filter(
+			(copy) => copy.type === "revision",
+		);
+		expect(copies).toHaveLength(2);
 		const newest = await staff.api.history.get({
 			siteId,
 			item: { kind: "entry", id: post.id },

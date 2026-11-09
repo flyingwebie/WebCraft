@@ -2,6 +2,8 @@ import { entries, people, publishedSlugs } from "@webcraft/db/schema";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
+import { saveRevision } from "../history/copies.ts";
 import { isUuid } from "../ids.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import { SEO_CHECK_MESSAGES, type SeoPreview, seoReports } from "../seo/checks.ts";
@@ -405,6 +407,8 @@ export async function writeEntryTranslations(
 		if (written?.draft) await changeDraft(tx, row, postType, { replace: written.draft }, languages);
 		if (written?.published && row.published !== null) {
 			await tx.update(entries, { published: written.published }, eq(entries.id, row.id));
+			// Translated values published: a publish, which saves a Revision like any other.
+			await saveRevision(tx, { kind: "entry", id: row.id });
 		}
 		return { written, postType };
 	});
@@ -543,6 +547,14 @@ async function changeDraft(
 	);
 	if (!saved) throw new EntryNotFoundError();
 	await saveLinks(scope, row.id, "draft", linksIn(version.values, postType.fields));
+	// Who changed what, and a Checkpoint after 10 minutes of activity (a new Entry has nothing to keep).
+	await noteDraftChange(
+		scope,
+		{ kind: "entry", id: row.id },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+		version,
+		{ created: "change" in edit && edit.withDefaults === true },
+	);
 	return saved;
 }
 

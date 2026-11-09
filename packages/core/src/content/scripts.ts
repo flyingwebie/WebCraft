@@ -15,6 +15,7 @@ import { and, eq, isNull, type SQL } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
 import { CODE_MODE_SCRIPT_PATH } from "../edit-mode/paths.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import { retireScriptFiles } from "../site-scripts/retired.ts";
@@ -101,11 +102,28 @@ export async function saveScriptDraft(
 				};
 				if (current) {
 					const [updated] = await tx.update(scripts, draft, eq(scripts.id, current.id));
+					await noteDraftChange(
+						tx,
+						{ kind: "script", id: current.id },
+						{ content: current.draft, changedAt: current.updatedAt, changedBy: current.updatedBy },
+						code,
+					);
 					return toScript(updated as ScriptRow);
 				}
-				return toScript(
-					await tx.insert(scripts, { kind: entryId === null ? "site" : "page", entryId, ...draft, createdAt: now }),
+				const made = await tx.insert(scripts, {
+					kind: entryId === null ? "site" : "page",
+					entryId,
+					...draft,
+					createdAt: now,
+				});
+				await noteDraftChange(
+					tx,
+					{ kind: "script", id: made.id },
+					{ content: "", changedAt: now, changedBy: null },
+					code,
+					{ created: true },
 				);
+				return toScript(made);
 			});
 		} catch (error) {
 			// Someone made the same script at the same moment: the next try saves over theirs, checked again.
