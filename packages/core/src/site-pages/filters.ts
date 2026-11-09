@@ -17,7 +17,7 @@ import {
 	renderFilter,
 	type TreeNode,
 } from "@webcraft/renderer";
-import { and, inArray, isNotNull, or, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, type SQL } from "drizzle-orm";
 
 import { draftAddresses } from "../content/draft-paths.ts";
 import { entryValues } from "../content/entries.ts";
@@ -260,24 +260,22 @@ async function optionsOf(
 	const targets = postTypes.filter((postType) => field.postTypes.includes(postType.key));
 	if (targets.length === 0) return { options, field };
 	const draft = place.version === "draft";
-	const rows = await scope.select(
-		entries,
-		and(
-			inArray(
-				entries.postTypeId,
-				targets.map((postType) => postType.id),
-			),
-			draft ? undefined : isNotNull(entries.published),
-		) as SQL,
-		{ limit: FILTER_LIMITS.options * 5 },
-	);
 	const found: { id: string; title: string; slug: string }[] = [];
 	for (const postType of targets) {
-		const own = rows.filter(
-			(row) =>
-				row.postTypeId === postType.id &&
-				isVisibleIn(storedVersion(draft ? row.draft : row.published), place.languages),
+		// Each target Post Type is bound by its own query and its own budget (like `publishedAddresses`
+		// and `draftAddresses` below, already read one Post Type at a time): sharing one query and one
+		// limit across every target Post Type let a Post Type with many Entries fill it and leave
+		// another with only a few out of the options entirely. A stable `ORDER BY` (by title, the same
+		// tiebreak `QuerySql.titleOrder` keeps everywhere) makes which Entries are kept deterministic.
+		const rows = await scope.select(
+			entries,
+			and(eq(entries.postTypeId, postType.id), draft ? undefined : isNotNull(entries.published)) as SQL,
+			{
+				orderBy: new QuerySql([postType], { ...place, page: null }, scope.now()).titleOrder(),
+				limit: FILTER_LIMITS.options * 5,
+			},
 		);
+		const own = rows.filter((row) => isVisibleIn(storedVersion(draft ? row.draft : row.published), place.languages));
 		const located = draft
 			? await draftAddresses(
 					scope,

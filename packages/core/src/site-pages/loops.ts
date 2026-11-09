@@ -565,6 +565,16 @@ export class QuerySql {
 		return orders;
 	}
 
+	/**
+	 * Entries by title ascending, the same stable way every time (a tiebreak by id): for bounding a
+	 * query by `limit` deterministically, such as a Relationship Filter control's options, one Post
+	 * Type at a time (`this.listed` holding only that Post Type).
+	 */
+	titleOrder(): SQL[] {
+		const value = this.sortValue("title");
+		return value ? [asc(value), asc(entries.id)] : [asc(entries.id)];
+	}
+
 	private filter(filter: QueryFilter): SQL {
 		switch (filter.type) {
 			case "field":
