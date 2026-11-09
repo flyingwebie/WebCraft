@@ -165,7 +165,6 @@ export function LayersPanel({
 
 	// The focused row follows the selection while focus is in the panel, and when something else
 	// (a click on the canvas) asks for it, so the keyboard carries on from there.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `focusRequest` counts those asks.
 	useEffect(() => {
 		const element = list.current;
 		const asked = focusRequest !== handledRequest.current;
