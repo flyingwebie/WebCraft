@@ -95,6 +95,8 @@ const TEMPLATE_NAMES: Record<string, MessageKey> = {
 
 /** How the admin names an item that has no name of its own (the Globals, a Template, …). */
 export function itemName(t: Translate, item: HistoryPage["item"]): string {
+	// A Form's emails have a history of their own beside the Form's.
+	if (item.kind === "formEmails") return t("history.item.formEmails", { name: item.name ?? "" });
 	if (item.name) return item.name;
 	switch (item.kind) {
 		case "template":

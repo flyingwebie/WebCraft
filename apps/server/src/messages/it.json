@@ -4850,7 +4850,8 @@
 			"globals": "I globali",
 			"consentBanner": "I testi del banner dei consensi",
 			"designSystem": "Il design system",
-			"untitled": "Senza titolo"
+			"untitled": "Senza titolo",
+			"formEmails": "Le email di {name}"
 		},
 		"part": {
 			"title": "Titolo",
