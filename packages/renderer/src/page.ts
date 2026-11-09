@@ -109,6 +109,12 @@ export type PageToRender = {
 	 */
 	scripts?: readonly PageScript[];
 	/**
+	 * The Site scripts of the Modules running on the Site (SDK 1.3): files on the Site's domain, loaded
+	 * with `defer` after the Site's own scripts, each held back until visitors accept its Consent
+	 * category. Like outside scripts, they never run in Edit mode.
+	 */
+	moduleScripts?: readonly PageModuleScript[];
+	/**
 	 * The Site's outside scripts (ADR 0022): each loaded where Staff put it (the end of `<head>` or of
 	 * `<body>`), its parts in order. They never run in Edit mode: there each shows as a labelled
 	 * placeholder instead.
@@ -135,6 +141,9 @@ export type PageLibrary = { name: string; src: string; integrity: string };
 
 /** One of the Site's own scripts on a page: the Site script or the page's own, as a file on the Site. */
 export type PageScript = { kind: "site" | "page"; src: string };
+
+/** A Module's Site script on a page: the Module, where the Site serves the script, and its Consent category. */
+export type PageModuleScript = { moduleId: string; src: string; consentCategory: string };
 
 /** One script tag of an outside script: a file on another host, or one the Site serves. */
 export type PageScriptTag = {
@@ -282,9 +291,13 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
 	const heldBack = (category: string) => consent !== undefined && category !== "necessary";
 	// The banner and its script come only to a page that asks something.
+	// Modules' Site scripts, like outside scripts, never run in Edit mode.
+	const moduleScripts = editMode ? [] : (page.moduleScripts ?? []);
 	const asks =
 		consent !== undefined &&
-		(shown.held > 0 || shown.settings > 0 || outside.some((script) => heldBack(script.consentCategory)));
+		(shown.held > 0 ||
+			shown.settings > 0 ||
+			[...outside, ...moduleScripts].some((script) => heldBack(script.consentCategory)));
 	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead. Visitors
 	// get those outside Necessary held back until they accept their category.
 	const outsideIn = (placement: PageOutsideScript["placement"]) =>
@@ -320,6 +333,10 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		...(page.scripts ?? []).map((script) => {
 			const tag = editMode ? ` data-wc-script="${script.kind}"` : "";
 			return `<script src="${escapeAttribute(script.src)}" defer${tag}></script>`;
+		}),
+		...moduleScripts.map((script) => {
+			const tag = `<script src="${escapeAttribute(script.src)}" defer data-wc-module="${escapeAttribute(script.moduleId)}"></script>`;
+			return heldBack(script.consentCategory) ? heldScriptsHtml(script.consentCategory, [tag]) : tag;
 		}),
 		...outsideIn("head"),
 		"</head>",

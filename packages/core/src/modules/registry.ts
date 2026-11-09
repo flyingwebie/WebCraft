@@ -1,9 +1,13 @@
+import { createHash } from "node:crypto";
+
 import {
 	type AdminPage,
 	type ComponentProp,
+	type ConsentCategory,
 	type Label,
 	labelProblem,
 	MODULE_EVENTS,
+	MODULE_SITE_SCRIPT_MAX_LENGTH,
 	type ModuleDefinition,
 	type ModuleEventName,
 	type ModuleJob,
@@ -83,7 +87,15 @@ export type RunnableModule = {
 	schedules: readonly ModuleSchedule[];
 	/** How it keeps Form Submissions, when it does (at most one Module of a build). */
 	receiver: SubmissionReceiver | null;
+	/** The script it adds to Site pages where it runs, when it adds one (SDK 1.3). */
+	siteScript: ModuleSiteScriptFile | null;
 };
+
+/**
+ * A Module's Site script as Sites serve it: its code, the file name it is served under
+ * (`<16 hexadecimal digits of its SHA-256>.js`, at `/_wc/js/`) and the Consent category its manifest declares.
+ */
+export type ModuleSiteScriptFile = { code: string; name: string; category: ConsentCategory };
 
 /** A Site route with its path split into fixed parts and parameters. */
 export type CompiledRoute = { route: SiteRoute; parts: readonly ({ fixed: string } | { param: string })[] };
@@ -103,6 +115,7 @@ const DEFINITION_KEYS = new Set([
 	"components",
 	"schedules",
 	"formSubmissions",
+	"siteScript",
 	"widgets",
 ]);
 
@@ -362,6 +375,21 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		if (typeof receiver.receive !== "function") problem("Its formSubmissions has no receive function.");
 	}
 
+	let siteScript: ModuleSiteScriptFile | null = null;
+	if (definition.siteScript !== undefined) {
+		const { code } = definition.siteScript ?? {};
+		if (level !== "site") problem("Only Site-level Modules add a Site script: Workspaces have no pages.");
+		if (typeof code !== "string" || code.trim() === "") problem("Its Site script has no code.");
+		if (code.length > MODULE_SITE_SCRIPT_MAX_LENGTH) {
+			problem(`Its Site script is longer than ${MODULE_SITE_SCRIPT_MAX_LENGTH} characters.`);
+		}
+		if (manifest.siteScript === null) {
+			problem("It adds a Site script without declaring its Consent category: set siteScript in the manifest.");
+		}
+		const name = `${createHash("sha256").update(code).digest("hex").slice(0, 16)}.js`;
+		siteScript = { code, name, category: manifest.siteScript };
+	}
+
 	return {
 		runnable: true,
 		id: manifest.id,
@@ -379,6 +407,7 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		components: compileComponents(definition, manifest),
 		schedules,
 		receiver,
+		siteScript,
 	};
 }
 

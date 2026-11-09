@@ -131,6 +131,7 @@ export {
 	PAGE_HOOKS,
 	type PageAlternate,
 	type PageLibrary,
+	type PageModuleScript,
 	type PageOutsideScript,
 	type PageScript,
 	type PageScriptTag,

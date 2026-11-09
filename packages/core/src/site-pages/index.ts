@@ -15,6 +15,7 @@ import {
 	type PlacementRenderer,
 	placementsIn,
 	renderDocument,
+	SCRIPT_PATH,
 	type TemplateValue,
 	valuePathsOf,
 } from "@webcraft/renderer";
@@ -79,6 +80,9 @@ import type { DataLayer, Site, SiteScope, VisitorScope } from "../tenancy/data-l
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
 
 export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
+
+/** A Module's Site script on a Site where the Module runs: its code, file name and Consent category. */
+export type ModuleScriptFile = { moduleId: string; name: string; code: string; category: string };
 export { reservedSlugs, stagingHostname, stagingUrl } from "./addresses.ts";
 
 /** A Site found by the hostname a request came in on. */
@@ -260,9 +264,12 @@ export function createSitePages(options: {
 	formToken?: (site: Site) => Promise<string>;
 	/** The outside hosts of the Modules running on a Site, which its policy allows. */
 	moduleHosts?: (site: Site) => Promise<string[]>;
+	/** The Site scripts of the Modules running on a Site (SDK 1.3). */
+	moduleScripts?: (site: Site) => Promise<ModuleScriptFile[]>;
 }): SitePages {
 	const { database, config, data, storage } = options;
 	const moduleHosts = options.moduleHosts ?? (async () => []);
+	const moduleScripts = options.moduleScripts ?? (async () => []);
 	const sources = options.components ?? NO_MODULE_COMPONENTS;
 	const forms = {
 		on: options.formsOn ?? (async () => false),
@@ -331,7 +338,13 @@ export function createSitePages(options: {
 		},
 
 		async render(host, pathname, editing, formOptions) {
-			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms, moduleHosts });
+			const view = viewFor(data, host, editing, sources, {
+				pathname,
+				options: formOptions,
+				forms,
+				moduleHosts,
+				moduleScripts,
+			});
 			const located = await locate(view.scope, host, pathname, editing !== undefined);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
@@ -366,7 +379,13 @@ export function createSitePages(options: {
 		},
 
 		async notFound(host, pathname, editing, formOptions) {
-			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms, moduleHosts });
+			const view = viewFor(data, host, editing, sources, {
+				pathname,
+				options: formOptions,
+				forms,
+				moduleHosts,
+				moduleScripts,
+			});
 			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
@@ -379,7 +398,13 @@ export function createSitePages(options: {
 		},
 
 		async formPage(host, pathname, formId, formOptions) {
-			const view = viewFor(data, host, undefined, sources, { pathname, options: formOptions, forms, moduleHosts });
+			const view = viewFor(data, host, undefined, sources, {
+				pathname,
+				options: formOptions,
+				forms,
+				moduleHosts,
+				moduleScripts,
+			});
 			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
@@ -430,6 +455,8 @@ export function createSitePages(options: {
 		},
 
 		async script(host, name) {
+			const ofModule = (await moduleScripts(host.site)).find((script) => script.name === name);
+			if (ofModule) return ofModule.code;
 			const scope = data.visitors(host.site);
 			const published = await scriptFile(scope, name, "published");
 			if (published !== null) return published;
@@ -727,6 +754,8 @@ type View = {
 	formsOf: FormsOfSite;
 	/** The outside hosts of the Modules running on the Site. */
 	moduleHosts: (site: Site) => Promise<string[]>;
+	/** The Site scripts of the Modules running on the Site. */
+	moduleScripts: (site: Site) => Promise<ModuleScriptFile[]>;
 };
 
 /** Whether Forms run on a Site, and a time-trap token for a page handed out now. */
@@ -742,6 +771,7 @@ function viewFor(
 		options?: PageFormsOptions;
 		forms: FormsOfSite;
 		moduleHosts: (site: Site) => Promise<string[]>;
+		moduleScripts: (site: Site) => Promise<ModuleScriptFile[]>;
 	},
 ): View {
 	const segments = pathSegments(request.pathname);
@@ -752,6 +782,7 @@ function viewFor(
 		forms: request.options,
 		formsOf: request.forms,
 		moduleHosts: request.moduleHosts,
+		moduleScripts: request.moduleScripts,
 	};
 	return editing
 		? {
@@ -1017,6 +1048,14 @@ async function renderSitePage(
 		libraries: ownScripts ? await pageLibraries(scope) : [],
 		scripts: ownScripts ? await pageScripts(scope, entry?.id ?? null, view.structure) : [],
 		outsideScripts: await pageOutsideScripts(scope),
+		// Like outside scripts, Modules' Site scripts never run in Edit mode.
+		moduleScripts: editing
+			? []
+			: (await view.moduleScripts(host.site)).map((script) => ({
+					moduleId: script.moduleId,
+					src: `${SCRIPT_PATH}${script.name}`,
+					consentCategory: script.category,
+				})),
 		// People editing are never asked for consent (ADR 0022).
 		consent: editing ? undefined : await pageConsent(scope, languages),
 		editMode: editing && {

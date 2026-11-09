@@ -174,6 +174,7 @@ export async function createInstallServices(
 		formsOn: async (site) => (await modules.submissionsKeptBy(site)) !== null,
 		formToken: (site) => formTokens.issue(site.id),
 		moduleHosts: async (site) => (await modules.outsideHostsAt(site, "en")).map((found) => found.host),
+		moduleScripts: (site) => modules.siteScriptsAt(site),
 	});
 	return {
 		...ports,
