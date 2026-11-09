@@ -2,7 +2,7 @@ import { assertValidEmail, EmailInUseError, normaliseEmail } from "@webcraft/aut
 import type { Database, Transaction } from "@webcraft/db";
 import { installRoles, invites, inviteWorkspaces, people, staffWorkspaces, workspaces } from "@webcraft/db/schema";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
-
+import { revokeTokensOutOfReach } from "../api-tokens.ts";
 import type { Email } from "../email/index.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf, type Reach } from "../permissions/can.ts";
@@ -248,6 +248,11 @@ export function createStaff(options: StaffOptions): StaffService {
 						.values([...new Set(reach)].map((workspaceId) => ({ personId, workspaceId, createdAt: now })));
 				}
 				await tx.audit("staff.changeWorkspaces", { staffId: personId, workspaces: describeReach(reach) });
+				// Their API tokens for Workspaces they no longer reach end with the change.
+				await revokeTokensOutOfReach(tx.db, personId, tx.now(), {
+					personId: personIdOf(tx.access.actor),
+					via: tx.access.via,
+				});
 			});
 		},
 	};

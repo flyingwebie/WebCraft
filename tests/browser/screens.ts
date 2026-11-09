@@ -65,6 +65,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
 	{ name: "Install › Email log", path: "/email-log", as: "superadmin" },
 	{ name: "Your account", path: "/account", as: "superadmin" },
+	{ name: "Your account › API tokens (none yet)", path: "/account/api-tokens", as: "owner" },
 	{ name: "Accept an invite", path: ({ inviteToken }) => `/invite?token=${inviteToken}`, as: "signed-out" },
 	{
 		name: "Accept an invite with an existing account",

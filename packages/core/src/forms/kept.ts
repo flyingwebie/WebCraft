@@ -1,5 +1,10 @@
 import { emailLog, forms, webhookDeliveries, webhooks } from "@webcraft/db/schema";
-import type { KeptSubmission, SubmissionDelivery, SubmissionValue } from "@webcraft/module-sdk";
+import {
+	AUTO_REPLY_WINDOW_HOURS,
+	type KeptSubmission,
+	type SubmissionDelivery,
+	type SubmissionValue,
+} from "@webcraft/module-sdk";
 import {
 	autoReplyField,
 	type FormEmails,
@@ -37,8 +42,8 @@ import { storedFormEmails } from "./emails.ts";
  * visitor's text would let anyone send their words to any address from the Site.
  */
 
-/** How long after a Submission came its Auto-reply still goes when it is taken out of spam. */
-export const AUTO_REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** How long after a Submission came its Auto-reply still goes when it is taken out of spam (the SDK says it to Modules). */
+export const AUTO_REPLY_WINDOW_MS = AUTO_REPLY_WINDOW_HOURS * 60 * 60 * 1000;
 
 /** The Email log's types of a Form's emails. */
 export const NOTIFICATION_TYPE = "form-notification";

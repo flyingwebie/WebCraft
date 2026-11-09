@@ -154,7 +154,7 @@ describe("Run again", () => {
 		// The Import now names the Post Types and Fields its first run made.
 		const { import: kept } = await staff.api.imports.get({ siteId, importId });
 		const post = (kept.settings as SourceSettings).types.find((type) => type.type === "post");
-		expect(post?.to).toEqual({ postTypeId: posts?.id });
+		expect(post?.to).toEqual({ postTypeId: posts?.id ?? "" });
 		expect(post?.keys.find((key) => key.key === "content")?.to).toBe("fields.body");
 	});
 
@@ -207,7 +207,11 @@ describe("Undo", () => {
 			preview: { removes: 11, restores: 0, files: 2, rules: 5 },
 		});
 		expect((first.preview.postTypes as string[]).sort()).toEqual(["Categories", "Flavour", "Posts", "Product", "Tags"]);
-		const done = await staff.api.imports.undo({ siteId, runId: run.id, confirmation: first.confirmation?.id });
+		const done = await staff.api.imports.undo({
+			siteId,
+			runId: run.id,
+			confirmation: "confirmation" in first ? first.confirmation.id : undefined,
+		});
 		expect(done).toMatchObject({ undone: true, run: { status: "undone" } });
 
 		const names = (await staff.api.postTypes.list({ siteId })).postTypes.map((postType) => postType.name);

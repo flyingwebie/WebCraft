@@ -1,6 +1,7 @@
 import { type Access, can, type InstallServices, PermissionDeniedError, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { onSite, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 
@@ -75,12 +76,15 @@ export const forms = {
 		}),
 
 	/** Publishes a Form's emails Draft: what each Submission sets off from now on. */
-	publishEmails: signedIn.input(z.object({ siteId: id, formId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "formEmails", id: input.formId } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		const published = await context.services.publishing.publish(site, item);
-		return { published, ...(await context.services.forms.get(site, input.formId)) };
-	}),
+	publishEmails: signedIn
+		.input(z.object({ siteId: id, formId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish((input) => ({ kind: "formEmails", id: input.formId })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "formEmails", id: input.formId } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			const published = await context.services.publishing.publish(site, item);
+			return { published, ...(await context.services.forms.get(site, input.formId)) };
+		}),
 
 	/** Creates a Form with its name (and key, made from the name when not given), as a Draft with no fields. */
 	create: signedIn
@@ -103,12 +107,15 @@ export const forms = {
 		}),
 
 	/** Publishes a Form's Draft: what visitors fill in from now on. */
-	publish: signedIn.input(z.object({ siteId: id, formId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "form", id: input.formId } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		const published = await context.services.publishing.publish(site, item);
-		return { published, ...(await context.services.forms.get(site, input.formId)) };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, formId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish((input) => ({ kind: "form", id: input.formId })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "form", id: input.formId } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			const published = await context.services.publishing.publish(site, item);
+			return { published, ...(await context.services.forms.get(site, input.formId)) };
+		}),
 
 	/** Changes a Form's name or key: every Template and Component placing it writes the new key at once. */
 	rename: signedIn

@@ -30,6 +30,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "IDENTITY_CHECK_CANCELLED":
 		case "SENSITIVE_ACTION_REFUSED":
 		case "SESSION_NOT_FOUND":
+		case "API_TOKEN_NOT_FOUND":
 		case "CHANGED_MEANWHILE":
 		case "MEDIA_NOT_FOUND":
 		case "MEDIA_FOLDER_NOT_FOUND":
@@ -82,6 +83,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "IMPORT_NOT_FOUND":
 		case "IMPORT_RUN_NOT_FOUND":
 		case "IMPORT_INVALID":
+		case "SMTP_PASSWORD_NEEDED":
 		case "IMPORT_POST_TYPE_FIXED":
 		case "IMPORT_RUNNING":
 		case "IMPORT_UNDO_REFUSED":

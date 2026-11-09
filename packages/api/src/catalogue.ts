@@ -1,0 +1,300 @@
+import type { AnyProcedure } from "@orpc/server";
+import type { ApiAccess } from "@webcraft/core";
+
+import type { ApiRouter } from "./router.ts";
+
+/**
+ * The Management API's catalogue: every procedure of `apiRouter`, by its path, either internal to
+ * the admin or public, and then a read (it changes nothing) or a write, with a one-line summary.
+ *
+ * Public procedures are served at `/api/v1/<path with slashes>` (`POST /api/v1/entries/publish`)
+ * to API tokens, and listed in the OpenAPI document (`/api/v1/openapi.json`); the MCP server and
+ * the CLI are generated from them (ADR 0030). Internal ones are the admin's own: the setup wizard,
+ * signing in, the shell, a person's own account and API tokens, Install settings, Staff, invite
+ * links, Edit mode and conveniences of the admin's screens. They answer at `/api/rpc` only.
+ *
+ * Reads and writes decide what a token may do: a read-only token calls reads only, and writes
+ * count against a token's 30 writes a minute besides its 300 requests. A Sensitive action
+ * (`sensitive(…)`) and a two-step confirmation (a `confirmation` input) are read from the procedure
+ * itself and marked in the document.
+ *
+ * Adding a procedure to `apiRouter` fails the typecheck until it has a line here. Public paths are
+ * part of the versioned API: change them additively only (ADR 0029).
+ */
+export const PROCEDURES = {
+	"setup.state": internal(),
+	"setup.checkToken": internal(),
+	"setup.claim": internal(),
+	"setup.finish": internal(),
+	"session.current": internal(),
+	"session.signIn": internal(),
+	"session.confirmIdentity": internal(),
+	"session.signOut": internal(),
+	"shell.context": internal(),
+	"me.updatePreferences": internal(),
+	"me.sessions.list": internal(),
+	"me.sessions.revoke": internal(),
+	"me.sessions.revokeOthers": internal(),
+	"me.changePassword": internal(),
+	"me.emails.get": internal(),
+	"me.emails.update": internal(),
+	"apiTokens.list": internal(),
+	"apiTokens.create": internal(),
+	"apiTokens.revoke": internal(),
+	"install.settings.get": internal(),
+	"install.settings.update": internal(),
+	"install.masterKey.status": internal(),
+	"install.masterKey.confirmStored": internal(),
+	"install.security.get": internal(),
+	"install.security.update": internal(),
+	"install.storage.get": internal(),
+	"install.storage.update": internal(),
+	"install.media.get": internal(),
+	"install.media.update": internal(),
+	"install.backups.get": internal(),
+	"install.backups.update": internal(),
+	"install.updates.get": internal(),
+	"install.smtp.get": internal(),
+	"install.smtp.update": internal(),
+	"install.smtp.sendTest": internal(),
+	"install.emailBranding.get": internal(),
+	"install.emailBranding.update": internal(),
+	"install.emailLog.list": internal(),
+	"workspaces.list": read("Lists the Workspaces the caller reaches: an API token's own Workspace."),
+	"workspaces.get": read("One Workspace, and the Permissions the caller holds in it."),
+	"workspaces.storage": read("The Workspace's Media storage: the bytes its Sites' Media takes and its quota."),
+	"workspaces.setQuota": write("Sets or removes the Workspace's Media storage quota (Staff only)."),
+	"workspaces.create": internal(),
+	"sites.list": read("Lists the Sites of a Workspace the caller can see."),
+	"sites.get": read("One Site: its Workspace, the caller's Permissions on it, its Staging address and languages."),
+	"sites.create": write("Creates a Site in a Workspace."),
+	"postTypes.list": read("Lists a Site's Post Types."),
+	"postTypes.get": read("One Post Type, with its Fields and the built-in Fields every Entry has."),
+	"postTypes.create": write("Creates a Post Type with its URL pattern and Fields."),
+	"postTypes.update": write(
+		"Changes a Post Type's name, URL pattern, Fields, Site search or SEO settings; applies at once.",
+	),
+	"postTypes.data": read(
+		"The Data tab of a Post Type's Entry template: an Entry's Draft values as bindings read them.",
+	),
+	"entries.list": read("Lists the Entries of a Post Type, with their Draft and published values."),
+	"entries.get": read("One Entry: its built-in Fields, its Draft and its published version."),
+	"entries.create": write("Creates an Entry of a Post Type, its values in the Draft."),
+	"entries.saveDraft": write("Saves changes to an Entry's Draft."),
+	"entries.delete": write("Deletes an Entry, after a preview of the links it removes and a confirmation."),
+	"entries.publish": write("Publishes an Entry's Draft (API clients confirm a preview first)."),
+	"globals.get": read("The Site's Globals: their Fields, Draft and published values."),
+	"globals.setFields": write("Sets the Globals' Fields; applies at once."),
+	"globals.saveDraft": write("Saves changes to the Globals' Draft."),
+	"globals.data": read("The Globals' Data tab: their Draft values as Templates read them."),
+	"globals.publish": write("Publishes the Globals' Draft (API clients confirm a preview first)."),
+	"languages.list": read("Lists the Site's languages and its browser-language redirect setting."),
+	"languages.add": write("Adds a language to the Site."),
+	"languages.setDefault": write(
+		"Makes another language the Site's Default language, after a preview and a confirmation.",
+	),
+	"languages.remove": write("Removes a language, after a preview and a confirmation."),
+	"languages.setBrowserRedirect": write("Turns the browser-language redirect on or off."),
+	"languages.update": write("Changes a language's name, direction or domain."),
+	"domains.list": read("Lists the Site's domains with their status and the DNS records to create."),
+	"domains.setCdn": write("Sets the CDN in front of the Site."),
+	"domains.add": write("Adds a domain (and optionally its www partner) to the Site."),
+	"domains.check": write("Checks a domain now."),
+	"domains.makePrimary": write("Makes a verified domain the Primary domain."),
+	"domains.remove": write("Removes a domain, after a preview and a confirmation."),
+	"webhooks.list": read("Lists the Site's Webhooks and the events a Webhook can receive."),
+	"webhooks.add": write("Adds a Webhook (Sensitive: admin only)."),
+	"webhooks.update": write("Changes a Webhook's name, URL and events (Sensitive: admin only)."),
+	"webhooks.changeSecret": write("Replaces a Webhook's signing secret (Sensitive: admin only)."),
+	"webhooks.remove": write("Removes a Webhook, after a preview and a confirmation."),
+	"webhooks.deliveries": read("A Webhook's delivery log, newest first."),
+	"webhooks.setEnabled": write("Switches a Webhook on or off."),
+	"webhooks.test": write("Sends the Webhook a signed test event at once."),
+	"webhooks.redeliver": write("Queues a failed delivery again."),
+	"siteSmtp.get": read("The Site's email settings (never its mail server's password)."),
+	"siteSmtp.update": write("Changes the Site's email settings (Sensitive: admin only)."),
+	"siteSmtp.sendTest": internal(),
+	"templates.list": read("Lists every Template the Site can have, made or not."),
+	"templates.getEntryTemplate": read("A Post Type's Entry template as an element tree."),
+	"templates.saveEntryTemplate": write("Saves the Draft of a Post Type's Entry template from an element tree."),
+	"templates.getEntryTemplateMarkup": read("A Post Type's Entry template as Template markup, Draft and published."),
+	"templates.saveEntryTemplateMarkup": write("Saves the Draft of a Post Type's Entry template from Template markup."),
+	"templates.getSiteTemplate": read("The Site template as an element tree."),
+	"templates.saveSiteTemplate": write("Saves the Draft of the Site template from an element tree."),
+	"templates.getSiteTemplateMarkup": read("The Site template as Template markup, Draft and published."),
+	"templates.saveSiteTemplateMarkup": write("Saves the Draft of the Site template from Template markup."),
+	"templates.getArchiveTemplate": read("A Post Type's Archive template as an element tree."),
+	"templates.saveArchiveTemplate": write("Saves the Draft of a Post Type's Archive template from an element tree."),
+	"templates.getArchiveTemplateMarkup": read("A Post Type's Archive template as Template markup, Draft and published."),
+	"templates.saveArchiveTemplateMarkup": write(
+		"Saves the Draft of a Post Type's Archive template from Template markup.",
+	),
+	"templates.getSearchTemplate": read("The Search results template as an element tree."),
+	"templates.saveSearchTemplate": write("Saves the Draft of the Search results template from an element tree."),
+	"templates.getSearchTemplateMarkup": read("The Search results template as Template markup, Draft and published."),
+	"templates.saveSearchTemplateMarkup": write("Saves the Draft of the Search results template from Template markup."),
+	"templates.publish": write("Publishes a Template's Draft (API clients confirm a preview first)."),
+	"builder.open": internal(),
+	"builder.preview": internal(),
+	"builder.markup": internal(),
+	"builder.read": internal(),
+	"components.list": read("Lists the Site's Components and those of its Modules, with where each is used."),
+	"components.get": read("One Component: its Draft and published Props and tree, and where it is used."),
+	"components.create": write("Creates a Component with its name and Props."),
+	"components.saveDraft": write("Saves a Component's Draft: its Props and element tree."),
+	"components.getMarkup": read("A Component as Template markup, Draft and published."),
+	"components.saveMarkup": write("Saves a Component's Draft from Template markup."),
+	"components.publish": write("Publishes a Component's Draft (API clients confirm a preview first)."),
+	"components.rename": write("Renames a Component everywhere it is placed."),
+	"components.delete": write("Deletes a Component, after a confirmation."),
+	"forms.list": read("Lists the Site's Forms, with where each is placed."),
+	"forms.get": read("One Form: its Draft and published version."),
+	"forms.saveEmails": write("Saves a Form's emails Draft: its Notifications and Auto-reply."),
+	"forms.publishEmails": write("Publishes a Form's emails (API clients confirm a preview first)."),
+	"forms.create": write("Creates a Form."),
+	"forms.saveDraft": write("Saves a Form's Draft: its fields, button, success and spam settings."),
+	"forms.publish": write("Publishes a Form's Draft (API clients confirm a preview first)."),
+	"forms.rename": write("Changes a Form's name or key."),
+	"forms.captcha.get": read("The Site's CAPTCHA settings for its Forms (never its secret key)."),
+	"forms.captcha.set": write("Sets the Site's CAPTCHA (Sensitive: admin only)."),
+	"forms.delete": write("Deletes a Form, after a confirmation."),
+	"loops.list": read("Lists the Site's Loops."),
+	"loops.get": read("One Loop: its Draft and published version, and its Loop items in a language."),
+	"loops.create": write("Creates a Loop."),
+	"loops.saveDraft": write("Saves a Loop's Draft: its source, query and Loop items' Fields."),
+	"loops.saveItems": write("Saves a Loop's items in its Draft, in one language."),
+	"loops.data": read("A Loop's Data tab: its first item as bindings read it."),
+	"loops.publish": write("Publishes a Loop's Draft (API clients confirm a preview first)."),
+	"scripts.get": read("The Site script or an Entry's page script."),
+	"scripts.saveDraft": write("Saves the Draft of the Site script or a page script."),
+	"scripts.publish": write("Publishes a script's Draft (API clients confirm a preview first)."),
+	"libraries.list": read("Lists the Site's Libraries in load order."),
+	"libraries.add": write("Downloads a Library and adds it to the Site."),
+	"libraries.checkUpdates": read("Asks the registry which of the Site's Libraries have newer versions."),
+	"libraries.update": write("Updates a Library to another version."),
+	"libraries.remove": write("Removes a Library from the Site's pages (API clients confirm a preview first)."),
+	"outsideScripts.list": read("Lists the Site's outside scripts in load order."),
+	"outsideScripts.add": write("Adds an outside script."),
+	"outsideScripts.update": write("Changes an outside script."),
+	"outsideScripts.remove": write("Removes an outside script."),
+	"csp.get": read("The Site's Content Security Policy: its mode and allowed hosts."),
+	"csp.setMode": write("Changes how the Site's policy applies."),
+	"csp.addHost": write("Allows a host in the Site's policy."),
+	"csp.removeHost": write("Removes an allowed host from the Site's policy."),
+	"consentBanner.get": read("The Site's Consent banner: its mode, layout and words in a language."),
+	"consentBanner.saveDraft": write("Saves changes to the Consent banner's words' Draft."),
+	"consentBanner.publish": write("Publishes the Consent banner's words (API clients confirm a preview first)."),
+	"consentBanner.setSettings": write("Changes how the Site asks for consent and how the banner shows."),
+	"consentBanner.record": read("One of the Site's Consent records, by its id."),
+	"seoSettings.get": read("The Site's SEO settings."),
+	"seoSettings.update": write("Changes the Site's SEO settings."),
+	"designSystem.get": read("The Design system's Draft and published version."),
+	"designSystem.saveDraft": write("Saves a change to the Design system's Draft."),
+	"designSystem.createClass": write("Adds a Class to the Design system's Draft."),
+	"designSystem.updateClass": write("Renames or restyles a Class of the Draft."),
+	"designSystem.deleteClass": write("Deletes a Class from the Draft (API clients confirm a preview first)."),
+	"designSystem.exportTokens": read("The Design tokens as a DTCG file."),
+	"designSystem.importTokens": write("Imports a DTCG file into the Design system's Draft."),
+	"designSystem.publish": write("Publishes the Design system's Draft (API clients confirm a preview first)."),
+	"media.list": read("Lists files of the Site's Media library, or its Trash."),
+	"media.overview": read("What the Media library takes and holds."),
+	"media.suggestAltText": internal(),
+	"media.get": read("One Media file, with its texts in a language."),
+	"media.upload": write("Uploads a file to the Media library (multipart form data)."),
+	"media.update": write("Changes a file's texts, folder or Focal point."),
+	"media.importUrl": write("Imports a file from a public address."),
+	"media.replace": write("Gives a file a new one of the same kind, keeping its id and uses."),
+	"media.usage": read("Every place a file is used on the Site."),
+	"media.delete": write("Puts a file in the Trash, after a preview of where it is used and a confirmation."),
+	"media.restore": write("Takes a file out of the Trash."),
+	"media.deleteForever": write("Deletes a file in the Trash for good, after a confirmation."),
+	"media.emptyTrash": write("Deletes every file in the Trash for good, after a preview and a confirmation."),
+	"media.folders.list": read("Lists the Media library's folders."),
+	"media.folders.create": write("Creates a Media folder."),
+	"media.folders.rename": write("Renames a Media folder."),
+	"media.folders.delete": write("Deletes a Media folder; its files stay, in no folder."),
+	"imports.uploadCsv": write("Uploads a CSV file for an Import (multipart form data)."),
+	"imports.sources": read("The import sources Modules add on the Site that the caller may import from."),
+	"imports.startUpload": write("Starts uploading a file for a Module's import source, in parts."),
+	"imports.uploadPart": write("Sends one part of a file at its offset, with its SHA-256 (multipart form data)."),
+	"imports.finishUpload": write("Finishes an upload in parts; the worker then surveys the file."),
+	"imports.file": read("A file uploaded for a Module's source: how much came, and what it holds once surveyed."),
+	"imports.sample": read("One of a surveyed file's first items, read with these settings, without writing anything."),
+	"imports.previewSource": read(
+		"What a run of a Module source's file would do, worked out in the background without writing anything.",
+	),
+	"imports.preview": read("What a run of an Import would do with an uploaded file, without writing anything."),
+	"imports.list": read("Lists the Site's Imports."),
+	"imports.get": read("One Import, with its runs."),
+	"imports.create": write("Creates an Import."),
+	"imports.update": write("Changes an Import's name or settings."),
+	"imports.start": write("Starts a run of an Import with an uploaded file."),
+	"imports.stop": write("Stops a run of an Import."),
+	"imports.report": read("A run's progress and Import report."),
+	"imports.undo": write("Undoes a whole run, after a preview and a confirmation."),
+	"pages.settings": read("Which Pages are the Site's home page, 404 page and search results page."),
+	"pages.setHomePage": write("Chooses the Page that answers at /."),
+	"pages.setNotFoundPage": write("Chooses the Site's 404 page."),
+	"pages.setSearchPage": write("Chooses the Site's search results page."),
+	"editMode.open": internal(),
+	"members.list": read("Lists the Workspace's Members, pending invites and assigned Staff."),
+	"members.invite": write("Invites a Member (Sensitive: admin only)."),
+	"members.resendInvite": write("Sends a pending Member invite again with a new link."),
+	"members.revokeInvite": write("Withdraws a pending Member invite."),
+	"members.changeAccess": write("Changes a Member's role and Sites (Sensitive: admin only)."),
+	"members.remove": write("Removes a Member from the Workspace (Sensitive: admin only)."),
+	"staff.list": internal(),
+	"staff.invite": internal(),
+	"staff.revokeInvite": internal(),
+	"staff.setWorkspaces": internal(),
+	"invites.get": internal(),
+	"invites.accept": internal(),
+	"invites.join": internal(),
+	"audit.list": internal(),
+	"modules.list": internal(),
+	"modules.approve": internal(),
+	"modules.withdraw": internal(),
+	"modules.setKeepMonths": internal(),
+	"modules.log": internal(),
+	"modules.siteList": read("Lists a Site's Site-level Modules and whether each is on."),
+	"modules.workspaceList": read("Lists a Workspace's Workspace-level Modules and whether each is on."),
+	"modules.setOnSite": write("Switches a Site-level Module on or off on a Site."),
+	"modules.setOnWorkspace": write("Switches a Workspace-level Module on or off on a Workspace."),
+	"modules.removeSiteData": write("Removes a Module's data from a Site, after a preview and a confirmation."),
+	"modules.removeWorkspaceData": write("Removes a Module's data from a Workspace, after a preview and a confirmation."),
+} as const satisfies Record<ProcedurePath, Exposure>;
+
+/** How the catalogue lists a procedure: internal to the admin, or a public read or write. */
+export type Exposure = { readonly access: "internal" } | { readonly access: ApiAccess; readonly summary: string };
+
+/** A public procedure's line in the catalogue. */
+export type PublicExposure = Extract<Exposure, { access: ApiAccess }>;
+
+/** Every procedure's path in `apiRouter`, dotted: `entries.publish`, `me.sessions.list`. */
+export type ProcedurePath = PathsOf<ApiRouter>;
+
+type PathsOf<Router, Prefix extends string = ""> = {
+	[Key in keyof Router & string]: Router[Key] extends AnyProcedure
+		? `${Prefix}${Key}`
+		: PathsOf<Router[Key], `${Prefix}${Key}.`>;
+}[keyof Router & string];
+
+/**
+ * How the catalogue lists the procedure at `path` (dotted), or null when no procedure of WebCraft's
+ * own is there. Module procedures (`m.<id>.…`) are listed by the Module host instead.
+ */
+export function exposureOf(path: string): Exposure | null {
+	return Object.hasOwn(PROCEDURES, path) ? PROCEDURES[path as ProcedurePath] : null;
+}
+
+function internal(): Exposure {
+	return { access: "internal" };
+}
+
+function read(summary: string) {
+	return { access: "read", summary } as const satisfies Exposure;
+}
+
+function write(summary: string) {
+	return { access: "write", summary } as const satisfies Exposure;
+}

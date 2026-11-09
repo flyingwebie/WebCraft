@@ -192,11 +192,13 @@ describe("a run", () => {
 		expect(categories.map((entry) => entry.draft.title).sort()).toEqual(["News", "Recipes"]);
 		const tags = await entriesOf("Tags");
 		const spring = (await entriesOf("Posts")).find((post) => post.draft.title === "Spring opening hours");
-		expect(spring?.draft.fields.categories).toEqual([categories.find((entry) => entry.draft.title === "News")?.id]);
+		expect(spring?.draft.fields.categories).toEqual([
+			categories.find((entry) => entry.draft.title === "News")?.id ?? "",
+		]);
 		expect(((spring?.draft.fields.tags ?? []) as string[]).length).toBe(tags.length);
 		const product = (await entriesOf("Product"))[0];
 		const nutty = (await entriesOf("Flavour"))[0];
-		expect(product?.draft.fields).toMatchObject({ price: 5.2, serves: "8", flavour: [nutty?.id] });
+		expect(product?.draft.fields).toMatchObject({ price: 5.2, serves: "8", flavour: [nutty?.id ?? ""] });
 	});
 
 	test("makes Redirect rules where paths changed, Media files included, and visitors follow them", async () => {

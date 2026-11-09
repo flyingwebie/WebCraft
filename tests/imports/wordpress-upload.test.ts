@@ -101,7 +101,7 @@ describe("uploading an export file", () => {
 		});
 		const pages = file.suggested?.types.find((type) => type.type === "page");
 		const { postTypes } = await staff.api.postTypes.list({ siteId });
-		expect(pages?.to).toEqual({ postTypeId: postTypes.find((each) => each.builtIn === "page")?.id });
+		expect(pages?.to).toEqual({ postTypeId: postTypes.find((each) => each.builtIn === "page")?.id ?? "" });
 		expect(file.suggested?.types.find((type) => type.type === "attachment")?.to).toBe("media");
 	});
 

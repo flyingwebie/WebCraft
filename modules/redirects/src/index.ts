@@ -79,6 +79,7 @@ export const redirects = defineModule({
 			/** The Site's Redirect rules, the most recently changed first. */
 			list: procedure({
 				permission: "manage",
+				kind: "read",
 				input: z.object({ limit: z.number().int().min(1).max(LIST_LIMIT).default(500) }),
 				async run(input, context) {
 					const rows = await context.data.select(rules, undefined, {
@@ -116,6 +117,7 @@ export const redirects = defineModule({
 			/** The 404 log: the paths asked for most often first; `ignored` lists the ignored ones instead. */
 			list: procedure({
 				permission: "manage",
+				kind: "read",
 				input: z.object({
 					ignored: z.boolean().default(false),
 					limit: z.number().int().min(1).max(LIST_LIMIT).default(200),

@@ -6,14 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webc
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
-import { CircleAlertIcon, ScrollTextIcon, TriangleAlertIcon } from "lucide-react";
+import { ScrollTextIcon, TriangleAlertIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
 import { SmtpForm, type SmtpView } from "../../ui/email/SmtpForm.tsx";
+import { SmtpFailingNotice } from "../../ui/email/smtp-parts.tsx";
 import { errorMessage } from "../../ui/errors.ts";
-import { formatUtc } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -100,25 +100,7 @@ function SmtpStatus({ health }: { health: SmtpView["health"] }) {
 		);
 	}
 	if (health.state === "failing") {
-		return (
-			<div className="border-destructive/60 bg-card flex items-start gap-3 rounded-lg border px-4 py-3">
-				<CircleAlertIcon className="text-destructive mt-0.5 size-5 shrink-0" aria-hidden="true" />
-				<div className="min-w-0 space-y-1">
-					<h2 className="font-semibold">{t("emailSettings.status.failingTitle")}</h2>
-					<p className="text-sm">
-						{t("emailSettings.status.failingBody", {
-							count: health.failuresInARow,
-							since: health.failingSince ? formatUtc(health.failingSince) : "",
-						})}
-					</p>
-					{health.lastResponse ? (
-						<p className="text-sm break-words">
-							{t("emailSettings.status.lastResponse", { response: health.lastResponse })}
-						</p>
-					) : null}
-				</div>
-			</div>
-		);
+		return <SmtpFailingNotice title={t("emailSettings.status.failingTitle")} health={health} />;
 	}
 	return null;
 }

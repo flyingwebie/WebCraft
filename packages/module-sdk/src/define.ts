@@ -141,6 +141,12 @@ export type ProcedureInput = z.ZodObject;
 export type ModuleProcedure<Input extends ProcedureInput = ProcedureInput, Output = unknown> = {
 	/** The Permission a person needs: one of the Module's (`notes.edit`) or a WebCraft one (`structure.edit`). */
 	permission: string;
+	/**
+	 * Whether it only reads (`read`) or may change something (`write`, the default) (SDK 1.6). Every
+	 * Module procedure is part of the public Management API (`/api/v1/m/<id>/…`): a read-only API
+	 * token calls reads only, and writes count against a token's writes a minute.
+	 */
+	kind?: "read" | "write";
 	input: Input;
 	run(input: z.output<Input>, context: ProcedureContext): Promise<Output>;
 };

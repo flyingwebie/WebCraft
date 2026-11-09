@@ -13,6 +13,7 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { storedComponentVersion } from "../content/component-versions.ts";
 import { lockComponents } from "../content/components.ts";
 import type { ContentProblem } from "../content/errors.ts";
+import { sameJson } from "../content/json.ts";
 import { isPagePostType } from "../content/pages.ts";
 import { slugify } from "../content/slugs.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -82,8 +83,7 @@ export function toForm(row: FormRow, language = "en"): Form {
 		siteId: row.siteId,
 		key: row.key,
 		name: row.name,
-		status:
-			published === null ? "draft" : JSON.stringify(published) === JSON.stringify(draft) ? "published" : "changed",
+		status: publishStatus(published, draft),
 		draft,
 		published,
 		createdAt: row.createdAt,
@@ -93,12 +93,7 @@ export function toForm(row: FormRow, language = "en"): Form {
 		emails: {
 			draft: emailsDraft,
 			published: emailsPublished,
-			status:
-				emailsPublished === null
-					? "draft"
-					: JSON.stringify(emailsPublished) === JSON.stringify(emailsDraft)
-						? "published"
-						: "changed",
+			status: publishStatus(emailsPublished, emailsDraft),
 			lastPublishedAt: row.emailsLastPublishedAt,
 		},
 	};
@@ -430,4 +425,10 @@ async function isPage(scope: Pick<SiteScope, "select" | "first">, pageId: string
 	const pages = (await scope.select(postTypes)).find((postType) => isPagePostType({ builtIn: postType.builtIn }));
 	if (!pages) return false;
 	return (await scope.first(entries, and(eq(entries.id, pageId), eq(entries.postTypeId, pages.id)))) !== undefined;
+}
+
+/** Where a Draft stands against what is published: never published, the same, or changed since. */
+function publishStatus(published: unknown, draft: unknown): "draft" | "published" | "changed" {
+	if (published === null) return "draft";
+	return sameJson(published, draft) ? "published" : "changed";
 }

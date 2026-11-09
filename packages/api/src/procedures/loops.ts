@@ -1,6 +1,7 @@
 import { LOOP_ITEMS_MAX, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { fieldInputs, language } from "../fields.ts";
 import { id } from "../inputs.ts";
@@ -110,10 +111,13 @@ export const loops = {
 		}),
 
 	/** Publishes a Loop's Draft: every page showing it changes at once, and the Site's page cache is cleared. */
-	publish: signedIn.input(z.object({ siteId: id, loopId: id })).handler(async ({ context, input }) => {
-		const item = { kind: "loop", id: input.loopId } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		const published = await context.services.publishing.publish(site, item);
-		return { published, loop: await context.services.loops.get(site, input.loopId) };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, loopId: id, confirmation: confirmationInput }))
+		.use(confirmedPublish((input) => ({ kind: "loop", id: input.loopId })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "loop", id: input.loopId } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			const published = await context.services.publishing.publish(site, item);
+			return { published, loop: await context.services.loops.get(site, input.loopId) };
+		}),
 };

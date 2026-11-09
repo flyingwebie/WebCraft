@@ -237,7 +237,8 @@ export async function streamParts(
 	const backend = await storage.holding(row.storage as "disk" | "s3");
 	const count = (row.parts as string[]).length;
 	let index = 0;
-	let current: ReadableStreamDefaultReader<Uint8Array> | null = null;
+	/** Whatever reader a runtime's stream gives (Bun's and Node's differ in their types, not their use). */
+	let current: { read(): Promise<{ done: boolean; value?: Uint8Array }>; cancel(): Promise<void> } | null = null;
 	const first = await backend.stream(partKey(row, 0));
 	if (!first && count > 0) return null;
 	current = first?.getReader() ?? null;
@@ -245,7 +246,7 @@ export async function streamParts(
 		async pull(controller) {
 			while (current) {
 				const { done, value } = await current.read();
-				if (!done) {
+				if (!done && value) {
 					controller.enqueue(value);
 					return;
 				}

@@ -45,6 +45,8 @@ export const SENSITIVE_ACTIONS = {
 	"formCaptcha.change": "changes a secret",
 	/** A Site's email settings: its own mail server's password is a secret, and it decides where the Site's mail comes from. */
 	"siteSmtp.change": "changes a secret",
+	/** Creating an API token: a credential that acts as the person, outside the admin. */
+	"apiToken.create": "creates a credential",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

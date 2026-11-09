@@ -1,6 +1,7 @@
 import { publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
+import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { fieldInputs } from "../fields.ts";
 import { basedOn, id } from "../inputs.ts";
@@ -89,12 +90,15 @@ export const components = {
 	 * Publishes a Component's Draft, its Props and tree together: every copy changes at once, and the
 	 * Site's page cache is cleared. Refused while it places a Component that isn't published.
 	 */
-	publish: signedIn.input(z.object({ siteId: id, componentId })).handler(async ({ context, input }) => {
-		const item = { kind: "component", id: input.componentId } as const;
-		const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
-		const published = await context.services.publishing.publish(site, item);
-		return { published, ...(await context.services.components.get(site, input.componentId)) };
-	}),
+	publish: signedIn
+		.input(z.object({ siteId: id, componentId, confirmation: confirmationInput }))
+		.use(confirmedPublish((input) => ({ kind: "component", id: input.componentId })))
+		.handler(async ({ context, input }) => {
+			const item = { kind: "component", id: input.componentId } as const;
+			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
+			const published = await context.services.publishing.publish(site, item);
+			return { published, ...(await context.services.components.get(site, input.componentId)) };
+		}),
 
 	/** Renames a Component: every Template and Component placing it writes the new name at once. */
 	rename: signedIn
