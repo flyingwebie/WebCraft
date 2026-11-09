@@ -4,9 +4,13 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import {
+	createComponent,
 	createEntry,
 	createPostType,
+	deleteComponent,
 	deleteEntry,
+	getComponent,
+	getComponentMarkup,
 	getEntry,
 	getEntryTemplate,
 	getEntryTemplateMarkup,
@@ -15,9 +19,13 @@ import {
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	getSpecialPages,
+	listComponents,
 	listEntries,
 	listPostTypes,
 	publish,
+	renameComponent,
+	saveComponentDraft,
+	saveComponentMarkup,
 	saveDraft,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
@@ -122,6 +130,8 @@ export async function createInstallServices(
 		modules: options.modules ?? FIRST_PARTY_MODULES,
 	});
 	listeners.afterAudit = modules.afterAudit;
+	// The Components of Modules: placed on Sites where their Module runs.
+	const componentSources = modules.components;
 	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };
 	const memberships = createMemberships({ database, clock });
 	const storage = createInstallStorage({
@@ -132,7 +142,7 @@ export async function createInstallServices(
 		log,
 		directory: config.storageDir,
 	});
-	const sitePages = createSitePages({ database, config, data, storage });
+	const sitePages = createSitePages({ database, config, data, storage, components: componentSources });
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -159,13 +169,24 @@ export async function createInstallServices(
 		globals: { get: getGlobals, setFields: setGlobalFields, saveDraft: saveGlobalsDraft },
 		templates: {
 			entryTemplate: getEntryTemplate,
-			saveEntryTemplate,
-			entryTemplateMarkup: getEntryTemplateMarkup,
-			saveEntryTemplateMarkup,
+			saveEntryTemplate: (scope, postTypeId, tree) => saveEntryTemplate(scope, postTypeId, tree, componentSources),
+			entryTemplateMarkup: (scope, postTypeId) => getEntryTemplateMarkup(scope, postTypeId, componentSources),
+			saveEntryTemplateMarkup: (scope, postTypeId, markup) =>
+				saveEntryTemplateMarkup(scope, postTypeId, markup, componentSources),
 			siteTemplate: getSiteTemplate,
-			saveSiteTemplate,
-			siteTemplateMarkup: getSiteTemplateMarkup,
-			saveSiteTemplateMarkup,
+			saveSiteTemplate: (scope, tree) => saveSiteTemplate(scope, tree, componentSources),
+			siteTemplateMarkup: (scope) => getSiteTemplateMarkup(scope, componentSources),
+			saveSiteTemplateMarkup: (scope, markup) => saveSiteTemplateMarkup(scope, markup, componentSources),
+		},
+		components: {
+			list: (scope) => listComponents(scope, componentSources),
+			get: (scope, componentId) => getComponent(scope, componentId, componentSources),
+			create: (scope, input) => createComponent(scope, input, componentSources),
+			saveDraft: (scope, componentId, change) => saveComponentDraft(scope, componentId, change, componentSources),
+			markup: (scope, componentId) => getComponentMarkup(scope, componentId, componentSources),
+			saveMarkup: (scope, componentId, input) => saveComponentMarkup(scope, componentId, input, componentSources),
+			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
+			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
 		pages: {
 			settings: getSpecialPages,
@@ -181,7 +202,7 @@ export async function createInstallServices(
 			exportTokens: exportDesignTokens,
 			importTokens: importDesignTokens,
 		},
-		publishing: { publish },
+		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
 		editMode: createEditMode({
 			database,

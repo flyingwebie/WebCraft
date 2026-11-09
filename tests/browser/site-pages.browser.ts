@@ -1,8 +1,9 @@
 // What every Site page gives visitors, in a real browser: axe-core finds nothing against WCAG 2.2 A
 // and AA or its best practices, the first Tab reaches the skip link, following it moves focus into
 // the page's <main>, and every link shows focus. Checked on an Entry's page and the 404 page, inside
-// a Site template with a header, navigation and footer, styled by the default Design system; and on
-// a Site with dark mode and a theme toggle, in the device's light and dark themes.
+// a Site template with a header, navigation and footer, styled by the default Design system, the
+// footer and the Entry's article each shown through a Component; and on a Site with dark mode and a
+// theme toggle, in the device's light and dark themes.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { expectAccessibleScreen } from "./checks.ts";
@@ -18,7 +19,7 @@ const SITE_TEMPLATE = [
 	'<li><a href="/blog/fresh-bread">Fresh bread</a></li><li><a href="/about">About us</a></li><li><a href="/contact">Contact</a></li>',
 	"</ul></nav>{{@themeToggle}}</header>",
 	"<main>{{@outlet}}</main>",
-	"<footer><p>Open every day from seven.</p></footer>",
+	'<footer><OpeningHours from="seven" /></footer>',
 ].join("");
 
 /** A Site with the Site template above and a published post at /blog/fresh-bread. */
@@ -27,13 +28,29 @@ async function siteWithPost(siteSlug: string, darkMode: boolean): Promise<void> 
 	const { api } = await local.superadmin();
 	const workspaceId = (await local.createWorkspace(`Acme ${siteSlug}`)).id;
 	const siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: siteSlug })).id;
+	/** A published Component with required text Props and its markup. */
+	const component = async (name: string, props: { key: string; label: string }[], markup: string) => {
+		const made = await api.components.create({
+			siteId,
+			name,
+			props: props.map((prop) => ({ ...prop, type: "text" as const, required: true })),
+		});
+		await api.components.saveMarkup({ siteId, componentId: made.component.id, markup });
+		await api.components.publish({ siteId, componentId: made.component.id });
+	};
+	await component("OpeningHours", [{ key: "from", label: "From" }], "<p>Open every day from {{ props.from }}.</p>");
+	await component(
+		"Post",
+		[{ key: "heading", label: "Heading" }],
+		'<article><h1>{{ props.heading }}</h1><p>Out of the oven at seven. <a href="/about">About us</a></p></article>',
+	);
 	const site = await api.templates.saveSiteTemplateMarkup({ siteId, markup: SITE_TEMPLATE });
 	await api.templates.publish({ siteId, templateId: site.template.id });
 	const { postType } = await api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
 	const entry = await api.templates.saveEntryTemplateMarkup({
 		siteId,
 		postTypeId: postType.id,
-		markup: '<article><h1>{{ title }}</h1><p>Out of the oven at seven. <a href="/about">About us</a></p></article>',
+		markup: '<Post heading="{{ title }}" />',
 	});
 	await api.templates.publish({ siteId, templateId: entry.template.id });
 	const { entry: post } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });

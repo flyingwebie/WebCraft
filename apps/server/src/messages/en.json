@@ -888,6 +888,7 @@
 			"siteRoutes": "Answer visitors at {path} on the Sites it is on",
 			"adminPages": "Add pages to the admin: {pages}",
 			"tables": "Keep its own data on each {level, select, site {Site} other {Workspace}}",
+			"components": "Add Components Staff can place on the Sites it is on: {names}",
 			"events": "Act after {events}",
 			"addsNothing": "Nothing else.",
 			"where": "Where it runs",

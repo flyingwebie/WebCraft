@@ -2,6 +2,29 @@
 // with a Draft and a published version, the Globals, Templates stored as element trees, and
 // publishing one item.
 export {
+	type Component,
+	type ComponentDeletion,
+	type ComponentDraftChange,
+	type ComponentMarkup,
+	type ComponentSources,
+	type ComponentStatus,
+	type ComponentUsage,
+	type ComponentVersion,
+	createComponent,
+	deleteComponent,
+	getComponent,
+	getComponentMarkup,
+	isComponentName,
+	listComponents,
+	type ModuleComponent,
+	type NewComponent,
+	NO_MODULE_COMPONENTS,
+	renameComponent,
+	type SavedComponentMarkup,
+	saveComponentDraft,
+	saveComponentMarkup,
+} from "./components.ts";
+export {
 	createEntry,
 	type DraftChange,
 	deleteEntry,
@@ -17,6 +40,13 @@ export {
 	undoDraftChanges,
 } from "./entries.ts";
 export {
+	ComponentFromModuleError,
+	ComponentInUseError,
+	ComponentInvalidError,
+	type ComponentNameHolder,
+	ComponentNameTakenError,
+	ComponentNotFoundError,
+	type ComponentUse,
 	type ContentProblem,
 	EntryIncompleteError,
 	EntryInvalidError,

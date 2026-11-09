@@ -6,18 +6,25 @@ import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
 import type {
+	Component,
+	ComponentDeletion,
+	ComponentDraftChange,
+	ComponentMarkup,
+	ComponentUsage,
 	DraftChange,
 	Entry,
 	EntryDeletion,
 	FieldInput,
 	Globals,
 	GlobalsChange,
+	NewComponent,
 	NewEntry,
 	NewPostType,
 	PostType,
 	PostTypeChange,
 	Published,
 	PublishItem,
+	SavedComponentMarkup,
 	SavedTemplateMarkup,
 	SpecialPages,
 	Template,
@@ -171,6 +178,33 @@ export type InstallServices = InstallPorts & {
 		siteTemplateMarkup(scope: SiteScope): Promise<{ template: Template | null; markup: TemplateMarkup | null }>;
 		/** Saves the Site template's Draft from Template markup; inline styles become generated Classes. */
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string): Promise<SavedTemplateMarkup>;
+	};
+	/**
+	 * Components: reusable element trees with Props, placed in Templates and other Components, with a
+	 * Draft and a published version (published through `publishing.publish` with `{ kind: "component" }`).
+	 * Structure: open the Site with `structure.edit`. A Module's Components are listed where it runs.
+	 */
+	components: {
+		list(scope: SiteScope): Promise<(Component & { usage: ComponentUsage })[]>;
+		get(scope: SiteScope, componentId: string): Promise<{ component: Component; usage: ComponentUsage }>;
+		create(scope: SiteScope, input: NewComponent): Promise<Component>;
+		/** Saves its Draft: its Props (the full list) and its element tree, either or both. */
+		saveDraft(scope: SiteScope, componentId: string, change: ComponentDraftChange): Promise<Component>;
+		/** Its Draft and published version as Template markup, with where it is used. */
+		markup(
+			scope: SiteScope,
+			componentId: string,
+		): Promise<{ component: Component; markup: ComponentMarkup; usage: ComponentUsage }>;
+		/** Saves its Draft from Template markup (and new Props, when given); inline styles become generated Classes. */
+		saveMarkup(
+			scope: SiteScope,
+			componentId: string,
+			input: { markup: string; props?: FieldInput[] },
+		): Promise<SavedComponentMarkup>;
+		/** Renames it: Template markup writes the new name everywhere at once. */
+		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
+		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
+		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing

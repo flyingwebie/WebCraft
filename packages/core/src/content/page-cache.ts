@@ -15,3 +15,11 @@ export async function clearPageCache(scope: { db: Executor; site: Site }): Promi
 		.set({ pageCacheGeneration: sql`${sites.pageCacheGeneration} + 1` })
 		.where(and(eq(sites.id, scope.site.id), eq(sites.workspaceId, scope.site.workspaceId)));
 }
+
+/**
+ * Clears every Site's page cache, for a change to what all of them may render: approving or
+ * withdrawing a Module whose Components Sites place.
+ */
+export async function clearEveryPageCache(scope: { db: Executor }): Promise<void> {
+	await scope.db.update(sites).set({ pageCacheGeneration: sql`${sites.pageCacheGeneration} + 1` });
+}

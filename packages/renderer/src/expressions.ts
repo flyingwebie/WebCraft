@@ -272,6 +272,8 @@ export type CheckExpressionOptions = {
 	problem: (at: string, message: string) => void;
 	/** Whether a value's path names a value the tree may read; every path is allowed when absent. */
 	isKnownValue?: (path: string) => boolean;
+	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
+	unknownValue?: (path: string) => string;
 };
 
 /** Checks a stored expression and answers it in canonical form, or undefined after adding problems. */
@@ -290,7 +292,7 @@ export function checkExpression(input: unknown, at: string, options: CheckExpres
 					return undefined;
 				}
 				if (options.isKnownValue && !options.isKnownValue(path)) {
-					options.problem(`${here}.path`, unknownValueMessage(path));
+					options.problem(`${here}.path`, (options.unknownValue ?? unknownValueMessage)(path));
 					return undefined;
 				}
 				return { type: "value", path };
