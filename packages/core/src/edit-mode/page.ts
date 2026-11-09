@@ -15,7 +15,7 @@ import { publish } from "../content/publishing.ts";
 import { getEntryTemplate } from "../content/templates.ts";
 import { storedVersion } from "../content/values.ts";
 import { can } from "../permissions/can.ts";
-import type { PageContent, SiteHost } from "../site-pages/index.ts";
+import type { PageContent, PageInLanguage, SiteHost } from "../site-pages/index.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { EditFieldInvalidError, EditPathInvalidError } from "./errors.ts";
 import { isEditPath } from "./paths.ts";
@@ -55,8 +55,10 @@ export type PageState = {
 	/** The person in Edit mode, and the Admin language they chose (null: the Install's default). */
 	person: { name: string; adminLanguage: string | null };
 	site: { name: string };
-	/** The language the page is shown in. Switching languages comes with the Site's languages. */
-	language: { code: string };
+	/** The language the page is shown in: its regions save in it. */
+	language: { code: string; name: string };
+	/** The page in each of the Site's languages, to switch to (that language's home page where it is hidden). */
+	languages: PageInLanguage[];
 };
 
 /** How many of the Site's pages the page switcher lists at most. */
@@ -101,7 +103,11 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 		pages: await sitePages(scope),
 		person: { name: person?.name ?? "", adminLanguage: person?.adminLanguage ?? null },
 		site: { name: scope.site.name },
-		language: { code: content.language },
+		language: {
+			code: content.language,
+			name: content.languages.find((language) => language.code === content.language)?.name ?? content.language,
+		},
+		languages: content.languages,
 	};
 }
 

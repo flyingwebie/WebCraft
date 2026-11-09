@@ -968,6 +968,8 @@
 	"editBar": {
 		"label": "Modalità modifica",
 		"site": "Sito: {name}",
+		"languages": "Lingue di questo sito",
+		"languageSwitcher": "Lingua: {language}. Cambia lingua",
 		"pageSwitcher": "Pagina: {title}. Cambia pagina",
 		"pages": "Pagine di questo sito",
 		"noChanges": "Nessuna modifica",

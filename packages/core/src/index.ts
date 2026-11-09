@@ -164,6 +164,7 @@ export {
 	type LanguageChoice,
 	type PageContent,
 	type PageEditing,
+	type PageInLanguage,
 	pathSegments,
 	reservedSlugs,
 	type SiteAnswer,

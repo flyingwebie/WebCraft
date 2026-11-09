@@ -968,6 +968,8 @@
 	"editBar": {
 		"label": "Edit mode",
 		"site": "Site: {name}",
+		"languages": "Languages of this Site",
+		"languageSwitcher": "Language: {language}. Switch language",
 		"pageSwitcher": "Page: {title}. Switch page",
 		"pages": "Pages of this Site",
 		"noChanges": "No changes",

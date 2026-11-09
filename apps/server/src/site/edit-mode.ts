@@ -103,6 +103,7 @@ const regionChange = z.object({
 	item: z.string().max(100),
 	field: z.string().max(200),
 	value: z.string().max(200_000),
+	language: z.string().max(35).optional(),
 });
 
 /** A body that isn't what the action takes. */

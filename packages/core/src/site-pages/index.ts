@@ -87,6 +87,8 @@ export type PageContent = {
 	entryId: string | null;
 	/** The language the page is in. */
 	language: string;
+	/** The page in each of the Site's languages, in their order: for Edit mode's language switcher. */
+	languages: PageInLanguage[];
 	/** Whether the page's Templates read the Globals. */
 	readsGlobals: boolean;
 	/** Whether the path has no page, so the 404 page shows there. */
@@ -211,9 +213,16 @@ export function createSitePages(options: {
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
 			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
 			const trees = [siteTemplate, found?.content ?? builtInNotFoundPage(place.language.code).content];
+			const places = await languagePlaces(scope, place, found);
 			return {
 				entryId: found?.entry.id ?? null,
 				language: place.language.code,
+				languages: places.map(({ language, path }) => ({
+					code: language.code,
+					name: language.name,
+					path,
+					current: language.code === place.language.code,
+				})),
 				readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
 				notFound: located === null,
 			};
@@ -320,6 +329,9 @@ async function locate(
 /** Where a page's links to its other languages go: `hreflang` alternates, and the Language switcher's links. */
 type LanguageExtras = { alternates: PageAlternate[]; languageLinks: LanguageLink[] };
 
+/** The page in one of the Site's languages: where it is there (that language's home page where it is hidden). */
+export type PageInLanguage = { code: string; name: string; path: string; current: boolean };
+
 /**
  * Where the page is in each of the Site's languages: the published Entry's address in every language
  * it is shown in. They become `hreflang` alternates (`x-default` last, at the Default language's) and
@@ -335,19 +347,13 @@ async function languageExtras(
 	const { site } = place;
 	const extras: LanguageExtras = { alternates: [], languageLinks: [] };
 	if (site.languages.length < 2) return extras;
-	const published = found && storedVersion(found.entry.published);
-	for (const language of site.languages) {
-		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
-		const shown = found && published && isVisibleIn(published, languages);
-		const address = shown
-			? (await publishedAddresses(scope, found.postType, [found.entry.id], languages)).get(found.entry.id)
-			: undefined;
-		if (address) extras.alternates.push({ hreflang: language.code, href: `${host.origin}${address.path}` });
+	for (const { language, path, shown } of await languagePlaces(scope, place, found)) {
+		if (shown) extras.alternates.push({ hreflang: language.code, href: `${host.origin}${path}` });
 		extras.languageLinks.push({
 			code: language.code,
 			name: language.name,
 			direction: language.direction,
-			href: languageChoiceHref(address?.path ?? languagePath(languages, "/")),
+			href: languageChoiceHref(path),
 			current: language.code === place.languages.language,
 		});
 	}
@@ -355,6 +361,29 @@ async function languageExtras(
 	if (fallback) extras.alternates.push({ hreflang: "x-default", href: fallback.href });
 	if (!found) extras.alternates = [];
 	return extras;
+}
+
+/**
+ * Where the page is in each of the Site's languages: its published Entry's address where it is shown
+ * (`shown`), else the language's home page.
+ */
+async function languagePlaces(
+	scope: ReadScope,
+	place: Place,
+	found: FoundEntry | undefined,
+): Promise<{ language: SiteLanguage; path: string; shown: boolean }[]> {
+	const { site } = place;
+	const published = found && storedVersion(found.entry.published);
+	const places: { language: SiteLanguage; path: string; shown: boolean }[] = [];
+	for (const language of site.languages) {
+		const languages = { language: language.code, defaultLanguage: site.defaultLanguage };
+		const visible = found && published && isVisibleIn(published, languages);
+		const address = visible
+			? (await publishedAddresses(scope, found.postType, [found.entry.id], languages)).get(found.entry.id)
+			: undefined;
+		places.push({ language, path: address?.path ?? languagePath(languages, "/"), shown: address !== undefined });
+	}
+	return places;
 }
 
 /**
