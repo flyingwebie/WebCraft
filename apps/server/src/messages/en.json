@@ -284,7 +284,9 @@
 			"libraries": "Libraries",
 			"imports": "Imports",
 			"seo": "SEO",
-			"backups": "Backups"
+			"backups": "Backups",
+			"templates": "Templates",
+			"components": "Components"
 		}
 	},
 	"masterKeyBanner": {
@@ -3366,6 +3368,406 @@
 			"heading": "Restoring",
 			"body": "A Backup is restored on the server, into an empty database, with the Master key the Install had then. Stop web and worker first, then run:",
 			"site": "Restoring brings back the whole Install. To move or copy one Site, use a Site export instead."
+		}
+	},
+	"templates": {
+		"pageTitle": "Templates",
+		"intro": "Every Template this Site can have: the Site template around every page, the Search results template, and each Post Type's Entry and Archive templates. Open one in the visual builder. Pages have none: they are arranged with Page layouts.",
+		"columns": {
+			"template": "Template",
+			"status": "Status",
+			"open": "Open"
+		},
+		"notMade": "Not made yet",
+		"noAddress": "No archive address: the URL pattern starts with '{slug}'",
+		"open": "Open in builder",
+		"openNamed": ": {name}"
+	},
+	"components": {
+		"pageTitle": "Components",
+		"intro": "Reusable arrangements of elements with Props, placed in Templates and other Components. Editing one changes every copy once it is published.",
+		"none": "No Components yet.",
+		"columns": {
+			"name": "Component",
+			"status": "Status",
+			"usage": "Used on",
+			"open": "Open"
+		},
+		"fromModule": "From the {module} Module",
+		"pages": "{count, plural, =0 {No published page} one {# published page} other {# published pages}}",
+		"create": {
+			"open": "New Component",
+			"close": "Close",
+			"title": "New Component",
+			"intro": "Name the Component as Template markup will place it. The builder opens on it next.",
+			"name": "Name",
+			"nameHelp": "A capital letter, then letters and digits, such as PostCard.",
+			"nameRequired": "Give the Component a name.",
+			"cancel": "Cancel",
+			"submit": "Create Component"
+		}
+	},
+	"builder": {
+		"backToTemplates": "Templates",
+		"backToComponents": "Components",
+		"kinds": {
+			"siteTemplate": "Site template",
+			"searchTemplate": "Search results template",
+			"entryTemplate": "Entry template",
+			"archiveTemplate": "Archive template",
+			"component": "Component"
+		},
+		"titles": {
+			"entryTemplate": "{postType} · Entry template",
+			"archiveTemplate": "{postType} · Archive template"
+		},
+		"status": {
+			"new": "Not made yet",
+			"unsaved": "Unsaved changes"
+		},
+		"view": {
+			"label": "View",
+			"visual": "Visual",
+			"markup": "Template markup",
+			"toMarkup": "Template markup view. The same Draft, as text.",
+			"toVisual": "Visual view.",
+			"cantSwitch": "The markup can't be read yet: fix the problems listed, then switch."
+		},
+		"width": {
+			"label": "Canvas width",
+			"desktop": "Desktop width",
+			"tablet": "Tablet width (768 px)",
+			"phone": "Phone width (390 px)"
+		},
+		"theme": {
+			"dark": "Dark preview",
+			"darkOn": "The canvas shows the Site's dark values.",
+			"lightOn": "The canvas shows the Site's light values.",
+			"noDarkMode": "Dark mode is off in this Site's Design system, so the canvas has no dark values to show."
+		},
+		"undo": "Undo",
+		"redo": "Redo",
+		"undone": "Undone.",
+		"redone": "Redone.",
+		"save": "Save",
+		"saving": "Saving…",
+		"saved": "{name} is saved to its Draft.",
+		"notSaved": "The Draft isn't saved: fix the problems listed.",
+		"saveFirst": "Save it first: there is nothing to publish yet.",
+		"publish": "Publish",
+		"publishing": "Publishing…",
+		"published": "{name} is published.",
+		"problems": "This can't be saved yet:",
+		"showLayer": "Show the layer",
+		"selected": "{name} selected.",
+		"canvas": {
+			"label": "Canvas",
+			"title": "Canvas: {name} as pages show it",
+			"placeholders": {
+				"outlet": "Each page's content goes here",
+				"form": "Form {name}",
+				"search": "Search box",
+				"themeToggle": "Theme toggle",
+				"languageSwitcher": "Language switcher",
+				"consentSettings": "Cookie settings"
+			}
+		},
+		"layers": {
+			"heading": "Layers",
+			"actions": "Selected layer",
+			"none": "Nothing here yet. Insert an element to start.",
+			"keys": "Arrows move through layers. Alt with the arrows moves the selected one (into the layer before, out of its parent). Space picks it up and puts it down; Escape puts it back. Ctrl X, C, V, D: cut, copy, paste, duplicate. Delete removes, F2 renames.",
+			"action": {
+				"moveUp": "Move up",
+				"moveDown": "Move down",
+				"moveIn": "Move into the layer before",
+				"moveOut": "Move out of its parent",
+				"cut": "Cut",
+				"copy": "Copy",
+				"paste": "Paste after",
+				"duplicate": "Duplicate",
+				"rename": "Rename",
+				"delete": "Delete"
+			},
+			"renameLabel": "Layer label of {tag}",
+			"renamed": "Renamed {name}.",
+			"unnamed": "The layer label is removed.",
+			"renameElementsOnly": "Only elements have a layer label.",
+			"text": "text",
+			"value": "value",
+			"comment": "comment",
+			"component": "Component",
+			"condition": "Condition",
+			"command": "Template command",
+			"if": "If",
+			"elseIf": "Else if",
+			"else": "Else",
+			"empty": "When there are no items",
+			"loop": "Loop",
+			"form": "Form",
+			"pagination": "Pagination"
+		},
+		"moves": {
+			"moved": "Moved {name}: {where}.",
+			"where": "{position} of {count} in {owner}",
+			"top": "the top level",
+			"copied": "Copied {name}.",
+			"cut": "Cut {name}.",
+			"deleted": "Deleted {name}.",
+			"duplicated": "Duplicated {name}: {where}.",
+			"pasted": "Pasted {name}: {where}.",
+			"inserted": "Inserted {name}: {where}.",
+			"nothingToPaste": "Nothing to paste: cut or copy a layer first.",
+			"picked": "Picked up {name}. Arrows move it, Space puts it down, Escape puts it back.",
+			"dropped": "Put down {name}: {where}.",
+			"putBack": "Put {name} back where it was.",
+			"refused": {
+				"first": "{name} is already first.",
+				"last": "{name} is already last.",
+				"top": "{name} is already at the top level.",
+				"holds-nothing": "The layer before {name} can't hold anything.",
+				"inside-itself": "{name} can't go inside itself.",
+				"gone": "{name} is no longer there."
+			}
+		},
+		"insert": {
+			"open": "Insert",
+			"close": "Close",
+			"title": "Insert",
+			"intro": "Semantic elements first. Type to filter, then press Enter.",
+			"search": "Find an element",
+			"searchPlaceholder": "Heading, list, Loop…",
+			"none": "Nothing matches.",
+			"where": "Where",
+			"whereOptions": {
+				"inside": "Inside the selected layer",
+				"after": "After it",
+				"before": "Before it"
+			},
+			"groups": {
+				"sections": "Sections",
+				"text": "Text",
+				"media": "Media and more",
+				"values": "Values",
+				"commands": "Template commands",
+				"components": "Components",
+				"other": "Other"
+			},
+			"tags": {
+				"section": "Section",
+				"header": "Header",
+				"nav": "Navigation",
+				"main": "Main content",
+				"article": "Article",
+				"aside": "Aside",
+				"footer": "Footer",
+				"search": "Search region",
+				"div": "Division (no meaning)",
+				"address": "Contact details"
+			},
+			"heading": "Heading {level}",
+			"paragraph": "Paragraph",
+			"list": "List",
+			"numberedList": "Numbered list",
+			"listItem": "List item",
+			"link": "Link",
+			"button": "Button",
+			"buttonHint": "A link styled as a button: Templates run no scripts",
+			"quote": "Quote",
+			"image": "Image",
+			"imageHint": "A Media image, with its sizes and alt text",
+			"figure": "Figure with caption",
+			"table": "Table",
+			"details": "Disclosure",
+			"value": "Value",
+			"valueHint": "A Field, Prop or Global, read where the page renders",
+			"commands": {
+				"if": "Condition",
+				"loop": "Loop",
+				"form": "Form",
+				"pagination": "Pagination",
+				"outlet": "Page content",
+				"search": "Search box",
+				"themeToggle": "Theme toggle",
+				"languageSwitcher": "Language switcher",
+				"consentSettings": "Cookie settings"
+			},
+			"componentHint": "Component",
+			"text": "Text",
+			"textHint": "Fixed text",
+			"comment": "Comment",
+			"anyElement": "Any element",
+			"anyElementHint": "By its tag name",
+			"defaults": {
+				"heading": "Heading",
+				"paragraph": "Paragraph",
+				"listItem": "List item",
+				"link": "Link",
+				"button": "Button",
+				"quote": "Quote",
+				"caption": "Caption",
+				"cell": "Cell",
+				"summary": "Summary",
+				"text": "Text",
+				"comment": "A note for Staff"
+			},
+			"chooseImage": "Choose an image.",
+			"chooseValue": "Choose a value or type its path.",
+			"chooseLoop": "Choose a Loop or type a list.",
+			"chooseForm": "Choose a Form.",
+			"valueChoice": "Value",
+			"valueNone": "Choose…",
+			"valuePath": "Or its path",
+			"valuePathHelp": "Such as summary, site.phone or post.title inside a Loop.",
+			"requiredProp": "{label} (required)",
+			"loopChoice": "Loop",
+			"loopList": "Or a list the page reads",
+			"loopListHelp": "A Loop of the Site by name, or a Repeater or Relationship by its path, such as gallery.",
+			"loopAlias": "Each item is called",
+			"formChoice": "Form",
+			"test": "Show when",
+			"testHelp": "Such as summary, status == \"published\" or loop.first.",
+			"tag": "Tag name",
+			"tagHelp": "Any element Templates hold: no scripts, styles or iframes.",
+			"tagRefused": "This kind of Template can't hold <{tag}>.",
+			"back": "Back",
+			"submit": "Insert"
+		},
+		"inspector": {
+			"heading": "Settings",
+			"nothing": "Select a layer to change it.",
+			"branch": "Select a layer inside this branch, or insert one.",
+			"tabs": "Selected element",
+			"settings": "Settings",
+			"style": "Style",
+			"changed": "Changed.",
+			"label": "Layer label",
+			"labelHelp": "What the Layers panel calls it. Never shown on pages.",
+			"tag": "Tag",
+			"tagHelp": "The HTML element, such as section or h2.",
+			"attributes": "Attributes",
+			"noAttributes": "No attributes.",
+			"attributeName": "Name of attribute {number}",
+			"attributeValue": "Value of attribute {number}",
+			"attributeTwice": "{name} is given twice.",
+			"unsafeUrl": "{name}: pages may only link to http, https, mailto and tel addresses, paths and #anchors.",
+			"removeAttribute": "Remove attribute {name}",
+			"addAttribute": "Add attribute",
+			"text": "Text",
+			"textHelp": "Fixed text: clients can't change it until it is a Prop, a Field or a Global.",
+			"translations": "This text has its own words in other languages; they stay as they are.",
+			"valuePath": "Reads",
+			"valuePathHelp": "A Field, Prop or Global by its path.",
+			"format": "Formatter",
+			"formatHelp": "Optional: date: long, number: 2 or truncate: 120.",
+			"comment": "Comment",
+			"commentHelp": "Kept for Staff; visitors never get it.",
+			"placement": "A copy of the Component, with its own Prop values. Change the Component itself in its own builder.",
+			"propHelp": "props.{key}: text, or a value such as title.",
+			"test": "Show when",
+			"elseIfTest": "Else, when ({number})",
+			"addElse": "Add Else",
+			"removeElse": "Remove Else",
+			"loopSource": "Lists",
+			"addEmpty": "Add what shows when there are no items",
+			"removeEmpty": "Remove what shows when there are no items"
+		},
+		"commands": {
+			"outlet": "Page content",
+			"search": "Search box",
+			"themeToggle": "Theme toggle",
+			"languageSwitcher": "Language switcher",
+			"consentSettings": "Cookie settings"
+		},
+		"commandHelp": {
+			"outlet": "Where each page's content goes. The Site template holds one, inside its main element.",
+			"search": "A search box sending visitors to the Site's search results page.",
+			"themeToggle": "A button switching between light and dark, shown while Dark mode is on.",
+			"languageSwitcher": "Links to the page in each of the Site's languages.",
+			"consentSettings": "A button opening the Consent banner again."
+		},
+		"style": {
+			"classes": "Classes",
+			"noClasses": "No Classes yet.",
+			"edit": "Edit the styles of {name}",
+			"moveUp": "Move {name} up",
+			"moveDown": "Move {name} down",
+			"remove": "Remove {name}",
+			"moved": "Moved {name}: {position} of {count}.",
+			"added": "Added {name}.",
+			"removed": "Removed {name}.",
+			"created": "Created the Class {name} in the Design system's Draft.",
+			"already": "The element already has {name}.",
+			"add": "Add a Class",
+			"addHelp": "A Class or token utility of the Site, or a new name to make a Class.",
+			"addSubmit": "Add",
+			"classStyles": "Styles of {name}",
+			"classStylesHelp": "For every element with this Class. Saved to the Design system's Draft; pages show it once the Design system is published.",
+			"property": "Property {number}",
+			"value": "Value {number}",
+			"saveClass": "Save {name}",
+			"oneOff": "One-off style",
+			"oneOffLabel": "Declarations",
+			"oneOffHelp": "Only for this element, such as margin-top: var(--space-m). Saving makes it a generated Class: pages never carry inline styles.",
+			"oneOffApply": "Apply",
+			"oneOffApplied": "One-off style applied.",
+			"oneOffRemoved": "One-off style removed."
+		},
+		"fixedText": {
+			"badge": "Fixed text",
+			"show": "Fixed text ({count})",
+			"heading": "Fixed text",
+			"help": "Clients can't edit fixed text. Make it a value they edit instead.",
+			"make": {
+				"prop": "Make it a Prop",
+				"field": "Make it a Field",
+				"global": "Make it a Global"
+			},
+			"intro": {
+				"prop": "Each copy of the Component then shows its own value for it. “{text}” becomes the Prop's default, so nothing changes until someone gives another.",
+				"field": "Each Entry then shows its own value for it. “{text}” becomes the Field's default for new Entries. The Field is added to the Post Type at once.",
+				"global": "Clients then change it in the Globals, for every page. “{text}” becomes the Global's Draft value. The Global is added at once."
+			},
+			"mode": {
+				"new": {
+					"prop": "A new Prop",
+					"field": "A new Field",
+					"global": "A new Global"
+				},
+				"existing": {
+					"prop": "A Prop it has",
+					"field": "A Field the Post Type has",
+					"global": "A Global the Site has"
+				}
+			},
+			"existing": {
+				"prop": "Prop",
+				"field": "Field",
+				"global": "Global"
+			},
+			"none": "Choose…",
+			"label": "Label",
+			"key": "Key",
+			"keyHelp": "Template markup reads it as {binding}.",
+			"labelRequired": "Give it a label.",
+			"keyInvalid": "A key starts with a lower-case letter, then letters, digits and underscores.",
+			"keyTaken": "That key is taken.",
+			"chooseExisting": "Choose one.",
+			"made": "The text now reads {binding}.",
+			"cancel": "Cancel",
+			"close": "Close"
+		},
+		"markup": {
+			"label": "Template markup",
+			"help": "The same Draft as the visual view. Switching back reads it into layers; nothing is saved until Save.",
+			"at": "Line {line}, column {column}:"
+		},
+		"conflict": {
+			"title": "Saved by someone else meanwhile",
+			"body": "Someone saved {name} since you opened it. Reload theirs, or save yours over it.",
+			"reload": "Reload theirs",
+			"overwrite": "Save mine over it",
+			"close": "Close"
 		}
 	}
 }

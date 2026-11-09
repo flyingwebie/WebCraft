@@ -2,6 +2,7 @@ import type { RouterClient } from "@orpc/server";
 
 import { apiTokens } from "./procedures/api-tokens.ts";
 import { audit } from "./procedures/audit.ts";
+import { builder } from "./procedures/builder.ts";
 import { components } from "./procedures/components.ts";
 import { consentBanner } from "./procedures/consent.ts";
 import { designSystem } from "./procedures/design-system.ts";
@@ -63,6 +64,7 @@ export const apiRouter = {
 	consentBanner,
 	seoSettings,
 	designSystem,
+	builder,
 	media,
 	imports,
 	pages,

@@ -133,6 +133,35 @@ describe("into an empty database", () => {
 		expect((await refusal(empty, join(copies, "missing.tar"))).reason).toBe("not-a-backup");
 	});
 
+	test("a Backup whose manifest names anything but WebCraft's own tables and monthly partitions is refused, running nothing", async () => {
+		const injected = join(copies, "injected-bound.tar");
+		withManifest(archive, injected, (manifest) => {
+			(manifest.database as { partitions: unknown[] }).partitions.push({
+				parent: "m_site_analytics.events",
+				name: "events_injected",
+				bound:
+					"FOR VALUES FROM ('2026-01-01 00:00:00+00') TO ('2026-02-01 00:00:00+00'); CREATE TABLE public.injected (id int); --",
+			});
+		});
+		const foreign = join(copies, "foreign-table.tar");
+		withManifest(archive, foreign, (manifest) => {
+			const { tables } = manifest.database as { tables: { name: string }[] };
+			if (tables[0]) tables[0].name = "pg_catalog.pg_authid";
+		});
+
+		expect((await refusal(empty, injected)).reason).toBe("not-a-backup");
+		expect((await refusal(empty, foreign)).reason).toBe("not-a-backup");
+		const client = new pg.Client({ connectionString: empty.databaseUrl });
+		await client.connect();
+		try {
+			const { rows } = await client.query("SELECT to_regclass('public.injected') AS found");
+			expect(rows[0]?.found).toBeNull();
+		} finally {
+			await client.end();
+		}
+		expect(await readiness(empty)).toBe("behind");
+	});
+
 	test("nothing is restored while web or worker is running on the database", async () => {
 		const web = new pg.Client({ connectionString: empty.databaseUrl, application_name: "webcraft-web" });
 		await web.connect();

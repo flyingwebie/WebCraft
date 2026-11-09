@@ -1,0 +1,52 @@
+import type { ApiClient } from "@webcraft/api";
+import type { FieldInput } from "@webcraft/core";
+
+import type { BuilderTarget } from "./model.ts";
+
+/**
+ * Saves the builder's Draft (ADR 0017): Template markup, through the same saves as Code mode, the CLI
+ * and AI clients, based on the version the builder opened (`CHANGED_MEANWHILE` when someone saved it
+ * since), with a Component's Props. One-off styles in the markup become generated Classes there. The
+ * one place the builder writes its Draft: Co-editing (ADR 0025) replaces it with changes to the
+ * Draft's shared document.
+ */
+export async function saveDraft(
+	api: ApiClient,
+	siteId: string,
+	target: BuilderTarget,
+	change: { markup: string; props: FieldInput[] | null; basedOn: string | null },
+): Promise<{ markup: string; version: string }> {
+	const { markup, basedOn } = change;
+	switch (target.kind) {
+		case "siteTemplate":
+			return api.templates.saveSiteTemplateMarkup({ siteId, markup, basedOn });
+		case "searchTemplate":
+			return api.templates.saveSearchTemplateMarkup({ siteId, markup, basedOn });
+		case "entryTemplate":
+			return api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: target.postTypeId, markup, basedOn });
+		case "archiveTemplate":
+			return api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: target.postTypeId, markup, basedOn });
+		case "component":
+			return api.components.saveMarkup({
+				siteId,
+				componentId: target.componentId,
+				markup,
+				basedOn,
+				...(change.props ? { props: change.props } : {}),
+			});
+	}
+}
+
+/** Publishes the Template or Component: what visitors see changes at once. */
+export async function publishDraft(
+	api: ApiClient,
+	siteId: string,
+	target: BuilderTarget,
+	templateId: string | null,
+): Promise<void> {
+	if (target.kind === "component") {
+		await api.components.publish({ siteId, componentId: target.componentId });
+		return;
+	}
+	if (templateId) await api.templates.publish({ siteId, templateId });
+}

@@ -2,6 +2,7 @@
 // there only its Sites; reads only when it is read-only; never a Sensitive action; never the
 // admin's own procedures.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { ApiClient } from "@webcraft/api";
 import type { ModuleApi } from "@webcraft/module-sdk";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
@@ -20,6 +21,11 @@ beforeAll(async () => {
 afterAll(async () => {
 	await install.close();
 });
+
+/** The sample Module's procedures, called through a token's client. */
+function sampleApi(api: ApiClient): ModuleApi<typeof sample> {
+	return (api as unknown as { m: { sample: ModuleApi<typeof sample> } }).m.sample;
+}
 
 /** A Workspace with two Sites, and another Workspace with one. */
 async function workspaces() {
@@ -100,7 +106,7 @@ describe("read-only tokens", () => {
 		const admin = await install.superadmin();
 		const { secret } = await createApiToken(admin, { workspaceId: ours.id, name: "Reader", readOnly: true });
 		const script = tokenClient(install, secret);
-		const notes = script.api.m.sample as unknown as ModuleApi<typeof sample>;
+		const notes = sampleApi(script.api);
 
 		await script.api.postTypes.list({ siteId: first.id });
 		await notes.notes.list({ siteId: first.id });
@@ -157,7 +163,7 @@ describe("what a token never does", () => {
 		const { ours, first, theirSite } = await workspaces();
 		const admin = await install.superadmin();
 		const { secret } = await createApiToken(admin, { workspaceId: ours.id, name: "Notes script" });
-		const notes = (tokenClient(install, secret).api.m.sample as unknown as ModuleApi<typeof sample>).notes;
+		const { notes } = sampleApi(tokenClient(install, secret).api);
 
 		await notes.add({ siteId: first.id, body: "Through the API" });
 		const { notes: listed } = await notes.list({ siteId: first.id });

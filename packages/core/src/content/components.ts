@@ -308,6 +308,38 @@ export async function readComponentMarkup(
 	};
 }
 
+/**
+ * One of the Site's own Components as the visual builder opens it (open the Site with
+ * `structure.edit`): the Component, the Props its Draft will have (its Draft's, or `props` checked
+ * as saving checks them: `ComponentInvalidError`), and what its tree may hold with them, placing the
+ * Drafts of the Components it may place (never one placing it). A Module's Component changes with
+ * its Module (`ComponentFromModuleError`).
+ */
+export async function componentSource(
+	scope: SiteScope,
+	componentId: string,
+	props: readonly FieldInput[] | undefined,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<{
+	component: Component;
+	props: FieldDefinition[];
+	catalogue: SiteComponents;
+	rules: ReturnType<typeof componentTreeRules>;
+}> {
+	const component = await findComponent(scope, componentId, sources);
+	if (component.module) throw new ComponentFromModuleError();
+	const row = await scope.first(components, eq(components.id, component.id));
+	if (!row) throw new ComponentNotFoundError();
+	const willHave = await nextProps(scope, row, props);
+	const catalogue = await siteComponents(scope, "draft", sources, { self: component.id });
+	return {
+		component,
+		props: willHave,
+		catalogue,
+		rules: componentTreeRules(willHave, await readContext(scope), catalogue),
+	};
+}
+
 /** A Component's Draft's version, from its Props and tree as stored (`draftVersion`). */
 export function componentVersion(draft: ComponentVersion): string {
 	return draftVersion(draft);

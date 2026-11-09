@@ -3527,6 +3527,48 @@
 				"x-webcraft-access": "write"
 			}
 		},
+		"/templates/list": {
+			"post": {
+				"operationId": "templates.list",
+				"summary": "Lists every Template the Site can have, made or not.",
+				"tags": ["templates"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read"
+			}
+		},
 		"/templates/getEntryTemplate": {
 			"post": {
 				"operationId": "templates.getEntryTemplate",

@@ -154,6 +154,12 @@ describe("values where they could run or change the page's structure", () => {
 		);
 	});
 
+	test("a layer label with a value in it, over 100 characters, or on two lines", async () => {
+		await refuses('<p data-wc-label="{{ summary }}">x</p>', 1, 19, "Values can't be used in a layer label");
+		await refuses(`<p data-wc-label="${"a".repeat(101)}">x</p>`, 1, 19, "at most 100 characters");
+		await refuses('<p data-wc-label="Two&#10;lines">x</p>', 1, 19, "A layer label is one line");
+	});
+
 	test("a media: address that doesn't name a file by its id", async () => {
 		await refuses('<img src="media:abc123" alt="">', 1, 11, "media: is followed by the id of a file");
 	});

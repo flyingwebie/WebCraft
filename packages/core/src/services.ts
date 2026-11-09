@@ -6,6 +6,7 @@ import type { AiProviders } from "./ai.ts";
 import type { ApiTokens } from "./api-tokens.ts";
 import type { AuditEntry } from "./audit.ts";
 import type { Backups } from "./backups/service.ts";
+import type { Builder } from "./builder/index.ts";
 import type { Cdns } from "./cdns/index.ts";
 import type { Clock } from "./clock.ts";
 import type { CodeMode } from "./code-mode/index.ts";
@@ -46,6 +47,7 @@ import type {
 	SiteLanguages,
 	SpecialPages,
 	Template,
+	TemplateListing,
 	TemplateMarkup,
 } from "./content/index.ts";
 import type { Countries } from "./countries.ts";
@@ -202,6 +204,8 @@ export type InstallServices = InstallPorts & {
 	};
 	/** Templates, stored as element trees with a Draft and a published version. Structure: `structure.edit`. */
 	templates: {
+		/** Every Template the Site can have, made or not, for the Templates screen. */
+		list(scope: SiteScope): Promise<TemplateListing[]>;
 		/** A Post Type's Entry template, or null while it has none. */
 		entryTemplate(scope: SiteScope, postTypeId: string): Promise<Template | null>;
 		saveEntryTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template>;
@@ -430,6 +434,12 @@ export type InstallServices = InstallPorts & {
 	 * select on the page, saved to the Drafts. Open its Site with `codeMode.access(session)`.
 	 */
 	codeMode: CodeMode;
+	/**
+	 * The visual builder (ADRs 0002, 0017): Templates and Components opened, previewed on a canvas and
+	 * read to and from Template markup, saved through the Template and Component saves. Open the Site
+	 * with `structure.edit`.
+	 */
+	builder: Builder;
 	/** Memberships: Members' roles in a Workspace and the Sites they reach. */
 	memberships: MembershipsService;
 	/** Members of a Workspace: inviting them, their role and Sites, removing them, pending invites. */

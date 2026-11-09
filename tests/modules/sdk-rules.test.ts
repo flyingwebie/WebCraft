@@ -34,11 +34,11 @@ const [route] = sample.siteRoutes ?? [];
 
 describe("a Module can't run when", () => {
 	test("a procedure is neither a read nor a write", async () => {
-		const notes = (sample.procedures as { notes: Record<string, object> }).notes;
+		const { notes } = sample.procedures;
 		const odd = {
 			...sample,
 			procedures: { ...sample.procedures, notes: { ...notes, list: { ...notes.list, kind: "maybe" } } },
-		} as ModuleDefinition;
+		} as unknown as ModuleDefinition;
 		expect(await problemOf(odd)).toContain("notes.list is neither a read nor a write");
 	});
 

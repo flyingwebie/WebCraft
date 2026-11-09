@@ -1672,7 +1672,7 @@ async function placedComponents(
  * (`props.x`) and the Globals (`site.x`). Relationship Props written as Entry ids show those
  * published Entries of their Post Types.
  */
-async function pageComponents(
+export async function pageComponents(
 	scope: ReadScope,
 	trees: readonly (ElementTree | undefined)[],
 	sources: ComponentSources,

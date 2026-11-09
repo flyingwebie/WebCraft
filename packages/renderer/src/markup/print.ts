@@ -2,7 +2,8 @@
  * Printing an element tree as Template markup (ADR 0017). Printing is exact: the markup holds every
  * setting of the tree and no whitespace the tree doesn't, so reading it back gives the same tree.
  *
- * - Elements print with their attributes, `class` (the Classes' names) first and `data-wc-id` last.
+ * - Elements print with their attributes, `class` (the Classes' names) first, then the rest, then
+ *   their layer label as `data-wc-label` and their id as `data-wc-id`, last.
  * - Text is escaped (`&amp;`, `&lt;`, `&gt;`), `{{` in text prints as `\{{`, and a `{` or `\` at the
  *   end of text prints as a character reference, so it can't run into a following `{{`.
  * - Values print as `{{ path }}` or `{{ path | formatter }}`, comments as `<!--text-->`, Template
@@ -21,7 +22,7 @@ import {
 	type TreeNode,
 	VOID_ELEMENTS,
 } from "../tree.ts";
-import { ID_ATTRIBUTE } from "./parse.ts";
+import { ID_ATTRIBUTE, LABEL_ATTRIBUTE } from "./parse.ts";
 
 export type PrintMarkupOptions = {
 	/** The name of the Site's Class with this id. */
@@ -30,6 +31,12 @@ export type PrintMarkupOptions = {
 	componentName?: (componentId: string) => string | undefined;
 	/** The key of the Form with this id (`{{@form <key>}}`). */
 	formKey?: (formId: string) => string | undefined;
+	/**
+	 * A one-off style an element has that isn't a Class yet (canonical declarations, `color: red;`),
+	 * printed as its inline `style`, which reading the markup turns into a generated Class: the visual
+	 * builder's one-off styles before they are saved. None when absent.
+	 */
+	inlineStyle?: (elementId: string) => string | undefined;
 };
 
 /** Attributes that print without a value when their value is empty (`hidden`, not `hidden=""`). */
@@ -74,6 +81,9 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 				attributes += ` class="${markupText(names.join(" "), true)}"`;
 			}
 			for (const attribute of node.attributes) attributes += printAttribute(attribute);
+			const style = options.inlineStyle?.(node.id);
+			if (style) attributes += ` style="${markupText(style, true)}"`;
+			if (node.label !== undefined) attributes += ` ${LABEL_ATTRIBUTE}="${markupText(node.label, true)}"`;
 			attributes += ` ${ID_ATTRIBUTE}="${markupText(node.id, true)}"`;
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
 			let children = printNodes(node.children, options);

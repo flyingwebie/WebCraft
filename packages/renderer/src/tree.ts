@@ -55,6 +55,11 @@ export type ElementNode = {
 	/** The ids of the Site's Classes the element has, in order (ADR 0009). */
 	classes: string[];
 	children: TreeNode[];
+	/**
+	 * What Staff call the element in the builder's Layers panel ("Hero image", "Opening hours"); never
+	 * rendered. Absent when it has none, and the Layers panel shows its tag.
+	 */
+	label?: string;
 };
 
 /**
@@ -269,6 +274,24 @@ export function attributeProblem(name: string): string | undefined {
 	if (name.startsWith("on")) return `${name}: event handler attributes aren't allowed.`;
 	if (name.startsWith("data-wc-")) return `${name}: data-wc- attributes are kept for WebCraft.`;
 	return REFUSED_ATTRIBUTES[name];
+}
+
+/** The longest layer label an element may have. */
+export const LABEL_MAX_LENGTH = 100;
+
+/** Characters a layer label can't hold: control characters, line breaks among them. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+const LABEL_REFUSED = /[\u0000-\u001f\u007f]/;
+
+/**
+ * Why `label` can't be an element's layer label (see `ElementNode.label`), or undefined: one line of
+ * at most `LABEL_MAX_LENGTH` characters. Blank labels are no label at all.
+ */
+export function labelProblem(label: string): string | undefined {
+	if (label.length > LABEL_MAX_LENGTH) return `A layer label is at most ${LABEL_MAX_LENGTH} characters.`;
+	if (LABEL_REFUSED.test(label)) return "A layer label is one line, without control characters.";
+	if (LONE_SURROGATE.test(label)) return "A layer label holds a broken character.";
+	return undefined;
 }
 
 /** Whether `id` can be an element's id: 1 to 64 letters, digits, dashes and underscores. */
@@ -731,6 +754,18 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		return parsed;
 	};
 
+	/** A layer label: none when absent or blank, refused when it isn't one line of text. */
+	const parseLabel = (label: unknown, at: string): string | undefined => {
+		if (label === undefined || label === null) return undefined;
+		if (typeof label !== "string") {
+			problem(at, "A layer label is text.");
+			return undefined;
+		}
+		const refused = labelProblem(label);
+		if (refused) problem(at, refused);
+		return label.trim() ? label : undefined;
+	};
+
 	/** A stored element or Placement id: filled in when missing, refused when malformed or taken. */
 	const parseId = (id: unknown, at: string): string | undefined => {
 		if (id === undefined || id === null) {
@@ -867,6 +902,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		if (id === undefined) return undefined;
 		const children = parseNodes(element.children ?? [], `${at}.children`, [...ancestors, tag], depth + 1);
 		if (VOID_ELEMENTS.has(tag) && children.length > 0) problem(`${at}.children`, `${tag} can't have children.`);
+		const label = parseLabel(element.label, `${at}.label`);
 		return {
 			type: "element",
 			id,
@@ -874,6 +910,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			attributes: parseAttributes(element.attributes ?? [], `${at}.attributes`),
 			classes: parseClasses(element.classes ?? [], `${at}.classes`),
 			children,
+			...(label === undefined ? {} : { label }),
 		};
 	};
 

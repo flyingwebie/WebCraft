@@ -128,7 +128,13 @@ export {
 	SEARCH_QUERY_VALUE,
 } from "./loops.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
-export { ID_ATTRIBUTE, type ParsedMarkup, type ParseMarkupOptions, parseTemplateMarkup } from "./markup/parse.ts";
+export {
+	ID_ATTRIBUTE,
+	LABEL_ATTRIBUTE,
+	type ParsedMarkup,
+	type ParseMarkupOptions,
+	parseTemplateMarkup,
+} from "./markup/parse.ts";
 export { type PrintMarkupOptions, printTemplateMarkup } from "./markup/print.ts";
 export {
 	type MarkupNotice,
@@ -199,8 +205,11 @@ export {
 	type FormCatalogue,
 	type FormFound,
 	type FormNode,
+	hasText,
+	LABEL_MAX_LENGTH,
 	type LanguageSwitcherNode,
 	type LoopNode,
+	labelProblem,
 	loopNamesIn,
 	type OutletNode,
 	type PaginationNode,
