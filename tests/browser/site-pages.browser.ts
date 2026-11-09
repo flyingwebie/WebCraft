@@ -2,8 +2,9 @@
 // and AA or its best practices, the first Tab reaches the skip link, following it moves focus into
 // the page's <main>, and every link shows focus. Checked on an Entry's page and the 404 page, inside
 // a Site template with a header, navigation and footer, styled by the default Design system, the
-// footer and the Entry's article each shown through a Component; and on a Site with dark mode and a
-// theme toggle, in the device's light and dark themes.
+// footer and the Entry's article each shown through a Component; on an Archive page listing the posts
+// through a paginated Loop with its pagination; and on a Site with dark mode and a theme toggle, in the
+// device's light and dark themes.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { expectAccessibleScreen } from "./checks.ts";
@@ -55,6 +56,25 @@ async function siteWithPost(siteSlug: string, darkMode: boolean): Promise<void> 
 	await api.templates.publish({ siteId, templateId: entry.template.id });
 	const { entry: post } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await api.entries.publish({ siteId, entryId: post.id });
+	for (const title of ["Sourdough starter", "Wedding cakes"]) {
+		const { entry: more } = await api.entries.create({ siteId, postTypeId: postType.id, title });
+		await api.entries.publish({ siteId, entryId: more.id });
+	}
+	// The Archive page at /blog: its posts two at a time, with links to its pages.
+	const { loop } = await api.loops.create({
+		siteId,
+		name: "posts",
+		source: "query",
+		query: { postTypes: [postType.key], limit: 2, paginate: true, sort: [{ by: "title", direction: "asc" }] },
+	});
+	await api.loops.publish({ siteId, loopId: loop.id });
+	const archive = await api.templates.saveArchiveTemplateMarkup({
+		siteId,
+		postTypeId: postType.id,
+		markup:
+			'<h1>Journal</h1><ul>{{@loop posts as post}}<li><a href="{{ post.url }}">{{ post.title }}</a></li>{{/loop}}</ul>{{@pagination posts}}',
+	});
+	await api.templates.publish({ siteId, templateId: archive.template.id });
 	if (darkMode) {
 		await api.designSystem.saveDraft({ siteId, darkMode: true });
 		await api.designSystem.publish({ siteId });
@@ -76,6 +96,8 @@ for (const theme of THEMES) {
 		for (const [name, siteSlug, path] of [
 			["an Entry's page", slug, "/blog/fresh-bread"],
 			["the built-in 404 page", slug, "/no-such-page"],
+			["an Archive page with pagination", slug, "/blog"],
+			["the second page of an Archive page", slug, "/blog?page=2"],
 			["an Entry's page with dark mode and a theme toggle", darkSlug, "/blog/fresh-bread"],
 		] as const) {
 			test(name, async () => {

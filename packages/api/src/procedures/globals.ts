@@ -32,6 +32,15 @@ export const globals = {
 			};
 		}),
 
+	/**
+	 * The Globals' Data tab (Staff only): their Draft values as Templates read them (`site.x`, with the
+	 * Site's own `site.language` and `site.name`), with the bindings that read each.
+	 */
+	data: signedIn.input(z.object({ siteId: id, language: language.optional() })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return context.services.globals.data(site, input.language);
+	}),
+
 	/** Publishes the Globals' Draft: every page shows the new values at once. */
 	publish: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const item = { kind: "globals" } as const;

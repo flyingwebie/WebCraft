@@ -27,6 +27,7 @@ import type { FieldDefinition, Json } from "../content/field-types.ts";
 import { BUILT_IN_FIELDS } from "../content/fields.ts";
 import { getGlobals } from "../content/globals.ts";
 import { draftVersion } from "../content/json.ts";
+import { listLoops } from "../content/loops.ts";
 import { getPostType } from "../content/post-types.ts";
 import { RELATED_BUILT_INS } from "../content/render-values.ts";
 import { getEntryTemplate, getSiteTemplate } from "../content/templates.ts";
@@ -217,21 +218,28 @@ export type Suggestions = {
 	commands: { name: string; block: boolean; snippet: string }[];
 	/** Ready-made markup `{{@` offers: WebCraft's own, then Modules' Structure presets. */
 	presets: { id: string; snippet: string }[];
-	/** The Site's Loops, by name: none until Loops come (#62). */
+	/** The Site's Loops, by name (`{{@loop name}}`). */
 	loops: { name: string }[];
 	/** The Classes and token utilities `class=""` may name. */
 	classes: { name: string; utility: boolean }[];
 };
 
 /**
- * WebCraft's own presets in the `{{@` menu: plain markup Staff edit like any other (ADR 0017). The
- * ones reading Loops, languages and dates join with their tickets; Modules' Structure presets (#110)
- * join after these.
+ * WebCraft's own presets in the `{{@` menu: plain markup Staff edit like any other (ADR 0017): a
+ * value set or empty, a Loop with no items, an item's place in its Loop, the page's language, a date
+ * window and a value in a Relationship or list. Modules' Structure presets (#110) join after these.
  */
 export const BUILT_IN_PRESETS: readonly { id: string; snippet: string }[] = [
 	{ id: "hasValue", snippet: "{{@if $0}}\n{{/if}}" },
 	{ id: "isEmpty", snippet: "{{@if not $0}}\n{{/if}}" },
 	{ id: "ifElse", snippet: "{{@if $0}}\n{{@else}}\n{{/if}}" },
+	{ id: "loopEmpty", snippet: "{{@if $0.empty}}\n{{/if}}" },
+	{ id: "loopFirst", snippet: "{{@if loop.first}}$0{{/if}}" },
+	{ id: "loopLast", snippet: "{{@if loop.last}}$0{{/if}}" },
+	{ id: "loopOddEven", snippet: "{{@if loop.odd}}$0{{@else}}{{/if}}" },
+	{ id: "currentLanguage", snippet: '{{@if site.language == "$0"}}\n{{/if}}' },
+	{ id: "betweenDates", snippet: '{{@if now >= "$0" and now < ""}}\n{{/if}}' },
+	{ id: "inRelationship", snippet: '{{@if $0 contains ""}}\n{{/if}}' },
 ];
 
 /** Opens a reference for the HTML panel. */
@@ -327,7 +335,8 @@ async function suggestionsFor(scope: SiteScope, deps: SourceDeps, resolved: Reso
 		...designSystem.classes.map((each) => ({ name: each.name, utility: false })),
 		...designSystemNames(designSystem).utilities.map((utility) => ({ name: utility.name, utility: true })),
 	];
-	return { values, components, commands, presets: [...BUILT_IN_PRESETS], loops: [], classes };
+	const loops = (await listLoops(scope)).map((loop) => ({ name: loop.name }));
+	return { values, components, commands, presets: [...BUILT_IN_PRESETS], loops, classes };
 }
 
 /**

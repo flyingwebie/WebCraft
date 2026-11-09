@@ -21,9 +21,13 @@ import type {
 	GlobalsChange,
 	LanguageChange,
 	LanguageRemoval,
+	Loop,
+	LoopDraftChange,
+	LoopItemsChange,
 	NewComponent,
 	NewEntry,
 	NewLanguage,
+	NewLoop,
 	NewPostType,
 	PostType,
 	PostTypeChange,
@@ -56,6 +60,7 @@ import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
+import type { DataSample } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
 import type { SiteScripts } from "./site-scripts/index.ts";
 import type {
@@ -149,6 +154,8 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope, postTypeId: string): Promise<PostType>;
 		create(scope: SiteScope, input: NewPostType): Promise<PostType>;
 		update(scope: SiteScope, postTypeId: string, change: PostTypeChange): Promise<PostType>;
+		/** The Data tab of its Entry template: an Entry's Draft as the template reads it, with the bindings. */
+		data(scope: SiteScope, postTypeId: string, options?: { language?: string; entryId?: string }): Promise<DataSample>;
 	};
 	/** Entries, each with a Draft and a published version. Open the Site with `entry.edit` to change them. */
 	entries: {
@@ -172,6 +179,8 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope, language?: string): Promise<Globals>;
 		setFields(scope: SiteScope, fields: readonly FieldInput[]): Promise<Globals>;
 		saveDraft(scope: SiteScope, change: GlobalsChange): Promise<Globals>;
+		/** The Globals' Data tab: their Draft values as `site.x` reads them, with the bindings. */
+		data(scope: SiteScope, language?: string): Promise<DataSample>;
 	};
 	/** Templates, stored as element trees with a Draft and a published version. Structure: `structure.edit`. */
 	templates: {
@@ -202,6 +211,21 @@ export type InstallServices = InstallPorts & {
 		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
 		/** Saves the Site template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
+		/** A Post Type's Archive template, or null while it has none. */
+		archiveTemplate(scope: SiteScope, postTypeId: string): Promise<Template | null>;
+		saveArchiveTemplate(scope: SiteScope, postTypeId: string, tree: unknown): Promise<Template>;
+		/** A Post Type's Archive template as Template markup (its Draft and published version), or null while it has none. */
+		archiveTemplateMarkup(
+			scope: SiteScope,
+			postTypeId: string,
+		): Promise<{ template: Template | null; markup: TemplateMarkup | null; version: string | null }>;
+		/** Saves an Archive template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
+		saveArchiveTemplateMarkup(
+			scope: SiteScope,
+			postTypeId: string,
+			markup: string,
+			base?: SaveBase,
+		): Promise<SavedTemplateMarkup>;
 	};
 	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
 	domains: Domains;
@@ -258,6 +282,23 @@ export type InstallServices = InstallPorts & {
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
 		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
 		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
+	};
+	/**
+	 * Loops: repeated parts of a Site placed in Templates and Components by name, with a Draft and a
+	 * published version (published through `publishing.publish` with `{ kind: "loop" }`). Structure:
+	 * open the Site with `structure.edit`; their Loop items are Content (`entry.edit`).
+	 */
+	loops: {
+		list(scope: SiteScope): Promise<Loop[]>;
+		/** One Loop, its Loop items in `language` (the Default language unless given). */
+		get(scope: SiteScope, loopId: string, language?: string): Promise<Loop>;
+		create(scope: SiteScope, input: NewLoop): Promise<Loop>;
+		/** Saves its Draft: where its items come from, its query, its Loop items' Fields. */
+		saveDraft(scope: SiteScope, loopId: string, change: LoopDraftChange): Promise<Loop>;
+		/** Saves its Loop items in its Draft, in one language: the whole list, in order. */
+		saveItems(scope: SiteScope, loopId: string, change: LoopItemsChange): Promise<Loop>;
+		/** Its Data tab: its first item from the Drafts, as JSON, with the bindings that read it. */
+		data(scope: SiteScope, loopId: string, language?: string): Promise<DataSample>;
 	};
 	/**
 	 * The Site script and page scripts (ADR 0016): Structure with a Draft, published through

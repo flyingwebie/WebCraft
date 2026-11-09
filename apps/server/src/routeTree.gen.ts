@@ -30,6 +30,7 @@ import { Route as AdminSitesSiteIdDomainsRouteImport } from './routes/_admin/sit
 import { Route as AdminSitesSiteIdGlobalsRouteImport } from './routes/_admin/sites.$siteId.globals'
 import { Route as AdminSitesSiteIdLanguagesRouteImport } from './routes/_admin/sites.$siteId.languages'
 import { Route as AdminSitesSiteIdLibrariesRouteImport } from './routes/_admin/sites.$siteId.libraries'
+import { Route as AdminSitesSiteIdLoopsRouteImport } from './routes/_admin/sites.$siteId.loops'
 import { Route as AdminSitesSiteIdMediaRouteImport } from './routes/_admin/sites.$siteId.media'
 import { Route as AdminSitesSiteIdModulesRouteImport } from './routes/_admin/sites.$siteId.modules'
 import { Route as AdminSitesSiteIdOutsideScriptsRouteImport } from './routes/_admin/sites.$siteId.outside-scripts'
@@ -40,6 +41,8 @@ import { Route as AdminWorkspacesWorkspaceIdModulesRouteImport } from './routes/
 import { Route as AdminSitesSiteIdEntriesPostTypeIdRouteImport } from './routes/_admin/sites.$siteId.entries.$postTypeId'
 import { Route as AdminSitesSiteIdFormsIndexRouteImport } from './routes/_admin/sites.$siteId.forms.index'
 import { Route as AdminSitesSiteIdFormsFormIdRouteImport } from './routes/_admin/sites.$siteId.forms.$formId'
+import { Route as AdminSitesSiteIdLoopsIndexRouteImport } from './routes/_admin/sites.$siteId.loops.index'
+import { Route as AdminSitesSiteIdLoopsLoopIdRouteImport } from './routes/_admin/sites.$siteId.loops.$loopId'
 import { Route as AdminSitesSiteIdPostTypesIndexRouteImport } from './routes/_admin/sites.$siteId.post-types.index'
 import { Route as AdminSitesSiteIdPostTypesPostTypeIdRouteImport } from './routes/_admin/sites.$siteId.post-types.$postTypeId'
 import { Route as AdminSitesSiteIdPostTypesGlobalsRouteImport } from './routes/_admin/sites.$siteId.post-types.globals'
@@ -155,6 +158,11 @@ const AdminSitesSiteIdLibrariesRoute =
     path: '/libraries',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminSitesSiteIdLoopsRoute = AdminSitesSiteIdLoopsRouteImport.update({
+  id: '/loops',
+  path: '/loops',
+  getParentRoute: () => AdminSitesSiteIdRoute,
+} as any)
 const AdminSitesSiteIdMediaRoute = AdminSitesSiteIdMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -212,6 +220,18 @@ const AdminSitesSiteIdFormsFormIdRoute =
     id: '/forms/$formId',
     path: '/forms/$formId',
     getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
+const AdminSitesSiteIdLoopsIndexRoute =
+  AdminSitesSiteIdLoopsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AdminSitesSiteIdLoopsRoute,
+  } as any)
+const AdminSitesSiteIdLoopsLoopIdRoute =
+  AdminSitesSiteIdLoopsLoopIdRouteImport.update({
+    id: '/$loopId',
+    path: '/$loopId',
+    getParentRoute: () => AdminSitesSiteIdLoopsRoute,
   } as any)
 const AdminSitesSiteIdPostTypesIndexRoute =
   AdminSitesSiteIdPostTypesIndexRouteImport.update({
@@ -276,6 +296,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
   '/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/sites/$siteId/libraries': typeof AdminSitesSiteIdLibrariesRoute
+  '/sites/$siteId/loops': typeof AdminSitesSiteIdLoopsRouteWithChildren
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
@@ -286,9 +307,11 @@ export interface FileRoutesByFullPath {
   '/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/sites/$siteId/entries/$postTypeId': typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
   '/sites/$siteId/forms/$formId': typeof AdminSitesSiteIdFormsFormIdRoute
+  '/sites/$siteId/loops/$loopId': typeof AdminSitesSiteIdLoopsLoopIdRoute
   '/sites/$siteId/post-types/$postTypeId': typeof AdminSitesSiteIdPostTypesPostTypeIdRoute
   '/sites/$siteId/post-types/globals': typeof AdminSitesSiteIdPostTypesGlobalsRoute
   '/sites/$siteId/forms/': typeof AdminSitesSiteIdFormsIndexRoute
+  '/sites/$siteId/loops/': typeof AdminSitesSiteIdLoopsIndexRoute
   '/sites/$siteId/post-types/': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
@@ -321,9 +344,11 @@ export interface FileRoutesByTo {
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/sites/$siteId/forms/$formId': typeof AdminSitesSiteIdFormsFormIdRoute
+  '/sites/$siteId/loops/$loopId': typeof AdminSitesSiteIdLoopsLoopIdRoute
   '/sites/$siteId/post-types/$postTypeId': typeof AdminSitesSiteIdPostTypesPostTypeIdRoute
   '/sites/$siteId/post-types/globals': typeof AdminSitesSiteIdPostTypesGlobalsRoute
   '/sites/$siteId/forms': typeof AdminSitesSiteIdFormsIndexRoute
+  '/sites/$siteId/loops': typeof AdminSitesSiteIdLoopsIndexRoute
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
@@ -352,6 +377,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
   '/_admin/sites/$siteId/languages': typeof AdminSitesSiteIdLanguagesRoute
   '/_admin/sites/$siteId/libraries': typeof AdminSitesSiteIdLibrariesRoute
+  '/_admin/sites/$siteId/loops': typeof AdminSitesSiteIdLoopsRouteWithChildren
   '/_admin/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/_admin/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/_admin/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
@@ -362,9 +388,11 @@ export interface FileRoutesById {
   '/_admin/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/_admin/sites/$siteId/entries/$postTypeId': typeof AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren
   '/_admin/sites/$siteId/forms/$formId': typeof AdminSitesSiteIdFormsFormIdRoute
+  '/_admin/sites/$siteId/loops/$loopId': typeof AdminSitesSiteIdLoopsLoopIdRoute
   '/_admin/sites/$siteId/post-types/$postTypeId': typeof AdminSitesSiteIdPostTypesPostTypeIdRoute
   '/_admin/sites/$siteId/post-types/globals': typeof AdminSitesSiteIdPostTypesGlobalsRoute
   '/_admin/sites/$siteId/forms/': typeof AdminSitesSiteIdFormsIndexRoute
+  '/_admin/sites/$siteId/loops/': typeof AdminSitesSiteIdLoopsIndexRoute
   '/_admin/sites/$siteId/post-types/': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/_admin/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/_admin/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
@@ -393,6 +421,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/globals'
     | '/sites/$siteId/languages'
     | '/sites/$siteId/libraries'
+    | '/sites/$siteId/loops'
     | '/sites/$siteId/media'
     | '/sites/$siteId/modules'
     | '/sites/$siteId/outside-scripts'
@@ -403,9 +432,11 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceId/'
     | '/sites/$siteId/entries/$postTypeId'
     | '/sites/$siteId/forms/$formId'
+    | '/sites/$siteId/loops/$loopId'
     | '/sites/$siteId/post-types/$postTypeId'
     | '/sites/$siteId/post-types/globals'
     | '/sites/$siteId/forms/'
+    | '/sites/$siteId/loops/'
     | '/sites/$siteId/post-types/'
     | '/sites/$siteId/entries/$postTypeId/$entryId'
     | '/sites/$siteId/m/$moduleId/$'
@@ -438,9 +469,11 @@ export interface FileRouteTypes {
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/sites/$siteId/forms/$formId'
+    | '/sites/$siteId/loops/$loopId'
     | '/sites/$siteId/post-types/$postTypeId'
     | '/sites/$siteId/post-types/globals'
     | '/sites/$siteId/forms'
+    | '/sites/$siteId/loops'
     | '/sites/$siteId/post-types'
     | '/sites/$siteId/entries/$postTypeId/$entryId'
     | '/sites/$siteId/m/$moduleId/$'
@@ -468,6 +501,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/globals'
     | '/_admin/sites/$siteId/languages'
     | '/_admin/sites/$siteId/libraries'
+    | '/_admin/sites/$siteId/loops'
     | '/_admin/sites/$siteId/media'
     | '/_admin/sites/$siteId/modules'
     | '/_admin/sites/$siteId/outside-scripts'
@@ -478,9 +512,11 @@ export interface FileRouteTypes {
     | '/_admin/workspaces/$workspaceId/'
     | '/_admin/sites/$siteId/entries/$postTypeId'
     | '/_admin/sites/$siteId/forms/$formId'
+    | '/_admin/sites/$siteId/loops/$loopId'
     | '/_admin/sites/$siteId/post-types/$postTypeId'
     | '/_admin/sites/$siteId/post-types/globals'
     | '/_admin/sites/$siteId/forms/'
+    | '/_admin/sites/$siteId/loops/'
     | '/_admin/sites/$siteId/post-types/'
     | '/_admin/sites/$siteId/entries/$postTypeId/$entryId'
     | '/_admin/sites/$siteId/m/$moduleId/$'
@@ -644,6 +680,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdLibrariesRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/loops': {
+      id: '/_admin/sites/$siteId/loops'
+      path: '/loops'
+      fullPath: '/sites/$siteId/loops'
+      preLoaderRoute: typeof AdminSitesSiteIdLoopsRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/sites/$siteId/media': {
       id: '/_admin/sites/$siteId/media'
       path: '/media'
@@ -714,6 +757,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdFormsFormIdRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/loops/': {
+      id: '/_admin/sites/$siteId/loops/'
+      path: '/'
+      fullPath: '/sites/$siteId/loops/'
+      preLoaderRoute: typeof AdminSitesSiteIdLoopsIndexRouteImport
+      parentRoute: typeof AdminSitesSiteIdLoopsRoute
+    }
+    '/_admin/sites/$siteId/loops/$loopId': {
+      id: '/_admin/sites/$siteId/loops/$loopId'
+      path: '/$loopId'
+      fullPath: '/sites/$siteId/loops/$loopId'
+      preLoaderRoute: typeof AdminSitesSiteIdLoopsLoopIdRouteImport
+      parentRoute: typeof AdminSitesSiteIdLoopsRoute
+    }
     '/_admin/sites/$siteId/post-types/': {
       id: '/_admin/sites/$siteId/post-types/'
       path: '/'
@@ -766,6 +823,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminSitesSiteIdLoopsRouteChildren {
+  AdminSitesSiteIdLoopsLoopIdRoute: typeof AdminSitesSiteIdLoopsLoopIdRoute
+  AdminSitesSiteIdLoopsIndexRoute: typeof AdminSitesSiteIdLoopsIndexRoute
+}
+
+const AdminSitesSiteIdLoopsRouteChildren: AdminSitesSiteIdLoopsRouteChildren = {
+  AdminSitesSiteIdLoopsLoopIdRoute: AdminSitesSiteIdLoopsLoopIdRoute,
+  AdminSitesSiteIdLoopsIndexRoute: AdminSitesSiteIdLoopsIndexRoute,
+}
+
+const AdminSitesSiteIdLoopsRouteWithChildren =
+  AdminSitesSiteIdLoopsRoute._addFileChildren(
+    AdminSitesSiteIdLoopsRouteChildren,
+  )
+
 interface AdminSitesSiteIdPostTypesRouteChildren {
   AdminSitesSiteIdPostTypesPostTypeIdRoute: typeof AdminSitesSiteIdPostTypesPostTypeIdRoute
   AdminSitesSiteIdPostTypesGlobalsRoute: typeof AdminSitesSiteIdPostTypesGlobalsRoute
@@ -809,6 +881,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdGlobalsRoute: typeof AdminSitesSiteIdGlobalsRoute
   AdminSitesSiteIdLanguagesRoute: typeof AdminSitesSiteIdLanguagesRoute
   AdminSitesSiteIdLibrariesRoute: typeof AdminSitesSiteIdLibrariesRoute
+  AdminSitesSiteIdLoopsRoute: typeof AdminSitesSiteIdLoopsRouteWithChildren
   AdminSitesSiteIdMediaRoute: typeof AdminSitesSiteIdMediaRoute
   AdminSitesSiteIdModulesRoute: typeof AdminSitesSiteIdModulesRoute
   AdminSitesSiteIdOutsideScriptsRoute: typeof AdminSitesSiteIdOutsideScriptsRoute
@@ -825,6 +898,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdGlobalsRoute: AdminSitesSiteIdGlobalsRoute,
   AdminSitesSiteIdLanguagesRoute: AdminSitesSiteIdLanguagesRoute,
   AdminSitesSiteIdLibrariesRoute: AdminSitesSiteIdLibrariesRoute,
+  AdminSitesSiteIdLoopsRoute: AdminSitesSiteIdLoopsRouteWithChildren,
   AdminSitesSiteIdMediaRoute: AdminSitesSiteIdMediaRoute,
   AdminSitesSiteIdModulesRoute: AdminSitesSiteIdModulesRoute,
   AdminSitesSiteIdOutsideScriptsRoute: AdminSitesSiteIdOutsideScriptsRoute,

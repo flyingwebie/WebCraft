@@ -12,6 +12,7 @@ import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
+import { archiveAt, checkArchiveAddressFree, publishedArchives } from "./archives.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import {
 	type ComponentSources,
@@ -30,6 +31,7 @@ import { type Findings, findingsInEveryLanguage, type Languages, linksIn } from 
 import { publishGlobals } from "./globals.ts";
 import { checkPathOutsidePrefixes } from "./language-paths.ts";
 import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
+import { publishLoop } from "./loops.ts";
 import { clearPageCache } from "./page-cache.ts";
 import {
 	checkPublishedParent,
@@ -59,6 +61,7 @@ export type PublishItem =
 	| { kind: "entry"; id: string }
 	| { kind: "template"; id: string }
 	| { kind: "component"; id: string }
+	| { kind: "loop"; id: string }
 	| { kind: "script"; id: string }
 	| { kind: "form"; id: string }
 	| { kind: "globals" }
@@ -136,6 +139,8 @@ async function publishItem(scope: SiteScope, item: PublishItem, sources: Compone
 			return publishTemplate(scope, item.id, sources);
 		case "component":
 			return publishComponent(scope, item.id, sources);
+		case "loop":
+			return publishLoop(scope, item.id);
 		case "globals":
 			return publishGlobals(scope);
 		case "designSystem": {
@@ -295,6 +300,7 @@ async function pagePaths(
 	const before = new Map(moving.map((id) => [id, pathIn(tree, id)]));
 	tree.set(pageId, next);
 	const postTypes = await listPostTypes(scope);
+	const archives = await publishedArchives(scope, postTypes);
 	const changes: PathChange[] = [];
 	const visible = (parts: readonly string[]) => languagePath(languages, pathText(parts));
 	for (const id of moving) {
@@ -312,6 +318,14 @@ async function pagePaths(
 				urlPattern: owner.urlPattern,
 			});
 		}
+		const archive = archiveAt(archives, parts);
+		if (archive) {
+			throw new PathTakenError(visible(parts), {
+				kind: "archive",
+				postTypeId: archive.postType.id,
+				name: archive.postType.name,
+			});
+		}
 		const from = before.get(id);
 		if (from && pathText(from) !== pathText(parts)) {
 			changes.push({ entryId: id, language, from: visible(from), to: visible(parts) });
@@ -322,7 +336,10 @@ async function pagePaths(
 
 /** Publishes a Template; `publish` has taken the Components' lock, so what it may place holds still. */
 async function publishTemplate(scope: SiteScope, templateId: string, sources: ComponentSources): Promise<Published> {
+	// An Archive template takes its address: hold the Site's paths before any row.
+	await lockSitePaths(scope);
 	const row = await lockTemplate(scope, templateId);
+	if (row.kind === "archive") await checkArchiveAddressFree(scope, await getPostType(scope, row.postTypeId ?? ""));
 	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes,
 	// the published Components it places) may have changed since the Draft was saved.
 	const tree = await checkTemplateForPublish(scope, row, sources);
@@ -349,7 +366,7 @@ async function publishComponent(scope: SiteScope, componentId: string, sources: 
 	const catalogue = await siteComponents(scope, "published", sources, { self: row.id });
 	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	const tree = parseElementTree(draft.tree, {
-		...componentTreeRules(draft.props, await readContext(scope), catalogue),
+		...componentTreeRules(draft.props, await readContext(scope, "published"), catalogue),
 		classIds: ids,
 	});
 	// Every copy changes: each must still fit where it is placed and published.

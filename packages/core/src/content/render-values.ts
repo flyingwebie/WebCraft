@@ -60,11 +60,9 @@ function resolveNames(start: Resolved, names: readonly string[]): TemplateValue 
 }
 
 function step(value: Resolved | undefined, name: string): Resolved | undefined {
-	if (Array.isArray(value)) {
-		return (value as readonly Resolved[])
-			.map((item) => step(item, name))
-			.filter((item) => item !== undefined) as Resolved[];
-	}
+	// A list keeps one value per item, null where an item has no such part (an Entry of another Post
+	// Type), so a Loop over the list finds each item's value at its own place.
+	if (Array.isArray(value)) return (value as readonly Resolved[]).map((item) => step(item, name) ?? null);
 	return isParts(value) ? value.part(name) : undefined;
 }
 
@@ -108,10 +106,30 @@ export function entryParts(
 	};
 }
 
-/** The Globals as `site.x` reads them. */
-export function globalsParts(fields: readonly FieldDefinition[], values: Readonly<Record<string, Json>>): Parts {
+/** A list of Fields' values by key, as bindings read them (a Loop's own item); Relationships aren't followed. */
+export function valuesParts(fields: readonly FieldDefinition[], values: Readonly<Record<string, Json>>): Parts {
 	return fieldParts(fields, values, null, null);
 }
+
+/**
+ * The Globals as `site.x` reads them, with the Site's own values beside them: `site.language`, the
+ * page's language (a Condition's `site.language == "fr"`), and `site.name`.
+ */
+export function globalsParts(
+	fields: readonly FieldDefinition[],
+	values: Readonly<Record<string, Json>>,
+	own: { language?: string; name?: string } = {},
+): Parts {
+	const globals = fieldParts(fields, values, null, null);
+	return {
+		text: null,
+		part: (name) =>
+			name === "language" ? (own.language ?? null) : name === "name" ? (own.name ?? null) : globals.part(name),
+	};
+}
+
+/** The Site's own values `site.x` reads beside the Globals (Globals can't take these keys). */
+export const SITE_VALUES = ["language", "name"] as const;
 
 /** Fields' values by key. `sources` is null where Relationships aren't followed (a related Entry's own, the Globals). */
 function fieldParts(
@@ -249,7 +267,7 @@ export function knownValues(options: {
 }): (path: string) => boolean {
 	const builtIns = new Set<string>(BUILT_IN_FIELDS);
 	const own = fieldsShape(options.fields, options.postTypes);
-	const site = fieldsShape(options.globalFields, null);
+	const site = siteShape(options.globalFields);
 	return pathsUnder({
 		part: (name) => (builtIns.has(name) ? LEAF : name === "site" ? site : own.part(name)),
 	});
@@ -266,8 +284,52 @@ export function componentKnownValues(options: {
 	globalFields: readonly FieldDefinition[];
 }): (path: string) => boolean {
 	const props = fieldsShape(options.props, options.postTypes);
-	const site = fieldsShape(options.globalFields, null);
+	const site = siteShape(options.globalFields);
 	return pathsUnder({ part: (name) => (name === "props" ? props : name === "site" ? site : undefined) });
+}
+
+/** `site.x`: the Globals, and the Site's own values (`site.language`, `site.name`). */
+function siteShape(globalFields: readonly FieldDefinition[]): Shape {
+	const globals = fieldsShape(globalFields, null);
+	return { part: (name) => ((SITE_VALUES as readonly string[]).includes(name) ? LEAF : globals.part(name)) };
+}
+
+/**
+ * The values of a query Loop's items, as each Entry has them: its built-in values (`title`, `url`,
+ * dates), its author's name, and its Post Type's Fields and their parts, Relationships followed one
+ * level (`category.title`).
+ */
+export const QUERY_ITEM_BUILT_INS = [...RELATED_BUILT_INS, "author"] as const;
+
+/**
+ * What a Loop's items may be read as (`post.title`, `post.category.url`, `hour.day`): for a query
+ * Loop, its Post Types' Entries (`QUERY_ITEM_BUILT_INS` and the Fields of any of them); for a Loop of
+ * its own items, their Fields.
+ */
+export function loopItemKnownValues(options: {
+	source: "query" | "items";
+	/** The Post Types a query Loop lists, by key. */
+	listed: readonly string[];
+	/** The Loop items' Fields. */
+	fields: readonly FieldDefinition[];
+	/** Every Post Type of the Site. */
+	postTypes: readonly { key: string; fields: readonly FieldDefinition[] }[];
+}): (path: string) => boolean {
+	if (options.source === "items") return pathsUnder(fieldsShape(options.fields, options.postTypes));
+	const builtIns = new Set<string>(QUERY_ITEM_BUILT_INS);
+	const listed = options.postTypes
+		.filter((postType) => options.listed.includes(postType.key))
+		.map((postType) => fieldsShape(postType.fields, options.postTypes));
+	return pathsUnder({
+		part: (name) => {
+			if (builtIns.has(name)) return LEAF;
+			for (const shape of listed) {
+				const found = shape.part(name);
+				if (found) return found;
+			}
+			return undefined;
+		},
+	});
 }
 
 /** Whether a path names something under `root`. */

@@ -8,15 +8,19 @@ import {
 	addLanguage,
 	createComponent,
 	createEntry,
+	createLoop,
 	createPostType,
 	deleteComponent,
 	deleteEntry,
+	getArchiveTemplate,
+	getArchiveTemplateMarkup,
 	getComponent,
 	getComponentMarkup,
 	getEntry,
 	getEntryTemplate,
 	getEntryTemplateMarkup,
 	getGlobals,
+	getLoop,
 	getPostType,
 	getScript,
 	getSiteTemplate,
@@ -24,16 +28,21 @@ import {
 	getSpecialPages,
 	listComponents,
 	listEntries,
+	listLoops,
 	listPostTypes,
 	publish,
 	removeLanguage,
 	renameComponent,
+	saveArchiveTemplate,
+	saveArchiveTemplateMarkup,
 	saveComponentDraft,
 	saveComponentMarkup,
 	saveDraft,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
 	saveGlobalsDraft,
+	saveLoopDraft,
+	saveLoopItems,
 	saveScriptDraft,
 	saveSiteTemplate,
 	saveSiteTemplateMarkup,
@@ -79,6 +88,7 @@ import {
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
+import { entryTemplateData, globalsData, loopData } from "./site-pages/data-samples.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createSiteScripts } from "./site-scripts/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
@@ -195,9 +205,15 @@ export async function createInstallServices(
 			create: (scope, input) => createSite(scope, input, reservedSlugs(config)),
 			stagingUrl: (site) => stagingUrl(config, site.slug),
 		},
-		postTypes: { list: listPostTypes, get: getPostType, create: createPostType, update: updatePostType },
+		postTypes: {
+			list: listPostTypes,
+			get: getPostType,
+			create: createPostType,
+			update: updatePostType,
+			data: entryTemplateData,
+		},
 		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft, delete: deleteEntry },
-		globals: { get: getGlobals, setFields: setGlobalFields, saveDraft: saveGlobalsDraft },
+		globals: { get: getGlobals, setFields: setGlobalFields, saveDraft: saveGlobalsDraft, data: globalsData },
 		templates: {
 			entryTemplate: getEntryTemplate,
 			saveEntryTemplate: (scope, postTypeId, tree) => saveEntryTemplate(scope, postTypeId, tree, componentSources),
@@ -208,6 +224,11 @@ export async function createInstallServices(
 			saveSiteTemplate: (scope, tree) => saveSiteTemplate(scope, tree, componentSources),
 			siteTemplateMarkup: (scope) => getSiteTemplateMarkup(scope, componentSources),
 			saveSiteTemplateMarkup: (scope, markup, base) => saveSiteTemplateMarkup(scope, markup, componentSources, base),
+			archiveTemplate: getArchiveTemplate,
+			saveArchiveTemplate: (scope, postTypeId, tree) => saveArchiveTemplate(scope, postTypeId, tree, componentSources),
+			archiveTemplateMarkup: (scope, postTypeId) => getArchiveTemplateMarkup(scope, postTypeId, componentSources),
+			saveArchiveTemplateMarkup: (scope, postTypeId, markup, base) =>
+				saveArchiveTemplateMarkup(scope, postTypeId, markup, componentSources, base),
 		},
 		components: {
 			list: (scope) => listComponents(scope, componentSources),
@@ -229,6 +250,14 @@ export async function createInstallServices(
 			clock,
 			log,
 		}),
+		loops: {
+			list: listLoops,
+			get: getLoop,
+			create: createLoop,
+			saveDraft: saveLoopDraft,
+			saveItems: saveLoopItems,
+			data: loopData,
+		},
 		domains: createDomains({
 			config,
 			database,
