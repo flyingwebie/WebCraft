@@ -89,8 +89,8 @@ export {
 } from "./guarded-fetch.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
-export { createBunHttp } from "./http-bun.ts";
 export { createNodeHttp } from "./http-node.ts";
+export { pinnedTarget } from "./http-pinned.ts";
 export {
 	type InstallProcess,
 	type OpenedParts,

@@ -4,7 +4,7 @@
 // `node` process. The host names (`pinned.test`, …) are made up: the system can't resolve them, so a
 // call only reaches a server when the adapter connects to the address it was given.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createBunHttp } from "@webcraft/core";
+import { createBunHttp } from "@webcraft/server/outgoing-http";
 
 import { createTestCertificateAuthority } from "../harness/certificates.ts";
 import { type Call, type Outcome, runCall } from "./calls.ts";
