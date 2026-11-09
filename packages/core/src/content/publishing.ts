@@ -1,7 +1,7 @@
 import { components, entries, publishedSlugs, templates } from "@webcraft/db/schema";
 import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
-
+import { publishConsentText } from "../consent/text.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem, lockDesignSystem } from "../design-system/design-systems.ts";
@@ -55,8 +55,8 @@ import { type EntryVersion, ownValue, storedVersion } from "./values.ts";
 import { isVisibleIn } from "./visibility.ts";
 
 /**
- * One item to publish: an Entry, a Template, a Component, a script, a Form, the Globals or the
- * Design system. Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
+ * One item to publish: an Entry, a Template, a Component, a script, a Form, the Globals, the Consent
+ * banner's words or the Design system. Publish all publishes a ticked set of them, and a Scheduled publish a frozen version.
  */
 export type PublishItem =
 	| { kind: "entry"; id: string }
@@ -66,6 +66,7 @@ export type PublishItem =
 	| { kind: "script"; id: string }
 	| { kind: "form"; id: string }
 	| { kind: "globals" }
+	| { kind: "consentBanner" }
 	| { kind: "designSystem" };
 
 /** A published path that a publish changed: where visitors found an Entry or Page, and where now. */
@@ -78,12 +79,14 @@ export type PathChange = { entryId: string; language: string; from: string; to: 
 export type Published = { kind: PublishItem["kind"]; id: string; publishedAt: Date; pathChanges: PathChange[] };
 
 /**
- * The Permission publishing an item needs: Content (Entries, the Globals) takes `entry.publish`
+ * The Permission publishing an item needs: Content (Entries, the Globals, the Consent banner's words) takes `entry.publish`
  * (Editors, Owners, Staff); Structure (Templates, Components, scripts, the Design system) takes
  * `structure.edit` (Staff only).
  */
 export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
-	return item.kind === "entry" || item.kind === "globals" ? "entry.publish" : "structure.edit";
+	return item.kind === "entry" || item.kind === "globals" || item.kind === "consentBanner"
+		? "entry.publish"
+		: "structure.edit";
 }
 
 /** Items whose publish can change the Site's stylesheet: what it is built from (element trees' Classes). */
@@ -144,6 +147,8 @@ async function publishItem(scope: SiteScope, item: PublishItem, sources: Compone
 			return publishLoop(scope, item.id);
 		case "globals":
 			return publishGlobals(scope);
+		case "consentBanner":
+			return publishConsentText(scope);
 		case "designSystem": {
 			const published = await publishDesignSystem(scope);
 			return { kind: "designSystem", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };

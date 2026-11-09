@@ -6,6 +6,7 @@ import type { AuditEntry } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
+import type { ConsentService } from "./consent/index.ts";
 import type {
 	Component,
 	ComponentDeletion,
@@ -385,6 +386,11 @@ export type InstallServices = InstallPorts & {
 	sitePages: SitePages;
 	/** Site search's background work: rebuilding search indexes that are behind (ADR 0021). */
 	search: SiteSearch;
+	/**
+	 * The Consent banner (ADR 0020): each Site's setting (Structure, Staff only), its words (Content,
+	 * with a Draft) and the Consent records visitors' choices leave.
+	 */
+	consent: ConsentService;
 	/**
 	 * Site script safety (ADRs 0022, 0023): each Site's Content Security Policy and allowed hosts, its
 	 * outside scripts and its Libraries. Open the Site with `structure.edit`.

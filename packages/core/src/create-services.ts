@@ -4,6 +4,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
 import { createCodeMode } from "./code-mode/index.ts";
+import { createConsent } from "./consent/index.ts";
 import {
 	addLanguage,
 	createComponent,
@@ -203,6 +204,7 @@ export async function createInstallServices(
 		formsOn: async (site) => (await modules.submissionsKeptBy(site)) !== null,
 		formToken: (site) => formTokens.issue(site.id),
 		moduleHosts: async (site) => (await modules.outsideHostsAt(site, "en")).map((found) => found.host),
+		moduleScripts: (site) => modules.siteScriptsAt(site),
 	});
 	return {
 		...ports,
@@ -323,6 +325,7 @@ export async function createInstallServices(
 		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
 		search: createSiteSearch({ database, data, log }),
+		consent: createConsent({ data, rateLimits }),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,

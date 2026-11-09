@@ -503,6 +503,7 @@ describe("generated trees", () => {
 					children,
 				})),
 			fc.constant({ type: "themeToggle" }),
+			fc.constant({ type: "consentSettings" }),
 			fc.record({
 				type: fc.constant("condition"),
 				branches: fc.array(fc.record({ test: expression, children: tie("nodes") }), { minLength: 1, maxLength: 3 }),

@@ -27,6 +27,7 @@ import {
 import { clientAddress } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
+import { consentRecordPost, isConsentPath } from "./consent.ts";
 import {
 	clearEditCookie,
 	codeModeOf,
@@ -110,6 +111,8 @@ async function siteAnswer(
 	}
 	// Forms post to the Site itself; their answers are made for one visitor and never cached.
 	if (isFormPath(url.pathname)) return formPost(services, request, host, addressHeaders(host));
+	// So does the consent script, with a visitor's choice on the Consent banner.
+	if (isConsentPath(url.pathname)) return consentRecordPost(services, request, host, addressHeaders(host));
 	return readOnly(request, async () => {
 		if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
 			return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));

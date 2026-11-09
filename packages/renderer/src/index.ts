@@ -29,6 +29,7 @@ export {
 	placementProblems,
 	placementsIn,
 } from "./components.ts";
+export * from "./consent/index.ts";
 export {
 	CASCADE_LAYERS,
 	compileStylesheet,
@@ -153,6 +154,7 @@ export {
 	PAGE_HOOKS,
 	type PageAlternate,
 	type PageLibrary,
+	type PageModuleScript,
 	type PageOutsideScript,
 	type PageScript,
 	type PageScriptTag,
@@ -175,6 +177,7 @@ export {
 	type CommentNode,
 	type ConditionBranch,
 	type ConditionNode,
+	type ConsentSettingsNode,
 	childListsOf,
 	ELEMENT_TREE_VERSION,
 	type ElementNode,

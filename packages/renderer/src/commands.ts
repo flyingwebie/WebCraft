@@ -13,6 +13,7 @@ import { DEFAULT_ITEM_NAME, loopBodyScope, paginationProblem, readLoopArgument, 
 import type {
 	ConditionBranch,
 	ConditionNode,
+	ConsentSettingsNode,
 	FormNode,
 	LanguageSwitcherNode,
 	LoopNode,
@@ -33,7 +34,8 @@ export type CommandNode =
 	| FormNode
 	| LoopNode
 	| PaginationNode
-	| SearchNode;
+	| SearchNode
+	| ConsentSettingsNode;
 
 /** One section of a command in markup: the opening one (`{{@if …}}`), then each branch (`{{@else}}`). */
 export type MarkupSection = {
@@ -93,6 +95,8 @@ export type RenderTools = {
 	form(formId: string): string;
 	/** The Search element, rendered: nothing while the Site has no search results page in the page's language. */
 	search(): string;
+	/** The "Cookie settings" button, rendered: nothing where the page asks for no consent with a banner of WebCraft's. */
+	consentSettings(): string;
 };
 
 /** What printing a command needs to know about the Site: the keys of its Forms. */
@@ -647,6 +651,53 @@ const paginationCommand: TemplateCommand<PaginationNode> = {
 	},
 };
 
+/**
+ * `{{@consentSettings}}`: "Cookie settings", a button that opens the Consent banner again, its words
+ * the banner's (Content). It renders only where the Site asks with a banner of WebCraft's (Opt-in or
+ * Opt-out; never in Edit mode), starts hidden and shows once the consent script runs.
+ */
+const consentSettingsCommand: TemplateCommand<ConsentSettingsNode> = {
+	name: "consentSettings",
+	nodeType: "consentSettings",
+	block: false,
+	branches: [],
+	snippet: "{{@consentSettings}}",
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		if (section?.argument.trim()) {
+			const leading = section.argument.length - section.argument.trimStart().length;
+			tools.problem(section.argumentOffset + leading, "{{@consentSettings}} takes nothing: write it alone.");
+			return undefined;
+		}
+		return { type: "consentSettings" };
+	},
+
+	toMarkup() {
+		return [{ keyword: "consentSettings", argument: "", children: [] }];
+	},
+
+	check() {
+		return { type: "consentSettings" };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(_node, tools) {
+		return tools.consentSettings();
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => INTERACTIVE.has(tag));
+		if (inside) return `{{@consentSettings}} is a button: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@consentSettings}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
 /** Every Template command there is. */
 export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	ifCommand,
@@ -657,6 +708,7 @@ export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	languageSwitcherCommand,
 	formCommand,
 	searchCommand,
+	consentSettingsCommand,
 ];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */

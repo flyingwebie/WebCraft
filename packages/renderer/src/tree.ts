@@ -88,6 +88,9 @@ export type ThemeToggleNode = { type: "themeToggle" };
 /** The Language switcher (`{{@languageSwitcher}}`): links to the page in each of the Site's languages. */
 export type LanguageSwitcherNode = { type: "languageSwitcher" };
 
+/** "Cookie settings" (`{{@consentSettings}}`): a button opening the Consent banner again. */
+export type ConsentSettingsNode = { type: "consentSettings" };
+
 /**
  * The Search element (`{{@search}}`): a search box that sends visitors, with a plain GET, to the
  * Site's search results page in the page's language (ADR 0021).

@@ -1,3 +1,4 @@
+import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
 import {
 	domainsCheck,
 	domainsCheckAll,
@@ -49,6 +50,7 @@ export const coreJobs = [
 	domainsCheck,
 	searchRebuildDue,
 	searchRebuild,
+	consentRecordsPurge,
 	webhooksDeliver,
 	webhooksPurgeLog,
 ] as readonly JobDefinition<unknown>[];
@@ -64,6 +66,7 @@ export const coreSchedules = [
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
 	searchRebuildDueSchedule,
+	consentRecordsPurgeSchedule,
 	webhooksPurgeLogSchedule,
 ] as readonly JobSchedule<unknown>[];
 

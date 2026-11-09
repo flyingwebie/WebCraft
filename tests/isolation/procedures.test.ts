@@ -248,6 +248,48 @@ describe("Scripts", () => {
 });
 
 describe("Site script safety", () => {
+	isolation.refuses("consentBanner.get", (api, { siteId }) => api.consentBanner.get({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("consentBanner.setSettings", (api, { siteId }) =>
+		api.consentBanner.setSettings({ siteId, mode: "optOut", layout: "box" }),
+	);
+	isolation.refuses(
+		"consentBanner.saveDraft",
+		(api, { siteId }) => api.consentBanner.saveDraft({ siteId, fields: { heading: "Choices" } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("consentBanner.publish", (api, { siteId }) => api.consentBanner.publish({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	/** A Consent record in a target's Site, as a visitor's choice on its banner leaves one. */
+	const consentRecords = new Map<string, Promise<string>>();
+	const consentRecordIn = (target: IsolationTarget) => {
+		let made = consentRecords.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { stagingUrl } = await (await install.superadmin()).api.sites.get({ siteId: target.siteId });
+				const origin = stagingUrl as string;
+				const answer = await install.request(`${origin}/_wc/consent`, {
+					method: "POST",
+					headers: { "content-type": "application/json", origin, "sec-fetch-site": "same-origin" },
+					body: JSON.stringify({
+						choices: { analytics: true, marketing: true, media: true },
+						version: 1,
+						language: "en",
+					}),
+				});
+				return ((await answer.json()) as { id: string }).id;
+			})();
+			consentRecords.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses(
+		"consentBanner.record",
+		async (api, target) => api.consentBanner.record({ siteId: target.siteId, recordId: await consentRecordIn(target) }),
+		{ as: ["staff", "author"] },
+	);
 	isolation.refuses("csp.get", (api, { siteId }) => api.csp.get({ siteId }));
 	isolation.refuses("csp.setMode", (api, { siteId }) => api.csp.setMode({ siteId, mode: "relaxed" }));
 	isolation.refuses("csp.addHost", (api, { siteId }) => api.csp.addHost({ siteId, host: "tags.example.com" }));
