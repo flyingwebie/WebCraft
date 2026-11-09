@@ -15,7 +15,14 @@ import { entryValues } from "../content/entries.ts";
 import { publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { type Languages, linksIn } from "../content/field-values.ts";
-import { DATE_BUILT_INS, defaultQuery, fieldAt, type LoopQuery, type QueryFilter } from "../content/loop-queries.ts";
+import {
+	DATE_BUILT_INS,
+	defaultQuery,
+	fieldAt,
+	type LoopQuery,
+	type LoopSort,
+	type QueryFilter,
+} from "../content/loop-queries.ts";
 import { loopItems, type StoredLoopVersion, storedLoopVersion } from "../content/loops.ts";
 import type { PostType } from "../content/post-types.ts";
 import { entryParts, type Parts, resolvePath, valuesParts } from "../content/render-values.ts";
@@ -61,6 +68,8 @@ export type LoopPlace = {
 	 * pages of its paginated Loop keep too.
 	 */
 	state?: string;
+	/** What the page's Filters narrow each Loop of the Site with, by the Loop's name. */
+	narrowing?: ReadonlyMap<string, Narrowing>;
 };
 
 /** Site search on a page: see `LoopPlace.search`. */
@@ -86,9 +95,16 @@ export function searchLoopQuery(postTypes: readonly string[]): LoopQuery {
 
 /**
  * What narrows a Loop's query on a page, besides its own filters: a search box's query (ADR 0021),
- * and for Site search, only Entries search engines may index (not noindex).
+ * for Site search only Entries search engines may index (not noindex), and a Filter's choices: the
+ * conditions its controls add (all of which an Entry must pass) and the order its sort menu chose, in
+ * place of the query's own (`relevance`: best search match first).
  */
-export type Narrowing = { search?: string; indexableOnly?: boolean };
+export type Narrowing = {
+	search?: string;
+	indexableOnly?: boolean;
+	where?: SQL;
+	sort?: readonly LoopSort[] | "relevance";
+};
 
 /** What a page's Loops show. */
 export type PageLoops = {
@@ -100,6 +116,8 @@ export type PageLoops = {
 	changesAt: Date | null;
 	/** The values the items show, for finding the Media they read. */
 	values: unknown[];
+	/** How many Entries a query Loop of the Site matches on the page, across its pages (its offset aside). */
+	matched(name: string): number | undefined;
 };
 
 /**
@@ -135,12 +153,14 @@ export async function pageLoops(
 	postTypes: readonly PostType[],
 ): Promise<PageLoops> {
 	const names = [...new Set(trees.flatMap((tree) => (tree ? loopNamesIn(tree) : [])))];
+	const matched = new Map<string, number>();
 	const result: PageLoops & { runs: Map<string, LoopRun> } = {
 		runs: new Map(),
 		run: (name) => result.runs.get(name),
 		pagination: null,
 		changesAt: null,
 		values: [],
+		matched: (name) => matched.get(name),
 	};
 	if (names.length === 0) return result;
 	const rows = await scope.select(loops, inArray(loops.name, names));
@@ -183,7 +203,16 @@ export async function pageLoops(
 			continue;
 		}
 		const paginates = version.query.paginate && place.page !== null && result.pagination === null;
-		const run = await queryItems(scope, version.query, place, postTypes, paginates, result.values);
+		const run = await queryItems(
+			scope,
+			version.query,
+			place,
+			postTypes,
+			paginates,
+			result.values,
+			place.narrowing?.get(name),
+		);
+		matched.set(name, run.matched);
 		if (paginates && run.pages) result.pagination = { current: run.pages.current, count: run.pages.count };
 		if (version.query.filters.some(movesWithTime)) {
 			const refresh = new Date(scope.now().getTime() + RELATIVE_WINDOW_REFRESH_MS);
@@ -225,7 +254,7 @@ async function queryItems(
 	paginates: boolean,
 	values: unknown[],
 	narrowing: Narrowing = {},
-): Promise<LoopRun> {
+): Promise<LoopRun & { matched: number }> {
 	const page = paginates ? (place.page ?? 1) : 1;
 	const rows = await queryRows(
 		scope,
@@ -255,14 +284,35 @@ async function queryItems(
 		values,
 		snippets,
 	);
-	if (!paginates) return { items, total: items.length };
-	const count =
-		rows.length === 0 && page > 1 ? 0 : Math.max(1, Math.ceil(Math.max(0, total - query.offset) / query.limit));
+	// A page past the last finds no rows to count with: how many match is then asked on its own.
+	const matched =
+		rows.length > 0 || page === 1
+			? Math.max(0, total - query.offset)
+			: await countMatching(scope, query, place, postTypes, narrowing);
+	if (!paginates) return { items, total: items.length, matched };
+	const count = rows.length === 0 && page > 1 ? 0 : Math.max(1, Math.ceil(matched / query.limit));
 	return {
 		items,
-		total: Math.max(0, total - query.offset),
+		total: matched,
+		matched,
 		pages: { current: page, count, href: (target) => pageHref(place.path, target, place.state) },
 	};
+}
+
+/** How many Entries a query matches, its offset aside. */
+async function countMatching(
+	scope: ReadScope,
+	query: LoopQuery,
+	place: LoopPlace,
+	postTypes: readonly PostType[],
+	narrowing: Narrowing,
+): Promise<number> {
+	const base = queryBase(scope, query, place, postTypes, narrowing);
+	if (!base) return 0;
+	const rows = await scope.db.execute<{ count: number }>(
+		sql`select count(*)::int as count from ${entries} ${base.join} where ${base.where}`,
+	);
+	return Math.max(0, Number(rows.rows[0]?.count ?? 0) - query.offset);
 }
 
 /**
@@ -279,8 +329,46 @@ export async function queryRows(
 	limit: number,
 	narrowing: Narrowing = {},
 ): Promise<{ entry: typeof entries.$inferSelect; total: number }[]> {
+	const base = queryBase(scope, query, place, postTypes, narrowing);
+	if (!base) return [];
+	const select = { entry: entries, total: sql<number>`count(*) over ()`.mapWith(Number) };
+	const chosen = narrowing.sort;
+	const ordered = Array.isArray(chosen) ? { ...query, sort: [...chosen] } : query;
+	if (base.matched) {
+		// The Site's index in the page's language: one document per Entry, matched through its GIN index.
+		const relevance = desc(sql`ts_rank(${searchDocuments.document}, ${base.matched})`);
+		return scope.db
+			.select(select)
+			.from(entries)
+			.innerJoin(searchDocuments, base.documents as SQL)
+			.where(base.where)
+			.orderBy(...(Array.isArray(chosen) ? [] : [relevance]), ...base.sqlOf.order(ordered))
+			.limit(limit)
+			.offset(offset);
+	}
+	return scope.db
+		.select(select)
+		.from(entries)
+		.where(base.where)
+		.orderBy(...base.sqlOf.order(ordered))
+		.limit(limit)
+		.offset(offset);
+}
+
+/**
+ * What a query finds, before its order and its page: the Entries of its Post Types shown in the
+ * page's language that pass its filters and what narrows it, joined to the search index when a
+ * search narrows it. Undefined when it lists no Post Type of the Site.
+ */
+function queryBase(
+	scope: ReadScope,
+	query: LoopQuery,
+	place: LoopPlace,
+	postTypes: readonly PostType[],
+	narrowing: Narrowing,
+): { sqlOf: QuerySql; where: SQL; join: SQL; documents?: SQL; matched?: SQL } | undefined {
 	const listed = postTypes.filter((postType) => query.postTypes.includes(postType.key));
-	if (listed.length === 0) return [];
+	if (listed.length === 0) return undefined;
 	const sqlOf = new QuerySql(listed, place, scope.now());
 	const condition = and(
 		inArray(
@@ -292,40 +380,71 @@ export async function queryRows(
 		query.excludeCurrent && place.current ? ne(entries.id, place.current) : undefined,
 		sqlOf.filters(query),
 		narrowing.indexableOnly ? publishedIndexable(place.languages) : undefined,
+		narrowing.where,
 	);
-	const select = { entry: entries, total: sql<number>`count(*) over ()`.mapWith(Number) };
-	if (narrowing.search !== undefined) {
-		// The Site's index in the page's language: one document per Entry, matched through its GIN index.
-		const { language } = place.languages;
-		const matched = textQuery(language, narrowing.search);
-		return scope.db
-			.select(select)
-			.from(entries)
-			.innerJoin(
-				searchDocuments,
-				and(
-					eq(searchDocuments.siteId, entries.siteId),
-					eq(searchDocuments.entryId, entries.id),
-					eq(searchDocuments.language, language),
-				),
-			)
-			.where(
-				and(
-					scope.where(entries, condition),
-					scope.where(searchDocuments, sql`${searchDocuments.document} @@ ${matched}`),
-				),
-			)
-			.orderBy(desc(sql`ts_rank(${searchDocuments.document}, ${matched})`), ...sqlOf.order(query))
-			.limit(limit)
-			.offset(offset);
+	if (narrowing.search === undefined) {
+		return { sqlOf, where: scope.where(entries, condition), join: sql`` };
 	}
-	return scope.db
-		.select(select)
-		.from(entries)
-		.where(scope.where(entries, condition))
-		.orderBy(...sqlOf.order(query))
-		.limit(limit)
-		.offset(offset);
+	const { language } = place.languages;
+	const matched = textQuery(language, narrowing.search);
+	const documents = and(
+		eq(searchDocuments.siteId, entries.siteId),
+		eq(searchDocuments.entryId, entries.id),
+		eq(searchDocuments.language, language),
+	) as SQL;
+	return {
+		sqlOf,
+		where: and(
+			scope.where(entries, condition),
+			scope.where(searchDocuments, sql`${searchDocuments.document} @@ ${matched}`),
+		) as SQL,
+		join: sql`inner join ${searchDocuments} on ${documents}`,
+		documents,
+		matched,
+	};
+}
+
+/** What a facet counts Entries by: a select Field's options, what a Relationship Field points at, or the Post Type. */
+export type FacetGroup =
+	| { kind: "select"; field: string }
+	| { kind: "relationship"; field: string }
+	| { kind: "postType" };
+
+/**
+ * How many Entries a query finds for each value of a facet (a Filter control's options), as narrowed:
+ * one parameterised SQL query, grouped by the value (an option's value, an Entry's or a Post Type's
+ * id). Values no Entry has are absent.
+ */
+export async function facetCounts(
+	scope: ReadScope,
+	query: LoopQuery,
+	place: LoopPlace,
+	postTypes: readonly PostType[],
+	narrowing: Narrowing,
+	group: FacetGroup,
+): Promise<Map<string, number>> {
+	const base = queryBase(scope, query, place, postTypes, narrowing);
+	if (!base) return new Map();
+	let value: SQL;
+	let join = base.join;
+	switch (group.kind) {
+		case "postType":
+			value = sql`${entries.postTypeId}::text`;
+			break;
+		case "select": {
+			const json = base.sqlOf.leaf(group.field);
+			value = sql`jsonb_array_elements_text(case jsonb_typeof(${json}) when 'array' then ${json} when 'string' then jsonb_build_array(${json}) else '[]'::jsonb end)`;
+			break;
+		}
+		case "relationship":
+			join = sql`${join} inner join ${entryLinks} on ${entryLinks.siteId} = ${entries.siteId} and ${entryLinks.entryId} = ${entries.id} and ${entryLinks.version} = ${place.version} and ${entryLinks.field} = ${group.field}`;
+			value = sql`${entryLinks.targetId}::text`;
+			break;
+	}
+	const rows = await scope.db.execute<{ value: string; count: number }>(
+		sql`select found.value, count(distinct found.id)::int as count from (select ${entries.id} as id, ${value} as value from ${entries} ${join} where ${base.where}) as found where found.value is not null group by found.value`,
+	);
+	return new Map(rows.rows.map((row) => [row.value, Number(row.count)]));
 }
 
 /**
@@ -404,7 +523,7 @@ async function entryItems(
  * The SQL of a query, over one version of Entries in one language: every value a parameter, every
  * key passed as text, so nothing Staff or visitors write becomes SQL.
  */
-class QuerySql {
+export class QuerySql {
 	private readonly column: typeof entries.draft | typeof entries.published;
 	private readonly listed: readonly PostType[];
 	private readonly place: LoopPlace;
@@ -590,12 +709,56 @@ class QuerySql {
 		}
 	}
 
+	/** Entries of the listed Post Types with these ids (a Filter's Post Type options). */
+	postTypeIn(ids: readonly string[]): SQL {
+		return ids.length === 0 ? sql`false` : (inArray(entries.postTypeId, [...ids]) as SQL);
+	}
+
+	/** Entries whose select Field at `path` has `value` (one of its choices). */
+	selectHas(path: string, value: string): SQL {
+		const json = this.leaf(path);
+		return sql`coalesce((${json} = to_jsonb(${value}::text) or (jsonb_typeof(${json}) = 'array' and ${json} @> jsonb_build_array(${value}::text))), false)`;
+	}
+
+	/** Entries whose Relationship Field at `path` points at one of `targets` (`all`: at every one). */
+	linksTo(path: string, targets: readonly string[], all: boolean): SQL {
+		const each = (ids: readonly string[]) =>
+			sql`exists (select 1 from ${entryLinks} where ${entryLinks.siteId} = ${entries.siteId} and ${entryLinks.entryId} = ${entries.id} and ${entryLinks.version} = ${this.place.version} and ${entryLinks.field} = ${path} and ${entryLinks.targetId} in (${sql.join(
+				ids.map((id) => sql`${id}::uuid`),
+				sql`, `,
+			)}))`;
+		if (targets.length === 0) return sql`false`;
+		return all ? (and(...targets.map((target) => each([target]))) as SQL) : each(targets);
+	}
+
+	/** Entries whose true/false Field at `path` is true. */
+	isTrue(path: string): SQL {
+		return sql`${boolean(this.leaf(path))} = true`;
+	}
+
+	/** Entries whose number at `path` is within `from` and `to` (either may be absent), both included. */
+	numberWithin(path: string, from: number | null, to: number | null): SQL {
+		const value = number(this.leaf(path));
+		return sql`coalesce(${from === null ? sql`true` : sql`${value} >= ${from}::numeric`} and ${to === null ? sql`true` : sql`${value} <= ${to}::numeric`}, false)`;
+	}
+
+	/** Entries whose date at `path` falls on a day from `from` to `to` (days, UTC; either may be absent), both included. */
+	dayWithin(path: string, from: string | null, to: string | null): SQL {
+		const value = date(this.leaf(path));
+		const start = from === null ? sql`true` : sql`${value} >= ${`${from}T00:00:00Z`}::timestamptz`;
+		const end =
+			to === null
+				? sql`true`
+				: sql`${value} < ${shift(new Date(`${to}T00:00:00Z`), 1, "days").toISOString()}::timestamptz`;
+		return sql`coalesce(${start} and ${end}, false)`;
+	}
+
 	/**
 	 * A leaf Field's stored value (JSON) at a path (`address.city`) in the page's language: each
 	 * listed Post Type's own definition says whether it falls back from the Default language
 	 * (translatable) or is kept there alone (shared); a Post Type without the Field gives null.
 	 */
-	private leaf(path: string): SQL {
+	leaf(path: string): SQL {
 		const cases: SQL[] = [];
 		for (const postType of this.listed) {
 			const chain = chainOf(postType.fields, path.split("."));

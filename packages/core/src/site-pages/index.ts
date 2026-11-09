@@ -80,6 +80,7 @@ import {
 	stylesheetFile,
 } from "../design-system/stylesheet.ts";
 import { domainOrigin, placeOf, type SiteAddresses, siteAddresses, verifiedDomains } from "../domains/addresses.ts";
+import { type StateReader, writeQuery } from "../filters/state.ts";
 import { type PageFormsOptions, pageForms, type ShownForm } from "../forms/page-forms.ts";
 import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
@@ -95,7 +96,8 @@ import { type CspMode, editModePolicy, isCspMode, pagePolicyHeaders, readHost } 
 import { retiredScript } from "../site-scripts/retired.ts";
 import type { DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
-import { pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
+import { pageFilters } from "./filters.ts";
+import { PAGE_PARAMETER, pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
 import {
 	addressFrom,
 	createRedirectAnswers,
@@ -195,7 +197,19 @@ export type RenderPageOptions = {
 	 * lists its hits, and the page's Search elements show it. Other pages ignore it.
 	 */
 	search?: string;
+	/**
+	 * The request's query: what visitors chose in the page's Filters (GLOSSARY.md › Filter), read
+	 * through their allow-list. Pages without a Filter ignore it.
+	 */
+	query?: URLSearchParams;
 };
+
+/**
+ * What a page's Filters read from its address and what this answer's address chose, in its normal
+ * form (`category=bread,pastries&q=rye`, "" for none): the page cache keeps a page under it, and a
+ * page with a search in it is never kept.
+ */
+export type PageFilterState = { reader: StateReader; query: string; search: string | undefined };
 
 /**
  * What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to
@@ -206,13 +220,24 @@ export type SiteAnswer =
 	| ({ kind: "page" } & SitePage & {
 				/** The pages of the Loop that paginates on the page, when one does. */
 				pagination: { current: number; count: number } | null;
+				/** What the page's Filters read, and what this answer chose. */
+				filters: PageFilterState;
 				/**
 				 * Whether it is the Site's search results page (ADR 0021): it shows one visitor's search,
 				 * so it is never kept in the page cache, nor indexed by search engines.
 				 */
 				searchPage?: boolean;
 			})
-	| { kind: "redirect"; location: string; keepQuery?: boolean };
+	| {
+			kind: "redirect";
+			location: string;
+			keepQuery?: boolean;
+			/**
+			 * A Filter's choices sent in another form than their normal one (a plain form's fields): the
+			 * page sends the visitor on to its normal address, for now (the Filter may change).
+			 */
+			temporary?: boolean;
+	  };
 
 /** What a page shows from the content store: see `SitePages.pageContent`. */
 export type PageContent = {
@@ -483,6 +508,7 @@ export function createSitePages(options: {
 			const view = viewFor(data, host, editing, sources, {
 				pathname,
 				pageNumber: page,
+				query: options.query,
 				options: options.forms,
 				forms,
 				moduleHosts,
@@ -491,7 +517,10 @@ export function createSitePages(options: {
 			const archive = await locateArchive(view.scope, host, pathname, editing !== undefined, view.structure);
 			if (archive) {
 				const rendered = await renderArchivePage(view, host, await viewStyles(view), archive, page);
-				if (page > 1 && !rendered.pagination) return { kind: "redirect", location: archive.path };
+				if (rendered.redirect) return { kind: "redirect", ...rendered.redirect };
+				if (page > 1 && !rendered.pagination) {
+					return { kind: "redirect", location: pageHref(archive.path, 1, rendered.filters.query) };
+				}
 				if (rendered.pagination && page > rendered.pagination.count) return null;
 				return { kind: "page", ...rendered };
 			}
@@ -510,7 +539,13 @@ export function createSitePages(options: {
 					query,
 					state,
 				});
-				if (page > 1 && !rendered.pagination) return { kind: "redirect", location: pageHref(path, 1, state) };
+				if (rendered.redirect) return { kind: "redirect", ...rendered.redirect };
+				if (page > 1 && !rendered.pagination) {
+					return {
+						kind: "redirect",
+						location: pageHref(path, 1, writeQuery([...pairsOf(state), ...pairsOf(rendered.filters.query)])),
+					};
+				}
 				if (rendered.pagination && page > rendered.pagination.count) return null;
 				return { kind: "page", ...rendered, searchPage: true };
 			}
@@ -520,7 +555,9 @@ export function createSitePages(options: {
 				page: paginates ? page : null,
 				path,
 			});
-			if (page > 1 && !rendered.pagination) return { kind: "redirect", location: path };
+			if (rendered.redirect) return { kind: "redirect", ...rendered.redirect };
+			if (page > 1 && !rendered.pagination)
+				return { kind: "redirect", location: pageHref(path, 1, rendered.filters.query) };
 			if (rendered.pagination && page > rendered.pagination.count) return null;
 			return { kind: "page", ...rendered };
 		},
@@ -1235,6 +1272,10 @@ type View = {
 	page: string;
 	/** What this answer shows in the page's Forms (whether it is cached, one visitor's state of one Form). */
 	forms?: PageFormsOptions;
+	/** The request's query, which the page's Filters read (GLOSSARY.md › Filter). */
+	query: URLSearchParams;
+	/** Which page of a paginated Loop the answer shows (1 for the first). */
+	pageNumber: number;
 	/** Whether Forms run on the Site, and their time-trap tokens. */
 	formsOf: FormsOfSite;
 	/** The outside hosts of the Modules running on the Site. */
@@ -1255,6 +1296,8 @@ function viewFor(
 		pathname: string;
 		/** Which page of a paginated Loop the answer shows; the first when absent. */
 		pageNumber?: number;
+		/** The request's query, which the page's Filters read. */
+		query?: URLSearchParams;
 		options?: PageFormsOptions;
 		forms: FormsOfSite;
 		moduleHosts: (site: Site) => Promise<string[]>;
@@ -1266,6 +1309,8 @@ function viewFor(
 		host,
 		sources,
 		page: pageHref(segments ? canonicalPath(segments) : "/", request.pageNumber ?? 1),
+		query: request.query ?? new URLSearchParams(),
+		pageNumber: request.pageNumber ?? 1,
 		forms: request.options,
 		formsOf: request.forms,
 		moduleHosts: request.moduleHosts,
@@ -1653,8 +1698,16 @@ function pagedTitle(title: string, page: number, language: string): string {
 	return page > 1 ? `${title} · ${pageWords(language).pageNumber.replace("{n}", String(page))}` : title;
 }
 
-/** A page rendered, with until when it may be kept and the pages of its paginated Loop. */
-type RenderedPage = SitePage & { pagination: { current: number; count: number } | null };
+/**
+ * A page rendered, with until when it may be kept, the pages of its paginated Loop and what its
+ * Filters read; or, when the request sent its Filters' choices in another form than their normal one,
+ * where to send it instead (`redirect`), and nothing rendered.
+ */
+type RenderedPage = SitePage & {
+	pagination: { current: number; count: number } | null;
+	filters: PageFilterState;
+	redirect?: { location: string; temporary: boolean };
+};
 
 /**
  * A page of the Site in its Site template (the published one, or the built-in one), with the names
@@ -1703,14 +1756,61 @@ async function renderSitePage(
 		which: view.structure,
 		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
 	});
+	const postTypes = await listPostTypes(scope);
+	const trees = [page.content, siteTemplate, ...placed.trees];
+	// The page's Filters: what the visitor chose in its address narrows their Loops. Site search's
+	// query is kept beside them on the search results page.
+	const kept: [string, string][] = options.loops.search?.query ? [["q", options.loops.search.query]] : [];
+	const filters = await pageFilters(
+		scope,
+		trees,
+		{
+			languages,
+			version: view.entries,
+			path: options.loops.path,
+			current: options.loops.current,
+			structure: view.structure,
+			params: view.query,
+			kept,
+			shared: options.loops.search !== undefined,
+		},
+		postTypes,
+	);
+	const filterState: PageFilterState = {
+		reader: filters.reader,
+		query: filters.state.query,
+		search: filters.state.search,
+	};
+	// A page's first page asked for by number (`?page=1`) goes on to the page itself for good; Filters'
+	// choices sent in another form, to their normal address for now. Both keep the choices.
+	const firstPageAsked = view.pageNumber === 1 && view.query.has(PAGE_PARAMETER);
+	if (filters.state.differs || firstPageAsked) {
+		const state = writeQuery([...filters.state.values, ...kept]);
+		const location = pageHref(options.loops.path, view.pageNumber, state);
+		return {
+			html: "",
+			headers: {},
+			expiresAt: null,
+			pagination: null,
+			filters: filterState,
+			redirect: { location, temporary: filters.state.differs },
+		};
+	}
 	// Loops show published Entries through their published versions, in Edit mode and Code mode too;
 	// the Staging address shows the Loops' Drafts over every Entry's Draft.
 	const loops = await pageLoops(
 		scope,
-		[page.content, siteTemplate, ...placed.trees],
-		{ ...options.loops, languages, version: view.entries },
-		await listPostTypes(scope),
+		trees,
+		{
+			...options.loops,
+			languages,
+			version: view.entries,
+			narrowing: filters.narrowing,
+			state: writeQuery([...filters.state.values, ...kept]),
+		},
+		postTypes,
 	);
+	const filterHtml = await filters.render(loops);
 	// The Media the page may show: `media:<id>` written in either template or a Component it places,
 	// and every media value the page reads (its content's, the Globals', its Loops' items'). Ids that
 	// aren't the Site's ready Media find nothing.
@@ -1749,12 +1849,16 @@ async function renderSitePage(
 	const rendered = renderDocument({
 		...page,
 		title: invalid ? `${formWords(language.code).errorPrefix} ${page.title}` : page.title,
-		// A page sent back with a Form's errors is one visitor's: never indexed.
+		// A page sent back with a Form's errors is one visitor's: never indexed. Nor is a filtered or
+		// sorted one, which points search engines at the page without its choices.
 		seo: stagingSeo(
 			view,
-			page.seo && invalid
-				? { ...page.seo, title: `${formWords(language.code).errorPrefix} ${page.seo.title}`, noindex: true }
-				: page.seo,
+			filteredSeo(
+				page.seo && invalid
+					? { ...page.seo, title: `${formWords(language.code).errorPrefix} ${page.seo.title}`, noindex: true }
+					: page.seo,
+				filters.state.values.size > 0,
+			),
 		),
 		site: { name: host.site.name, language: language.code, direction: language.direction },
 		siteTemplate,
@@ -1788,13 +1892,37 @@ async function renderSitePage(
 		search,
 		formScripts: forms.outsideScripts,
 		loop: loops.run,
+		filter: filterHtml,
+		filtered: filters.filtered,
 		time,
 	});
 	const hosts = await policyHosts(view, forms.captchaHost);
 	const headers = editing
 		? { "content-security-policy": editModePolicy(hosts) }
 		: pagePolicyHeaders({ mode: host.cspMode, hosts, frames: rendered.frames });
-	return { html: rendered.html, headers, expiresAt, pagination: loops.pagination, forms: forms.shown };
+	return {
+		html: rendered.html,
+		headers,
+		expiresAt,
+		pagination: loops.pagination,
+		forms: forms.shown,
+		filters: filterState,
+	};
+}
+
+/**
+ * A filtered or sorted page's SEO (GLOSSARY.md › Filter): `noindex, follow`, its canonical URL the
+ * page without its Filters' choices (a paginated filtered page's too), so search engines never index
+ * endless variants but still follow the links.
+ */
+function filteredSeo(seo: PageToRender["seo"], filtered: boolean): PageToRender["seo"] {
+	if (!filtered || !seo) return seo;
+	return { ...seo, noindex: true, follow: true, canonical: seo.canonical?.replace(/\?.*$/, "") ?? null };
+}
+
+/** The pairs of a query string. */
+function pairsOf(query: string): [string, string][] {
+	return [...new URLSearchParams(query)];
 }
 
 /**
