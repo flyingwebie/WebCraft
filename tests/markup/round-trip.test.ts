@@ -1,6 +1,6 @@
 // Template markup is lossless (ADR 0017): printing a stored tree and saving that markup gives the
-// same tree back, for every element setting. Checked once by hand for every setting, then over
-// many generated trees.
+// same tree back, for every element setting and every Placement of a Component. Checked once by
+// hand for every setting, then over many generated trees.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import fc from "fast-check";
 
@@ -13,6 +13,8 @@ let siteId: string;
 let postTypeId: string;
 /** Two generated Classes of the Site: their ids, and their names in markup. */
 let classes: { id: string; name: string }[];
+/** A Component with text Props, one of them written in camelCase. */
+let cardId: string;
 
 beforeAll(async () => {
 	install = await createTestInstall();
@@ -35,6 +37,17 @@ beforeAll(async () => {
 		id: (node as { classes: string[] }).classes[0] ?? "",
 		name: /the Class (style-[0-9a-f]{8})/.exec(saved.notices[index]?.message ?? "")?.[1] ?? "",
 	}));
+	const { component } = await staff.api.components.create({
+		siteId,
+		name: "Card",
+		props: [
+			{ key: "heading", label: "Heading", type: "text" },
+			{ key: "note", label: "Note", type: "text" },
+			{ key: "heroImage", label: "Hero image", type: "text" },
+		],
+	});
+	cardId = component.id;
+	await staff.api.components.saveMarkup({ siteId, componentId: cardId, markup: "<span>{{ props.heading }}</span>" });
 });
 
 afterAll(async () => {
@@ -184,6 +197,35 @@ describe("every element setting", () => {
 		expect(again.notices).toEqual([]);
 	});
 
+	test("Placements print as their Component's tag with their Props, and read back the same", async () => {
+		const tree = {
+			version: 1,
+			nodes: [
+				{
+					type: "component",
+					id: "card1",
+					component: cardId,
+					props: [
+						{ name: "note", value: [text('A & "b" <c> \\'), value("title"), text("{")] },
+						{ name: "heroImage", value: [] },
+						{ name: "heading", value: [value("publishedAt", { type: "date", style: "long" })] },
+					],
+				},
+				el("wrap", "p", [{ type: "component", id: "card2", component: cardId, props: [] } as TestNode]),
+			],
+		} as TestTree;
+
+		const { tree: stored, markup, again } = await roundTrip(tree);
+
+		expect(stored).toEqual(tree as unknown as typeof stored);
+		expect(markup).toBe(
+			'<Card note="A &amp; &quot;b&quot; &lt;c&gt; &#92;{{ title }}&#123;" heroImage heading="{{ publishedAt | date: long }}" data-wc-id="card1" />' +
+				'<p data-wc-id="wrap"><Card data-wc-id="card2" /></p>',
+		);
+		expect(again.template.draft).toEqual(stored);
+		expect(again.markup).toBe(markup);
+	});
+
 	test("markup written by hand reads into its canonical tree, and prints in canonical form", async () => {
 		const handWritten = [
 			"<P Title='Hello &amp; welcome' DATA-X=plain>",
@@ -263,6 +305,12 @@ describe("generated trees", () => {
 			}),
 		),
 	}));
+	const placement = fc
+		.uniqueArray(
+			fc.record({ name: fc.constantFrom("heading", "note", "heroImage"), value: fc.array(part, { maxLength: 3 }) }),
+			{ selector: (prop) => prop.name, maxLength: 3 },
+		)
+		.map((props) => ({ type: "component", component: cardId, props }));
 	const commentText = textArb.filter(
 		(candidate) =>
 			!candidate.includes("-->") &&
@@ -278,6 +326,7 @@ describe("generated trees", () => {
 			{ depthSize: "small", withCrossShrink: true },
 			textArb.map(text),
 			valueArb,
+			placement,
 			commentText.map((comment) => ({ type: "comment", text: comment })),
 			fc
 				.record({ tag: fc.constantFrom(...voids), attributes, classes: fc.subarray([0, 1]) })
