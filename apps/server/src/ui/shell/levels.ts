@@ -2,6 +2,7 @@ import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
 import {
 	ArchiveIcon,
+	BriefcaseIcon,
 	Building2Icon,
 	ChartColumnIcon,
 	ClipboardListIcon,
@@ -23,6 +24,7 @@ import {
 	MailIcon,
 	NewspaperIcon,
 	PackageIcon,
+	PaletteIcon,
 	PuzzleIcon,
 	RepeatIcon,
 	ScrollTextIcon,
@@ -148,6 +150,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						to: "/email-log",
 						requires: "install.manage",
 					},
+					{
+						id: "services-list",
+						label: "shell.nav.servicesList",
+						icon: BriefcaseIcon,
+						to: "/services",
+						requires: "servicesList.edit",
+					},
 				],
 			},
 			{
@@ -197,6 +206,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						requires: "install.manage",
 					},
 					{
+						id: "reports",
+						label: "shell.nav.reportBranding",
+						icon: PaletteIcon,
+						to: "/settings/reports",
+						requires: "install.manage",
+					},
+					{
 						id: "modules",
 						label: "shell.nav.modules",
 						icon: PuzzleIcon,
@@ -241,6 +257,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: KeyRoundIcon,
 						to: "/workspaces/$workspaceId/ai-keys",
 						requires: "aiKey.manage",
+					},
+					{
+						id: "workspace-report-branding",
+						label: "shell.nav.reportBranding",
+						icon: PaletteIcon,
+						to: "/workspaces/$workspaceId/report-branding",
+						requires: "reportBranding.manage",
 					},
 					{
 						id: "workspace-modules",
@@ -385,6 +408,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: WebhookIcon,
 						to: "/sites/$siteId/webhooks",
 						requires: "structure.edit",
+					},
+					{
+						id: "site-report-branding",
+						label: "shell.nav.reportBranding",
+						icon: PaletteIcon,
+						to: "/sites/$siteId/report-branding",
+						requires: "reportBranding.manage",
 					},
 					{
 						id: "site-outside-scripts",

@@ -101,7 +101,57 @@ export function errorMessage(error: unknown): MessageKey {
 		case "STAGING_PASSWORD_INVALID":
 		case "PUBLISH_ALL_INVALID":
 		case "PUBLISH_ALL_REFUSED":
+		case "REPORT_NOT_FOUND":
+		case "REPORT_SEND_NOT_FOUND":
+		case "SHARE_LINK_NOT_FOUND":
+		case "SHARE_LINKS_UNAVAILABLE":
+		case "SERVICES_LIST_INVALID":
+		case "PDF_UNAVAILABLE":
 			return `errors.${code}`;
+		case "REPORT_INVALID":
+			switch ((data as { field?: unknown } | undefined)?.field) {
+				case "name":
+					return "errors.REPORT_INVALID_NAME";
+				case "recipients":
+					return "errors.REPORT_INVALID_RECIPIENTS";
+				case "language":
+					return "errors.REPORT_INVALID_LANGUAGE";
+				case "reports":
+					return "errors.REPORT_INVALID_REPORTS";
+				default:
+					return "errors.REPORT_INVALID_TEXT";
+			}
+		case "REPORT_SEND_REFUSED":
+			switch ((data as { reason?: unknown } | undefined)?.reason) {
+				case "notSent":
+					return "errors.REPORT_SEND_REFUSED_NOT_SENT";
+				case "noPdf":
+					return "errors.REPORT_SEND_REFUSED_NO_PDF";
+				case "noRecipients":
+					return "errors.REPORT_SEND_REFUSED_NO_RECIPIENTS";
+				default:
+					return "errors.REPORT_SEND_REFUSED_NOT_HELD";
+			}
+		case "SHARE_LINK_INVALID":
+			switch ((data as { field?: unknown } | undefined)?.field) {
+				case "password":
+					return "errors.SHARE_LINK_INVALID_PASSWORD";
+				case "expiresAt":
+					return "errors.SHARE_LINK_INVALID_EXPIRES";
+				case "links":
+					return "errors.SHARE_LINK_INVALID_LINKS";
+				default:
+					return "errors.SHARE_LINK_INVALID_NAME";
+			}
+		case "BRANDING_INVALID":
+			switch ((data as { field?: unknown } | undefined)?.field) {
+				case "accentColour":
+					return "errors.BRANDING_INVALID_ACCENT";
+				case "name":
+					return "errors.BRANDING_INVALID_NAME";
+				default:
+					return "errors.BRANDING_INVALID_LOGO";
+			}
 		case "AI_KEY_INVALID":
 			switch ((data as { field?: unknown } | undefined)?.field) {
 				case "endpoint":

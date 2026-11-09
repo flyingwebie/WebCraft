@@ -1,4 +1,4 @@
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
@@ -23,10 +23,12 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import {
 	DownloadIcon,
 	EllipsisIcon,
+	FileTextIcon,
 	GripIcon,
 	PencilIcon,
 	PlusIcon,
 	SaveIcon,
+	Share2Icon,
 	TableIcon,
 	TrashIcon,
 	TrendingUpIcon,
@@ -46,6 +48,7 @@ import { toast } from "sonner";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { ShareLinksDialog } from "../reports/ShareLinksDialog.tsx";
 import {
 	type CatalogKind,
 	type DashboardPlace,
@@ -82,6 +85,7 @@ export function DashboardScreen({
 	onExplore,
 	workspaceName,
 	listPath,
+	sharing,
 }: {
 	place: DashboardPlace;
 	dashboard: DashboardView;
@@ -90,6 +94,16 @@ export function DashboardScreen({
 	onExplore: (range: DashboardRange | null) => void;
 	workspaceName: string;
 	listPath: () => Promise<void>;
+	/**
+	 * Its Reports and Share links (#104), where the person may see them: the Reports page, whether they
+	 * see and make Share links, and the language a new link's page starts in.
+	 */
+	sharing?: {
+		reports: { to: string; params: Record<string, string> } | null;
+		shareLinks: boolean;
+		manageShareLinks: boolean;
+		language: string;
+	};
 }) {
 	const t = useT();
 	const router = useRouter();
@@ -100,6 +114,8 @@ export function DashboardScreen({
 	const [picking, setPicking] = useState(false);
 	const [editing, setEditing] = useState<{ widget: WidgetView; from: RefObject<HTMLElement | null> } | null>(null);
 	const [dialog, setDialog] = useState<"rename" | "template" | "delete" | null>(null);
+	const [sharingOpen, setSharingOpen] = useState(false);
+	const shareButton = useRef<HTMLButtonElement>(null);
 	const addButton = useRef<HTMLButtonElement>(null);
 	const menuButton = useRef<HTMLButtonElement>(null);
 	const grid = useRef<HTMLUListElement>(null);
@@ -216,6 +232,18 @@ export function DashboardScreen({
 							<DownloadIcon aria-hidden="true" />
 							{t("dashboards.exportCsv")}
 						</Button>
+						{sharing?.reports ? (
+							<Button variant="outline" render={<Link to={sharing.reports.to} params={sharing.reports.params} />}>
+								<FileTextIcon aria-hidden="true" />
+								{t("dashboards.reports")}
+							</Button>
+						) : null}
+						{sharing?.shareLinks ? (
+							<Button ref={shareButton} variant="outline" onClick={() => setSharingOpen(true)}>
+								<Share2Icon aria-hidden="true" />
+								{t("dashboards.share")}
+							</Button>
+						) : null}
 						{dashboard.canManage ? (
 							<DropdownMenu>
 								<DropdownMenuTrigger
@@ -310,6 +338,16 @@ export function DashboardScreen({
 					onSaved={reload}
 					onClose={() => setEditing(null)}
 					finalFocus={editing.from}
+				/>
+			) : null}
+			{sharingOpen && sharing ? (
+				<ShareLinksDialog
+					place={place}
+					dashboardId={dashboard.id}
+					canManage={sharing.manageShareLinks}
+					language={sharing.language}
+					onClose={() => setSharingOpen(false)}
+					finalFocus={shareButton}
 				/>
 			) : null}
 			{dialog === "rename" ? (

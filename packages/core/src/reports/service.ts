@@ -892,7 +892,7 @@ export function createReports(deps: ReportsDeps): Reports {
 			const scope = await background(ref);
 			if (!scope) return;
 			const send = await backgroundSend(scope, ref.sendId);
-			if (!send || send.status !== "preparing") return;
+			if (send?.status !== "preparing") return;
 			const level = levelOf(scope);
 			const report = await (scope as BackgroundScope).first(
 				reports,
@@ -946,7 +946,7 @@ export function createReports(deps: ReportsDeps): Reports {
 			const scope = await background(ref);
 			if (!scope) return;
 			const send = await backgroundSend(scope, ref.sendId);
-			if (!send || send.status !== "rendering") return;
+			if (send?.status !== "rendering") return;
 			const level = levelOf(scope);
 			const where = inPlace(level, reportSends, eq(reportSends.id, send.id));
 			const content = contentOf(send.content);
