@@ -41,6 +41,9 @@ async function newSite() {
 	});
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
 	await staff.api.pages.setHomePage({ siteId, pageId: entry.id });
+	// These tests are about where outside scripts load: no Consent banner holds them back here
+	// (holding back is tests/consent/).
+	await staff.api.consentBanner.setSettings({ siteId, mode: "none", layout: "bar" });
 	return { siteId, url: (path: string) => `https://${slug}.sites.test${path}` };
 }
 

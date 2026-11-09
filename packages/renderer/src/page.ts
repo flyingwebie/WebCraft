@@ -1,5 +1,13 @@
 import { PLAYER_ORIGINS } from "./body/video.ts";
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
+import {
+	consentBannerHtml,
+	consentPlaceholderHtml,
+	consentSettingsHtml,
+	heldScriptsHtml,
+	type PageConsent,
+} from "./consent/banner.ts";
+import { CONSENT_SCRIPT } from "./consent/script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
 import type { MediaReader } from "./media.ts";
@@ -107,6 +115,13 @@ export type PageToRender = {
 	 */
 	outsideScripts?: readonly PageOutsideScript[];
 	/**
+	 * The Site's Consent banner (ADR 0020), when it asks for consent (not with the mode None). A page
+	 * holding something back (an outside script outside Necessary, a body's video) holds it in inert
+	 * markup, carries the banner (hidden) and links the consent script, which lets each through once its
+	 * category is accepted; so does a page showing the "Cookie settings" button. Never in Edit mode.
+	 */
+	consent?: PageConsent;
+	/**
 	 * Renders the page for Edit mode (ADR 0022) rather than for visitors: never indexed, with WebCraft's
 	 * own files first in `<head>` and the editable regions tagged. The Site's own scripts and Libraries
 	 * run there too (ADR 0022), unless the page is in Safe mode (and leaves them out); outside scripts
@@ -137,7 +152,7 @@ export type PageOutsideScript = {
 	/** What Staff call it, shown on its placeholder in Edit mode. */
 	name: string;
 	placement: "head" | "bodyEnd";
-	/** Its Consent category: the Consent banner holds back what isn't accepted (later). */
+	/** Its Consent category: the Consent banner holds it back until visitors accept it (but Necessary). */
 	consentCategory: string;
 	tags: readonly PageScriptTag[];
 };
@@ -214,8 +229,21 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	};
 	const languageSwitcher = () => languageSwitcherHtml(page.languageLinks ?? [], site);
 	const words = pageWords(site.language);
-	// The embed script comes only with a video to play.
-	const shown = { videos: 0 };
+	// Visitors are asked for consent; people editing never are (ADR 0022).
+	const consent = editMode ? undefined : page.consent;
+	// The embed script comes only with a video to play; the consent script with something held back.
+	const shown = { videos: 0, held: 0, settings: 0 };
+	const held = consent
+		? (embed: { category: string; label: string; source: string }) => {
+				shown.held++;
+				return { placeholder: consentPlaceholderHtml(consent.words, { ...embed, n: shown.held }) };
+			}
+		: undefined;
+	const consentSettings = () => {
+		if (!consent || consent.mode === "outside") return "";
+		shown.settings++;
+		return consentSettingsHtml(consent.words);
+	};
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
@@ -228,6 +256,8 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		form: page.form,
 		themeToggle,
 		languageSwitcher,
+		consentSettings,
+		held,
 		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "content") : undefined,
 		codeSource: editMode?.code ? "content" : undefined,
 	});
@@ -244,13 +274,29 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		form: page.form,
 		themeToggle,
 		languageSwitcher,
+		consentSettings,
+		held,
 		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
 		codeSource: editMode?.code ? "site" : undefined,
 	});
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
-	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead.
+	const heldBack = (category: string) => consent !== undefined && category !== "necessary";
+	// The banner and its script come only to a page that asks something.
+	const asks =
+		consent !== undefined &&
+		(shown.held > 0 || shown.settings > 0 || outside.some((script) => heldBack(script.consentCategory)));
+	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead. Visitors
+	// get those outside Necessary held back until they accept their category.
 	const outsideIn = (placement: PageOutsideScript["placement"]) =>
-		editMode ? [] : outside.filter((script) => script.placement === placement).flatMap(outsideTags);
+		editMode
+			? []
+			: outside
+					.filter((script) => script.placement === placement)
+					.map((script) =>
+						heldBack(script.consentCategory)
+							? heldScriptsHtml(script.consentCategory, outsideTags(script))
+							: outsideTags(script).join("\n"),
+					);
 	const html = [
 		"<!doctype html>",
 		`<html lang="${escapeAttribute(site.language)}" dir="${site.direction}">`,
@@ -265,6 +311,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		),
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
+		...(asks && consent ? consentHead(consent) : []),
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
 		...(page.libraries ?? []).map((library) => {
 			const tag = editMode ? ` data-wc-library="${escapeAttribute(library.name)}"` : "";
@@ -278,6 +325,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
+		...(asks && consent && consent.mode !== "outside" ? [consentBannerHtml(consent)] : []),
 		body,
 		...outsideIn("bodyEnd"),
 		...(editMode && outside.length > 0 ? [outsidePlaceholders(outside, words)] : []),
@@ -286,6 +334,19 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		"",
 	].join("\n");
 	return { html, frames: shown.videos > 0 ? PLAYER_ORIGINS : [] };
+}
+
+/**
+ * What a page asking for consent says in `<head>`: the Site's mode and banner version, which the
+ * consent script (and any other script) reads, then the consent script, deferred and before any other
+ * deferred script, so `webcraft.consent` is there for them.
+ */
+function consentHead(consent: PageConsent): string[] {
+	return [
+		`<meta name="webcraft-consent-mode" content="${consent.mode}">`,
+		`<meta name="webcraft-consent-version" content="${consent.version}">`,
+		`<script src="${CONSENT_SCRIPT.href}" defer></script>`,
+	];
 }
 
 /** An outside script's tags, as visitors' pages load them. */

@@ -29,6 +29,7 @@ export {
 	placementProblems,
 	placementsIn,
 } from "./components.ts";
+export * from "./consent/index.ts";
 export {
 	CASCADE_LAYERS,
 	compileStylesheet,

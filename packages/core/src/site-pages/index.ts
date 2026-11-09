@@ -21,6 +21,7 @@ import {
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
+import { pageConsent } from "../consent/banner.ts";
 import {
 	type ComponentSources,
 	type ComponentVersion,
@@ -1016,6 +1017,8 @@ async function renderSitePage(
 		libraries: ownScripts ? await pageLibraries(scope) : [],
 		scripts: ownScripts ? await pageScripts(scope, entry?.id ?? null, view.structure) : [],
 		outsideScripts: await pageOutsideScripts(scope),
+		// People editing are never asked for consent (ADR 0022).
+		consent: editing ? undefined : await pageConsent(scope, language.code),
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(entry, storedFields(globalsRow?.fields)),

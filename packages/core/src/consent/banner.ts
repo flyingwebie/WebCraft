@@ -10,6 +10,7 @@
  * Consent record names the version it answered.
  */
 import { consentBanners } from "@webcraft/db/schema";
+import { consentWords, type PageConsent } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
 
 import { clearPageCache } from "../content/page-cache.ts";
@@ -102,4 +103,20 @@ export async function lockBanner(scope: SiteScope): Promise<ConsentBannerRow> {
 	const [row] = await scope.db.select().from(consentBanners).where(scope.where(consentBanners)).for("update");
 	if (!row) throw new Error("The Site's Consent banner could not be made.");
 	return row;
+}
+
+/**
+ * What a visitor's page shows of the Site's banner, in the page's language, or undefined with the
+ * mode None (nothing is held back, nothing asked).
+ */
+export async function pageConsent(scope: BannerReader, language: string): Promise<PageConsent | undefined> {
+	const settings = settingsOf(await bannerRow(scope));
+	if (settings.mode === "none") return undefined;
+	return {
+		mode: settings.mode,
+		layout: settings.layout,
+		version: settings.version,
+		words: consentWords(language),
+		privacyPolicy: null,
+	};
 }
