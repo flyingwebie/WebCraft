@@ -27,6 +27,7 @@ import {
 } from "@webcraft/renderer";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
+import { type CdnKey, isCdnKey } from "../cdns/registry.ts";
 import type { InstallConfig } from "../config.ts";
 import { pageConsent } from "../consent/banner.ts";
 import { archiveAt, publishedArchives } from "../content/archives.ts";
@@ -136,6 +137,8 @@ export type SiteHost = {
 	browserLanguageRedirect: boolean;
 	/** How the Site's Content Security Policy applies (ADR 0023). */
 	cspMode: CspMode;
+	/** The CDN in front of the Site, whose visitor header counts on connections from its servers; null for none. */
+	cdn: CdnKey | null;
 	/**
 	 * The Site's page cache generation: a page rendered now stays valid until a publish raises it.
 	 * Read before the page, so a page is never kept under a newer generation than its content.
@@ -680,6 +683,7 @@ function hostOf(
 		// Only where `/` is the Default language's home page: never on a language's own domain.
 		browserLanguageRedirect: how.address !== "language" && row.browserLanguageRedirect,
 		cspMode: isCspMode(row.cspMode) ? row.cspMode : "strict",
+		cdn: isCdnKey(row.cdn) ? row.cdn : null,
 		cacheGeneration: row.pageCacheGeneration,
 	};
 }

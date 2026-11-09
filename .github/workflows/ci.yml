@@ -91,6 +91,18 @@ jobs:
       # axe-core (WCAG 2.2 A and AA) and keyboard checks on every admin screen, light and dark.
       - run: bun run test:browser
 
+  deploy:
+    name: Deploy files (Compose smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      # Builds the web and worker images from this commit, brings up deploy/compose/docker-compose.yml
+      # (web, worker, the migrate step, Postgres and Caddy) and checks /readyz through Caddy.
+      - run: bun run test:deploy
+
   denylist:
     name: Reference-material denylist
     runs-on: ubuntu-latest

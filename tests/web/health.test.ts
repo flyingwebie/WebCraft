@@ -104,3 +104,47 @@ describe("when the database can't be reached", () => {
 		});
 	});
 });
+
+describe("on Railway (WEBCRAFT_EDGE=railway)", () => {
+	// Railway checks a new deployment before sending it traffic, always with this hostname.
+	const RAILWAY_CHECK = "https://healthcheck.railway.app";
+	let install: TestInstall;
+
+	beforeAll(async () => {
+		install = await createTestInstall({ edge: "railway" });
+	});
+
+	afterAll(async () => {
+		await install.close();
+	});
+
+	test("/healthz and /readyz also answer on the hostname Railway's health checks use", async () => {
+		const alive = await install.request(`${RAILWAY_CHECK}/healthz`);
+		expect(alive.status).toBe(200);
+		expect(await alive.json()).toEqual({ status: "ok" });
+
+		const ready = await install.request(`${RAILWAY_CHECK}/readyz`);
+		expect(ready.status).toBe(200);
+		expect(await ready.json()).toEqual({ status: "ready", checks: { database: "ok", schema: "current" } });
+	});
+
+	test("nothing else answers there: no admin, no Site", async () => {
+		for (const path of ["/", "/api/rpc/session/current", "/caddy/ask?domain=admin.test"]) {
+			const response = await install.request(`${RAILWAY_CHECK}${path}`);
+
+			expect(response.status).toBe(404);
+			expect(await response.text()).toBe("Not Found");
+		}
+	});
+
+	test("on any other edge, that hostname is no Site's like any other", async () => {
+		const caddy = await createTestInstall();
+		try {
+			const response = await caddy.request(`${RAILWAY_CHECK}/readyz`);
+
+			expect(response.status).toBe(404);
+		} finally {
+			await caddy.close();
+		}
+	});
+});

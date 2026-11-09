@@ -183,3 +183,29 @@ function parseJson(line: string): LogLine | undefined {
 		return undefined;
 	}
 }
+
+test("on a database fresh from the migrate step, with no job queue made yet, the worker starts and works", async () => {
+	const fresh = await createTestInstall({ database: "empty" });
+	try {
+		await fresh.migrate();
+		const worker = Bun.spawn(["node", WORKER], {
+			env: { ...process.env, ...fresh.env },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		try {
+			const entry = await firstLogEntry(
+				worker.stdout,
+				(line) => line.msg === "The worker is working the job queue" || line.level === "error",
+				20_000,
+			);
+
+			expect(entry).toMatchObject({ level: "info", msg: "The worker is working the job queue" });
+		} finally {
+			worker.kill("SIGTERM");
+		}
+		expect(await worker.exited).toBe(0);
+	} finally {
+		await fresh.close();
+	}
+});

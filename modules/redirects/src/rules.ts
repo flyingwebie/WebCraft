@@ -26,8 +26,12 @@ import { misses, rules } from "./tables.ts";
 
 type RuleRow = typeof rules.$inferSelect;
 
-/** How many rules a chain may go through; the Site pipeline stops at the same number. */
-export const MAX_HOPS = 5;
+/**
+ * How far a rule's target is followed through the other rules when it is saved, looking for a circle.
+ * A chain may be longer than the Site pipeline goes in one answer (5 rules): visitors are sent on from
+ * there and the browser carries on. A chain longer than this is refused as if it were a circle.
+ */
+export const MAX_CHAIN = 50;
 
 /** A Redirect rule as the Module's procedures answer it. */
 export type RuleView = {
@@ -85,14 +89,14 @@ async function checkNoLoop(context: ModuleContext, from: RuleFrom, target: strin
 	const loop = () => {
 		throw new ModuleError(
 			"RULE_LOOP",
-			`Visitors would go round in a circle, or through more than ${MAX_HOPS} rules: change where it sends them.`,
+			`Visitors would go round in a circle, or through more than ${MAX_CHAIN} rules: change where it sends them.`,
 			409,
 		);
 	};
 	let next = sitePathOf(target);
 	const seen = new Set<string>();
 	for (let hop = 0; next !== null; hop++) {
-		if (covers(from, next) || seen.has(next) || hop >= MAX_HOPS) loop();
+		if (covers(from, next) || seen.has(next) || hop >= MAX_CHAIN) loop();
 		seen.add(next);
 		const rule = await ruleFor(context, next);
 		if (!rule || rule.id === ruleId) return;

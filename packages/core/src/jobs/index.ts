@@ -1,3 +1,4 @@
+import { cdnRefreshRanges, cdnRefreshRangesSchedule } from "../cdns/index.ts";
 import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
 import {
 	domainsCheck,
@@ -60,6 +61,7 @@ export const coreJobs = [
 	domainsVerify,
 	domainsCheckAll,
 	domainsCheck,
+	cdnRefreshRanges,
 	searchRebuildDue,
 	searchRebuild,
 	consentRecordsPurge,
@@ -81,6 +83,7 @@ export const coreSchedules = [
 	importsPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
+	cdnRefreshRangesSchedule,
 	searchRebuildDueSchedule,
 	consentRecordsPurgeSchedule,
 	webhooksPurgeLogSchedule,
