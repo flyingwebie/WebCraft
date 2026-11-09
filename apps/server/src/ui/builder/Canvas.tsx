@@ -1,6 +1,7 @@
+import { VOID_ELEMENTS } from "@webcraft/renderer/builder";
 import { useEffect, useRef, useState } from "react";
 
-import type { DropPosition } from "./LayersPanel.tsx";
+import { type DropPosition, dropPositionAt } from "./tree.ts";
 
 /** Where the canvas document is on the admin host: an empty page that runs no script. */
 const CANVAS_URL = "/api/builder/canvas";
@@ -156,7 +157,9 @@ export function Canvas({
 				}
 				const box = found.element.getBoundingClientRect();
 				const y = (event.clientY - box.top) / Math.max(box.height, 1);
-				const position: DropPosition = y < 0.25 ? "before" : y > 0.75 ? "after" : "inside";
+				// Placements and void elements (an image, a line break) hold nothing: a drop goes beside them.
+				const canHold = found.target.kind === "element" && !VOID_ELEMENTS.has(found.element.tagName.toLowerCase());
+				const position = dropPositionAt(y, canHold);
 				dropAt.current = { to: found.target, position };
 				setLayout((count) => count + 1);
 				return;

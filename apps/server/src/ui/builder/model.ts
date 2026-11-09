@@ -3,7 +3,8 @@ import type { FieldInput } from "@webcraft/core";
 import {
 	type AttributePart,
 	type ElementTree,
-	readFormat,
+	parseAttributeText,
+	printAttributeText,
 	type TreeNode,
 	writeExpression,
 	writeFormat,
@@ -84,42 +85,22 @@ export function targetTitle(t: T, opened: Opened, target: BuilderTarget): string
 	}
 }
 
-/** Text with values in it as an attribute or Prop holds it: `/blog/{{ slug }}`. */
+/**
+ * Text with values in it as an attribute or Prop holds it, as Template markup writes it between an
+ * attribute's quotes (`/blog/{{ slug }}`; `\{{` for a literal `{{`, `&amp;` for `&`): the renderer's
+ * own printer, so a field shows exactly what reads back (ADR 0017).
+ */
 export function writeParts(parts: readonly AttributePart[]): string {
-	return parts
-		.map((part) =>
-			part.type === "text" ? part.text : `{{ ${part.path}${part.format ? ` | ${writeFormat(part.format)}` : ""} }}`,
-		)
-		.join("");
+	return printAttributeText(parts);
 }
 
 /**
- * Text as Staff type it for an attribute or Prop, read into parts: `{{ path }}` and
- * `{{ path | formatter }}` are values, everything else text. Answers why when a value can't be read.
+ * Text as Staff type it for an attribute or Prop, read into parts by the renderer's own parser:
+ * `{{ path }}` and `{{ path | formatter }}` are values, `\{{` a literal `{{`, everything else text.
+ * Answers why, in the parser's words, when it can't be read.
  */
 export function readParts(text: string): { parts: AttributePart[] } | { problem: string } {
-	const parts: AttributePart[] = [];
-	let rest = text;
-	while (rest) {
-		const start = rest.indexOf("{{");
-		if (start < 0) {
-			parts.push({ type: "text", text: rest });
-			break;
-		}
-		if (start > 0) parts.push({ type: "text", text: rest.slice(0, start) });
-		const end = rest.indexOf("}}", start);
-		if (end < 0) return { problem: "{{ has no }}." };
-		const [path = "", format] = rest.slice(start + 2, end).split("|");
-		if (format === undefined) {
-			parts.push({ type: "value", path: path.trim() });
-		} else {
-			const read = readFormat(format.trim());
-			if ("problem" in read) return { problem: read.problem };
-			parts.push({ type: "value", path: path.trim(), format: read.format });
-		}
-		rest = rest.slice(end + 2);
-	}
-	return { parts };
+	return parseAttributeText(text);
 }
 
 /** A short excerpt of text, on one line. */
