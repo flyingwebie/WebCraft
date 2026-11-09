@@ -5,6 +5,7 @@ import {
 	coreSchedules,
 	createLogger,
 	createNodeHttp,
+	ensureQueues,
 	type OpenedParts,
 	openInstall,
 	scheduleJobs,
@@ -46,7 +47,9 @@ async function main(): Promise<void> {
 		images: createImageProcessor(),
 		http: createNodeHttp(),
 	});
-	// Schedules first: a stop signal that comes once jobs run then never lands in the middle of them.
+	// Every job's queue first: a schedule names its queue, which a new Install doesn't have yet.
+	await ensureQueues(boss, coreJobs);
+	// Schedules before work: a stop signal that comes once jobs run then never lands in the middle of them.
 	await scheduleJobs(boss, coreSchedules);
 	await workJobs(boss, coreJobs, services);
 	log.info("The worker is working the job queue", {
