@@ -4,7 +4,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type forms from "@webcraft/module-forms";
 
-import { formVisitor } from "../harness/forms.ts";
+import { openEditMode } from "../harness/edit-mode.ts";
+import { formIn, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 
@@ -105,6 +106,18 @@ describe("setting it up", () => {
 			'<div class="challenge-widget" id="wc-form-1-captcha" data-sitekey="site-key-1" data-lang="en"></div>',
 		);
 		expect(page.html).toContain('<script src="https://challenges.example/widget.js" async defer></script>');
+	});
+});
+
+describe("in Edit mode", () => {
+	test("Forms show with a token of their own, and the provider's script (an outside script) never loads", async () => {
+		const editing = await openEditMode(install, staff, siteId, "/visit/contact");
+
+		const html = await (await editing.page("/visit/contact")).text();
+
+		expect(formIn(html).hidden["wc-t"]).toMatch(/^[0-9a-z]+\.[A-Za-z0-9_-]{43}$/);
+		expect(html).not.toContain("challenges.example/widget.js");
+		expect(html).not.toContain("<wc-form-token>");
 	});
 });
 

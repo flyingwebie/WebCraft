@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type forms from "@webcraft/module-forms";
 
-import { formVisitor } from "../harness/forms.ts";
+import { formIn, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 
@@ -300,6 +300,22 @@ describe("sending without JavaScript", () => {
 		expect(sent.headers.get("location")).toBe("/it/thank-you");
 		await staff.api.forms.saveDraft({ siteId, formId, form: { success: { kind: "message", message: "Thanks!" } } });
 		await staff.api.forms.publish({ siteId, formId });
+	});
+});
+
+describe("a Form sent from a page that no longer shows it", () => {
+	test("comes back with its errors on a page of its own, in the Site template", async () => {
+		const visitor = formVisitor(install);
+		const page = await visitor.open(PAGE);
+		await install.clock.advance(5000);
+
+		const answer = await visitor.send(page, { email: "nope" }, { hidden: { "wc-page": "/no-such-page" } });
+
+		expect(answer.status).toBe(422);
+		const html = await answer.text();
+		expect(html).toContain("<title>Error: There is a problem · Acme Bakery</title>");
+		expect(html).toContain('<a href="#wc-form-1-email">Email: Enter an email address, such as name@example.com.</a>');
+		expect(formIn(html).hidden["wc-page"]).toBe("/no-such-page");
 	});
 });
 
