@@ -2881,6 +2881,7 @@
 			"noPostType": "a Post Type that was deleted",
 			"runBy": "Run {number} · by {name}",
 			"notRun": "Not run yet",
+			"purged": "{count, plural, one {Ran once; its report was purged} other {Ran # times; the reports were purged}}",
 			"progress": "{done} of {total} rows",
 			"counts": "{created} new · {updated} updated · {skipped} skipped",
 			"openRun": "Open the run of {name}",

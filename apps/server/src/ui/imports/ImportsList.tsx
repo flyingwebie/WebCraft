@@ -109,7 +109,9 @@ function ImportRow({ siteId, row }: { siteId: string; row: ImportView }) {
 						</span>
 					</div>
 				) : (
-					<span className="text-muted-foreground">{t("imports.list.notRun")}</span>
+					<span className="text-muted-foreground">
+						{row.runs > 0 ? t("imports.list.purged", { count: row.runs }) : t("imports.list.notRun")}
+					</span>
 				)}
 			</TableCell>
 			<TableCell className="whitespace-normal">

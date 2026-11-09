@@ -143,7 +143,9 @@ export type Import = {
 	createdBy: PersonRef;
 	createdAt: Date;
 	updatedAt: Date;
-	/** Its newest run, if any. */
+	/** How many runs it has had, reports purged since included. */
+	runs: number;
+	/** Its newest run whose report is kept, if any. */
 	lastRun: ImportRunSummary | null;
 };
 
@@ -614,6 +616,7 @@ async function importViews(scope: SiteScope, rows: readonly ImportRow[]): Promis
 			createdBy: row.createdBy && creator !== undefined ? { id: row.createdBy, name: creator } : null,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
+			runs: row.runs,
 			lastRun: summaries.get(row.id) ?? null,
 		};
 	});

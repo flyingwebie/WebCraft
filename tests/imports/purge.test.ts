@@ -66,7 +66,7 @@ describe("what Imports keep", () => {
 			code: "IMPORT_RUN_NOT_FOUND",
 		});
 		const { import: kept, runs } = await editor.api.imports.get({ siteId, importId });
-		expect(kept.lastRun).toBeNull();
+		expect(kept).toMatchObject({ runs: 1, lastRun: null });
 		expect(runs).toEqual([]);
 
 		const again = await runAgain(install, editor.api, siteId, importId, "name,sku\nRye renamed,RY-1\n");

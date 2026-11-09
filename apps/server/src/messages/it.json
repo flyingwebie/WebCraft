@@ -2881,6 +2881,7 @@
 			"noPostType": "un Tipo di contenuto eliminato",
 			"runBy": "Esecuzione {number} · di {name}",
 			"notRun": "Non ancora eseguita",
+			"purged": "{count, plural, one {Eseguita una volta; il resoconto è stato eliminato} other {Eseguita # volte; i resoconti sono stati eliminati}}",
 			"progress": "{done} di {total} righe",
 			"counts": "{created} nuovi · {updated} aggiornati · {skipped} saltati",
 			"openRun": "Apri l'esecuzione di {name}",
