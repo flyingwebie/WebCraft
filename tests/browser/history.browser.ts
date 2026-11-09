@@ -190,3 +190,38 @@ describe("restoring from the keyboard", () => {
 		expect(JSON.stringify(content.content)).toContain("Fresh bread, sliced");
 	});
 });
+
+describe("closing the Consent banner's words", () => {
+	test("keeps their changed Draft as a Checkpoint", async () => {
+		const page = await open("light", staff, `/sites/${siteId}/consent-banner`);
+		await page.getByRole("textbox", { name: "Heading" }).fill("Before you browse the bakery");
+		const { api } = await install.install.superadmin();
+		const item = { kind: "consentBanner" } as const;
+		// The words reach their Draft as they are typed; then the editor closes.
+		await waitFor(async () => {
+			const { banner } = await api.consentBanner.get({ siteId });
+			return JSON.stringify(banner.text.draft).includes("Before you browse the bakery");
+		});
+		await page.goto(install.adminUrl(`/sites/${siteId}`));
+		await page.waitForLoadState("networkidle");
+
+		await waitFor(async () => {
+			const { copies } = await api.history.list({ siteId, item });
+			return copies.some((copy) => copy.type === "checkpoint" && copy.reason === "left");
+		});
+		const { copies } = await api.history.list({ siteId, item });
+		const kept = copies.find((copy) => copy.type === "checkpoint" && copy.reason === "left");
+		const content = await api.history.get({ siteId, item, copy: { type: "checkpoint", id: kept?.id ?? "" } });
+		expect(JSON.stringify(content.content)).toContain("Before you browse the bakery");
+		await page.close();
+	});
+});
+
+/** Waits until `check` answers true, or fails after 15 seconds. */
+async function waitFor(check: () => Promise<boolean>): Promise<void> {
+	const until = Date.now() + 15_000;
+	while (!(await check())) {
+		if (Date.now() > until) throw new Error("Timed out waiting for the condition");
+		await new Promise((resolve) => setTimeout(resolve, 200));
+	}
+}
