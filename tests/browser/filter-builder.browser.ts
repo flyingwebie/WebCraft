@@ -140,6 +140,42 @@ describe("the Filter builder from the keyboard", () => {
 		});
 	});
 
+	test("a sort menu's Move up and Move down reorder its sorts, said in a live region and kept when saved", async () => {
+		const page = await openBuilder("light");
+		await page.locator('[data-control="sort"]').click();
+		await page.getByRole("heading", { name: "Sort settings" }).waitFor();
+		const sorts = page.getByRole("group", { name: "Sorts visitors can choose" });
+		const rows = sorts.locator("li");
+		const priceDesc = rows.filter({ has: page.locator('input[value="price-desc"]') });
+		await priceDesc.getByRole("button", { name: "Move up" }).click();
+
+		await page
+			.getByRole("status")
+			.filter({ hasText: "Moved Price, high to low: 1 of 3." })
+			.waitFor({ state: "attached" });
+		// The move actually reordered the options, not just announced it.
+		expect(await rows.first().locator('input[value="price-desc"]').count()).toBe(1);
+
+		await page.getByRole("button", { name: "Save draft" }).focus();
+		await page.keyboard.press("Enter");
+		await page.getByText("The Filter's Draft is saved.").waitFor();
+		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });
+		const sort = filter.draft.controls.find((control) => control.id === "sort");
+		if (sort?.type !== "sort") throw new Error("the shop's sort control is missing");
+		expect(sort.options.map((option) => option.value)).toEqual(["price-desc", "price-asc", "relevance"]);
+
+		await shop.staff.api.filters.saveDraft({
+			siteId: shop.siteId,
+			filterId: shop.filterId,
+			controls: filter.draft.controls.map((control) => {
+				if (control.id !== "sort" || control.type !== "sort") return control;
+				const [first, second, third] = control.options;
+				if (!first || !second || !third) return control;
+				return { ...control, options: [second, first, third] };
+			}),
+		});
+	});
+
 	test("adding a control from its menu selects it and says where it went", async () => {
 		const page = await openBuilder("light");
 		await shop.staff.api.filters.saveDraft({
