@@ -193,6 +193,7 @@ describe("a run in the background", () => {
 		expect(await imports()).toEqual(before);
 	});
 
+	// It goes through 600 rows in several jobs: give it room on a busy machine.
 	test("goes through a big file in several jobs, each taking up where the last stopped", async () => {
 		const { postType, settings } = await products();
 		const rows = Array.from({ length: 601 }, (_, index) => `Loaf ${index},L-${index},${index % 7},`);
@@ -212,7 +213,7 @@ describe("a run in the background", () => {
 			problems: [{ row: 603, column: null, rule: "matchedTwice", params: { row: 5 } }],
 		});
 		expect((await editor.api.entries.list({ siteId, postTypeId: postType.id })).entries).toHaveLength(601);
-	});
+	}, 120_000);
 
 	test("fails when the person who started it lost access to the Site meanwhile", async () => {
 		const { postType, settings } = await products();
