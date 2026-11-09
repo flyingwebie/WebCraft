@@ -1,0 +1,333 @@
+import {
+	type AdminPage,
+	labelProblem,
+	MODULE_EVENTS,
+	type ModuleDefinition,
+	type ModuleEventName,
+	type ModuleJob,
+	type ModuleManifest,
+	type ModuleProcedure,
+	type ModuleProcedures,
+	type ModuleTable,
+	moduleManifestSchema,
+	moduleSchemaName,
+	SDK_VERSION,
+	type SiteRoute,
+} from "@webcraft/module-sdk";
+import { getTableName, isTable } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
+import semver from "semver";
+
+import type { AddedPermission } from "../permissions/can.ts";
+import { isPermission, type Level, PERMISSIONS, type Permission } from "../permissions/roles.ts";
+
+/**
+ * The Modules this build of WebCraft loads, each checked against the rules of the SDK when it is
+ * loaded. A Module that breaks one is kept, with the reason, so the Modules screen can say why it
+ * doesn't run; WebCraft never runs it.
+ */
+export type ModuleRegistry = {
+	/** Every Module, in the order given: those that run and those that can't. */
+	all(): readonly LoadedModule[];
+	get(moduleId: string): LoadedModule | undefined;
+	/** The Module answering under `/_wc/m/<prefix>/`, if one that runs has that prefix. */
+	byRoutePrefix(prefix: string): RunnableModule | undefined;
+};
+
+export type LoadedModule = RunnableModule | BrokenModule;
+
+/** A Module WebCraft can't run, and why. */
+export type BrokenModule = {
+	runnable: false;
+	id: string;
+	definition: ModuleDefinition;
+	/** Its manifest, when that much was right. */
+	manifest: ModuleManifest | null;
+	problem: string;
+};
+
+/** A Module whose definition keeps every rule, ready to run where it is approved and on. */
+export type RunnableModule = {
+	runnable: true;
+	id: string;
+	definition: ModuleDefinition;
+	manifest: ModuleManifest;
+	/** The Postgres schema of its tables, `m_<id>`. */
+	schema: string;
+	level: Level & ("site" | "workspace");
+	/** The Permissions it adds, by key without its id (`notes.edit`). */
+	permissions: ReadonlyMap<string, AddedPermission>;
+	tables: ReadonlySet<ModuleTable>;
+	/** Its procedures by dotted name: `notes.add`. */
+	procedures: ReadonlyMap<string, ModuleProcedure>;
+	routes: readonly CompiledRoute[];
+	pages: readonly AdminPage[];
+	events: ReadonlySet<ModuleEventName>;
+	jobs: ReadonlyMap<string, ModuleJob>;
+};
+
+/** A Site route with its path split into fixed parts and parameters. */
+export type CompiledRoute = { route: SiteRoute; parts: readonly ({ fixed: string } | { param: string })[] };
+
+/** The keys a definition may have; anything else is an extension point this SDK version doesn't have. */
+const DEFINITION_KEYS = new Set([
+	"manifest",
+	"tables",
+	"migrations",
+	"procedures",
+	"siteRoutes",
+	"adminPages",
+	"events",
+	"jobs",
+	"structurePresets",
+	"blockTypes",
+	"components",
+	"widgets",
+]);
+
+/** Extension points declared for later SDK versions: a Module can't use them yet. */
+const LATER = {
+	structurePresets: "Structure presets",
+	blockTypes: "Block types",
+	components: "Components",
+	widgets: "Widgets",
+};
+
+const NAME = /^[a-z][a-zA-Z0-9]*$/;
+const PAGE_PATH = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ROUTE_PART = /^(?:[a-z0-9]+(?:[-_.][a-z0-9]+)*|:[a-zA-Z][a-zA-Z0-9]*)$/;
+const MIGRATION_NAME = /^[0-9A-Za-z][0-9A-Za-z._-]{0,99}$/;
+const JOB_NAME = /^[a-z][a-zA-Z0-9-]{0,63}$/;
+const ROUTE_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+/** Input keys WebCraft adds to every Module procedure. */
+const PLACE_KEYS = ["siteId", "workspaceId"];
+
+/** Loads the Modules of this build. Ids and route prefixes are unique: a second one is refused. */
+export function loadModules(definitions: readonly ModuleDefinition[]): ModuleRegistry {
+	const loaded: LoadedModule[] = [];
+	for (const definition of definitions) {
+		const module = loadModule(definition);
+		const clash = loaded.find(
+			(other) =>
+				other.id === module.id ||
+				(module.runnable &&
+					other.runnable &&
+					module.manifest.routePrefix !== undefined &&
+					other.manifest.routePrefix === module.manifest.routePrefix),
+		);
+		loaded.push(
+			clash
+				? broken(
+						definition,
+						module.manifest,
+						clash.id === module.id
+							? `Another Module of this build has the id ${module.id}.`
+							: `The Module ${clash.id} already answers under /_wc/m/${clash.manifest?.routePrefix}/.`,
+					)
+				: module,
+		);
+	}
+	const byId = new Map(loaded.map((module) => [module.id, module]));
+	return {
+		all: () => loaded,
+		get: (moduleId) => byId.get(moduleId),
+		byRoutePrefix: (prefix) =>
+			loaded.find((module): module is RunnableModule => module.runnable && module.manifest.routePrefix === prefix),
+	};
+}
+
+function broken(definition: ModuleDefinition, manifest: ModuleManifest | null, problem: string): BrokenModule {
+	const id = manifest?.id ?? (typeof definition?.manifest?.id === "string" ? definition.manifest.id : "unknown");
+	return { runnable: false, id, definition, manifest, problem };
+}
+
+/** Thrown inside `loadModule` with the first rule a definition breaks. */
+class DefinitionProblem extends Error {}
+
+function loadModule(definition: ModuleDefinition): LoadedModule {
+	const parsed = moduleManifestSchema.safeParse(definition?.manifest);
+	if (!parsed.success) {
+		const issue = parsed.error.issues[0];
+		const where = issue?.path.length ? `manifest.${issue.path.join(".")}` : "manifest";
+		return broken(definition, null, `The ${where} is wrong: ${issue?.message ?? "it can't be read"}`);
+	}
+	const manifest = parsed.data;
+	try {
+		return checkDefinition(definition, manifest);
+	} catch (error) {
+		if (error instanceof DefinitionProblem) return broken(definition, manifest, error.message);
+		throw error;
+	}
+}
+
+function problem(message: string): never {
+	throw new DefinitionProblem(message);
+}
+
+function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest): RunnableModule {
+	if (semver.validRange(manifest.sdk) === null) problem(`The SDK range ${manifest.sdk} can't be read.`);
+	if (!semver.satisfies(SDK_VERSION, manifest.sdk)) {
+		problem(`It needs the Module SDK ${manifest.sdk}; this version of WebCraft has SDK ${SDK_VERSION}.`);
+	}
+	for (const key of Object.keys(definition)) {
+		if (!DEFINITION_KEYS.has(key)) problem(`The Module SDK ${SDK_VERSION} has no extension point "${key}".`);
+	}
+	for (const [key, name] of Object.entries(LATER)) {
+		const value = (definition as Record<string, unknown>)[key];
+		if (Array.isArray(value) && value.length > 0) problem(`${name} come in a later version of the Module SDK.`);
+	}
+
+	const level = manifest.level;
+	const permissions = new Map<string, AddedPermission>();
+	for (const permission of manifest.permissions) {
+		if (isPermission(permission.key) || isPermission(`${manifest.id}.${permission.key}`)) {
+			problem(`The Permission ${permission.key} has the name of one of WebCraft's.`);
+		}
+		permissions.set(permission.key, {
+			key: `${manifest.id}.${permission.key}`,
+			levels: [level],
+			roles: ["superadmin", ...permission.roles],
+		});
+	}
+	/** A Permission named by a procedure or page: one the Module adds, or one of WebCraft's checked at its level. */
+	const checkPermission = (name: unknown, where: string) => {
+		if (typeof name !== "string") problem(`${where} names no Permission.`);
+		if (permissions.has(name)) return;
+		if (isPermission(name) && (PERMISSIONS[name] as readonly Level[]).includes(level)) return;
+		problem(`${where} needs the Permission ${name}, which the manifest doesn't declare.`);
+	};
+
+	const schema = moduleSchemaName(manifest.id);
+	const tables = new Set<ModuleTable>();
+	const tableNames = new Set<string>();
+	for (const table of definition.tables ?? []) {
+		if (!isTable(table)) problem("Its tables list holds something that isn't a table.");
+		const config = getTableConfig(table);
+		const name = getTableName(table);
+		if (config.schema !== schema) problem(`The table ${name} isn't in the Module's own schema, ${schema}.`);
+		if (tableNames.has(name)) problem(`The table ${name} is listed twice.`);
+		const columns = new Set(config.columns.map((column) => column.name));
+		if (!columns.has("workspace_id")) problem(`The table ${name} has no workspace_id column.`);
+		if (level === "site" && !columns.has("site_id")) {
+			problem(`The table ${name} has no site_id column: a Site-level Module has Site tables only.`);
+		}
+		tables.add(table as ModuleTable);
+		tableNames.add(name);
+	}
+
+	const migrationNames: string[] = [];
+	for (const migration of definition.migrations ?? []) {
+		if (typeof migration?.name !== "string" || !MIGRATION_NAME.test(migration.name)) {
+			problem(`A migration's name, ${String(migration?.name)}, isn't letters, digits, dots, dashes and underscores.`);
+		}
+		if (typeof migration.sql !== "string" || migration.sql.trim() === "")
+			problem(`The migration ${migration.name} has no SQL.`);
+		const before = migrationNames.at(-1);
+		if (before !== undefined && before >= migration.name) {
+			problem(`The migration ${migration.name} doesn't sort after ${before}: name them so they sort oldest first.`);
+		}
+		migrationNames.push(migration.name);
+	}
+
+	const procedures = new Map<string, ModuleProcedure>();
+	const walk = (group: ModuleProcedures, path: readonly string[]) => {
+		for (const [name, entry] of Object.entries(group)) {
+			if (!NAME.test(name))
+				problem(`The procedure name ${[...path, name].join(".")} isn't a name (letters and digits).`);
+			const at = [...path, name];
+			if (isProcedure(entry)) {
+				const dotted = at.join(".");
+				checkPermission(entry.permission, `The procedure ${dotted}`);
+				if (typeof entry.input?.extend !== "function" || typeof entry.input.shape !== "object") {
+					problem(`The procedure ${dotted} doesn't take an object.`);
+				}
+				const taken = PLACE_KEYS.find((key) => key in entry.input.shape);
+				if (taken) problem(`The procedure ${dotted} has its own ${taken}: WebCraft adds that.`);
+				if (typeof entry.run !== "function") problem(`The procedure ${dotted} has no run function.`);
+				procedures.set(dotted, entry);
+			} else if (entry && typeof entry === "object") {
+				walk(entry as ModuleProcedures, at);
+			} else {
+				problem(`The procedure ${at.join(".")} isn't a procedure.`);
+			}
+		}
+	};
+	walk(definition.procedures ?? {}, []);
+
+	const routes: CompiledRoute[] = [];
+	const routeKeys = new Set<string>();
+	for (const route of definition.siteRoutes ?? []) {
+		if (level !== "site") problem("Only Site-level Modules answer on Sites.");
+		if (manifest.routePrefix === undefined) problem("It has Site routes but no routePrefix in its manifest.");
+		if (!ROUTE_METHODS.has(route?.method)) problem(`A Site route has the method ${String(route?.method)}.`);
+		const parts = route.path === "/" ? [] : route.path.split("/").slice(1);
+		if (!route.path.startsWith("/") || !parts.every((part) => ROUTE_PART.test(part))) {
+			problem(`The Site route path ${route.path} isn't a path such as /notes or /notes/:id.`);
+		}
+		const key = `${route.method} ${parts.map((part) => (part.startsWith(":") ? ":" : part)).join("/")}`;
+		if (routeKeys.has(key)) problem(`The Site route ${route.method} ${route.path} is declared twice.`);
+		if (typeof route.handle !== "function")
+			problem(`The Site route ${route.method} ${route.path} has no handle function.`);
+		routeKeys.add(key);
+		routes.push({
+			route,
+			parts: parts.map((part) => (part.startsWith(":") ? { param: part.slice(1) } : { fixed: part })),
+		});
+	}
+
+	const pages: AdminPage[] = [];
+	for (const page of definition.adminPages ?? []) {
+		if (typeof page?.path !== "string" || !PAGE_PATH.test(page.path)) {
+			problem(`The admin page path ${String(page?.path)} isn't lower-case letters, digits and dashes.`);
+		}
+		if (pages.some((other) => other.path === page.path)) problem(`The admin page ${page.path} is declared twice.`);
+		const words = labelProblem(page.label ?? {}, manifest.adminLanguages);
+		if (words) problem(`The admin page ${page.path}'s label: ${words}`);
+		checkPermission(page.permission, `The admin page ${page.path}`);
+		pages.push(page);
+	}
+
+	const events = new Set<ModuleEventName>();
+	for (const [name, handler] of Object.entries(definition.events ?? {})) {
+		if (!(MODULE_EVENTS as readonly string[]).includes(name)) problem(`There is no event ${name}.`);
+		if (typeof handler !== "function") problem(`The event ${name} has no handler function.`);
+		events.add(name as ModuleEventName);
+	}
+
+	const jobs = new Map<string, ModuleJob>();
+	for (const [name, job] of Object.entries(definition.jobs ?? {})) {
+		if (!JOB_NAME.test(name)) problem(`The job name ${name} isn't a name (letters, digits and dashes).`);
+		if (typeof job?.payload?.safeParse !== "function" || typeof job.run !== "function") {
+			problem(`The job ${name} needs a payload schema and a run function.`);
+		}
+		jobs.set(name, job);
+	}
+
+	return {
+		runnable: true,
+		id: manifest.id,
+		definition,
+		manifest,
+		schema,
+		level,
+		permissions,
+		tables,
+		procedures,
+		routes,
+		pages,
+		events,
+		jobs,
+	};
+}
+
+function isProcedure(entry: unknown): entry is ModuleProcedure {
+	return typeof entry === "object" && entry !== null && "run" in entry && "input" in entry && "permission" in entry;
+}
+
+/** The Permission a procedure or page names, resolved: one the Module adds, or one of WebCraft's. */
+export function resolvePermission(module: RunnableModule, name: string): AddedPermission | Permission {
+	const added = module.permissions.get(name);
+	if (added) return added;
+	if (isPermission(name)) return name;
+	throw new TypeError(`The Module ${module.id} has no Permission ${name}.`);
+}

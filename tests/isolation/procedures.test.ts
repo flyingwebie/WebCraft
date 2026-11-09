@@ -2,16 +2,24 @@
 // Workspace's data. Each procedure gets one line here; the last test fails when one is missing.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { traverseContractProcedures } from "@orpc/server";
-import { apiRouter } from "@webcraft/api";
+import { type ApiClient, apiRouter } from "@webcraft/api";
+import type { ModuleApi, ModuleDefinition, ModuleProcedures } from "@webcraft/module-sdk";
+
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
+import { TEST_MODULES } from "../harness/modules.ts";
 import { element, outlet, tree, value } from "../harness/trees.ts";
+import type { sampleBoard } from "../modules/sample/board.ts";
+import type { sample } from "../modules/sample/index.ts";
 
 let install: TestInstall;
 
 beforeAll(async () => {
-	install = await createTestInstall();
+	install = await createTestInstall({ modules: TEST_MODULES });
+	const admin = await install.superadmin();
+	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
 });
 
 afterAll(async () => {
@@ -312,13 +320,120 @@ describe("Media", () => {
 	);
 });
 
+/** A Module's procedures, from the person's Management API (`m.<module id>`). */
+function moduleOf<Definition extends typeof sample | typeof sampleBoard>(api: ApiClient, moduleId: string) {
+	return (api as unknown as { m: Record<string, ModuleApi<Definition>> }).m[moduleId] as ModuleApi<Definition>;
+}
+
+/** Switches the sample board on in the Workspace, as the Superadmin. */
+async function boardOn(workspaceId: string): Promise<void> {
+	const admin = await install.superadmin();
+	await admin.api.modules.setOnWorkspace({ workspaceId, moduleId: "sample-board", on: true });
+}
+
+describe("Modules", () => {
+	isolation.refuses("modules.siteList", (api, { siteId }) => api.modules.siteList({ siteId }));
+	isolation.refuses("modules.workspaceList", (api, { workspaceId }) => api.modules.workspaceList({ workspaceId }));
+	isolation.refuses("modules.setOnSite", (api, { siteId }) =>
+		api.modules.setOnSite({ siteId, moduleId: "sample", on: true }),
+	);
+	isolation.refuses("modules.setOnWorkspace", (api, { workspaceId }) =>
+		api.modules.setOnWorkspace({ workspaceId, moduleId: "sample-board", on: false }),
+	);
+	isolation.refuses("modules.removeSiteData", (api, { siteId }) =>
+		api.modules.removeSiteData({ siteId, moduleId: "sample" }),
+	);
+	isolation.refuses("modules.removeWorkspaceData", (api, { workspaceId }) =>
+		api.modules.removeWorkspaceData({ workspaceId, moduleId: "sample-board" }),
+	);
+	isolation.refuses(
+		"m.sample.notes.list",
+		(api, { siteId }) => moduleOf<typeof sample>(api, "sample").notes.list({ siteId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"m.sample.notes.add",
+		(api, { siteId }) => moduleOf<typeof sample>(api, "sample").notes.add({ siteId, body: "Ours" }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.sample.notes.share",
+		async (api, { siteId }) => {
+			const notes = moduleOf<typeof sample>(api, "sample").notes;
+			const { note } = await notes.add({ siteId, body: "To share" });
+			return notes.share({ siteId, noteId: note.id, email: "someone@client.example" });
+		},
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.sample.notes.remind",
+		async (api, { siteId }) => {
+			const notes = moduleOf<typeof sample>(api, "sample").notes;
+			const { note } = await notes.add({ siteId, body: "To remember" });
+			return notes.remind({ siteId, noteId: note.id, delaySeconds: 60 });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.sample.settings.checkHook", (api, { siteId }) =>
+		moduleOf<typeof sample>(api, "sample").settings.checkHook({ siteId }),
+	);
+	isolation.refuses("m.sample.settings.setHookToken", (api, { siteId }) =>
+		moduleOf<typeof sample>(api, "sample").settings.setHookToken({ siteId, token: "our-hook-token" }),
+	);
+	isolation.refuses("m.sample.probe", (api, { siteId }) =>
+		moduleOf<typeof sample>(api, "sample").probe({ siteId, attempt: "undeclared-host" }),
+	);
+	isolation.refuses(
+		"m.sample.broken",
+		// It always fails where the Module runs (500); another Workspace's Site is refused before that.
+		(api, { siteId }) =>
+			moduleOf<typeof sample>(api, "sample")
+				.broken({ siteId })
+				.catch((error: { status?: number }) => {
+					if (error.status !== 500) throw error;
+				}),
+		{ as: ["author"] },
+	);
+	isolation.refuses(
+		"m.sample-board.pins.list",
+		async (api, { workspaceId }) => {
+			await boardOn(workspaceId);
+			return moduleOf<typeof sampleBoard>(api, "sample-board").pins.list({ workspaceId });
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"m.sample-board.pins.add",
+		async (api, { workspaceId }) => {
+			await boardOn(workspaceId);
+			return moduleOf<typeof sampleBoard>(api, "sample-board").pins.add({ workspaceId, text: "Ours" });
+		},
+		{ as: ["staff", "owner"] },
+	);
+});
+
 test("every procedure that takes a Workspace or a Site has an isolation test above", async () => {
 	const scoped: string[] = [];
 	await traverseContractProcedures({ router: apiRouter, path: [] }, ({ contract, path }) => {
 		const shape = (contract["~orpc"].inputSchema as { shape?: Record<string, unknown> } | undefined)?.shape ?? {};
 		if ("workspaceId" in shape || "siteId" in shape) scoped.push(path.join("."));
 	});
+	// Every Module procedure takes its Site or Workspace: `m.<module id>.<name>`.
+	for (const module of TEST_MODULES) scoped.push(...moduleProcedureNames(module));
 
 	expect(scoped.length).toBeGreaterThan(0);
 	expect(scoped.filter((procedure) => !isolation.covered.has(procedure))).toEqual([]);
 });
+
+/** A Module's procedures as the Management API names them: `m.sample.notes.list`. */
+function moduleProcedureNames(module: ModuleDefinition): string[] {
+	const names: string[] = [];
+	const walk = (group: ModuleProcedures, path: readonly string[]) => {
+		for (const [name, entry] of Object.entries(group)) {
+			if ("run" in entry && "input" in entry) names.push([...path, name].join("."));
+			else walk(entry as ModuleProcedures, [...path, name]);
+		}
+	};
+	walk(module.procedures ?? {}, ["m", module.manifest.id]);
+	return names;
+}

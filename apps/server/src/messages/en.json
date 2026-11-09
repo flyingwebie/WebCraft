@@ -36,6 +36,7 @@
 		"IDENTITY_CHECK_CANCELLED": "Nothing was changed: confirm it's you to continue.",
 		"SENSITIVE_ACTION_REFUSED": "Only a person signed in to the admin can do this.",
 		"SESSION_NOT_FOUND": "That session has already ended.",
+		"CHANGED_MEANWHILE": "Someone changed this at the same moment. Try again.",
 		"MEDIA_NOT_FOUND": "There is no such file in this Media library.",
 		"MEDIA_FOLDER_NOT_FOUND": "There is no such folder in this Media library.",
 		"MEDIA_FOLDER_TAKEN": "Another folder already has this name.",
@@ -43,7 +44,14 @@
 		"MEDIA_TYPE_REFUSED_SVG": "SVG files can't be uploaded yet.",
 		"MEDIA_TOO_LARGE": "Files can be at most 50 MB.",
 		"MEDIA_INVALID": "This change can't be saved. Check what you entered.",
-		"STORAGE_UNREACHABLE": "WebCraft couldn't write, read and remove a file in this bucket. Check the endpoint, region, bucket and keys."
+		"STORAGE_UNREACHABLE": "WebCraft couldn't write, read and remove a file in this bucket. Check the endpoint, region, bucket and keys.",
+		"MODULE_NOT_FOUND": "There is no such Module, or it isn't on here.",
+		"MODULE_CHANGED": "This Install now runs another version of the Module. Look at what it asks for again.",
+		"MODULE_CANNOT_RUN": "WebCraft can't run this Module: see why on the Modules screen.",
+		"MODULE_NOT_APPROVED": "The Superadmin hasn't approved this Module yet, so it can't be switched on.",
+		"MODULE_FAILED": "The Module couldn't do this. The Superadmin can see why in the Module log.",
+		"MODULE_ERROR": "The Module refused this.",
+		"CONFIRMATION_INVALID": "Something changed, or the confirmation expired. Look again and confirm."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -111,6 +119,19 @@
 				"skip": "Skip for now",
 				"save": "Save and continue",
 				"saveAndFinish": "Save and finish"
+			},
+			"modules": {
+				"title": "Modules",
+				"hint": "Built-in features to approve",
+				"heading": "Approve the Modules",
+				"intro": "Modules are features that come with WebCraft, such as Forms or Site analytics. Each runs only once you approve what it asks for. They are ticked: untick any you don't want yet.",
+				"later": "You can approve or withdraw Modules later in Install settings › Modules.",
+				"none": "This version of WebCraft has no Modules waiting for approval.",
+				"details": "What {name} asks for",
+				"approveAndContinue": "Approve and continue",
+				"approveAndFinish": "Approve and finish",
+				"continue": "Continue",
+				"finish": "Finish setup"
 			}
 		},
 		"finish": "Finish setup",
@@ -166,7 +187,9 @@
 			"siteGroup": "Site",
 			"members": "Members",
 			"media": "Media",
-			"storage": "Storage"
+			"storage": "Storage",
+			"modules": "Modules",
+			"modulePagesGroup": "Module pages"
 		}
 	},
 	"masterKeyBanner": {
@@ -496,6 +519,10 @@
 			"name": "Shared AI key cap",
 			"description": "When a Workspace has used 80% or all of its monthly cap on the shared AI key."
 		},
+		"module-message": {
+			"name": "Module emails",
+			"description": "Emails the Modules on this Install send you."
+		},
 		"domain-unreachable": {
 			"name": "Domain unreachable",
 			"description": "When the Domain check can't reach a Site's domain."
@@ -809,6 +836,131 @@
 			"password": "Password",
 			"signIn": "Sign in and join",
 			"submit": "Join {workspace}"
+		}
+	},
+	"modules": {
+		"pageTitle": "Modules",
+		"heading": "Modules",
+		"intro": "Features that plug into WebCraft through the Module SDK. A Module runs only once you approve what it asks for; Staff then switch it on or off on each Site or Workspace.",
+		"empty": "This version of WebCraft has no Modules.",
+		"columns": {
+			"module": "Module",
+			"version": "Version",
+			"status": "Status",
+			"actions": "Actions"
+		},
+		"level": {
+			"site": "Switched on each Site",
+			"workspace": "Switched on each Workspace"
+		},
+		"status": {
+			"approved": "Approved",
+			"waiting": "Waiting for approval",
+			"update-waiting": "Update waiting for approval",
+			"cannot-run": "Can't run"
+		},
+		"approvedVersion": "Approved for version {version}",
+		"cannotRun": "WebCraft can't run it: {problem}",
+		"review": "Review and approve",
+		"reviewOf": "Review and approve {name}",
+		"withdraw": "Withdraw approval",
+		"withdrawOf": "Withdraw approval of {name}",
+		"withdrawn": "{name} is off everywhere until you approve it again. Its data is kept.",
+		"showLog": "Module log",
+		"showLogOf": "Module log of {name}",
+		"consent": {
+			"title": "Approve {name} {version}",
+			"updateTitle": "{name} {version} asks for more",
+			"intro": "Read what this Module asks for. Once you approve it, it runs wherever Staff switch it on.",
+			"updateIntro": "This version asks for more than you approved for version {version}: what is new is marked. Until you approve it, it is off everywhere, and its data is kept.",
+			"asks": "What it asks for",
+			"adds": "What it adds",
+			"asksNothing": "Nothing beyond its own data.",
+			"new": "New",
+			"permission": "{roles} can: {label}",
+			"permissionSuperadminOnly": "Only the Superadmin can: {label}",
+			"superadmin": "the Superadmin",
+			"useEmail": "Send emails through this Install's email settings",
+			"host": "Connect to {host}",
+			"siteScript": "Add a script to Site pages, which visitors can refuse under {category}",
+			"siteRoutes": "Answer visitors at {path} on the Sites it is on",
+			"adminPages": "Add pages to the admin: {pages}",
+			"tables": "Keep its own data on each {level, select, site {Site} other {Workspace}}",
+			"events": "Act after {events}",
+			"addsNothing": "Nothing else.",
+			"where": "Where it runs",
+			"onByDefault": "Staff switch it on each {level, select, site {Site} other {Workspace}}. It starts on wherever they haven't switched it off.",
+			"offByDefault": "Staff switch it on each {level, select, site {Site} other {Workspace}}. It starts off until they switch it on.",
+			"approve": "Approve",
+			"cancel": "Cancel",
+			"close": "Close",
+			"approved": "{name} {version} is approved."
+		},
+		"roles": {
+			"staff": "Staff",
+			"owner": "Owners",
+			"editor": "Editors",
+			"author": "Authors"
+		},
+		"and": "and",
+		"categories": {
+			"necessary": "Necessary",
+			"analytics": "Analytics",
+			"marketing": "Marketing",
+			"media": "Media"
+		},
+		"events": {
+			"entryPublished": "an Entry is published",
+			"entryDeleted": "an Entry is deleted",
+			"templatePublished": "a Template is published",
+			"globalsPublished": "the Globals are published"
+		},
+		"log": {
+			"title": "Module log of {name}",
+			"description": "What the Module wrote, and what went wrong while it ran, newest first.",
+			"empty": "Nothing in the log yet.",
+			"close": "Close",
+			"levels": {
+				"info": "Info",
+				"warn": "Warning",
+				"error": "Error"
+			}
+		},
+		"place": {
+			"pageTitle": "Modules",
+			"siteHeading": "Modules on this Site",
+			"workspaceHeading": "Modules in this Workspace",
+			"siteIntro": "Switch Modules on or off for this Site. Switching one off keeps its data; removing its data deletes it.",
+			"workspaceIntro": "Switch Modules on or off for this Workspace. Switching one off keeps its data; removing its data deletes it.",
+			"siteEmpty": "No Modules are switched on each Site in this version of WebCraft.",
+			"workspaceEmpty": "No Modules are switched on each Workspace in this version of WebCraft.",
+			"on": "On",
+			"siteSwitch": "{name} on this Site",
+			"workspaceSwitch": "{name} in this Workspace",
+			"waiting": "Waiting for the Superadmin's approval",
+			"cannotSwitchOn": "It can be switched on once the Superadmin approves it.",
+			"switchedOn": "{name} is on.",
+			"switchedOff": "{name} is off. Its data is kept.",
+			"removeData": "Remove data",
+			"removeDataOf": "Remove data of {name}"
+		},
+		"remove": {
+			"title": "Remove the data of {name}?",
+			"siteBody": "This deletes everything {name} keeps for this Site and switches it off here. It can't be undone.",
+			"workspaceBody": "This deletes everything {name} keeps for this Workspace and switches it off here. It can't be undone.",
+			"what": "What will be deleted",
+			"rows": "{table}: {rows, plural, one {# row} other {# rows}}",
+			"secrets": "{count, plural, one {# secret} other {# secrets}}",
+			"nothing": "{name} keeps no data here. Removing it switches it off.",
+			"confirm": "Remove data",
+			"cancel": "Cancel",
+			"close": "Close",
+			"removed": "The data of {name} is removed.",
+			"loading": "Working out what would be deleted…"
+		},
+		"page": {
+			"heading": "This page isn't available",
+			"body": "The Module has no screen for this page in this version of the admin."
 		}
 	}
 }

@@ -5,8 +5,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { isUuid } from "../ids.ts";
 import type { VisitorScope } from "../tenancy/data-layer.ts";
 import { VARIANT_FORMATS } from "./images.ts";
+import type { MediaKind } from "./kinds.ts";
 import { originalUrl, variantsOf } from "./library.ts";
-import type { MediaKind } from "./sniff.ts";
 import { readText, storedTexts } from "./texts.ts";
 
 /**

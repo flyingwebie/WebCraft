@@ -17,6 +17,7 @@ import { linksIn } from "../content/field-values.ts";
 import type { BuiltInField } from "../content/fields.ts";
 import { publishedGlobals } from "../content/globals.ts";
 import {
+	candidatePatterns,
 	findPublishedPage,
 	isPagePostType,
 	type PageTree,
@@ -28,16 +29,10 @@ import { listPostTypes, type PostType } from "../content/post-types.ts";
 import { publishedEntries } from "../content/relationships.ts";
 import { entryParts, globalsParts, type Parts, type RelatedEntry, resolvePath } from "../content/render-values.ts";
 import { specialPageId } from "../content/special-pages.ts";
-import {
-	bySpecificity,
-	parseUrlPattern,
-	pathFor,
-	pathSegments,
-	slugIn,
-	type UrlPattern,
-} from "../content/url-patterns.ts";
+import { pathFor, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
 import { type SiteStyles, siteStyles, stylesheetFile } from "../design-system/stylesheet.ts";
+import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
@@ -210,12 +205,7 @@ async function findPublishedEntry(
 	segments: readonly string[],
 	language: string,
 ): Promise<FoundEntry | undefined> {
-	const candidates = postTypes
-		.filter((postType) => !isPagePostType(postType))
-		.map((postType) => ({ postType, pattern: parseUrlPattern(postType.urlPattern) }))
-		.filter((candidate): candidate is { postType: PostType; pattern: UrlPattern } => !("problem" in candidate.pattern))
-		.sort((a, b) => bySpecificity(a.pattern, b.pattern));
-	for (const { postType, pattern } of candidates) {
+	for (const { postType, pattern } of candidatePatterns(postTypes)) {
 		const slug = slugIn(pattern, segments);
 		if (!slug) continue;
 		const route = await scope.first(
@@ -344,7 +334,7 @@ async function renderSitePage(
 		scope,
 		[
 			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null])),
-			...idsIn(JSON.stringify([contentValues, globalValues.values])),
+			...uuidsIn(JSON.stringify([contentValues, globalValues.values])),
 		],
 		languages,
 	);
@@ -366,11 +356,6 @@ async function publishedSiteTemplate(scope: VisitorScope): Promise<ElementTree |
 		and(eq(templates.kind, "site"), isNull(templates.postTypeId), isNotNull(templates.published)),
 	);
 	return (row?.published as ElementTree | null) ?? undefined;
-}
-
-/** Every id (UUID) written in a piece of text. */
-function idsIn(text: string): string[] {
-	return [...text.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)].map((match) => match[0]);
 }
 
 /** The published Entries the page's Relationships point at, read in the page's language. */

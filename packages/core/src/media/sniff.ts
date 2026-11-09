@@ -3,10 +3,7 @@
  * never trusted: a page named `photo.jpg` stays a page, and is refused.
  */
 
-/** The kinds of Media item. */
-export const MEDIA_KINDS = ["image", "document", "video", "audio"] as const;
-
-export type MediaKind = (typeof MEDIA_KINDS)[number];
+import type { MediaKind } from "./kinds.ts";
 
 /** A file format WebCraft accepts, how it is stored and served, and what happens to it. */
 export type FileFormat = {

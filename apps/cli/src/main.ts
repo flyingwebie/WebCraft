@@ -7,12 +7,14 @@ import { EmailInUseError, InvalidEmailError, PasswordRefusedError } from "@webcr
 import {
 	CONFIRM_FINGERPRINT_LENGTH,
 	ConfigError,
+	FIRST_PARTY_MODULES,
 	KeyRotationError,
 	loadDatabaseUrl,
 	loadMasterKey,
 	MASTER_KEY_MIN_LENGTH,
 	type MasterKey,
 	MasterKeyMismatchError,
+	moduleSchemas,
 	OLD_MASTER_KEY_VARIABLE,
 	parseMasterKey,
 	replaceLostMasterKey,
@@ -20,7 +22,13 @@ import {
 	SetupClosedError,
 	systemClock,
 } from "@webcraft/core";
-import { assertSchemaCurrent, DatabaseNotReadyError, openDatabase, runMigrations } from "@webcraft/db";
+import {
+	assertSchemaCurrent,
+	DatabaseNotReadyError,
+	ModuleMigrationError,
+	openDatabase,
+	runMigrations,
+} from "@webcraft/db";
 
 import { createSuperadmin, parseCreateSuperadminOptions } from "./create-superadmin.ts";
 
@@ -52,6 +60,7 @@ const EXPLAINED_ERRORS = [
 	DatabaseNotReadyError,
 	KeyRotationError,
 	MasterKeyMismatchError,
+	ModuleMigrationError,
 	SetupClosedError,
 	PasswordRefusedError,
 	InvalidEmailError,
@@ -83,7 +92,7 @@ async function main(args: string[]): Promise<number> {
 }
 
 async function migrate(): Promise<number> {
-	const report = await runMigrations(loadDatabaseUrl(process.env));
+	const report = await runMigrations(loadDatabaseUrl(process.env), { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 	const applied = report.appliedMigrations;
 	process.stdout.write(
 		applied.length === 0
@@ -146,7 +155,7 @@ async function rotateKey(options: RotateKeyOptions): Promise<number> {
 
 	const database = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-rotate-key" });
 	try {
-		await assertSchemaCurrent(database);
+		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 		const report = await rotateMasterKey({
 			database,
 			from: oldKey.key,
@@ -178,7 +187,7 @@ async function replaceLostKey(
 ): Promise<number> {
 	const database = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-rotate-key" });
 	try {
-		await assertSchemaCurrent(database);
+		await assertSchemaCurrent(database, { modules: moduleSchemas(FIRST_PARTY_MODULES) });
 		const report = await replaceLostMasterKey({ database, to: newKey, clock: systemClock, confirmFingerprint });
 		const list = (secrets: string[]) => secrets.map((secret) => `  ${secret}\n`).join("");
 		if (report.outcome === "needs-confirmation") {

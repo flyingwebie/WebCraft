@@ -30,6 +30,11 @@ import {
 	MediaTooLargeError,
 	MediaTypeRefusedError,
 	MemberNotFoundError,
+	ModuleCannotRunError,
+	ModuleChangedError,
+	ModuleFailedError,
+	ModuleNotApprovedError,
+	ModuleNotFoundError,
 	PageHasChildrenError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
@@ -56,6 +61,7 @@ import {
 	TokensFileInvalidError,
 	WorkspaceNotFoundError,
 } from "@webcraft/core";
+import { ModuleError } from "@webcraft/module-sdk";
 import { DesignSystemInvalidError, ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
 
 /**
@@ -279,6 +285,34 @@ export function toApiError(error: unknown): unknown {
 			cause: error,
 		});
 	}
+	if (error instanceof ModuleError) {
+		return new ORPCError("MODULE_ERROR", {
+			status: error.status,
+			message: error.message,
+			data: { code: error.code },
+			cause: error,
+		});
+	}
+	if (error instanceof ModuleNotFoundError) {
+		return new ORPCError("MODULE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ModuleChangedError) {
+		return new ORPCError("MODULE_CHANGED", {
+			status: 409,
+			message: error.message,
+			data: { version: error.version },
+			cause: error,
+		});
+	}
+	if (error instanceof ModuleCannotRunError) {
+		return new ORPCError("MODULE_CANNOT_RUN", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof ModuleNotApprovedError) {
+		return new ORPCError("MODULE_NOT_APPROVED", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof ModuleFailedError) {
+		return new ORPCError("MODULE_FAILED", { status: 500, message: error.message, cause: error });
+	}
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
@@ -382,5 +416,26 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof InvalidCredentialsError) {
 		return new ORPCError("INVALID_CREDENTIALS", { status: 401, message: error.message, cause: error });
 	}
+	if (isConcurrencyFailure(error)) {
+		return new ORPCError("CHANGED_MEANWHILE", {
+			status: 409,
+			message: "Someone changed this at the same moment. Try again.",
+			cause: error,
+		});
+	}
 	return error;
+}
+
+/**
+ * Whether Postgres gave up on a transaction because another one changed the same rows at the same
+ * moment (a deadlock, or a serialization failure): nothing was saved, and trying again works.
+ */
+function isConcurrencyFailure(error: unknown): boolean {
+	let current: unknown = error;
+	for (let depth = 0; current && depth < 5; depth++) {
+		const code = (current as { code?: unknown }).code;
+		if (code === "40P01" || code === "40001") return true;
+		current = (current as { cause?: unknown }).cause;
+	}
+	return false;
 }

@@ -37,9 +37,20 @@ export {
 	type ConfirmationProblem,
 } from "./confirmations.ts";
 export * from "./content/index.ts";
+export { isWebCraftCookie, WEBCRAFT_COOKIE_PREFIX } from "./cookies.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./design-system/index.ts";
+export { type Dns, systemDns } from "./dns.ts";
 export * from "./email/index.ts";
+export {
+	createGuardedFetch,
+	GUARDED_FETCH_LIMITS,
+	type GuardedFetch,
+	GuardedFetchError,
+	type GuardedFetchOptions,
+	type GuardedFetchProblem,
+	isPublicAddress,
+} from "./guarded-fetch.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export { fetchHttp, type OutgoingHttp } from "./http.ts";
 export {
@@ -59,6 +70,7 @@ export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
 export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup.ts";
 export * from "./media/index.ts";
+export * from "./modules/index.ts";
 export {
 	ADMIN_THEMES,
 	type AdminTheme,
@@ -70,10 +82,13 @@ export {
 export {
 	type Actor,
 	type ActorMembership,
+	type AddedPermission,
+	actingPerson,
 	can,
 	holdsAccess,
 	INSTALL,
 	type MemberAccess,
+	type ModuleActor,
 	type PersonActor,
 	permissionsOn,
 	type Reach,

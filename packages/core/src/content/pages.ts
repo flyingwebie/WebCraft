@@ -43,6 +43,17 @@ export async function addPagePostType(scope: WorkspaceScope, siteId: string): Pr
 }
 
 /** Whether a Post Type is the Page Post Type. */
+/**
+ * Holds the Site's paths until the transaction ends: which paths Post Type URL patterns own, and
+ * where Pages sit. Every change that can take a path or move a Page takes it first, before locking
+ * any row, so two such changes never both pass checks made against the state before the other.
+ */
+export async function lockSitePaths(scope: Pick<SiteScope, "db" | "site">): Promise<void> {
+	await scope.db.execute(
+		sql`select pg_advisory_xact_lock(hashtextextended(${`webcraft:site-paths:${scope.site.id}`}, 0))`,
+	);
+}
+
 export function isPagePostType(postType: { builtIn: string | null }): boolean {
 	return postType.builtIn === PAGE_POST_TYPE.builtIn;
 }
@@ -218,12 +229,20 @@ export function checkPublishedParent(tree: PageTree, pageId: string, parentId: s
 
 /** The Post Type whose URL pattern owns a path (the most specific first), if any: Pages can't be there. */
 export function patternOwning(postTypes: readonly PostType[], parts: readonly string[]): PostType | undefined {
+	return candidatePatterns(postTypes).find(({ pattern }) => slugIn(pattern, parts) !== undefined)?.postType;
+}
+
+/**
+ * The URL patterns that own paths, most specific first: every Post Type's but the Page Post Type's.
+ * Publishing (who owns a path) and the Site pipeline (what a path shows) both read them from here,
+ * so they can't disagree.
+ */
+export function candidatePatterns(postTypes: readonly PostType[]): { postType: PostType; pattern: UrlPattern }[] {
 	return postTypes
 		.filter((postType) => !isPagePostType(postType))
 		.map((postType) => ({ postType, pattern: parseUrlPattern(postType.urlPattern) }))
 		.filter((candidate): candidate is { postType: PostType; pattern: UrlPattern } => !("problem" in candidate.pattern))
-		.sort((a, b) => bySpecificity(a.pattern, b.pattern))
-		.find(({ pattern }) => slugIn(pattern, parts) !== undefined)?.postType;
+		.sort((a, b) => bySpecificity(a.pattern, b.pattern));
 }
 
 /** A path as visitors write it: `/about/team`, and `/` for no parts. */

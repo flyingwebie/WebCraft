@@ -22,6 +22,8 @@ const adminPath = z
 const name = z.string().trim().min(1).max(200);
 const title = z.string().trim().min(1).max(300);
 const count = z.number().int().positive().max(1_000_000);
+/** Words a Module wrote, by language. */
+const moduleWords = z.record(z.string().max(35), z.string().trim().min(1).max(5000));
 
 /**
  * Every System email type, with its category and the data its wording needs. The wording itself,
@@ -105,6 +107,22 @@ export const SYSTEM_EMAIL_TYPES = {
 		category: "work",
 		data: z.object({ workspaceName: name, percent: z.union([z.literal(80), z.literal(100)]), usagePath: adminPath }),
 	},
+	/**
+	 * An email a Module sends (`context.email.send`), its words written by the Module in its own
+	 * languages: each recipient gets them in their Admin language when the Module has it, otherwise
+	 * in the Module's first language (`languages[0]`).
+	 */
+	"module-message": {
+		category: "work",
+		data: z.object({
+			moduleName: moduleWords,
+			languages: z.array(z.string().max(35)).min(1).max(30),
+			subject: moduleWords,
+			heading: moduleWords,
+			paragraphs: z.array(moduleWords).max(20),
+			action: z.object({ label: moduleWords, path: adminPath }).nullable(),
+		}),
+	},
 	// Alerts: each can be turned off.
 	"domain-unreachable": {
 		category: "alert",
@@ -125,6 +143,11 @@ export const SYSTEM_EMAIL_TYPE_IDS = Object.keys(SYSTEM_EMAIL_TYPES) as [SystemE
 
 export function isSystemEmailType(type: string): type is SystemEmailType {
 	return Object.hasOwn(SYSTEM_EMAIL_TYPES, type);
+}
+
+/** A Module's words in `language`, or in its first language when it has none in it. */
+export function moduleWordsIn(words: Readonly<Record<string, string>>, language: string, languages: readonly string[]) {
+	return words[language] ?? words[languages[0] ?? ""] ?? "";
 }
 
 export function categoryOf(type: SystemEmailType): EmailCategory {

@@ -17,6 +17,11 @@ import sharp, { type Sharp } from "sharp";
 /** The largest image read, in pixels (sharp's own default): a guard against decompression bombs. */
 const MAX_INPUT_PIXELS = 268_402_689;
 
+export type ImageProcessorOptions = {
+	/** The largest image read, in pixels; checked before an image is decoded. */
+	maxInputPixels?: number;
+};
+
 /** Encoder settings: good-looking, small files, at a speed a worker can keep up with. */
 const ORIGINAL_SETTINGS = {
 	jpeg: { quality: 90, mozjpeg: true },
@@ -27,10 +32,11 @@ const ORIGINAL_SETTINGS = {
 const VARIANT_SETTINGS = { avif: { quality: 55, effort: 4 }, webp: { quality: 78 } } as const;
 
 /** The real image processing: the worker hands it to its services, and so does the test harness. */
-export function createImageProcessor(): ImageProcessor {
+export function createImageProcessor(options: ImageProcessorOptions = {}): ImageProcessor {
+	const maxInputPixels = options.maxInputPixels ?? MAX_INPUT_PIXELS;
 	return {
 		async prepare(input, format) {
-			const source = await open(input, format);
+			const source = await open(input, format, maxInputPixels);
 			const outputFormat: OriginalFormat = format === "heic" ? "jpeg" : format;
 			// sharp writes no metadata unless asked to: EXIF (with GPS and camera data), XMP and IPTC are
 			// dropped. `autoOrient` turns the pixels upright first, so the orientation tag isn't needed.
@@ -39,7 +45,7 @@ export function createImageProcessor(): ImageProcessor {
 		},
 		async variant(original, width, format) {
 			const image = encode(
-				sharp(original, { limitInputPixels: MAX_INPUT_PIXELS }).resize({ width, withoutEnlargement: true }),
+				sharp(original, { limitInputPixels: maxInputPixels }).resize({ width, withoutEnlargement: true }),
 				format,
 				VARIANT_SETTINGS[format],
 			);
@@ -48,15 +54,26 @@ export function createImageProcessor(): ImageProcessor {
 	};
 }
 
-async function open(input: Uint8Array, format: ImageInput): Promise<Sharp> {
-	if (format !== "heic") return sharp(input, { limitInputPixels: MAX_INPUT_PIXELS, failOn: "error" });
+async function open(input: Uint8Array, format: ImageInput, maxInputPixels: number): Promise<Sharp> {
+	if (format !== "heic") return sharp(input, { limitInputPixels: maxInputPixels, failOn: "error" });
 	try {
-		// libheif applies the photo's rotation and mirroring as it decodes.
-		const { width, height, data } = await decodeHeic({ buffer: input });
-		if (width * height > MAX_INPUT_PIXELS) throw new ImageUnreadableError("The photo is too large to process.");
-		return sharp(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), {
-			raw: { width, height, channels: 4 },
-		});
+		// The size comes from the file's headers, so a small file that declares a huge image is refused
+		// before any pixels are decoded (decoding first would allocate them all).
+		const images = await decodeHeic.all({ buffer: input });
+		try {
+			const [first] = images;
+			if (!first) throw new ImageUnreadableError("The HEIC photo holds no image.");
+			if (first.width * first.height > maxInputPixels) {
+				throw new ImageUnreadableError("The photo is too large to process.");
+			}
+			// libheif applies the photo's rotation and mirroring as it decodes.
+			const { width, height, data } = await first.decode();
+			return sharp(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), {
+				raw: { width, height, channels: 4 },
+			});
+		} finally {
+			images.dispose();
+		}
 	} catch (error) {
 		if (error instanceof ImageUnreadableError) throw error;
 		throw new ImageUnreadableError("The HEIC photo can't be read.", { cause: error });

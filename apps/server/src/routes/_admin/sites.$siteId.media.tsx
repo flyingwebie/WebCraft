@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { MEDIA_KINDS } from "@webcraft/core/media-kinds";
 import { z } from "zod";
-
 import { getApi } from "../../ui/api.ts";
 import { pageTitle } from "../../ui/i18n.tsx";
-import { MEDIA_KINDS, MediaLibrary } from "../../ui/media/MediaLibrary.tsx";
+import { MediaLibrary } from "../../ui/media/MediaLibrary.tsx";
 
 /** What the Media library shows: a folder (`none`: files in no folder), a search, a kind, and the file open in Details. */
 const search = z.object({

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
+import { MEDIA_KINDS, type MediaKind } from "@webcraft/core/media-kinds";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
@@ -48,11 +49,6 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtcDate } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
-
-/** The kinds of file in a Media library (the same list as `MEDIA_KINDS` in core). */
-export const MEDIA_KINDS = ["image", "document", "video", "audio"] as const;
-
-type MediaKind = (typeof MEDIA_KINDS)[number];
 
 type MediaList = Awaited<ReturnType<ApiClient["media"]["list"]>>;
 type MediaFolders = Awaited<ReturnType<ApiClient["media"]["folders"]["list"]>>;

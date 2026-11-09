@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_admin/workspaces/$workspaceId")({
 	beforeLoad: async ({ params }) => {
 		const api = await getApi();
 		try {
-			const [{ workspace, permissions }, { sites }] = await Promise.all([
+			const [{ workspace, permissions, modulePages }, { sites }] = await Promise.all([
 				api.workspaces.get({ workspaceId: params.workspaceId }),
 				api.sites.list({ workspaceId: params.workspaceId }),
 			]);
@@ -22,6 +22,7 @@ export const Route = createFileRoute("/_admin/workspaces/$workspaceId")({
 				workspace: { id: workspace.id, name: workspace.name },
 				sites: sites.map(({ id, name, slug }) => ({ id, name, slug })),
 				permissions,
+				modulePages,
 			};
 			return { place };
 		} catch (error) {

@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 	beforeLoad: async ({ params }) => {
 		const api = await getApi();
 		try {
-			const { site, workspace, permissions } = await api.sites.get({ siteId: params.siteId });
+			const { site, workspace, permissions, modulePages } = await api.sites.get({ siteId: params.siteId });
 			const { sites } = await api.sites.list({ workspaceId: workspace.id });
 			const place: AdminPlace = {
 				level: "site",
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 				site: { id: site.id, name: site.name, slug: site.slug },
 				sites: sites.map(({ id, name, slug }) => ({ id, name, slug })),
 				permissions,
+				modulePages,
 			};
 			return { place, site };
 		} catch (error) {

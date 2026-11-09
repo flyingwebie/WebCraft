@@ -30,6 +30,8 @@ export const SENSITIVE_ACTIONS = {
 	"leakedPasswordCheck.change": "changes how passwords are checked",
 	/** Where the Install stores Media: an S3-compatible bucket's secret key is a secret. */
 	"storage.change": "changes a secret",
+	/** Approving a Module: what it asks for (Permissions, outside hosts, email) is granted. */
+	"module.approve": "grants a Module access",
 } as const satisfies Record<string, string>;
 
 export type SensitiveAction = keyof typeof SENSITIVE_ACTIONS;

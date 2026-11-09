@@ -13,4 +13,6 @@ export {
 	migrationsFolder,
 	runMigrations,
 	type SchemaCheck,
+	type SchemaOptions,
 } from "./migrations.ts";
+export { ModuleMigrationError, type ModuleSchema, migrationChecksum } from "./module-migrations.ts";

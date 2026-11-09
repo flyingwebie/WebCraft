@@ -24,6 +24,8 @@ export const PERMISSIONS = {
 	"staff.manage": ["install"],
 	/** Read the Audit log: the whole Install's, or one Workspace's. */
 	"audit.view": ["install", "workspace"],
+	/** Approve Modules (what they ask for), withdraw approvals, and read the Module log. */
+	"module.approve": ["install"],
 	/** See a Workspace and open it in the admin. */
 	"workspace.view": ["workspace"],
 	"site.create": ["workspace"],
@@ -31,6 +33,11 @@ export const PERMISSIONS = {
 	"member.invite": ["workspace"],
 	/** See the Workspace's Members, change their role and Sites, and remove them. */
 	"member.manage": ["workspace"],
+	/**
+	 * Switch Modules on and off, and remove their data: Workspace-level Modules on a Workspace,
+	 * Site-level Modules on a Site.
+	 */
+	"module.manage": ["workspace", "site"],
 	/** See a Site and open it in the admin. */
 	"site.view": ["site"],
 	/** Change a Site's Structure: Post Types, Fields, Templates, Components, the Design system, settings. */
@@ -82,6 +89,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"site.create",
 			"member.invite",
 			"member.manage",
+			"module.manage",
 			"site.view",
 			"structure.edit",
 			"entry.edit",
