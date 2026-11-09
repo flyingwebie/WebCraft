@@ -9,6 +9,7 @@ export {
 	MediaInvalidError,
 	MediaNotFoundError,
 	type MediaProblem,
+	MediaQuotaFullError,
 	MediaTooLargeError,
 	MediaTypeRefusedError,
 	StorageUnreachableError,
@@ -35,11 +36,11 @@ export { mediaProcess, mediaVariants } from "./jobs.ts";
 export { MEDIA_KINDS, type MediaKind } from "./kinds.ts";
 export {
 	MEDIA_FOLDER_NAME_MAX_LENGTH,
-	MEDIA_MAX_BYTES,
 	type MediaChange,
 	type MediaFolder,
 	type MediaItem,
 	type MediaLibrary,
+	type MediaOverview,
 	type MediaQuery,
 	type MediaStatus,
 	type MediaVariant,
@@ -47,6 +48,7 @@ export {
 	type StoredMediaFile,
 } from "./library.ts";
 export { MEDIA_PATH } from "./names.ts";
+export { MEDIA_QUOTA_MIN_BYTES, type MediaStorage, QUOTA_WARNING_SHARE } from "./quota.ts";
 export type { S3Settings } from "./s3-storage.ts";
 export type { ByteRange, StorageBackend, StorageKind } from "./storage.ts";
 export { MEDIA_TEXT_MAX_LENGTH, type MediaText } from "./texts.ts";

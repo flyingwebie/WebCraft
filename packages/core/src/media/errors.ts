@@ -52,6 +52,18 @@ export class MediaTooLargeError extends Error {
 	}
 }
 
+/** The file would take the Workspace's Media past its storage quota. */
+export class MediaQuotaFullError extends Error {
+	override name = "MediaQuotaFullError";
+	readonly usedBytes: number;
+	readonly quotaBytes: number;
+	constructor(usedBytes: number, quotaBytes: number) {
+		super("This Workspace's Media storage is full: the file would take it past its quota.");
+		this.usedBytes = usedBytes;
+		this.quotaBytes = quotaBytes;
+	}
+}
+
 /** A change to a Media item can't be saved: `problems` says what and where. */
 export class MediaInvalidError extends Error {
 	override name = "MediaInvalidError";

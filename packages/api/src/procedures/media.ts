@@ -1,10 +1,4 @@
-import {
-	MEDIA_FOLDER_NAME_MAX_LENGTH,
-	MEDIA_KINDS,
-	MEDIA_MAX_BYTES,
-	MEDIA_TEXT_MAX_LENGTH,
-	MediaTooLargeError,
-} from "@webcraft/core";
+import { MEDIA_FOLDER_NAME_MAX_LENGTH, MEDIA_KINDS, MEDIA_TEXT_MAX_LENGTH, MediaTooLargeError } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
@@ -43,6 +37,12 @@ export const media = {
 			return context.services.media.list(site, query);
 		}),
 
+	/** What the library takes and holds: the largest file, the Workspace's storage, the Trash. */
+	overview: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "site.view");
+		return context.services.media.overview(site);
+	}),
+
 	/** One file, with its texts in a language (the Site's Default language unless given). */
 	get: signedIn
 		.input(z.object({ siteId: id, mediaId: id, language: language.optional() }))
@@ -52,15 +52,17 @@ export const media = {
 		}),
 
 	/**
-	 * Uploads a file: an image (JPEG, PNG, WebP, AVIF, HEIC, GIF), a PDF, video or audio, at most
-	 * 50 MB. What it is comes from its bytes, never its name. Images are cleaned by the worker before
+	 * Uploads a file: an image (JPEG, PNG, WebP, AVIF, HEIC, GIF, SVG), a PDF, video or audio, at most
+	 * the Install's largest file (50 MB unless the Superadmin sets another). What it is comes from its
+	 * bytes, never its name. Images are cleaned by the worker before
 	 * anyone can see them (`status: "processing"` until then); other files are served at once.
 	 */
 	upload: signedIn
 		.input(z.object({ siteId: id, file: z.instanceof(File), folderId: id.nullable().optional() }))
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "media.upload");
-			if (input.file.size > MEDIA_MAX_BYTES) throw new MediaTooLargeError(MEDIA_MAX_BYTES);
+			const { maxFileBytes } = await context.services.settings.media();
+			if (input.file.size > maxFileBytes) throw new MediaTooLargeError(maxFileBytes);
 			const data = new Uint8Array(await input.file.arrayBuffer());
 			return {
 				media: await context.services.media.upload(site, {

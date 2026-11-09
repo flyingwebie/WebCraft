@@ -1,4 +1,4 @@
-import { permissionsOn, WORKSPACE_NAME_MAX_LENGTH } from "@webcraft/core";
+import { MEDIA_QUOTA_MIN_BYTES, permissionsOn, WORKSPACE_NAME_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
 import { onInstall, signedIn } from "../context.ts";
@@ -20,6 +20,33 @@ export const workspaces = {
 		const language = await languageOf(context.services, context.person);
 		return { workspace, permissions, modulePages: await context.services.modules.pages(scope, language) };
 	}),
+
+	/**
+	 * The Workspace's Media storage: the bytes its Sites' Media takes (a file stored once counted
+	 * once), its quota if Staff set one, and whether it passed 80% (`warning`) or 100% (`full`).
+	 */
+	storage: signedIn.input(z.object({ workspaceId: id })).handler(async ({ context, input }) => {
+		const scope = await context.services.data.workspace(context.access, input.workspaceId, "workspace.view");
+		return context.services.media.quota.get(scope);
+	}),
+
+	/** Sets the Workspace's Media storage quota (at least 1 MB), or removes it with null. Staff only. */
+	setQuota: signedIn
+		.input(
+			z.object({
+				workspaceId: id,
+				quotaBytes: z
+					.number()
+					.int()
+					.min(MEDIA_QUOTA_MIN_BYTES)
+					.max(2 ** 50)
+					.nullable(),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const scope = await context.services.data.workspace(context.access, input.workspaceId, "quota.manage");
+			return context.services.media.quota.set(scope, input.quotaBytes);
+		}),
 
 	/** Creates a Workspace. */
 	create: onInstall("workspace.create")

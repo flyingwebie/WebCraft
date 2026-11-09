@@ -38,6 +38,8 @@ export const PERMISSIONS = {
 	 * Site-level Modules on a Site.
 	 */
 	"module.manage": ["workspace", "site"],
+	/** Set or remove a Workspace's Media storage quota (Staff: it keeps one client from filling the server). */
+	"quota.manage": ["workspace"],
 	/** See a Site and open it in the admin. */
 	"site.view": ["site"],
 	/** Change a Site's Structure: Post Types, Fields, Templates, Components, the Design system, settings. */
@@ -90,6 +92,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"member.invite",
 			"member.manage",
 			"module.manage",
+			"quota.manage",
 			"site.view",
 			"structure.edit",
 			"entry.edit",

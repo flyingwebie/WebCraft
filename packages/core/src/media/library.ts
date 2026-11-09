@@ -1,13 +1,16 @@
 import { media, mediaFiles, mediaFolders, people } from "@webcraft/db/schema";
 import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from "drizzle-orm";
-
+import type { Clock } from "../clock.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { isUniqueViolation } from "../db-errors.ts";
+import type { Email } from "../email/index.ts";
 import { isUuid } from "../ids.ts";
+import type { InstallSettings } from "../install-settings.ts";
 import type { JobQueue } from "../jobs/define.ts";
+import type { Logger } from "../log.ts";
 import { actingPerson, can, personIdOf } from "../permissions/can.ts";
-import type { SiteScope } from "../tenancy/data-layer.ts";
+import type { SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import {
 	MediaFolderNotFoundError,
@@ -22,12 +25,10 @@ import type { InstallStorage } from "./install-storage.ts";
 import { mediaProcess } from "./jobs.ts";
 import type { MediaKind } from "./kinds.ts";
 import { contentHash, MEDIA_PATH, SERVED_NAME, servedName } from "./names.ts";
+import { assertRoom, type MediaStorage, mediaStorage, noticeQuotaUse, setMediaQuota } from "./quota.ts";
 import { gifSize, sniff } from "./sniff.ts";
-import { type ByteRange, siteFolder } from "./storage.ts";
+import { type ByteRange, type StorageBackend, type StorageKind, siteFolder } from "./storage.ts";
 import { MEDIA_TEXTS, type MediaText, readText, storedTexts, writeText } from "./texts.ts";
-
-/** The largest file the Media library takes. Quotas per Site come later. */
-export const MEDIA_MAX_BYTES = 50 * 1024 * 1024;
 
 export const MEDIA_FOLDER_NAME_MAX_LENGTH = 100;
 
@@ -93,6 +94,14 @@ export type MediaChange = {
 
 export type MediaFolder = { id: string; name: string; count: number; createdAt: Date };
 
+/** What a Site's Media library takes and holds, for the library's screen. */
+export type MediaOverview = {
+	/** The largest file an upload, a replacement or an import may be (Install settings › Storage). */
+	maxFileBytes: number;
+	/** The Workspace's Media storage: what its Sites take, and its quota if Staff set one. */
+	storage: MediaStorage;
+};
+
 /** A file as it was uploaded. */
 export type NewUpload = { fileName: string; data: Uint8Array; folderId?: string | null };
 
@@ -119,6 +128,14 @@ export type MediaLibrary = {
 	update(scope: SiteScope, mediaId: string, change: MediaChange): Promise<MediaItem>;
 	/** An original or variant by the name it is served under, or null. */
 	file(scope: SiteScope, name: string): Promise<StoredMediaFile | null>;
+	/** What the library takes and holds: the largest file, the Workspace's storage. */
+	overview(scope: SiteScope): Promise<MediaOverview>;
+	/** A Workspace's Media storage and quota. Open it with `workspace.view` to read, `quota.manage` to set. */
+	quota: {
+		get(scope: WorkspaceScope): Promise<MediaStorage>;
+		/** Sets the quota in bytes (at least `MEDIA_QUOTA_MIN_BYTES`), or removes it with null. */
+		set(scope: WorkspaceScope, quotaBytes: number | null): Promise<MediaStorage>;
+	};
 	folders: {
 		list(scope: SiteScope): Promise<{ folders: MediaFolder[]; total: number }>;
 		create(scope: SiteScope, name: string): Promise<MediaFolder>;
@@ -139,8 +156,18 @@ function cleanFileName(name: string): string {
 	return clean.slice(0, 255) || "file";
 }
 
-export function createMediaLibrary(options: { storage: InstallStorage; jobs: JobQueue }): MediaLibrary {
-	const { storage, jobs } = options;
+export function createMediaLibrary(options: {
+	storage: InstallStorage;
+	jobs: JobQueue;
+	/** Install settings › Storage: the largest file the library takes. */
+	settings: Pick<InstallSettings, "media">;
+	/** System emails, for the warning when a Workspace's storage passes 80% of its quota. */
+	email: Email;
+	log: Logger;
+	clock: Clock;
+}): MediaLibrary {
+	const { storage, jobs, settings } = options;
+	const noticePorts = { email: options.email, log: options.log, clock: options.clock };
 
 	const get = async (scope: SiteScope, mediaId: string, language?: string) => {
 		const row = isUuid(mediaId) ? await scope.first(media, eq(media.id, mediaId)) : undefined;
@@ -170,7 +197,8 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 
 	return {
 		async upload(scope, upload) {
-			if (upload.data.length > MEDIA_MAX_BYTES) throw new MediaTooLargeError(MEDIA_MAX_BYTES);
+			const { maxFileBytes } = await settings.media();
+			if (upload.data.length > maxFileBytes) throw new MediaTooLargeError(maxFileBytes);
 			const sniffed = sniff(upload.data);
 			if ("refused" in sniffed) throw new MediaTypeRefusedError(sniffed.refused);
 			const { format } = sniffed;
@@ -187,38 +215,51 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 			const name = clean ? id : servedName(await contentHash(upload.data), fileName, format.extension);
 			const key = `${siteFolder(scope.site)}/${clean ? "uploads" : "media"}/${name}`;
 			const size = format.format === "gif" ? gifSize(upload.data) : undefined;
+			// Refused before anything is stored when it plainly doesn't fit.
+			const shared = await keyIsStored(scope, target.kind, key);
+			await assertRoom(scope.db, scope.workspace.id, shared ? 0 : upload.data.length);
 			await target.put(key, upload.data, format.contentType);
-			await scope.transaction(async (tx) => {
-				await tx.insert(media, {
-					id,
-					folderId,
-					kind: format.kind,
-					fileName,
-					contentType: format.contentType,
-					sizeBytes: upload.data.length,
-					width: size?.width ?? null,
-					height: size?.height ?? null,
-					status: clean ? "processing" : "ready",
-					uploadedBy: personId,
-					createdAt: now,
-					updatedAt: now,
+			try {
+				await scope.transaction(async (tx) => {
+					// Checked again with the quota held, now that the file is stored: two uploads at once
+					// can't both squeeze past it. A file that already shares stored bytes adds none.
+					const adds = (await keyIsStored(tx, target.kind, key)) ? 0 : upload.data.length;
+					await assertRoom(tx.db, tx.workspace.id, adds, { lock: true });
+					await tx.insert(media, {
+						id,
+						folderId,
+						kind: format.kind,
+						fileName,
+						contentType: format.contentType,
+						sizeBytes: upload.data.length,
+						width: size?.width ?? null,
+						height: size?.height ?? null,
+						status: clean ? "processing" : "ready",
+						uploadedBy: personId,
+						createdAt: now,
+						updatedAt: now,
+					});
+					await tx.insert(mediaFiles, {
+						mediaId: id,
+						role: clean ? "upload" : "original",
+						name,
+						format: format.format,
+						contentType: format.contentType,
+						width: size?.width ?? null,
+						height: size?.height ?? null,
+						sizeBytes: upload.data.length,
+						storage: target.kind,
+						key,
+						createdAt: now,
+					});
+					await tx.audit("media.upload", { mediaId: id, fileName, contentType: format.contentType });
 				});
-				await tx.insert(mediaFiles, {
-					mediaId: id,
-					role: clean ? "upload" : "original",
-					name,
-					format: format.format,
-					contentType: format.contentType,
-					width: size?.width ?? null,
-					height: size?.height ?? null,
-					sizeBytes: upload.data.length,
-					storage: target.kind,
-					key,
-					createdAt: now,
-				});
-				await tx.audit("media.upload", { mediaId: id, fileName, contentType: format.contentType });
-			});
+			} catch (error) {
+				await forgetStored(scope, target, key);
+				throw error;
+			}
 			if (clean) await jobs.send(mediaProcess, { siteId: scope.site.id, mediaId: id });
+			await noticeQuotaUse(scope.db, noticePorts, scope.workspace);
 			return get(scope, id);
 		},
 
@@ -294,6 +335,16 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 			return storedFile(scope, storage, name);
 		},
 
+		async overview(scope) {
+			const { maxFileBytes } = await settings.media();
+			return { maxFileBytes, storage: await mediaStorage(scope.db, scope.workspace.id) };
+		},
+
+		quota: {
+			get: (scope) => mediaStorage(scope.db, scope.workspace.id),
+			set: (scope, quotaBytes) => setMediaQuota(scope, noticePorts, quotaBytes),
+		},
+
 		folders: {
 			async list(scope) {
 				const folders = await scope.select(mediaFolders, undefined, {
@@ -355,6 +406,16 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 			},
 		},
 	};
+}
+
+/** Whether a stored file is named by any of the Site's Media files (identical bytes share one). */
+async function keyIsStored(scope: Pick<SiteScope, "count">, kind: StorageKind, key: string): Promise<boolean> {
+	return (await scope.count(mediaFiles, and(eq(mediaFiles.storage, kind), eq(mediaFiles.key, key)))) > 0;
+}
+
+/** Removes a stored file nothing records any more (an upload that was refused once stored). */
+async function forgetStored(scope: Pick<SiteScope, "count">, backend: StorageBackend, key: string): Promise<void> {
+	if (!(await keyIsStored(scope, backend.kind, key))) await backend.delete(key);
 }
 
 /** Whether the scope's person may change a Media item: their own upload, or any with `media.manage`. */

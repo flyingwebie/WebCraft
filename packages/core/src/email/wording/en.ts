@@ -1,4 +1,5 @@
 import { wordsIn } from "@webcraft/module-sdk";
+import { formatSize } from "./sizes.ts";
 import type { EmailWording } from "./types.ts";
 
 const days = (count: number) => (count === 1 ? "1 day" : `${count} days`);
@@ -7,6 +8,9 @@ const minutes = (count: number) => (count === 1 ? "1 minute" : `${count} minutes
 const ROLES = { owner: "an Owner", editor: "an Editor", author: "an Author" } as const;
 
 const SECOND_FACTOR = { authenticator: "An authenticator app", passkey: "A passkey" } as const;
+
+/** A size as people read it: `850 KB`, `4.2 GB`. */
+const size = (bytes: number) => formatSize(bytes, ".");
 
 /** System emails in English. */
 export const en: EmailWording = {
@@ -156,6 +160,15 @@ export const en: EmailWording = {
 				`The Domain check couldn't reach ${siteName} at ${domain}. The domain may point somewhere else, or its certificate may be missing or about to expire.`,
 			],
 			action: { label: "Check the domains", path: domainsPath },
+		}),
+		"media-quota-warning": ({ workspaceName, percent, usedBytes, quotaBytes, workspacePath }) => ({
+			subject: `${workspaceName} has used ${percent}% of its Media storage`,
+			heading: `${percent}% of the Media storage is used`,
+			paragraphs: [
+				`The Media libraries of ${workspaceName}'s Sites take ${size(usedBytes)} of ${size(quotaBytes)}. Uploads that would go past the quota are refused.`,
+				"Delete files you no longer need (emptying the Trash frees their space at once), or ask for a larger quota.",
+			],
+			action: { label: "See the storage", path: workspacePath },
 		}),
 		"webhook-switched-off": ({ webhookName, host, siteName, failures, webhooksPath }) => ({
 			subject: `A Webhook of ${siteName} was switched off`,

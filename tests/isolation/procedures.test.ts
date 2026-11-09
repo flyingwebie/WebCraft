@@ -76,6 +76,12 @@ describe("Workspaces", () => {
 	isolation.refuses("workspaces.get", (api, { workspaceId }) => api.workspaces.get({ workspaceId }), {
 		as: ["staff", "owner", "author"],
 	});
+	isolation.refuses("workspaces.storage", (api, { workspaceId }) => api.workspaces.storage({ workspaceId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("workspaces.setQuota", (api, { workspaceId }) =>
+		api.workspaces.setQuota({ workspaceId, quotaBytes: 1024 * 1024 * 1024 }),
+	);
 });
 
 describe("Sites", () => {
@@ -614,6 +620,7 @@ describe("Media", () => {
 			api.media.update({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId, alt: "Changed" }),
 		{ as: ["staff", "owner"] },
 	);
+	isolation.refuses("media.overview", (api, { siteId }) => api.media.overview({ siteId }), { as: ["staff", "author"] });
 	isolation.refuses("media.folders.list", (api, { siteId }) => api.media.folders.list({ siteId }), {
 		as: ["staff", "author"],
 	});

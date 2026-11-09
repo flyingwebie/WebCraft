@@ -597,6 +597,10 @@
 			"name": "SMTP di un Site non funzionante",
 			"description": "Quando il server SMTP di un Site continua a non funzionare."
 		},
+		"media-quota-warning": {
+			"name": "Spazio Media oltre l'80%",
+			"description": "Quando i Media di un Workspace che segui superano l'80% della quota di spazio."
+		},
 		"webhook-switched-off": {
 			"name": "Webhook disattivato",
 			"description": "Quando un Webhook di un Site continua a non funzionare e viene disattivato."

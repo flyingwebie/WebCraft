@@ -57,6 +57,7 @@ import {
 	MediaFolderTakenError,
 	MediaInvalidError,
 	MediaNotFoundError,
+	MediaQuotaFullError,
 	MediaTooLargeError,
 	MediaTypeRefusedError,
 	MemberNotFoundError,
@@ -484,6 +485,14 @@ export function toApiError(error: unknown): unknown {
 			status: 413,
 			message: error.message,
 			data: { maxBytes: error.maxBytes },
+			cause: error,
+		});
+	}
+	if (error instanceof MediaQuotaFullError) {
+		return new ORPCError("MEDIA_QUOTA_FULL", {
+			status: 413,
+			message: error.message,
+			data: { usedBytes: error.usedBytes, quotaBytes: error.quotaBytes },
 			cause: error,
 		});
 	}

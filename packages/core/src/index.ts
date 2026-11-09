@@ -100,9 +100,11 @@ export {
 } from "./install.ts";
 export {
 	INSTALL_NAME_MAX_LENGTH,
+	type InstallMediaSettings,
 	type InstallSecuritySettings,
 	type InstallSettings,
 	type InstallSettingsValues,
+	MEDIA_MAX_FILE_BYTES,
 } from "./install-settings.ts";
 export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
