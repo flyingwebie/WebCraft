@@ -55,6 +55,7 @@ export {
 } from "./builder/index.ts";
 export * from "./cdns/index.ts";
 export { type Clock, systemClock } from "./clock.ts";
+export * from "./co-editing/index.ts";
 export {
 	type CodeMode,
 	type CodePreviewPage,
@@ -133,13 +134,12 @@ export {
 	type GuardedFetchProblem,
 	isPublicAddress,
 } from "./guarded-fetch.ts";
-export * from "./co-editing/index.ts";
-export { isUuid } from "./ids.ts";
 export * from "./history/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
 export { createNodeHttp } from "./http-node.ts";
 export { pinnedTarget } from "./http-pinned.ts";
+export { isUuid } from "./ids.ts";
 export * from "./imports/index.ts";
 export {
 	type InstallProcess,

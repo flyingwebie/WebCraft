@@ -108,7 +108,10 @@ export async function applyChanges(
  */
 export async function ensureDocument(scope: SiteScope, item: HistoryItem, draft: unknown): Promise<DocumentRow> {
 	const existing = await lockDocument(scope, item);
-	if (existing) return existing;
+	if (existing) {
+		await scope.update(draftDocuments, { usedAt: scope.now() }, eq(draftDocuments.id, existing.id));
+		return existing;
+	}
 	const now = scope.now();
 	const doc = documentFrom(documentView(item.kind, draft));
 	await scope.db

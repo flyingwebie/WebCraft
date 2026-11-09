@@ -10,6 +10,7 @@ import {
 import { directionOf } from "@webcraft/renderer";
 import { and, eq, isNotNull, max } from "drizzle-orm";
 
+import { mirrorDraftChange } from "../co-editing/store.ts";
 import type { InstallConfig } from "../config.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -280,23 +281,25 @@ export async function setDefaultLanguage(
 		};
 		for (const row of rows) {
 			const fields = fieldsOf.get(row.postTypeId) ?? [SEO_GROUP];
+			const draft = move(row.draft, fields);
 			await tx.update(
 				entries,
-				{ draft: move(row.draft, fields), published: row.published === null ? null : move(row.published, fields) },
+				{ draft, published: row.published === null ? null : move(row.published, fields) },
 				eq(entries.id, row.id),
 			);
+			// An Entry someone edits live gets the moved values in its shared document too (ADR 0025).
+			await mirrorDraftChange(tx, { kind: "entry", id: row.id }, row.draft, draft);
 		}
 		const [globalsRow] = await tx.db.select().from(globals).where(tx.where(globals)).for("update");
 		if (globalsRow) {
 			const fields = storedFields(globalsRow.fields);
+			const draft = move(globalsRow.draft, fields);
 			await tx.update(
 				globals,
-				{
-					draft: move(globalsRow.draft, fields),
-					published: globalsRow.published === null ? null : move(globalsRow.published, fields),
-				},
+				{ draft, published: globalsRow.published === null ? null : move(globalsRow.published, fields) },
 				eq(globals.id, globalsRow.id),
 			);
+			await mirrorDraftChange(tx, { kind: "globals" }, globalsRow.draft, draft);
 		}
 		await tx.db
 			.update(sites)

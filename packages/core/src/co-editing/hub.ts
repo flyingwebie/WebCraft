@@ -361,6 +361,18 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 		}
 	};
 
+	/** Drops a document that no longer exists: its editors' sockets close, and they open it again. */
+	const letGo = (live: LiveDocument) => {
+		documents.delete(live.id);
+		if (byItem.get(live.key) === live) byItem.delete(live.key);
+		clearTimeout(live.unload);
+		for (const connection of [...live.connections]) {
+			connection.closed = true;
+			connection.peer.close(4409, "DOCUMENT_REPLACED");
+		}
+		live.connections.clear();
+	};
+
 	const unloadLater = (live: LiveDocument) => {
 		clearTimeout(live.unload);
 		live.unload = setTimeout(() => {
@@ -584,10 +596,8 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 				return end(connection, "ACCESS_LOST");
 			}
 			if (error instanceof DocumentReplacedError) {
-				return refuse(connection, seq, {
-					code: "DRAFT_REPLACED",
-					message: "This Draft was opened again; start from it.",
-				});
+				// The document went (unused for long, or its item deleted): editors open it again from scratch.
+				return letGo(live);
 			}
 			if (error instanceof MissingChangesError) {
 				return refuse(connection, seq, {
