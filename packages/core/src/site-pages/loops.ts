@@ -145,28 +145,8 @@ async function queryItems(
 	paginates: boolean,
 	values: unknown[],
 ): Promise<LoopRun> {
-	const listed = postTypes.filter((postType) => query.postTypes.includes(postType.key));
-	if (listed.length === 0) return { items: [], total: 0 };
-	const sqlOf = new QuerySql(listed, place, scope.now());
 	const page = paginates ? (place.page ?? 1) : 1;
-	const offset = query.offset + (page - 1) * query.limit;
-	const condition = and(
-		inArray(
-			entries.postTypeId,
-			listed.map((postType) => postType.id),
-		),
-		place.version === "published" ? isNotNull(entries.published) : undefined,
-		sqlOf.visible(),
-		query.excludeCurrent && place.current ? ne(entries.id, place.current) : undefined,
-		sqlOf.filters(query),
-	);
-	const rows = await scope.db
-		.select({ entry: entries, total: sql<number>`count(*) over ()`.mapWith(Number) })
-		.from(entries)
-		.where(scope.where(entries, condition))
-		.orderBy(...sqlOf.order(query))
-		.limit(query.limit)
-		.offset(offset);
+	const rows = await queryRows(scope, query, place, postTypes, query.offset + (page - 1) * query.limit, query.limit);
 	const total = rows[0]?.total ?? 0;
 	const items = await entryItems(
 		scope,
@@ -183,6 +163,40 @@ async function queryItems(
 		total: Math.max(0, total - query.offset),
 		pages: { current: page, count, href: (target) => pageHref(place.path, target) },
 	};
+}
+
+/**
+ * The Entries a query finds, `limit` of them from `offset`, each with how many match in all: one
+ * parameterised SQL query.
+ */
+export async function queryRows(
+	scope: ReadScope,
+	query: LoopQuery,
+	place: LoopPlace,
+	postTypes: readonly PostType[],
+	offset: number,
+	limit: number,
+): Promise<{ entry: typeof entries.$inferSelect; total: number }[]> {
+	const listed = postTypes.filter((postType) => query.postTypes.includes(postType.key));
+	if (listed.length === 0) return [];
+	const sqlOf = new QuerySql(listed, place, scope.now());
+	const condition = and(
+		inArray(
+			entries.postTypeId,
+			listed.map((postType) => postType.id),
+		),
+		place.version === "published" ? isNotNull(entries.published) : undefined,
+		sqlOf.visible(),
+		query.excludeCurrent && place.current ? ne(entries.id, place.current) : undefined,
+		sqlOf.filters(query),
+	);
+	return scope.db
+		.select({ entry: entries, total: sql<number>`count(*) over ()`.mapWith(Number) })
+		.from(entries)
+		.where(scope.where(entries, condition))
+		.orderBy(...sqlOf.order(query))
+		.limit(limit)
+		.offset(offset);
 }
 
 /** A page of a paginated Loop: the page's own address for the first, `?page=N` for the others. */

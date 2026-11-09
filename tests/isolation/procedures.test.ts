@@ -100,6 +100,9 @@ describe("Post Types", () => {
 	isolation.refuses("postTypes.update", async (api, target) =>
 		api.postTypes.update({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId, name: "Renamed" }),
 	);
+	isolation.refuses("postTypes.data", async (api, target) =>
+		api.postTypes.data({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
 });
 
 describe("Entries", () => {
@@ -144,6 +147,7 @@ describe("Globals", () => {
 	isolation.refuses("globals.setFields", (api, { siteId }) =>
 		api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] }),
 	);
+	isolation.refuses("globals.data", (api, { siteId }) => api.globals.data({ siteId }));
 	isolation.refuses("globals.saveDraft", (api, { siteId }) => api.globals.saveDraft({ siteId, fields: {} }), {
 		as: ["staff", "author"],
 	});
@@ -270,6 +274,9 @@ describe("Loops", () => {
 	);
 	isolation.refuses("loops.saveItems", async (api, target) =>
 		api.loops.saveItems({ siteId: target.siteId, loopId: await loopIn(target), items: [{ label: "One" }] }),
+	);
+	isolation.refuses("loops.data", async (api, target) =>
+		api.loops.data({ siteId: target.siteId, loopId: await loopIn(target) }),
 	);
 	isolation.refuses("loops.publish", async (api, target) =>
 		api.loops.publish({ siteId: target.siteId, loopId: await loopIn(target) }),

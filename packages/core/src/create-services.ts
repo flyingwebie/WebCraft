@@ -76,6 +76,7 @@ import { editModeSigningKey, type MasterKey, sessionSigningSecret } from "./secr
 import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
+import { entryTemplateData, globalsData, loopData } from "./site-pages/data-samples.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createInvites } from "./tenancy/invites.ts";
@@ -179,9 +180,15 @@ export async function createInstallServices(
 			create: (scope, input) => createSite(scope, input, reservedSlugs(config)),
 			stagingUrl: (site) => stagingUrl(config, site.slug),
 		},
-		postTypes: { list: listPostTypes, get: getPostType, create: createPostType, update: updatePostType },
+		postTypes: {
+			list: listPostTypes,
+			get: getPostType,
+			create: createPostType,
+			update: updatePostType,
+			data: entryTemplateData,
+		},
 		entries: { list: listEntries, get: getEntry, create: createEntry, saveDraft, delete: deleteEntry },
-		globals: { get: getGlobals, setFields: setGlobalFields, saveDraft: saveGlobalsDraft },
+		globals: { get: getGlobals, setFields: setGlobalFields, saveDraft: saveGlobalsDraft, data: globalsData },
 		templates: {
 			entryTemplate: getEntryTemplate,
 			saveEntryTemplate: (scope, postTypeId, tree) => saveEntryTemplate(scope, postTypeId, tree, componentSources),
@@ -208,7 +215,14 @@ export async function createInstallServices(
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
-		loops: { list: listLoops, get: getLoop, create: createLoop, saveDraft: saveLoopDraft, saveItems: saveLoopItems },
+		loops: {
+			list: listLoops,
+			get: getLoop,
+			create: createLoop,
+			saveDraft: saveLoopDraft,
+			saveItems: saveLoopItems,
+			data: loopData,
+		},
 		languages: {
 			get: siteLanguages,
 			add: (scope, input) => addLanguage({ config }, scope, input),

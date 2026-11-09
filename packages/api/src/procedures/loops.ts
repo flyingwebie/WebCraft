@@ -97,6 +97,18 @@ export const loops = {
 			};
 		}),
 
+	/**
+	 * The Loop's Data tab (Staff only): its first item from the Draft (a query Loop's first Entry
+	 * among the Drafts, or its first Loop item) as JSON, read in a language, with the bindings Template
+	 * markup writes to read each value.
+	 */
+	data: signedIn
+		.input(z.object({ siteId: id, loopId: id, language: language.optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.loops.data(site, input.loopId, input.language);
+		}),
+
 	/** Publishes a Loop's Draft: every page showing it changes at once, and the Site's page cache is cleared. */
 	publish: signedIn.input(z.object({ siteId: id, loopId: id })).handler(async ({ context, input }) => {
 		const item = { kind: "loop", id: input.loopId } as const;

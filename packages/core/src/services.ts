@@ -55,6 +55,7 @@ import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
+import type { DataSample } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
 import type {
 	Access,
@@ -144,6 +145,8 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope, postTypeId: string): Promise<PostType>;
 		create(scope: SiteScope, input: NewPostType): Promise<PostType>;
 		update(scope: SiteScope, postTypeId: string, change: PostTypeChange): Promise<PostType>;
+		/** The Data tab of its Entry template: an Entry's Draft as the template reads it, with the bindings. */
+		data(scope: SiteScope, postTypeId: string, options?: { language?: string; entryId?: string }): Promise<DataSample>;
 	};
 	/** Entries, each with a Draft and a published version. Open the Site with `entry.edit` to change them. */
 	entries: {
@@ -167,6 +170,8 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope, language?: string): Promise<Globals>;
 		setFields(scope: SiteScope, fields: readonly FieldInput[]): Promise<Globals>;
 		saveDraft(scope: SiteScope, change: GlobalsChange): Promise<Globals>;
+		/** The Globals' Data tab: their Draft values as `site.x` reads them, with the bindings. */
+		data(scope: SiteScope, language?: string): Promise<DataSample>;
 	};
 	/** Templates, stored as element trees with a Draft and a published version. Structure: `structure.edit`. */
 	templates: {
@@ -260,6 +265,8 @@ export type InstallServices = InstallPorts & {
 		saveDraft(scope: SiteScope, loopId: string, change: LoopDraftChange): Promise<Loop>;
 		/** Saves its Loop items in its Draft, in one language: the whole list, in order. */
 		saveItems(scope: SiteScope, loopId: string, change: LoopItemsChange): Promise<Loop>;
+		/** Its Data tab: its first item from the Drafts, as JSON, with the bindings that read it. */
+		data(scope: SiteScope, loopId: string, language?: string): Promise<DataSample>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing
