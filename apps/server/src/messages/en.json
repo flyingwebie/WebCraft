@@ -2263,7 +2263,6 @@
 			"search": "Site search"
 		},
 		"search": {
-			"tab": "Site search",
 			"heading": "Site search",
 			"intro": "What Site search and the search boxes of Filters look in. Every Post Type is indexed; a change here rebuilds the Site's search index within a minute.",
 			"searchable": "Show in Site search",

@@ -1,0 +1,1 @@
+ALTER TABLE "sites" ADD COLUMN "search_rebuild_claimed_at" timestamp with time zone;

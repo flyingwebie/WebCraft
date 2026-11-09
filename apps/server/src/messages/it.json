@@ -2263,7 +2263,6 @@
 			"search": "Ricerca nel sito"
 		},
 		"search": {
-			"tab": "Ricerca nel sito",
 			"heading": "Ricerca nel sito",
 			"intro": "Dove cercano la ricerca nel sito e le caselle di ricerca dei filtri. Ogni tipo di contenuto è indicizzato; una modifica qui ricostruisce l'indice di ricerca del sito entro un minuto.",
 			"searchable": "Mostra nella ricerca nel sito",

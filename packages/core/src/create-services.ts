@@ -324,7 +324,7 @@ export async function createInstallServices(
 		},
 		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
-		search: createSiteSearch({ database, data, log }),
+		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({

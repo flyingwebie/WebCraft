@@ -157,7 +157,13 @@ describe("changing Searched fields", () => {
 		const drained = await settle();
 
 		const rebuilt = drained.completed.filter((run) => run.name === "search.rebuild").map((run) => run.data);
-		expect(rebuilt).toEqual(expect.arrayContaining([{ siteId }, { siteId: others[0] }, { siteId: others[1] }]));
+		expect(rebuilt).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ siteId }),
+				expect.objectContaining({ siteId: others[0] }),
+				expect.objectContaining({ siteId: others[1] }),
+			]),
+		);
 		expect(drained.failed).toEqual([]);
 	});
 
@@ -169,5 +175,29 @@ describe("changing Searched fields", () => {
 		const drained = await settle();
 
 		expect(drained.completed.map((run) => run.name)).not.toContain("search.rebuild");
+	});
+});
+
+describe("rebuilds that don't finish", () => {
+	test("a Site whose rebuild hasn't finished an hour after it was queued is queued again", async () => {
+		await staff.api.postTypes.update({
+			siteId,
+			postTypeId: recipesId,
+			searchedFields: [{ field: "title", weight: "A" }],
+		});
+		// The minute's sweep queues a rebuild, which doesn't run (as when it keeps failing).
+		await install.clock.advance(60_000);
+		await install.drainJobs({ only: ["search.rebuild-due"] });
+		await install.clock.advance(61 * 60_000);
+		await install.drainJobs({ only: ["search.rebuild-due"] });
+
+		const drained = await install.drainJobs();
+
+		const rebuilds = drained.completed.filter(
+			(run) => run.name === "search.rebuild" && (run.data as { siteId: string }).siteId === siteId,
+		);
+		expect(rebuilds).toHaveLength(2);
+		expect(drained.failed).toEqual([]);
+		expect(await found("walnut")).toEqual(["Walnut cake"]);
 	});
 });
