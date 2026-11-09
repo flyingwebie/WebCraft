@@ -50,15 +50,22 @@ export function errorMessage(error: unknown): MessageKey {
 		case "PAGE_PARENT_UNPUBLISHED":
 		case "PAGE_HAS_CHILDREN":
 		case "EDIT_MODE_UNAVAILABLE":
+		case "LANGUAGE_INVALID":
+		case "LANGUAGE_TAKEN":
+		case "LANGUAGE_NOT_FOUND":
 			return `errors.${code}`;
 		case "POST_TYPE_TAKEN":
 			return (data as { field?: unknown } | undefined)?.field === "key"
 				? "errors.POST_TYPE_TAKEN_KEY"
 				: "errors.POST_TYPE_TAKEN_URL_PATTERN";
-		case "PATH_TAKEN":
-			return (data as { by?: { kind?: unknown } } | undefined)?.by?.kind === "page"
+		case "PATH_TAKEN": {
+			const kind = (data as { by?: { kind?: unknown } } | undefined)?.by?.kind;
+			return kind === "page"
 				? "errors.PATH_TAKEN_BY_PAGE"
-				: "errors.PATH_TAKEN_BY_POST_TYPE";
+				: kind === "language"
+					? "errors.PATH_TAKEN_BY_LANGUAGE"
+					: "errors.PATH_TAKEN_BY_POST_TYPE";
+		}
 		case "CONFIRMATION_INVALID":
 			return data?.problem === "expired"
 				? "errors.CONFIRMATION_EXPIRED"

@@ -63,6 +63,9 @@ beforeAll(async () => {
 	await admin.api.media.update({ siteId: site.id, mediaId: media.id, alt: "A round sourdough loaf" });
 	await admin.api.media.upload({ siteId: site.id, file: upload(pdf(), "allergen-guide.pdf") });
 	await local.drainJobs();
+	// The Site's languages: French, and Arabic, written right to left.
+	await admin.api.languages.add({ siteId: site.id, code: "fr" });
+	await admin.api.languages.add({ siteId: site.id, code: "ar" });
 	fixture = { workspaceId: workspace.id, siteId: site.id, inviteToken, joinToken, mediaId: media.id };
 });
 

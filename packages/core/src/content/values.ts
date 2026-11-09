@@ -56,3 +56,10 @@ export function writeValue(version: EntryVersion, place: ValuePlace, value: stri
 	}
 	return { values: { ...version.values, [place.key]: byLanguage } };
 }
+
+/** A built-in value's own value in a language, without falling back; null when it has none. */
+export function ownValue(version: EntryVersion, key: ValuePlace["key"], language: string): string | null {
+	const byLanguage = (version.values[key] ?? {}) as Record<string, LanguageValue | undefined>;
+	const value = byLanguage[language]?.value;
+	return typeof value === "string" && value !== "" ? value : null;
+}

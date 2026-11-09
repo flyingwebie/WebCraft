@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
+import { language } from "../fields.ts";
 import { id } from "../inputs.ts";
 
 /**
@@ -25,12 +26,13 @@ export const pages = {
 
 	/**
 	 * Chooses the Page that answers every path with no page, with status 404 (null for the built-in
-	 * one, which also stands in while the chosen Page isn't published).
+	 * one, which also stands in while the chosen Page isn't published). With `language`, the 404 page of
+	 * that language alone; null there leaves the Site's 404 page to answer in it.
 	 */
 	setNotFoundPage: signedIn
-		.input(z.object({ siteId: id, pageId: id.nullable() }))
+		.input(z.object({ siteId: id, pageId: id.nullable(), language: language.optional() }))
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-			return { settings: await context.services.pages.setNotFoundPage(site, input.pageId) };
+			return { settings: await context.services.pages.setNotFoundPage(site, input.pageId, input.language) };
 		}),
 };

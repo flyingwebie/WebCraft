@@ -470,3 +470,78 @@ export function randomRowId(): string {
 	const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 	return Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) => alphabet[byte % alphabet.length]).join("");
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Changing the Default language
+
+/**
+ * The values with every shared Field's value moved from the old Default language to the new one,
+ * where shared values are kept; Translatable fields keep their values in each language as they are.
+ * A shared Field without a value under the old Default language has none under the new one either.
+ */
+export function moveSharedValues(
+	values: StoredValues,
+	fields: readonly FieldDefinition[],
+	from: string,
+	to: string,
+): StoredValues {
+	const moved = { ...values };
+	for (const field of fields) {
+		const node = moved[field.key];
+		if (node === undefined) continue;
+		moved[field.key] = byKind<unknown>(field, {
+			group: (group) => ({ values: moveSharedValues(groupOf(node).values, group.fields, from, to) }),
+			repeater: (repeater) => ({
+				rows: rowsOf(node).map((row) => ({
+					id: row.id,
+					values: moveSharedValues(row.values, repeater.fields, from, to),
+				})),
+			}),
+			leaf: (leaf) => (leaf.translatable ? node : moveLanguage(node, from, to)),
+		});
+	}
+	return moved;
+}
+
+/** A value kept per language with the old Default language's value under the new one's key instead. */
+export function moveLanguage(node: unknown, from: string, to: string): Record<string, unknown> {
+	const byLanguage = { ...record(node) };
+	const value = byLanguage[from];
+	delete byLanguage[from];
+	if (value === undefined) delete byLanguage[to];
+	else byLanguage[to] = value;
+	return byLanguage;
+}
+
+/**
+ * What keeps a version from being published, in every language it is shown in: each language's
+ * values are checked (`check` answers undefined for a language the version isn't shown in), each
+ * problem reported once, with its language when it isn't the Default language's. A value a language
+ * falls back to is the Default language's, so its problem is the Default language's too.
+ */
+export function findingsInEveryLanguage(
+	languages: readonly { code: string; default: boolean }[],
+	defaultLanguage: string,
+	check: (languages: Languages) => Findings | undefined,
+): Findings {
+	const all: Findings = { problems: [], missing: [], references: [] };
+	const seen = new Set<string>();
+	for (const language of languages) {
+		const found = check({ language: language.code, defaultLanguage });
+		if (!found) continue;
+		for (const problem of found.problems) {
+			const key = `${problem.at} ${problem.rule} ${problem.message}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			all.problems.push(language.default ? problem : { ...problem, language: language.code });
+		}
+		for (const missing of found.missing) if (!all.missing.includes(missing)) all.missing.push(missing);
+		for (const reference of found.references) {
+			const key = `references ${reference.at} ${reference.ids.join(" ")}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			all.references.push({ ...reference, problems: all.problems });
+		}
+	}
+	return all;
+}

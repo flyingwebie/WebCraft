@@ -22,10 +22,13 @@ import {
 	readContext,
 	siteComponents,
 } from "./components.ts";
-import { entryValues, lockEntry, siteLanguages, versionFindings } from "./entries.ts";
+import { entryValues, lockEntry, versionFindings } from "./entries.ts";
 import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
-import { linksIn } from "./field-values.ts";
+import type { FieldDefinition } from "./field-types.ts";
+import { type Findings, findingsInEveryLanguage, type Languages, linksIn } from "./field-values.ts";
 import { publishGlobals } from "./globals.ts";
+import { checkPathOutsidePrefixes } from "./language-paths.ts";
+import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import {
 	checkPublishedParent,
@@ -43,7 +46,8 @@ import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, saveLinks } from "./relationships.ts";
 import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
 import { pathFor } from "./url-patterns.ts";
-import { storedVersion } from "./values.ts";
+import { type EntryVersion, ownValue, storedVersion } from "./values.ts";
+import { isVisibleIn } from "./visibility.ts";
 
 /**
  * One item to publish. Forms join Entries, Templates, Components, the Globals and the Design
@@ -142,18 +146,29 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 	await lockSitePaths(scope);
 	const row = await lockEntry(scope, entryId);
 	const postType = await getPostType(scope, row.postTypeId);
-	const { defaultLanguage } = await siteLanguages(scope);
-	const languages = { language: defaultLanguage, defaultLanguage };
+	const site = await siteLanguages(scope);
+	const { defaultLanguage } = site;
 	const draft = storedVersion(row.draft);
-	const findings = versionFindings(draft, postType.fields, languages);
+	const findings = publishFindings(draft, postType.fields, site);
 	await checkReferences(scope, findings.references, "rule");
 	if (findings.problems.some((problem) => problem.rule !== "required")) throw new EntryInvalidError(findings.problems);
 	if (findings.missing.length > 0) throw new EntryIncompleteError(findings.missing);
-	const values = entryValues(draft, postType.fields, languages);
+	const values = entryValues(draft, postType.fields, { language: defaultLanguage, defaultLanguage });
 	const parentId = isPagePostType(postType) ? parentIn(draft, defaultLanguage) : null;
-	const paths = isPagePostType(postType)
-		? await pagePaths(scope, postType, row.id, { parentId, slug: values.slug }, defaultLanguage)
-		: await entryPaths(scope, postType, row.id, values.slug, defaultLanguage);
+	const before = await scope.select(publishedSlugs, eq(publishedSlugs.entryId, row.id));
+	const slugs = site.languages.map((language) => ({
+		languages: { language: language.code, defaultLanguage },
+		slug: publishedSlug(draft, language.code, defaultLanguage, before),
+	}));
+	const paths: NewPaths[] = [];
+	for (const { languages, slug } of slugs) {
+		paths.push(
+			isPagePostType(postType)
+				? await pagePaths(scope, postType, row.id, { parentId, slug }, languages, site)
+				: await entryPaths(scope, postType, row.id, slug, languages, site),
+		);
+	}
+	const pathChanges = paths.flatMap((path) => path.changes);
 
 	const now = scope.now();
 	await scope.update(
@@ -163,63 +178,105 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 	);
 	await saveLinks(scope, row.id, "published", linksIn(draft.values, postType.fields));
 	await scope.delete(publishedSlugs, eq(publishedSlugs.entryId, row.id));
-	try {
-		await scope.insert(publishedSlugs, {
-			entryId: row.id,
-			postTypeId: row.postTypeId,
-			language: defaultLanguage,
-			slug: values.slug,
-			parentId,
-		});
-	} catch (error) {
-		if (isUniqueViolation(error, "published_slugs_slug_unique")) {
-			throw new EntrySlugTakenError(values.slug, isPagePostType(postType) ? "siblingPages" : "postType");
+	for (const { languages, slug } of slugs) {
+		try {
+			await scope.insert(publishedSlugs, {
+				entryId: row.id,
+				postTypeId: row.postTypeId,
+				language: languages.language,
+				slug,
+				parentId,
+			});
+		} catch (error) {
+			if (isUniqueViolation(error, "published_slugs_slug_unique")) {
+				throw new EntrySlugTakenError(slug, isPagePostType(postType) ? "siblingPages" : "postType", languages);
+			}
+			throw error;
 		}
-		throw error;
 	}
 	await scope.audit("entry.publish", {
 		entryId: row.id,
 		postTypeId: row.postTypeId,
 		title: values.title,
 		slug: values.slug,
-		path: paths.path,
-		pathChanges: paths.changes,
+		path: paths[0]?.path ?? null,
+		pathChanges,
 	});
-	return { kind: "entry", id: row.id, publishedAt: now, pathChanges: paths.changes };
+	return { kind: "entry", id: row.id, publishedAt: now, pathChanges };
+}
+
+/**
+ * The slug an Entry is published with in a language. Slugs are translatable but never change on
+ * their own once published: a language's own slug when it has one, else the slug it was published
+ * with before, else (the first time) the Default language's.
+ */
+function publishedSlug(
+	draft: EntryVersion,
+	language: string,
+	defaultLanguage: string,
+	before: readonly { language: string; slug: string }[],
+): string {
+	const own = ownValue(draft, "slug", language);
+	if (own || language === defaultLanguage) return own ?? "";
+	const kept = before.find((row) => row.language === language)?.slug;
+	return kept ?? ownValue(draft, "slug", defaultLanguage) ?? "";
+}
+
+/**
+ * What keeps a version from being published, in every language of the Site it is shown in (a
+ * language the Entry is hidden in shows none of its values).
+ */
+function publishFindings(draft: EntryVersion, fields: readonly FieldDefinition[], site: SiteLanguages): Findings {
+	return findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
+		isVisibleIn(draft, languages) ? versionFindings(draft, fields, languages) : undefined,
+	);
 }
 
 /** Where a published Entry will be, and which published paths publishing it changes. */
 type NewPaths = { path: string; changes: PathChange[] };
 
-/** An Entry's path under its Post Type's URL pattern, before and after publishing its new slug. */
+/** An Entry's path in a language under its Post Type's URL pattern, before and after publishing its new slug. */
 async function entryPaths(
 	scope: SiteScope,
 	postType: PostType,
 	entryId: string,
 	slug: string,
-	language: string,
+	languages: Languages,
+	site: SiteLanguages,
 ): Promise<NewPaths> {
 	const before = await scope.first(
 		publishedSlugs,
-		and(eq(publishedSlugs.entryId, entryId), eq(publishedSlugs.language, language)),
+		and(eq(publishedSlugs.entryId, entryId), eq(publishedSlugs.language, languages.language)),
 	);
-	const path = pathFor(postType.urlPattern, slug) ?? "";
-	const from = before ? pathFor(postType.urlPattern, before.slug) : null;
-	return { path, changes: from && from !== path ? [{ entryId, language, from, to: path }] : [] };
+	const pathOf = (value: string) => {
+		const path = pathFor(postType.urlPattern, value);
+		return path === null ? null : languagePath(languages, path);
+	};
+	const path = pathOf(slug) ?? "";
+	// The Default language's paths stay out of the other languages' prefixes.
+	if (languages.language === languages.defaultLanguage) checkPathOutsidePrefixes(site, path.split("/").slice(1), path);
+	const from = before ? pathOf(before.slug) : null;
+	return {
+		path,
+		changes: from && from !== path ? [{ entryId, language: languages.language, from, to: path }] : [],
+	};
 }
 
 /**
- * A Page's path, and those of the Pages under it, before and after it is published under `parentId`
- * with `slug`. Refuses a parent that isn't published or would make a loop, Pages ending up more than
- * `MAX_PAGE_DEPTH` deep, and a path a Post Type's URL pattern owns (`PathTakenError`).
+ * A Page's path in a language, and those of the Pages under it, before and after it is published
+ * under `parentId` with `slug`. Refuses a parent that isn't published or would make a loop, Pages
+ * ending up more than `MAX_PAGE_DEPTH` deep, and a path a Post Type's URL pattern owns
+ * (`PathTakenError`).
  */
 async function pagePaths(
 	scope: SiteScope,
 	pages: PostType,
 	pageId: string,
 	next: { parentId: string | null; slug: string },
-	language: string,
+	languages: Languages,
+	site: SiteLanguages,
 ): Promise<NewPaths> {
+	const { language } = languages;
 	const tree = await publishedPageTree(scope, pages.id, language);
 	if (next.parentId !== null) checkPublishedParent(tree, pageId, next.parentId);
 	const moving = [pageId, ...pagesUnder(tree, pageId)];
@@ -227,14 +284,16 @@ async function pagePaths(
 	tree.set(pageId, next);
 	const postTypes = await listPostTypes(scope);
 	const changes: PathChange[] = [];
+	const visible = (parts: readonly string[]) => languagePath(languages, pathText(parts));
 	for (const id of moving) {
 		const parts = pathIn(tree, id) ?? [];
 		if (parts.length > MAX_PAGE_DEPTH) {
 			throw new EntryInvalidError([{ at: "parentId", message: `Pages nest at most ${MAX_PAGE_DEPTH} deep.` }]);
 		}
+		if (languages.language === languages.defaultLanguage) checkPathOutsidePrefixes(site, parts, visible(parts));
 		const owner = patternOwning(postTypes, parts);
 		if (owner) {
-			throw new PathTakenError(pathText(parts), {
+			throw new PathTakenError(visible(parts), {
 				kind: "postType",
 				id: owner.id,
 				name: owner.name,
@@ -243,10 +302,10 @@ async function pagePaths(
 		}
 		const from = before.get(id);
 		if (from && pathText(from) !== pathText(parts)) {
-			changes.push({ entryId: id, language, from: pathText(from), to: pathText(parts) });
+			changes.push({ entryId: id, language, from: visible(from), to: visible(parts) });
 		}
 	}
-	return { path: pathText(pathIn(tree, pageId) ?? []), changes };
+	return { path: visible(pathIn(tree, pageId) ?? []), changes };
 }
 
 /** Publishes a Template; `publish` has taken the Components' lock, so what it may place holds still. */

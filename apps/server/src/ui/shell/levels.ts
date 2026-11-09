@@ -7,6 +7,7 @@ import {
 	GlobeIcon,
 	HardDriveIcon,
 	ImagesIcon,
+	LanguagesIcon,
 	LayoutDashboardIcon,
 	type LucideIcon,
 	MailIcon,
@@ -224,6 +225,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 				id: "site-settings",
 				label: "shell.nav.siteSettingsGroup",
 				items: [
+					{
+						id: "site-languages",
+						label: "shell.nav.languages",
+						icon: LanguagesIcon,
+						to: "/sites/$siteId/languages",
+						requires: "structure.edit",
+					},
 					{
 						id: "site-modules",
 						label: "shell.nav.modules",
