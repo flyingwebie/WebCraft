@@ -2,6 +2,7 @@ import { assertSchemaCurrent, createBoss, type Database, type JobQueueOptions, o
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 import type { PgBoss } from "pg-boss";
 
+import { aiProvidersToCome } from "./ai.ts";
 import { systemClock } from "./clock.ts";
 import { type Environment, type InstallConfig, loadInstallConfig } from "./config.ts";
 import { createInstallServices } from "./create-services.ts";
@@ -132,6 +133,7 @@ function realPorts(
 		http,
 		dns: systemDns,
 		tls: systemTls,
+		ai: aiProvidersToCome,
 		clock: systemClock,
 		log,
 	};

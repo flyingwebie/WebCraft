@@ -641,6 +641,17 @@ describe("Media", () => {
 		{ as: ["staff", "editor"] },
 	);
 	isolation.refuses(
+		"media.suggestAltText",
+		// The file is a document, so it is refused where it is (400); another Workspace's Site before that.
+		async (api, target) =>
+			api.media
+				.suggestAltText({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId })
+				.catch((error: { code?: string }) => {
+					if (error.code !== "ALT_TEXT_UNAVAILABLE") throw error;
+				}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
 		"media.usage",
 		async (api, target) => api.media.usage({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
 		{ as: ["staff", "author"] },

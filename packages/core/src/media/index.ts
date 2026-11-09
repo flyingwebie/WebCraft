@@ -3,6 +3,7 @@
  * S3-compatible bucket), the worker's image processing, and the files each Site serves under
  * `/_media/` on its own domain.
  */
+export { AltTextUnavailableError } from "./alt-text.ts";
 export {
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,

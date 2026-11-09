@@ -14,6 +14,15 @@ export {
 	isAdminLanguage,
 } from "./admin-languages.ts";
 export {
+	type AiAnswer,
+	AiKeyMissingError,
+	AiProviderError,
+	type AiProviders,
+	aiProvidersToCome,
+	type ImageDescriptionRequest,
+	WORKSPACE_AI_KEY,
+} from "./ai.ts";
+export {
 	type AuditDetails,
 	type AuditEntry,
 	type AuditVia,

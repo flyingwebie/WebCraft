@@ -1,5 +1,6 @@
 import { media, mediaFiles, mediaFolders, people } from "@webcraft/db/schema";
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
+import type { AiProviders } from "../ai.ts";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
@@ -13,6 +14,7 @@ import type { Logger } from "../log.ts";
 import { actingPerson, can, personIdOf } from "../permissions/can.ts";
 import type { SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
+import { canSuggestAltText, suggestAltText } from "./alt-text.ts";
 import {
 	MediaFolderNotFoundError,
 	MediaFolderTakenError,
@@ -137,6 +139,8 @@ export type MediaOverview = {
 	storage: MediaStorage;
 	/** How many files are in the Site's Trash. */
 	trash: { count: number };
+	/** Whether "Suggest alt text" is offered: the Workspace has an AI key. */
+	altTextSuggestions: boolean;
 };
 
 /**
@@ -200,8 +204,16 @@ export type MediaLibrary = {
 	emptyTrash(scope: SiteScope, confirmation?: string): Promise<TrashEmptying>;
 	/** An original or variant by the name it is served under, or null (files in the Trash too, for the admin). */
 	file(scope: SiteScope, name: string): Promise<StoredMediaFile | null>;
-	/** What the library takes and holds: the largest file, the Workspace's storage. */
-	overview(scope: SiteScope): Promise<MediaOverview>;
+	/**
+	 * What the library takes and holds: the largest file, the Workspace's storage, the Trash, and
+	 * whether alt text can be suggested. `workspace` is the Site's Workspace, for its AI key.
+	 */
+	overview(scope: SiteScope, workspace: WorkspaceScope): Promise<MediaOverview>;
+	/**
+	 * Suggest alt text: an AI provider describes an image in `language`, with the Workspace's AI key
+	 * (`workspace`, the Site's Workspace). Nothing is saved. Your own upload, or any with `media.manage`.
+	 */
+	suggestAltText(scope: SiteScope, workspace: WorkspaceScope, mediaId: string, language?: string): Promise<string>;
 	/** A Workspace's Media storage and quota. Open it with `workspace.view` to read, `quota.manage` to set. */
 	quota: {
 		get(scope: WorkspaceScope): Promise<MediaStorage>;
@@ -237,6 +249,8 @@ export function createMediaLibrary(options: {
 	email: Email;
 	log: Logger;
 	clock: Clock;
+	/** AI providers, for "Suggest alt text". */
+	ai: AiProviders;
 }): MediaLibrary {
 	const { storage, jobs, settings } = options;
 	const noticePorts = { email: options.email, log: options.log, clock: options.clock };
@@ -582,13 +596,21 @@ export function createMediaLibrary(options: {
 			return storedFile(scope, storage, name, { trashed: true });
 		},
 
-		async overview(scope) {
+		async overview(scope, workspace) {
 			const { maxFileBytes } = await settings.media();
 			return {
 				maxFileBytes,
 				storage: await mediaStorage(scope.db, scope.workspace.id),
 				trash: { count: await scope.count(media, isNotNull(media.trashedAt)) },
+				altTextSuggestions: await canSuggestAltText(workspace.secrets),
 			};
+		},
+
+		async suggestAltText(scope, workspace, mediaId, language) {
+			const row = await changeable(scope, mediaId);
+			if (row.trashedAt) throw new MediaInTrashError();
+			const item = await get(scope, mediaId, language);
+			return suggestAltText({ ai: options.ai, storage }, scope, workspace.secrets, item);
 		},
 
 		quota: {

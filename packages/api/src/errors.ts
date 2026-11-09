@@ -8,7 +8,10 @@ import {
 } from "@webcraft/auth";
 import {
 	AccessNotHeldError,
+	AiKeyMissingError,
+	AiProviderError,
 	AlreadyMemberError,
+	AltTextUnavailableError,
 	ArchiveUnavailableError,
 	CaptchaInvalidError,
 	ClassInUseError,
@@ -488,6 +491,25 @@ export function toApiError(error: unknown): unknown {
 			status: 413,
 			message: error.message,
 			data: { maxBytes: error.maxBytes },
+			cause: error,
+		});
+	}
+	if (error instanceof AiKeyMissingError) {
+		return new ORPCError("AI_KEY_MISSING", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof AiProviderError) {
+		return new ORPCError("AI_PROVIDER_FAILED", {
+			status: 424,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
+	}
+	if (error instanceof AltTextUnavailableError) {
+		return new ORPCError("ALT_TEXT_UNAVAILABLE", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason },
 			cause: error,
 		});
 	}

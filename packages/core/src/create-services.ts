@@ -330,7 +330,7 @@ export async function createInstallServices(
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
 		email,
 		storage,
-		media: createMediaLibrary({ storage, jobs: ports.jobs, settings, email, log, clock }),
+		media: createMediaLibrary({ storage, jobs: ports.jobs, settings, email, log, clock, ai: ports.ai }),
 		modules,
 	};
 }
