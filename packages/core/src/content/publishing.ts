@@ -2,8 +2,9 @@ import { entries, publishedSlugs, templates } from "@webcraft/db/schema";
 import { and, eq } from "drizzle-orm";
 
 import { isUniqueViolation } from "../db-errors.ts";
+import { lockDesignSystem } from "../design-system/design-systems.ts";
 import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
-import { keepReplacedStylesheet, siteStyles } from "../design-system/stylesheet.ts";
+import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-system/stylesheet.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -83,7 +84,13 @@ export async function publish(scope: SiteScope, item: PublishItem): Promise<Publ
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
 	return scope.transaction(async (tx) => {
-		const stylesBefore = changesStyles(item) ? await siteStyles(tx) : undefined;
+		let stylesBefore: SiteStyles | undefined;
+		if (changesStyles(item)) {
+			// Publishes that change the stylesheet take turns, so each reads the stylesheet the one
+			// before it left and keeps it for pages loaded in between.
+			await lockDesignSystem(tx);
+			stylesBefore = await siteStyles(tx);
+		}
 		const published = await publishItem(tx, item);
 		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);
