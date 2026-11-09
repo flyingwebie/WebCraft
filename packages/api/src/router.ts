@@ -14,6 +14,7 @@ import { entries } from "./procedures/entries.ts";
 import { filters } from "./procedures/filters.ts";
 import { forms } from "./procedures/forms.ts";
 import { globals } from "./procedures/globals.ts";
+import { history } from "./procedures/history.ts";
 import { imports } from "./procedures/imports.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
@@ -87,6 +88,7 @@ export const apiRouter = {
 	editMode,
 	staging,
 	publishing,
+	history,
 	members,
 	staff,
 	invites,

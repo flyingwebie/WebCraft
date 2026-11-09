@@ -80,6 +80,8 @@ export const PROCEDURES = {
 	"install.security.update": internal(),
 	"install.storage.get": internal(),
 	"install.storage.update": internal(),
+	"install.history.get": internal(),
+	"install.history.update": internal(),
 	"install.media.get": internal(),
 	"install.media.update": internal(),
 	"install.backups.get": internal(),
@@ -240,6 +242,17 @@ export const PROCEDURES = {
 	"publishing.count": internal(),
 	"publishing.publishAll": write(
 		"Publishes the chosen Drafts of the Site together, after a preview and a confirmation.",
+	),
+	"history.list": read(
+		"One page of an item's history: the Revisions its publishes saved and the Checkpoints of its Draft, newest first.",
+	),
+	"history.compare": read(
+		"A Revision or Checkpoint next to the item's Draft: what differs, in each language, and who changed it last.",
+	),
+	"history.get": read("One Revision or Checkpoint of an item, with the whole version it holds in every language."),
+	"history.leave": internal(),
+	"history.restore": write(
+		"Restores a Revision or Checkpoint into the item's Draft, keeping the Draft as a Checkpoint first; never publishes.",
 	),
 	"media.list": read("Lists files of the Site's Media library, or its Trash."),
 	"media.overview": read("What the Media library takes and holds."),

@@ -152,7 +152,9 @@
 		"DASHBOARD_NOT_FOUND": "There is no such Dashboard here.",
 		"WIDGET_NOT_FOUND": "That Widget is no longer on this Dashboard.",
 		"DASHBOARD_TEMPLATE_NOT_FOUND": "That Dashboard template is no longer there.",
-		"DASHBOARD_INVALID": "The Dashboard can't take that: check the Widget's days, filters and settings."
+		"DASHBOARD_INVALID": "The Dashboard can't take that: check the Widget's days, filters and settings.",
+		"REVISION_NOT_FOUND": "This item has no such Revision any more: it may have been removed after the time Revisions are kept.",
+		"CHECKPOINT_NOT_FOUND": "This item has no such Checkpoint any more: it may have been removed after the time Checkpoints are kept."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -318,7 +320,8 @@
 			"protectedTerms": "Protected terms",
 			"aiKeys": "AI keys",
 			"ai": "AI",
-			"dashboards": "Dashboards"
+			"dashboards": "Dashboards",
+			"history": "Revisions"
 		}
 	},
 	"masterKeyBanner": {
@@ -2670,7 +2673,8 @@
 			"fields": "Fields",
 			"data": "Data",
 			"search": "Site search",
-			"seo": "SEO"
+			"seo": "SEO",
+			"revisions": "Revisions"
 		},
 		"search": {
 			"heading": "Site search",
@@ -4818,5 +4822,164 @@
 		"refusedClient": "The app that sent you here isn't registered with this WebCraft. Nothing was approved.",
 		"refusedRedirect": "The app asked to send you back to an address it didn't register. Nothing was approved, and you weren't sent anywhere.",
 		"toAdmin": "Go to the admin"
+	},
+	"history": {
+		"pageTitle": "History",
+		"heading": "History of {name}",
+		"back": "Back to {name}",
+		"retention": "Revisions are kept {days} days, and each item's newest {kept} however old; Checkpoints {checkpointDays} days.",
+		"by": {
+			"unknown": "Nobody known",
+			"gone": "Someone no longer here",
+			"module": "The {module} Module",
+			"translation": "AI translation for {person}",
+			"via": "{person} via {client}"
+		},
+		"copy": {
+			"revision": "Revision",
+			"checkpointActivity": "Checkpoint",
+			"checkpointLeft": "Checkpoint on leaving",
+			"checkpointRestore": "Checkpoint before a restore"
+		},
+		"item": {
+			"siteTemplate": "The Site template",
+			"entryTemplate": "The {postType} Entry template",
+			"archiveTemplate": "The {postType} Archive template",
+			"searchTemplate": "The Search results template",
+			"siteScript": "The Site script",
+			"globals": "The Globals",
+			"consentBanner": "The Consent banner's words",
+			"designSystem": "The Design system",
+			"untitled": "Untitled",
+			"formEmails": "The emails of {name}"
+		},
+		"part": {
+			"title": "Title",
+			"slug": "Slug",
+			"parent": "Parent Page",
+			"hiddenLanguages": "Hidden in",
+			"seo": "SEO & sharing",
+			"tokens": "Design tokens",
+			"classes": "Classes",
+			"baseStyles": "Base styles",
+			"customCss": "Custom CSS",
+			"darkMode": "Dark mode",
+			"props": "Props",
+			"markup": "Template markup",
+			"code": "Code",
+			"source": "Where its items come from",
+			"query": "Query",
+			"itemFields": "Loop items' Fields",
+			"items": "Loop items",
+			"mode": "When results update",
+			"label": "Label",
+			"applyLabel": "Apply button",
+			"controls": "Controls",
+			"formFields": "Fields",
+			"submitLabel": "Send button",
+			"success": "After sending",
+			"spam": "Spam limits",
+			"notifications": "Notifications",
+			"autoReply": "Auto-reply"
+		},
+		"status": {
+			"same": "Same",
+			"changed": "Changed",
+			"added": "Added",
+			"removed": "Removed"
+		},
+		"shown": {
+			"empty": "Empty",
+			"fallback": "No value of its own: shows the Default language's",
+			"yes": "Yes",
+			"no": "No",
+			"row": "Row {number}"
+		},
+		"block": {
+			"paragraph": "Paragraph",
+			"heading": "Heading",
+			"list": "List",
+			"quote": "Quote",
+			"image": "Image",
+			"video": "Video",
+			"table": "Table",
+			"callout": "Callout",
+			"code": "Code",
+			"divider": "Divider",
+			"toggle": "Toggle"
+		},
+		"lines": {
+			"label": "Lines, before and now",
+			"added": "Added line:",
+			"removed": "Removed line:",
+			"folded": "{count, plural, one {# line the same} other {# lines the same}}"
+		},
+		"card": {
+			"heading": "History",
+			"empty": "Nothing saved yet. Each publish saves a Revision, and the Draft is kept as a Checkpoint while it is edited.",
+			"open": "Open history"
+		},
+		"off": {
+			"postType": "Publishing these Entries saves no Revisions: Staff turned them off for this Post Type.",
+			"install": "Publishing saves no Revisions: the Superadmin turned them off for this Install.",
+			"kept": "Revisions saved before are kept {days} days, and each item's newest {kept} however old. Checkpoints are still saved."
+		},
+		"copies": {
+			"heading": "Saved copies",
+			"older": "Show older"
+		},
+		"compare": {
+			"none": "Nothing is saved to compare with the Draft yet.",
+			"heading": "{copy}, next to the Draft",
+			"publishedBy": "Published by {by}",
+			"changedBy": "The Draft as {by} left it at {time}",
+			"languages": "Languages compared",
+			"changes": "{count, plural, =0 {No changes} one {# change} other {# changes}}",
+			"same": "Nothing differs: the Draft holds what this holds.",
+			"differ": "{count, plural, one {# part differs} other {# parts differ}} from the Draft.",
+			"showAll": "Show every part",
+			"showChanged": "Show only what differs",
+			"revisionSide": "This Revision",
+			"checkpointSide": "This Checkpoint",
+			"draftSide": "The Draft now",
+			"shared": "Shared by every language",
+			"partChangedBy": "Changed in the Draft by {by} · {time}"
+		},
+		"restore": {
+			"revision": "Restore this Revision",
+			"checkpoint": "Restore this Checkpoint",
+			"close": "Close",
+			"titleRevision": "Restore this Revision into the Draft?",
+			"titleCheckpoint": "Restore this Checkpoint into the Draft?",
+			"body": "What it held at {time} replaces the Draft. The Draft as it is now is kept as a Checkpoint first, so you can go back. Nothing is published: visitors see it once the item is published.",
+			"cancel": "Cancel",
+			"confirm": "Restore into the Draft",
+			"done": "Restored into the Draft. Nothing was published."
+		},
+		"postType": {
+			"label": "Save a Revision each time an Entry of {name} is published",
+			"help": "Turned off, publishing these Entries saves no Revisions. Revisions saved before stay until the Install's retention removes them, and Checkpoints are still saved while Entries are edited.",
+			"save": "Save",
+			"saved": "Saved."
+		},
+		"link": "History",
+		"linkNamed": ": {name}",
+		"emailsLink": "Emails' history"
+	},
+	"historySettings": {
+		"pageTitle": "Revisions",
+		"heading": "Revisions",
+		"intro": "What the Install keeps of each item's history: a Revision each time it is published, and Checkpoints of its Draft while it is edited.",
+		"revisionsOn": "Save a Revision each time something is published",
+		"revisionsOnHelp": "Turned off, publishing saves no Revisions anywhere on this Install. Revisions saved before stay until the rules below remove them; Checkpoints are still saved.",
+		"revisionDays": "Keep Revisions for (days)",
+		"revisionDaysHelp": "Older Revisions are removed every night, except each item's newest ones below.",
+		"revisionsKept": "Always keep each item's newest Revisions",
+		"revisionsKeptHelp": "However old they are: whichever keeps more, the days above or this number.",
+		"checkpointDays": "Keep Checkpoints for (days)",
+		"checkpointDaysHelp": "Checkpoints are the Draft saved while it is edited; older ones are removed every night.",
+		"outOfRange": "Use a whole number from {min} to {max}.",
+		"save": "Save",
+		"saved": "Saved."
 	}
 }

@@ -1155,6 +1155,9 @@
 												}
 											}
 										}
+									},
+									"revisions": {
+										"type": "boolean"
 									}
 								},
 								"required": ["siteId", "name", "urlPattern"]
@@ -1617,6 +1620,9 @@
 												}
 											}
 										}
+									},
+									"revisions": {
+										"type": "boolean"
 									}
 								},
 								"required": ["siteId", "postTypeId"]
@@ -14742,6 +14748,778 @@
 				"x-webcraft-permissions": ["entry.publish", "structure.edit", "formEmails.edit"],
 				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true
+			}
+		},
+		"/history/list": {
+			"post": {
+				"operationId": "history.list",
+				"summary": "One page of an item's history: the Revisions its publishes saved and the Checkpoints of its Draft, newest first.",
+				"tags": ["history"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"item": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entry"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "template"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "component"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "loop"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "filter"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "script"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "form"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "globals"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "consentBanner"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "designSystem"
+													}
+												},
+												"required": ["kind"]
+											}
+										]
+									},
+									"cursor": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"limit": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 100
+									}
+								},
+								"required": ["siteId", "item"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure", "publishing"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/history/compare": {
+			"post": {
+				"operationId": "history.compare",
+				"summary": "A Revision or Checkpoint next to the item's Draft: what differs, in each language, and who changed it last.",
+				"tags": ["history"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"item": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entry"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "template"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "component"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "loop"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "filter"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "script"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "form"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "globals"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "consentBanner"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "designSystem"
+													}
+												},
+												"required": ["kind"]
+											}
+										]
+									},
+									"copy": {
+										"type": "object",
+										"properties": {
+											"type": {
+												"enum": ["revision", "checkpoint"],
+												"type": "string"
+											},
+											"id": {
+												"type": "string",
+												"format": "uuid"
+											}
+										},
+										"required": ["type", "id"]
+									},
+									"language": {
+										"type": "string",
+										"minLength": 2,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId", "item", "copy"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure", "publishing"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/history/get": {
+			"post": {
+				"operationId": "history.get",
+				"summary": "One Revision or Checkpoint of an item, with the whole version it holds in every language.",
+				"tags": ["history"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"item": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entry"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "template"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "component"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "loop"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "filter"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "script"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "form"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "globals"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "consentBanner"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "designSystem"
+													}
+												},
+												"required": ["kind"]
+											}
+										]
+									},
+									"copy": {
+										"type": "object",
+										"properties": {
+											"type": {
+												"enum": ["revision", "checkpoint"],
+												"type": "string"
+											},
+											"id": {
+												"type": "string",
+												"format": "uuid"
+											}
+										},
+										"required": ["type", "id"]
+									}
+								},
+								"required": ["siteId", "item", "copy"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure", "publishing"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/history/restore": {
+			"post": {
+				"operationId": "history.restore",
+				"summary": "Restores a Revision or Checkpoint into the item's Draft, keeping the Draft as a Checkpoint first; never publishes.",
+				"tags": ["history"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"item": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entry"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "template"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "component"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "loop"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "filter"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "script"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "form"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "globals"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "consentBanner"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "designSystem"
+													}
+												},
+												"required": ["kind"]
+											}
+										]
+									},
+									"copy": {
+										"type": "object",
+										"properties": {
+											"type": {
+												"enum": ["revision", "checkpoint"],
+												"type": "string"
+											},
+											"id": {
+												"type": "string",
+												"format": "uuid"
+											}
+										},
+										"required": ["type", "id"]
+									}
+								},
+								"required": ["siteId", "item", "copy"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["entry.edit", "structure.edit", "formEmails.edit"]
 			}
 		},
 		"/members/list": {

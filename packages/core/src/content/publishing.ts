@@ -9,6 +9,7 @@ import { publishDesignSystem, publishGeneratedClasses } from "../design-system/p
 import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-system/stylesheet.ts";
 import { publishFilter } from "../filters/filters.ts";
 import { publishFormDraft, publishFormEmails } from "../forms/forms.ts";
+import { saveRevision } from "../history/copies.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import { indexPublishedEntry } from "../search/indexing.ts";
@@ -163,6 +164,8 @@ export async function publishItems(
 			} catch (error) {
 				throw refusal && !isDatabaseFailure(error) ? refusal(item, error) : error;
 			}
+			// Each publish saves a Revision of what it published, unless Revisions are off.
+			await saveRevision(tx, item);
 		}
 		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);

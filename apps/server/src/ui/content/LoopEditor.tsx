@@ -12,6 +12,7 @@ import { useAfterRender } from "../after-render.ts";
 
 import { getApi } from "../api.ts";
 import { errorCode, errorMessage } from "../errors.ts";
+import { HistoryLink } from "../history/HistoryLink.tsx";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { Tabs } from "../Tabs.tsx";
@@ -125,10 +126,13 @@ export function LoopEditor({
 						{t("loops.markupHint", { opening: `{{@loop ${loop.name} as item}}`, closing: "{{/loop}}" })}
 					</p>
 				</div>
-				<Button type="button" disabled={publishing} onClick={publish}>
-					<UploadIcon aria-hidden="true" />
-					{t("loops.publish")}
-				</Button>
+				<div className="flex flex-wrap gap-2">
+					<HistoryLink siteId={siteId} item={{ kind: "loop", id: loop.id }} />
+					<Button type="button" disabled={publishing} onClick={publish}>
+						<UploadIcon aria-hidden="true" />
+						{t("loops.publish")}
+					</Button>
+				</div>
 			</div>
 			{publishError ? (
 				<div
