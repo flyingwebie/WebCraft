@@ -2,6 +2,7 @@ import { isIP } from "node:net";
 import { isAbsolute, resolve } from "node:path";
 
 import { normaliseHostname } from "./hostnames.ts";
+import { ipRangeText, PRIVATE_RANGES, parseIpRange } from "./ip-ranges.ts";
 
 /** Settings every WebCraft process reads from its environment. */
 export type InstallConfig = {
@@ -41,11 +42,26 @@ export type InstallConfig = {
 	 */
 	publicAddresses: readonly string[];
 	/**
+	 * The proxies in front of the web process whose word on the client's address is believed
+	 * (`WEBCRAFT_TRUSTED_PROXIES`); see `TrustedProxies`. The default follows `edge`.
+	 */
+	trustedProxies: TrustedProxies;
+	/**
 	 * A file of address ranges and their countries (`WEBCRAFT_COUNTRY_FILE`), which Site analytics
 	 * counts visits by country with; null when not set: every country is then unknown.
 	 */
 	countryFile: string | null;
 };
+
+/**
+ * Which proxies in front of the web process are believed about whom they forwarded a request for:
+ * - `ranges`: connections from these address ranges (CIDR, written one way) are proxies, whose
+ *   `X-Forwarded-For` is read from the right, past every proxy, to the first address that isn't one.
+ *   Empty: no proxy, the connection's own address is the client's.
+ * - `railway`: Railway's edge, which publishes no address ranges and writes the client's address in
+ *   `X-Real-IP`, replacing any a client sent; believed on connections from inside Railway's network.
+ */
+export type TrustedProxies = { kind: "ranges"; ranges: readonly string[] } | { kind: "railway" };
 
 /** What answers HTTPS for an Install: Caddy on a VPS, or the platform's proxy (ADR 0015). */
 export const EDGES = ["caddy", "coolify", "railway"] as const;
@@ -62,14 +78,16 @@ export class ConfigError extends Error {
 /** Reads the settings every process needs, refusing to go on when one is missing or wrong. */
 export function loadInstallConfig(env: Environment): InstallConfig {
 	const adminHost = loadAdminHost(env);
+	const edge = loadEdge(env);
 	return {
 		databaseUrl: loadDatabaseUrl(env),
 		adminHost,
 		adminOrigin: adminOriginFor(adminHost, env.PORT),
 		sitesDomain: loadSitesDomain(env),
 		storageDir: loadStorageDir(env),
-		edge: loadEdge(env),
+		edge,
 		publicAddresses: loadPublicAddresses(env),
+		trustedProxies: loadTrustedProxies(env.WEBCRAFT_TRUSTED_PROXIES, edge),
 		countryFile: loadCountryFile(env),
 	};
 }
@@ -182,4 +200,44 @@ function loadPublicAddresses(env: Environment): string[] {
 		);
 	}
 	return [...new Set(addresses)];
+}
+
+/**
+ * Reads `WEBCRAFT_TRUSTED_PROXIES`: IP addresses and ranges (CIDR) separated by commas, where
+ * `private` stands for loopback and the private ranges (`PRIVATE_RANGES`); or `none` (no proxy: the
+ * connection's address is the client's); or `railway` (Railway's edge). Unset, it follows the edge:
+ * `private` behind Caddy (the Compose file's own network) and Coolify's proxy (a Docker network on the
+ * same server), `railway` on Railway.
+ */
+export function loadTrustedProxies(value: string | undefined, edge: Edge): TrustedProxies {
+	const setting = value?.trim().toLowerCase() ?? "";
+	if (setting === "") return edge === "railway" ? { kind: "railway" } : { kind: "ranges", ranges: [...PRIVATE_RANGES] };
+	if (setting === "railway") return { kind: "railway" };
+	if (setting === "none") return { kind: "ranges", ranges: [] };
+	const ranges = new Set<string>();
+	for (const entry of setting.split(",").map((part) => part.trim())) {
+		if (entry === "") continue;
+		if (entry === "private") {
+			for (const range of PRIVATE_RANGES) ranges.add(range);
+			continue;
+		}
+		const range = parseIpRange(entry);
+		if (!range) {
+			throw new ConfigError(
+				`WEBCRAFT_TRUSTED_PROXIES must be IP addresses or ranges (such as 172.18.0.0/16) separated by commas, "private", "none" or "railway" (got "${entry}").`,
+			);
+		}
+		if (range.prefix === 0) {
+			throw new ConfigError(
+				`WEBCRAFT_TRUSTED_PROXIES can't trust every address ("${entry}"): any client could then choose its own address. Name the proxies' own addresses or ranges.`,
+			);
+		}
+		ranges.add(ipRangeText(range));
+	}
+	if (ranges.size === 0) {
+		throw new ConfigError(
+			'WEBCRAFT_TRUSTED_PROXIES names no proxy. Leave it unset for the default, or set it to "none".',
+		);
+	}
+	return { kind: "ranges", ranges: [...ranges] };
 }

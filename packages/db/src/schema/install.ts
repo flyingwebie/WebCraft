@@ -52,3 +52,15 @@ export const setupTokens = pgTable("setup_tokens", {
 	tokenHash: text("token_hash").primaryKey(),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
+
+/**
+ * The address ranges each CDN publishes for its servers, as the worker last fetched them
+ * (`cdn.refresh-ranges`, daily, for the CDNs Sites name), in CIDR notation. A Site's CDN visitor
+ * header is believed only on connections from its CDN's ranges; until a CDN's list has been fetched,
+ * the ranges WebCraft shipped with count.
+ */
+export const cdnRanges = pgTable("cdn_ranges", {
+	cdn: text("cdn").primaryKey(),
+	ranges: text("ranges").array().notNull(),
+	fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+});

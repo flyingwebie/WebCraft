@@ -25,7 +25,7 @@ import {
 	VERIFY_PATH,
 } from "@webcraft/core";
 
-import { clientAddress } from "../client-address.ts";
+import { clientAddress, recordVisitorAddress } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, notFound, plainText, readOnly } from "../responses.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
@@ -89,6 +89,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		}
 		const host = await services.sitePages.resolveHost(hostname);
 		if (!host) return notFound();
+		// From here on the client address is the visitor's, as the Site's CDN gives it when it has one.
+		await recordVisitorAddress(request, services, host);
 		return withSecurityHeaders(await siteAnswer(services, cache, request, host));
 	};
 }

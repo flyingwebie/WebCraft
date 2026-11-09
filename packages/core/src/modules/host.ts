@@ -223,10 +223,10 @@ export type ModuleHost = {
 	/**
 	 * Where the Redirect rules of the Module keeping them send a request for a Site path (SDK 1.5),
 	 * following a target that is itself a Site path through the rules again (at most
-	 * `MAX_REDIRECT_HOPS` rules; a 302 anywhere makes the whole a 302). A rule made to step aside
-	 * where a page answers does so. Null when no Module keeping rules runs on the Site, no rule
-	 * applies, or the rules go round in a circle (said once in the Module log, the Site's pages then
-	 * answering). Never throws: a `find` that fails or takes longer than `FIND_TIMEOUT_MS` is "no rule".
+	 * `MAX_REDIRECT_HOPS` rules; a 302 anywhere makes the whole a 302; a longer chain sends visitors on
+	 * from the last of them, said in the Module log). A rule made to step aside where a page answers
+	 * does so. Null when no Module keeping rules runs on the Site, no rule applies, or the rules go
+	 * round in a circle (said once in the Module log, the Site's pages then answering). Never throws: a `find` that fails or takes longer than `FIND_TIMEOUT_MS` is "no rule".
 	 */
 	redirectFor(
 		site: Site,
@@ -248,7 +248,7 @@ export type ModuleHost = {
 	runMisses(payload: QueuedMisses): Promise<void>;
 };
 
-/** How many Redirect rules the Site pipeline follows from one request; more is taken for a loop. */
+/** How many Redirect rules the Site pipeline follows in one answer; a longer chain goes on in the next request. */
 export const MAX_REDIRECT_HOPS = 5;
 
 /** How long the Site pipeline waits for a Module's `find`, in milliseconds. */
@@ -972,7 +972,15 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				}
 				// A rule that only stands where no page is steps aside for a page published since.
 				if (target.whereNoPage && (await paths.hasPage(path))) return result;
-				if (hop === MAX_REDIRECT_HOPS) break;
+				if (hop === MAX_REDIRECT_HOPS) {
+					// A longer chain: visitors are sent on from where this answer got to, and the browser
+					// goes on from there (each answer checks again for a circle).
+					await problem(
+						`Redirect rules go through more than ${MAX_REDIRECT_HOPS} steps; visitors were sent on from the last of them.`,
+						{ path: request.path, through: [...seen] },
+					);
+					return result;
+				}
 				if (status === 302) temporary = true;
 				result = { to, status: temporary ? 302 : 301 };
 				// A chain goes on from a plain Site path; an address elsewhere, a query or a fragment ends it.
@@ -987,14 +995,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				seen.add(to);
 				path = to;
 			}
-			await problem(
-				`Redirect rules go through more than ${MAX_REDIRECT_HOPS} steps; the Site's page answered instead.`,
-				{
-					path: request.path,
-					through: [...seen],
-				},
-			);
-			return null;
+			return result;
 		},
 
 		keepsNotFoundLog: logging !== undefined,

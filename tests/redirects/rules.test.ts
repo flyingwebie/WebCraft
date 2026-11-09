@@ -167,6 +167,25 @@ describe("what a rule may be", () => {
 		});
 		await expect(rules().add({ siteId, from: "/loop-c/*", to: "/loop-a", status: 301 })).resolves.toBeDefined();
 	});
+
+	test("a chain of any length gets visitors there, whichever order its rules were added in", async () => {
+		// Seven rules, each added before the next one exists, and seven added after it.
+		for (let n = 1; n <= 7; n++) await rules().add({ siteId, from: `/head-${n}`, to: `/head-${n + 1}`, status: 301 });
+		for (let n = 7; n >= 1; n--) await rules().add({ siteId, from: `/tail-${n}`, to: `/tail-${n + 1}`, status: 301 });
+
+		for (const chain of ["head", "tail"]) {
+			// One answer goes through at most 5 rules; the browser goes on from there.
+			const first = await install.request(`${SITE}/${chain}-1`);
+			expect(first.status).toBe(301);
+			expect(first.headers.get("location")).toBe(`/${chain}-6`);
+			const second = await install.request(`${SITE}/${chain}-6`);
+			expect(second.headers.get("location")).toBe(`/${chain}-8`);
+		}
+		// Closing either chain into a circle is still refused.
+		await expect(rules().add({ siteId, from: "/head-8", to: "/head-1", status: 301 })).rejects.toMatchObject({
+			data: { code: "RULE_LOOP" },
+		});
+	});
 });
 
 describe("managing rules", () => {

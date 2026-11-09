@@ -600,6 +600,7 @@ async function domainIn(target: IsolationTarget): Promise<string> {
 describe("Domains", () => {
 	isolation.refuses("domains.list", (api, { siteId }) => api.domains.list({ siteId }), { as: ["staff", "owner"] });
 	isolation.refuses("domains.add", (api, { siteId }) => api.domains.add({ siteId, name: `${newSlug()}.example` }));
+	isolation.refuses("domains.setCdn", (api, { siteId }) => api.domains.setCdn({ siteId, cdn: "cloudflare" }));
 	isolation.refuses("domains.check", async (api, target) =>
 		api.domains.check({ siteId: target.siteId, domainId: await domainIn(target) }),
 	);

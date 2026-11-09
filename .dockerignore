@@ -1,0 +1,22 @@
+# The images are built from the repo root (apps/server/Dockerfile, apps/worker/Dockerfile). Only what
+# they install and run goes in: no dependencies, builds, local settings or private material.
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+.git
+.github
+.githooks
+.env
+.env.*
+storage
+REA-Apps
+design
+docs
+deploy
+scripts/*
+!scripts/prune-image-dependencies.sh
+**/.DS_Store
+# The tests workspace's manifest stays: the lockfile names it.
+tests/*
+!tests/package.json

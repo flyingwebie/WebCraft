@@ -3,6 +3,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createAccount, reportAccountLock } from "./account.ts";
 import { listAuditEntries } from "./audit.ts";
+import { createCdns } from "./cdns/index.ts";
 import { createCodeMode } from "./code-mode/index.ts";
 import { createConsent } from "./consent/index.ts";
 import {
@@ -308,6 +309,7 @@ export async function createInstallServices(
 			email,
 			verificationKey: await domainVerificationKey(masterKey),
 		}),
+		cdns: createCdns({ database, clock, log, jobs: ports.jobs, fetch: guardedFetch }),
 		webhooks,
 		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
 		languages: {
