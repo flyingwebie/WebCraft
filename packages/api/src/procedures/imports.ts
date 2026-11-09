@@ -114,4 +114,19 @@ export const imports = {
 		const site = await context.services.data.site(context.access, input.siteId, "import.run");
 		return { run: await context.services.imports.report(site, input.runId) };
 	}),
+
+	/**
+	 * Undoes a whole run, in two steps. The first call changes nothing: it answers what Undo would do
+	 * (`preview`: Drafts it deletes and puts back, files it puts in the Trash) and a `confirmation` id,
+	 * valid for 5 minutes; calling again with it undoes the run. Refused with `IMPORT_UNDO_REFUSED`
+	 * (`data.reason`: `status`, `published`, `edited` or `linked`, with the Entries in the way) once
+	 * anything it brought in was published or edited.
+	 */
+	undo: signedIn
+		.input(z.object({ siteId: id, runId: id, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "import.run");
+			const undo = await context.services.imports.undo(site, input.runId, input.confirmation);
+			return { ...undo, run: await context.services.imports.report(site, input.runId) };
+		}),
 };

@@ -148,7 +148,7 @@ describe("each Field type reads a cell", () => {
 		const postType = await postTypeWith([
 			{ key: "categories", label: "Categories", type: "relationship", postTypes: [categories.key], multiple: true },
 		]);
-		const ids = Object.fromEntries(
+		const ids: Record<string, string> = Object.fromEntries(
 			(await editor.api.entries.list({ siteId, postTypeId: categories.id })).entries.map((entry) => [
 				entry.draft.title,
 				entry.id,
@@ -167,8 +167,8 @@ describe("each Field type reads a cell", () => {
 		);
 
 		expect(await draftsOf(postType.id)).toEqual({
-			Rye: { categories: [ids.Breads, ids["Sweet breads"]] },
-			Tart: { categories: [ids.Cakes] },
+			Rye: { categories: [ids.Breads as string, ids["Sweet breads"] as string] },
+			Tart: { categories: [ids.Cakes as string] },
 			Pie: { categories: [] },
 		});
 		expect(run.problems).toEqual([{ row: 4, column: "categories", rule: "entryNotFound", params: { name: "Pies" } }]);
@@ -201,7 +201,8 @@ describe("each Field type reads a cell", () => {
 		const { items } = await editor.api.media.list({ siteId });
 		const fetched = items.find((item) => item.fileName === "rye.jpg");
 		expect(fetched).toMatchObject({ kind: "image", status: "ready" });
-		expect(drafts).toEqual({ Rye: { photo: fetched?.id }, "Rye again": { photo: fetched?.id } });
+		const photoId = fetched?.id ?? "";
+		expect(drafts).toEqual({ Rye: { photo: photoId }, "Rye again": { photo: photoId } });
 	});
 
 	test("a file of the Media library by its id", async () => {

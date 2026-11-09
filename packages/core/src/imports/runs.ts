@@ -43,6 +43,7 @@ import {
 	resolveFinds,
 	writeItem,
 } from "./pipeline.ts";
+import { undoState } from "./undo.ts";
 
 /** How long an Import report is kept after its run ends. */
 export const IMPORT_REPORT_LIFETIME_MS = 90 * 24 * 60 * 60_000;
@@ -442,7 +443,7 @@ export async function runReport(scope: SiteScope, runId: string): Promise<Import
 		failure: (run.failure as { reason: string } | null) ?? null,
 		undoneAt: run.undoneAt,
 		undoneBy: run.undoneBy && undoneBy ? { id: run.undoneBy, name: undoneBy } : null,
-		undo: { available: false, reason: "status" },
+		undo: await undoState(scope, run),
 		expiresAt: run.expiresAt,
 	};
 }

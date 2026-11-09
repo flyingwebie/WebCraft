@@ -24,6 +24,7 @@ import {
 	stopRun,
 	updateImport,
 } from "./runs.ts";
+import { type ImportUndo, undoRun } from "./undo.ts";
 
 export { CSV_LIMITS, CSV_SEPARATORS, type CsvRefusal, CsvRefusedError, type CsvSeparator } from "./csv.ts";
 export { type CsvSettings, type CsvTarget, csvSettingsSchema } from "./csv-source.ts";
@@ -53,6 +54,7 @@ export {
 	importsRun,
 	type NewImport,
 } from "./runs.ts";
+export type { ImportUndo, UndoPreview } from "./undo.ts";
 
 /** A Site's Imports. Open the Site with `import.run`. */
 export type Imports = {
@@ -87,6 +89,12 @@ export type Imports = {
 	stop(scope: SiteScope, runId: string): Promise<ImportRunReport>;
 	/** A run's progress and Import report. */
 	report(scope: SiteScope, runId: string): Promise<ImportRunReport>;
+	/**
+	 * Undoes a whole run, in two steps (logged `import.undo`): deletes the Drafts it created, puts back
+	 * the Drafts it updated and puts the files it fetched in the Trash, while nothing it brought in was
+	 * published or edited since.
+	 */
+	undo(scope: SiteScope, runId: string, confirmation?: string): Promise<ImportUndo>;
 };
 
 export function createImports(options: { storage: InstallStorage; jobs: JobQueue }): Imports {
@@ -101,5 +109,6 @@ export function createImports(options: { storage: InstallStorage; jobs: JobQueue
 		start: (scope, importId, fileId) => startRun(scope, jobs, importId, fileId),
 		stop: (scope, runId) => stopRun(scope, storage, runId),
 		report: runReport,
+		undo: undoRun,
 	};
 }

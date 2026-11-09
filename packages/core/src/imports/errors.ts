@@ -49,9 +49,10 @@ export class ImportRunningError extends Error {
  * Why a run can't be undone:
  * - `status`: it hasn't ended, or was undone already;
  * - `published`: something it brought in was published since;
- * - `edited`: something it brought in was edited since (by a person, or by a later run).
+ * - `edited`: something it brought in was edited since (by a person, or by a later run);
+ * - `linked`: an Entry outside the run must point at one it created (a required Relationship).
  */
-export type UndoRefusal = "status" | "published" | "edited";
+export type UndoRefusal = "status" | "published" | "edited" | "linked";
 
 /** The run can't be undone; `entries` names the Entries in the way. */
 export class ImportUndoRefusedError extends Error {
@@ -64,7 +65,9 @@ export class ImportUndoRefusedError extends Error {
 				? "Only a run that ended, and wasn't undone, can be undone."
 				: reason === "published"
 					? "Something this run brought in was published since, so it can't be undone."
-					: "Something this run brought in was edited since, so it can't be undone.",
+					: reason === "edited"
+						? "Something this run brought in was edited since, so it can't be undone."
+						: "Another Entry must point at an Entry this run created, so it can't be undone.",
 		);
 		this.reason = reason;
 		this.entries = entries;
