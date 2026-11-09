@@ -166,3 +166,28 @@ describe("a Module's admin pages", () => {
 		]);
 	});
 });
+
+describe("the Module log", () => {
+	test("keeps a line for 90 days", async () => {
+		const kept = await createTestInstall({ modules: [sample] });
+		try {
+			await (await kept.superadmin()).api.modules.approve({ moduleId: "sample", version: "1.0.0" });
+			const site = await kept.createSite((await kept.createWorkspace()).id);
+			await expect(api(await kept.superadmin()).broken({ siteId: site.id })).rejects.toMatchObject({
+				code: "MODULE_FAILED",
+			});
+			const lines = async () => (await (await kept.superadmin()).api.modules.log({ moduleId: "sample" })).lines;
+			const DAY = 24 * 60 * 60 * 1000;
+
+			await kept.clock.advance(89 * DAY);
+			await kept.drainJobs();
+			expect(await lines()).toHaveLength(1);
+
+			await kept.clock.advance(2 * DAY);
+			await kept.drainJobs();
+			expect(await lines()).toEqual([]);
+		} finally {
+			await kept.close();
+		}
+	});
+});

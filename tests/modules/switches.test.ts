@@ -169,6 +169,29 @@ describe("removing a Module's data", () => {
 		});
 	});
 
+	test("removes the Module's secrets there too, and only there", async () => {
+		const site = await install.createSite(workspaceId);
+		const settings = moduleApi<typeof sample>(staff, "sample").settings;
+		await settings.setHookToken({ siteId: site.id, token: "removed-with-the-data-0123" });
+		await settings.setHookToken({ siteId: otherSiteId, token: "kept-on-the-other-site-0123" });
+
+		const asked = await staff.api.modules.removeSiteData({ siteId: site.id, moduleId: "sample" });
+		if (asked.removed) throw new Error("Nothing should be removed before the confirmation.");
+		expect(asked.secrets).toBe(1);
+		await staff.api.modules.removeSiteData({
+			siteId: site.id,
+			moduleId: "sample",
+			confirmation: asked.confirmation.id,
+		});
+
+		await staff.api.modules.setOnSite({ siteId: site.id, moduleId: "sample", on: true });
+		const removed = await settings.checkHook({ siteId: site.id });
+		expect(removed.seen?.join("\n")).toContain("isn't set");
+		install.http.respond("GET", /^https:\/\/hooks\.sample\.example\/check\//, { status: 204 });
+		install.dns.answer("hooks.sample.example", ["93.184.216.34"]);
+		expect(await settings.checkHook({ siteId: otherSiteId })).toEqual({ status: 204, seen: null });
+	});
+
 	test("refuses a confirmation once what it would delete has changed", async () => {
 		const site = await install.createSite(workspaceId);
 		await notes(staff).add({ siteId: site.id, body: "Before" });

@@ -188,8 +188,8 @@ describe("no read-back", () => {
 		await install.secrets.set(ref, VALUE);
 	});
 
-	test("the secrets interface offers set, useWith, describe and remove, and nothing that reads a value", () => {
-		expect(Object.keys(install.secrets).sort()).toEqual(["describe", "remove", "set", "useWith"]);
+	test("the secrets interface offers set, useWith, describe, remove and names, and nothing that reads a value", () => {
+		expect(Object.keys(install.secrets).sort()).toEqual(["describe", "names", "remove", "set", "useWith"]);
 	});
 
 	test("set answers nothing, and describe shows no more than the last 4 characters", async () => {
