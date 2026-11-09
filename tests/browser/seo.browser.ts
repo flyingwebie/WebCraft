@@ -141,6 +141,10 @@ for (const theme of THEMES) {
 			await page.getByRole("button", { name: "Save" }).click();
 			const alert = page.getByRole("alert").filter({ hasText: "The SEO settings weren't saved" });
 			await alert.waitFor();
+			// Focus moves to the summary once it is drawn.
+			await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "alert", undefined, {
+				timeout: 5_000,
+			});
 			expect(await alert.evaluate((element) => element === document.activeElement)).toBe(true);
 			await expectAccessibleScreen(page, `a Post Type's SEO tab, refused (${theme})`);
 		});
