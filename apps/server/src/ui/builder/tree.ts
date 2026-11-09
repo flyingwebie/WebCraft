@@ -298,6 +298,18 @@ export function withNewIds(tree: ElementTree, nodes: readonly TreeNode[]): TreeN
 	return nodes.map(copy);
 }
 
+/** The ids of nodes and of their copies (`withNewIds`), element by element, in the same order. */
+export function copiedIds(nodes: readonly TreeNode[], copies: readonly TreeNode[]): Map<string, string> {
+	const pairs = new Map<string, string>();
+	const original = idsIn(nodes);
+	const copied = idsIn(copies);
+	original.forEach((id, index) => {
+		const copy = copied[index];
+		if (copy) pairs.set(id, copy);
+	});
+	return pairs;
+}
+
 /** Every element and Placement id in nodes. */
 export function idsIn(nodes: readonly TreeNode[]): string[] {
 	const ids: string[] = [];

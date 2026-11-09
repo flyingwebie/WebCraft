@@ -52,6 +52,7 @@ import {
 	type Changed,
 	canHoldChildren,
 	childLists,
+	copiedIds,
 	insertAt,
 	isFixedText,
 	isFormatting,
@@ -127,7 +128,8 @@ export function Builder({
 	const [busy, setBusy] = useState<"save" | "publish" | "switch" | null>(null);
 	const [designVersion, setDesignVersion] = useState(0);
 	const [focusLayers, setFocusLayers] = useState(0);
-	const clipboard = useRef<TreeNode[] | null>(null);
+	/** What Cut and Copy took: the layers, and the unsaved one-off styles of the elements in them. */
+	const clipboard = useRef<{ nodes: TreeNode[]; styles: Record<string, string> } | null>(null);
 	const insertTrigger = useRef<HTMLButtonElement | null>(null);
 	const fixedTextTrigger = useRef<HTMLElement | null>(null);
 	const docRef = useRef(doc);
@@ -142,6 +144,12 @@ export function Builder({
 	const dirty = JSON.stringify(doc) !== saved || (view === "markup" && markup !== markupBase);
 	const status = opened.template?.status ?? opened.component?.status ?? null;
 	const fixedTextAction = target.kind === "component" ? "prop" : target.kind === "entryTemplate" ? "field" : "global";
+	/** A Component's Props, sent only when the builder changed them (else the Draft's stay as they are). */
+	const propsChange = useCallback(
+		(from: BuilderDoc): { props?: FieldInput[] } =>
+			from.props && JSON.stringify(from.props) !== JSON.stringify(opened.props) ? { props: from.props } : {},
+		[opened.props],
+	);
 
 	const announce = useCallback((text: string) => {
 		setAnnouncement((before) => ({ text, count: before.count + 1 }));
@@ -226,12 +234,12 @@ export function Builder({
 			case "moveOut":
 				return applyMove(moveOut(doc.tree, path), name);
 			case "copy":
-				clipboard.current = [node];
+				clipboard.current = { nodes: [node], styles: doc.styles };
 				announce(t("builder.moves.copied", { name }));
 				return;
 			case "cut":
 			case "delete": {
-				if (action === "cut") clipboard.current = [node];
+				if (action === "cut") clipboard.current = { nodes: [node], styles: doc.styles };
 				const tree = removeAt(doc.tree, path);
 				const place = placeOf(path);
 				const siblings = listAt(tree, place);
@@ -260,7 +268,7 @@ export function Builder({
 				const copies = withNewIds(doc.tree, [node]);
 				const made = insertAt(doc.tree, placeBy(path, "after"), copies);
 				apply(
-					{ ...doc, tree: made.tree },
+					{ ...doc, tree: made.tree, styles: withCopiedStyles(doc.styles, [node], copies, doc.styles) },
 					{ kind: "node", path: made.path },
 					t("builder.moves.duplicated", { name, where: whereIs(made.tree, made.path) }),
 				);
@@ -278,7 +286,7 @@ export function Builder({
 			announce(t("builder.moves.nothingToPaste"));
 			return;
 		}
-		const nodes = withNewIds(doc.tree, copied);
+		const nodes = withNewIds(doc.tree, copied.nodes);
 		const place: Place =
 			selection.kind === "list"
 				? { ...selection.list, index: listAt(doc.tree, selection.list).length }
@@ -286,7 +294,7 @@ export function Builder({
 		const made = insertAt(doc.tree, place, nodes);
 		const name = nameAt(made.tree, made.path);
 		apply(
-			{ ...doc, tree: made.tree },
+			{ ...doc, tree: made.tree, styles: withCopiedStyles(doc.styles, copied.nodes, nodes, copied.styles) },
 			{ kind: "node", path: made.path },
 			t("builder.moves.pasted", { name, where: whereIs(made.tree, made.path) }),
 		);
@@ -404,7 +412,7 @@ export function Builder({
 					target,
 					tree: doc.tree,
 					styles: doc.styles,
-					...(doc.props ? { props: doc.props } : {}),
+					...propsChange(doc),
 				});
 				if (!current) return;
 				setPreview(shown);
@@ -417,7 +425,7 @@ export function Builder({
 			current = false;
 			clearTimeout(handle);
 		};
-	}, [doc, view, siteId, target, designVersion, t]);
+	}, [doc, view, siteId, target, designVersion, t, propsChange]);
 
 	// In the Template markup view the canvas follows the markup, read as switching back would read it.
 	useEffect(() => {
@@ -426,13 +434,13 @@ export function Builder({
 		const handle = setTimeout(async () => {
 			try {
 				const api = await getApi();
-				const read = await api.builder.read({ siteId, target, markup, ...(doc.props ? { props: doc.props } : {}) });
+				const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
 				const shown = await api.builder.preview({
 					siteId,
 					target,
 					tree: read.tree,
 					styles: read.styles,
-					...(doc.props ? { props: doc.props } : {}),
+					...propsChange(doc),
 				});
 				if (!current) return;
 				setPreview(shown);
@@ -445,7 +453,7 @@ export function Builder({
 			current = false;
 			clearTimeout(handle);
 		};
-	}, [markup, view, siteId, target, doc.props, t]);
+	}, [markup, view, siteId, target, doc, t, propsChange]);
 
 	const placeholderWords = useCallback(
 		(kind: string, name: string | null) => {
@@ -501,7 +509,7 @@ export function Builder({
 					target,
 					tree: doc.tree,
 					styles: doc.styles,
-					...(doc.props ? { props: doc.props } : {}),
+					...propsChange(doc),
 				});
 				setMarkup(printed.markup);
 				setMarkupBase(printed.markup);
@@ -510,7 +518,7 @@ export function Builder({
 				announce(t("builder.view.toMarkup"));
 			} else {
 				if (markup !== markupBase) {
-					const read = await api.builder.read({ siteId, target, markup, ...(doc.props ? { props: doc.props } : {}) });
+					const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
 					apply({ ...doc, tree: read.tree, styles: read.styles }, null, t("builder.view.toVisual"));
 				} else {
 					announce(t("builder.view.toVisual"));
@@ -541,12 +549,12 @@ export function Builder({
 								target,
 								tree: started.tree,
 								styles: started.styles,
-								...(started.props ? { props: started.props } : {}),
+								...propsChange(started),
 							})
 						).markup;
 			const stored = await saveDraft(api, siteId, target, {
 				markup: text,
-				props: started.props,
+				props: propsChange(started).props ?? null,
 				basedOn: over ? over.version : opened.version,
 			});
 			const fresh = await api.builder.open({ siteId, target });
@@ -1020,6 +1028,21 @@ export function Builder({
 			</Dialog>
 		</div>
 	);
+}
+
+/** One-off styles with those of copied elements given to their copies too. */
+function withCopiedStyles(
+	styles: Record<string, string>,
+	originals: readonly TreeNode[],
+	copies: readonly TreeNode[],
+	from: Record<string, string>,
+): Record<string, string> {
+	const next = { ...styles };
+	for (const [original, copy] of copiedIds(originals, copies)) {
+		const style = from[original];
+		if (style) next[copy] = style;
+	}
+	return next;
 }
 
 /** The problems of a tree the server refused, else one problem in the admin's words. */

@@ -427,6 +427,37 @@ describe("fixed text", () => {
 	});
 });
 
+test("a Component: its fixed text becomes a Prop, saved with it, the text as its default", async () => {
+	const { api } = await install.install.superadmin();
+	const { component } = await api.components.create({ siteId, name: "Notice" });
+	await api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		markup: '<aside data-wc-id="n"><p data-wc-id="m">Closed on Sundays</p></aside>',
+	});
+	const page = await install.newPage("light");
+	await install.signIn(page, staff);
+	await page.goto(install.adminUrl(`/builder/${siteId}/component/${component.id}`));
+	await page.frameLocator("iframe[title^='Canvas']").getByText("Closed on Sundays").waitFor();
+	await layer(page, /^“Closed on Sundays”/).click();
+
+	await page.getByRole("button", { name: "Make it a Prop" }).click();
+	const dialog = page.getByRole("dialog", { name: "Make it a Prop" });
+	await dialog.getByRole("textbox", { name: "Label" }).fill("Message");
+	await dialog.getByRole("button", { name: "Make it a Prop" }).click();
+	await expectAnnounced(page, "The text now reads {{ props.message }}.");
+	// The Prop's default is the text, so the canvas shows the same words.
+	await page.frameLocator("iframe[title^='Canvas']").getByText("Closed on Sundays").waitFor();
+	await page.keyboard.press("ControlOrMeta+s");
+	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+
+	const saved = await api.components.getMarkup({ siteId, componentId: component.id });
+	expect(saved.markup.draft).toBe('<aside data-wc-id="n"><p data-wc-id="m">{{ props.message }}</p></aside>');
+	expect(saved.component.draft.props).toEqual([
+		expect.objectContaining({ key: "message", label: "Message", type: "text", default: "Closed on Sundays" }),
+	]);
+});
+
 test("Publish saves, then publishes what visitors see", async () => {
 	await resetTemplate();
 	const page = await builderPage();
