@@ -16,6 +16,7 @@ import {
 	AltTextUnavailableError,
 	ApiTokenNotFoundError,
 	ArchiveUnavailableError,
+	BrandingInvalidError,
 	CaptchaInvalidError,
 	CheckpointNotFoundError,
 	ClassInUseError,
@@ -104,6 +105,7 @@ import {
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
 	PathTakenError,
+	PdfRenderError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
@@ -113,15 +115,23 @@ import {
 	PublishAllInvalidError,
 	PublishAllRefusedError,
 	RateLimitedError,
+	ReportInvalidError,
+	ReportNotFoundError,
+	ReportSendNotFoundError,
+	ReportSendRefusedError,
 	RevisionNotFoundError,
 	ScriptNotFoundError,
 	SensitiveActionRefusedError,
 	SeoSettingsInvalidError,
+	ServicesListInvalidError,
 	SessionNotFoundError,
 	SetupClosedError,
 	SetupStageError,
 	SetupTokenInvalidError,
 	SharedAiKeyNotFoundError,
+	ShareLinkInvalidError,
+	ShareLinkNotFoundError,
+	ShareLinksUnavailableError,
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
@@ -477,6 +487,56 @@ export function toApiError(error: unknown): unknown {
 			data: { problem: error.problem },
 			cause: error,
 		});
+	}
+	if (error instanceof ReportNotFoundError) {
+		return new ORPCError("REPORT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ReportInvalidError) {
+		return new ORPCError("REPORT_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { field: error.field },
+			cause: error,
+		});
+	}
+	if (error instanceof ReportSendNotFoundError) {
+		return new ORPCError("REPORT_SEND_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ReportSendRefusedError) {
+		return new ORPCError("REPORT_SEND_REFUSED", {
+			status: 409,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof ShareLinkNotFoundError) {
+		return new ORPCError("SHARE_LINK_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ShareLinkInvalidError) {
+		return new ORPCError("SHARE_LINK_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { field: error.field },
+			cause: error,
+		});
+	}
+	if (error instanceof ShareLinksUnavailableError) {
+		return new ORPCError("SHARE_LINKS_UNAVAILABLE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof BrandingInvalidError) {
+		return new ORPCError("BRANDING_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { field: error.field },
+			cause: error,
+		});
+	}
+	if (error instanceof ServicesListInvalidError) {
+		return new ORPCError("SERVICES_LIST_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof PdfRenderError) {
+		return new ORPCError("PDF_UNAVAILABLE", { status: 503, message: error.message, cause: error });
 	}
 	if (error instanceof WebhookInvalidError) {
 		return new ORPCError("WEBHOOK_INVALID", {

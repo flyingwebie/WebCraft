@@ -57,6 +57,23 @@ export type TranslationRequest = {
 	texts: string[];
 };
 
+/**
+ * What WebCraft asks a provider to write for a Report (#104): short explanations of each Widget, what
+ * happened, and suggestions that may point to the agency's services. Only totals are sent (`facts`:
+ * the Report's Widgets' counts for its period and the one before, as JSON), never anything about a
+ * visitor; the answer is a JSON object, checked by WebCraft and shown as plain text.
+ */
+export type ReportTextRequest = {
+	connection: AiConnection;
+	purpose: "report";
+	/** The language to write in. */
+	language: AiLanguage;
+	/** The Report's totals, as JSON. */
+	facts: string;
+	/** The agency's Services list: what suggestions may point to, by id. */
+	services: { id: string; name: string; description: string }[];
+};
+
 /** What a call used, as the provider reports it. */
 export type AiUsage = { inputTokens: number; outputTokens: number };
 
@@ -69,6 +86,8 @@ export type TranslationAnswer = { texts: string[]; usage?: AiUsage };
 export type AiProviders = {
 	describeImage(request: ImageDescriptionRequest): Promise<AiAnswer>;
 	translate(request: TranslationRequest): Promise<TranslationAnswer>;
+	/** A Report's text, as the provider answered it (a JSON object, read by WebCraft). */
+	writeReport(request: ReportTextRequest): Promise<AiAnswer>;
 };
 
 /**
@@ -100,4 +119,6 @@ export const aiProvidersToCome: AiProviders = {
 	describeImage: () =>
 		Promise.reject(new AiProviderError("unavailable", "AI providers aren't connected in this process.")),
 	translate: () => Promise.reject(new AiProviderError("unavailable", "AI providers aren't connected in this process.")),
+	writeReport: () =>
+		Promise.reject(new AiProviderError("unavailable", "AI providers aren't connected in this process.")),
 };

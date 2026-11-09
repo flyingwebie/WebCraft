@@ -5,6 +5,7 @@ import { directionOf } from "@webcraft/renderer";
 import type { InstallConfig } from "../config.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import type { RelatedItem } from "./email-log.ts";
+import type { EmailAttachmentRef } from "./mailer.ts";
 import { type OutboxPorts, queueEmail, type SmtpChoice } from "./outbox.ts";
 
 /**
@@ -37,6 +38,8 @@ export type SiteMail = {
 	/** A short last line, in smaller text. */
 	note?: string | null;
 	related: RelatedItem;
+	/** Files sent with it (a Report's PDF), read when it is sent. */
+	attachments?: readonly EmailAttachmentRef[];
 };
 
 /** The route of a Site's mail, from its email settings (read through the Site's scope). */
@@ -72,10 +75,13 @@ export function oneLine(value: string, max = 300): string {
 	return value.replace(CONTROL_CHARACTERS, " ").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
-/** Queues one of a Site's emails: rendered, recorded in the Email log with its Site, sent by the worker. */
+/**
+ * Queues one of a Site's emails: rendered, recorded in the Email log with its Site, sent by the worker.
+ * `site` null: a Workspace's own mail (a Workspace Dashboard's Report), through the Install SMTP.
+ */
 export async function queueSiteMail(
 	ports: OutboxPorts & { config: InstallConfig },
-	site: { id: string },
+	site: { id: string } | null,
 	route: SiteMailRoute,
 	mail: SiteMail,
 ): Promise<{ emailId: string; status: "queued" | "logged" }> {
@@ -91,8 +97,9 @@ export async function queueSiteMail(
 		headers: { "Auto-Submitted": "auto-generated" },
 		smtp: route.smtp,
 		related: mail.related,
-		siteId: site.id,
+		siteId: site?.id ?? null,
 		replyTo: mail.replyTo !== undefined ? mail.replyTo : route.replyTo,
+		...(mail.attachments?.length ? { attachments: mail.attachments } : {}),
 	});
 }
 

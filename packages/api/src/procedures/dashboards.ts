@@ -18,9 +18,9 @@ import { languageOf } from "./modules.ts";
  * Where a Dashboard is: a Site (`siteId`), or a Workspace (`workspaceId`) for a Workspace Dashboard,
  * whose Widgets add up the Workspace's Sites the caller sees. Exactly one of the two.
  */
-const place = { siteId: id.optional(), workspaceId: id.optional() };
+export const place = { siteId: id.optional(), workspaceId: id.optional() };
 
-function placeOf(input: { siteId?: string; workspaceId?: string }): DashboardPlace {
+export function placeOf(input: { siteId?: string; workspaceId?: string }): DashboardPlace {
 	if (input.siteId !== undefined && input.workspaceId === undefined) return { siteId: input.siteId };
 	if (input.workspaceId !== undefined && input.siteId === undefined) return { workspaceId: input.workspaceId };
 	throw new ORPCError("BAD_REQUEST", {

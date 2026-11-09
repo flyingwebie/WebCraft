@@ -15,14 +15,22 @@
  * plain data for one range, the read-only rendering both start from.
  */
 import type { Database } from "@webcraft/db";
-import { dashboards, dashboardTemplates, workspaceDashboards } from "@webcraft/db/schema";
-import { type Label, type WidgetData, type WidgetSetting, wordsIn } from "@webcraft/module-sdk";
+import { dashboards, dashboardTemplates, sites as sitesTable, workspaceDashboards } from "@webcraft/db/schema";
+import { type Label, type WidgetData, type WidgetFilters, type WidgetSetting, wordsIn } from "@webcraft/module-sdk";
 import { asc, desc, eq } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
 import type { ModuleHost, WidgetKind } from "../modules/host.ts";
 import { can, personIdOf, type Resource } from "../permissions/can.ts";
-import type { Access, DataLayer, Site, SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
+import type {
+	Access,
+	BackgroundScope,
+	BackgroundWorkspaceScope,
+	DataLayer,
+	Site,
+	SiteScope,
+	WorkspaceScope,
+} from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { listSites } from "../tenancy/sites.ts";
 import { visibleWorkspaces } from "../tenancy/workspaces.ts";
@@ -168,6 +176,18 @@ export type Dashboards = {
 		dashboardId: string,
 		options: { range?: DashboardRange; language: string },
 	): Promise<{ name: string; answers: WidgetAnswerView[] }>;
+	/**
+	 * Every Widget of a Dashboard as a Report or a Share link shows it (#104), with nobody signed in: the
+	 * Dashboard's own Widgets, a Workspace Dashboard's added up over every Site of its Workspace. `range`
+	 * is explored as in `widgetData`; `filters` narrow every Widget that takes them and has none of its
+	 * own. Null when the Dashboard (or its place) is gone. Only Reports' jobs and a Share link's page,
+	 * which checked who may see it, call it.
+	 */
+	shown(
+		place: DashboardPlace,
+		dashboardId: string,
+		options: { range?: DashboardRange; filters?: WidgetFilters; language: string },
+	): Promise<{ name: string; range: DashboardRange; answers: WidgetAnswerView[] } | null>;
 	/** One Widget as a CSV file, recorded in the Audit log. */
 	exportWidget(
 		access: Access,
@@ -209,7 +229,8 @@ type Row = {
 /** A place opened for a person: its scope, its Dashboards' table, and the Sites a Widget counts on. */
 type Opened = {
 	level: "site" | "workspace";
-	scope: SiteScope | WorkspaceScope;
+	/** The person's scope, or a background one for a Report or Share link (`shown`), where nobody is signed in. */
+	scope: SiteScope | WorkspaceScope | BackgroundScope | BackgroundWorkspaceScope;
 	table: typeof dashboards | typeof workspaceDashboards;
 	resource: Resource;
 	/** The Site (a Site Dashboard), or the Workspace's Sites the person sees (a Workspace Dashboard). */
@@ -299,7 +320,45 @@ export function createDashboards(deps: {
 	};
 
 	const holds = (opened: Opened, permission: "dashboard.view" | "dashboard.manage") =>
-		can(opened.scope.access.actor, permission, opened.resource);
+		"access" in opened.scope && can(opened.scope.access.actor, permission, opened.resource);
+
+	/** A place opened for a Report or a Share link: nobody signed in, every Site of a Workspace counted. */
+	const openShown = async (place: DashboardPlace): Promise<Opened | null> => {
+		if ("siteId" in place) {
+			const scope = await data.background(place.siteId);
+			if (!scope) return null;
+			return {
+				level: "site",
+				scope,
+				table: dashboards,
+				resource: { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id },
+				sites: async () => [scope.site],
+			};
+		}
+		const scope = await data.backgroundWorkspace(place.workspaceId);
+		if (!scope) return null;
+		let sites: Promise<Site[]> | undefined;
+		return {
+			level: "workspace",
+			scope,
+			table: workspaceDashboards,
+			resource: { level: "workspace", workspaceId: scope.workspace.id },
+			sites: () => {
+				sites ??= scope
+					.select(sitesTable, undefined, { orderBy: [asc(sitesTable.name), asc(sitesTable.slug)] })
+					.then((rows) =>
+						rows.map((row) => ({
+							id: row.id,
+							workspaceId: row.workspaceId,
+							name: row.name,
+							slug: row.slug,
+							createdAt: row.createdAt,
+						})),
+					);
+				return sites;
+			},
+		};
+	};
 
 	const queries = (opened: Opened) =>
 		opened.scope as unknown as {
@@ -442,6 +501,7 @@ export function createDashboards(deps: {
 		override: DashboardRange | undefined,
 		language: string,
 		known: Map<string, KindInfo>,
+		explore: WidgetFilters = {},
 	): Promise<WidgetAnswerView> => {
 		const info = known.get(widget.kind);
 		const range = resolveRange(widget.range ?? override ?? storedRange(row.range), clock.now());
@@ -459,10 +519,15 @@ export function createDashboards(deps: {
 			};
 		}
 		const kind = widget.kind.slice(info.moduleId.length + 1);
+		// Exploring narrows by the filters the kind takes that the Widget doesn't set itself.
+		const filters: WidgetFilters = { ...widget.filters };
+		for (const [name, value] of Object.entries(explore) as [keyof WidgetFilters, never][]) {
+			if (value !== undefined && filters[name] === undefined && info.filters.includes(name)) filters[name] = value;
+		}
 		const request = {
 			range: { from: range.from, to: range.to },
 			interval: range.interval,
-			filters: widget.filters,
+			filters,
 			settings: widget.settings,
 			limit: widget.rows,
 		};
@@ -816,6 +881,20 @@ export function createDashboards(deps: {
 				answers.push(await answer(opened, row, widget, options.range, options.language, known));
 			}
 			return { name: row.name, answers };
+		},
+
+		async shown(place, dashboardId, options) {
+			const opened = await openShown(place);
+			if (!opened) return null;
+			const row = await queries(opened).first(opened.table, eq(opened.table.id, dashboardId));
+			if (!row) return null;
+			const known = kinds(options.language);
+			const answers: WidgetAnswerView[] = [];
+			const ordered = storedWidgets(row.widgets).sort((a, b) => a.y - b.y || a.x - b.x);
+			for (const widget of ordered) {
+				answers.push(await answer(opened, row, widget, options.range, options.language, known, options.filters));
+			}
+			return { name: row.name, range: storedRange(row.range), answers };
 		},
 
 		async exportWidget(access, place, dashboardId, widgetId, options) {

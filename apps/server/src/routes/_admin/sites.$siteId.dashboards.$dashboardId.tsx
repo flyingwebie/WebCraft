@@ -34,7 +34,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId/dashboards/$dashboar
 function SiteDashboard() {
 	const { siteId, dashboardId } = Route.useParams();
 	const { dashboard, catalog } = Route.useLoaderData();
-	const { place } = Route.useRouteContext();
+	const { place, shell } = Route.useRouteContext();
 	const { range } = Route.useSearch();
 	const navigate = useNavigate();
 	return (
@@ -52,6 +52,14 @@ function SiteDashboard() {
 				})
 			}
 			workspaceName={place.level === "site" ? place.workspace.name : ""}
+			sharing={{
+				reports: place.permissions.includes("report.view")
+					? { to: "/sites/$siteId/dashboards/$dashboardId/reports", params: { siteId, dashboardId } }
+					: null,
+				shareLinks: place.permissions.includes("shareLink.view"),
+				manageShareLinks: place.permissions.includes("shareLink.manage"),
+				language: shell.language.code,
+			}}
 			listPath={async () => {
 				await navigate({ to: "/sites/$siteId/dashboards", params: { siteId } });
 			}}

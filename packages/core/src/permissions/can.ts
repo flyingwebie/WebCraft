@@ -128,6 +128,9 @@ export function can(actor: Actor, permission: Permission | AddedPermission, reso
 	}
 	switch (actor.kind) {
 		case "person":
+			if (resource.level === "install" && typeof permission === "string" && heldOnInstallByStaff(actor, permission)) {
+				return true;
+			}
 			return rolesReaching(actor, resource).some((role) =>
 				typeof permission === "string"
 					? roleDefinition(role)?.permissions.includes(permission)
@@ -251,6 +254,19 @@ function rolesReaching(actor: PersonActor, target: Target): string[] {
 		}
 	}
 	return roles;
+}
+
+/**
+ * Staff hold an Install-level role (ADR 0001) reaching the Workspaces they are assigned to; on the
+ * Install itself they hold only the Permissions their row lists that are checked on the Install alone
+ * (writing the Services list), never one also checked in a Workspace (`audit.view` stays theirs only
+ * in their Workspaces).
+ */
+function heldOnInstallByStaff(actor: PersonActor, permission: Permission): boolean {
+	const levels: readonly Level[] = PERMISSIONS[permission];
+	if (levels.length !== 1 || levels[0] !== "install" || !actor.installRole) return false;
+	const role = roleDefinition(actor.installRole.role);
+	return role?.reach === "assigned-workspaces" && role.permissions.includes(permission);
 }
 
 /** Whether `reach` covers `id`; only "all" covers every Site at once. */

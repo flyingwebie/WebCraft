@@ -32,6 +32,14 @@ import { modulePartitionsJob, modulePartitionsSchedule } from "../modules/partit
 import { visitorSaltsPurge, visitorSaltsPurgeSchedule } from "../modules/visitors.ts";
 import { oauthPurge, oauthPurgeSchedule } from "../oauth-jobs.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
+import {
+	reportsDue,
+	reportsDueSchedule,
+	reportsPrepare,
+	reportsPurge,
+	reportsPurgeSchedule,
+	reportsRender,
+} from "../reports/jobs.ts";
 import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
 import { translationsResume, translationsResumeSchedule, translationsRun } from "../translation/service.ts";
@@ -81,6 +89,10 @@ export const coreJobs = [
 	updatesCheck,
 	translationsRun,
 	translationsResume,
+	reportsDue,
+	reportsPrepare,
+	reportsRender,
+	reportsPurge,
 	historyPrune,
 ] as readonly JobDefinition<unknown>[];
 
@@ -106,6 +118,8 @@ export const coreSchedules = [
 	backupsScheduledSchedule,
 	updatesCheckSchedule,
 	translationsResumeSchedule,
+	reportsDueSchedule,
+	reportsPurgeSchedule,
 	historyPruneSchedule,
 ] as readonly JobSchedule<unknown>[];
 

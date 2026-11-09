@@ -100,6 +100,7 @@ import { createOAuth } from "./oauth.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
+import { createReports, createShareLinks, type Reports, reportsPrepare, reportsRender } from "./reports/index.ts";
 import { createSiteSearch } from "./search/service.ts";
 import {
 	apiTokenKey,
@@ -111,6 +112,7 @@ import {
 	oauthKey,
 	rateLimitKey,
 	sessionSigningSecret,
+	shareLinkPasswordKey,
 	stagingPasswordKey,
 	visitorIdKey,
 } from "./secrets/master-key.ts";
@@ -173,7 +175,16 @@ export async function createInstallServices(
 		},
 	});
 	// Email reads the Install SMTP's password and a Site's own server's, each only for its send.
-	const email = createEmail({ ...ports, secrets: store, settings, data });
+	// A queued email may name a file to send with it (a Report's PDF), read when it is sent; Reports
+	// are built further down, on top of email.
+	const attachments: { read: Reports["attachment"] | null } = { read: null };
+	const email = createEmail({
+		...ports,
+		secrets: store,
+		settings,
+		data,
+		attachment: (ref) => attachments.read?.(ref) ?? Promise.resolve(null),
+	});
 	const auth = createAuth({
 		database,
 		clock,
@@ -292,6 +303,29 @@ export async function createInstallServices(
 		redirects: (site, request, paths) => modules.redirectFor(site, request, paths),
 		misses: { keeps: modules.keepsNotFoundLog, note: (site, miss) => modules.noteMiss(site, miss) },
 	});
+	const dashboardService = createDashboards({ database, data, modules, clock });
+	const reports = createReports({
+		database,
+		data,
+		dashboards: dashboardService,
+		aiKeys,
+		ai: ports.ai,
+		email,
+		jobs: ports.jobs,
+		clock,
+		log,
+		people,
+		pdf: ports.pdf,
+		queue: {
+			prepare: async (ref) => {
+				await ports.jobs.send(reportsPrepare, ref);
+			},
+			render: async (ref, startAfter) => {
+				await ports.jobs.send(reportsRender, ref, startAfter ? { startAfter } : {});
+			},
+		},
+	});
+	attachments.read = reports.attachment;
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -392,7 +426,7 @@ export async function createInstallServices(
 		}),
 		cdns: createCdns({ database, clock, log, jobs: ports.jobs, fetch: guardedFetch }),
 		webhooks,
-		dashboards: createDashboards({ database, data, modules, clock }),
+		dashboards: dashboardService,
 		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
 		languages: {
 			get: siteLanguages,
@@ -472,5 +506,14 @@ export async function createInstallServices(
 			modules: options.modules ?? FIRST_PARTY_MODULES,
 		}),
 		updates: createUpdates({ database, feed: config.updateFeed, fetch: guardedFetch, clock, log }),
+		reports,
+		shareLinks: createShareLinks({
+			database,
+			data,
+			dashboards: dashboardService,
+			clock,
+			config,
+			passwordKey: await shareLinkPasswordKey(masterKey),
+		}),
 	};
 }

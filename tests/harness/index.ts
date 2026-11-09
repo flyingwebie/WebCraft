@@ -54,6 +54,7 @@ import { createFakeAi, type FakeAi } from "./fake-ai.ts";
 import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
+import { createFakePdf, type FakePdf } from "./fake-pdf.ts";
 import { createFakeTls, type FakeTls } from "./fake-tls.ts";
 import { TEST_MODULES } from "./modules.ts";
 
@@ -63,6 +64,7 @@ export type { FakeAi } from "./fake-ai.ts";
 export type { FakeDns } from "./fake-dns.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
+export { type FakePdf, pdfText } from "./fake-pdf.ts";
 export { createFakeS3, type FakeS3, type FakeS3Options } from "./fake-s3.ts";
 export type { FakeTls } from "./fake-tls.ts";
 export { type LocalSmtpServer, type ReceivedEmail, startSmtpServer } from "./smtp-server.ts";
@@ -291,6 +293,8 @@ export type TestInstall = {
 	tls: FakeTls;
 	/** The AI providers WebCraft calls with a Workspace's AI key: unavailable until a test answers them. */
 	ai: FakeAi;
+	/** Turns Reports into PDFs without a browser: each holds the page's text (`pdfText` in `fake-pdf.ts`). */
+	pdf: FakePdf;
 	/**
 	 * Points a domain at this Install, as its DNS records would: it resolves to the Install's first
 	 * address, every HTTP request to it reaches this Install's handler, and it answers HTTPS with a
@@ -376,6 +380,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const http = createFakeHttp(dns.resolver);
 	const tls = createFakeTls();
 	const ai = createFakeAi();
+	const pdf = createFakePdf();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
@@ -431,6 +436,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		images: createImageProcessor(
 			options.maxImagePixels === undefined ? {} : { maxInputPixels: options.maxImagePixels },
 		),
+		pdf: pdf.renderer,
 	};
 	/**
 	 * Starts the services as the web process does: the Master key check (web and worker never start
@@ -607,6 +613,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		dns,
 		tls,
 		ai,
+		pdf,
 		connectDomain(name, connectOptions = {}) {
 			const domain = name.toLowerCase();
 			dns.answer(domain, [publicAddresses[0] ?? "203.0.113.10"]);
