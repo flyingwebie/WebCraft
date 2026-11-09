@@ -236,6 +236,10 @@ export const PROCEDURES = {
 	"publishing.publishAll": write(
 		"Publishes the chosen Drafts of the Site together, after a preview and a confirmation.",
 	),
+	"history.list": read(
+		"One page of an item's history: the Revisions its publishes saved and the Checkpoints of its Draft, newest first.",
+	),
+	"history.get": read("One Revision or Checkpoint of an item, with the whole version it holds in every language."),
 	"media.list": read("Lists files of the Site's Media library, or its Trash."),
 	"media.overview": read("What the Media library takes and holds."),
 	"media.suggestAltText": internal(),

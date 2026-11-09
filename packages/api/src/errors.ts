@@ -17,6 +17,7 @@ import {
 	ApiTokenNotFoundError,
 	ArchiveUnavailableError,
 	CaptchaInvalidError,
+	CheckpointNotFoundError,
 	ClassInUseError,
 	ClassNotFoundError,
 	CodeSourceNotFoundError,
@@ -110,6 +111,7 @@ import {
 	PublishAllInvalidError,
 	PublishAllRefusedError,
 	RateLimitedError,
+	RevisionNotFoundError,
 	ScriptNotFoundError,
 	SensitiveActionRefusedError,
 	SeoSettingsInvalidError,
@@ -187,6 +189,12 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ScriptNotFoundError) {
 		return new ORPCError("SCRIPT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof RevisionNotFoundError) {
+		return new ORPCError("REVISION_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof CheckpointNotFoundError) {
+		return new ORPCError("CHECKPOINT_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof TemplateNotFoundError) {
 		return new ORPCError("TEMPLATE_NOT_FOUND", { status: 404, message: error.message, cause: error });

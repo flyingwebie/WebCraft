@@ -131,6 +131,7 @@ export {
 	type GuardedFetchProblem,
 	isPublicAddress,
 } from "./guarded-fetch.ts";
+export * from "./history/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
 export { createNodeHttp } from "./http-node.ts";

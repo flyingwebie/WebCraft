@@ -87,6 +87,7 @@ import { createFilters } from "./filters/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
 import { createSubmissionActions } from "./forms/kept.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
+import { createHistory } from "./history/index.ts";
 import { createImports } from "./imports/index.ts";
 import { createInstallSettings, MEDIA_MAX_FILE_BYTES } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
@@ -400,6 +401,7 @@ export async function createInstallServices(
 			count: countDrafts,
 			publishAll: (scope, items, confirmation) => publishAll(scope, items, confirmation, componentSources),
 		},
+		history: createHistory({ database }),
 		sitePages,
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),

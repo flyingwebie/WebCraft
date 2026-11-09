@@ -62,6 +62,11 @@ export const postTypes = pgTable(
 		 * Staff set them: WebCraft's defaults, worked out from its Fields, apply until then.
 		 */
 		seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),
+		/**
+		 * Whether publishing its Entries saves Revisions (on unless Staff switch it off; the Install's
+		 * own switch comes first). Revisions saved before stay until the usual retention removes them.
+		 */
+		revisions: boolean("revisions").notNull().default(true),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
