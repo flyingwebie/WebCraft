@@ -13,7 +13,19 @@
  * It is stored as written, with each reference to a token (`--primary-70`) and to a Class or utility
  * (`.card` in a selector) kept by id, so renaming one changes every use (ADR 0009).
  */
-import { type CssNode, generate, lexer, parse, tokenize, tokenTypes, type WalkContext, walk } from "css-tree";
+import {
+	type CssNode,
+	generate,
+	ident,
+	lexer,
+	parse,
+	string,
+	tokenize,
+	tokenTypes,
+	url,
+	type WalkContext,
+	walk,
+} from "css-tree";
 
 import type { TokenRef } from "./tokens.ts";
 
@@ -53,7 +65,7 @@ export const CSS_MAX_LENGTH = 100_000;
 const MAX_PROBLEMS = 20;
 
 /** At-rules each kind of CSS may hold. */
-const CONDITIONAL_AT_RULES = ["media", "supports", "container", "layer", "scope", "starting-style"];
+const CONDITIONAL_AT_RULES = ["media", "supports", "container", "scope", "starting-style"];
 const ALLOWED_AT_RULES: Readonly<Record<CssKind, ReadonlySet<string>>> = {
 	declarations: new Set(),
 	nested: new Set(CONDITIONAL_AT_RULES),
@@ -76,13 +88,15 @@ const REFUSED_AT_RULES: Readonly<Record<string, string>> = {
 	import: "@import isn't allowed: the Site's stylesheet can't load others. Write the CSS here.",
 	charset: "@charset isn't needed: stylesheets are always UTF-8.",
 	namespace: "@namespace isn't allowed.",
+	layer:
+		"@layer isn't needed: base styles, Classes, utilities and custom CSS each sit in their own cascade layer already.",
 };
 
 /** Properties that only ever loaded script into a page. */
 const SCRIPT_PROPERTIES = new Set(["behavior", "-ms-behavior", "-moz-binding"]);
 
 /** Functions whose strings are addresses of files to load. */
-const URL_FUNCTIONS = new Set(["image-set", "-webkit-image-set", "src", "image"]);
+const URL_FUNCTIONS = new Set(["url", "src", "image-set", "-webkit-image-set", "image", "-webkit-image"]);
 
 /**
  * Reads a piece of CSS Staff wrote: answers it as stored (references by id), or every problem
@@ -181,21 +195,47 @@ function checkCss(text: string, kind: CssKind): CssProblem[] {
 			case "Declaration":
 				checkDeclaration(this, node, at);
 				return;
-			case "Url":
-				checkAddress(node, node.value, at);
+			case "Function":
+				if (ident.decode(node.name).toLowerCase() === "expression") at(node, "expression() isn't allowed in CSS.");
 				return;
-			case "Function": {
-				const name = node.name.toLowerCase();
-				if (name === "expression") at(node, "expression() isn't allowed in CSS.");
-				if (URL_FUNCTIONS.has(name)) {
-					node.children.forEach((child) => {
-						if (child.type === "String") checkAddress(child, child.value, at);
-					});
-				}
-				return;
-			}
 		}
 	});
+	problems.push(...addressProblems(text));
+	return problems;
+}
+
+/**
+ * Every address the text would load that isn't on the Site: in `url(…)` and in the strings of
+ * `image-set()`, `src()` and their kin, wherever they are (custom property values too, which the
+ * parser leaves as plain text), with escaped names (`\75 rl(`) read as CSS reads them.
+ */
+function addressProblems(text: string): CssProblem[] {
+	const problems: CssProblem[] = [];
+	const tokens: { type: number; start: number; end: number }[] = [];
+	tokenize(text, (type, start, end) => tokens.push({ type, start, end }));
+	const position = (offset: number) => {
+		const before = text.slice(0, offset).split(/\r\n|\r|\n|\f/);
+		return { line: before.length, column: (before.at(-1)?.length ?? 0) + 1 };
+	};
+	const check = (address: string, offset: number) => {
+		const problem = addressProblem(address);
+		if (problem) problems.push({ ...position(offset), message: problem });
+	};
+	// The depth of brackets inside a function that loads files, or 0 outside one.
+	let loading = 0;
+	for (const token of tokens) {
+		const raw = text.slice(token.start, token.end);
+		if (token.type === tokenTypes.Url) {
+			check(url.decode(raw), token.start);
+		} else if (token.type === tokenTypes.Function) {
+			if (loading > 0) loading++;
+			else if (URL_FUNCTIONS.has(ident.decode(raw.slice(0, -1)).toLowerCase())) loading = 1;
+		} else if (loading > 0) {
+			if (token.type === tokenTypes.LeftParenthesis) loading++;
+			else if (token.type === tokenTypes.RightParenthesis) loading--;
+			else if (token.type === tokenTypes.String) check(string.decode(raw), token.start);
+		}
+	}
 	return problems;
 }
 
@@ -238,13 +278,12 @@ function checkDeclaration(
  * `/_media/…`) and refer to parts of the page (`#id`): anything else would come from another host
  * or run script, which the Site's Content Security Policy blocks.
  */
-function checkAddress(node: CssNode, address: string, at: (node: CssNode, message: string) => void): void {
-	const url = address.trim();
-	if ((url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) || url.startsWith("#")) return;
-	at(
-		node,
-		`${url || "An empty address"} isn't on this Site: styles may load only the Site's own files, such as /_media/….`,
-	);
+function addressProblem(address: string): string | undefined {
+	const trimmed = address.trim();
+	if ((trimmed.startsWith("/") && !trimmed.startsWith("//") && !trimmed.startsWith("/\\")) || trimmed.startsWith("#")) {
+		return undefined;
+	}
+	return `${trimmed || "An empty address"} isn't on this Site: styles may load only the Site's own files, such as /_media/….`;
 }
 
 /** The text with token and Class references kept by id: `--primary-70` and `.card` (in selectors). */
