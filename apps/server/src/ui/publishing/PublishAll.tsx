@@ -34,6 +34,7 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useOpenStaging } from "../shell/StagingButton.tsx";
 
 /** One Draft of the Site, as `publishing.drafts` lists it. */
 export type SiteDraft = Awaited<ReturnType<ApiClient["publishing"]["drafts"]>>["drafts"][number];
@@ -293,24 +294,8 @@ function DraftRow({
 /** Opens the Staging address at the item's page, through the single-use link the admin asks for. */
 function ViewOnStaging({ siteId, path, name }: { siteId: string; path: string; name: string }) {
 	const t = useT();
-	const [opening, setOpening] = useState(false);
-	const view = async () => {
-		setOpening(true);
-		// The tab opens at once (a browser lets only a click open one); the Staging address arrives in it.
-		const tab = window.open("about:blank", "_blank");
-		if (tab) tab.opener = null;
-		try {
-			const api = await getApi();
-			const { url } = await api.staging.open({ siteId, path });
-			if (tab) tab.location.href = url;
-			else window.location.assign(url);
-		} catch (failure) {
-			tab?.close();
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setOpening(false);
-		}
-	};
+	const { opening, open } = useOpenStaging(siteId);
+	const view = () => open(path);
 	return (
 		<Button
 			variant="ghost"

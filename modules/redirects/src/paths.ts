@@ -19,6 +19,10 @@ export type RuleFrom = { path: string; wildcard: boolean };
 /** A Media library file as a target: `media:<id>`. */
 export const MEDIA_TARGET = /^media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** An Entry as a target, sent to where it is published then: `entry:<id>`, or `entry:<id>:<language>`. */
+export const ENTRY_TARGET =
+	/^entry:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?::[a-z]{2,3}(?:-[a-z0-9]{2,8})*)?$/i;
+
 /** The characters no path or address may hold: controls (a line break would end a header). */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
 const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -75,6 +79,11 @@ export function parseTarget(input: string, from: RuleFrom): string {
 	// A file of the Media library (an Import's rule for an old file address), sent to its address as it is then.
 	if (MEDIA_TARGET.test(typed)) {
 		if (from.wildcard) invalid("WILDCARD_INVALID", "A rule sending visitors to a Media file matches one path.");
+		return typed.toLowerCase();
+	}
+	// An Entry (an Import's rule for an old page address), sent to where it is published then.
+	if (ENTRY_TARGET.test(typed)) {
+		if (from.wildcard) invalid("WILDCARD_INVALID", "A rule sending visitors to an Entry matches one path.");
 		return typed.toLowerCase();
 	}
 	if (typed === "" || CONTROL.test(typed) || typed.length > MAX_TARGET_LENGTH) {

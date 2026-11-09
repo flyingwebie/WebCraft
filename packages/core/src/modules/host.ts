@@ -372,6 +372,10 @@ const MAX_HELD_MISSES = 5000;
 /** A Media library file as a Redirect rule's target (SDK 1.7): `media:<id>`. */
 const MEDIA_TARGET = /^media:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
+/** An Entry as a Redirect rule's target (SDK 1.7): `entry:<id>`, or `entry:<id>:<language>`. */
+const ENTRY_TARGET =
+	/^entry:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?::([a-z]{2,3}(?:-[a-z0-9]{2,8})*))?$/i;
+
 /** A Site path a Redirect rule may send visitors to: `/…`, never `//…` (another host), no backslash or control character. */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
 const SITE_TARGET = /^\/(?![/\\])[^\\\u0000-\u0020\u007f]*$/;
@@ -1136,6 +1140,13 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 					const served = await paths.mediaPath(media[1] as string);
 					if (!served) return result;
 					target.to = served;
+				}
+				// An Entry goes to where it is published now (a slug changed since included); nowhere before.
+				const entry = typeof target.to === "string" ? ENTRY_TARGET.exec(target.to) : null;
+				if (entry) {
+					const published = await paths.entryPath(entry[1] as string, entry[2] ?? null);
+					if (!published) return result;
+					target.to = published;
 				}
 				const to = checkedTarget(target.to);
 				const status: number = target.status;
