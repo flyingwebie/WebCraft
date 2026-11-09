@@ -26,6 +26,7 @@ import { session } from "./procedures/session.ts";
 import { setup } from "./procedures/setup.ts";
 import { shell } from "./procedures/shell.ts";
 import { csp, libraries, outsideScripts } from "./procedures/site-scripts.ts";
+import { siteSmtp } from "./procedures/site-smtp.ts";
 import { sites } from "./procedures/sites.ts";
 import { staff } from "./procedures/staff.ts";
 import { templates } from "./procedures/templates.ts";
@@ -50,6 +51,7 @@ export const apiRouter = {
 	languages,
 	domains,
 	webhooks,
+	siteSmtp,
 	templates,
 	components,
 	forms,

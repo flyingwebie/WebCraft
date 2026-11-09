@@ -1,7 +1,7 @@
-import { membershipSites, memberships } from "@webcraft/db/schema";
-import { and, eq, isNotNull, or } from "drizzle-orm";
+import { installRoles, membershipSites, memberships, staffWorkspaces } from "@webcraft/db/schema";
+import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 
-import { roleDefinition } from "../permissions/roles.ts";
+import { ASSIGNED_ROLES, roleDefinition } from "../permissions/roles.ts";
 import type { Executor, Site, Workspace } from "./data-layer.ts";
 
 /**
@@ -30,4 +30,25 @@ export async function siteOwners(scope: {
 	return rows
 		.filter((row) => roleDefinition(row.role)?.permissions.includes("member.manage") ?? false)
 		.map((row) => row.personId);
+}
+
+/**
+ * The Staff who reach the Site: those assigned to its Workspace, or to every Workspace. Checked by
+ * the role's reach (assigned Workspaces), never by its name.
+ */
+export async function siteStaff(scope: { db: Executor; workspace: Pick<Workspace, "id"> }): Promise<string[]> {
+	const rows = await scope.db
+		.selectDistinct({ personId: installRoles.personId })
+		.from(installRoles)
+		.leftJoin(
+			staffWorkspaces,
+			and(eq(staffWorkspaces.personId, installRoles.personId), eq(staffWorkspaces.workspaceId, scope.workspace.id)),
+		)
+		.where(
+			and(
+				inArray(installRoles.role, ASSIGNED_ROLES),
+				or(eq(installRoles.allWorkspaces, true), isNotNull(staffWorkspaces.personId)),
+			),
+		);
+	return rows.map((row) => row.personId);
 }

@@ -62,12 +62,17 @@ describe("creating a Form", () => {
 		});
 	});
 
-	test("Members never see or change Forms: they are Structure", async () => {
+	test("Members never build Forms: their fields are Structure (Owners read them, for their Submissions and emails)", async () => {
 		const { form } = await staff.api.forms.create({ siteId, name: "Staff only" });
 
-		await expect(owner.api.forms.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.forms.get({ siteId, formId: form.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect((await owner.api.forms.get({ siteId, formId: form.id })).form.name).toBe("Staff only");
 		await expect(owner.api.forms.create({ siteId, name: "Mine" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(
+			owner.api.forms.saveDraft({ siteId, formId: form.id, form: { submitLabel: "Go" } }),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(owner.api.forms.rename({ siteId, formId: form.id, name: "Mine" })).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
 	});
 });
 

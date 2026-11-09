@@ -1,6 +1,8 @@
 import type { Database } from "@webcraft/db";
 import {
+	type FormSender,
 	isModuleError,
+	type KeptSubmission,
 	type Label,
 	labelProblem,
 	type ModuleContext,
@@ -11,18 +13,20 @@ import {
 	type ProcedureContext,
 	type SiteRouteContext,
 	type SiteVisitor,
+	type SubmissionDelivery,
 } from "@webcraft/module-sdk";
 
 import { isAdminLanguage } from "../admin-languages.ts";
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
+import { askConfirmation, ConfirmationInvalidError, useConfirmation } from "../confirmations.ts";
 import type { Email, Recipient } from "../email/index.ts";
 import { type GuardedFetch, GuardedFetchError } from "../guarded-fetch.ts";
 import type { JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
 import type { ModuleActor } from "../permissions/can.ts";
 import { SecretNotSetError } from "../secrets/store.ts";
-import type { Access, DataLayer } from "../tenancy/data-layer.ts";
+import type { Access, DataLayer, Site } from "../tenancy/data-layer.ts";
 import { type EnsurePartition, moduleData, type PlaceScope } from "./data.ts";
 import { moduleJob, type QueuedPlace } from "./jobs.ts";
 import { type ModuleLogLevel, writeModuleLog } from "./module-log.ts";
@@ -39,6 +43,14 @@ export type RuntimeDeps = {
 	log: Logger;
 	/** Makes the month's partition before a row goes into a partitioned table (see `partitions.ts`). */
 	ensurePartition?: EnsurePartition;
+	/**
+	 * What follows a kept Form Submission, for the Module keeping them (`context.submissions`): its
+	 * Notifications, Auto-reply and Webhooks, and `form.submitted` when its sender is known.
+	 */
+	submissions?: {
+		kept(site: Site, submission: KeptSubmission, sender: FormSender | null): Promise<void>;
+		deliveries(site: Site, submissionId: string): Promise<SubmissionDelivery[]>;
+	};
 };
 
 /** A Module acting by itself (a job, an event, a Site route) at a place: as `can()` and the Audit log see it. */
@@ -125,6 +137,13 @@ export function moduleContext(
 	};
 	const log = (level: ModuleLogLevel) => (message: string, details?: Record<string, unknown>) =>
 		writeLine(deps, module, place, level, message, details);
+	/** The Site of the Module keeping Form Submissions: anything else is refused. */
+	const keepingSite = (): Site => {
+		if (!module.receiver || scope.level !== "site") {
+			return refuse("submissions", `The Module ${module.id} doesn't keep Form Submissions here.`);
+		}
+		return scope.site;
+	};
 
 	return {
 		module: { id: module.id, version: manifest.version },
@@ -169,6 +188,10 @@ export function moduleContext(
 				);
 				let results: Awaited<ReturnType<Email["send"]>>;
 				try {
+					// A Site-level Module's email is the Site's mail (SDK 1.6): it goes as the Site's mail does,
+					// through the Site's own SMTP when it has one, else the Install SMTP under the Site's name.
+					const site =
+						scope.level === "site" ? { id: scope.site.id, route: await deps.email.siteMail.route(scope) } : undefined;
 					results = await deps.email.send({
 						type: "module-message",
 						to,
@@ -181,6 +204,7 @@ export function moduleContext(
 							action: message.action ?? null,
 						},
 						related: { kind: "module", id: module.id },
+						...(site ? { site } : {}),
 					});
 				} catch (error) {
 					if (error instanceof Error && error.name === "ZodError")
@@ -220,6 +244,17 @@ export function moduleContext(
 			},
 		},
 		log: { info: log("info"), warn: log("warn"), error: log("error") },
+		submissions: {
+			async kept(submission) {
+				const site = keepingSite();
+				await deps.submissions?.kept(site, submission, submission.sender ?? null);
+			},
+			async deliveries(submissionId) {
+				const site = keepingSite();
+				if (typeof submissionId !== "string") return [];
+				return (await deps.submissions?.deliveries(site, submissionId)) ?? [];
+			},
+		},
 		async transaction(work) {
 			if (afterCommit) return scope.transaction((tx) => work(moduleContext(module, tx, deps, afterCommit)));
 			const pending: (() => Promise<void>)[] = [];
@@ -238,6 +273,12 @@ export function procedureContext(
 	person: { id: string; language: string },
 	holds: (permission: string) => boolean,
 ): ProcedureContext {
+	const actionOf = (action: string) => {
+		if (typeof action !== "string" || !AUDIT_ACTION.test(action)) {
+			throw new TypeError(`A confirmation's action is <noun>.<verb>, such as notes.delete: not ${action}.`);
+		}
+		return `${module.id}.${action}`;
+	};
 	return {
 		...moduleContext(module, scope, deps),
 		person,
@@ -247,6 +288,10 @@ export function procedureContext(
 			} catch {
 				throw new ModuleRefusedError("permission", `The Module ${module.id} declares no Permission ${permission}.`);
 			}
+		},
+		confirmations: {
+			ask: (action, target, preview) => askConfirmation(scope, { action: actionOf(action), target, preview }),
+			use: (id, action, target, preview) => useConfirmation(scope, id, { action: actionOf(action), target, preview }),
 		},
 	};
 }
@@ -349,6 +394,6 @@ async function moduleHttp(
 }
 
 /** Whether an error is a Module's own answer (`ModuleError`), which isn't a failure. */
-export function isModuleAnswer(error: unknown): error is ModuleError {
-	return isModuleError(error);
+export function isModuleAnswer(error: unknown): error is ModuleError | ConfirmationInvalidError {
+	return isModuleError(error) || error instanceof ConfirmationInvalidError;
 }

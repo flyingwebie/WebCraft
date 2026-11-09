@@ -2,6 +2,7 @@ import type { GetColumnData, InferInsertModel, InferSelectModel, SQL } from "dri
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import type { ConsentCategory, Label } from "./manifest.ts";
+import type { ModuleSubmissions } from "./submissions.ts";
 
 /**
  * What a Module's code gets when it runs: in a procedure, a Site route, an event or a job. It is
@@ -41,6 +42,8 @@ export type ModuleContext = {
 	};
 	/** Writes to the Module log, which the Superadmin reads on the Modules screen. */
 	readonly log: ModuleLog;
+	/** The Form Submissions it keeps, for the Module keeping them, at a Site (SDK 1.6). */
+	readonly submissions: ModuleSubmissions;
 	/** Runs `work` in one transaction: its table changes and Audit log entries are saved together or not at all. */
 	transaction<Result>(work: (context: ModuleContext) => Promise<Result>): Promise<Result>;
 };
@@ -50,6 +53,20 @@ export type ProcedureContext = ModuleContext & {
 	readonly person: { readonly id: string; readonly language: string };
 	/** Whether the person holds one of the Module's Permissions (its key: `notes.edit`), or a WebCraft one, here. */
 	can(permission: string): boolean;
+	/**
+	 * Two-step confirmation for what can't be undone (SDK 1.6), as WebCraft's own procedures ask it:
+	 * the first call works out what would happen (`preview`) and `ask`s, answering a confirmation id;
+	 * the second works it out again and `use`s the id the person sent back before going ahead. A
+	 * confirmation is for this person, this action (named under the Module's id) and this target,
+	 * lasts 5 minutes, works once, and only while the preview is unchanged; otherwise the API answers
+	 * `CONFIRMATION_INVALID` and the person asks again.
+	 */
+	readonly confirmations: ModuleConfirmations;
+};
+
+export type ModuleConfirmations = {
+	ask(action: string, target: string, preview: unknown): Promise<{ id: string; expiresAt: Date }>;
+	use(id: string, action: string, target: string, preview: unknown): Promise<void>;
 };
 
 /**

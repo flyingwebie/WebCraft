@@ -427,12 +427,33 @@ describe("Forms", () => {
 	isolation.refuses("forms.delete", async (api, target) =>
 		api.forms.delete({ siteId: target.siteId, formId: await formIn(target) }),
 	);
+	isolation.refuses(
+		"forms.saveEmails",
+		async (api, target) =>
+			api.forms.saveEmails({ siteId: target.siteId, formId: await formIn(target), emails: { notifications: [] } }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"forms.publishEmails",
+		async (api, target) => api.forms.publishEmails({ siteId: target.siteId, formId: await formIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
 	isolation.refuses("forms.captcha.get", (api, { siteId }) => api.forms.captcha.get({ siteId }));
 	isolation.refuses("forms.captcha.set", (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }));
 	isolation.refuses(
 		"m.forms.submissions.list",
 		(api, { siteId }) => moduleOf<typeof forms>(api, "forms").submissions.list({ siteId }),
 		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Site SMTP", () => {
+	isolation.refuses("siteSmtp.get", (api, { siteId }) => api.siteSmtp.get({ siteId }));
+	isolation.refuses("siteSmtp.update", (api, { siteId }) =>
+		api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
+	);
+	isolation.refuses("siteSmtp.sendTest", (api, { siteId }) =>
+		api.siteSmtp.sendTest({ siteId, to: "test@agency.example", fromName: null, replyTo: null, server: null }),
 	);
 });
 
