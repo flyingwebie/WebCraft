@@ -148,6 +148,11 @@ export const TOOL_PLACES = {
 	"designSystem.publish": publishing(["structure", "publishing"], "structure.edit"),
 	"publishing.drafts": place(["publishing"], "site.view"),
 	"publishing.publishAll": publishing(["publishing"], "entry.publish", "structure.edit", "formEmails.edit"),
+	"history.list": place(["content", "structure", "publishing"], "site.view"),
+	"history.compare": place(["content", "structure", "publishing"], "site.view"),
+	"history.get": place(["content", "structure", "publishing"], "site.view"),
+	// A restore changes the Draft only: it never publishes.
+	"history.restore": place(["content", "structure"], "entry.edit", "structure.edit", "formEmails.edit"),
 	"media.list": place(["media"], "site.view"),
 	"media.overview": place(["media"], "site.view"),
 	"media.get": place(["media"], "site.view"),

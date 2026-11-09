@@ -59,6 +59,11 @@ export type PostType = {
 	 * back to, and its Schema type with each property mapped (see `seo/seo-rules.ts`).
 	 */
 	seo: PostTypeSeo;
+	/**
+	 * Whether publishing its Entries saves Revisions (the Install's own switch comes first). Revisions
+	 * saved before it was turned off stay until the usual retention removes them.
+	 */
+	revisions: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -75,6 +80,8 @@ export type NewPostType = {
 	searchedFields?: unknown[];
 	/** Its SEO settings; WebCraft's defaults for the parts not given. */
 	seo?: PostTypeSeoChange;
+	/** Whether publishing its Entries saves Revisions; true when not given. */
+	revisions?: boolean;
 };
 
 /** What can change on a Post Type. Its key can't: Templates, Loops and files name it. */
@@ -87,6 +94,8 @@ export type PostTypeChange = {
 	searchedFields?: unknown[];
 	/** Changes its SEO settings: each part given replaces that part. */
 	seo?: PostTypeSeoChange;
+	/** Turns Revisions of its Entries on or off. */
+	revisions?: boolean;
 };
 
 export const POST_TYPE_NAME_MAX_LENGTH = 100;
@@ -134,6 +143,7 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 				urlPattern,
 				fields,
 				searchable: input.searchable ?? true,
+				revisions: input.revisions ?? true,
 				searchedFields,
 				// Until Staff set them, the defaults follow its Fields.
 				seo: seo ?? {},
@@ -202,6 +212,7 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 					urlPattern,
 					fields,
 					searchable: change.searchable ?? existing.searchable,
+					revisions: change.revisions ?? existing.revisions,
 					searchedFields,
 					...(seo ? { seo } : {}),
 					updatedAt: tx.now(),
@@ -328,6 +339,7 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 		searchable: row.searchable,
 		searchedFields: keptSearchedFields(row.searchedFields, fields),
 		seo: keptPostTypeSeo(row.seo, fields),
+		revisions: row.revisions,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

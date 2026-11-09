@@ -85,6 +85,7 @@ describe("the Page Post Type", () => {
 						},
 					},
 				},
+				revisions: true,
 				createdAt: install.clock.now(),
 				updatedAt: install.clock.now(),
 			},

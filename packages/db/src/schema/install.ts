@@ -45,6 +45,17 @@ export const installSettings = pgTable(
 		 * never may.
 		 */
 		aiPrivateEndpoints: boolean("ai_private_endpoints").notNull().default(false),
+		/**
+		 * Whether publishing saves Revisions anywhere on the Install. On unless the Superadmin switches it
+		 * off; Revisions saved before stay until the usual retention removes them.
+		 */
+		revisionsOn: boolean("revisions_on").notNull().default(true),
+		/** How many days Revisions are kept; null for the default (90). */
+		revisionDays: integer("revision_days"),
+		/** How many of each item's newest Revisions are kept, however old; null for the default (50). */
+		revisionsKept: integer("revisions_kept"),
+		/** How many days Checkpoints are kept; null for the default (30). */
+		checkpointDays: integer("checkpoint_days"),
 	},
 	(table) => [check("install_settings_single_row", sql`${table.id} = 1`)],
 );

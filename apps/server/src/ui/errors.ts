@@ -53,6 +53,8 @@ export function errorMessage(error: unknown): MessageKey {
 		case "POST_TYPE_NOT_FOUND":
 		case "POST_TYPE_INVALID":
 		case "ENTRY_NOT_FOUND":
+		case "REVISION_NOT_FOUND":
+		case "CHECKPOINT_NOT_FOUND":
 		case "ENTRY_INVALID":
 		case "ENTRY_INCOMPLETE":
 		case "ENTRY_SLUG_TAKEN":

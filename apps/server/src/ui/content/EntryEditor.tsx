@@ -21,6 +21,8 @@ import { toast } from "sonner";
 import { getApi } from "../api.ts";
 import { errorCode, errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
+import { HistoryCard } from "../history/HistoryCard.tsx";
+import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
@@ -73,6 +75,7 @@ export function EntryEditor({
 	relationships,
 	media: knownMedia,
 	pages,
+	history,
 }: {
 	siteId: string;
 	postType: PostTypeView;
@@ -83,6 +86,8 @@ export function EntryEditor({
 	media: Readonly<Record<string, MediaItem>>;
 	/** For a Page: the Site's other Pages, which can be its parent. */
 	pages: readonly PageOption[] | null;
+	/** The newest of the Entry's Revisions and Checkpoints. */
+	history: HistoryPage;
 }) {
 	const t = useT();
 	const router = useRouter();
@@ -354,6 +359,8 @@ export function EntryEditor({
 						</dl>
 					</CardContent>
 				</Card>
+
+				<HistoryCard siteId={siteId} item={{ kind: "entry", id: entry.id }} history={history} />
 
 				{entry.linkedFrom.length > 0 ? (
 					<Card>

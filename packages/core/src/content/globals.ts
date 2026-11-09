@@ -1,6 +1,8 @@
 import { globals } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
+import { saveRevision } from "../history/copies.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { restoredVersion } from "./entries.ts";
@@ -113,6 +115,7 @@ export async function setGlobalFields(scope: SiteScope, inputs: readonly FieldIn
 			},
 			eq(globals.id, row.id),
 		);
+		await noteGlobalsChange(tx, row, { values: { ...draft.values, ...defaults } });
 		await clearPageCache(tx);
 		await tx.audit("globals.update", { keys: fields.map((field) => field.key) });
 		return toGlobals(tx, saved ?? row, { language: defaultLanguage, defaultLanguage });
@@ -149,6 +152,7 @@ export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange):
 			},
 			eq(globals.id, row.id),
 		);
+		await noteGlobalsChange(tx, row, { values });
 		return toGlobals(tx, saved ?? row, languages);
 	});
 }
@@ -175,7 +179,26 @@ export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string
 			},
 			eq(globals.id, row.id),
 		);
+		await noteGlobalsChange(tx, row, restored);
 		return toGlobals(tx, saved ?? row, languages);
+	});
+}
+
+/**
+ * Puts a Revision's or Checkpoint's version into the Globals' Draft (open the Site with `entry.edit`):
+ * history's restore, a change to the Draft like any other, which never publishes.
+ */
+export async function restoreGlobalsDraft(scope: SiteScope, version: unknown): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const row = await lockGlobals(tx);
+		const draft = storedVersion(version);
+		if (sameJson(draft, row.draft)) return;
+		await tx.update(
+			globals,
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			eq(globals.id, row.id),
+		);
+		await noteGlobalsChange(tx, row, draft);
 	});
 }
 
@@ -212,6 +235,9 @@ export async function writeGlobalsTranslations(
 			},
 			eq(globals.id, row.id),
 		);
+		if (written.draft) await noteGlobalsChange(tx, row, written.draft);
+		// Translated values published: a publish, which saves a Revision like any other.
+		if (written.published && row.published) await saveRevision(tx, { kind: "globals" });
 		return true;
 	});
 }
@@ -254,6 +280,16 @@ export function globalsVersion(
 	const stored = version === "draft" ? row?.draft : row?.published;
 	const values = stored ? readFields(storedVersion(stored).values, fields, languages) : {};
 	return { fields, values };
+}
+
+/** Notes a change to the Globals' Draft for their history: who changed what, and Checkpoints. */
+async function noteGlobalsChange(scope: SiteScope, row: GlobalsRow, draft: unknown): Promise<void> {
+	await noteDraftChange(
+		scope,
+		{ kind: "globals" },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
+		draft,
+	);
 }
 
 /** Reads the Site's Globals for a change, making them the first time, and holds them until the transaction ends. */

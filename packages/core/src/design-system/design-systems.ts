@@ -9,6 +9,7 @@ import { designSystems } from "@webcraft/db/schema";
 import { type DesignSystem, defaultDesignSystem, readDesignSystem } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 
@@ -59,5 +60,16 @@ export async function writeDraft(scope: SiteScope, locked: LockedDesignSystem, d
 			updatedVia: clientNameOf(scope.access.via),
 		},
 		eq(designSystems.id, locked.row.id),
+	);
+	await noteDraftChange(
+		scope,
+		{ kind: "designSystem" },
+		{
+			content: locked.row.draft,
+			changedAt: locked.row.updatedAt,
+			changedBy: locked.row.updatedBy,
+			since: locked.row.createdAt,
+		},
+		draft,
 	);
 }

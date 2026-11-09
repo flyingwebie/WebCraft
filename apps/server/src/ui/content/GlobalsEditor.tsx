@@ -4,6 +4,8 @@ import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
 import { errorCode, errorMessage } from "../errors.ts";
+import { HistoryCard } from "../history/HistoryCard.tsx";
+import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { useAutosave } from "./autosave.ts";
@@ -29,12 +31,15 @@ export function GlobalsEditor({
 	permissions,
 	languages,
 	media: knownMedia,
+	history,
 }: {
 	siteId: string;
 	globals: GlobalsView;
 	permissions: readonly string[];
 	languages: { default: string; all: readonly string[] };
 	media: Readonly<Record<string, MediaItem>>;
+	/** The newest of the Globals' Revisions and Checkpoints. */
+	history: HistoryPage;
 }) {
 	const t = useT();
 	const router = useRouter();
@@ -159,6 +164,7 @@ export function GlobalsEditor({
 					idPrefix="globals"
 					headingId="globals-problems-heading"
 				/>
+				<HistoryCard siteId={siteId} item={{ kind: "globals" }} history={history} />
 			</div>
 		</div>
 	);

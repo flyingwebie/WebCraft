@@ -41,6 +41,7 @@ import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { NO_FILTERS, type SiteFilters, siteFilters } from "../filters/filters.ts";
 import { NO_FORMS, type SiteForms, siteForms } from "../forms/forms.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
@@ -459,6 +460,12 @@ async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentV
 		eq(components.id, row.id),
 	);
 	if (!updated) throw new ComponentNotFoundError();
+	await noteDraftChange(
+		scope,
+		{ kind: "component", id: row.id },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
+		draft,
+	);
 	return toComponent(updated);
 }
 

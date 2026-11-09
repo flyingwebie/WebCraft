@@ -13,6 +13,7 @@ export * from "./edit-mode.ts";
 export * from "./email.ts";
 export * from "./filters.ts";
 export * from "./forms.ts";
+export * from "./history.ts";
 export * from "./imports.ts";
 export * from "./install.ts";
 export * from "./languages.ts";

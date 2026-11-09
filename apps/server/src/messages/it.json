@@ -153,6 +153,8 @@
 		"WIDGET_NOT_FOUND": "Quel widget non è più su questa dashboard.",
 		"DASHBOARD_TEMPLATE_NOT_FOUND": "Quel modello di dashboard non c'è più.",
 		"DASHBOARD_INVALID": "La dashboard non può accettarlo: controlla giorni, filtri e impostazioni del widget.",
+		"REVISION_NOT_FOUND": "Questo elemento non ha più questa revisione: potrebbe essere stata rimossa dopo il tempo di conservazione delle revisioni.",
+		"CHECKPOINT_NOT_FOUND": "Questo elemento non ha più questo checkpoint: potrebbe essere stato rimosso dopo il tempo di conservazione dei checkpoint.",
 		"REPORT_NOT_FOUND": "Qui non c'è questo report.",
 		"REPORT_INVALID_NAME": "Date al report un nome di al massimo 100 caratteri.",
 		"REPORT_INVALID_RECIPIENTS": "Ogni destinatario deve essere un indirizzo email, al massimo 20.",
@@ -341,6 +343,7 @@
 			"aiKeys": "Chiavi AI",
 			"ai": "AI",
 			"dashboards": "Dashboard",
+			"history": "Revisioni",
 			"servicesList": "Elenco dei servizi",
 			"reportBranding": "Brand dei report"
 		}
@@ -2706,7 +2709,8 @@
 			"fields": "Campi",
 			"data": "Dati",
 			"search": "Ricerca nel sito",
-			"seo": "SEO"
+			"seo": "SEO",
+			"revisions": "Revisioni"
 		},
 		"search": {
 			"heading": "Ricerca nel sito",
@@ -4856,6 +4860,165 @@
 		"refusedClient": "L'app che ti ha mandato qui non è registrata in questo WebCraft. Non è stato approvato nulla.",
 		"refusedRedirect": "L'app ha chiesto di rimandarti a un indirizzo che non ha registrato. Non è stato approvato nulla e non sei stato mandato da nessuna parte.",
 		"toAdmin": "Vai all'admin"
+	},
+	"history": {
+		"pageTitle": "Cronologia",
+		"heading": "Cronologia di {name}",
+		"back": "Torna a {name}",
+		"retention": "Le revisioni si conservano {days} giorni, e le {kept} più recenti di ogni elemento comunque; i checkpoint {checkpointDays} giorni.",
+		"by": {
+			"unknown": "Nessuno di noto",
+			"gone": "Una persona non più presente",
+			"module": "Il modulo {module}",
+			"translation": "Traduzione AI per {person}",
+			"via": "{person} tramite {client}"
+		},
+		"copy": {
+			"revision": "Revisione",
+			"checkpointActivity": "Checkpoint",
+			"checkpointLeft": "Checkpoint all'uscita",
+			"checkpointRestore": "Checkpoint prima di un ripristino"
+		},
+		"item": {
+			"siteTemplate": "Il template del sito",
+			"entryTemplate": "Il template dei contenuti {postType}",
+			"archiveTemplate": "Il template d'archivio {postType}",
+			"searchTemplate": "Il template dei risultati di ricerca",
+			"siteScript": "Lo script del sito",
+			"globals": "I globali",
+			"consentBanner": "I testi del banner dei consensi",
+			"designSystem": "Il design system",
+			"untitled": "Senza titolo",
+			"formEmails": "Le email di {name}"
+		},
+		"part": {
+			"title": "Titolo",
+			"slug": "Slug",
+			"parent": "Pagina superiore",
+			"hiddenLanguages": "Nascosto in",
+			"seo": "SEO e condivisione",
+			"tokens": "Token di design",
+			"classes": "Classi",
+			"baseStyles": "Stili di base",
+			"customCss": "CSS personalizzato",
+			"darkMode": "Modalità scura",
+			"props": "Props",
+			"markup": "Markup del template",
+			"code": "Codice",
+			"source": "Da dove vengono gli elementi",
+			"query": "Query",
+			"itemFields": "Campi degli elementi del loop",
+			"items": "Elementi del loop",
+			"mode": "Quando si aggiornano i risultati",
+			"label": "Etichetta",
+			"applyLabel": "Pulsante Applica",
+			"controls": "Controlli",
+			"formFields": "Campi",
+			"submitLabel": "Pulsante di invio",
+			"success": "Dopo l'invio",
+			"spam": "Limiti antispam",
+			"notifications": "Notifiche",
+			"autoReply": "Risposta automatica"
+		},
+		"status": {
+			"same": "Uguale",
+			"changed": "Modificato",
+			"added": "Aggiunto",
+			"removed": "Rimosso"
+		},
+		"shown": {
+			"empty": "Vuoto",
+			"fallback": "Nessun valore proprio: mostra quello della lingua predefinita",
+			"yes": "Sì",
+			"no": "No",
+			"row": "Riga {number}"
+		},
+		"block": {
+			"paragraph": "Paragrafo",
+			"heading": "Titolo",
+			"list": "Elenco",
+			"quote": "Citazione",
+			"image": "Immagine",
+			"video": "Video",
+			"table": "Tabella",
+			"callout": "Riquadro",
+			"code": "Codice",
+			"divider": "Separatore",
+			"toggle": "Sezione apribile"
+		},
+		"lines": {
+			"label": "Righe, prima e ora",
+			"added": "Riga aggiunta:",
+			"removed": "Riga rimossa:",
+			"folded": "{count, plural, one {# riga uguale} other {# righe uguali}}"
+		},
+		"card": {
+			"heading": "Cronologia",
+			"empty": "Niente di salvato finora. Ogni pubblicazione salva una revisione, e la bozza si conserva come checkpoint mentre la modifichi.",
+			"open": "Apri la cronologia"
+		},
+		"off": {
+			"postType": "Pubblicare questi contenuti non salva revisioni: lo Staff le ha disattivate per questo tipo di contenuto.",
+			"install": "Pubblicare non salva revisioni: il Superadmin le ha disattivate per questa Install.",
+			"kept": "Le revisioni salvate prima si conservano {days} giorni, e le {kept} più recenti di ogni elemento comunque. I checkpoint continuano a essere salvati."
+		},
+		"copies": {
+			"heading": "Copie salvate",
+			"older": "Mostra le più vecchie"
+		},
+		"compare": {
+			"none": "Non c'è ancora niente di salvato da confrontare con la bozza.",
+			"heading": "{copy}, accanto alla bozza",
+			"publishedBy": "Pubblicata da {by}",
+			"changedBy": "La bozza come l'ha lasciata {by} alle {time}",
+			"languages": "Lingue confrontate",
+			"changes": "{count, plural, =0 {Nessuna modifica} one {# modifica} other {# modifiche}}",
+			"same": "Niente di diverso: la bozza contiene quello che contiene questa copia.",
+			"differ": "{count, plural, one {# parte è diversa} other {# parti sono diverse}} dalla bozza.",
+			"showAll": "Mostra tutte le parti",
+			"showChanged": "Mostra solo ciò che è diverso",
+			"revisionSide": "Questa revisione",
+			"checkpointSide": "Questo checkpoint",
+			"draftSide": "La bozza ora",
+			"shared": "Condiviso da tutte le lingue",
+			"partChangedBy": "Modificato nella bozza da {by} · {time}"
+		},
+		"restore": {
+			"revision": "Ripristina questa revisione",
+			"checkpoint": "Ripristina questo checkpoint",
+			"close": "Chiudi",
+			"titleRevision": "Ripristinare questa revisione nella bozza?",
+			"titleCheckpoint": "Ripristinare questo checkpoint nella bozza?",
+			"body": "Ciò che conteneva alle {time} sostituisce la bozza. La bozza com'è ora si conserva prima come checkpoint, così puoi tornare indietro. Non si pubblica niente: i visitatori lo vedono quando l'elemento viene pubblicato.",
+			"cancel": "Annulla",
+			"confirm": "Ripristina nella bozza",
+			"done": "Ripristinato nella bozza. Non è stato pubblicato niente."
+		},
+		"postType": {
+			"label": "Salva una revisione ogni volta che si pubblica un contenuto di {name}",
+			"help": "Se disattivato, pubblicare questi contenuti non salva revisioni. Le revisioni salvate prima restano finché la conservazione dell'Install non le rimuove, e i checkpoint continuano a essere salvati mentre si modificano i contenuti.",
+			"save": "Salva",
+			"saved": "Salvato."
+		},
+		"link": "Cronologia",
+		"linkNamed": ": {name}",
+		"emailsLink": "Cronologia delle email"
+	},
+	"historySettings": {
+		"pageTitle": "Revisioni",
+		"heading": "Revisioni",
+		"intro": "Cosa conserva l'Install della cronologia di ogni elemento: una revisione ogni volta che viene pubblicato, e i checkpoint della sua bozza mentre lo si modifica.",
+		"revisionsOn": "Salva una revisione ogni volta che si pubblica qualcosa",
+		"revisionsOnHelp": "Se disattivato, pubblicare non salva revisioni in nessun punto di questa Install. Le revisioni salvate prima restano finché le regole qui sotto non le rimuovono; i checkpoint continuano a essere salvati.",
+		"revisionDays": "Conserva le revisioni per (giorni)",
+		"revisionDaysHelp": "Le revisioni più vecchie si rimuovono ogni notte, tranne le più recenti di ogni elemento qui sotto.",
+		"revisionsKept": "Conserva sempre le revisioni più recenti di ogni elemento",
+		"revisionsKeptHelp": "Per quanto vecchie siano: vale quello che ne conserva di più, i giorni qui sopra o questo numero.",
+		"checkpointDays": "Conserva i checkpoint per (giorni)",
+		"checkpointDaysHelp": "I checkpoint sono la bozza salvata mentre la si modifica; quelli più vecchi si rimuovono ogni notte.",
+		"outOfRange": "Usa un numero intero da {min} a {max}.",
+		"save": "Salva",
+		"saved": "Salvato."
 	},
 	"reports": {
 		"heading": "Report di {name}",

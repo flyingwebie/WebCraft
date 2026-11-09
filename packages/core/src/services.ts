@@ -62,6 +62,7 @@ import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
 import type { Filters } from "./filters/index.ts";
 import type { Forms } from "./forms/index.ts";
+import type { HistoryService } from "./history/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { Imports } from "./imports/index.ts";
 import type { InstallSettings } from "./install-settings.ts";
@@ -472,6 +473,11 @@ export type InstallServices = InstallPorts & {
 		 */
 		preview(scope: SiteScope, item: PublishItem): Promise<PublishPreview>;
 	};
+	/**
+	 * Every publishable item's history: Revisions saved by each publish and Checkpoints of its Draft,
+	 * compared with the Draft and restored into it (see `history/index.ts`).
+	 */
+	history: HistoryService;
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
 	/** Site search's background work: rebuilding search indexes that are behind (ADR 0021). */

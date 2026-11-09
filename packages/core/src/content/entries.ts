@@ -3,6 +3,8 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
+import { saveRevision } from "../history/copies.ts";
 import { isUuid } from "../ids.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import { SEO_CHECK_MESSAGES, type SeoPreview, seoReports } from "../seo/checks.ts";
@@ -372,6 +374,29 @@ export async function replaceDraft(scope: SiteScope, entryId: string, version: u
 	});
 }
 
+/**
+ * Puts a Revision's or Checkpoint's version into an Entry's Draft (open the Site with `entry.edit`):
+ * history's restore, a change to the Draft like any other, which never publishes. Links to Entries
+ * deleted since are left out, as deleting them removed them from the Draft.
+ */
+export async function restoreEntryDraft(scope: SiteScope, entryId: string, version: unknown): Promise<Entry> {
+	return scope.transaction(async (tx) => {
+		const languages = await entryLanguages(tx);
+		const row = await lockEntry(tx, entryId);
+		const postType = await getPostType(tx, row.postTypeId);
+		let { values } = storedVersion(version);
+		const targets = [...new Set(linksIn(values, postType.fields).map((link) => link.targetId))];
+		const existing =
+			targets.length > 0
+				? new Set((await tx.select(entries, inArray(entries.id, targets))).map((target) => target.id))
+				: new Set<string>();
+		for (const gone of targets.filter((id) => !existing.has(id)))
+			values = withoutLinksTo(values, postType.fields, gone);
+		const saved = await changeDraft(tx, row, postType, { replace: { values } }, languages);
+		return toEntry(tx, saved, postType, languages);
+	});
+}
+
 /** What translations change in an Entry: its Draft, its published version, or both (unchanged when absent). */
 export type TranslationWrite = { draft?: EntryVersion; published?: EntryVersion } | null;
 
@@ -407,6 +432,8 @@ export async function writeEntryTranslations(
 		if (written?.draft) await changeDraft(tx, row, postType, { replace: written.draft }, languages);
 		if (written?.published && row.published !== null) {
 			await tx.update(entries, { published: written.published }, eq(entries.id, row.id));
+			// Translated values published: a publish, which saves a Revision like any other.
+			await saveRevision(tx, { kind: "entry", id: row.id });
 		}
 		return { written, postType };
 	});
@@ -550,6 +577,14 @@ async function changeDraft(
 	);
 	if (!saved) throw new EntryNotFoundError();
 	await saveLinks(scope, row.id, "draft", linksIn(version.values, postType.fields));
+	// Who changed what, and a Checkpoint after 10 minutes of activity (a new Entry has nothing to keep).
+	await noteDraftChange(
+		scope,
+		{ kind: "entry", id: row.id },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
+		version,
+		{ created: "change" in edit && edit.withDefaults === true },
+	);
 	return saved;
 }
 
