@@ -3,8 +3,8 @@ name: Images
 # Builds the web and worker images for amd64 and arm64 and publishes them to the GitHub Container
 # Registry: ghcr.io/<owner>/webcraft-web and ghcr.io/<owner>/webcraft-worker. A push to main publishes
 # `main` and `sha-<commit>`; a release tag `v1.2.3` publishes `1.2.3`, `1.2`, `1` and `latest`.
-# Each platform is built on a runner of its own architecture, pushed by digest, then the digests are
-# joined into one multi-platform tag per image.
+# Each platform is built on a runner of its own architecture (Bun can't run the admin's build under
+# QEMU emulation), pushed by digest, then the digests are joined into one multi-platform tag per image.
 
 on:
   push:
