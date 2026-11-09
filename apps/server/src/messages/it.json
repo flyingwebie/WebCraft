@@ -696,8 +696,8 @@
 			"description": "Quando una pubblicazione programmata non va a buon fine."
 		},
 		"ai-key-cap": {
-			"name": "Limite della chiave AI condivisa",
-			"description": "Quando un Workspace ha usato l'80% o tutto il limite mensile sulla chiave AI condivisa."
+			"name": "Limite della chiave AI",
+			"description": "Quando un Workspace ha usato l'80% o tutto il limite mensile su una chiave AI."
 		},
 		"module-message": {
 			"name": "Email dei Moduli",

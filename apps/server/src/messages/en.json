@@ -696,8 +696,8 @@
 			"description": "When a scheduled publish doesn't go through."
 		},
 		"ai-key-cap": {
-			"name": "Shared AI key cap",
-			"description": "When a Workspace has used 80% or all of its monthly cap on the shared AI key."
+			"name": "AI key cap",
+			"description": "When a Workspace has used 80% or all of its monthly cap on an AI key."
 		},
 		"module-message": {
 			"name": "Module emails",
