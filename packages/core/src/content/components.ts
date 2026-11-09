@@ -31,12 +31,14 @@ import {
 } from "@webcraft/renderer";
 import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm";
 
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, classCatalogue, listClasses, saveCreatedClasses } from "../design-system/classes.ts";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import {
 	ComponentFromModuleError,
+	ComponentInUseError,
 	ComponentInvalidError,
 	ComponentNameTakenError,
 	ComponentNotFoundError,
@@ -131,6 +133,9 @@ export type SavedComponentMarkup = {
 	usage: ComponentUsage;
 };
 
+/** What deleting a Component did: asked for a confirmation, or deleted it. */
+export type ComponentDeletion = { deleted: false; confirmation: Confirmation } | { deleted: true };
+
 /** A Component's name: a PascalCase tag (a capital first, then letters and digits, at least one lower-case). */
 const COMPONENT_NAME = /^[A-Z][A-Za-z0-9]{0,63}$/;
 
@@ -166,6 +171,7 @@ export async function createComponent(
 	return naming(name, () =>
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
+			await checkNameUnused(tx, name);
 			const now = tx.now();
 			const draft: ComponentVersion = { props, tree: EMPTY_TREE };
 			const row = await tx.insert(components, { name, draft, createdAt: now, updatedAt: now });
@@ -276,6 +282,60 @@ export async function getComponentMarkup(
 	};
 }
 
+/**
+ * Renames a Component (open the Site with `structure.edit`). Templates and Components place it by
+ * id, so every one of them writes the new name in Template markup at once; visitors see no change.
+ */
+export async function renameComponent(
+	scope: SiteScope,
+	componentId: string,
+	input: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Component> {
+	const problems: ContentProblem[] = [];
+	const name = checkName(input, problems);
+	if (problems.length > 0) throw new ComponentInvalidError(problems);
+	return naming(name, () =>
+		scope.transaction(async (tx) => {
+			await lockComponents(tx);
+			const row = await lockComponent(tx, componentId, sources);
+			if (row.name === name) return toComponent(row);
+			checkNameFree(name, sources);
+			await checkNameUnused(tx, name);
+			const [updated] = await tx.update(components, { name, updatedAt: tx.now() }, eq(components.id, row.id));
+			if (!updated) throw new ComponentNotFoundError();
+			await tx.audit("component.rename", { componentId: row.id, from: row.name, to: name });
+			return toComponent(updated);
+		}),
+	);
+}
+
+/**
+ * Deletes a Component (open the Site with `structure.edit`), in two steps: without a confirmation
+ * it deletes nothing and answers a confirmation id; with that id it deletes it. Refused while any
+ * Template or Component places it, in its Draft or published version (`ComponentInUseError` lists
+ * them): every Placement would show nothing.
+ */
+export async function deleteComponent(
+	scope: SiteScope,
+	componentId: string,
+	confirmation: string | undefined,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<ComponentDeletion> {
+	return scope.transaction(async (tx) => {
+		await lockComponents(tx);
+		const row = await lockComponent(tx, componentId, sources);
+		const { usedIn } = (await usages(tx))(row.id);
+		if (usedIn.length > 0) throw new ComponentInUseError(usedIn);
+		const request = { action: "component.delete", target: row.id, preview: { name: row.name } };
+		if (confirmation === undefined) return { deleted: false, confirmation: await askConfirmation(tx, request) };
+		await useConfirmation(tx, confirmation, request);
+		await tx.delete(components, eq(components.id, row.id));
+		await tx.audit("component.delete", { componentId: row.id, name: row.name });
+		return { deleted: true };
+	});
+}
+
 /** The Props a Draft will have: the change's, checked (a Prop keeps its type), or the Draft's own. */
 async function nextProps(
 	scope: SiteScope,
@@ -365,6 +425,12 @@ function checkName(input: string, problems: ContentProblem[]): string {
 function checkNameFree(name: string, sources: ComponentSources): void {
 	const taken = sources.allModuleComponents().find((component) => component.name === name);
 	if (taken) throw new ComponentNameTakenError(name, { kind: "module", moduleId: taken.moduleId });
+}
+
+/** Refuses a name another Component of the Site has. */
+async function checkNameUnused(scope: SiteScope, name: string): Promise<void> {
+	const other = await scope.first(components, eq(components.name, name));
+	if (other) throw new ComponentNameTakenError(name, { kind: "component", id: other.id });
 }
 
 /** Runs a save, turning another Component's name into `ComponentNameTakenError`. */

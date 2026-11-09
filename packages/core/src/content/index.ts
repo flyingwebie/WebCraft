@@ -3,6 +3,7 @@
 // publishing one item.
 export {
 	type Component,
+	type ComponentDeletion,
 	type ComponentDraftChange,
 	type ComponentMarkup,
 	type ComponentSources,
@@ -10,6 +11,7 @@ export {
 	type ComponentUsage,
 	type ComponentVersion,
 	createComponent,
+	deleteComponent,
 	getComponent,
 	getComponentMarkup,
 	isComponentName,
@@ -17,6 +19,7 @@ export {
 	type ModuleComponent,
 	type NewComponent,
 	NO_MODULE_COMPONENTS,
+	renameComponent,
 	type SavedComponentMarkup,
 	saveComponentDraft,
 	saveComponentMarkup,

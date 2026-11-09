@@ -219,6 +219,12 @@ describe("Components", () => {
 	isolation.refuses("components.publish", async (api, target) =>
 		api.components.publish({ siteId: target.siteId, componentId: await componentIn(target) }),
 	);
+	isolation.refuses("components.rename", async (api, target) =>
+		api.components.rename({ siteId: target.siteId, componentId: await componentIn(target), name: newName() }),
+	);
+	isolation.refuses("components.delete", async (api, target) =>
+		api.components.delete({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
 });
 
 describe("Pages", () => {

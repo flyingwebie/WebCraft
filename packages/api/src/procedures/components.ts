@@ -94,4 +94,24 @@ export const components = {
 		const published = await context.services.publishing.publish(site, item);
 		return { published, ...(await context.services.components.get(site, input.componentId)) };
 	}),
+
+	/** Renames a Component: every Template and Component placing it writes the new name at once. */
+	rename: signedIn
+		.input(z.object({ siteId: id, componentId, name: componentName }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return { component: await context.services.components.rename(site, input.componentId, input.name) };
+		}),
+
+	/**
+	 * Deletes a Component, in two steps. The first call deletes nothing and answers a `confirmation`
+	 * id, valid for 5 minutes; calling again with it deletes the Component. Refused with
+	 * `COMPONENT_IN_USE` (and `data.usedIn`) while any Template or Component places it.
+	 */
+	delete: signedIn
+		.input(z.object({ siteId: id, componentId, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.components.delete(site, input.componentId, input.confirmation);
+		}),
 };

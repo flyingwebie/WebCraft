@@ -7,6 +7,7 @@ import type { Clock } from "./clock.ts";
 import type { InstallConfig } from "./config.ts";
 import type {
 	Component,
+	ComponentDeletion,
 	ComponentDraftChange,
 	ComponentMarkup,
 	ComponentUsage,
@@ -198,6 +199,10 @@ export type InstallServices = InstallPorts & {
 			componentId: string,
 			input: { markup: string; props?: FieldInput[] },
 		): Promise<SavedComponentMarkup>;
+		/** Renames it: Template markup writes the new name everywhere at once. */
+		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
+		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
+		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page) and for paths with no page (the 404 page). Choosing

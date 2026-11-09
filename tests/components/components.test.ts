@@ -9,10 +9,11 @@ let install: TestInstall;
 let staff: TestBrowser;
 let owner: TestBrowser;
 let siteId: string;
+let workspaceId: string;
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
+	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { slug: "bakery" })).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
@@ -251,5 +252,163 @@ describe("a Component's Draft", () => {
 			id: expect.stringMatching(/^[A-Za-z0-9]{12}$/),
 			children: [{ type: "value", path: "props.words" }],
 		});
+	});
+});
+
+describe("where a Component is used", () => {
+	/** A Site of its own, so other tests' Templates and Entries don't count. */
+	let site: string;
+	let footnoteId: string;
+	const kinds: Record<string, { postTypeId: string; templateId: string }> = {};
+
+	/** A Post Type whose Entry template is `markup` (published unless asked not to), with Entries. */
+	async function kindWith(key: string, markup: string, options: { publish?: boolean; entries?: number } = {}) {
+		const { postType } = await staff.api.postTypes.create({
+			siteId: site,
+			name: key,
+			key,
+			urlPattern: `/${key}/{slug}`,
+		});
+		const saved = await staff.api.templates.saveEntryTemplateMarkup({ siteId: site, postTypeId: postType.id, markup });
+		if (options.publish !== false) await staff.api.templates.publish({ siteId: site, templateId: saved.template.id });
+		for (let index = 0; index < (options.entries ?? 0); index++) {
+			const { entry } = await staff.api.entries.create({
+				siteId: site,
+				postTypeId: postType.id,
+				title: `${key} ${index}`,
+			});
+			await staff.api.entries.publish({ siteId: site, entryId: entry.id });
+		}
+		kinds[key] = { postTypeId: postType.id, templateId: saved.template.id };
+	}
+
+	beforeAll(async () => {
+		site = (await install.createSite(workspaceId, { slug: "usage" })).id;
+		const { component } = await staff.api.components.create({ siteId: site, name: "Footnote" });
+		footnoteId = component.id;
+		await staff.api.components.saveMarkup({ siteId: site, componentId: footnoteId, markup: "<small>Note</small>" });
+		await staff.api.components.publish({ siteId: site, componentId: footnoteId });
+	});
+
+	test("Template markup shows how many published pages show it", async () => {
+		// Two published Entries through a published Entry template, and one Draft Entry, which has no page.
+		await kindWith("recipes", "<div><Footnote /></div>", { entries: 2 });
+		await staff.api.entries.create({ siteId: site, postTypeId: kinds.recipes?.postTypeId ?? "", title: "Draft" });
+		// An Entry template that isn't published shows nothing yet.
+		await kindWith("drafts", "<Footnote />", { publish: false, entries: 3 });
+		// Through another Component: one more published Entry.
+		const { component: wrapper } = await staff.api.components.create({ siteId: site, name: "Wrapper" });
+		await staff.api.components.saveMarkup({
+			siteId: site,
+			componentId: wrapper.id,
+			markup: "<aside><Footnote /></aside>",
+		});
+		await staff.api.components.publish({ siteId: site, componentId: wrapper.id });
+		await kindWith("stories", "<Wrapper />", { entries: 1 });
+
+		const { usage } = await staff.api.components.getMarkup({ siteId: site, componentId: footnoteId });
+
+		expect(usage.pages).toBe(3);
+		expect(usage.usedIn).toEqual(
+			expect.arrayContaining([
+				{
+					kind: "template",
+					id: kinds.recipes?.templateId,
+					templateKind: "entry",
+					postTypeId: kinds.recipes?.postTypeId,
+					versions: ["draft", "published"],
+				},
+				{
+					kind: "template",
+					id: kinds.drafts?.templateId,
+					templateKind: "entry",
+					postTypeId: kinds.drafts?.postTypeId,
+					versions: ["draft"],
+				},
+				{ kind: "component", id: wrapper.id, name: "Wrapper", versions: ["draft", "published"] },
+			]),
+		);
+		expect(usage.usedIn).toHaveLength(3);
+		const { components } = await staff.api.components.list({ siteId: site });
+		expect(components.map((listed) => [listed.name, listed.usage.pages])).toEqual([
+			["Footnote", 3],
+			["Wrapper", 1],
+		]);
+	});
+
+	test("placed in the published Site template, it shows on every published page", async () => {
+		const { postTypes } = await staff.api.postTypes.list({ siteId: site });
+		const pages = postTypes.find((postType) => postType.builtIn === "page");
+		const { entry: about } = await staff.api.entries.create({
+			siteId: site,
+			postTypeId: pages?.id ?? "",
+			title: "About",
+		});
+		await staff.api.entries.publish({ siteId: site, entryId: about.id });
+		const { template } = await staff.api.templates.saveSiteTemplateMarkup({
+			siteId: site,
+			markup: "<main>{{@outlet}}</main><footer><Footnote /></footer>",
+		});
+		await staff.api.templates.publish({ siteId: site, templateId: template.id });
+
+		// recipes (2), stories (1) and the Page; drafts' Entry template isn't published, so they have no pages.
+		expect((await staff.api.components.get({ siteId: site, componentId: footnoteId })).usage.pages).toBe(4);
+		const page = await install.request("https://usage.sites.test/about");
+		expect(await page.text()).toContain("<footer><small>Note</small></footer>");
+	});
+
+	test("renaming it changes how every Template and Component writes it", async () => {
+		await staff.api.components.rename({ siteId: site, componentId: footnoteId, name: "SideNote" });
+
+		const recipes = await staff.api.templates.getEntryTemplateMarkup({
+			siteId: site,
+			postTypeId: kinds.recipes?.postTypeId ?? "",
+		});
+		expect(recipes.markup?.draft).toMatch(/^<div data-wc-id="\w+"><SideNote data-wc-id="\w+" \/><\/div>$/);
+		expect(recipes.markup?.published).toBe(recipes.markup?.draft);
+		await expect(
+			staff.api.components.rename({ siteId: site, componentId: footnoteId, name: "Wrapper" }),
+		).rejects.toMatchObject({ code: "COMPONENT_NAME_TAKEN" });
+		await expect(
+			staff.api.components.rename({ siteId: site, componentId: footnoteId, name: "side-note" }),
+		).rejects.toMatchObject({ code: "COMPONENT_INVALID", data: { problems: [{ at: "name" }] } });
+	});
+
+	test("deleting it is refused while anything places it, listing where", async () => {
+		const refusal = await staff.api.components.delete({ siteId: site, componentId: footnoteId }).then(
+			() => undefined,
+			(error: { code?: string; data?: { usedIn?: { kind: string; id: string }[] } }) => error,
+		);
+
+		expect(refusal?.code).toBe("COMPONENT_IN_USE");
+		expect(refusal?.data?.usedIn?.map((use) => use.kind).sort()).toEqual([
+			"component",
+			"template",
+			"template",
+			"template",
+		]);
+	});
+
+	test("deleting one nothing places takes two steps and is logged", async () => {
+		const { component } = await staff.api.components.create({ siteId: site, name: "Spare" });
+
+		const asked = await staff.api.components.delete({ siteId: site, componentId: component.id });
+		const confirmation = asked.deleted ? "" : asked.confirmation.id;
+		expect(asked.deleted).toBe(false);
+		expect(confirmation).toMatch(/^[0-9a-f-]{36}$/);
+		expect((await staff.api.components.get({ siteId: site, componentId: component.id })).component.name).toBe("Spare");
+
+		const done = await staff.api.components.delete({ siteId: site, componentId: component.id, confirmation });
+
+		expect(done).toEqual({ deleted: true });
+		await expect(staff.api.components.get({ siteId: site, componentId: component.id })).rejects.toMatchObject({
+			code: "COMPONENT_NOT_FOUND",
+		});
+		const logged = (await (await install.superadmin()).api.audit.list({ limit: 20 })).entries.map((entry) => [
+			entry.action,
+			entry.details,
+		]);
+		expect(logged).toContainEqual(["component.delete", { componentId: component.id, name: "Spare" }]);
+		expect(logged).toContainEqual(["component.rename", { componentId: footnoteId, from: "Footnote", to: "SideNote" }]);
 	});
 });
