@@ -6,7 +6,7 @@ import { escapeAttribute, escapeText, safeAttributeValue, safeUrl, URL_ATTRIBUTE
 import type { RenderTime } from "./expressions.ts";
 import { applyFormat } from "./formatters.ts";
 import { textIn } from "./languages.ts";
-import { LOOP_LIMITS, LOOP_STATS, type LoopItem, type LoopItemPlace, type LoopRun } from "./loops.ts";
+import { isLoopValuePath, LOOP_LIMITS, LOOP_STATS, type LoopItem, type LoopItemPlace, type LoopRun } from "./loops.ts";
 import { type ImagePriority, type MediaReader, mediaReference, renderMediaImage } from "./media.ts";
 import { cleanRichText } from "./rich-text.ts";
 import {
@@ -266,7 +266,8 @@ export const FILTER_REGION_MARK = "wc-region";
  * WebCraft writes them on pages: Staff's comments are never rendered and every value is escaped.
  */
 function filterRegion(name: string, loop: string, html: string, options: RenderOptions): string {
-	if (loop.includes(".") || !options.filtered?.(loop) || !options.regions) return html;
+	// A value-bound list (`isLoopValuePath`) is never a named query Loop, so it can never be filtered.
+	if (isLoopValuePath(loop) || !options.filtered?.(loop) || !options.regions) return html;
 	const n = (options.regions.get(name) ?? 0) + 1;
 	options.regions.set(name, n);
 	return `<!--${FILTER_REGION_MARK} ${name} ${n}-->${html}<!--/${FILTER_REGION_MARK} ${name} ${n}-->`;
