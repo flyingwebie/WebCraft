@@ -34,6 +34,7 @@ import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { defaultToolsets, ToolsetChoice, useToolsetName } from "./ToolsetChoice.tsx";
 
 /** What the screen shows: the person's tokens, and the Workspaces (with their Sites) they may make one for. */
 export type ApiTokensData = Awaited<ReturnType<ApiClient["apiTokens"]["list"]>>;
@@ -84,7 +85,7 @@ export function ApiTokensPage({ data }: { data: ApiTokensData }) {
 						</EmptyHeader>
 					</Empty>
 				) : (
-					<TokenList tokens={data.tokens} />
+					<TokenList tokens={data.tokens} toolsets={data.toolsets} />
 				)}
 				<p className="text-muted-foreground text-sm">
 					{t("account.apiTokens.howTo", { path: "/api/v1", document: "/api/v1/openapi.json" })}
@@ -93,6 +94,7 @@ export function ApiTokensPage({ data }: { data: ApiTokensData }) {
 			{creating ? (
 				<CreateTokenDialog
 					workspaces={data.workspaces}
+					toolsets={data.toolsets}
 					onClose={() => setCreating(false)}
 					onCreated={setShown}
 					finalFocus={createButton}
@@ -103,7 +105,7 @@ export function ApiTokensPage({ data }: { data: ApiTokensData }) {
 	);
 }
 
-function TokenList({ tokens }: { tokens: TokenView[] }) {
+function TokenList({ tokens, toolsets }: { tokens: TokenView[]; toolsets: ApiTokensData["toolsets"] }) {
 	const t = useT();
 	return (
 		<Table>
@@ -122,15 +124,16 @@ function TokenList({ tokens }: { tokens: TokenView[] }) {
 			</TableHeader>
 			<TableBody>
 				{tokens.map((token) => (
-					<TokenRow key={token.id} token={token} />
+					<TokenRow key={token.id} token={token} toolsets={toolsets} />
 				))}
 			</TableBody>
 		</Table>
 	);
 }
 
-function TokenRow({ token }: { token: TokenView }) {
+function TokenRow({ token, toolsets }: { token: TokenView; toolsets: ApiTokensData["toolsets"] }) {
 	const t = useT();
+	const nameOf = useToolsetName();
 	const revokeButton = useRef<HTMLButtonElement>(null);
 	const [revoking, setRevoking] = useState(false);
 	const sites =
@@ -153,7 +156,14 @@ function TokenRow({ token }: { token: TokenView }) {
 					<span className="text-muted-foreground text-xs">{sites}</span>
 				</span>
 			</TableCell>
-			<TableCell>{token.readOnly ? t("account.apiTokens.readOnly") : t("account.apiTokens.readWrite")}</TableCell>
+			<TableCell>
+				<span className="flex flex-col">
+					<span>{token.readOnly ? t("account.apiTokens.readOnly") : t("account.apiTokens.readWrite")}</span>
+					<span className="text-muted-foreground text-xs">
+						{token.toolsets.map((key) => nameOf(key, toolsets)).join(", ")}
+					</span>
+				</span>
+			</TableCell>
 			<TableCell>{token.expiresAt ? formatUtc(token.expiresAt) : t("account.apiTokens.never")}</TableCell>
 			<TableCell>{token.lastUsedAt ? formatUtc(token.lastUsedAt) : t("account.apiTokens.neverUsed")}</TableCell>
 			<TableCell>
@@ -190,11 +200,13 @@ function TokenRow({ token }: { token: TokenView }) {
 /** Making a token: its name, Workspace, Sites, whether it only reads, and how long it lasts. */
 function CreateTokenDialog({
 	workspaces,
+	toolsets: offered,
 	onClose,
 	onCreated,
 	finalFocus,
 }: {
 	workspaces: ApiTokensData["workspaces"];
+	toolsets: ApiTokensData["toolsets"];
 	onClose: () => void;
 	onCreated: (shown: { name: string; secret: string }) => void;
 	finalFocus: RefObject<HTMLElement | null>;
@@ -208,8 +220,12 @@ function CreateTokenDialog({
 	const [reach, setReach] = useState<"all" | "chosen">("all");
 	const [chosen, setChosen] = useState<Set<string>>(() => new Set());
 	const [readOnly, setReadOnly] = useState(false);
+	const [toolsets, setToolsets] = useState<Set<string>>(() => defaultToolsets(offered));
 	const [lifetime, setLifetime] = useState<(typeof LIFETIMES)[number]["value"]>("90");
-	const [problem, setProblem] = useState<{ field: "name" | "sites" | null; message: MessageKey } | null>(null);
+	const [problem, setProblem] = useState<{
+		field: "name" | "sites" | "toolsets" | null;
+		message: MessageKey;
+	} | null>(null);
 	const [busy, setBusy] = useState(false);
 	const workspace = workspaces.find((each) => each.id === workspaceId);
 
@@ -223,6 +239,10 @@ function CreateTokenDialog({
 			setProblem({ field: "sites", message: "account.apiTokens.sitesRequired" });
 			return;
 		}
+		if (toolsets.size === 0) {
+			setProblem({ field: "toolsets", message: "toolsets.required" });
+			return;
+		}
 		setBusy(true);
 		setProblem(null);
 		try {
@@ -233,6 +253,7 @@ function CreateTokenDialog({
 					name: name.trim(),
 					sites: reach === "all" ? "all" : [...chosen],
 					readOnly,
+					toolsets: [...toolsets],
 					lifetimeDays: lifetime === "never" ? null : (Number(lifetime) as 30 | 90 | 365),
 				}),
 			);
@@ -248,7 +269,11 @@ function CreateTokenDialog({
 	const invalid = (field: "name" | "sites") => (problem?.field === field ? true : undefined);
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("account.apiTokens.close")} finalFocus={finalFocus} className="sm:max-w-xl">
+			<DialogContent
+				closeLabel={t("account.apiTokens.close")}
+				finalFocus={finalFocus}
+				className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-xl"
+			>
 				<form onSubmit={submit} noValidate>
 					<DialogHeader>
 						<DialogTitle>{t("account.apiTokens.createTitle")}</DialogTitle>
@@ -366,6 +391,12 @@ function CreateTokenDialog({
 								</label>
 							</div>
 						</FieldSet>
+						<ToolsetChoice
+							offered={offered}
+							chosen={toolsets}
+							onChange={setToolsets}
+							problem={problem?.field === "toolsets" ? problem.message : null}
+						/>
 						<Field>
 							<FieldLabel htmlFor={`${id}-lifetime`}>{t("account.apiTokens.expires")}</FieldLabel>
 							<NativeSelect

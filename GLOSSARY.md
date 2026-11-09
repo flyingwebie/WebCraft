@@ -520,6 +520,18 @@ _Avoid_: API key (that is an AI key or a provider's credential), access key, PAT
 An outside AI app or agent that works with an Install on a person's behalf, after they approve it or give it an API token.
 _Avoid_: Bot, integration, agent (too generic)
 
+**MCP server**:
+The way AI clients work with an Install: one tool for each public action of the Management API, named after it, listed only as far as the client's Toolsets and its person's Permissions allow.
+_Avoid_: AI API, agent endpoint, plugin
+
+**OAuth grant**:
+A person's approval of an AI client, made in their browser: the Workspace, Sites and Toolsets it may work in, whether it only reads, and May publish. It lasts until they revoke it, lose that access, or the client leaves it unused for 30 days.
+_Avoid_: Connection, authorization, AI session
+
+**May publish**:
+Whether a person lets an AI client they approve publish. Without it the client saves Drafts but never makes them what visitors see; with it, publishing still shows a preview to confirm first.
+_Avoid_: Publish scope, publish permission
+
 **Toolset**:
 A named group of related actions, such as Content, Media, Structure, Publishing or Submissions, that a person switches on for an AI client or API token. The client can only use the actions in the Toolsets switched on, and only those the person may do.
 _Avoid_: Scope, capability, plugin

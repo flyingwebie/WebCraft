@@ -2,7 +2,7 @@ import { ORPCError, os } from "@orpc/server";
 import type { Session } from "@webcraft/auth";
 import {
 	type Access,
-	type ApiTokenUse,
+	type ApiClientUse,
 	type AuditVia,
 	assertSensitiveActionAllowed,
 	type InstallServices,
@@ -14,7 +14,7 @@ import {
 
 import { toApiError } from "./errors.ts";
 
-/** What every procedure receives. It grows with the actor kinds (OAuth grants later). */
+/** What every procedure receives. */
 export type ApiContext = {
 	services: InstallServices;
 	/** The request's headers: cookies, origin, language. */
@@ -23,13 +23,17 @@ export type ApiContext = {
 	clientAddress: string | null;
 	/** Headers the answer will carry, such as the `Set-Cookie` that starts or ends a session. */
 	resHeaders?: Headers;
-	/** How the call came in, for the Audit log: `admin` at `/api/rpc`, `token` at `/api/v1`. */
+	/**
+	 * How the call came in, for the Audit log: `admin` at `/api/rpc`, `token` at `/api/v1` (or the
+	 * MCP server, with an API token), `aiClient` through the MCP server with an OAuth grant.
+	 */
 	via: AuditVia;
 	/**
-	 * The API token a call at `/api/v1` came with, already checked (`services.apiTokens.use`): the
-	 * call acts as its person within its limits, and never reads a session cookie.
+	 * The API client a call at `/api/v1` or through the MCP server came with (an API token, or an AI
+	 * client's OAuth grant), already checked: the call acts as its person within its limits, and
+	 * never reads a session cookie.
 	 */
-	token?: ApiTokenUse;
+	client?: ApiClientUse;
 };
 
 const base = os.$context<ApiContext>();
@@ -74,7 +78,7 @@ export const authEndpoint = procedure.use(rateLimited("auth"));
  * signed out). An ended session's cookie is cleared in the answer.
  */
 export const withPerson = base.middleware(async ({ context, next }) => {
-	if (context.token) return next({ context: { person: context.token.person as Person | null, session: null } });
+	if (context.client) return next({ context: { person: context.client.person as Person | null, session: null } });
 	const { session, setCookie } = await context.services.auth.session(context);
 	setCookies(context, setCookie);
 	const person: Person | null = session ? await context.services.people.get(session.personId) : null;
@@ -92,8 +96,8 @@ export const withPerson = base.middleware(async ({ context, next }) => {
  * own sessions, confirming who they are) start from `inAdminSession` instead.
  */
 export const signedIn = procedure.use(withPerson).use(async ({ context, next }) => {
-	const { person, session, token } = context;
-	if (token && person) return next({ context: { person, session: null as Session | null, access: token.access } });
+	const { person, session, client } = context;
+	if (client && person) return next({ context: { person, session: null as Session | null, access: client.access } });
 	if (!person || !session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
 	const actor = await context.services.actors.person(person.id);
 	const access: Access = { actor, via: context.via, identityCheckedAt: session.identityCheckedAt };

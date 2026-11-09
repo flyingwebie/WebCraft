@@ -34,3 +34,6 @@ export const basedOn = z
 	.regex(/^[0-9a-f]{16}$/)
 	.nullable()
 	.optional();
+
+/** The Toolsets a client is given: WebCraft's own keys (`content`, `submissions`, …) and Modules' (`m.<id>`). */
+export const toolsetsInput = z.array(z.string().max(120)).max(100);

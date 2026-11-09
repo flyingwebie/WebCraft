@@ -8,6 +8,7 @@ Make a token in the admin under Your account › API tokens. A token:
 
 - acts as you, never with more access than you have at the time of each request, within one Workspace and, if you choose, some of its Sites;
 - can be read-only: it then calls only procedures marked `x-webcraft-access: read`;
+- calls only the procedures of the Toolsets switched on for it (`x-webcraft-toolsets`: Content, Media, Structure, Forms, Publishing, Translation, Site settings, Analytics, Submissions, or a Module's own `m.<id>`; `always` for finding the Workspace and its Sites). A new token has every Toolset but Submissions, which holds what visitors typed into Forms and is on only when you choose it; every read of Submissions is recorded in the Audit log;
 - lasts 30, 90 (the default) or 365 days, or never, and stops at once when you revoke it or lose access to its Workspace (or to every Site it lists);
 - is shown once. WebCraft keeps only a keyed hash of it. Rotating the Install's Master key ends every token.
 
@@ -32,6 +33,7 @@ A refusal has the status that fits and a body `{ "code", "status", "message", "d
 | --- | --- | --- |
 | `TOKEN_INVALID` | 401 | No token, or one that doesn't work: `data.problem` is `missing`, `unknown`, `expired`, `revoked` or `locked` (its person's account is locked for now; `Retry-After` says for how long). |
 | `TOKEN_READ_ONLY` | 403 | A read-only token called a procedure that may change something. |
+| `TOOLSET_OFF` | 403 | None of the procedure's Toolsets (`data.toolsets`) is switched on for the token. |
 | `FORBIDDEN` | 403 | The token's person may not do this (`data.permission`). |
 | `SENSITIVE_ACTION_REFUSED` | 403 | A Sensitive action (`x-webcraft-sensitive`): only a person in the admin takes it. |
 | `WORKSPACE_NOT_FOUND`, `SITE_NOT_FOUND`, … | 404 | Not there, or outside the token's reach. |
@@ -52,6 +54,23 @@ Procedures marked `x-webcraft-confirmation` publish, delete or change many thing
 ```
 
 Some of these procedures answer more beside it (`"deleted": false` and what would go; `publishing.publishAll` answers `"published": false` and the items in the order they would go live). Publish all goes live all or none: an item that can't be published yet stops them all with `PUBLISH_ALL_REFUSED` (409, naming the item and its own refusal in `data`). Show the preview to whoever asked for the change, then call the procedure again with the same input and `"confirmation": "<id>"`. If what the preview showed changed in between (someone saved the Draft again), the call is refused with `CONFIRMATION_INVALID`, `data.problem: "changed"`, and nothing happens.
+
+## What the document marks
+
+Besides each procedure's path, summary and input, every operation carries WebCraft's marks:
+
+| Mark | Meaning |
+| --- | --- |
+| `x-webcraft-access` | `read` (changes nothing) or `write`. |
+| `x-webcraft-toolsets` | The Toolsets it belongs to, or `always`. |
+| `x-webcraft-permissions` | The Permissions that let a person call it: any one of them, on a Site or the Workspace (the procedure checks the exact one on what it is called on). |
+| `x-webcraft-publishes` | It makes Drafts what visitors see: an AI client calls it only when its person allowed it ("May publish"). |
+| `x-webcraft-confirmation` | Two steps (see above). |
+| `x-webcraft-sensitive` | A Sensitive action: never callable with a token or by an AI client. |
+
+## AI clients and the MCP server
+
+AI clients work through WebCraft's MCP server at `https://<admin host>/mcp` (Streamable HTTP). Each tool is one public procedure, named after it in snake case (`entries.saveDraft` is `entries_save_draft`, a Module's `m.redirects.rules.list` is `redirects_rules_list`), with the same input; Sensitive actions are never tools. A client either holds an API token (as above) or finds its way in with OAuth 2.1: the MCP server's metadata is at `/.well-known/oauth-protected-resource/mcp`, the authorization server's at `/.well-known/oauth-authorization-server`; clients register at `/oauth/register`, send the person to `/oauth/authorize` to approve them (choosing a Workspace, its Sites, the Toolsets, read-only and May publish), and exchange the code, with PKCE (S256), at `/oauth/token`. Access tokens last an hour; refresh tokens 30 days, replaced each time they are used. People see and revoke the clients they approved under Your account › AI clients. A tool that takes two steps answers its preview and confirmation id first, or, for a client of the 2026-07-28 revision that can ask its person a question, asks them. `guide_get` reads the Template markup reference, a Site's schema and its Protected terms; the same guides are resources.
 
 ## Versions
 

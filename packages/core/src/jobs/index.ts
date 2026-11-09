@@ -29,6 +29,7 @@ import {
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { modulePartitionsJob, modulePartitionsSchedule } from "../modules/partitions.ts";
 import { visitorSaltsPurge, visitorSaltsPurgeSchedule } from "../modules/visitors.ts";
+import { oauthPurge, oauthPurgeSchedule } from "../oauth-jobs.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
 import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
@@ -48,6 +49,7 @@ export const coreJobs = [
 	emailSend,
 	emailLogPurge,
 	rateLimitsPurge,
+	oauthPurge,
 	mediaProcess,
 	mediaVariants,
 	mediaPurge,
@@ -84,6 +86,7 @@ export const coreJobs = [
 export const coreSchedules = [
 	emailLogPurgeSchedule,
 	rateLimitsPurgeSchedule,
+	oauthPurgeSchedule,
 	moduleLogPurgeSchedule,
 	moduleHourlyJobsSchedule,
 	moduleDailyJobsSchedule,

@@ -1,6 +1,7 @@
 import { filters, loops } from "@webcraft/db/schema";
 import type { FilterCatalogue, FilterVersion } from "@webcraft/renderer";
 import { asc, eq } from "drizzle-orm";
+import { clientNameOf } from "../audit.ts";
 
 import type { ContentProblem } from "../content/errors.ts";
 import { sameJson } from "../content/json.ts";
@@ -82,6 +83,7 @@ export async function createFilter(scope: SiteScope, input: NewFilter): Promise<
 				createdAt: now,
 				updatedAt: now,
 				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
 			});
 		} catch (error) {
 			if (isUniqueViolation(error, "filters_site_id_name_unique")) throw new FilterNameTakenError(name);
@@ -159,7 +161,7 @@ export async function saveFilterDraft(scope: SiteScope, filterId: string, change
 		if (problems.length > 0) throw new FilterInvalidError(problems);
 		const [saved] = await tx.update(
 			filters,
-			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
+			{ draft, updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor), updatedVia: clientNameOf(tx.access.via) },
 			eq(filters.id, row.id),
 		);
 		return toFilter(saved ?? row);

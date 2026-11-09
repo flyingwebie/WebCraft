@@ -57,10 +57,28 @@ export type TokenActor = {
 };
 
 /**
- * Who `can()` is asked about: a person, a Module or an API token. Later kinds slot in here, each
- * limited by what stands behind it: an OAuth grant is a person plus scope, Toolsets and "may publish".
+ * An OAuth grant: its person acting through an AI client they approved (the MCP server at `/mcp`),
+ * never with more access than they have now (`person` is read fresh for every request) and limited
+ * further to the grant's Workspace and Sites, as an API token is. Its Toolsets, whether it only
+ * reads and whether it may publish are decided per procedure, where the request comes in; Sensitive
+ * actions are never its to take.
  */
-export type Actor = PersonActor | ModuleActor | TokenActor;
+export type GrantActor = {
+	kind: "grant";
+	grantId: string;
+	person: PersonActor;
+	workspaceId: string;
+	sites: Reach;
+};
+
+/** An API client: an API token or an OAuth grant, its person acting within its limits. */
+export type ClientActor = TokenActor | GrantActor;
+
+/**
+ * Who `can()` is asked about: a person, a Module, an API token or an OAuth grant, each limited by
+ * what stands behind it.
+ */
+export type Actor = PersonActor | ModuleActor | ClientActor;
 
 /**
  * A Permission a Module adds (ADR 0028): named under the Module's id (`sample.notes.edit`), checked
@@ -72,12 +90,13 @@ export type AddedPermission = {
 	readonly roles: readonly string[];
 };
 
-/** The person behind an actor (an API token's is the person who made it), or null for a Module. */
+/** The person behind an actor (an API token's or grant's is the person who made it), or null for a Module. */
 export function personIdOf(actor: Actor): string | null {
 	switch (actor.kind) {
 		case "person":
 			return actor.personId;
 		case "token":
+		case "grant":
 			return actor.person.personId;
 		case "module":
 			return null;
@@ -119,15 +138,17 @@ export function can(actor: Actor, permission: Permission | AddedPermission, reso
 				moduleReaches(actor, resource) && (MODULE_VIEW_PERMISSIONS.includes(key) || actor.permissions.includes(key))
 			);
 		case "token":
-			return tokenReaches(actor, resource, key) && can(actor.person, permission, resource);
+		case "grant":
+			return clientReaches(actor, resource, key) && can(actor.person, permission, resource);
 	}
 }
 
 /**
- * Whether `resource` is within an API token's limits: its Workspace, and there only the Sites it
- * lists. A token listing some Sites sees its Workspace and nothing more of it.
+ * Whether `resource` is within an API client's limits (an API token's or an OAuth grant's): its
+ * Workspace, and there only the Sites it lists. One listing some Sites sees its Workspace and
+ * nothing more of it.
  */
-function tokenReaches(actor: TokenActor, resource: Resource, key: string): boolean {
+function clientReaches(actor: ClientActor, resource: Resource, key: string): boolean {
 	if (resource.level === "install" || resource.workspaceId !== actor.workspaceId) return false;
 	if (resource.level === "site") return includes(actor.sites, resource.siteId);
 	return actor.sites === "all" || key === "workspace.view";
@@ -169,8 +190,8 @@ export type MemberAccess = { role: string; sites: Reach };
  * never held this way.
  */
 export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAccess): boolean {
-	if (actor.kind === "token") {
-		// A token holds what its person holds, within its Workspace and Sites.
+	if (actor.kind === "token" || actor.kind === "grant") {
+		// A token or grant holds what its person holds, within its Workspace and Sites.
 		if (actor.workspaceId !== workspaceId) return false;
 		const sites =
 			access.sites === "all" ? actor.sites === "all" : access.sites.every((id) => includes(actor.sites, id));
@@ -199,7 +220,7 @@ export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAcc
  */
 export function workspacesReached(actor: Actor): Reach {
 	if (actor.kind === "module") return [actor.place.workspaceId];
-	if (actor.kind === "token") return [actor.workspaceId];
+	if (actor.kind === "token" || actor.kind === "grant") return [actor.workspaceId];
 	const { installRole, memberships } = actor;
 	const reach = installRole ? roleDefinition(installRole.role)?.reach : undefined;
 	if (reach === "install") return "all";

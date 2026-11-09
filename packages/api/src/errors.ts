@@ -95,6 +95,8 @@ import {
 	ModuleFailedError,
 	ModuleNotApprovedError,
 	ModuleNotFoundError,
+	OAuthGrantNotFoundError,
+	OAuthRequestError,
 	OutsideScriptNotFoundError,
 	PageHasChildrenError,
 	PageNotFoundError,
@@ -131,6 +133,7 @@ import {
 	TemplateNotFoundError,
 	TokenInUseError,
 	TokensFileInvalidError,
+	ToolsetUnknownError,
 	TooManyHostsError,
 	TooManyWebhooksError,
 	TranslationLanguageError,
@@ -861,6 +864,25 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ApiTokenNotFoundError) {
 		return new ORPCError("API_TOKEN_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof OAuthGrantNotFoundError) {
+		return new ORPCError("AI_CLIENT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ToolsetUnknownError) {
+		return new ORPCError("TOOLSET_UNKNOWN", {
+			status: 400,
+			message: error.message,
+			data: { toolset: error.toolset },
+			cause: error,
+		});
+	}
+	if (error instanceof OAuthRequestError) {
+		return new ORPCError("AUTHORIZATION_REQUEST_INVALID", {
+			status: error.status,
+			message: error.message,
+			data: { error: error.error },
+			cause: error,
+		});
 	}
 	if (error instanceof SensitiveActionRefusedError) {
 		return new ORPCError("SENSITIVE_ACTION_REFUSED", {
