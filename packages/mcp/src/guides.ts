@@ -76,9 +76,7 @@ export async function runGuide(
 
 /** The guides as resources: the reference, then each Site the client reaches' schema and Protected terms. */
 export async function guideResources(services: InstallServices, use: ApiClientUse) {
-	const places = await placesOf(services, use);
-	const workspace = await services.data.workspace(use.access, places.workspaceId, "workspace.view").catch(() => null);
-	const sites = workspace ? await services.sites.list(workspace) : [];
+	const { sites } = await placesOf(services, use);
 	return [
 		{
 			uri: MARKUP_URI,
@@ -207,7 +205,7 @@ async function protectedTerms(
 	if (!publicProcedure(services, ["protectedTerms", "list"])) return { answer: { terms: [] } };
 	const { actor } = use.access;
 	const workspaceId = actor.kind === "token" || actor.kind === "grant" ? actor.workspaceId : "";
-	const terms = await call(["protectedTerms", "list"], { workspaceId, siteIds: [siteId] }, []);
+	const terms = await call(["protectedTerms", "list"], { workspaceId, siteId }, []);
 	if (!terms.ok) return { refusal: terms.refusal };
 	return { answer: terms.answer as Record<string, unknown> };
 }

@@ -75,9 +75,12 @@ export function workspaceIsolation(install: () => TestInstall): WorkspaceIsolati
 				const { ours, theirs, sensitive } = await ready();
 				const admin = await install().superadmin();
 				// A token of its own, so its count of requests a minute starts afresh.
+				// Every Toolset, Submissions included: this checks Workspaces, not Toolsets.
+				const { toolsets } = await admin.api.apiTokens.list();
 				const { secret } = await createApiToken(admin, {
 					workspaceId: ours.workspaceId,
 					name: `Isolation ${procedure}`,
+					toolsets: toolsets.map((toolset) => toolset.key),
 				});
 				const { api } = tokenClient(install(), secret);
 

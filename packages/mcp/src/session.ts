@@ -6,6 +6,8 @@ import {
 	type InstallServices,
 	PERMISSIONS,
 	type Permission,
+	PermissionDeniedError,
+	WorkspaceNotFoundError,
 } from "@webcraft/core";
 
 import { type GeneratedTool, generateTools } from "./tools.ts";
@@ -24,19 +26,27 @@ export async function allTools(services: InstallServices): Promise<GeneratedTool
 }
 
 /** Where an API client reaches: its Workspace and the Sites of it it reaches. */
-export type ClientPlaces = { workspaceId: string; sites: { id: string; workspaceId: string }[] };
+export type ClientPlaces = {
+	workspaceId: string;
+	sites: { id: string; workspaceId: string; name: string; slug: string }[];
+};
 
 /** The Workspace and Sites an API client (a token or a grant) reaches now. */
 export async function placesOf(services: InstallServices, use: ApiClientUse): Promise<ClientPlaces> {
 	const { actor } = use.access;
 	if (actor.kind !== "token" && actor.kind !== "grant") return { workspaceId: "", sites: [] };
-	const workspace = await services.data.workspace(use.access, actor.workspaceId, "workspace.view").catch(() => null);
+	const workspace = await services.data
+		.workspace(use.access, actor.workspaceId, "workspace.view")
+		.catch((error: unknown) => {
+			if (error instanceof WorkspaceNotFoundError || error instanceof PermissionDeniedError) return null;
+			throw error;
+		});
 	if (!workspace) return { workspaceId: actor.workspaceId, sites: [] };
 	// The Sites of the Workspace the client sees: those it reaches.
 	const sites = await services.sites.list(workspace);
 	return {
 		workspaceId: actor.workspaceId,
-		sites: sites.map((site) => ({ id: site.id, workspaceId: site.workspaceId })),
+		sites: sites.map(({ id, workspaceId, name, slug }) => ({ id, workspaceId, name, slug })),
 	};
 }
 
