@@ -124,7 +124,7 @@ describe("a shared key's monthly cap", () => {
 			key: KEY,
 			price: PRICE,
 		});
-		await admin.api.sharedAiKeys.assign({ workspaceId: place.workspaceId, keyId: key.id, monthlyCap });
+		await admin.api.sharedAiKeys.assign({ workspace: place.workspaceId, keyId: key.id, monthlyCap });
 		return { ...place, keyId: key.id };
 	}
 
@@ -157,7 +157,7 @@ describe("a shared key's monthly cap", () => {
 			expect.stringContaining("has reached its monthly AI cap"),
 		]);
 
-		await admin.api.sharedAiKeys.assign({ workspaceId: place.workspaceId, keyId: place.keyId, monthlyCap: 20 });
+		await admin.api.sharedAiKeys.assign({ workspace: place.workspaceId, keyId: place.keyId, monthlyCap: 20 });
 		await suggest(place);
 		expect((await get()).usage.shared).toMatchObject({ spent: 16, cap: 20, stopped: false });
 		// Each notice goes once a month.

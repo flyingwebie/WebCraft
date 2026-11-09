@@ -118,6 +118,8 @@ describe("the document", () => {
 			.map((operation) => [operation.operationId, operation["x-webcraft-sensitive"]]);
 		expect(sensitive.sort()).toEqual(
 			[
+				["aiKeys.removeOwn", "aiKey.change"],
+				["aiKeys.setOwn", "aiKey.change"],
 				["forms.captcha.set", "formCaptcha.change"],
 				["members.changeAccess", "member.changeAccess"],
 				["members.invite", "member.invite"],

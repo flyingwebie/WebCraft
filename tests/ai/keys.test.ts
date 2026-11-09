@@ -187,10 +187,10 @@ describe("shared Install keys", () => {
 		});
 		expect(key).toMatchObject({ name: "Agency OpenRouter", key: { set: true, lastFour: "wxyz" } });
 
-		await expect(admin.api.sharedAiKeys.assign({ workspaceId, keyId: key.id, monthlyCap: null })).rejects.toMatchObject(
-			{ code: "AI_KEY_INVALID", data: { field: "monthlyCap" } },
-		);
-		await admin.api.sharedAiKeys.assign({ workspaceId, keyId: key.id, monthlyCap: 5 });
+		await expect(
+			admin.api.sharedAiKeys.assign({ workspace: workspaceId, keyId: key.id, monthlyCap: null }),
+		).rejects.toMatchObject({ code: "AI_KEY_INVALID", data: { field: "monthlyCap" } });
+		await admin.api.sharedAiKeys.assign({ workspace: workspaceId, keyId: key.id, monthlyCap: 5 });
 
 		const view = await owner.api.aiKeys.get({ workspaceId });
 		expect(view.own).toBeNull();
@@ -239,7 +239,7 @@ describe("shared Install keys", () => {
 			endpoint: null,
 			key: SHARED_KEY,
 		});
-		await admin.api.sharedAiKeys.assign({ workspaceId, keyId: key.id, monthlyCap: 10 });
+		await admin.api.sharedAiKeys.assign({ workspace: workspaceId, keyId: key.id, monthlyCap: 10 });
 		install.ai.answer("A loaf of bread.");
 		const { media } = await owner.api.media.upload({
 			siteId,

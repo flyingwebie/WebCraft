@@ -126,11 +126,14 @@ export const sharedAiKeys = {
 		.input(z.object({ keyId: id }))
 		.handler(({ context, input }) => context.services.aiKeys.shared.test(context.install, input.keyId)),
 
-	/** Assigns a shared key to a Workspace with its monthly cap (required), or takes it away (`keyId: null`). */
+	/**
+	 * Assigns a shared key to a Workspace (`workspace`, its id) with its monthly cap (required), or takes
+	 * it away (`keyId: null`). The Superadmin's, on the Install, which reaches every Workspace.
+	 */
 	assign: onInstall("install.manage")
-		.input(z.object({ workspaceId: id, keyId: id.nullable(), monthlyCap }))
+		.input(z.object({ workspace: id, keyId: id.nullable(), monthlyCap }))
 		.handler(async ({ context, input }) => {
-			await context.services.aiKeys.shared.assign(context.install, input.workspaceId, input.keyId, input.monthlyCap);
+			await context.services.aiKeys.shared.assign(context.install, input.workspace, input.keyId, input.monthlyCap);
 			return { assigned: input.keyId !== null };
 		}),
 

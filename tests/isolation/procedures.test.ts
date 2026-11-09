@@ -740,6 +740,157 @@ async function domainIn(target: IsolationTarget): Promise<string> {
 	return added.domains[0]?.id ?? "";
 }
 
+/** The Workspace's own AI key, set once by the Superadmin (who reaches every Workspace), with the fake provider answering. */
+const ownKeys = new Map<string, Promise<void>>();
+function ownKeyIn(target: IsolationTarget) {
+	let set = ownKeys.get(target.workspaceId);
+	if (!set) {
+		set = (async () => {
+			const { api } = await install.superadmin();
+			await api.aiKeys.setOwn({
+				workspaceId: target.workspaceId,
+				provider: "openai",
+				model: "gpt-5-mini",
+				endpoint: null,
+				key: "sk-isolation-key-0123456789abcdef",
+			});
+		})();
+		ownKeys.set(target.workspaceId, set);
+	}
+	install.ai.translateWith((text, request) => `[${request.to.code}] ${text}`);
+	return set;
+}
+
+/** Italian on the target's Site, and an Entry whose Italian title a person wrote. */
+async function italianIn(target: IsolationTarget) {
+	const { api } = await install.superadmin();
+	await api.languages.add({ siteId: target.siteId, code: "it" }).catch(() => undefined);
+	const { entryId } = await contentIn(target);
+	await api.entries.saveDraft({ siteId: target.siteId, entryId, language: "it", title: "Ciao" });
+	return entryId;
+}
+
+/** A Protected term of the target's Workspace, added by the Superadmin. */
+async function termIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const term = `Term ${newSlug()}`;
+	await api.protectedTerms.add({ workspaceId: target.workspaceId, siteId: null, terms: [{ term, matchCase: true }] });
+	const { terms } = await api.protectedTerms.list({ workspaceId: target.workspaceId });
+	return terms.find((candidate) => candidate.term === term)?.id ?? "";
+}
+
+describe("AI keys", () => {
+	isolation.refuses("aiKeys.get", (api, { workspaceId }) => api.aiKeys.get({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses(
+		"aiKeys.setOwn",
+		(api, { workspaceId }) =>
+			api.aiKeys.setOwn({
+				workspaceId,
+				provider: "openai",
+				model: "gpt-5-mini",
+				endpoint: null,
+				key: "sk-isolation-key-0123456789abcdef",
+			}),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"aiKeys.setOwnCap",
+		async (api, target) => {
+			await ownKeyIn(target);
+			return api.aiKeys.setOwnCap({ workspaceId: target.workspaceId, monthlyCap: 50 });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"aiKeys.testOwn",
+		async (api, target) => {
+			await ownKeyIn(target);
+			return api.aiKeys.testOwn({ workspaceId: target.workspaceId });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"aiKeys.removeOwn",
+		async (api, target) => {
+			const answer = await api.aiKeys.removeOwn({ workspaceId: target.workspaceId });
+			ownKeys.delete(target.workspaceId);
+			return answer;
+		},
+		{ as: ["staff", "owner"] },
+	);
+});
+
+describe("AI translation", () => {
+	isolation.refuses("translations.overview", (api, { siteId }) => api.translations.overview({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"translations.setMode",
+		async (api, target) => {
+			await italianIn(target);
+			return api.translations.setMode({ siteId: target.siteId, language: "it", mode: "review" });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("translations.translateNow", (api, { siteId }) => api.translations.translateNow({ siteId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses("translations.queue", (api, { siteId }) => api.translations.queue({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"translations.approve",
+		async (api, target) => {
+			await italianIn(target);
+			return api.translations.approve({ siteId: target.siteId, language: "it" });
+		},
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"translations.confirm",
+		async (api, target) => {
+			const entryId = await italianIn(target);
+			return api.translations.confirm({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				language: "it",
+				at: "title",
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"translations.retranslate",
+		async (api, target) => {
+			const entryId = await italianIn(target);
+			await ownKeyIn(target);
+			return api.translations.retranslate({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				language: "it",
+				at: "title",
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("protectedTerms.list", (api, { workspaceId }) => api.protectedTerms.list({ workspaceId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"protectedTerms.add",
+		(api, { workspaceId, siteId }) =>
+			api.protectedTerms.add({ workspaceId, siteId, terms: [{ term: `Kept ${newSlug()}`, matchCase: true }] }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"protectedTerms.remove",
+		async (api, target) => api.protectedTerms.remove({ workspaceId: target.workspaceId, termId: await termIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
 describe("Domains", () => {
 	isolation.refuses("domains.list", (api, { siteId }) => api.domains.list({ siteId }), { as: ["staff", "owner"] });
 	isolation.refuses("domains.add", (api, { siteId }) => api.domains.add({ siteId, name: `${newSlug()}.example` }));
