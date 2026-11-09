@@ -44,6 +44,7 @@ import {
 	type LoadedModule,
 	loadModules,
 	type ModuleRegistry,
+	type ModuleSiteScriptFile,
 	type RunnableModule,
 	resolvePermission,
 } from "./registry.ts";
@@ -162,6 +163,11 @@ export type ModuleHost = {
 		site: { id: string; workspaceId: string },
 		language: string,
 	): Promise<{ host: string; moduleId: string; module: string }[]>;
+	/**
+	 * The Site scripts of the Site-level Modules running on a Site (SDK 1.3), each with its Module's id,
+	 * the file it is served as and the Consent category its manifest declares.
+	 */
+	siteScriptsAt(site: { id: string; workspaceId: string }): Promise<ModuleSiteScriptOnSite[]>;
 	/** Answers a request under `/_wc/m/<prefix>/` on a Site, or null when no running Module answers it. */
 	answerSiteRoute(site: Site, request: Request): Promise<Response | null>;
 	/** Queues the event an Audit log entry stands for, for each Module that reacts to it. Never throws. */
@@ -186,6 +192,9 @@ export type ModuleHost = {
 };
 
 export type ModuleHostOptions = RuntimeDeps & { modules: readonly ModuleDefinition[] };
+
+/** A Module's Site script on a Site where the Module runs. */
+export type ModuleSiteScriptOnSite = ModuleSiteScriptFile & { moduleId: string };
 
 /** The Audit log actions Modules hear of, as SDK events with the data the SDK promises. */
 const EVENTS_OF_ACTIONS: Record<string, { event: ModuleEventName; data: (details: AuditDetails) => object }> = {
@@ -306,12 +315,15 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 	};
 
 	/**
-	 * Pages show a Module's Components and Forms (where it keeps their Submissions), and allow its
-	 * outside hosts, only where it runs: a change to where it runs clears the pages.
+	 * Pages show a Module's Components, Forms (where it keeps their Submissions) and Site script, and
+	 * allow its outside hosts, only where it runs: a change to where it runs clears the pages.
 	 */
 	const addsComponents = (module: LoadedModule) =>
 		module.runnable &&
-		(module.components.length > 0 || module.receiver !== null || module.manifest.outsideHosts.length > 0);
+		(module.components.length > 0 ||
+			module.receiver !== null ||
+			module.siteScript !== null ||
+			module.manifest.outsideHosts.length > 0);
 
 	/** Every place where a Module runs now: each Site (or Workspace) where it is on. */
 	const placesOf = async (module: RunnableModule): Promise<QueuedPlace[]> => {
@@ -544,6 +556,15 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 				if (!(await runsOnSite(site, module))) continue;
 				const name = words(module, module.manifest.name, language) || module.id;
 				for (const host of module.manifest.outsideHosts) found.push({ host, moduleId: module.id, module: name });
+			}
+			return found;
+		},
+
+		async siteScriptsAt(site) {
+			const found: ModuleSiteScriptOnSite[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.level !== "site" || module.siteScript === null) continue;
+				if (await runsOnSite(site, module)) found.push({ ...module.siteScript, moduleId: module.id });
 			}
 			return found;
 		},

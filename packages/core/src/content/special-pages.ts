@@ -13,11 +13,12 @@ import { storedVersion } from "./values.ts";
 
 /**
  * The Pages a Site gives a special job (Structure, chosen by Staff): the home page answers at `/`
- * (and at each language's prefix), and the 404 page answers every path with no page, with status
- * 404. A 404 page may also be chosen for one language: it answers there, and the Site's own answers
- * in the languages without one.
+ * (and at each language's prefix), the 404 page answers every path with no page, with status 404,
+ * and the search page is the Site's search results page, where the Search element sends visitors
+ * (ADR 0021). A 404 page may also be chosen for one language: it answers there, and the Site's own
+ * answers in the languages without one.
  */
-export type SpecialPageRole = "home" | "notFound";
+export type SpecialPageRole = "home" | "notFound" | "search";
 
 /** A chosen Page, named by its Draft title so a Page that isn't published yet can be chosen too. */
 export type ChosenPage = { id: string; title: string };
@@ -25,6 +26,8 @@ export type ChosenPage = { id: string; title: string };
 export type SpecialPages = {
 	homePage: ChosenPage | null;
 	notFoundPage: ChosenPage | null;
+	/** The Site's search results page: its content is the Search results template, at the Page's path in each language. */
+	searchPage: ChosenPage | null;
 	/** The 404 pages chosen for one language, by language code. */
 	languageNotFoundPages: Record<string, ChosenPage>;
 };
@@ -41,6 +44,7 @@ export async function getSpecialPages(scope: SiteScope): Promise<SpecialPages> {
 	const siteWide = (role: SpecialPageRole) => rows.find((row) => row.role === role && row.language === null);
 	const home = siteWide("home");
 	const notFound = siteWide("notFound");
+	const search = siteWide("search");
 	const languageNotFoundPages: Record<string, ChosenPage> = {};
 	for (const row of rows) {
 		if (row.role !== "notFound" || row.language === null) continue;
@@ -50,6 +54,7 @@ export async function getSpecialPages(scope: SiteScope): Promise<SpecialPages> {
 	return {
 		homePage: home ? await chosen(home.entryId) : null,
 		notFoundPage: notFound ? await chosen(notFound.entryId) : null,
+		searchPage: search ? await chosen(search.entryId) : null,
 		languageNotFoundPages,
 	};
 }
@@ -58,7 +63,7 @@ export async function getSpecialPages(scope: SiteScope): Promise<SpecialPages> {
  * Gives a Page of the scope's Site a special job, or takes it away with null (open the Site with
  * `structure.edit`); a 404 page may be given its job in one `language`. It applies at once: the
  * Site's page cache is cleared, and the change is recorded in the Audit log (`homePage.change`,
- * `notFoundPage.change`). Anything but a Page of the Site is refused with `PageNotFoundError`, a
+ * `notFoundPage.change`, `searchPage.change`). Anything but a Page of the Site is refused with `PageNotFoundError`, a
  * language the Site doesn't have with `LanguageNotFoundError`.
  */
 export async function setSpecialPage(
@@ -88,7 +93,7 @@ export async function setSpecialPage(
 		await tx.delete(specialPages, where);
 		if (pageId !== null) await tx.insert(specialPages, { role, language: code, entryId: pageId });
 		await clearPageCache(tx);
-		await tx.audit(role === "home" ? "homePage.change" : "notFoundPage.change", {
+		await tx.audit(`${role}Page.change`, {
 			pageId,
 			...(title === null ? {} : { title }),
 			...(code === null ? {} : { language: code }),

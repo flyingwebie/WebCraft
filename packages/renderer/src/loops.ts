@@ -19,6 +19,19 @@ export const LOOP_LIMITS = {
 	items: 2_000,
 } as const;
 
+/**
+ * The built-in Loop of Site search (ADR 0021): only the Search results template names it. Its items
+ * are the hits for the visitor's query, best first (`search.total` counts them all), each an Entry's
+ * values and its `snippet`; `search.query` is the query.
+ */
+export const SEARCH_LOOP = "search";
+
+/** What the built-in Search results template calls the search Loop's items. */
+export const SEARCH_HIT_NAME = "hit";
+
+/** The visitor's query on the search results page, as the Search results template reads it. */
+export const SEARCH_QUERY_VALUE = `${SEARCH_LOOP}.query`;
+
 /** What a Loop's items are called when markup doesn't name them with `as`. */
 export const DEFAULT_ITEM_NAME = "item";
 

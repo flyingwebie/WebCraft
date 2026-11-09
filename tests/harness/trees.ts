@@ -50,6 +50,7 @@ export type TestNode =
 	  }
 	| { type: "outlet" }
 	| { type: "form"; form: string }
+	| { type: "search" }
 	| { type: "loop"; source: string; alias: string; children: TestNode[]; empty: TestNode[] | null }
 	| { type: "pagination"; loop: string }
 	| {
@@ -60,6 +61,11 @@ export type TestNode =
 	  };
 
 export type TestTree = { version: 1; nodes: TestNode[] };
+
+/** `{{@search}}`: the Search element, sending visitors to the Site's search results page. */
+export function searchElement(): TestNode {
+	return { type: "search" };
+}
 
 /** `{{@form <key>}}`: one of the Site's Forms, by id. */
 export function placedForm(formId: string): TestNode {

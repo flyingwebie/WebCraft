@@ -61,6 +61,14 @@ export type ModuleDefinition = {
 	 * only; at most one Module of a build). Forms render only where such a Module runs. Added in SDK 1.2.
 	 */
 	formSubmissions?: SubmissionReceiver;
+	/**
+	 * The script it adds to Site pages where it runs (Site-level Modules only): its code, which WebCraft
+	 * serves as a file from the Site's own domain (`/_wc/js/<hash>.js`, never inline) and pages load with
+	 * `defer` after the Site's own scripts. The manifest declares its Consent category (`siteScript`),
+	 * and the Consent banner holds it back until visitors accept that category; `window.webcraft.consent`
+	 * says what they chose. It never runs in Edit mode. Added in SDK 1.3.
+	 */
+	siteScript?: ModuleSiteScript;
 	// Later SDK versions open more extension points; until then a Module can't use them:
 	/** Structure presets (#110). */
 	structurePresets?: readonly never[];
@@ -69,6 +77,12 @@ export type ModuleDefinition = {
 	/** Dashboard Widgets. */
 	widgets?: readonly never[];
 };
+
+/** A Module's Site script: its JavaScript, as text (at most `MODULE_SITE_SCRIPT_MAX_LENGTH` characters). */
+export type ModuleSiteScript = { code: string };
+
+/** How long a Module's Site script may be, in characters. */
+export const MODULE_SITE_SCRIPT_MAX_LENGTH = 200_000;
 
 /** Declares a Module. It only gives the definition back, typed: WebCraft checks it when it loads it. */
 export function defineModule<const Definition extends ModuleDefinition>(definition: Definition): Definition {

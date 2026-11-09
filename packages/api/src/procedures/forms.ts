@@ -1,7 +1,7 @@
 import { publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
-import { sensitive, signedIn } from "../context.ts";
+import { onSite, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 
 /** A Form's name, as people call it; the server checks its length. */
@@ -87,7 +87,6 @@ export const forms = {
 		 * it changes; null switches it off and forgets the key. A Sensitive action.
 		 */
 		set: signedIn
-			.use(sensitive("formCaptcha.change"))
 			.input(
 				z.object({
 					siteId: id,
@@ -95,10 +94,11 @@ export const forms = {
 					secret: z.string().max(4000).optional(),
 				}),
 			)
-			.handler(async ({ context, input }) => {
-				const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-				return context.services.forms.captcha.set(site, { captcha: input.captcha, secret: input.secret });
-			}),
+			.use(onSite("structure.edit"))
+			.use(sensitive("formCaptcha.change"))
+			.handler(async ({ context, input }) =>
+				context.services.forms.captcha.set(context.site, { captcha: input.captcha, secret: input.secret }),
+			),
 	},
 
 	/**

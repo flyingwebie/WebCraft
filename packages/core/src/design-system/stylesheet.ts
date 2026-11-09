@@ -10,6 +10,7 @@
  */
 import { components, designSystems, stylesheets, templates } from "@webcraft/db/schema";
 import {
+	CONSENT_SCRIPT,
 	compileStylesheet,
 	contentHash,
 	type DesignSystem,
@@ -155,10 +156,12 @@ export async function keepReplacedStylesheet(scope: SiteScope, before: SiteStyle
 export { SCRIPT_PATH } from "@webcraft/renderer";
 
 /**
- * A script WebCraft serves on every Site by its file name (`/_wc/js/<name>`): the theme toggle's and
- * the embed script (a body's videos), each named by its hash. Null for any other name.
+ * A script WebCraft serves on every Site by its file name (`/_wc/js/<name>`): the theme toggle's, the
+ * embed script (a body's videos) and the consent script (the Consent banner), each named by its hash.
+ * Null for any other name.
  */
 export function siteScript(name: string): string | null {
-	for (const script of [THEME_TOGGLE_SCRIPT, VIDEO_SCRIPT]) if (name === script.name) return script.text;
+	for (const script of [THEME_TOGGLE_SCRIPT, VIDEO_SCRIPT, CONSENT_SCRIPT])
+		if (name === script.name) return script.text;
 	return null;
 }

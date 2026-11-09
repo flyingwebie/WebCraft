@@ -67,6 +67,7 @@ describe("the 404 page per language", () => {
 		expect(settings).toEqual({
 			homePage: null,
 			notFoundPage: { id: lost, title: "Lost your way?" },
+			searchPage: null,
 			languageNotFoundPages: { fr: { id: perdu, title: "Perdu ?" } },
 		});
 		expect(await visit(site, "/fr/missing")).toMatchObject({ status: 404, lang: "fr", title: "Perdu ? · Acme Bakery" });

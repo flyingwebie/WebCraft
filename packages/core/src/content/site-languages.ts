@@ -2,6 +2,7 @@ import {
 	entries,
 	globals,
 	publishedSlugs,
+	searchDocuments,
 	siteLanguages as siteLanguageRows,
 	sites,
 	specialPages,
@@ -14,6 +15,7 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { isUniqueViolation } from "../db-errors.ts";
 import { setLanguageDomain } from "../domains/domains.ts";
 import { domainName, isInstallName } from "../domains/names.ts";
+import { markSearchIndexStale } from "../search/index-version.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { publishedAddresses } from "./entry-paths.ts";
 import { type ContentProblem, LanguageInvalidError, LanguageNotFoundError, LanguageTakenError } from "./errors.ts";
@@ -97,6 +99,8 @@ export async function addLanguage(deps: LanguageDeps, scope: SiteScope, input: N
 			if (domain !== null && !(await setLanguageDomain(tx, code, domain))) throw new LanguageTakenError("domain");
 			await publishSlugsIn(tx, code, current.defaultLanguage);
 			await clearPageCache(tx);
+			// Site search finds every published Entry in the new language once its index is rebuilt.
+			await markSearchIndexStale(tx);
 			await tx.audit("language.add", { code, name, direction, domain });
 			return siteLanguages(tx);
 		}),
@@ -295,6 +299,8 @@ export async function setDefaultLanguage(
 			.set({ defaultLanguage: to })
 			.where(and(eq(sites.id, tx.site.id), eq(sites.workspaceId, tx.site.workspaceId)));
 		await clearPageCache(tx);
+		// Values now fall back to another language: Site search's documents are rebuilt.
+		await markSearchIndexStale(tx);
 		await tx.audit("defaultLanguage.change", { from, to, changedPaths: pathChanges.length });
 		return { changed: true, settings: await siteLanguages(tx), pathChanges };
 	});
@@ -367,6 +373,7 @@ export async function removeLanguage(scope: SiteScope, code: string, confirmatio
 		await useConfirmation(tx, confirmation, request);
 		await tx.delete(publishedSlugs, eq(publishedSlugs.language, language.code));
 		await tx.delete(specialPages, eq(specialPages.language, language.code));
+		await tx.delete(searchDocuments, eq(searchDocuments.language, language.code));
 		await tx.delete(siteLanguageRows, eq(siteLanguageRows.code, language.code));
 		await clearPageCache(tx);
 		await tx.audit("language.remove", { code: language.code, pages });

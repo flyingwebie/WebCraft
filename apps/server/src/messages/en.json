@@ -66,6 +66,8 @@
 		"ENTRY_LINKED": "Other Entries must point at this one through a required Relationship. Change them first.",
 		"GLOBALS_INVALID": "Some Globals can't be saved. Check the ones marked.",
 		"GLOBALS_INCOMPLETE": "Fill in the Globals marked before publishing.",
+		"CONSENT_BANNER_INVALID": "Some of the banner's words can't be saved. Check the ones marked.",
+		"CONSENT_RECORD_NOT_FOUND": "There is no such Consent record on this Site.",
 		"PAGE_NOT_FOUND": "There is no such Page on this Site.",
 		"PAGE_PARENT_UNPUBLISHED": "Publish the parent Page first: a Page's address starts with its parent's.",
 		"PAGE_HAS_CHILDREN": "Other Pages are under this one. Move or delete them first.",
@@ -257,6 +259,7 @@
 			"modules": "Modules",
 			"modulePagesGroup": "Module pages",
 			"languages": "Languages",
+			"consentBanner": "Consent banner",
 			"webhooks": "Webhooks",
 			"outsideScripts": "Outside scripts",
 			"domains": "Domains & Staging",
@@ -1369,7 +1372,8 @@
 				"themeToggle": "Light and dark theme button",
 				"languageSwitcher": "Links to the page in each language",
 				"loop": "Loop: repeat for each item",
-				"pagination": "Links to a Loop's pages"
+				"pagination": "Links to a Loop's pages",
+				"consentSettings": "Cookie settings button (opens the Consent banner)"
 			},
 			"createClass": "Create Class “{name}”",
 			"classCreated": "Class {name} added to the Design system's Draft",
@@ -1544,6 +1548,70 @@
 			"empty": "The file is empty.",
 			"unreachable": "The download didn't work. Check the address, or try again later.",
 			"limit": "This Site holds as many Libraries as it may."
+		}
+	},
+	"consentBanner": {
+		"pageTitle": "Consent banner",
+		"heading": "Consent banner",
+		"intro": "How this Site asks visitors which Consent categories they accept. Scripts and embeds outside Necessary are held back until visitors accept their category.",
+		"settingsTitle": "How visitors are asked",
+		"settingsIntro": "A Site setting: it applies at once to every page and is logged. Only Staff change it.",
+		"mode": "Mode",
+		"modes": {
+			"optIn": "Opt-in",
+			"optOut": "Opt-out",
+			"none": "No banner",
+			"outside": "Outside consent service"
+		},
+		"modeHelp": {
+			"optIn": "Nothing held back loads until the visitor accepts its category. The usual choice where consent laws apply.",
+			"optOut": "Everything loads until the visitor declines its category.",
+			"none": "No banner, and nothing is held back. Only where no consent law applies.",
+			"outside": "Another service asks visitors and shows its own banner: add its script under Outside scripts, in Necessary. WebCraft reads its answer (the TCF v2.2 data, the consent-mode signal, or webcraft.consent.set() from the Site's own script) and holds back the rest until then."
+		},
+		"layout": "Layout",
+		"layouts": {
+			"bar": "A bar along the bottom",
+			"box": "A box in a corner",
+			"dialog": "A dialog in the middle of the page"
+		},
+		"layoutHelp": {
+			"bar": "Visitors can use the page while it shows.",
+			"box": "Visitors can use the page while it shows.",
+			"dialog": "Visitors answer before they use the page."
+		},
+		"save": "Save",
+		"saved": "The Consent banner's setting is saved.",
+		"current": "{mode}, {layout}. Staff change how visitors are asked.",
+		"version": "Banner version {version}",
+		"wordsTitle": "The banner's words",
+		"wordsIntro": "What the banner says, in each language. A word left empty shows WebCraft's own; a language without its own word shows the Default language's. Add “Cookie settings” to the Site template with '{{@consentSettings}}'.",
+		"wordsOutside": "With an outside consent service, only the words of held-back content show: the service shows its own banner.",
+		"wordsNone": "With no banner, these words show nowhere.",
+		"default": "Empty: “{text}”",
+		"privacyHelp": "A page of the Site, such as /privacy, and the link's text (empty: “{text}”).",
+		"publishHelp": "Publishing puts these words on every page at once, as a new banner version.",
+		"published": "The Consent banner's words are live.",
+		"fields": {
+			"heading": "Heading",
+			"message": "Message",
+			"acceptAll": "“Accept all” button",
+			"rejectAll": "“Reject all” button",
+			"choose": "“Choose” button",
+			"save": "“Save choices” button",
+			"settings": "“Cookie settings” button",
+			"privacyPolicy": "Privacy policy link",
+			"necessary": "Necessary",
+			"necessaryText": "What Necessary is for",
+			"analytics": "Analytics",
+			"analyticsText": "What Analytics is for",
+			"marketing": "Marketing",
+			"marketingText": "What Marketing is for",
+			"media": "Media",
+			"mediaText": "What Media is for",
+			"embedText": "Held-back content: what its placeholder says",
+			"loadContent": "“Load content” button",
+			"rememberEmbeds": "“Always load Media content” box"
 		}
 	},
 	"outsideScripts": {
@@ -1950,6 +2018,11 @@
 			"pageUrlPattern": "Pages are found by their parent Page and slug, so their URL pattern can't change.",
 			"urlPatternFormat": "A URL pattern is a path of fixed parts (lower-case letters, digits and dashes) and one {slug}, such as /blog/{slug}.",
 			"urlPatternParts": "A URL pattern has at most {max} parts.",
+			"searchedFieldsCount": "A Post Type has up to {max} Searched fields.",
+			"searchedFieldWeight": "A Searched field's weight is A, B, C or D.",
+			"searchedFieldUnknown": "This Post Type has no Field {field} to search.",
+			"searchedFieldType": "Site search reads text, rich text, Body, select, link and email Fields, not {field}.",
+			"searchedFieldTwice": "{field} is searched once, with one weight.",
 			"bodyInLoop": "Loop items have no Body field: a query Loop over a Post Type reads its Entries' bodies.",
 			"relationshipInLoop": "Loop items can't hold Relationships: a query Loop lists Entries."
 		},
@@ -2313,7 +2386,34 @@
 			"label": "{name}",
 			"globalsLabel": "Globals",
 			"fields": "Fields",
-			"data": "Data"
+			"data": "Data",
+			"search": "Site search"
+		},
+		"search": {
+			"tab": "Site search",
+			"heading": "Site search",
+			"intro": "What Site search and the search boxes of Filters look in. Every Post Type is indexed; a change here rebuilds the Site's search index within a minute.",
+			"searchable": "Show in Site search",
+			"searchableHelp": "Its published Entries are listed on the Site's search results page. Turned off, they are still indexed for Filters' search boxes.",
+			"fieldsHeading": "Searched fields",
+			"fieldsHelp": "A match in a Field weighted A counts most, in D least. Text, rich text, Body, select, link and email Fields can be searched.",
+			"field": "Field",
+			"searched": "Searched",
+			"weight": "Weight",
+			"searchField": "Search {field}",
+			"weightOf": "Weight of {field}",
+			"weights": {
+				"A": "A · counts most",
+				"B": "B",
+				"C": "C",
+				"D": "D · counts least"
+			},
+			"none": "Search reads this Post Type's title only: it has no Fields search can read.",
+			"save": "Save changes",
+			"discard": "Discard",
+			"unsaved": "Unsaved changes",
+			"saved": "Saved. Site search follows within a minute.",
+			"notSaved": "Nothing was saved:"
 		}
 	},
 	"globals": {

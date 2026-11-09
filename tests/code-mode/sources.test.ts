@@ -274,7 +274,7 @@ describe("suggestions", () => {
 		const inEntry = await answer<Source>(coding.edit("code/open", { path, ref: "content#title" }));
 		const inSite = await answer<Source>(coding.edit("code/open", { path, ref: "site#header" }));
 
-		// Every command of the registry offers itself, each with its snippet: Languages' switcher and Forms too.
+		// Every command of the registry offers itself, each with its snippet: Languages' switcher, Forms, the Search element and Cookie settings too.
 		expect(inEntry.suggestions.commands.map((command) => command.name)).toEqual([
 			"if",
 			"loop",
@@ -282,6 +282,8 @@ describe("suggestions", () => {
 			"themeToggle",
 			"languageSwitcher",
 			"form",
+			"search",
+			"consentSettings",
 		]);
 		expect(inSite.suggestions.commands.map((command) => command.name)).toEqual([
 			"if",
@@ -291,8 +293,11 @@ describe("suggestions", () => {
 			"themeToggle",
 			"languageSwitcher",
 			"form",
+			"search",
+			"consentSettings",
 		]);
 		expect(inEntry.suggestions.commands).toContainEqual({ name: "form", block: false, snippet: "{{@form $0}}" });
+		expect(inSite.suggestions.commands).toContainEqual({ name: "search", block: false, snippet: "{{@search}}" });
 		expect(inSite.suggestions.commands).toContainEqual({ name: "outlet", block: false, snippet: "{{@outlet}}" });
 		expect(inEntry.suggestions.commands[0]).toEqual({ name: "if", block: true, snippet: "{{@if $0}}\n{{/if}}" });
 		expect(inEntry.suggestions.commands).toContainEqual({

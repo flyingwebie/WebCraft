@@ -66,6 +66,8 @@ describe("the Page Post Type", () => {
 				urlPattern: "/{path}",
 				fields: [],
 				builtInFields: [...BUILT_IN_FIELDS, "parent"],
+				searchable: true,
+				searchedFields: [{ field: "title", weight: "A" }],
 				createdAt: install.clock.now(),
 				updatedAt: install.clock.now(),
 			},

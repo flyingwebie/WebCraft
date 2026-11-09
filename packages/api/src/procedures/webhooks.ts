@@ -1,8 +1,7 @@
-import { os } from "@orpc/server";
-import { type Access, type Permission, WEBHOOK_EVENTS } from "@webcraft/core";
+import { WEBHOOK_EVENTS } from "@webcraft/core";
 import { z } from "zod";
 
-import { type ApiContext, sensitive, signedIn } from "../context.ts";
+import { onSite, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 
 /** A Webhook's name; the URL's host when left empty. */
@@ -19,19 +18,6 @@ const events = z
 
 /** A signing secret Staff give; the server checks it (`WEBHOOK_INVALID`). Empty or left out: WebCraft makes one. */
 const secret = z.string().max(300).optional();
-
-/**
- * Opens the Site a procedure's input names with a Permission, as `context.site`, before any other
- * middleware: a Sensitive action is asked to be confirmed only by someone who may take it.
- */
-function onSite(permission: Permission) {
-	return os
-		.$context<ApiContext & { access: Access }>()
-		.middleware(async ({ context, next }, input: { siteId: string }) => {
-			const site = await context.services.data.site(context.access, input.siteId, permission);
-			return next({ context: { site } });
-		});
-}
 
 /**
  * A Site's Webhooks (spec story 139): signed calls to outside addresses when something happens on the

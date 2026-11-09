@@ -54,6 +54,8 @@ export function errorMessage(error: unknown): MessageKey {
 		case "ENTRY_LINKED":
 		case "GLOBALS_INVALID":
 		case "GLOBALS_INCOMPLETE":
+		case "CONSENT_BANNER_INVALID":
+		case "CONSENT_RECORD_NOT_FOUND":
 		case "PAGE_NOT_FOUND":
 		case "PAGE_PARENT_UNPUBLISHED":
 		case "PAGE_HAS_CHILDREN":

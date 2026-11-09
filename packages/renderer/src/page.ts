@@ -1,11 +1,20 @@
 import { PLAYER_ORIGINS } from "./body/video.ts";
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
+import {
+	consentBannerHtml,
+	consentPlaceholderHtml,
+	consentSettingsHtml,
+	heldScriptsHtml,
+	type PageConsent,
+} from "./consent/banner.ts";
+import { CONSENT_SCRIPT } from "./consent/script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import type { RenderTime } from "./expressions.ts";
-import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
+import { escapeAttribute, escapeText, type PlacementRenderer, renderTree, safeUrl } from "./html.ts";
 import type { LoopItemPlace, LoopRun } from "./loops.ts";
+import { SEARCH_HIT_NAME, SEARCH_LOOP, SEARCH_QUERY_VALUE } from "./loops.ts";
 import type { MediaReader } from "./media.ts";
-import type { ElementNode, ElementTree, ValueNode } from "./tree.ts";
+import type { Attribute, ElementNode, ElementTree, TreeNode, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
 
 /**
@@ -86,6 +95,12 @@ export type PageToRender = {
 	/** What `{{@form <key>}}` shows, in both templates: the Form, rendered (`renderForm`). Nothing when absent. */
 	form?: (formId: string) => string;
 	/**
+	 * Where the Search element (`{{@search}}`) sends visitors: the Site's search results page in the
+	 * page's language, and the query it shows in its box (on the results page). The Search element shows
+	 * nothing without it.
+	 */
+	search?: PageSearch;
+	/**
 	 * Outside scripts the page's Forms need (a Site's CAPTCHA), asked once the page's templates have
 	 * rendered, so only a page showing a Form loads one. They join `outsideScripts`: never in Edit mode.
 	 */
@@ -109,11 +124,24 @@ export type PageToRender = {
 	 */
 	scripts?: readonly PageScript[];
 	/**
+	 * The Site scripts of the Modules running on the Site (SDK 1.3): files on the Site's domain, loaded
+	 * with `defer` after the Site's own scripts, each held back until visitors accept its Consent
+	 * category. Like outside scripts, they never run in Edit mode.
+	 */
+	moduleScripts?: readonly PageModuleScript[];
+	/**
 	 * The Site's outside scripts (ADR 0022): each loaded where Staff put it (the end of `<head>` or of
 	 * `<body>`), its parts in order. They never run in Edit mode: there each shows as a labelled
 	 * placeholder instead.
 	 */
 	outsideScripts?: readonly PageOutsideScript[];
+	/**
+	 * The Site's Consent banner (ADR 0020), when it asks for consent (not with the mode None). A page
+	 * holding something back (an outside script outside Necessary, a body's video) holds it in inert
+	 * markup, carries the banner (hidden) and links the consent script, which lets each through once its
+	 * category is accepted; so does a page showing the "Cookie settings" button. Never in Edit mode.
+	 */
+	consent?: PageConsent;
 	/**
 	 * Renders the page for Edit mode (ADR 0022) rather than for visitors: never indexed, with WebCraft's
 	 * own files first in `<head>` and the editable regions tagged. The Site's own scripts and Libraries
@@ -123,11 +151,17 @@ export type PageToRender = {
 	editMode?: EditModePage;
 };
 
+/** Where a page's Search elements send visitors, and what they show in their box. */
+export type PageSearch = { action: string; query: string };
+
 /** One of the Site's Libraries on a page: its name, where the Site serves it and its integrity hash. */
 export type PageLibrary = { name: string; src: string; integrity: string };
 
 /** One of the Site's own scripts on a page: the Site script or the page's own, as a file on the Site. */
 export type PageScript = { kind: "site" | "page"; src: string };
+
+/** A Module's Site script on a page: the Module, where the Site serves the script, and its Consent category. */
+export type PageModuleScript = { moduleId: string; src: string; consentCategory: string };
 
 /** One script tag of an outside script: a file on another host, or one the Site serves. */
 export type PageScriptTag = {
@@ -145,7 +179,7 @@ export type PageOutsideScript = {
 	/** What Staff call it, shown on its placeholder in Edit mode. */
 	name: string;
 	placement: "head" | "bodyEnd";
-	/** Its Consent category: the Consent banner holds back what isn't accepted (later). */
+	/** Its Consent category: the Consent banner holds it back until visitors accept it (but Necessary). */
 	consentCategory: string;
 	tags: readonly PageScriptTag[];
 };
@@ -227,9 +261,24 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	};
 	const languageSwitcher = () => languageSwitcherHtml(page.languageLinks ?? [], site);
 	const words = pageWords(site.language);
-	// The embed script comes only with a video to play.
-	const shown = { videos: 0 };
+	let searches = 0;
+	const search = () => (page.search ? searchElementHtml(page.search, ++searches, words) : "");
+	// Visitors are asked for consent; people editing never are (ADR 0022).
+	const consent = editMode ? undefined : page.consent;
+	// The embed script comes only with a video to play; the consent script with something held back.
+	const shown = { videos: 0, held: 0, settings: 0 };
 	const loopItemsShown = { count: 0 };
+	const held = consent
+		? (embed: { category: string; label: string; source: string }) => {
+				shown.held++;
+				return { placeholder: consentPlaceholderHtml(consent.words, { ...embed, n: shown.held }) };
+			}
+		: undefined;
+	const consentSettings = () => {
+		if (!consent || consent.mode === "outside") return "";
+		shown.settings++;
+		return consentSettingsHtml(consent.words);
+	};
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
@@ -240,11 +289,14 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		priorityImage: { given: false },
 		component: page.component,
 		form: page.form,
+		search,
 		loop: page.loop,
 		time: page.time,
 		loopItemsShown,
 		themeToggle,
 		languageSwitcher,
+		consentSettings,
+		held,
 		editRegion: editMode && !editMode.code ? (value, item) => editMode.region(value, "content", item) : undefined,
 		codeSource: editMode?.code ? "content" : undefined,
 	});
@@ -259,18 +311,39 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		extraAttributes: mainAttributes,
 		component: page.component,
 		form: page.form,
+		search,
 		loop: page.loop,
 		time: page.time,
 		loopItemsShown,
 		themeToggle,
 		languageSwitcher,
+		consentSettings,
+		held,
 		editRegion: editMode && !editMode.code ? (value, item) => editMode.region(value, "site", item) : undefined,
 		codeSource: editMode?.code ? "site" : undefined,
 	});
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
-	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead.
+	const heldBack = (category: string) => consent !== undefined && category !== "necessary";
+	// The banner and its script come only to a page that asks something.
+	// Modules' Site scripts, like outside scripts, never run in Edit mode.
+	const moduleScripts = editMode ? [] : (page.moduleScripts ?? []);
+	const asks =
+		consent !== undefined &&
+		(shown.held > 0 ||
+			shown.settings > 0 ||
+			[...outside, ...moduleScripts].some((script) => heldBack(script.consentCategory)));
+	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead. Visitors
+	// get those outside Necessary held back until they accept their category.
 	const outsideIn = (placement: PageOutsideScript["placement"]) =>
-		editMode ? [] : outside.filter((script) => script.placement === placement).flatMap(outsideTags);
+		editMode
+			? []
+			: outside
+					.filter((script) => script.placement === placement)
+					.map((script) =>
+						heldBack(script.consentCategory)
+							? heldScriptsHtml(script.consentCategory, outsideTags(script))
+							: outsideTags(script).join("\n"),
+					);
 	const html = [
 		"<!doctype html>",
 		`<html lang="${escapeAttribute(site.language)}" dir="${site.direction}">`,
@@ -285,6 +358,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		),
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
+		...(asks && consent ? consentHead(consent) : []),
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
 		...(page.libraries ?? []).map((library) => {
 			const tag = editMode ? ` data-wc-library="${escapeAttribute(library.name)}"` : "";
@@ -294,10 +368,15 @@ export function renderDocument(page: PageToRender): RenderedPage {
 			const tag = editMode ? ` data-wc-script="${script.kind}"` : "";
 			return `<script src="${escapeAttribute(script.src)}" defer${tag}></script>`;
 		}),
+		...moduleScripts.map((script) => {
+			const tag = `<script src="${escapeAttribute(script.src)}" defer data-wc-module="${escapeAttribute(script.moduleId)}"></script>`;
+			return heldBack(script.consentCategory) ? heldScriptsHtml(script.consentCategory, [tag]) : tag;
+		}),
 		...outsideIn("head"),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
+		...(asks && consent && consent.mode !== "outside" ? [consentBannerHtml(consent)] : []),
 		body,
 		...outsideIn("bodyEnd"),
 		...(editMode && outside.length > 0 ? [outsidePlaceholders(outside, words)] : []),
@@ -306,6 +385,19 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		"",
 	].join("\n");
 	return { html, frames: shown.videos > 0 ? PLAYER_ORIGINS : [] };
+}
+
+/**
+ * What a page asking for consent says in `<head>`: the Site's mode and banner version, which the
+ * consent script (and any other script) reads, then the consent script, deferred and before any other
+ * deferred script, so `webcraft.consent` is there for them.
+ */
+function consentHead(consent: PageConsent): string[] {
+	return [
+		`<meta name="webcraft-consent-mode" content="${consent.mode}">`,
+		`<meta name="webcraft-consent-version" content="${consent.version}">`,
+		`<script src="${CONSENT_SCRIPT.href}" defer></script>`,
+	];
 }
 
 /** An outside script's tags, as visitors' pages load them. */
@@ -347,6 +439,30 @@ function languageSwitcherHtml(links: readonly LanguageLink[], site: PageToRender
 	});
 	const label = escapeAttribute(pageWords(site.language).languages);
 	return `<nav class="wc-language-switcher" aria-label="${label}"><ul>${items.join("")}</ul></nav>`;
+}
+
+/** The class names WebCraft gives the Search element's parts, styled in the Design system's base layer. */
+export const SEARCH_HOOKS = { form: "wc-search", input: "wc-search-input", button: "wc-search-button" } as const;
+
+/** The longest query the Search element's box takes, as Site search reads it (`SEARCH_QUERY_MAX_LENGTH`). */
+export const SEARCH_BOX_MAX_LENGTH = 200;
+
+/**
+ * The Search element: a GET form to the search results page with one search box, `q`, labelled for
+ * screen readers (its button names it for everyone), and the query being shown in it. The first on
+ * the page is the page's search landmark; the others are plain forms, so the page has one.
+ */
+function searchElementHtml(search: PageSearch, index: number, words: PageWords): string {
+	const id = `wc-search-${index}`;
+	const role = index === 1 ? ' role="search"' : "";
+	const value = search.query ? ` value="${escapeAttribute(search.query)}"` : "";
+	return [
+		`<form class="${SEARCH_HOOKS.form}"${role} method="get" action="${escapeAttribute(safeUrl(search.action))}">`,
+		`<label class="wc-visually-hidden" for="${id}">${escapeText(words.searchLabel)}</label>`,
+		`<input class="${SEARCH_HOOKS.input}" type="search" id="${id}" name="q"${value} maxlength="${SEARCH_BOX_MAX_LENGTH}" enterkeyhint="search">`,
+		`<button class="${SEARCH_HOOKS.button}" type="submit">${escapeText(words.searchButton)}</button>`,
+		"</form>",
+	].join("");
 }
 
 /** The page's stylesheet, and the colour schemes it supports when it has dark values. */
@@ -404,6 +520,19 @@ type PageWords = {
 	outsideScripts: string;
 	/** What an outside script's placeholder says in Edit mode. */
 	notWhileEditing: string;
+	/** The built-in Search results template's heading. */
+	search: string;
+	/** The Search element's label (out of sight, for screen readers) and its button. */
+	searchLabel: string;
+	searchButton: string;
+	/** The hit count: "1 result for “{query}”", "{count} results for “{query}”". */
+	searchResult: string;
+	searchResults: string;
+	/** What the built-in Search results template says when nothing matches, and what to try. */
+	searchNone: string;
+	searchNoneHint: string;
+	/** A search results page's title with a query: "Results for “{query}”". */
+	searchTitle: string;
 };
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
@@ -421,6 +550,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Page {n}",
 		outsideScripts: "Outside scripts",
 		notWhileEditing: "doesn't run while editing",
+		search: "Search",
+		searchLabel: "Search the site",
+		searchButton: "Search",
+		searchResult: "1 result for “{query}”",
+		searchResults: "{count} results for “{query}”",
+		searchNone: "No results for “{query}”.",
+		searchNoneHint: "Check the spelling, or try other words.",
+		searchTitle: "Results for “{query}”",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
@@ -436,6 +573,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Pagina {n}",
 		outsideScripts: "Script esterni",
 		notWhileEditing: "non viene eseguito durante la modifica",
+		search: "Cerca",
+		searchLabel: "Cerca nel sito",
+		searchButton: "Cerca",
+		searchResult: "1 risultato per «{query}»",
+		searchResults: "{count} risultati per «{query}»",
+		searchNone: "Nessun risultato per «{query}».",
+		searchNoneHint: "Controlla l'ortografia o prova con altre parole.",
+		searchTitle: "Risultati per «{query}»",
 	},
 	fr: {
 		skipLink: "Aller au contenu principal",
@@ -451,6 +596,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Page {n}",
 		outsideScripts: "Scripts externes",
 		notWhileEditing: "ne s’exécute pas pendant la modification",
+		search: "Recherche",
+		searchLabel: "Rechercher sur le site",
+		searchButton: "Rechercher",
+		searchResult: "1 résultat pour « {query} »",
+		searchResults: "{count} résultats pour « {query} »",
+		searchNone: "Aucun résultat pour « {query} ».",
+		searchNoneHint: "Vérifiez l’orthographe ou essayez d’autres mots.",
+		searchTitle: "Résultats pour « {query} »",
 	},
 	de: {
 		skipLink: "Zum Hauptinhalt springen",
@@ -466,6 +619,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Seite {n}",
 		outsideScripts: "Externe Skripte",
 		notWhileEditing: "läuft nicht während der Bearbeitung",
+		search: "Suche",
+		searchLabel: "Website durchsuchen",
+		searchButton: "Suchen",
+		searchResult: "1 Ergebnis für „{query}“",
+		searchResults: "{count} Ergebnisse für „{query}“",
+		searchNone: "Keine Ergebnisse für „{query}“.",
+		searchNoneHint: "Prüfen Sie die Schreibweise oder versuchen Sie andere Wörter.",
+		searchTitle: "Ergebnisse für „{query}“",
 	},
 	es: {
 		skipLink: "Ir al contenido principal",
@@ -481,6 +642,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Página {n}",
 		outsideScripts: "Scripts externos",
 		notWhileEditing: "no se ejecuta mientras se edita",
+		search: "Búsqueda",
+		searchLabel: "Buscar en el sitio",
+		searchButton: "Buscar",
+		searchResult: "1 resultado para «{query}»",
+		searchResults: "{count} resultados para «{query}»",
+		searchNone: "No hay resultados para «{query}».",
+		searchNoneHint: "Revisa la ortografía o prueba con otras palabras.",
+		searchTitle: "Resultados para «{query}»",
 	},
 	pt: {
 		skipLink: "Ir para o conteúdo principal",
@@ -496,6 +665,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Página {n}",
 		outsideScripts: "Scripts externos",
 		notWhileEditing: "não é executado durante a edição",
+		search: "Pesquisa",
+		searchLabel: "Pesquisar no site",
+		searchButton: "Pesquisar",
+		searchResult: "1 resultado para «{query}»",
+		searchResults: "{count} resultados para «{query}»",
+		searchNone: "Nenhum resultado para «{query}».",
+		searchNoneHint: "Verifique a ortografia ou experimente outras palavras.",
+		searchTitle: "Resultados para «{query}»",
 	},
 	nl: {
 		skipLink: "Naar de hoofdinhoud",
@@ -511,6 +688,14 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		pageNumber: "Pagina {n}",
 		outsideScripts: "Externe scripts",
 		notWhileEditing: "wordt niet uitgevoerd tijdens het bewerken",
+		search: "Zoeken",
+		searchLabel: "Zoeken op de site",
+		searchButton: "Zoeken",
+		searchResult: "1 resultaat voor ‘{query}’",
+		searchResults: "{count} resultaten voor ‘{query}’",
+		searchNone: "Geen resultaten voor ‘{query}’.",
+		searchNoneHint: "Controleer de spelling of probeer andere woorden.",
+		searchTitle: "Resultaten voor ‘{query}’",
 	},
 };
 
@@ -535,6 +720,117 @@ export function builtInNotFoundPage(language: string): { title: string; content:
 			nodes: [element("notFoundTitle", "h1", words.notFoundTitle), element("notFoundText", "p", words.notFoundText)],
 		},
 	};
+}
+
+/**
+ * The built-in Search results template (ADR 0021), for a Site that hasn't published its own: a
+ * heading, the Search element, then for a query either what was found (the hit count, each hit's
+ * title linked to its page with its snippet, and links to the other pages of hits) or a message that
+ * nothing was, saying what to try. In the page's language.
+ */
+export function builtInSearchTemplate(language: string): ElementTree {
+	const words = pageWords(language);
+	const element = (id: string, tag: string, children: TreeNode[], attributes: Attribute[] = []): ElementNode => ({
+		type: "element",
+		id,
+		tag,
+		attributes,
+		classes: [],
+		children,
+	});
+	const value = (path: string): ValueNode => ({ type: "value", path });
+	// A sentence of WebCraft's words with the query and the count in their places.
+	const sentence = (text: string): TreeNode[] =>
+		text
+			.split(/(\{query\}|\{count\})/)
+			.filter((part) => part !== "")
+			.map((part) =>
+				part === "{query}"
+					? value(SEARCH_QUERY_VALUE)
+					: part === "{count}"
+						? value(`${SEARCH_LOOP}.total`)
+						: { type: "text", text: part },
+			);
+	const hit = SEARCH_HIT_NAME;
+	const hits: TreeNode[] = [
+		{
+			type: "condition",
+			branches: [
+				{
+					test: {
+						type: "compare",
+						operator: "==",
+						left: { type: "value", path: `${SEARCH_LOOP}.total` },
+						right: { type: "literal", value: 1 },
+					},
+					children: [element("searchCountOne", "p", sentence(words.searchResult))],
+				},
+			],
+			otherwise: [element("searchCount", "p", sentence(words.searchResults))],
+		},
+		element("searchHits", "ol", [
+			{
+				type: "loop",
+				source: SEARCH_LOOP,
+				alias: hit,
+				children: [
+					element("searchHit", "li", [
+						element("searchHitTitle", "h2", [
+							element("searchHitLink", "a", [value(`${hit}.title`)], [{ name: "href", value: [value(`${hit}.url`)] }]),
+						]),
+						{
+							type: "condition",
+							branches: [
+								{
+									test: { type: "value", path: `${hit}.snippet` },
+									children: [element("searchHitSnippet", "p", [value(`${hit}.snippet`)])],
+								},
+							],
+							otherwise: null,
+						},
+					]),
+				],
+				empty: null,
+			},
+		]),
+		{ type: "pagination", loop: SEARCH_LOOP },
+	];
+	return {
+		version: 1,
+		nodes: [
+			element("searchHeading", "h1", [{ type: "text", text: words.search }]),
+			{ type: "search" },
+			{
+				type: "condition",
+				branches: [
+					{
+						test: { type: "value", path: SEARCH_QUERY_VALUE },
+						children: [
+							{
+								type: "condition",
+								branches: [
+									{
+										test: { type: "value", path: `${SEARCH_LOOP}.empty` },
+										children: [
+											element("searchNone", "p", sentence(words.searchNone)),
+											element("searchNoneHint", "p", [{ type: "text", text: words.searchNoneHint }]),
+										],
+									},
+								],
+								otherwise: hits,
+							},
+						],
+					},
+				],
+				otherwise: null,
+			},
+		],
+	};
+}
+
+/** A search results page's title: its Page's title, or with a query, what it shows hits for. */
+export function searchPageTitle(title: string, query: string, language: string): string {
+	return query ? pageWords(language).searchTitle.replace("{query}", query) : title;
 }
 
 /** WebCraft's own words in a page's language (by its primary subtag), English when it has none. */

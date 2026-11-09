@@ -1,3 +1,4 @@
+import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
 import {
 	domainsCheck,
 	domainsCheckAll,
@@ -20,6 +21,7 @@ import {
 } from "../modules/jobs.ts";
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
+import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
 import { webhooksDeliver, webhooksPurgeLog, webhooksPurgeLogSchedule } from "../webhooks/jobs.ts";
 import type { JobDefinition } from "./define.ts";
@@ -48,6 +50,9 @@ export const coreJobs = [
 	domainsVerify,
 	domainsCheckAll,
 	domainsCheck,
+	searchRebuildDue,
+	searchRebuild,
+	consentRecordsPurge,
 	webhooksDeliver,
 	webhooksPurgeLog,
 ] as readonly JobDefinition<unknown>[];
@@ -63,6 +68,8 @@ export const coreSchedules = [
 	mediaPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
+	searchRebuildDueSchedule,
+	consentRecordsPurgeSchedule,
 	webhooksPurgeLogSchedule,
 ] as readonly JobSchedule<unknown>[];
 

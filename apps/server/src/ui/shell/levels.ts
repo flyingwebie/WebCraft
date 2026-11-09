@@ -3,6 +3,7 @@ import type { Permission } from "@webcraft/core";
 import {
 	Building2Icon,
 	ClipboardListIcon,
+	CookieIcon,
 	DatabaseIcon,
 	FileCodeIcon,
 	FileTextIcon,
@@ -263,6 +264,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: LanguagesIcon,
 						to: "/sites/$siteId/languages",
 						requires: "structure.edit",
+					},
+					{
+						id: "site-consent-banner",
+						label: "shell.nav.consentBanner",
+						icon: CookieIcon,
+						to: "/sites/$siteId/consent-banner",
+						requires: "entry.edit",
 					},
 					{
 						id: "site-webhooks",
