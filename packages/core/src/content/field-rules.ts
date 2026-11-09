@@ -9,6 +9,7 @@
 export const FIELD_TYPES = [
 	"text",
 	"richText",
+	"body",
 	"number",
 	"boolean",
 	"date",
@@ -42,6 +43,8 @@ export type FieldTypeTraits = {
 export const FIELD_TYPE_TRAITS: { readonly [Type in FieldType]: FieldTypeTraits } = {
 	text: { translation: "default-on", requirable: true, hasDefault: true },
 	richText: { translation: "default-on", requirable: true, hasDefault: true },
+	// Each language keeps its own Block list (ADR 0018).
+	body: { translation: "default-on", requirable: true, hasDefault: false },
 	number: { translation: "default-off", requirable: true, hasDefault: true },
 	boolean: { translation: "default-off", requirable: false, hasDefault: true },
 	date: { translation: "default-off", requirable: true, hasDefault: true },
@@ -92,7 +95,8 @@ export const PATTERN_MAX_LENGTH = 200;
  * The rules a value can break, as an Entry's (or the Globals') `problems` name them, for the admin to
  * word: an empty required value, too few or too many (characters, choices, Entries, rows), not
  * matching the pattern, not a whole number, not an email address, a choice the Field no longer has,
- * a link without an address, and an Entry or file the Field can't point at.
+ * a link without an address, an Entry or file the Field can't point at, a Block of a type the Body
+ * field has switched off, and a video that isn't on YouTube or Vimeo.
  */
 export const VALUE_RULES = [
 	"required",
@@ -107,6 +111,8 @@ export const VALUE_RULES = [
 	"url",
 	"postTypes",
 	"media",
+	"blockType",
+	"video",
 ] as const;
 
 export type ValueRule = (typeof VALUE_RULES)[number];

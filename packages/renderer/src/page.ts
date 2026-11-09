@@ -1,3 +1,4 @@
+import { VIDEO_SCRIPT } from "./body/video-script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
 import type { MediaReader } from "./media.ts";
@@ -16,6 +17,17 @@ export const PAGE_HOOKS = {
 	skipLinkClass: "wc-skip-link",
 	/** The CSS custom properties the focus style reads; the Design system sets them from Design tokens. */
 	focusStyle: { color: "--wc-focus-color", width: "--wc-focus-width", offset: "--wc-focus-offset" },
+	/** The class of a body's callout (`<aside class="wc-callout" data-tone="…">`), the only class a body has besides videos'. */
+	calloutClass: "wc-callout",
+	/** The class of a body's video (`<figure class="wc-embed">`), which holds its play link, then the player. */
+	embedClass: "wc-embed",
+	/** The CSS custom properties a callout's tones read, set in the base layer; Staff restyle them in custom CSS. */
+	calloutTones: {
+		info: "--wc-callout-info",
+		success: "--wc-callout-success",
+		warning: "--wc-callout-warning",
+		danger: "--wc-callout-danger",
+	},
 } as const;
 
 /**
@@ -109,9 +121,14 @@ export function renderPage(page: PageToRender): string {
 		toggles++;
 		return `<button type="button" class="wc-theme-toggle" aria-pressed="false" hidden>${escapeText(pageWords(site.language).themeToggle)}</button>`;
 	};
+	const words = pageWords(site.language);
+	// The embed script comes only with a video to play.
+	const shown = { videos: 0 };
 	const content = renderTree(page.content, {
 		values: page.values,
 		language: site.language,
+		words,
+		shown,
 		className: page.className,
 		media: page.media,
 		priorityImage: { given: false },
@@ -122,6 +139,8 @@ export function renderPage(page: PageToRender): string {
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
 		values: page.siteValues ?? (() => undefined),
 		language: site.language,
+		words,
+		shown,
 		className: page.className,
 		media: page.media,
 		outlet: () => content,
@@ -140,6 +159,7 @@ export function renderPage(page: PageToRender): string {
 		`<title>${escapeText(title)}</title>`,
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
+		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
@@ -185,7 +205,16 @@ function mainAttributes(element: ElementNode): readonly (readonly [string, strin
 }
 
 /** The words WebCraft itself writes into Site pages, by language. */
-type PageWords = { skipLink: string; notFoundTitle: string; notFoundText: string; themeToggle: string };
+type PageWords = {
+	skipLink: string;
+	notFoundTitle: string;
+	notFoundText: string;
+	themeToggle: string;
+	/** A body's video link, before its title: "Play video: Our ovens". */
+	playVideo: string;
+	/** A video's player title when the video has none. */
+	video: string;
+};
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 	en: {
@@ -193,12 +222,16 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		notFoundTitle: "Page not found",
 		notFoundText: "There is no page at this address.",
 		themeToggle: "Dark theme",
+		playVideo: "Play video",
+		video: "Video",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
 		notFoundTitle: "Pagina non trovata",
 		notFoundText: "Non c'è nessuna pagina a questo indirizzo.",
 		themeToggle: "Tema scuro",
+		playVideo: "Riproduci il video",
+		video: "Video",
 	},
 };
 

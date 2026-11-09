@@ -147,7 +147,8 @@ async function defineContext(
 	keys.add(ownKey);
 	// A Page's parent is one of its built-in Fields.
 	const reservedKeys = isPagePostType(postType) ? new Set([...RESERVED_FIELD_KEYS, "parent"]) : RESERVED_FIELD_KEYS;
-	return { postTypeKeys: keys, owner: "postType" as const, reservedKeys };
+	const owner = isPagePostType(postType) ? ("page" as const) : ("postType" as const);
+	return { postTypeKeys: keys, owner, reservedKeys };
 }
 
 /** The Post Types of the scope's Site, by name. */

@@ -1,4 +1,17 @@
-import { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, safeUrl } from "@webcraft/renderer";
+import {
+	ALWAYS_ON_BLOCKS,
+	BLOCK_TYPES,
+	type BlockType,
+	bodyHasContent,
+	cleanRichText,
+	isBlockType,
+	RICH_TEXT_MAX_LENGTH,
+	readBody,
+	richTextToText,
+	safeUrl,
+	storedBlocks,
+	videoAt,
+} from "@webcraft/renderer";
 import { RE2JS } from "re2js";
 import { isUuid } from "../ids.ts";
 import type { ContentProblem } from "./errors.ts";
@@ -31,7 +44,6 @@ export {
  * The Field-type registry: everything the content store knows about each Field type, in one place.
  * A type checks its own settings, checks and reads its values, and lists the rules a value breaks.
  * Group and Repeater are containers: the content store walks into their Fields (`field-values.ts`).
- * The Body field (#78) plugs in here.
  */
 
 /** A JSON value, as Field values are stored and as the APIs give them. */
@@ -69,6 +81,15 @@ export type TextField = Common<"text", string | null> & {
 export type RichTextField = Common<"richText", string | null> & {
 	/** The most characters of text (tags not counted). */
 	maxLength: number | null;
+};
+/**
+ * A Body field (ADR 0018): long-form text as a list of typed Blocks with stable ids, each language
+ * keeping its own list. A Post Type has at most one, at the top of its Fields; Pages, the Globals and
+ * Components' Props have none.
+ */
+export type BodyField = Common<"body", null> & {
+	/** The Block types Staff switched off: people can't add them, and those already there keep it from publishing. */
+	blocksOff: BlockType[];
 };
 export type NumberField = Common<"number", number | null> & {
 	min: number | null;
@@ -115,6 +136,7 @@ export type RepeaterField = Common<"repeater", null> & {
 export type FieldDefinition =
 	| TextField
 	| RichTextField
+	| BodyField
 	| NumberField
 	| BooleanField
 	| DateField
@@ -148,6 +170,7 @@ export type FieldInput = {
 	multiple?: boolean;
 	postTypes?: string[];
 	twoWay?: boolean;
+	blocksOff?: string[];
 	fields?: FieldInput[];
 };
 
@@ -157,16 +180,20 @@ export type DefineContext = {
 	postTypeKeys: ReadonlySet<string>;
 	/**
 	 * Whose Fields these are: Globals can't hold Relationships, nor can a Module's Component's Props
-	 * (each Site has its own Post Types). A Component's Props are declared with the Field types.
+	 * (each Site has its own Post Types). A Component's Props are declared with the Field types. Only
+	 * a Post Type other than the Page Post Type (`page`) has a Body field.
 	 */
-	owner: "postType" | "globals" | "component" | "moduleComponent";
+	owner: "postType" | "page" | "globals" | "component" | "moduleComponent";
 };
 
 /** Reports a problem with a setting, at a path below the Field (`maxLength`, `options[1].value`). */
 type Report = (setting: string, message: string) => void;
 
-/** A rule a value breaks: which rule, and why in words. */
-export type BrokenRule = { rule: string; message: string };
+/**
+ * A rule a value breaks: which rule, and why in words. `within` places it inside the value (a Body's
+ * Block: `[2]`), after the Field's path.
+ */
+export type BrokenRule = { rule: string; message: string; within?: string };
 
 /**
  * What a value points at, checked against the Site once every value is read: Entries of some Post
@@ -182,16 +209,26 @@ export type ValueSpec<Field extends LeafField> = {
 	empty(field: Field): Json;
 	/**
 	 * Reads a value people give (never null or "", which clear a value), answering the value to store,
-	 * or null for empty. A value of the wrong kind is reported with `fail` (the save is refused);
-	 * `refer` names Entries it points at.
+	 * or null for empty. A value of the wrong kind is reported with `fail` (the save is refused), at a
+	 * place inside the value when given (`[2].text`); `refer` names Entries it points at.
 	 */
-	parse(input: unknown, field: Field, fail: (message: string) => null, refer: (reference: Reference) => void): Json;
+	parse(
+		input: unknown,
+		field: Field,
+		fail: (message: string, within?: string) => null,
+		refer: (reference: Reference) => void,
+	): Json;
 	/** Reads a stored value; null when it isn't one this Field holds (its settings changed since). */
 	read(stored: unknown, field: Field): Json;
 	/** The rules a (non-empty) value breaks: min/max, pattern and the like. */
 	rules(value: Json, field: Field): BrokenRule[];
 	/** Whether a value counts as empty (for `required`); null and [] are by default. */
 	isEmpty?(value: Json): boolean;
+	/**
+	 * What a stored value points at, checked against the Site whenever the version is checked (a
+	 * reference that is gone is a broken rule), each at a place inside the value.
+	 */
+	references?(value: Json, field: Field): (Reference & { within: string })[];
 };
 
 /** Everything the content store knows about one Field type: its traits (`field-rules.ts`) and what it does. */
@@ -272,6 +309,74 @@ const richText: FieldTypeSpec<RichTextField> = {
 				? [{ rule: "maxLength", message: `At most ${field.maxLength} characters of text.` }]
 				: [];
 		},
+	},
+};
+
+const body: FieldTypeSpec<BodyField> = {
+	...FIELD_TYPE_TRAITS.body,
+	settings(input, report, context) {
+		// Where a Body field may be (only one, at the top) is checked with the whole list (`parseFields`).
+		if (context.owner !== "postType") {
+			report(
+				"type",
+				context.owner === "page"
+					? "Pages are arranged with a Page layout, so they have no Body field."
+					: "Only a Post Type has a Body field.",
+			);
+		}
+		const blocksOff: BlockType[] = [];
+		if (input.blocksOff !== undefined && input.blocksOff !== null) {
+			if (!Array.isArray(input.blocksOff)) {
+				report("blocksOff", "The Blocks switched off are a list of Block types.");
+			} else {
+				input.blocksOff.forEach((type, index) => {
+					if (!isBlockType(type)) {
+						report(
+							`blocksOff[${index}]`,
+							`There is no Block type ${String(type)}; they are ${BLOCK_TYPES.join(", ")}.`,
+						);
+					} else if (ALWAYS_ON_BLOCKS.includes(type)) {
+						report(`blocksOff[${index}]`, `A body always has ${type}s.`);
+					} else if (!blocksOff.includes(type)) {
+						blocksOff.push(type);
+					}
+				});
+			}
+		}
+		return { blocksOff: BLOCK_TYPES.filter((type) => blocksOff.includes(type)) };
+	},
+	value: {
+		empty: () => [],
+		parse(input, _field, fail) {
+			const { blocks, problems } = readBody(input);
+			for (const problem of problems) fail(problem.message, problem.at);
+			if (problems.length > 0) return null;
+			return blocks.length === 0 ? null : (blocks as unknown as Json);
+		},
+		read: (stored) => (Array.isArray(stored) ? stored : null),
+		rules(value, field) {
+			const broken: BrokenRule[] = [];
+			storedBlocks(value).forEach((block, index) => {
+				if (field.blocksOff.includes(block.type)) {
+					broken.push({
+						rule: "blockType",
+						within: `[${index}]`,
+						message: `The Body field has ${block.type} Blocks switched off.`,
+					});
+				}
+				if (block.type === "video" && block.url !== "" && !videoAt(block.url)) {
+					broken.push({ rule: "video", within: `[${index}].url`, message: "A video is on YouTube or Vimeo." });
+				}
+			});
+			return broken;
+		},
+		isEmpty: (value) => !bodyHasContent(storedBlocks(value)),
+		references: (value) =>
+			storedBlocks(value).flatMap((block, index) =>
+				block.type === "image" && block.media
+					? [{ kind: "media" as const, ids: [block.media], within: `[${index}].media` }]
+					: [],
+			),
 	},
 };
 
@@ -569,6 +674,7 @@ export const FIELD_TYPE_SPECS: {
 } = {
 	text,
 	richText,
+	body,
 	number,
 	boolean,
 	date,

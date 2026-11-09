@@ -1,3 +1,4 @@
+import { renderBody, renderToc } from "./body/body.ts";
 import { commandForNode } from "./commands.ts";
 import { COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, URL_ATTRIBUTES } from "./escape.ts";
@@ -12,7 +13,7 @@ import {
 	type ValueNode,
 	VOID_ELEMENTS,
 } from "./tree.ts";
-import { isList, isRichText, joinList, type TemplateValue, textOf, type ValueReader } from "./values.ts";
+import { isBody, isList, isRichText, isToc, joinList, type TemplateValue, textOf, type ValueReader } from "./values.ts";
 
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
@@ -40,6 +41,10 @@ export type RenderOptions = {
 	media?: MediaReader;
 	/** Present while rendering `<main>`: its first Media image loads eagerly, with high priority. */
 	priorityImage?: ImagePriority;
+	/** WebCraft's own words in the page's language, which a body's video says ("Play video"). */
+	words?: { playVideo: string; video: string };
+	/** Counts what the page shows that needs a script of WebCraft's: a body's videos. */
+	shown?: { videos: number };
 	/**
 	 * What a Placement shows: its Component's (published) tree, and what that tree's bindings read
 	 * given the Placement's Prop values (`props.x`, read through `outer` where a value is passed on
@@ -160,10 +165,22 @@ function editTags(node: ElementNode, options: RenderOptions): readonly (readonly
 	return region ? [...region, ["data-wc-id", node.id]] : [];
 }
 
-/** A value in a text position: escaped text, cleaned rich text, or a list of them joined with commas. */
+/**
+ * A value in a text position: escaped text, cleaned rich text, a body's Blocks or a table of contents
+ * as HTML, or a list of them joined with commas. Through a formatter, each is its text.
+ */
 function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions): string {
 	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options)));
 	if (!node.format && isRichText(value)) return cleanRichText(value.html);
+	if (!node.format && isBody(value)) {
+		return renderBody(value.blocks, {
+			media: options.media,
+			priorityImage: options.priorityImage,
+			words: options.words ?? { playVideo: "Play video", video: "Video" },
+			shown: options.shown,
+		});
+	}
+	if (!node.format && isToc(value)) return renderToc(value.headings);
 	return escapeText(valueText(node, value, options));
 }
 

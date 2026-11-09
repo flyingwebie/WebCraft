@@ -106,6 +106,7 @@ export function parseFields(
 	/** Props are declared with the Field types; problems about the top-level list name what they are. */
 	const word = (depth: number) => (depth === 1 && listName === "props" ? "Prop" : "Field");
 	let count = 0;
+	let bodies = 0;
 	const parseList = (
 		list: readonly FieldInput[],
 		at: string,
@@ -150,6 +151,14 @@ export function parseFields(
 				report("type", `${key} is a ${previous.type} ${word(depth)}; a ${word(depth)} keeps its type.`);
 			}
 
+			if (type === "body") {
+				// "The body" is never ambiguous: a Post Type has one at most, among its own Fields.
+				if (depth > 1) {
+					report("type", "A Body field sits among a Post Type's own Fields, not inside a Group or Repeater.");
+				} else if (bodies++ > 0) {
+					report("type", "A Post Type has at most one Body field.");
+				}
+			}
 			const spec = FIELD_TYPE_SPECS[type];
 			const required = input.required ?? false;
 			if (required && !spec.requirable)
