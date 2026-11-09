@@ -13,6 +13,7 @@ import {
 	MailIcon,
 	NewspaperIcon,
 	PuzzleIcon,
+	RepeatIcon,
 	ScrollTextIcon,
 	SettingsIcon,
 	ShieldCheckIcon,
@@ -219,6 +220,7 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: DatabaseIcon,
 						to: "/sites/$siteId/post-types",
 					},
+					{ id: "site-loops", label: "shell.nav.loops", icon: RepeatIcon, to: "/sites/$siteId/loops" },
 				],
 			},
 			{

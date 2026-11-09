@@ -10,6 +10,9 @@ export type EntryView = Awaited<ReturnType<ApiClient["entries"]["get"]>>["entry"
 /** The Site's Globals: their Fields, Draft and published values. */
 export type GlobalsView = Awaited<ReturnType<ApiClient["globals"]["get"]>>["globals"];
 
+/** A Loop as the Management API answers it: its Draft and published versions, its Loop items in one language. */
+export type LoopView = Awaited<ReturnType<ApiClient["loops"]["get"]>>["loop"];
+
 /** What keeps a Draft from being published (or a value from being saved), where it is. */
 export type Problem = { at: string; message: string; rule?: string };
 

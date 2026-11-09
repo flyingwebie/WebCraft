@@ -30,7 +30,9 @@ export type StructureSubject =
 			builtInFields: readonly string[];
 			fields: readonly FieldDefinition[];
 	  }
-	| { kind: "globals"; fields: readonly FieldDefinition[] };
+	| { kind: "globals"; fields: readonly FieldDefinition[] }
+	/** A Loop's own items' Fields, on the Loop's screen (under its own heading). */
+	| { kind: "loop"; fields: readonly FieldDefinition[] };
 
 /** A problem the server answered, where it belongs: a Field's setting, or the Post Type's own. */
 type Located = { uid: string | null; setting: string; message: string };
@@ -47,6 +49,7 @@ export function StructureEditor({
 	defaultLanguage,
 	postTypes,
 	save,
+	embedded = false,
 }: {
 	subject: StructureSubject;
 	siteId: string;
@@ -54,10 +57,19 @@ export function StructureEditor({
 	/** The Site's Post Types, which Relationships may point at. */
 	postTypes: readonly { key: string; name: string }[];
 	save(change: { settings: PostTypeSettings | null; fields: FieldInput[] }): Promise<readonly FieldDefinition[]>;
+	/** Whether it sits in a tab under the screen's own heading: it then heads its part as "Fields". */
+	embedded?: boolean;
 }) {
 	const t = useT();
 	const router = useRouter();
-	const owner: FieldOwner = subject.kind === "globals" ? "globals" : subject.builtIn === "page" ? "page" : "postType";
+	const owner: FieldOwner =
+		subject.kind === "globals"
+			? "globals"
+			: subject.kind === "loop"
+				? "loop"
+				: subject.builtIn === "page"
+					? "page"
+					: "postType";
 	const initialSettings = subject.kind === "postType" ? { name: subject.name, urlPattern: subject.urlPattern } : null;
 	const [settings, setSettings] = useState<PostTypeSettings | null>(initialSettings);
 	const [drafts, setDrafts] = useState<FieldDraft[]>(() => draftsOf(subject.fields));
@@ -117,7 +129,7 @@ export function StructureEditor({
 			const code = errorCode(error);
 			const data = (error as { data?: { problems?: { at: string; message: string }[]; field?: string; path?: string } })
 				.data;
-			if ((code === "POST_TYPE_INVALID" || code === "GLOBALS_INVALID") && data?.problems) {
+			if ((code === "POST_TYPE_INVALID" || code === "GLOBALS_INVALID" || code === "LOOP_INVALID") && data?.problems) {
 				setLocated(
 					data.problems.map((problem) => ({ ...locateProblem(drafts, problem.at), message: problem.message })),
 				);
@@ -164,19 +176,37 @@ export function StructureEditor({
 		});
 	};
 
-	const heading = subject.kind === "postType" ? subject.name : t("postTypes.globals.heading");
+	const heading =
+		subject.kind === "loop"
+			? t("loops.fields.heading")
+			: embedded
+				? t("postTypes.tabs.fields")
+				: subject.kind === "postType"
+					? subject.name
+					: t("postTypes.globals.heading");
+	// On a Loop's screen, and in a tab, the Fields sit under the screen's own heading.
+	const sub = subject.kind === "loop" || embedded;
+	const Heading = sub ? "h2" : "h1";
+	const intro: MessageKey =
+		subject.kind === "postType"
+			? "postTypes.intro"
+			: subject.kind === "loop"
+				? "loops.fields.intro"
+				: "postTypes.globals.intro";
 
 	return (
 		<div className="grid min-w-0 content-start gap-8">
 			<div className="flex flex-wrap items-start justify-between gap-4">
 				<div className="grid gap-1">
 					<div className="flex flex-wrap items-center gap-3">
-						<h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
-						<Badge variant="outline">{t("postTypes.staffOnly")}</Badge>
+						<Heading
+							className={subject.kind === "loop" ? "text-lg font-semibold" : "text-2xl font-semibold tracking-tight"}
+						>
+							{heading}
+						</Heading>
+						{subject.kind === "loop" ? null : <Badge variant="outline">{t("postTypes.staffOnly")}</Badge>}
 					</div>
-					<p className="text-muted-foreground">
-						{t(subject.kind === "postType" ? "postTypes.intro" : "postTypes.globals.intro")}
-					</p>
+					<p className="text-muted-foreground">{t(intro)}</p>
 				</div>
 				<div className="flex items-center gap-3">
 					<p role="status" className="text-muted-foreground text-sm">

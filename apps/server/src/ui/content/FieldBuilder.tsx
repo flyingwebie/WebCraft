@@ -56,18 +56,18 @@ export const FIELD_TYPE_ICONS: { readonly [Type in FieldType]: LucideIcon } = {
 
 /** Who the Fields belong to: a Post Type's Entries, or the Globals (which hold no Relationships). */
 /** Whose Fields the builder shows: a Post Type's, the Page Post Type's or the Globals'. */
-export type FieldOwner = "postType" | "page" | "globals";
+export type FieldOwner = "postType" | "page" | "globals" | "loop";
 
 /**
  * The Field types a new Field can be, at a depth among `all` (every Field on the screen, `uid` being
- * the one changing type): Globals hold no Relationships, Groups and Repeaters nest 3 deep, and only a
+ * the one changing type): Globals and Loop items hold no Relationships, Groups and Repeaters nest 3 deep, and only a
  * Post Type other than Pages has a Body field, one at most, at the top of its Fields.
  */
 export function offeredTypes(owner: FieldOwner, depth: number, all: readonly FieldDraft[], uid?: string): FieldType[] {
 	const hasBody = all.some((draft) => draft.field.type === "body" && draft.uid !== uid);
 	return FIELD_TYPES.filter(
 		(type) =>
-			!(owner === "globals" && type === "relationship") &&
+			!((owner === "globals" || owner === "loop") && type === "relationship") &&
 			!((type === "group" || type === "repeater") && !canHoldFields(type, depth)) &&
 			!(type === "body" && (owner !== "postType" || depth > 1 || hasBody)),
 	);
