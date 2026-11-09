@@ -506,7 +506,14 @@ export async function sendTest(ports: DeliveryPorts, scope: SiteScope, webhook: 
 		nextAttemptAt: now,
 		createdAt: now,
 	});
-	const result = await attempt(ports, scope, webhook, row);
+	let result: AttemptResult;
+	try {
+		result = await attempt(ports, scope, webhook, row);
+	} catch (error) {
+		// Something broke on this side (not the receiver's answer): the log keeps no half-made test.
+		await scope.delete(webhookDeliveries, eq(webhookDeliveries.id, id));
+		throw error;
+	}
 	await recordAttempt(
 		ports,
 		scope,
