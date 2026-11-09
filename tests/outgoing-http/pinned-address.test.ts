@@ -15,7 +15,10 @@ const LOOPBACK = ["127.0.0.1", "::1"];
 
 type Seen = { host: string | null; method: string; path: string; body: string };
 
-/** A server on `address` that answers what it saw, and remembers the requests whose client went away. */
+/**
+ * A server on `address` that answers what it saw, with the port the client called from (one per
+ * connection), and remembers the requests whose client went away.
+ */
 function startServer(address: string, tls?: Parameters<typeof Bun.serve>[0]["tls"]) {
 	const seen: Seen[] = [];
 	const closed: string[] = [];
@@ -23,7 +26,7 @@ function startServer(address: string, tls?: Parameters<typeof Bun.serve>[0]["tls
 		port: 0,
 		hostname: address,
 		tls,
-		async fetch(request) {
+		async fetch(request, server) {
 			const url = new URL(request.url);
 			const path = `${url.pathname}${url.search}`;
 			request.signal.addEventListener("abort", () => closed.push(path));
@@ -43,7 +46,7 @@ function startServer(address: string, tls?: Parameters<typeof Bun.serve>[0]["tls
 					? new Response(Bun.gzipSync(text), { headers: { "content-encoding": "gzip" } })
 					: new Response(text);
 			}
-			return Response.json(seen.at(-1));
+			return Response.json({ ...seen.at(-1), clientPort: server.requestIP(request)?.port });
 		},
 	});
 	return { port: server.port, seen, closed, stop: () => server.stop(true) };
@@ -110,6 +113,7 @@ describe.each(runtimes)("%s outgoing HTTP, pinned to an address", (_, call) => {
 			method: "POST",
 			path: "/hello?to=you",
 			body: "a body",
+			clientPort: expect.any(Number),
 		});
 	});
 
@@ -128,6 +132,21 @@ describe.each(runtimes)("%s outgoing HTTP, pinned to an address", (_, call) => {
 
 		expect(outcome).toEqual({ error: expect.objectContaining({ code: "ERR_TLS_CERT_ALTNAME_INVALID" }) });
 		expect(secure.seen.length).toBe(before);
+	});
+
+	test("reuses a kept connection only for the same address and host name", async () => {
+		const connection = async (name: string) => {
+			const outcome = answered(await call({ url: `https://${name}:${secure.port}/`, connectTo: "127.0.0.1" }));
+			return JSON.parse(outcome.body).clientPort as number;
+		};
+
+		// another.test gets the certificate valid for another.test; pinned.test must get its own.
+		const another = await connection("another.test");
+		const pinned = await connection("pinned.test");
+		const pinnedAgain = await connection("pinned.test");
+
+		expect(pinned).not.toBe(another);
+		expect(pinnedAgain).toBe(pinned);
 	});
 
 	test("connects to an IPv6 address, over HTTP and HTTPS", async () => {

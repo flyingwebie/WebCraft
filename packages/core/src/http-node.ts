@@ -2,7 +2,6 @@ import { Agent as HttpAgent, request as httpRequest, type IncomingMessage } from
 import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { pipeline, type Readable, type Transform } from "node:stream";
-import { checkServerIdentity, type PeerCertificate } from "node:tls";
 import { constants, createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 
 import type { OutgoingHttp } from "./http.ts";
@@ -10,8 +9,8 @@ import { pinnedTarget } from "./http-pinned.ts";
 
 /**
  * Outgoing HTTP for the worker, on Node. A call pinned to an address goes over `node:http`/`node:https`
- * to that address, with the URL's host name in the `Host` header, as the TLS server name (SNI) and in
- * the certificate check (never the address). Kept connections are found again by address and port
+ * to that address, with the URL's host name in the `Host` header and as the TLS server name, which
+ * Node sends for SNI and checks the certificate against (never against the address). Kept connections are found again by address and port
  * (over TLS also by server name and trusted authorities), so a reused connection is one made to the
  * same address for the same name. The answer's body streams as it arrives, decoded as `fetch` decodes
  * it, and a pinned call never follows a redirect. Every other call is Node's `fetch`, as it is.
@@ -43,9 +42,9 @@ async function pinnedCall(
 	headers.host = target.host;
 	const body = request.body === null ? undefined : Buffer.from(await request.arrayBuffer());
 	const tls = {
-		// No server name for an address: the certificate is then checked against that address.
+		// Node checks the certificate against the server name: no name for an address, which is then
+		// checked against that address. (A custom check would keep Node from reusing the connection.)
 		servername: isIP(target.hostname) ? "" : target.hostname,
-		checkServerIdentity: (_: string, certificate: PeerCertificate) => checkServerIdentity(target.hostname, certificate),
 		...(ca ? { ca } : {}),
 	};
 	return new Promise((resolve, reject) => {
