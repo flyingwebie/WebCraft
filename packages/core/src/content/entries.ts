@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUuid } from "../ids.ts";
 import { actingPerson } from "../permissions/can.ts";
+import { SEO_CHECK_MESSAGES, type SeoPreview, seoReports } from "../seo/checks.ts";
 import { type EntrySeo, type EntrySeoChange, readEntrySeo, writeEntrySeo } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { bodyChecksOf, type EntryCheck } from "./body-checks.ts";
@@ -103,6 +104,11 @@ export type Entry = {
 	 * levels, images without alt text, vague link text, tables without a header row, untitled videos.
 	 */
 	checks: EntryCheck[];
+	/**
+	 * What search engines and other sites get from the Draft in this language, through the same
+	 * fallbacks its page uses: its whole title, description and social image (with where it comes from).
+	 */
+	seoPreview: SeoPreview;
 	/** The Entries whose Drafts point at this one through a two-way Relationship. */
 	linkedFrom: LinkBack[];
 	/** Where visitors find it (`/blog/fresh-bread`, `/about/team`, `/` for the home page); null until it is published. */
@@ -548,6 +554,8 @@ async function entryViews(
 		drafts.map((draft) => draft.fields),
 		languages,
 	);
+	// The SEO check, after the body's Checks; the Site's list of open Checks (#95) collects both.
+	const seo = await seoReports(scope, postType, drafts, languages);
 	return rows.map((row, index) => {
 		const address = addresses.get(row.id);
 		const authorName = row.authorId ? authors.get(row.authorId) : undefined;
@@ -569,7 +577,14 @@ async function entryViews(
 					? null
 					: { ...values(storedVersion(row.published)), ...(address ? { slug: address.slug } : {}) },
 			problems: findings[index]?.problems ?? [],
-			checks: checks[index] ?? [],
+			checks: [
+				...(checks[index] ?? []),
+				...(seo[index]?.checks ?? []).map((check) => ({
+					...check,
+					message: SEO_CHECK_MESSAGES[check.check](check.params ?? {}),
+				})),
+			],
+			seoPreview: seo[index]?.preview ?? { title: "", description: null, image: null },
 			linkedFrom: back.get(row.id) ?? [],
 			path: address?.path ?? null,
 		};

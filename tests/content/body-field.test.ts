@@ -352,7 +352,8 @@ describe("Checks on a body", () => {
 			{ type: "video", url: "https://youtu.be/dQw4w9WgXcQ", title: "Shaping a loaf" },
 		]);
 
-		expect(entry.checks).toEqual([
+		// The body's Checks; the SEO check adds its own after them (see tests/seo).
+		expect(entry.checks.filter((check) => check.at.startsWith("fields."))).toEqual([
 			{ at: "fields.body[0]", check: "skippedHeading", detail: "H1 → H3", message: expect.any(String) },
 			{ at: "fields.body[2]", check: "skippedHeading", detail: "H2 → H4", message: expect.any(String) },
 			{ at: "fields.body[4]", check: "missingAlt", message: expect.any(String) },

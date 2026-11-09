@@ -271,7 +271,8 @@
 			"staffOnly": "Solo staff",
 			"loops": "Loop",
 			"forms": "Form",
-			"libraries": "Librerie"
+			"libraries": "Librerie",
+			"seo": "SEO"
 		}
 	},
 	"masterKeyBanner": {
@@ -973,7 +974,8 @@
 			"component": "Componente {name}",
 			"loop": "Loop {name}",
 			"designSystem": "Design system",
-			"untitled": "Senza titolo"
+			"untitled": "Senza titolo",
+			"seoSettings": "Impostazioni SEO"
 		},
 		"focal": {
 			"heading": "Punto focale",
@@ -1267,7 +1269,8 @@
 		"builtIns": {
 			"title": "Titolo",
 			"slug": "Indirizzo",
-			"parent": "Pagina superiore"
+			"parent": "Pagina superiore",
+			"seo": "Campi SEO"
 		},
 		"types": {
 			"text": "Testo",
@@ -2415,7 +2418,8 @@
 			"globalsLabel": "Globali",
 			"fields": "Campi",
 			"data": "Dati",
-			"search": "Ricerca nel sito"
+			"search": "Ricerca nel sito",
+			"seo": "SEO"
 		},
 		"search": {
 			"heading": "Ricerca nel sito",
@@ -2856,6 +2860,116 @@
 			"RULE_LOOP": "I visitatori girerebbero in tondo, o passerebbero per più di 5 regole. Scegli un'altra destinazione.",
 			"RULE_NOT_FOUND": "Questa regola non esiste più. Forse qualcuno l'ha rimossa.",
 			"MISS_NOT_FOUND": "Questo percorso non è più nel registro 404."
+		}
+	},
+	"seo": {
+		"card": {
+			"heading": "SEO e condivisione",
+			"title": "Titolo SEO",
+			"titleHelp": "Il titolo completo della pagina nei risultati di ricerca. Lascialo vuoto per usare lo schema di titolo del tipo di contenuto.",
+			"description": "Descrizione",
+			"descriptionHelp": "Lasciala vuota per usare il campo descrizione del tipo di contenuto o l'inizio del corpo.",
+			"count": "{count} di {max} caratteri",
+			"image": "Immagine social",
+			"imageFromField": "Senza, usa {field}.",
+			"imageFromSite": "Senza, usa l'immagine predefinita del sito.",
+			"imageNone": "Senza, i link condivisi non mostrano un'immagine.",
+			"imageRefused": "Scegli un'immagine JPEG, PNG, WebP, AVIF o GIF della libreria media.",
+			"canonical": "URL canonico",
+			"canonicalHelp": "Lascialo vuoto per l'indirizzo della pagina stessa. Un percorso del sito o un indirizzo https.",
+			"canonicalRefused": "Un URL canonico è un indirizzo https o http, o un percorso del sito che inizia con /.",
+			"noindex": "Nascondi ai motori di ricerca",
+			"noindexHelp": "Si chiede ai motori di ricerca di non indicizzare la pagina, e la ricerca nel sito la esclude. Un'unica impostazione per tutte le lingue.",
+			"checks": "Controllo SEO",
+			"checksHelp": "Solo avvisi: non bloccano mai la pubblicazione.",
+			"structuredData": "Dati strutturati: {type}, impostato sul tipo di contenuto."
+		},
+		"checks": {
+			"seoTitleLong": "Il titolo è lungo {length} caratteri: i motori di ricerca ne mostrano circa {max}.",
+			"seoDescriptionMissing": "Manca la descrizione: i motori di ricerca sceglieranno parte del testo della pagina.",
+			"seoDescriptionShort": "La descrizione è lunga {length} caratteri: almeno {min} dicono di più sulla pagina.",
+			"seoDescriptionLong": "La descrizione è lunga {length} caratteri: i motori di ricerca ne mostrano circa {max}.",
+			"seoImageMissing": "Manca l'immagine social: i link condivisi appariranno senza immagine.",
+			"seoImageAlt": "L'immagine social non ha un testo alternativo in questa lingua."
+		},
+		"schemaTypes": {
+			"webPage": "Pagina web",
+			"article": "Articolo",
+			"blogPosting": "Post del blog",
+			"product": "Prodotto",
+			"event": "Evento",
+			"person": "Persona",
+			"organization": "Organizzazione",
+			"localBusiness": "Attività locale",
+			"faqPage": "Pagina FAQ",
+			"recipe": "Ricetta",
+			"service": "Servizio"
+		},
+		"sources": {
+			"title": "Titolo",
+			"author": "Autore",
+			"publishedAt": "Prima pubblicazione",
+			"lastPublishedAt": "Ultima pubblicazione",
+			"createdAt": "Creazione",
+			"seoDescription": "La descrizione della pagina",
+			"seoImage": "L'immagine social della pagina"
+		},
+		"postType": {
+			"heading": "SEO",
+			"intro": "Cosa usano i contenuti di questo tipo quando i loro campi SEO sono vuoti, e come si descrivono ai motori di ricerca.",
+			"titlePattern": "Schema di titolo",
+			"titlePatternHelp": "Le pagine senza titolo SEO prendono il titolo da questo schema. Aggiungi un segnaposto:",
+			"addToken": "Aggiungi {token} allo schema di titolo",
+			"descriptionField": "Descrizione da",
+			"bodyStart": "L'inizio del campo Body",
+			"noBody": "Nessuna",
+			"descriptionHelp": "Tagliata a una parola, circa 155 caratteri, come testo semplice.",
+			"imageField": "Immagine social da",
+			"noImage": "Nessuna",
+			"imageHelp": "Senza, le pagine usano l'immagine predefinita del sito.",
+			"schemaType": "Tipo Schema",
+			"schemaTypeHelp": "Cosa sono i contenuti di questo tipo, per i motori di ricerca. Sceglierne uno collega le sue proprietà secondo le ipotesi di WebCraft.",
+			"properties": "Proprietà",
+			"propertiesHelp": "Da dove viene il valore di ogni proprietà. Le proprietà non collegate vengono omesse.",
+			"property": "Proprietà",
+			"from": "Da",
+			"fromOf": "Da dove viene {property}",
+			"notMapped": "Non collegata",
+			"save": "Salva",
+			"discard": "Annulla le modifiche",
+			"unsaved": "Modifiche non salvate",
+			"saved": "Impostazioni SEO salvate.",
+			"notSaved": "Le impostazioni SEO non sono state salvate:"
+		},
+		"site": {
+			"heading": "SEO",
+			"intro": "Cosa usa ogni pagina del sito in mancanza d'altro, e chi c'è dietro il sito per i motori di ricerca. Le modifiche si applicano subito.",
+			"siteName": "Nome del sito nei titoli",
+			"siteNameHelp": "Lascialo vuoto per usare il nome del sito, {name}.",
+			"separator": "Separatore",
+			"separatorHelp": "Messo tra le parti di un titolo, come · o |.",
+			"defaultImage": "Immagine social predefinita",
+			"defaultImageHelp": "I link condivisi delle pagine senza un'immagine propria la mostrano.",
+			"organization": "Organizzazione",
+			"organizationHelp": "Ogni pagina dice ai motori di ricerca chi c'è dietro il sito.",
+			"kind": "Tipo",
+			"kinds": {
+				"organization": "Organizzazione",
+				"localBusiness": "Attività locale"
+			},
+			"organizationName": "Nome",
+			"organizationNameHelp": "Lascialo vuoto per usare il nome del sito nei titoli.",
+			"logo": "Logo",
+			"sameAs": "Profili altrove",
+			"sameAsHelp": "Un indirizzo https per riga, come le pagine social dell'organizzazione.",
+			"telephone": "Telefono da",
+			"email": "Email da",
+			"address": "Indirizzo da",
+			"globalsHelp": "Telefono, email e indirizzo vengono dai Globali.",
+			"noGlobal": "Nessuno",
+			"save": "Salva",
+			"saved": "Impostazioni SEO salvate.",
+			"notSaved": "Le impostazioni SEO non sono state salvate:"
 		}
 	}
 }

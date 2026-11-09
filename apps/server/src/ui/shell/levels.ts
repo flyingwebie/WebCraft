@@ -20,6 +20,7 @@ import {
 	PuzzleIcon,
 	RepeatIcon,
 	ScrollTextIcon,
+	SearchCheckIcon,
 	SettingsIcon,
 	ShieldCheckIcon,
 	SlidersHorizontalIcon,
@@ -263,6 +264,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.languages",
 						icon: LanguagesIcon,
 						to: "/sites/$siteId/languages",
+						requires: "structure.edit",
+					},
+					{
+						id: "site-seo",
+						label: "shell.nav.seo",
+						icon: SearchCheckIcon,
+						to: "/sites/$siteId/seo",
 						requires: "structure.edit",
 					},
 					{

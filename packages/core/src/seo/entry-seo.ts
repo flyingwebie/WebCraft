@@ -1,5 +1,5 @@
-import { media } from "@webcraft/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { entries, media } from "@webcraft/db/schema";
+import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
 
 import type { FieldDefinition, GroupField, Json } from "../content/field-types.ts";
 import {
@@ -166,4 +166,13 @@ export async function isSocialImageOf(scope: Pick<SiteScope, "db" | "where">, me
 /** The image types other sites show for a shared page: JPEG, PNG, WebP, AVIF and GIF; never SVG. */
 export function isShareableImage(item: { kind: string; contentType: string }): boolean {
 	return item.kind === "image" && item.contentType !== "image/svg+xml";
+}
+
+/**
+ * A condition on `entries` rows: the published version doesn't ask search engines to stay away
+ * (noindex). Site search adds it to its query, so a noindex Entry isn't among its hits; sitemaps
+ * (#92) and `llms.txt` leave such Entries out by the same rule.
+ */
+export function publishedIndexable(languages: Pick<Languages, "defaultLanguage">): SQL {
+	return sql`coalesce(${entries.published} -> 'values' -> ${SEO_KEY}::text -> 'values' -> 'noindex' -> ${languages.defaultLanguage}::text ->> 'value', 'false') <> 'true'`;
 }

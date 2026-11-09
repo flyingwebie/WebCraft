@@ -31,12 +31,14 @@ function placeName(use: Use, t: ReturnType<typeof useT>): string {
 			return t("media.usedIn.loop", { name: use.name });
 		case "designSystem":
 			return t("media.usedIn.designSystem");
+		case "seoSettings":
+			return t("media.usedIn.seoSettings");
 	}
 }
 
 /**
  * The places a file is used, each linked to where it is changed when the person can open it there:
- * Entries and the Globals for everyone, Loops for Staff (Structure).
+ * Entries and the Globals for everyone, Loops and the SEO settings for Staff (Structure).
  */
 export function UsedInList({
 	siteId,
@@ -66,6 +68,10 @@ export function UsedInList({
 						</Link>
 					) : use.kind === "globals" ? (
 						<Link to="/sites/$siteId/globals" params={{ siteId }} className={linkClass}>
+							{name}
+						</Link>
+					) : use.kind === "seoSettings" && structure ? (
+						<Link to="/sites/$siteId/seo" params={{ siteId }} className={linkClass}>
 							{name}
 						</Link>
 					) : use.kind === "loop" && structure ? (
