@@ -328,6 +328,18 @@ _Avoid_: Search engine, full-text search, finder
 The Fields of a Post Type that Site search and every Filter's search box look in, each with a weight, set once on the Post Type.
 _Avoid_: Search index, indexed fields
 
+**Search results page**:
+The Page Staff choose to answer Site search, like the home page and the 404 page. It shows the Search results template, at the Page's own address in each language.
+_Avoid_: Search page, results URL
+
+**Search results template**:
+The Template the search results page shows: the hits for what a visitor searched for, through a built-in Loop, with the hit count, a snippet of each and links to more pages. Staff write it; until they publish one, a built-in one shows.
+_Avoid_: Results layout, search template page
+
+**Search element**:
+The search box Staff place in a Template, which sends visitors to the search results page in their language and works without JavaScript.
+_Avoid_: Search bar, search widget, search form
+
 **Check**:
 A warning WebCraft shows while a Template, Component, Entry or the Design system is edited, such as a page with two main headings, an image with no alt text that is not Decorative, vague link text, or a colour pair with too little contrast. Every Site has one list of its open Checks. Checks never stop publishing.
 _Avoid_: Lint, error, validation, audit
