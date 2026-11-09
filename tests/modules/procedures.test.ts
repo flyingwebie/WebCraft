@@ -119,6 +119,7 @@ describe("what a Module never declared", () => {
 				"bad-secret-name": "secret",
 				"unset-secret": "secret",
 				email: "email",
+				submissions: "submissions",
 			};
 
 			expect(await api(staff).probe({ siteId, attempt })).toEqual({ refused: expected[attempt] });

@@ -168,7 +168,10 @@ export function createSubmissionActions(deps: SubmissionActionsDeps): Submission
 					}),
 				),
 			];
-			return delivered.sort((a, b) => a.at.getTime() - b.at.getTime());
+			// Oldest first; what went out together, in the order it was queued: Notifications, then the
+			// Auto-reply, then the Webhooks.
+			const rank = { notification: 0, autoReply: 1, webhook: 2 } as const;
+			return delivered.sort((a, b) => a.at.getTime() - b.at.getTime() || rank[a.kind] - rank[b.kind]);
 		},
 	};
 }

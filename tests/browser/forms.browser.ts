@@ -19,7 +19,7 @@ beforeAll(async () => {
 	install = await startBrowserInstall();
 	const local = install.install;
 	const { api } = await local.superadmin();
-	await api.modules.approve({ moduleId: "forms", version: "1.0.0" });
+	await api.modules.approve({ moduleId: "forms", version: "1.1.0" });
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" })).account;

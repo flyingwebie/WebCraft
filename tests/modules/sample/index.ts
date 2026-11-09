@@ -30,6 +30,7 @@ export const PROBES = [
 	"bad-secret-name",
 	"unset-secret",
 	"email",
+	"submissions",
 ] as const;
 
 const view = (note: typeof notes.$inferSelect) => ({
@@ -319,6 +320,10 @@ async function probe(attempt: (typeof PROBES)[number], context: ModuleContext): 
 				heading: { en: "Only in English" },
 				paragraphs: [],
 			});
+			return;
+		case "submissions":
+			// Form Submissions are the Forms Module's, never another Module's (SDK 1.6).
+			await context.submissions.deliveries("00000000-0000-4000-8000-000000000001");
 			return;
 	}
 }

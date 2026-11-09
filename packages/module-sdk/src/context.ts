@@ -140,7 +140,8 @@ export type NewModuleRow<Table extends ModuleTable> = Omit<InferInsertModel<Tabl
 	siteId?: string;
 };
 
-export type ModuleSelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: number };
+/** How a select orders its rows, how many it answers, and how many it skips first (`offset`, SDK 1.6). */
+export type ModuleSelectOptions = { orderBy?: readonly (SQL | AnyPgColumn)[]; limit?: number; offset?: number };
 
 /**
  * Queries on the Module's own tables, limited to the place. `where` is an extra condition, built
@@ -156,7 +157,7 @@ export type ModuleData = {
 	first<Table extends ModuleTable>(
 		table: Table,
 		where?: SQL,
-		options?: Omit<ModuleSelectOptions, "limit">,
+		options?: Omit<ModuleSelectOptions, "limit" | "offset">,
 	): Promise<InferSelectModel<Table> | undefined>;
 	count<Table extends ModuleTable>(table: Table, where?: SQL): Promise<number>;
 	insert<Table extends ModuleTable>(table: Table, values: NewModuleRow<Table>): Promise<InferSelectModel<Table>>;
