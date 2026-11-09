@@ -52,6 +52,8 @@ export {
 	isDevelopmentHostname,
 	loadDatabaseUrl,
 	loadInstallConfig,
+	loadTrustedProxies,
+	type TrustedProxies,
 } from "./config.ts";
 export {
 	CONFIRMATION_LIFETIME_MS,
@@ -116,6 +118,15 @@ export {
 	type InstallSettingsValues,
 	MEDIA_MAX_FILE_BYTES,
 } from "./install-settings.ts";
+export {
+	type IpAddress,
+	type IpRange,
+	inIpRange,
+	ipRangeText,
+	PRIVATE_RANGES,
+	parseIpAddress,
+	parseIpRange,
+} from "./ip-ranges.ts";
 export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
 export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup.ts";

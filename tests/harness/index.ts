@@ -18,6 +18,7 @@ import {
 	type InstallServices,
 	type JobQueue,
 	type LogEntry,
+	loadTrustedProxies,
 	MASTER_KEY_VARIABLE,
 	moduleSchemas,
 	type NewMembership,
@@ -110,6 +111,8 @@ export type TestInstallOptions = {
 	edge?: Edge;
 	/** `WEBCRAFT_PUBLIC_ADDRESSES`: `TEST_INSTALL_ADDRESSES` unless given. */
 	publicAddresses?: readonly string[];
+	/** `WEBCRAFT_TRUSTED_PROXIES`: unset (the edge's default) unless given. */
+	trustedProxies?: string;
 	/**
 	 * The Modules the Install loads: this build's first-party Modules unless given, as web and
 	 * worker load them. Their migrations must already be in the database: every test database has
@@ -340,11 +343,13 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		...(sitesDomain ? { WEBCRAFT_SITES_DOMAIN: sitesDomain } : {}),
 		WEBCRAFT_EDGE: edge,
 		...(publicAddresses.length > 0 ? { WEBCRAFT_PUBLIC_ADDRESSES: publicAddresses.join(",") } : {}),
+		...(options.trustedProxies === undefined ? {} : { WEBCRAFT_TRUSTED_PROXIES: options.trustedProxies }),
 		[MASTER_KEY_VARIABLE]: options.masterKey ?? TEST_MASTER_KEY,
 		WEBCRAFT_STORAGE_DIR: storageDir,
 	};
+	const trustedProxies = loadTrustedProxies(options.trustedProxies, edge);
 	const ports: InstallPorts = {
-		config: { databaseUrl, adminHost, adminOrigin, sitesDomain, storageDir, edge, publicAddresses },
+		config: { databaseUrl, adminHost, adminOrigin, sitesDomain, storageDir, edge, publicAddresses, trustedProxies },
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
 		mailer: mail,
