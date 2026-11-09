@@ -201,12 +201,12 @@ export type InstallServices = InstallPorts & {
 		/** Saves the Site template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 	};
+	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
+	domains: Domains;
 	/**
 	 * A Site's languages (Structure): the Default language and the others, their names, directions and
 	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.
 	 */
-	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
-	domains: Domains;
 	languages: {
 		get(scope: SiteScope): Promise<SiteLanguages>;
 		add(scope: SiteScope, input: NewLanguage): Promise<SiteLanguages>;

@@ -3,6 +3,7 @@ import { domainToASCII, domainToUnicode } from "node:url";
 
 import type { InstallConfig } from "../config.ts";
 import { normaliseHostname } from "../hostnames.ts";
+import { wwwPartnerOf } from "./partner.ts";
 
 /**
  * A domain as WebCraft keeps it: DNS labels of letters, digits and dashes, separated by dots, ending in
@@ -40,10 +41,6 @@ export function isInstallName(config: Pick<InstallConfig, "adminHost" | "sitesDo
 
 /** The domain offered with another, apex and `www` together: `www.bakery.ie` for `bakery.ie`, and back. */
 export function partnerOf(name: string): string | null {
-	if (name.startsWith("www.")) {
-		const apex = name.slice("www.".length);
-		return apex.includes(".") ? apex : null;
-	}
-	const www = `www.${name}`;
-	return DOMAIN.test(www) ? www : null;
+	const partner = wwwPartnerOf(name);
+	return partner !== null && DOMAIN.test(partner) ? partner : null;
 }
