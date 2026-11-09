@@ -63,10 +63,45 @@ beforeAll(async () => {
 	await admin.api.media.update({ siteId: site.id, mediaId: media.id, alt: "A round sourdough loaf" });
 	await admin.api.media.upload({ siteId: site.id, file: upload(pdf(), "allergen-guide.pdf") });
 	await local.drainJobs();
+	// The photo is used by a published Entry, and has a Focal point.
+	await admin.api.media.update({ siteId: site.id, mediaId: media.id, focalPoint: { x: 40, y: 60 } });
+	const { postType } = await admin.api.postTypes.create({
+		siteId: site.id,
+		name: "Products",
+		urlPattern: "/products/{slug}",
+		fields: [{ key: "photo", label: "Photo", type: "media" }],
+	});
+	const { entry } = await admin.api.entries.create({
+		siteId: site.id,
+		postTypeId: postType.id,
+		title: "Sourdough loaf",
+		fields: { photo: media.id },
+	});
+	await admin.api.entries.publish({ siteId: site.id, entryId: entry.id });
+	// A document in the Trash.
+	const { media: menu } = await admin.api.media.upload({
+		siteId: site.id,
+		file: upload(pdf("Old menu"), "old-menu.pdf"),
+	});
+	const asked = await admin.api.media.delete({ siteId: site.id, mediaId: menu.id });
+	if (!asked.trashed)
+		await admin.api.media.delete({ siteId: site.id, mediaId: menu.id, confirmation: asked.confirmation.id });
+	// A quota the Workspace's Media has used more than 80% of, so the storage card warns.
+	const big = new Uint8Array(820 * 1024);
+	big.set(pdf("Catalogue").subarray(0, 64));
+	await admin.api.media.upload({ siteId: site.id, file: upload(big, "catalogue.pdf") });
+	await admin.api.workspaces.setQuota({ workspaceId: workspace.id, quotaBytes: 1024 * 1024 });
 	// The Site's languages: French, and Arabic, written right to left.
 	await admin.api.languages.add({ siteId: site.id, code: "fr" });
 	await admin.api.languages.add({ siteId: site.id, code: "ar" });
-	fixture = { workspaceId: workspace.id, siteId: site.id, inviteToken, joinToken, mediaId: media.id };
+	fixture = {
+		workspaceId: workspace.id,
+		siteId: site.id,
+		inviteToken,
+		joinToken,
+		mediaId: media.id,
+		trashedMediaId: menu.id,
+	};
 });
 
 afterAll(async () => {
