@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -55,7 +56,7 @@ async function rendered(
 	const { entry: published } = await editor.api.entries.publish({ siteId, entryId: created.entry.id });
 	const response = await install.request(`https://bakery.sites.test/${key}/${published.published?.slug}`);
 	expect(response.status).toBe(200);
-	const html = await response.text();
+	const html = await expectSafePage(response);
 	return { main: /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "", html };
 }
 

@@ -80,6 +80,7 @@ import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
+import { createSiteScripts } from "./site-scripts/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createInvites } from "./tenancy/invites.ts";
 import { createMembers } from "./tenancy/members.ts";
@@ -137,12 +138,13 @@ export async function createInstallServices(
 		secrets: store,
 		afterAudit: (entry) => listeners.afterAudit?.(entry) ?? Promise.resolve(),
 	});
+	const guardedFetch = createGuardedFetch({ http: ports.http, dns: ports.dns });
 	const modules = createModuleHost({
 		database,
 		data,
 		email,
 		jobs: ports.jobs,
-		fetch: createGuardedFetch({ http: ports.http, dns: ports.dns }),
+		fetch: guardedFetch,
 		clock,
 		log,
 		modules: options.modules ?? FIRST_PARTY_MODULES,
@@ -170,6 +172,7 @@ export async function createInstallServices(
 		components: componentSources,
 		formsOn: async (site) => (await modules.submissionsKeptBy(site)) !== null,
 		formToken: (site) => formTokens.issue(site.id),
+		moduleHosts: async (site) => (await modules.outsideHostsAt(site, "en")).map((found) => found.host),
 	});
 	return {
 		...ports,
@@ -263,6 +266,7 @@ export async function createInstallServices(
 		},
 		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
+		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,
 			clock,

@@ -1,3 +1,4 @@
+import { PLAYER_ORIGINS } from "./body/video.ts";
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
@@ -81,25 +82,71 @@ export type PageToRender = {
 	/** What `{{@form <key>}}` shows, in both templates: the Form, rendered (`renderForm`). Nothing when absent. */
 	form?: (formId: string) => string;
 	/**
-	 * Outside scripts the page needs (ADR 0023), such as a Form's CAPTCHA: addresses on other hosts,
-	 * loaded `async` after everything else in `<head>`. Asked once the page's templates have rendered,
-	 * so only what the page shows asks for one. Never in Edit mode (ADR 0022).
+	 * Outside scripts the page's Forms need (a Site's CAPTCHA), asked once the page's templates have
+	 * rendered, so only a page showing a Form loads one. They join `outsideScripts`: never in Edit mode.
 	 */
-	outsideScripts?: () => readonly string[];
+	formScripts?: () => readonly PageOutsideScript[];
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
-	 * The Site's own scripts the page runs (ADR 0023): the Site script, then the page's, as paths of
-	 * files on the Site's domain, loaded with `defer` after everything else in `<head>`. Never inline.
-	 * They run in Edit mode too (ADR 0022); Safe mode (#99) leaves them out.
+	 * The Site's Libraries (ADR 0023): copies WebCraft keeps of script packages, served from the Site's
+	 * domain, loaded with `defer` in their order before the Site's own scripts, each checked against its
+	 * integrity hash. They run in Edit mode too (ADR 0022), but not in Safe mode.
 	 */
-	scripts?: readonly string[];
+	libraries?: readonly PageLibrary[];
+	/**
+	 * The Site's own scripts the page runs (ADR 0023): the Site script, then the page's, as files on
+	 * the Site's domain, loaded with `defer` after the Libraries. Never inline. They run in Edit mode
+	 * too (ADR 0022), but not in Safe mode.
+	 */
+	scripts?: readonly PageScript[];
+	/**
+	 * The Site's outside scripts (ADR 0022): each loaded where Staff put it (the end of `<head>` or of
+	 * `<body>`), its parts in order. They never run in Edit mode: there each shows as a labelled
+	 * placeholder instead.
+	 */
+	outsideScripts?: readonly PageOutsideScript[];
 	/**
 	 * Renders the page for Edit mode (ADR 0022) rather than for visitors: never indexed, with WebCraft's
-	 * own files first in `<head>` and the editable regions tagged. The Site's own scripts (`scripts`)
-	 * run there too (ADR 0022); outside scripts never do, and Safe mode (#99) runs none.
+	 * own files first in `<head>` and the editable regions tagged. The Site's own scripts and Libraries
+	 * run there too (ADR 0022), unless the page is in Safe mode (and leaves them out); outside scripts
+	 * never do.
 	 */
 	editMode?: EditModePage;
+};
+
+/** One of the Site's Libraries on a page: its name, where the Site serves it and its integrity hash. */
+export type PageLibrary = { name: string; src: string; integrity: string };
+
+/** One of the Site's own scripts on a page: the Site script or the page's own, as a file on the Site. */
+export type PageScript = { kind: "site" | "page"; src: string };
+
+/** One script tag of an outside script: a file on another host, or one the Site serves. */
+export type PageScriptTag = {
+	src: string;
+	async?: boolean;
+	defer?: boolean;
+	module?: boolean;
+	/** Other attributes kept from a pasted snippet (`id`, `crossorigin`, `data-…`), in order. */
+	attributes?: readonly (readonly [string, string])[];
+};
+
+/** One of the Site's outside scripts on a page. */
+export type PageOutsideScript = {
+	id: string;
+	/** What Staff call it, shown on its placeholder in Edit mode. */
+	name: string;
+	placement: "head" | "bodyEnd";
+	/** Its Consent category: the Consent banner holds back what isn't accepted (later). */
+	consentCategory: string;
+	tags: readonly PageScriptTag[];
+};
+
+/** A rendered page, and what its Content Security Policy must allow for it to work. */
+export type RenderedPage = {
+	html: string;
+	/** Origins the page frames: the players of a body's videos, when it shows one. */
+	frames: readonly string[];
 };
 
 /**
@@ -150,6 +197,11 @@ export type EditModePage = {
  * script are files too.
  */
 export function renderPage(page: PageToRender): string {
+	return renderDocument(page).html;
+}
+
+/** Renders a whole page as `renderPage` does, and says what its policy must allow (`RenderedPage`). */
+export function renderDocument(page: PageToRender): RenderedPage {
 	const { site } = page;
 	const title = page.title.trim() ? `${page.title} · ${site.name}` : site.name;
 	const { editMode } = page;
@@ -195,7 +247,11 @@ export function renderPage(page: PageToRender): string {
 		editRegion: editMode && !editMode.code ? (value) => editMode.region(value, "site") : undefined,
 		codeSource: editMode?.code ? "site" : undefined,
 	});
-	return [
+	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
+	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead.
+	const outsideIn = (placement: PageOutsideScript["placement"]) =>
+		editMode ? [] : outside.filter((script) => script.placement === placement).flatMap(outsideTags);
+	const html = [
 		"<!doctype html>",
 		`<html lang="${escapeAttribute(site.language)}" dir="${site.direction}">`,
 		"<head>",
@@ -210,18 +266,50 @@ export function renderPage(page: PageToRender): string {
 		...headStyles(page.styles),
 		...(toggles > 0 ? [`<script src="${THEME_TOGGLE_SCRIPT.href}"></script>`] : []),
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
-		...(page.scripts ?? []).map((src) => `<script src="${escapeAttribute(src)}" defer></script>`),
-		...(editMode ? [] : (page.outsideScripts?.() ?? [])).map(
-			(src) => `<script src="${escapeAttribute(src)}" async defer></script>`,
-		),
+		...(page.libraries ?? []).map((library) => {
+			const tag = editMode ? ` data-wc-library="${escapeAttribute(library.name)}"` : "";
+			return `<script src="${escapeAttribute(library.src)}" integrity="${escapeAttribute(library.integrity)}" defer${tag}></script>`;
+		}),
+		...(page.scripts ?? []).map((script) => {
+			const tag = editMode ? ` data-wc-script="${script.kind}"` : "";
+			return `<script src="${escapeAttribute(script.src)}" defer${tag}></script>`;
+		}),
+		...outsideIn("head"),
 		"</head>",
 		"<body>",
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
 		body,
+		...outsideIn("bodyEnd"),
+		...(editMode && outside.length > 0 ? [outsidePlaceholders(outside, words)] : []),
 		"</body>",
 		"</html>",
 		"",
 	].join("\n");
+	return { html, frames: shown.videos > 0 ? PLAYER_ORIGINS : [] };
+}
+
+/** An outside script's tags, as visitors' pages load them. */
+function outsideTags(script: PageOutsideScript): string[] {
+	return script.tags.map((tag) => {
+		let attributes = ` src="${escapeAttribute(tag.src)}"`;
+		if (tag.module) attributes += ' type="module"';
+		if (tag.async) attributes += " async";
+		if (tag.defer) attributes += " defer";
+		for (const [name, value] of tag.attributes ?? []) attributes += ` ${name}="${escapeAttribute(value)}"`;
+		return `<script${attributes}></script>`;
+	});
+}
+
+/**
+ * Where the Site's outside scripts would load, in Edit mode: a labelled placeholder for each, saying it
+ * doesn't run while editing (ADR 0022). Edit mode's own stylesheet shows them at the end of the page.
+ */
+function outsidePlaceholders(scripts: readonly PageOutsideScript[], words: PageWords): string {
+	const items = scripts.map(
+		(script) =>
+			`<li class="wc-outside-script" data-wc-outside-script="${escapeAttribute(script.id)}"><span class="wc-outside-script-name">${escapeText(script.name)}</span> <span class="wc-outside-script-note">${escapeText(words.notWhileEditing)}</span></li>`,
+	);
+	return `<aside class="wc-outside-scripts" aria-label="${escapeAttribute(words.outsideScripts)}"><ul>${items.join("")}</ul></aside>`;
 }
 
 /**
@@ -287,6 +375,10 @@ type PageWords = {
 	playVideo: string;
 	/** A video's player title when the video has none. */
 	video: string;
+	/** The name of the list of outside scripts' placeholders in Edit mode. */
+	outsideScripts: string;
+	/** What an outside script's placeholder says in Edit mode. */
+	notWhileEditing: string;
 };
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
@@ -298,6 +390,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Language",
 		playVideo: "Play video",
 		video: "Video",
+		outsideScripts: "Outside scripts",
+		notWhileEditing: "doesn't run while editing",
 	},
 	it: {
 		skipLink: "Vai al contenuto principale",
@@ -307,6 +401,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Lingua",
 		playVideo: "Riproduci il video",
 		video: "Video",
+		outsideScripts: "Script esterni",
+		notWhileEditing: "non viene eseguito durante la modifica",
 	},
 	fr: {
 		skipLink: "Aller au contenu principal",
@@ -316,6 +412,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Langue",
 		playVideo: "Lire la vidéo",
 		video: "Vidéo",
+		outsideScripts: "Scripts externes",
+		notWhileEditing: "ne s’exécute pas pendant la modification",
 	},
 	de: {
 		skipLink: "Zum Hauptinhalt springen",
@@ -325,6 +423,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Sprache",
 		playVideo: "Video abspielen",
 		video: "Video",
+		outsideScripts: "Externe Skripte",
+		notWhileEditing: "läuft nicht während der Bearbeitung",
 	},
 	es: {
 		skipLink: "Ir al contenido principal",
@@ -334,6 +434,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Idioma",
 		playVideo: "Reproducir el vídeo",
 		video: "Vídeo",
+		outsideScripts: "Scripts externos",
+		notWhileEditing: "no se ejecuta mientras se edita",
 	},
 	pt: {
 		skipLink: "Ir para o conteúdo principal",
@@ -343,6 +445,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Idioma",
 		playVideo: "Reproduzir o vídeo",
 		video: "Vídeo",
+		outsideScripts: "Scripts externos",
+		notWhileEditing: "não é executado durante a edição",
 	},
 	nl: {
 		skipLink: "Naar de hoofdinhoud",
@@ -352,6 +456,8 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		languages: "Taal",
 		playVideo: "Video afspelen",
 		video: "Video",
+		outsideScripts: "Externe scripts",
+		notWhileEditing: "wordt niet uitgevoerd tijdens het bewerken",
 	},
 };
 

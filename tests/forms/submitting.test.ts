@@ -7,6 +7,7 @@ import type forms from "@webcraft/module-forms";
 import { formIn, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -139,7 +140,8 @@ describe("the page shows the Form", () => {
 		// A hidden field is filled in as the Form is sent; the page holds nothing of it.
 		expect(page.html).not.toContain('name="campaign"');
 		expect(page.form().hidden).toMatchObject({ "wc-page": "/visit/contact", "wc-i": "1" });
-		expect(page.html).not.toMatch(/\sstyle=|<script(?![^>]*\ssrc=)/);
+		// Nothing inline, under the Site's policy (which lets forms post only to the Site).
+		await expectSafePage(await install.request(PAGE));
 	});
 
 	test("the page is cached, but every answer carries a token of its own", async () => {
@@ -207,6 +209,7 @@ describe("sending without JavaScript", () => {
 			{ key: "campaign", label: "Campaign", type: "hidden", value: "newsletter" },
 		]);
 
+		await expectSafePage(await install.request(`https://bakery.sites.test${sent.headers.get("location")}`));
 		const after = await visitor.open(`https://bakery.sites.test${sent.headers.get("location")}`);
 		expect(after.status).toBe(200);
 		expect(after.response.headers.get("cache-control")).toBe("no-store");
@@ -232,7 +235,7 @@ describe("sending without JavaScript", () => {
 
 		expect(answer.status).toBe(422);
 		expect(answer.headers.get("cache-control")).toBe("no-store");
-		const html = await answer.text();
+		const html = await expectSafePage(answer);
 		expect(html).toContain("<title>Error: Contact · Acme Bakery</title>");
 		expect(html).toContain(
 			'<div class="wc-form-errors" id="wc-form-1-errors" role="group" aria-labelledby="wc-form-1-errors-title" tabindex="-1" autofocus><h2 id="wc-form-1-errors-title">There is a problem</h2>',

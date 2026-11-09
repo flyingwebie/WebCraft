@@ -62,15 +62,14 @@ export async function formPost(
 		case "invalid": {
 			const options = { state: { formId, instance: answer.instance, state: answer.state } };
 			const rendered = await services.sitePages.render(host, answer.page, undefined, options);
-			const showsForm =
+			const page =
 				rendered?.kind === "page" &&
-				rendered.forms?.some((shown) => shown.formId === formId && shown.instance === answer.instance);
-			const html =
-				showsForm && rendered?.kind === "page"
-					? rendered.html
-					: (await services.sitePages.formPage(host, answer.page, formId, { state: { ...options.state, instance: 1 } }))
-							.html;
-			return formPage(422, html, addressHeaders);
+				rendered.forms?.some((shown) => shown.formId === formId && shown.instance === answer.instance)
+					? rendered
+					: await services.sitePages.formPage(host, answer.page, formId, {
+							state: { ...options.state, instance: 1 },
+						});
+			return formPage(422, page, addressHeaders);
 		}
 	}
 }
@@ -92,15 +91,20 @@ export async function sentPage(
 	if (!Number.isInteger(instance) || instance < 1 || instance > 1000) return null;
 	const answer = await services.sitePages.render(host, url.pathname, undefined, { sent: instance });
 	if (answer?.kind !== "page") return null;
-	return formPage(200, answer.html, addressHeaders);
+	return formPage(200, answer, addressHeaders);
 }
 
-/** A page answered for one visitor: never cached, never indexed. */
-function formPage(status: number, html: string, addressHeaders: Record<string, string>): Response {
-	return new Response(html, {
+/** A page answered for one visitor, with the Site's policy for it: never cached, never indexed. */
+function formPage(
+	status: number,
+	page: { html: string; headers: Record<string, string> },
+	addressHeaders: Record<string, string>,
+): Response {
+	return new Response(page.html, {
 		status,
 		headers: {
 			"content-type": "text/html; charset=utf-8",
+			...page.headers,
 			...NO_STORE,
 			"x-content-type-options": "nosniff",
 			"x-robots-tag": "noindex",

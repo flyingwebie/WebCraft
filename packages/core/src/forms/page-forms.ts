@@ -1,5 +1,5 @@
 import { formSettings } from "@webcraft/db/schema";
-import { type FormState, formWords, renderForm } from "@webcraft/renderer";
+import { type FormState, formWords, type PageOutsideScript, renderForm } from "@webcraft/renderer";
 
 import type { VisitorScope } from "../tenancy/data-layer.ts";
 import { siteForms } from "./forms.ts";
@@ -59,9 +59,14 @@ export async function pageForms(
 		/** Edit mode loads no outside script, so no CAPTCHA either. */
 		editMode: boolean;
 	},
-): Promise<{ render: (formId: string) => string; shown: ShownForm[]; outsideScripts: () => string[] }> {
+): Promise<{
+	render: (formId: string) => string;
+	shown: ShownForm[];
+	outsideScripts: () => PageOutsideScript[];
+	captchaHost: () => string | null;
+}> {
 	const shown: ShownForm[] = [];
-	if (!options.on) return { render: () => "", shown, outsideScripts: () => [] };
+	if (!options.on) return { render: () => "", shown, outsideScripts: () => [], captchaHost: () => null };
 	const catalogue = await siteForms(scope, options.which);
 	const captcha = options.editMode ? null : await siteCaptcha(scope);
 	const words = formWords(options.language);
@@ -90,6 +95,20 @@ export async function pageForms(
 						: null,
 			});
 		},
-		outsideScripts: () => (captcha && shown.length > 0 ? [captcha.scriptUrl] : []),
+		// The CAPTCHA's script is an outside script (ADR 0022): loaded only where a Form shows, never
+		// in Edit mode, and its host is allowed by the page's policy.
+		outsideScripts: () =>
+			captcha && shown.length > 0
+				? [
+						{
+							id: "form-captcha",
+							name: "CAPTCHA",
+							placement: "head",
+							consentCategory: "necessary",
+							tags: [{ src: captcha.scriptUrl, async: true, defer: true }],
+						},
+					]
+				: [],
+		captchaHost: () => (captcha && shown.length > 0 ? new URL(captcha.scriptUrl).hostname : null),
 	};
 }

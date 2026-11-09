@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -63,7 +64,7 @@ async function publishedEntry(site: TestSite, title: string, change: { frenchSlu
 }
 
 async function headerAt(site: TestSite, path: string): Promise<string> {
-	const html = await (await install.request(`${site.origin}${path}`)).text();
+	const html = await expectSafePage(await install.request(`${site.origin}${path}`));
 	return /<header>(.*?)<\/header>/.exec(html)?.[1] ?? "";
 }
 

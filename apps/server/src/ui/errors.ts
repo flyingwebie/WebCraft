@@ -60,6 +60,8 @@ export function errorMessage(error: unknown): MessageKey {
 		case "FORM_KEY_TAKEN":
 		case "FORM_IN_USE":
 		case "CAPTCHA_INVALID":
+		case "LIBRARY_NOT_FOUND":
+		case "OUTSIDE_SCRIPT_NOT_FOUND":
 			return `errors.${code}`;
 		case "DOMAIN_INVALID":
 			return (data as { reason?: unknown } | undefined)?.reason === "install"

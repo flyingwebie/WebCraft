@@ -14,7 +14,7 @@ import {
 	type PageToRender,
 	type PlacementRenderer,
 	placementsIn,
-	renderPage,
+	renderDocument,
 	type TemplateValue,
 	valuePathsOf,
 } from "@webcraft/renderer";
@@ -69,6 +69,11 @@ import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
+import { siteAllowedHosts } from "../site-scripts/csp.ts";
+import { type LibraryFile, libraryFile, pageLibraries } from "../site-scripts/libraries.ts";
+import { outsideScriptCode, pageOutsideScripts } from "../site-scripts/outside-scripts.ts";
+import { type CspMode, editModePolicy, isCspMode, pagePolicyHeaders, readHost } from "../site-scripts/policy.ts";
+import { retiredScript } from "../site-scripts/retired.ts";
 import type { DataLayer, Site, SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
 
@@ -100,6 +105,8 @@ export type SiteHost = {
 	addresses: SiteAddresses;
 	/** Whether the Site sends a first visit to the home page on to the browser's language (ADR 0010). */
 	browserLanguageRedirect: boolean;
+	/** How the Site's Content Security Policy applies (ADR 0023). */
+	cspMode: CspMode;
 	/**
 	 * The Site's page cache generation: a page rendered now stays valid until a publish raises it.
 	 * Read before the page, so a page is never kept under a newer generation than its content.
@@ -110,8 +117,12 @@ export type SiteHost = {
 /** A language a visitor chose with the Language switcher, and the page to go on to. */
 export type LanguageChoice = { language: string; location: string };
 
-/** A rendered page of a Site, with the Forms it shows (numbered as their ids are). */
-export type SitePage = { html: string; forms?: readonly ShownForm[] };
+/**
+ * A rendered page of a Site, with the security headers it is sent with (the Site's Content Security
+ * Policy as the page needs it, or Edit mode's own) and the Forms it shows (numbered as their ids
+ * are). Pages are cached with their headers, so a change to the policy clears the page cache.
+ */
+export type SitePage = { html: string; headers: Record<string, string>; forms?: readonly ShownForm[] };
 
 /**
  * What a path on a Site answers: its page, or a permanent redirect (the home page's own path goes to
@@ -149,6 +160,11 @@ export type PageEditing = {
 	scope: SiteScope;
 	head: Omit<EditModePage, "region" | "code">;
 	code?: boolean;
+	/**
+	 * Safe mode (ADR 0022): the page runs none of the Site's own scripts (its Libraries, Site script
+	 * and page script), so a broken one can't lock anyone out of editing.
+	 */
+	safe?: boolean;
 	/** In Code mode, unsaved changes to show in place of the Drafts, as Staff type them. */
 	preview?: CodePreview;
 };
@@ -218,8 +234,13 @@ export type SitePages = {
 	 * one, or one a publish replaced lately. Null for any other name.
 	 */
 	stylesheet(host: SiteHost, name: string): Promise<string | null>;
-	/** A published script of the Site (its Site script, a page script) by the name it is served under (`/_wc/js/<name>`). */
+	/**
+	 * A script of the Site by the name it is served under (`/_wc/js/<name>`): its published Site script
+	 * or a page script, an outside script's code, or one of them a change replaced in the last 30 days.
+	 */
 	script(host: SiteHost, name: string): Promise<string | null>;
+	/** One of the Site's Library files by the name it is served under (`/_wc/lib/<name>`), or one replaced in the last 30 days. */
+	libraryFile(host: SiteHost, name: string): Promise<LibraryFile | null>;
 };
 
 /** How many Sites' styles a web process keeps built at most. */
@@ -236,8 +257,11 @@ export function createSitePages(options: {
 	formsOn?: (site: Site) => Promise<boolean>;
 	/** A time-trap token for a Form on a page of the Site handed out now. */
 	formToken?: (site: Site) => Promise<string>;
+	/** The outside hosts of the Modules running on a Site, which its policy allows. */
+	moduleHosts?: (site: Site) => Promise<string[]>;
 }): SitePages {
 	const { database, config, data, storage } = options;
+	const moduleHosts = options.moduleHosts ?? (async () => []);
 	const sources = options.components ?? NO_MODULE_COMPONENTS;
 	const forms = {
 		on: options.formsOn ?? (async () => false),
@@ -306,7 +330,7 @@ export function createSitePages(options: {
 		},
 
 		async render(host, pathname, editing, formOptions) {
-			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms });
+			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms, moduleHosts });
 			const located = await locate(view.scope, host, pathname, editing !== undefined);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
@@ -341,7 +365,7 @@ export function createSitePages(options: {
 		},
 
 		async notFound(host, pathname, editing, formOptions) {
-			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms });
+			const view = viewFor(data, host, editing, sources, { pathname, options: formOptions, forms, moduleHosts });
 			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
@@ -354,7 +378,7 @@ export function createSitePages(options: {
 		},
 
 		async formPage(host, pathname, formId, formOptions) {
-			const view = viewFor(data, host, undefined, sources, { pathname, options: formOptions, forms });
+			const view = viewFor(data, host, undefined, sources, { pathname, options: formOptions, forms, moduleHosts });
 			const place = await notFoundPlace(view.scope, host, pathname);
 			const styles = await viewStyles(view);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
@@ -404,8 +428,17 @@ export function createSitePages(options: {
 			return stylesheetFile(data.visitors(host.site), await stylesOf(host), name);
 		},
 
-		script(host, name) {
-			return scriptFile(data.visitors(host.site), name, "published");
+		async script(host, name) {
+			const scope = data.visitors(host.site);
+			const published = await scriptFile(scope, name, "published");
+			if (published !== null) return published;
+			const hash = /^([0-9a-f]{16})\.js$/.exec(name)?.[1];
+			if (!hash) return null;
+			return (await outsideScriptCode(scope, hash)) ?? (await retiredScript(scope, hash));
+		},
+
+		libraryFile(host, name) {
+			return libraryFile(data.visitors(host.site), storage, name);
 		},
 	};
 }
@@ -421,6 +454,7 @@ function hostOf(
 		defaultLanguage: row.defaultLanguage,
 		// Only where `/` is the Default language's home page: never on a language's own domain.
 		browserLanguageRedirect: how.address !== "language" && row.browserLanguageRedirect,
+		cspMode: isCspMode(row.cspMode) ? row.cspMode : "strict",
 		cacheGeneration: row.pageCacheGeneration,
 	};
 }
@@ -690,6 +724,8 @@ type View = {
 	forms?: PageFormsOptions;
 	/** Whether Forms run on the Site, and their time-trap tokens. */
 	formsOf: FormsOfSite;
+	/** The outside hosts of the Modules running on the Site. */
+	moduleHosts: (site: Site) => Promise<string[]>;
 };
 
 /** Whether Forms run on a Site, and a time-trap token for a page handed out now. */
@@ -700,7 +736,12 @@ function viewFor(
 	host: SiteHost,
 	editing: PageEditing | undefined,
 	sources: ComponentSources,
-	request: { pathname: string; options?: PageFormsOptions; forms: FormsOfSite },
+	request: {
+		pathname: string;
+		options?: PageFormsOptions;
+		forms: FormsOfSite;
+		moduleHosts: (site: Site) => Promise<string[]>;
+	},
 ): View {
 	const segments = pathSegments(request.pathname);
 	const common = {
@@ -709,6 +750,7 @@ function viewFor(
 		page: segments ? canonicalPath(segments) : "/",
 		forms: request.options,
 		formsOf: request.forms,
+		moduleHosts: request.moduleHosts,
 	};
 	return editing
 		? {
@@ -960,7 +1002,9 @@ async function renderSitePage(
 	});
 	// A page sent back with a Form's errors says so first in its title.
 	const invalid = view.forms?.state?.state.kind === "invalid";
-	const html = renderPage({
+	// Safe mode runs none of the Site's own scripts; outside scripts never run in Edit mode at all.
+	const ownScripts = !editing?.safe;
+	const rendered = renderDocument({
 		...page,
 		title: invalid ? `${formWords(language.code).errorPrefix} ${page.title}` : page.title,
 		site: { name: host.site.name, language: language.code, direction: language.direction },
@@ -969,7 +1013,9 @@ async function renderSitePage(
 		className: styles.className,
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
-		scripts: await pageScripts(scope, entry?.id ?? null, view.structure),
+		libraries: ownScripts ? await pageLibraries(scope) : [],
+		scripts: ownScripts ? await pageScripts(scope, entry?.id ?? null, view.structure) : [],
+		outsideScripts: await pageOutsideScripts(scope),
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(entry, storedFields(globalsRow?.fields)),
@@ -977,9 +1023,33 @@ async function renderSitePage(
 		},
 		component: placed.render,
 		form: forms.render,
-		outsideScripts: forms.outsideScripts,
+		formScripts: forms.outsideScripts,
 	});
-	return { html, forms: forms.shown };
+	const hosts = await policyHosts(view, forms.captchaHost);
+	const headers = editing
+		? { "content-security-policy": editModePolicy(hosts) }
+		: pagePolicyHeaders({ mode: host.cspMode, hosts, frames: rendered.frames });
+	return { html: rendered.html, headers, forms: forms.shown };
+}
+
+/**
+ * The hosts a page's policy allows: the Site's allowed hosts, its running Modules' outside hosts, and
+ * its CAPTCHA provider's host when the page shows a Form (its widget's script, frame and requests).
+ */
+async function policyHosts(view: View, captchaHost: () => string | null): Promise<string[]> {
+	const captcha = captchaHost();
+	const hosts = [
+		...(await siteAllowedHosts(view.scope)),
+		...(await view.moduleHosts(view.host.site)),
+		...(captcha ? [captcha] : []),
+	];
+	return hosts.flatMap((host) => {
+		try {
+			return [readHost(host)];
+		} catch {
+			return [];
+		}
+	});
 }
 
 /**

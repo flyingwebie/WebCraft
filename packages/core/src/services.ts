@@ -57,6 +57,7 @@ import type { RateLimits } from "./rate-limits.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { SitePages } from "./site-pages/index.ts";
+import type { SiteScripts } from "./site-scripts/index.ts";
 import type {
 	Access,
 	DataLayer,
@@ -202,12 +203,12 @@ export type InstallServices = InstallPorts & {
 		/** Saves the Site template's Draft from Template markup, as `saveEntryTemplateMarkup` does. */
 		saveSiteTemplateMarkup(scope: SiteScope, markup: string, base?: SaveBase): Promise<SavedTemplateMarkup>;
 	};
+	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
+	domains: Domains;
 	/**
 	 * A Site's languages (Structure): the Default language and the others, their names, directions and
 	 * domains. Anyone who sees the Site reads them; changing them takes `structure.edit`.
 	 */
-	/** A Site's domains: Primary, Redirect and language domains, their verification and the Domain check. */
-	domains: Domains;
 	languages: {
 		get(scope: SiteScope): Promise<SiteLanguages>;
 		add(scope: SiteScope, input: NewLanguage): Promise<SiteLanguages>;
@@ -318,6 +319,11 @@ export type InstallServices = InstallPorts & {
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
+	/**
+	 * Site script safety (ADRs 0022, 0023): each Site's Content Security Policy and allowed hosts, its
+	 * outside scripts and its Libraries. Open the Site with `structure.edit`.
+	 */
+	siteScripts: SiteScripts;
 	/**
 	 * Edit mode (ADR 0022): "Edit on site" links, and the Edit mode sessions they start on a Site's
 	 * own domain, each checked again with every request.

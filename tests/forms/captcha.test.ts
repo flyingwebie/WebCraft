@@ -8,6 +8,7 @@ import { openEditMode } from "../harness/edit-mode.ts";
 import { formIn, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { expectSafePage, policyOf } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -106,6 +107,13 @@ describe("setting it up", () => {
 			'<div class="challenge-widget" id="wc-form-1-captcha" data-sitekey="site-key-1" data-lang="en"></div>',
 		);
 		expect(page.html).toContain('<script src="https://challenges.example/widget.js" async defer></script>');
+		// Its script, widget and requests come from the provider's host, which the page's policy allows.
+		const response = await install.request(PAGE);
+		const policy = policyOf(response);
+		await expectSafePage(response);
+		for (const directive of ["script-src", "frame-src", "connect-src"]) {
+			expect(policy.get(directive)).toContain("https://challenges.example");
+		}
 	});
 });
 

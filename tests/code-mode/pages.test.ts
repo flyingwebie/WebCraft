@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { codeTagsIn, headOf, mainOf, openCodeMode, siteStylesheetIn } from "../harness/code-mode.ts";
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -89,7 +90,7 @@ describe("a page in Code mode", () => {
 
 	beforeAll(async () => {
 		coding = await openCodeMode(install, staff, siteId, path);
-		html = await (await coding.page(path)).text();
+		html = await expectSafePage(await coding.page(path), "editMode");
 	});
 
 	test("shows the Drafts of its Templates and of the Components they place", () => {

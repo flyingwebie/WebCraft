@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -79,7 +80,7 @@ async function article(body: unknown, fields: Record<string, unknown> = {}): Pro
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
 	const response = await install.request(onSite(`/articles/${slug}`));
 	expect(response.status).toBe(200);
-	return response.text();
+	return expectSafePage(response);
 }
 
 function mainOf(html: string): string {

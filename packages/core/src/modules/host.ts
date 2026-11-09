@@ -154,6 +154,14 @@ export type ModuleHost = {
 	pages(scope: PlaceScope, language: string): Promise<ModulePageView[]>;
 	/** Runs one of a Module's procedures for a person, where the Module runs and they hold its Permission. */
 	callProcedure(call: ProcedureCall): Promise<unknown>;
+	/**
+	 * The outside hosts the Site-level Modules running on a Site declare, with each Module's id and name
+	 * (in `language`): the Site's Content Security Policy allows them there, and nowhere else.
+	 */
+	outsideHostsAt(
+		site: { id: string; workspaceId: string },
+		language: string,
+	): Promise<{ host: string; moduleId: string; module: string }[]>;
 	/** Answers a request under `/_wc/m/<prefix>/` on a Site, or null when no running Module answers it. */
 	answerSiteRoute(site: Site, request: Request): Promise<Response | null>;
 	/** Queues the event an Audit log entry stands for, for each Module that reacts to it. Never throws. */
@@ -298,11 +306,12 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 	};
 
 	/**
-	 * Pages show a Module's Components, and Forms (where it keeps their Submissions), only where it
-	 * runs: a change to where it runs clears the pages.
+	 * Pages show a Module's Components and Forms (where it keeps their Submissions), and allow its
+	 * outside hosts, only where it runs: a change to where it runs clears the pages.
 	 */
 	const addsComponents = (module: LoadedModule) =>
-		module.runnable && (module.components.length > 0 || module.receiver !== null);
+		module.runnable &&
+		(module.components.length > 0 || module.receiver !== null || module.manifest.outsideHosts.length > 0);
 
 	/** Every place where a Module runs now: each Site (or Workspace) where it is on. */
 	const placesOf = async (module: RunnableModule): Promise<QueuedPlace[]> => {
@@ -526,6 +535,17 @@ export function createModuleHost(options: ModuleHostOptions): ModuleHost {
 				log.warn("A Module procedure failed", { moduleId: module.id, procedure: call.procedure, error });
 				throw new ModuleFailedError();
 			}
+		},
+
+		async outsideHostsAt(site, language) {
+			const found: { host: string; moduleId: string; module: string }[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.level !== "site" || module.manifest.outsideHosts.length === 0) continue;
+				if (!(await runsOnSite(site, module))) continue;
+				const name = words(module, module.manifest.name, language) || module.id;
+				for (const host of module.manifest.outsideHosts) found.push({ host, moduleId: module.id, module: name });
+			}
+			return found;
 		},
 
 		async answerSiteRoute(site, request) {

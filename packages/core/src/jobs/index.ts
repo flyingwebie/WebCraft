@@ -19,6 +19,7 @@ import {
 } from "../modules/jobs.ts";
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
+import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
 import type { JobDefinition } from "./define.ts";
 import { samplePing } from "./sample-ping.ts";
 import type { JobSchedule } from "./schedules.ts";
@@ -39,6 +40,7 @@ export const coreJobs = [
 	moduleHourlyJobs,
 	moduleDailyJobs,
 	moduleLogPurge,
+	siteFilesPurge,
 	domainsVerifyDue,
 	domainsVerify,
 	domainsCheckAll,
@@ -52,6 +54,7 @@ export const coreSchedules = [
 	moduleLogPurgeSchedule,
 	moduleHourlyJobsSchedule,
 	moduleDailyJobsSchedule,
+	siteFilesPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
 ] as readonly JobSchedule<unknown>[];

@@ -1,5 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import type { DnsRecord, Edge, SiteDomain, SiteDomainList } from "@webcraft/core";
+import { wwwPartnerOf } from "@webcraft/core/domain-partner";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
@@ -560,11 +561,11 @@ function ChangePrimary({
 	);
 }
 
-/** A bare domain and its `www` address, offered together: the other one of the pair. */
+/** A bare domain and its `www` address, offered together: the other one of the pair, as typed so far. */
 function partnerOf(name: string): string | null {
 	const typed = name.trim().toLowerCase().replace(/\.$/, "");
 	if (!/^[^\s/:]+\.[^\s/:]+$/.test(typed)) return null;
-	return typed.startsWith("www.") ? typed.slice(4) : `www.${typed}`;
+	return wwwPartnerOf(typed);
 }
 
 /**
