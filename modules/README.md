@@ -8,5 +8,5 @@ depends on `@webcraft/module-sdk` and its own outside packages only; Biome and
 `tests/modules/boundary.test.ts` refuse anything else. Add its default export (a `defineModule(…)`)
 to `FIRST_PARTY_MODULES` in `packages/core/src/modules/first-party.ts`.
 
-See `docs/development.md` › "Modules" for the SDK, and `tests/modules/sample/` for a Module that
-uses every extension point.
+See `docs/development.md` › "Modules" for the SDK, `tests/modules/sample/` for a Module that uses
+every extension point up to SDK 1.3, and `modules/site-analytics/` for SDK 1.4's.
