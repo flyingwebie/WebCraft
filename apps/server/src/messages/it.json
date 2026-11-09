@@ -1160,7 +1160,8 @@
 			"row": "Questa riga non può essere salvata. Rimuovila e aggiungila di nuovo.",
 			"invalid": "Questo valore non può essere salvato. Controlla cosa hai inserito.",
 			"elsewhere": "Un altro valore",
-			"inRow": "{label}, riga {row}"
+			"inRow": "{label}, riga {row}",
+			"inBlock": "{label}, blocco {block}"
 		},
 		"requiredToPublish": "(necessario per pubblicare)",
 		"shared": "Condiviso",

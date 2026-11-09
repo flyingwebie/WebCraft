@@ -65,7 +65,7 @@ export function InlineEditor({
 			contentEditable
 			suppressContentEditableWarning
 			spellCheck
-			className={`focus-visible:ring-ring/50 data-[placeholder]:before:text-muted-foreground [&_a]:text-primary [&_code]:bg-muted relative min-h-[1.5em] rounded-sm whitespace-pre-wrap outline-none focus-visible:ring-3 data-[placeholder]:before:pointer-events-none data-[placeholder]:before:absolute data-[placeholder]:before:content-[attr(data-placeholder)] [&_a]:underline [&_code]:rounded-sm [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.9em] ${className ?? ""}`}
+			className={`focus-visible:ring-ring/50 data-[placeholder]:before:text-muted-foreground [&_code]:bg-muted relative min-h-[1.5em] rounded-sm whitespace-pre-wrap outline-none focus-visible:ring-3 data-[placeholder]:before:pointer-events-none data-[placeholder]:before:absolute data-[placeholder]:before:content-[attr(data-placeholder)] [&_a]:underline [&_code]:rounded-sm [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.9em] ${className ?? ""}`}
 			// biome-ignore lint/security/noDangerouslySetInnerHtml: the renderer's own HTML of the runs: escaped text and a few marks.
 			dangerouslySetInnerHTML={{ __html: initial }}
 			onInput={(event) => {

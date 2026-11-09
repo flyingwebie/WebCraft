@@ -1160,7 +1160,8 @@
 			"row": "This row can't be saved. Remove it and add it again.",
 			"invalid": "This value can't be saved. Check what you entered.",
 			"elsewhere": "Another value",
-			"inRow": "{label}, row {row}"
+			"inRow": "{label}, row {row}",
+			"inBlock": "{label}, block {block}"
 		},
 		"requiredToPublish": "(needed to publish)",
 		"shared": "Shared",

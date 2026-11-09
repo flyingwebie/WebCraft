@@ -379,6 +379,16 @@ export function BodyEditor({
 			pending.current = { key, offset: caretOffset(element) ?? "end" };
 			return true;
 		}
+		if (
+			mod &&
+			!event.shiftKey &&
+			!event.altKey &&
+			(event.key.toLowerCase() === "b" || event.key.toLowerCase() === "i")
+		) {
+			event.preventDefault();
+			format(event.key.toLowerCase() === "b" ? "bold" : "italic");
+			return true;
+		}
 		if (mod && event.shiftKey && event.key.toLowerCase() === "x") {
 			event.preventDefault();
 			format("strikeThrough");
