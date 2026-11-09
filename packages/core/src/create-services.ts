@@ -74,8 +74,9 @@ import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
-import { createInstallSettings } from "./install-settings.ts";
+import { createInstallSettings, MEDIA_MAX_FILE_BYTES } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
+import { MEDIA_IMPORT_TIMEOUT_MS } from "./media/import.ts";
 import { createInstallStorage } from "./media/install-storage.ts";
 import { createMediaLibrary } from "./media/library.ts";
 import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
@@ -109,6 +110,8 @@ import { createWebhooks } from "./webhooks/index.ts";
 export type CreateServicesOptions = {
 	/** The Modules this Install loads: the first-party Modules of this build unless given. */
 	modules?: readonly ModuleDefinition[];
+	/** How long Import from URL waits for a file; 30 seconds unless given (the test harness waits less). */
+	mediaImportTimeoutMs?: number;
 	/**
 	 * Refuse a Master key that isn't the Install's current one, as web and worker do when they
 	 * start (default). Only code that must not read the database yet turns this off.
@@ -345,7 +348,21 @@ export async function createInstallServices(
 		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
 		email,
 		storage,
-		media: createMediaLibrary({ storage, jobs: ports.jobs }),
+		media: createMediaLibrary({
+			storage,
+			jobs: ports.jobs,
+			settings,
+			email,
+			log,
+			clock,
+			ai: ports.ai,
+			fetch: createGuardedFetch({
+				http: ports.http,
+				dns: ports.dns,
+				ceilings: { maxBytes: MEDIA_MAX_FILE_BYTES.max, timeoutMs: MEDIA_IMPORT_TIMEOUT_MS },
+			}),
+			importTimeoutMs: options.mediaImportTimeoutMs,
+		}),
 		modules,
 	};
 }

@@ -203,12 +203,7 @@ describe("other files", () => {
 		expect(back).toEqual(bytes);
 	});
 
-	test("SVG files are refused for now, and so is anything that isn't what it claims to be", async () => {
-		const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
-		await expect(
-			editor.api.media.upload({ siteId, file: upload(svg, "logo.svg", "image/svg+xml") }),
-		).rejects.toMatchObject({ code: "MEDIA_TYPE_REFUSED", status: 400, data: { reason: "svg" } });
-
+	test("anything that isn't what it claims to be is refused (SVGs go to the worker: tests/media/svg.test.ts)", async () => {
 		const page = "<!doctype html><html><body><script>steal()</script></body></html>";
 		await expect(
 			editor.api.media.upload({ siteId, file: upload(page, "photo.jpg", "image/jpeg") }),

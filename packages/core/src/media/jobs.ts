@@ -1,14 +1,16 @@
 import { media, mediaFiles } from "@webcraft/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { clearPageCache } from "../content/page-cache.ts";
 import { defineJob, type JobContext } from "../jobs/define.ts";
 import type { BackgroundScope } from "../tenancy/data-layer.ts";
-import { type ImageInput, ImageUnreadableError, VARIANT_FORMATS, variantWidths } from "./images.ts";
+import { type ImageInput, ImageUnreadableError, SvgRefusedError, VARIANT_FORMATS, variantWidths } from "./images.ts";
+import type { MediaFailure } from "./library.ts";
 import { contentHash, servedName } from "./names.ts";
 import { fileFormat } from "./sniff.ts";
 import { type StorageKind, siteFolder } from "./storage.ts";
+import { removeUnusedFiles, retireFiles } from "./trash.ts";
 
 const payload = z.object({ siteId: z.uuid(), mediaId: z.uuid() });
 
@@ -40,30 +42,39 @@ async function cleanUpload(context: JobContext, siteId: string, mediaId: string)
 	const scope = await data.background(siteId);
 	const row = scope ? await scope.first(media, eq(media.id, mediaId)) : undefined;
 	if (!scope || !row) return;
-	if (row.status === "ready") {
+	// The file waiting to be cleaned: a new upload, or one meant to replace the item's file.
+	const upload = await scope.first(mediaFiles, and(eq(mediaFiles.mediaId, mediaId), eq(mediaFiles.role, "upload")));
+	if (!upload) {
 		// Done before, perhaps by a run that stopped before queueing the variants.
-		if (!(await hasVariants(scope, mediaId))) await jobs.send(mediaVariants, { siteId, mediaId });
+		if (row.status === "ready" && !(await hasVariants(scope, mediaId)))
+			await jobs.send(mediaVariants, { siteId, mediaId });
 		return;
 	}
-	if (row.status !== "processing") return;
-	const upload = await scope.first(mediaFiles, and(eq(mediaFiles.mediaId, mediaId), eq(mediaFiles.role, "upload")));
-	if (!upload) return;
 
 	const source = await storage.holding(upload.storage as StorageKind);
 	const bytes = await source.read(upload.key);
 	if (!bytes) {
 		log.error("An upload to clean is missing from storage", { siteId, mediaId, key: upload.key });
-		await markFailed(scope, mediaId);
+		await refuse(scope, row, upload, { reason: "unreadable" });
 		return;
 	}
-	let prepared: Awaited<ReturnType<typeof images.prepare>>;
+	let prepared: { data: Uint8Array; format: string; width: number | null; height: number | null };
 	try {
-		prepared = await images.prepare(bytes, upload.format as ImageInput);
+		// An SVG is cleaned as it is, never resized; a photo is stripped, turned upright and converted.
+		prepared =
+			upload.format === "svg"
+				? { ...(await images.cleanSvg(bytes)), format: "svg" }
+				: await images.prepare(bytes, upload.format as ImageInput);
 	} catch (error) {
-		if (!(error instanceof ImageUnreadableError)) throw error;
-		log.warn("An uploaded image can't be read", { siteId, mediaId, error });
-		await markFailed(scope, mediaId);
-		await scope.delete(mediaFiles, eq(mediaFiles.id, upload.id));
+		const failure: MediaFailure | null =
+			error instanceof ImageUnreadableError
+				? { reason: "unreadable" }
+				: error instanceof SvgRefusedError
+					? { reason: error.reason, ...(error.found.length > 0 ? { found: [...error.found] } : {}) }
+					: null;
+		if (!failure) throw error;
+		log.warn("An uploaded image was refused", { siteId, mediaId, error });
+		await refuse(scope, row, upload, failure);
 		await source.delete(upload.key);
 		return;
 	}
@@ -74,8 +85,12 @@ async function cleanUpload(context: JobContext, siteId: string, mediaId: string)
 	const key = `${siteFolder(scope.site)}/media/${name}`;
 	const target = await storage.current();
 	await target.put(key, prepared.data, format.contentType);
-	await scope.transaction(async (tx) => {
+	const swapped = await scope.transaction(async (tx) => {
+		// Another run (or a newer replacement) took this upload already: leave it to that one.
+		if ((await tx.delete(mediaFiles, eq(mediaFiles.id, upload.id))) === 0) return false;
 		const now = tx.now();
+		// A replacement: the item's current files stay served for 30 days, for pages loaded before.
+		await retireFiles(tx, mediaId);
 		await tx.insert(mediaFiles, {
 			mediaId,
 			role: "original",
@@ -89,7 +104,6 @@ async function cleanUpload(context: JobContext, siteId: string, mediaId: string)
 			key,
 			createdAt: now,
 		});
-		await tx.delete(mediaFiles, eq(mediaFiles.id, upload.id));
 		await tx.update(
 			media,
 			{
@@ -98,24 +112,59 @@ async function cleanUpload(context: JobContext, siteId: string, mediaId: string)
 				sizeBytes: prepared.data.length,
 				width: prepared.width,
 				height: prepared.height,
+				failure: null,
 				updatedAt: now,
 			},
 			eq(media.id, mediaId),
 		);
 		// Pages that show the image get it at once.
 		await clearPageCache(tx);
+		return true;
 	});
+	if (!swapped) {
+		await removeUnusedFiles(scope, storage, [{ storage: target.kind, key }]);
+		return;
+	}
 	await source.delete(upload.key);
 	log.info("Cleaned an uploaded image", { siteId, mediaId, width: prepared.width, height: prepared.height });
-	await jobs.send(mediaVariants, { siteId, mediaId });
+	// An SVG is drawn at any size: it has no widths to make.
+	if (format.format !== "svg") await jobs.send(mediaVariants, { siteId, mediaId });
+}
+
+/**
+ * The worker refused a file. A new item fails and is never served; an item whose replacement was
+ * refused keeps its own file, and says why the new one wasn't taken.
+ */
+async function refuse(
+	scope: BackgroundScope,
+	row: typeof media.$inferSelect,
+	upload: typeof mediaFiles.$inferSelect,
+	failure: MediaFailure,
+): Promise<void> {
+	await scope.transaction(async (tx) => {
+		await tx.delete(mediaFiles, eq(mediaFiles.id, upload.id));
+		const replacing = row.status === "ready";
+		await tx.update(
+			media,
+			{
+				...(replacing ? {} : { status: "failed" }),
+				failure: replacing ? { ...failure, replacement: true } : failure,
+				updatedAt: tx.now(),
+			},
+			eq(media.id, row.id),
+		);
+	});
 }
 
 async function makeVariants(context: JobContext, siteId: string, mediaId: string): Promise<void> {
 	const { data, storage, images, log } = context;
 	const scope = await data.background(siteId);
 	if (!scope) return;
-	const original = await scope.first(mediaFiles, and(eq(mediaFiles.mediaId, mediaId), eq(mediaFiles.role, "original")));
-	if (!original || original.width === null || (await hasVariants(scope, mediaId))) return;
+	const original = await scope.first(
+		mediaFiles,
+		and(eq(mediaFiles.mediaId, mediaId), eq(mediaFiles.role, "original"), isNull(mediaFiles.retiredAt)),
+	);
+	if (!original || original.width === null || original.format === "svg" || (await hasVariants(scope, mediaId))) return;
 	const widths = variantWidths(original.width);
 	if (widths.length === 0) return;
 
@@ -162,9 +211,6 @@ async function makeVariants(context: JobContext, siteId: string, mediaId: string
 }
 
 async function hasVariants(scope: BackgroundScope, mediaId: string): Promise<boolean> {
-	return (await scope.count(mediaFiles, and(eq(mediaFiles.mediaId, mediaId), eq(mediaFiles.role, "variant")))) > 0;
-}
-
-async function markFailed(scope: BackgroundScope, mediaId: string): Promise<void> {
-	await scope.update(media, { status: "failed", updatedAt: scope.now() }, eq(media.id, mediaId));
+	const current = and(eq(mediaFiles.mediaId, mediaId), eq(mediaFiles.role, "variant"), isNull(mediaFiles.retiredAt));
+	return (await scope.count(mediaFiles, current)) > 0;
 }

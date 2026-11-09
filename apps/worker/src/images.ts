@@ -14,6 +14,8 @@ import {
 import decodeHeic from "heic-decode";
 import sharp, { type Sharp } from "sharp";
 
+import { cleanSvg } from "./svg.ts";
+
 /** The largest image read, in pixels (sharp's own default): a guard against decompression bombs. */
 const MAX_INPUT_PIXELS = 268_402_689;
 
@@ -42,6 +44,9 @@ export function createImageProcessor(options: ImageProcessorOptions = {}): Image
 			// dropped. `autoOrient` turns the pixels upright first, so the orientation tag isn't needed.
 			const image = encode(source.autoOrient().toColourspace("srgb"), outputFormat, ORIGINAL_SETTINGS[outputFormat]);
 			return finish(image, outputFormat);
+		},
+		async cleanSvg(input) {
+			return cleanSvg(input);
 		},
 		async variant(original, width, format) {
 			const image = encode(

@@ -41,8 +41,7 @@
 		"MEDIA_FOLDER_NOT_FOUND": "There is no such folder in this Media library.",
 		"MEDIA_FOLDER_TAKEN": "Another folder already has this name.",
 		"MEDIA_TYPE_REFUSED": "This file isn't an image, document, video or audio file the Media library takes.",
-		"MEDIA_TYPE_REFUSED_SVG": "SVG files can't be uploaded yet.",
-		"MEDIA_TOO_LARGE": "Files can be at most 50 MB.",
+		"MEDIA_TOO_LARGE": "The file is larger than the largest file this Install takes.",
 		"MEDIA_INVALID": "This change can't be saved. Check what you entered.",
 		"STORAGE_UNREACHABLE": "WebCraft couldn't write, read and remove a file in this bucket. Check the endpoint, region, bucket and keys.",
 		"MODULE_NOT_FOUND": "There is no such Module, or it isn't on here.",
@@ -106,7 +105,21 @@
 		"LOOP_NOT_FOUND": "There is no such Loop on this Site.",
 		"LOOP_INVALID": "The Loop can't be saved. Check the settings marked.",
 		"LOOP_INCOMPLETE": "Fill in the Loop items' values marked before publishing.",
-		"LOOP_NAME_TAKEN": "Another Loop of this Site already has this name."
+		"LOOP_NAME_TAKEN": "Another Loop of this Site already has this name.",
+		"MEDIA_QUOTA_FULL": "This Workspace's Media storage is full. Delete files you no longer need, or ask Staff for a larger quota.",
+		"MEDIA_IN_TRASH": "This file is in the Trash. Restore it first.",
+		"MEDIA_NOT_IN_TRASH": "This file isn't in the Trash.",
+		"MEDIA_REPLACE_REFUSED": "Replace a file with one of the same kind: an image with an image, a document with a document.",
+		"MEDIA_IMPORT_REFUSED_SCHEME": "Enter an address starting with http:// or https://, without a password in it.",
+		"MEDIA_IMPORT_REFUSED_ADDRESS": "WebCraft only fetches files from addresses on the public internet.",
+		"MEDIA_IMPORT_REFUSED_REDIRECTS": "The address sent WebCraft on too many times.",
+		"MEDIA_IMPORT_REFUSED_TIMEOUT": "The server took too long to send the file.",
+		"MEDIA_IMPORT_REFUSED_SIZE": "The file is larger than the largest file this Install takes.",
+		"MEDIA_IMPORT_REFUSED_UNREACHABLE": "The server at that address couldn't be reached.",
+		"MEDIA_IMPORT_REFUSED_STATUS": "The server didn't send the file: it answered with an error.",
+		"AI_KEY_MISSING": "This Workspace has no AI key, so alt text can't be suggested.",
+		"AI_PROVIDER_FAILED": "The AI provider didn't answer. Try again later.",
+		"ALT_TEXT_UNAVAILABLE": "Alt text can't be suggested for this file."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -345,7 +358,15 @@
 			"endpointInvalid": "Enter an address starting with http:// or https://."
 		},
 		"save": "Save",
-		"saved": "Saved."
+		"saved": "Saved.",
+		"largestFile": {
+			"heading": "Largest file",
+			"help": "The largest file anyone can upload, replace or import, in MB: from 1 to 1024. Uploads larger than this are refused before they are read.",
+			"label": "Largest file (MB)",
+			"save": "Save",
+			"saved": "Saved.",
+			"invalid": "Enter a whole number from 1 to 1024."
+		}
 	},
 	"account": {
 		"pageTitle": "Your account",
@@ -599,6 +620,10 @@
 		"site-smtp-failing": {
 			"name": "Site SMTP failing",
 			"description": "When the SMTP server of a Site keeps failing."
+		},
+		"media-quota-warning": {
+			"name": "Media storage over 80%",
+			"description": "When the Media of a Workspace you look after passes 80% of its storage quota."
 		},
 		"webhook-switched-off": {
 			"name": "Webhook switched off",
@@ -855,7 +880,7 @@
 		"uploaded": "{name} uploaded.",
 		"uploadFailed": "{name} wasn't uploaded: {reason}",
 		"dropHint": "Drop files anywhere here to upload",
-		"formats": "JPG, PNG, WebP, AVIF, HEIC, GIF, PDF, MP4, MP3 · up to 50 MB",
+		"formats": "JPG, PNG, WebP, AVIF, HEIC, GIF, SVG, PDF, MP4, MP3 · up to {size}",
 		"empty": "No files yet. Upload the first one.",
 		"noMatch": "No files match.",
 		"listLabel": "Files",
@@ -883,8 +908,110 @@
 			"save": "Save",
 			"saved": "Saved. Pages showing this file change at once.",
 			"readOnly": "Only the person who uploaded this file, Editors, Owners and Staff can change it.",
-			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready.",
-			"failedHelp": "This file couldn't be read as an image."
+			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready."
+		},
+		"importUrl": "Import from URL",
+		"import": {
+			"title": "Import from URL",
+			"help": "The address of a file on the public internet. WebCraft fetches it and adds it like an upload.",
+			"url": "Address",
+			"submit": "Import",
+			"cancel": "Cancel",
+			"close": "Close",
+			"required": "Enter the address of a file.",
+			"imported": "{name} imported."
+		},
+		"trash": {
+			"heading": "Trash",
+			"intro": "Deleted files stay here for 30 days, then they are deleted for good.",
+			"folder": "Trash",
+			"empty": "The Trash is empty.",
+			"emptyTrash": "Empty Trash",
+			"emptyTitle": "Empty the Trash?",
+			"emptyBody": "{count, plural, one {# file is} other {# files are}} deleted for good. This can't be undone.",
+			"emptyConfirm": "Delete for good",
+			"emptied": "The Trash is empty.",
+			"deletedOn": "Deleted {date}",
+			"purgeOn": "Deleted for good on {date}",
+			"restore": "Restore",
+			"restored": "{name} restored.",
+			"deleteForever": "Delete for good",
+			"deleteForeverTitle": "Delete {name} for good?",
+			"deleteForeverBody": "It can't be restored afterwards.",
+			"deletedForever": "{name} deleted for good.",
+			"badge": "In the Trash",
+			"readOnly": "Restore the file to change it."
+		},
+		"delete": {
+			"button": "Delete",
+			"title": "Delete {name}?",
+			"body": "It goes to the Trash for 30 days and can be restored until then. Pages stop showing it at once.",
+			"usedWarning": "It is used in {count, plural, one {# place} other {# places}}, which will show nothing in its place until it is restored:",
+			"confirm": "Move to the Trash",
+			"cancel": "Cancel",
+			"close": "Close",
+			"deleted": "{name} moved to the Trash.",
+			"checking": "Checking where it is used…"
+		},
+		"replace": {
+			"button": "Replace file",
+			"replaced": "{name} replaced.",
+			"failed": "{name} wasn't used: {reason}",
+			"processing": "The new file is being processed. The current one shows until it's ready.",
+			"refused": "The new file couldn't be used, so this file stays as it was."
+		},
+		"usedIn": {
+			"heading": "Used in",
+			"none": "Not used anywhere yet.",
+			"count": "Used in {count, plural, one {# place} other {# places}}",
+			"entry": "{title} · {postType}",
+			"draftOnly": "Draft only",
+			"globals": "Globals",
+			"siteTemplate": "Site template",
+			"entryTemplate": "Entry template · {postType}",
+			"archiveTemplate": "Archive template · {postType}",
+			"component": "Component {name}",
+			"loop": "Loop {name}",
+			"designSystem": "Design system",
+			"untitled": "Untitled"
+		},
+		"focal": {
+			"heading": "Focal point",
+			"help": "The spot that stays visible when a design shows the image at another shape. Click the image, or use the sliders.",
+			"across": "Across",
+			"down": "Down",
+			"fromLeft": "{value}% from the left",
+			"fromTop": "{value}% from the top",
+			"clear": "Centre it",
+			"none": "Not set: the image is centred."
+		},
+		"altSuggest": {
+			"button": "Suggest alt text",
+			"working": "Writing alt text…",
+			"done": "Suggested alt text added. Check it, then save."
+		},
+		"storage": {
+			"heading": "Storage",
+			"used": "{used} used",
+			"of": "{used} of {quota}",
+			"label": "Media storage used",
+			"shared": "Shared by every Site of the Workspace.",
+			"warning": "This Workspace has used {percent}% of its Media storage. Uploads that would go past the quota are refused.",
+			"full": "This Workspace's Media storage is full: uploads are refused until files are deleted for good or the quota is raised."
+		},
+		"failure": {
+			"unreadable": "This file couldn't be read as an image.",
+			"svgInvalid": "This file couldn't be read as SVG.",
+			"svgUnsafe": "This SVG was refused: it holds {found}.",
+			"found": {
+				"script": "a script",
+				"eventHandler": "event handlers",
+				"foreignObject": "embedded HTML",
+				"outsideReference": "references to other files or sites",
+				"entity": "entities",
+				"element": "parts that can't be kept",
+				"attribute": "attributes that can't be kept"
+			}
 		}
 	},
 	"invite": {
@@ -2611,5 +2738,23 @@
 			"off": "The CAPTCHA is off.",
 			"switchOff": "Switch off"
 		}
+	},
+	"workspaceStorage": {
+		"heading": "Media storage",
+		"intro": "What the Media libraries of this Workspace's Sites take in the Install's storage, a file stored once counted once.",
+		"noQuota": "No quota",
+		"quota": "Quota: {quota}",
+		"set": "Set quota",
+		"change": "Change quota",
+		"dialogTitle": "Media storage quota",
+		"dialogBody": "Uploads that would go past it are refused. The Workspace's Owners and its Staff are told when it passes 80%.",
+		"quotaLabel": "Quota (GB)",
+		"quotaHelp": "Leave it empty for no quota.",
+		"invalid": "Enter a number of GB of at least 0.001 (1 MB), or leave it empty.",
+		"save": "Save",
+		"cancel": "Cancel",
+		"close": "Close",
+		"saved": "Quota saved.",
+		"removed": "Quota removed."
 	}
 }

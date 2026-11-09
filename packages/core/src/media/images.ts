@@ -39,7 +39,51 @@ export type ImageProcessor = {
 	prepare(input: Uint8Array, format: ImageInput): Promise<ProcessedImage & { format: OriginalFormat }>;
 	/** One width of a cleaned original, in AVIF or WebP. */
 	variant(original: Uint8Array, width: number, format: VariantFormat): Promise<ProcessedImage>;
+	/**
+	 * An uploaded SVG, cleaned: what only a drawing program reads (comments, metadata, editor
+	 * attributes) left out, everything that shows kept, through a well-maintained sanitizer. Throws
+	 * `SvgRefusedError` when it can't be read, or when cleaning would change what it shows (scripts,
+	 * event handlers, `foreignObject`, outside references, entities): such a file is refused rather
+	 * than changed. Never resized; its size comes from its own `width`/`height` or `viewBox`.
+	 */
+	cleanSvg(input: Uint8Array): Promise<CleanedSvg>;
 };
+
+/** A cleaned SVG and its size in CSS pixels, when it says one. */
+export type CleanedSvg = { data: Uint8Array; width: number | null; height: number | null };
+
+/**
+ * What an SVG holds that keeps it from being kept: `script`, `eventHandler`, `foreignObject`,
+ * `outsideReference` (anything loaded from elsewhere, or a link out), `entity`, `element` or
+ * `attribute` (something else the sanitizer would have removed).
+ */
+export type SvgFinding =
+	| "script"
+	| "eventHandler"
+	| "foreignObject"
+	| "outsideReference"
+	| "entity"
+	| "element"
+	| "attribute";
+
+/**
+ * An SVG the worker refused: `svgInvalid` (it can't be read as SVG) or `svgUnsafe` (cleaning would
+ * change what it shows; `found` lists what it holds). Trying again won't help.
+ */
+export class SvgRefusedError extends Error {
+	override name = "SvgRefusedError";
+	readonly reason: "svgInvalid" | "svgUnsafe";
+	readonly found: readonly SvgFinding[];
+	constructor(reason: "svgInvalid" | "svgUnsafe", found: readonly SvgFinding[] = [], detail?: string) {
+		super(
+			reason === "svgInvalid"
+				? `The file can't be read as SVG${detail ? `: ${detail}` : "."}`
+				: `The SVG holds what can't be kept: ${found.join(", ")}.`,
+		);
+		this.reason = reason;
+		this.found = found;
+	}
+}
 
 /** A file that claims to be an image but can't be read as one. Trying again won't help. */
 export class ImageUnreadableError extends Error {
@@ -55,4 +99,5 @@ export function variantWidths(width: number): number[] {
 export const imagesOnlyInWorker: ImageProcessor = {
 	prepare: () => Promise.reject(new Error("Images are processed only in the worker.")),
 	variant: () => Promise.reject(new Error("Images are processed only in the worker.")),
+	cleanSvg: () => Promise.reject(new Error("SVG files are cleaned only in the worker.")),
 };

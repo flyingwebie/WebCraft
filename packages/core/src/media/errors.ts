@@ -26,18 +26,14 @@ export class MediaFolderTakenError extends Error {
 }
 
 /**
- * A file WebCraft doesn't take: `svg` (SVG files are refused until they are cleaned on upload) or
- * `unknown` (not an image, document, video or audio file WebCraft knows, whatever its name says).
+ * A file WebCraft doesn't take: `unknown` (not an image, SVG, document, video or audio file WebCraft
+ * knows, whatever its name says).
  */
 export class MediaTypeRefusedError extends Error {
 	override name = "MediaTypeRefusedError";
-	readonly reason: "svg" | "unknown";
-	constructor(reason: "svg" | "unknown") {
-		super(
-			reason === "svg"
-				? "SVG files can't be uploaded yet."
-				: "This file isn't an image, document, video or audio file the Media library takes.",
-		);
+	readonly reason: "unknown";
+	constructor(reason: "unknown") {
+		super("This file isn't an image, document, video or audio file the Media library takes.");
 		this.reason = reason;
 	}
 }
@@ -49,6 +45,44 @@ export class MediaTooLargeError extends Error {
 	constructor(maxBytes: number) {
 		super(`Files can be at most ${Math.round(maxBytes / (1024 * 1024))} MB.`);
 		this.maxBytes = maxBytes;
+	}
+}
+
+/** The file is in the Trash: restore it before changing it. */
+export class MediaInTrashError extends Error {
+	override name = "MediaInTrashError";
+	constructor() {
+		super("This file is in the Trash; restore it first.");
+	}
+}
+
+/** The file isn't in the Trash, so it can't be restored or deleted for good. */
+export class MediaNotInTrashError extends Error {
+	override name = "MediaNotInTrashError";
+	constructor() {
+		super("This file isn't in the Trash.");
+	}
+}
+
+/** Replace file refused the new file: `kind` (it isn't the same kind of file: an image for an image). */
+export class MediaReplaceRefusedError extends Error {
+	override name = "MediaReplaceRefusedError";
+	readonly reason: "kind";
+	constructor(reason: "kind") {
+		super("A file is replaced by one of the same kind: an image by an image, a document by a document.");
+		this.reason = reason;
+	}
+}
+
+/** The file would take the Workspace's Media past its storage quota. */
+export class MediaQuotaFullError extends Error {
+	override name = "MediaQuotaFullError";
+	readonly usedBytes: number;
+	readonly quotaBytes: number;
+	constructor(usedBytes: number, quotaBytes: number) {
+		super("This Workspace's Media storage is full: the file would take it past its quota.");
+		this.usedBytes = usedBytes;
+		this.quotaBytes = quotaBytes;
 	}
 }
 

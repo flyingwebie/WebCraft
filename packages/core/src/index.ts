@@ -14,6 +14,15 @@ export {
 	isAdminLanguage,
 } from "./admin-languages.ts";
 export {
+	type AiAnswer,
+	AiKeyMissingError,
+	AiProviderError,
+	type AiProviders,
+	aiProvidersToCome,
+	type ImageDescriptionRequest,
+	WORKSPACE_AI_KEY,
+} from "./ai.ts";
+export {
 	type AuditDetails,
 	type AuditEntry,
 	type AuditVia,
@@ -101,9 +110,11 @@ export {
 } from "./install.ts";
 export {
 	INSTALL_NAME_MAX_LENGTH,
+	type InstallMediaSettings,
 	type InstallSecuritySettings,
 	type InstallSettings,
 	type InstallSettingsValues,
+	MEDIA_MAX_FILE_BYTES,
 } from "./install-settings.ts";
 export * from "./jobs/index.ts";
 export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";

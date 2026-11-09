@@ -1,4 +1,4 @@
-import { INSTALL_NAME_MAX_LENGTH } from "@webcraft/core";
+import { INSTALL_NAME_MAX_LENGTH, MEDIA_MAX_FILE_BYTES } from "@webcraft/core";
 import { z } from "zod";
 
 import { onInstall, sensitive } from "../context.ts";
@@ -91,6 +91,20 @@ export const install = {
 			.use(sensitive("storage.change"))
 			.input(storageChange)
 			.handler(({ context, input }) => context.services.storage.change(context.install, input)),
+	},
+	/** Install settings › Storage: what the Media library takes. */
+	media: {
+		get: onInstall("install.manage").handler(({ context }) => context.services.settings.media()),
+		/** Sets the largest file the Media library takes, from 1 MB to 1 GB. */
+		update: onInstall("install.manage")
+			.input(
+				z.object({
+					maxFileBytes: z.number().int().min(MEDIA_MAX_FILE_BYTES.min).max(MEDIA_MAX_FILE_BYTES.max),
+				}),
+			)
+			.handler(({ context, input }) =>
+				context.services.settings.setMediaMaxFileBytes(context.install, input.maxFileBytes),
+			),
 	},
 	/** The Install SMTP. */
 	smtp,

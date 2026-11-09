@@ -1,18 +1,18 @@
 import { media, mediaFiles } from "@webcraft/db/schema";
 import type { PageMedia } from "@webcraft/renderer";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { isUuid } from "../ids.ts";
 import type { VisitorScope } from "../tenancy/data-layer.ts";
 import { VARIANT_FORMATS } from "./images.ts";
 import type { MediaKind } from "./kinds.ts";
-import { originalUrl, variantsOf } from "./library.ts";
+import { focalPointOf, originalUrl, variantsOf } from "./library.ts";
 import { readText, storedTexts } from "./texts.ts";
 
 /**
  * The Media items a page shows, by id, as the renderer needs them: the original's address and size,
  * the variants by format and the alt text and caption in the page's language. Only the Site's own items that
- * visitors can get (ready) are found.
+ * visitors can get (ready, not in the Trash) are found.
  */
 export async function pageMedia(
 	scope: Pick<VisitorScope, "select">,
@@ -21,7 +21,10 @@ export async function pageMedia(
 ): Promise<Map<string, PageMedia>> {
 	const wanted = [...new Set(ids.filter(isUuid).map((id) => id.toLowerCase()))];
 	if (wanted.length === 0) return new Map();
-	const rows = await scope.select(media, and(inArray(media.id, wanted), eq(media.status, "ready")));
+	const rows = await scope.select(
+		media,
+		and(inArray(media.id, wanted), eq(media.status, "ready"), isNull(media.trashedAt)),
+	);
 	if (rows.length === 0) return new Map();
 	const files = await scope.select(
 		mediaFiles,
@@ -31,6 +34,7 @@ export async function pageMedia(
 				rows.map((row) => row.id),
 			),
 			inArray(mediaFiles.role, ["original", "variant"]),
+			isNull(mediaFiles.retiredAt),
 		),
 	);
 	const found = new Map<string, PageMedia>();
@@ -44,6 +48,7 @@ export async function pageMedia(
 			url,
 			width: row.width,
 			height: row.height,
+			focalPoint: focalPointOf(row),
 			alt: readText(storedTexts(row.texts), "alt", languages),
 			caption: readText(storedTexts(row.texts), "caption", languages),
 			sources: VARIANT_FORMATS.map((format) => ({

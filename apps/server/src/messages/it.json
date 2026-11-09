@@ -41,8 +41,7 @@
 		"MEDIA_FOLDER_NOT_FOUND": "Questa cartella non c'è in questa libreria Media.",
 		"MEDIA_FOLDER_TAKEN": "Un'altra cartella ha già questo nome.",
 		"MEDIA_TYPE_REFUSED": "Questo file non è un'immagine, un documento, un video o un audio che la libreria Media accetta.",
-		"MEDIA_TYPE_REFUSED_SVG": "Non è ancora possibile caricare file SVG.",
-		"MEDIA_TOO_LARGE": "I file possono essere al massimo di 50 MB.",
+		"MEDIA_TOO_LARGE": "Il file è più grande del file più grande che questa installazione accetta.",
 		"MEDIA_INVALID": "Questa modifica non può essere salvata. Controlla quello che hai inserito.",
 		"STORAGE_UNREACHABLE": "WebCraft non è riuscito a scrivere, leggere e rimuovere un file in questo bucket. Controlla endpoint, regione, bucket e chiavi.",
 		"MODULE_NOT_FOUND": "Questo Modulo non esiste o qui non è attivo.",
@@ -106,7 +105,21 @@
 		"LOOP_NOT_FOUND": "Questo sito non ha questo loop.",
 		"LOOP_INVALID": "Il loop non può essere salvato. Controlla le impostazioni segnalate.",
 		"LOOP_INCOMPLETE": "Compila i valori segnalati degli elementi del loop prima di pubblicare.",
-		"LOOP_NAME_TAKEN": "Un altro loop di questo sito ha già questo nome."
+		"LOOP_NAME_TAKEN": "Un altro loop di questo sito ha già questo nome.",
+		"MEDIA_QUOTA_FULL": "Lo spazio per i Media di questo Workspace è pieno. Elimina i file che non servono più o chiedi allo Staff una quota più grande.",
+		"MEDIA_IN_TRASH": "Questo file è nel Cestino. Prima ripristinalo.",
+		"MEDIA_NOT_IN_TRASH": "Questo file non è nel Cestino.",
+		"MEDIA_REPLACE_REFUSED": "Sostituisci un file con uno dello stesso tipo: un'immagine con un'immagine, un documento con un documento.",
+		"MEDIA_IMPORT_REFUSED_SCHEME": "Inserisci un indirizzo che inizia con http:// o https://, senza password.",
+		"MEDIA_IMPORT_REFUSED_ADDRESS": "WebCraft scarica file solo da indirizzi su internet.",
+		"MEDIA_IMPORT_REFUSED_REDIRECTS": "L'indirizzo ha rimandato WebCraft altrove troppe volte.",
+		"MEDIA_IMPORT_REFUSED_TIMEOUT": "Il server ha impiegato troppo a inviare il file.",
+		"MEDIA_IMPORT_REFUSED_SIZE": "Il file è più grande del file più grande che questa installazione accetta.",
+		"MEDIA_IMPORT_REFUSED_UNREACHABLE": "Non è stato possibile raggiungere il server a quell'indirizzo.",
+		"MEDIA_IMPORT_REFUSED_STATUS": "Il server non ha inviato il file: ha risposto con un errore.",
+		"AI_KEY_MISSING": "Questo Workspace non ha una chiave AI, quindi non si può suggerire il testo alternativo.",
+		"AI_PROVIDER_FAILED": "Il fornitore AI non ha risposto. Riprova più tardi.",
+		"ALT_TEXT_UNAVAILABLE": "Per questo file non si può suggerire il testo alternativo."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -345,7 +358,15 @@
 			"endpointInvalid": "Inserisci un indirizzo che inizia con http:// o https://."
 		},
 		"save": "Salva",
-		"saved": "Salvato."
+		"saved": "Salvato.",
+		"largestFile": {
+			"heading": "File più grande",
+			"help": "Il file più grande che si può caricare, sostituire o importare, in MB: da 1 a 1024. I caricamenti più grandi vengono rifiutati prima di essere letti.",
+			"label": "File più grande (MB)",
+			"save": "Salva",
+			"saved": "Salvato.",
+			"invalid": "Inserisci un numero intero da 1 a 1024."
+		}
 	},
 	"account": {
 		"pageTitle": "Il tuo account",
@@ -599,6 +620,10 @@
 		"site-smtp-failing": {
 			"name": "SMTP di un Site non funzionante",
 			"description": "Quando il server SMTP di un Site continua a non funzionare."
+		},
+		"media-quota-warning": {
+			"name": "Spazio Media oltre l'80%",
+			"description": "Quando i Media di un Workspace che segui superano l'80% della quota di spazio."
 		},
 		"webhook-switched-off": {
 			"name": "Webhook disattivato",
@@ -855,7 +880,7 @@
 		"uploaded": "{name} caricato.",
 		"uploadFailed": "{name} non è stato caricato: {reason}",
 		"dropHint": "Trascina qui i file per caricarli",
-		"formats": "JPG, PNG, WebP, AVIF, HEIC, GIF, PDF, MP4, MP3 · fino a 50 MB",
+		"formats": "JPG, PNG, WebP, AVIF, HEIC, GIF, SVG, PDF, MP4, MP3 · fino a {size}",
 		"empty": "Ancora nessun file. Carica il primo.",
 		"noMatch": "Nessun file corrisponde.",
 		"listLabel": "File",
@@ -883,8 +908,110 @@
 			"save": "Salva",
 			"saved": "Salvato. Le pagine che mostrano questo file cambiano subito.",
 			"readOnly": "Solo chi ha caricato questo file, gli Editor, gli Owner e lo Staff possono modificarlo.",
-			"processingHelp": "WebCraft sta rimuovendo dalla foto la posizione e i dati della fotocamera e ne prepara le misure. Compare qui quando è pronta.",
-			"failedHelp": "Questo file non può essere letto come immagine."
+			"processingHelp": "WebCraft sta rimuovendo dalla foto la posizione e i dati della fotocamera e ne prepara le misure. Compare qui quando è pronta."
+		},
+		"importUrl": "Importa da URL",
+		"import": {
+			"title": "Importa da URL",
+			"help": "L'indirizzo di un file su internet. WebCraft lo scarica e lo aggiunge come un caricamento.",
+			"url": "Indirizzo",
+			"submit": "Importa",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"required": "Inserisci l'indirizzo di un file.",
+			"imported": "{name} importato."
+		},
+		"trash": {
+			"heading": "Cestino",
+			"intro": "I file eliminati restano qui per 30 giorni, poi vengono eliminati definitivamente.",
+			"folder": "Cestino",
+			"empty": "Il Cestino è vuoto.",
+			"emptyTrash": "Svuota il Cestino",
+			"emptyTitle": "Svuotare il Cestino?",
+			"emptyBody": "{count, plural, one {# file viene eliminato} other {# file vengono eliminati}} definitivamente. Non si può annullare.",
+			"emptyConfirm": "Elimina definitivamente",
+			"emptied": "Il Cestino è vuoto.",
+			"deletedOn": "Eliminato il {date}",
+			"purgeOn": "Eliminato definitivamente il {date}",
+			"restore": "Ripristina",
+			"restored": "{name} ripristinato.",
+			"deleteForever": "Elimina definitivamente",
+			"deleteForeverTitle": "Eliminare {name} definitivamente?",
+			"deleteForeverBody": "Dopo non si potrà ripristinare.",
+			"deletedForever": "{name} eliminato definitivamente.",
+			"badge": "Nel Cestino",
+			"readOnly": "Ripristina il file per modificarlo."
+		},
+		"delete": {
+			"button": "Elimina",
+			"title": "Eliminare {name}?",
+			"body": "Va nel Cestino per 30 giorni e fino ad allora si può ripristinare. Le pagine smettono subito di mostrarlo.",
+			"usedWarning": "È usato in {count, plural, one {# posto} other {# posti}}, che non mostreranno nulla al suo posto finché non viene ripristinato:",
+			"confirm": "Sposta nel Cestino",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"deleted": "{name} spostato nel Cestino.",
+			"checking": "Controllo dove è usato…"
+		},
+		"replace": {
+			"button": "Sostituisci file",
+			"replaced": "{name} sostituito.",
+			"failed": "{name} non è stato usato: {reason}",
+			"processing": "Il nuovo file è in elaborazione. Finché non è pronto si vede quello attuale.",
+			"refused": "Il nuovo file non si è potuto usare, quindi questo file resta com'era."
+		},
+		"usedIn": {
+			"heading": "Usato in",
+			"none": "Non ancora usato.",
+			"count": "Usato in {count, plural, one {# posto} other {# posti}}",
+			"entry": "{title} · {postType}",
+			"draftOnly": "Solo bozza",
+			"globals": "Globali",
+			"siteTemplate": "Template del sito",
+			"entryTemplate": "Template della voce · {postType}",
+			"archiveTemplate": "Template dell'archivio · {postType}",
+			"component": "Componente {name}",
+			"loop": "Loop {name}",
+			"designSystem": "Design system",
+			"untitled": "Senza titolo"
+		},
+		"focal": {
+			"heading": "Punto focale",
+			"help": "Il punto che resta visibile quando un design mostra l'immagine in un'altra forma. Fai clic sull'immagine o usa i cursori.",
+			"across": "In orizzontale",
+			"down": "In verticale",
+			"fromLeft": "{value}% da sinistra",
+			"fromTop": "{value}% dall'alto",
+			"clear": "Centrala",
+			"none": "Non impostato: l'immagine è centrata."
+		},
+		"altSuggest": {
+			"button": "Suggerisci il testo alternativo",
+			"working": "Scrivo il testo alternativo…",
+			"done": "Testo alternativo suggerito aggiunto. Controllalo, poi salva."
+		},
+		"storage": {
+			"heading": "Spazio",
+			"used": "{used} usati",
+			"of": "{used} di {quota}",
+			"label": "Spazio usato per i Media",
+			"shared": "Condiviso da tutti i Siti del Workspace.",
+			"warning": "Questo Workspace ha usato il {percent}% dello spazio per i Media. I caricamenti che supererebbero la quota vengono rifiutati.",
+			"full": "Lo spazio per i Media di questo Workspace è pieno: i caricamenti vengono rifiutati finché non si eliminano definitivamente dei file o si alza la quota."
+		},
+		"failure": {
+			"unreadable": "Questo file non si è potuto leggere come immagine.",
+			"svgInvalid": "Questo file non si è potuto leggere come SVG.",
+			"svgUnsafe": "Questo SVG è stato rifiutato: contiene {found}.",
+			"found": {
+				"script": "uno script",
+				"eventHandler": "gestori di eventi",
+				"foreignObject": "HTML incorporato",
+				"outsideReference": "riferimenti ad altri file o siti",
+				"entity": "entità",
+				"element": "parti che non si possono tenere",
+				"attribute": "attributi che non si possono tenere"
+			}
 		}
 	},
 	"invite": {
@@ -2611,5 +2738,23 @@
 			"off": "Il CAPTCHA è spento.",
 			"switchOff": "Spegni"
 		}
+	},
+	"workspaceStorage": {
+		"heading": "Spazio per i Media",
+		"intro": "Lo spazio che le librerie Media dei Siti di questo Workspace occupano nell'archivio dell'installazione; un file salvato una volta conta una volta.",
+		"noQuota": "Nessuna quota",
+		"quota": "Quota: {quota}",
+		"set": "Imposta la quota",
+		"change": "Cambia la quota",
+		"dialogTitle": "Quota di spazio per i Media",
+		"dialogBody": "I caricamenti che la supererebbero vengono rifiutati. I Proprietari del Workspace e il suo Staff vengono avvisati quando supera l'80%.",
+		"quotaLabel": "Quota (GB)",
+		"quotaHelp": "Lascia vuoto per nessuna quota.",
+		"invalid": "Inserisci un numero di GB di almeno 0,001 (1 MB), oppure lascia vuoto.",
+		"save": "Salva",
+		"cancel": "Annulla",
+		"close": "Chiudi",
+		"saved": "Quota salvata.",
+		"removed": "Quota rimossa."
 	}
 }

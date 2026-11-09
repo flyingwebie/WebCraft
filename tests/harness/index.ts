@@ -37,6 +37,7 @@ import type { PgBoss } from "pg-boss";
 import { createTestBrowser, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
+import { createFakeAi, type FakeAi } from "./fake-ai.ts";
 import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
@@ -44,6 +45,7 @@ import { createFakeTls, type FakeTls } from "./fake-tls.ts";
 
 export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
+export type { FakeAi } from "./fake-ai.ts";
 export type { FakeDns } from "./fake-dns.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
@@ -116,6 +118,8 @@ export type TestInstallOptions = {
 	modules?: readonly ModuleDefinition[];
 	/** The largest image the worker processes, in pixels: the real limit unless given (to test it without huge files). */
 	maxImagePixels?: number;
+	/** How long Import from URL waits for a file: 30 seconds unless given (to test it without waiting). */
+	mediaImportTimeoutMs?: number;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -257,6 +261,8 @@ export type TestInstall = {
 	dns: FakeDns;
 	/** The certificates hosts answer with over HTTPS (`tls.answer(name, { expiresAt })`); none unless given. */
 	tls: FakeTls;
+	/** The AI providers WebCraft calls with a Workspace's AI key: unavailable until a test answers them. */
+	ai: FakeAi;
 	/**
 	 * Points a domain at this Install, as its DNS records would: it resolves to the Install's first
 	 * address, every HTTP request to it reaches this Install's handler, and it answers HTTPS with a
@@ -318,6 +324,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const dns = createFakeDns();
 	const http = createFakeHttp(dns.resolver);
 	const tls = createFakeTls();
+	const ai = createFakeAi();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
@@ -344,6 +351,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		http: http.fetch,
 		dns: dns.resolver,
 		tls: tls.probe,
+		ai: ai.providers,
 		clock,
 		log,
 		// The real image processing the worker does (it isn't an edge, so it isn't faked).
@@ -358,7 +366,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	let modules = options.modules ?? FIRST_PARTY_MODULES;
 	const start = async (masterKey: string) => {
 		const key = parseMasterKey(masterKey, MASTER_KEY_VARIABLE);
-		const started = await createInstallServices(ports, key, { checkMasterKey: mode === "migrated", modules });
+		const started = await createInstallServices(ports, key, {
+			checkMasterKey: mode === "migrated",
+			modules,
+			mediaImportTimeoutMs: options.mediaImportTimeoutMs,
+		});
 		if (mode === "migrated") await started.setup.announce();
 		return started;
 	};
@@ -516,6 +528,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		http,
 		dns,
 		tls,
+		ai,
 		connectDomain(name, connectOptions = {}) {
 			const domain = name.toLowerCase();
 			dns.answer(domain, [publicAddresses[0] ?? "203.0.113.10"]);
