@@ -536,7 +536,14 @@ export function createTranslations(options: TranslationsOptions): Translations {
 			);
 			const lines: QueueLine[] = [];
 			const writers = new Set<string>();
+			// A Form's emails are read only by people who may change them (recipients decide who gets leads).
+			const readsEmails = can(scope.access.actor, "formEmails.edit", {
+				level: "site",
+				workspaceId: scope.workspace.id,
+				siteId: scope.site.id,
+			});
 			for (const item of await siteItems(scope)) {
+				if (item.kind === "formEmails" && !readsEmails) continue;
 				const snapshot = await readItem(scope, item, site.defaultLanguage);
 				if (!snapshot) continue;
 				const units = snapshot.units(snapshot.draft);

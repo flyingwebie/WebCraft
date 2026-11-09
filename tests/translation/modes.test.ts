@@ -71,6 +71,38 @@ describe("Automatic", () => {
 	});
 });
 
+describe("Automatic, around it", () => {
+	test("the Site's Webhooks hear of a published translation, as of any publish; nothing sent reaches the log", async () => {
+		const site = await translatedSite(install, { de: "automatic" });
+		install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
+		const url = `https://hooks.agency.example/${site.siteId}`;
+		install.http.respond("POST", url, { status: 204 });
+		await site.staff.api.webhooks.add({ siteId: site.siteId, url, events: ["publish"] });
+		const entryId = await freshBread(site);
+		await site.owner.api.entries.publish({ siteId: site.siteId, entryId });
+		expect((await install.drainJobs()).failed).toEqual([]);
+
+		const events = install.http.requests
+			.filter((request) => request.url === url)
+			.map((request) => JSON.parse(request.body) as { data: { item: { kind: string; id: string }; via: string } });
+		expect(events.map((event) => ({ item: event.data.item.id, via: event.data.via }))).toEqual([
+			{ item: entryId, via: "admin" },
+			{ item: entryId, via: "translation" },
+		]);
+		expect(JSON.stringify(install.logs)).not.toContain("Crusty sourdough");
+	});
+
+	test("an Entry hidden in a language is never translated into it", async () => {
+		const site = await translatedSite(install, { de: "automatic" });
+		const entryId = await freshBread(site);
+		await site.owner.api.entries.saveDraft({ siteId: site.siteId, entryId, hiddenLanguages: ["de"] });
+		await site.owner.api.entries.publish({ siteId: site.siteId, entryId });
+		await install.drainJobs();
+		const { entry } = await site.owner.api.entries.get({ siteId: site.siteId, entryId, language: "de" });
+		expect(entry.published?.title).toBe("Fresh bread");
+	});
+});
+
 describe("Review", () => {
 	test("AI translation lands in the Draft; approving it publishes it", async () => {
 		const site = await translatedSite(install, { it: "review" });

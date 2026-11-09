@@ -80,6 +80,28 @@ describe("a Form's emails", () => {
 	});
 });
 
+describe("a Form's emails in Review", () => {
+	test("wait in the Review queue for people who may change them; Authors never read them", async () => {
+		const site = await translatedSite(install, { it: "review" });
+		const formId = await formWithAutoReply(site);
+		await site.owner.api.translations.translateNow({ siteId: site.siteId });
+		expect((await install.drainJobs()).failed).toEqual([]);
+
+		const emailLines = async (browser: typeof site.editor) =>
+			(await browser.api.translations.queue({ siteId: site.siteId })).lines.filter(
+				(line) => line.item.kind === "formEmails",
+			);
+		expect(await emailLines(site.editor)).toEqual([
+			expect.objectContaining({
+				item: expect.objectContaining({ id: formId, title: "Wedding cakes" }),
+				at: "fields.autoReply.subject",
+			}),
+			expect.objectContaining({ at: "fields.autoReply.text", translation: "[it] We bake it fresh for you." }),
+		]);
+		expect(await emailLines(site.author)).toEqual([]);
+	});
+});
+
 describe("under the AI key", () => {
 	test("without an AI key the work waits, and starts once a key is set", async () => {
 		const site = await translatedSite(install, { it: "review" });
