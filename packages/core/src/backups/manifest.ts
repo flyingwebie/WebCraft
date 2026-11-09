@@ -31,6 +31,8 @@ const tableSchema = z.object({
 export const backupManifestSchema = z.object({
 	format: z.literal(BACKUP_FORMAT),
 	formatVersion: z.number().int().positive(),
+	/** The archive's name as it was written, which the Backup log knows it by. */
+	name: z.string(),
 	createdAt: z.iso.datetime(),
 	reason: z.enum(BACKUP_REASONS),
 	webcraft: z.object({

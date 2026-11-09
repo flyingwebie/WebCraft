@@ -167,6 +167,7 @@ async function writeBackup(context: BackupContext, reason: BackupReason, target:
 		const manifest: BackupManifest = {
 			format: BACKUP_FORMAT,
 			formatVersion: BACKUP_FORMAT_VERSION,
+			name,
 			createdAt: clock.now().toISOString(),
 			reason,
 			webcraft: { version: version ?? WEBCRAFT_VERSION, takenBy: WEBCRAFT_VERSION },

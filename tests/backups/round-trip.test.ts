@@ -31,7 +31,7 @@ let siteId: string;
 let mediaId: string;
 let importId: string;
 let archive: string;
-let original: { url: string; bytes: Uint8Array };
+let original: { url: string; bytes: Uint8Array<ArrayBuffer> };
 
 beforeAll(async () => {
 	folder = await mkdtemp(join(tmpdir(), "webcraft-backup-test-"));

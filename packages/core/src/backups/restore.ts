@@ -228,7 +228,7 @@ export async function restoreBackup(
 		version: WEBCRAFT_VERSION,
 	});
 	step("Queueing image variants and clearing caches");
-	const queued = await afterRestore(context.databaseUrl, context.jobQueue);
+	const queued = await afterRestore(context.databaseUrl, manifest, context.jobQueue);
 	context.log.info("Restored a Backup", {
 		archive,
 		createdAt: manifest.createdAt,
@@ -318,7 +318,11 @@ async function emptyDatabase(databaseUrl: string): Promise<void> {
  * again (pages show originals until then), uploads that were waiting to be cleaned and Import runs
  * that were under way are queued again, and every Site's page cache and search index start over.
  */
-async function afterRestore(databaseUrl: string, jobQueue: JobQueueOptions = {}): Promise<RestoreReport["queued"]> {
+async function afterRestore(
+	databaseUrl: string,
+	manifest: BackupManifest,
+	jobQueue: JobQueueOptions = {},
+): Promise<RestoreReport["queued"]> {
 	const client = new pg.Client({ connectionString: databaseUrl, application_name: "webcraft-restore" });
 	await client.connect();
 	let variants: { site_id: string; media_id: string }[];
@@ -347,6 +351,15 @@ async function afterRestore(databaseUrl: string, jobQueue: JobQueueOptions = {})
 		).rows;
 		await client.query(
 			"UPDATE public.sites SET page_cache_generation = page_cache_generation + 1, search_index_version = 0, search_rebuild_claimed_at = NULL",
+		);
+		// The Backup log was copied while this Backup was being written: it finished, as the archive shows.
+		await client.query(
+			"UPDATE public.backups SET status = 'done', finished_at = $2 WHERE status = 'running' AND name = $1",
+			[manifest.name, manifest.createdAt],
+		);
+		await client.query(
+			"UPDATE public.backups SET status = 'failed', finished_at = $1, problem = 'It was still being taken when the Backup this Install was restored from was taken.' WHERE status = 'running'",
+			[manifest.createdAt],
 		);
 		await client.query("COMMIT");
 	} catch (error) {
