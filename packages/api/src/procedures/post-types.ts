@@ -58,6 +58,8 @@ export const postTypes = {
 				searchable: z.boolean().optional(),
 				searchedFields: searchedFields.optional(),
 				seo: seo.optional(),
+				/** Whether publishing its Entries saves Revisions; true when not given. */
+				revisions: z.boolean().optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -67,7 +69,8 @@ export const postTypes = {
 
 	/**
 	 * Changes a Post Type's name, URL pattern, Fields (the full list, in order), whether Site search
-	 * shows its Entries, or its Searched fields (the full list). It applies at once: Post Types have no
+	 * shows its Entries, its Searched fields (the full list), or whether its Entries' publishes save
+	 * Revisions. It applies at once: Post Types have no
 	 * Draft, so the Site's page cache is cleared; a change to what is searched rebuilds the Site's
 	 * search index in the background.
 	 */
@@ -85,6 +88,11 @@ export const postTypes = {
 				searchable: z.boolean().optional(),
 				searchedFields: searchedFields.optional(),
 				seo: seo.optional(),
+				/**
+				 * Turns Revisions of its Entries on or off. Off, publishing saves none; those saved before
+				 * stay until the usual retention removes them.
+				 */
+				revisions: z.boolean().optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {

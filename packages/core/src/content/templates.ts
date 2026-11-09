@@ -604,8 +604,8 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 		scope,
 		{ kind: "template", id: row.id },
 		before
-			? { content: before.draft, changedAt: before.updatedAt, changedBy: before.updatedBy }
-			: { content: null, changedAt: now, changedBy: null },
+			? { content: before.draft, changedAt: before.updatedAt, changedBy: before.updatedBy, since: before.createdAt }
+			: { content: null, changedAt: now, changedBy: null, since: now },
 		draft,
 		{ created: !before },
 	);

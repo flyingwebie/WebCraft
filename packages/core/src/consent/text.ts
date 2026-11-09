@@ -157,7 +157,7 @@ export async function saveConsentTextDraft(scope: SiteScope, change: ConsentText
 		await noteDraftChange(
 			tx,
 			{ kind: "consentBanner" },
-			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 			{ values },
 		);
 		return toText(saved ?? row, languages);
@@ -181,7 +181,7 @@ export async function restoreConsentTextDraft(scope: SiteScope, version: unknown
 		await noteDraftChange(
 			tx,
 			{ kind: "consentBanner" },
-			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 			draft,
 		);
 	});

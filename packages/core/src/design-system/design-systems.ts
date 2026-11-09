@@ -57,7 +57,12 @@ export async function writeDraft(scope: SiteScope, locked: LockedDesignSystem, d
 	await noteDraftChange(
 		scope,
 		{ kind: "designSystem" },
-		{ content: locked.row.draft, changedAt: locked.row.updatedAt, changedBy: locked.row.updatedBy },
+		{
+			content: locked.row.draft,
+			changedAt: locked.row.updatedAt,
+			changedBy: locked.row.updatedBy,
+			since: locked.row.createdAt,
+		},
 		draft,
 	);
 }

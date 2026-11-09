@@ -275,7 +275,7 @@ async function noteGlobalsChange(scope: SiteScope, row: GlobalsRow, draft: unkno
 	await noteDraftChange(
 		scope,
 		{ kind: "globals" },
-		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 		draft,
 	);
 }

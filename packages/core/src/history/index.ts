@@ -44,6 +44,7 @@ export {
 	historyEditPermission,
 	historyReadPermission,
 } from "./items.ts";
+export { historyPrune, historyPruneSchedule, pruneHistory } from "./prune.ts";
 export type { Restored } from "./restore.ts";
 export { HISTORY_LIMITS, type HistorySettings } from "./settings.ts";
 

@@ -455,7 +455,7 @@ async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentV
 	await noteDraftChange(
 		scope,
 		{ kind: "component", id: row.id },
-		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 		draft,
 	);
 	return toComponent(updated);

@@ -14,7 +14,8 @@ import { changedParts } from "./parts.ts";
  * Checkpoints (GLOSSARY.md): an item's Draft, saved while it is edited, so a Draft that was changed
  * or written over can be got back before it is published. One is saved:
  * - after 10 minutes of activity: the first change to a Draft once its newest Revision or Checkpoint
- *   is 10 minutes old or more saves the Draft as it was just before that change;
+ *   (or, with none, the item itself) is 10 minutes old or more saves the Draft as it was just before
+ *   that change;
  * - when the last person editing it leaves (`draftLeft`): the Draft as it is;
  * - before a restore writes over it.
  * Never when the Draft is what the item's newest Revision or Checkpoint holds.
@@ -28,8 +29,11 @@ import { changedParts } from "./parts.ts";
 /** How long a Draft is changed before another Checkpoint is saved. */
 export const CHECKPOINT_EVERY_MS = 10 * 60 * 1000;
 
-/** A Draft as it was before a change: what it held, when it was last changed and by whom. */
-export type DraftBefore = { content: unknown; changedAt: Date; changedBy: string | null };
+/**
+ * A Draft as it was before a change: what it held, when it was last changed and by whom, and when the
+ * item was made (activity counts from then while nothing of it is saved yet).
+ */
+export type DraftBefore = { content: unknown; changedAt: Date; changedBy: string | null; since: Date };
 
 /** Who made the last change a Draft holds, as the Draft changes record it. */
 type LastChange = { personId: string | null; via: AuditVia | null; changedAt: Date };
@@ -46,7 +50,7 @@ function itemCondition(item: HistoryItem): SQL {
 async function lastChange(
 	scope: SiteScope,
 	item: HistoryItem,
-	fallback: Omit<DraftBefore, "content">,
+	fallback: Pick<DraftBefore, "changedAt" | "changedBy">,
 ): Promise<LastChange> {
 	const newest = await scope.first(draftChanges, itemCondition(item), { orderBy: [desc(draftChanges.changedAt)] });
 	if (newest && newest.changedAt.getTime() >= fallback.changedAt.getTime() - 1000) {
@@ -90,7 +94,7 @@ export async function noteDraftChange(
 	// A Draft that held nothing yet (a new item, a Form without emails) has nothing to keep.
 	if (!options.created && before.content !== null && before.content !== undefined) {
 		const newest = await newestCopy(scope, item);
-		const due = !newest || scope.now().getTime() - newest.at.getTime() >= CHECKPOINT_EVERY_MS;
+		const due = scope.now().getTime() - (newest?.at ?? before.since).getTime() >= CHECKPOINT_EVERY_MS;
 		if (due && !(newest && sameJson(newest.content, before.content))) {
 			await insertCheckpoint(scope, item, before.content, "activity", await lastChange(scope, item, before));
 		}

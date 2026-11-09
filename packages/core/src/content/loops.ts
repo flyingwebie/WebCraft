@@ -275,7 +275,7 @@ async function noteLoopChange(scope: SiteScope, row: LoopRow, draft: unknown): P
 	await noteDraftChange(
 		scope,
 		{ kind: "loop", id: row.id },
-		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 		draft,
 	);
 }

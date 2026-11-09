@@ -172,7 +172,7 @@ export async function saveFormDraft(scope: SiteScope, formId: string, input: For
 		await noteDraftChange(
 			tx,
 			{ kind: "form", id: row.id },
-			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 			version,
 		);
 		return toForm(updated);
@@ -351,7 +351,12 @@ async function noteEmailsChange(scope: SiteScope, row: FormRow, emails: unknown)
 	await noteDraftChange(
 		scope,
 		{ kind: "formEmails", id: row.id },
-		{ content: row.emailsDraft, changedAt: row.emailsUpdatedAt ?? row.updatedAt, changedBy: row.emailsUpdatedBy },
+		{
+			content: row.emailsDraft,
+			changedAt: row.emailsUpdatedAt ?? row.updatedAt,
+			changedBy: row.emailsUpdatedBy,
+			since: row.createdAt,
+		},
 		emails,
 	);
 }

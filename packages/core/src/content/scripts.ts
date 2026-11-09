@@ -105,7 +105,12 @@ export async function saveScriptDraft(
 					await noteDraftChange(
 						tx,
 						{ kind: "script", id: current.id },
-						{ content: current.draft, changedAt: current.updatedAt, changedBy: current.updatedBy },
+						{
+							content: current.draft,
+							changedAt: current.updatedAt,
+							changedBy: current.updatedBy,
+							since: current.createdAt,
+						},
 						code,
 					);
 					return toScript(updated as ScriptRow);
@@ -119,7 +124,7 @@ export async function saveScriptDraft(
 				await noteDraftChange(
 					tx,
 					{ kind: "script", id: made.id },
-					{ content: "", changedAt: now, changedBy: null },
+					{ content: "", changedAt: now, changedBy: null, since: now },
 					code,
 					{ created: true },
 				);

@@ -75,6 +75,8 @@ export const PROCEDURES = {
 	"install.security.update": internal(),
 	"install.storage.get": internal(),
 	"install.storage.update": internal(),
+	"install.history.get": internal(),
+	"install.history.update": internal(),
 	"install.media.get": internal(),
 	"install.media.update": internal(),
 	"install.backups.get": internal(),

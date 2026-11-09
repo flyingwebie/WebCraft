@@ -44,9 +44,13 @@ describe("while a Draft is edited", () => {
 		const item = { kind: "entry", id: entry.id } as const;
 		expect((await editor.api.history.list({ siteId, item })).copies).toEqual([]);
 
+		// Changes within 10 minutes of making it save nothing.
 		await install.clock.advance(MINUTE);
+		await editor.api.entries.saveDraft({ siteId, entryId: entry.id, title: "First title, edited" });
+		expect((await editor.api.history.list({ siteId, item })).copies).toEqual([]);
+
+		await install.clock.advance(10 * MINUTE);
 		await editor.api.entries.saveDraft({ siteId, entryId: entry.id, title: "Second title" });
-		// Nothing was saved of it yet: the Draft as it was made is kept.
 		let shown = await historyOf(editor.api, siteId, item);
 		expect(shown).toHaveLength(1);
 		expect(shown[0]).toMatchObject({ type: "checkpoint", reason: "activity" });

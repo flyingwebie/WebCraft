@@ -574,7 +574,7 @@ async function changeDraft(
 	await noteDraftChange(
 		scope,
 		{ kind: "entry", id: row.id },
-		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy },
+		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 		version,
 		{ created: "change" in edit && edit.withDefaults === true },
 	);
