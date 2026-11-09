@@ -5,10 +5,13 @@ import {
 	builtInNotFoundPage,
 	type EditModePage,
 	type ElementTree,
+	isComponentInfo,
 	type LanguageLink,
 	mediaReferencesIn,
 	type PageAlternate,
 	type PageToRender,
+	type PlacementRenderer,
+	placementsIn,
 	renderPage,
 	type TemplateValue,
 	valuePathsOf,
@@ -16,6 +19,13 @@ import {
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { InstallConfig } from "../config.ts";
+import {
+	type ComponentSources,
+	type ComponentVersion,
+	NO_MODULE_COMPONENTS,
+	type SiteComponents,
+	siteComponents,
+} from "../content/components.ts";
 import { editableField } from "../content/editable.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
 import { homePageId, publishedAddresses } from "../content/entry-paths.ts";
@@ -34,8 +44,16 @@ import {
 } from "../content/languages.ts";
 import { candidatePatterns, findPublishedPage, isPagePostType } from "../content/pages.ts";
 import { listPostTypes, type PostType } from "../content/post-types.ts";
+import { propValue } from "../content/props.ts";
 import { publishedEntries } from "../content/relationships.ts";
-import { entryParts, globalsParts, type Parts, type RelatedEntry, resolvePath } from "../content/render-values.ts";
+import {
+	entryParts,
+	globalsParts,
+	type Parts,
+	placementValues,
+	type RelatedEntry,
+	resolvePath,
+} from "../content/render-values.ts";
 import { specialPageId } from "../content/special-pages.ts";
 import { canonicalPath, pathSegments, slugIn } from "../content/url-patterns.ts";
 import { storedVersion } from "../content/values.ts";
@@ -158,8 +176,11 @@ export function createSitePages(options: {
 	config: InstallConfig;
 	data: DataLayer;
 	storage: InstallStorage;
+	/** The Components of the Modules running on each Site. */
+	components?: ComponentSources;
 }): SitePages {
 	const { database, config, data, storage } = options;
+	const sources = options.components ?? NO_MODULE_COMPONENTS;
 	// Each Site's styles, built once per page cache generation: a publish that changes them raises it.
 	// The Sites used least recently go first when there are too many.
 	const built = new Map<string, { generation: number; styles: Promise<SiteStyles> }>();
@@ -198,7 +219,7 @@ export function createSitePages(options: {
 		},
 
 		async render(host, pathname, editing) {
-			const view = viewFor(data, host, editing);
+			const view = viewFor(data, host, editing, sources);
 			const located = await locate(view.scope, pathname);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
@@ -212,7 +233,10 @@ export function createSitePages(options: {
 			const place = located?.kind === "found" ? located : await notFoundPlace(scope, pathname);
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
 			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
-			const trees = [siteTemplate, found?.content ?? builtInNotFoundPage(place.language.code).content];
+			const content = found?.content ?? builtInNotFoundPage(place.language.code).content;
+			// What the page reads includes what the Components it places read.
+			const placed = await placedComponents(scope, [siteTemplate, content], sources);
+			const trees = [siteTemplate, content, ...[...placed.used.values()].map((version) => version.tree)];
 			const places = await languagePlaces(scope, place, found);
 			return {
 				entryId: found?.entry.id ?? null,
@@ -229,7 +253,7 @@ export function createSitePages(options: {
 		},
 
 		async notFound(host, pathname, editing) {
-			const view = viewFor(data, host, editing);
+			const view = viewFor(data, host, editing, sources);
 			const place = await notFoundPlace(view.scope, pathname);
 			const styles = await stylesOf(host);
 			const { languageLinks } = await languageExtras(view.scope, host, place, undefined);
@@ -439,12 +463,18 @@ type ReadScope = Pick<VisitorScope, "select" | "first" | "count" | "where" | "db
  * How a page is being viewed: by visitors (the published version of its Content) or in Edit mode
  * (the Drafts, with editable regions tagged).
  */
-type View = { scope: ReadScope; version: "published" | "draft"; editing?: PageEditing };
+type View = {
+	scope: ReadScope;
+	version: "published" | "draft";
+	editing?: PageEditing;
+	/** Where the Components of the Modules running on the Site come from. */
+	sources: ComponentSources;
+};
 
-function viewFor(data: DataLayer, host: SiteHost, editing: PageEditing | undefined): View {
+function viewFor(data: DataLayer, host: SiteHost, editing: PageEditing | undefined, sources: ComponentSources): View {
 	return editing
-		? { scope: editing.scope, version: "draft", editing }
-		: { scope: data.visitors(host.site), version: "published" };
+		? { scope: editing.scope, version: "draft", editing, sources }
+		: { scope: data.visitors(host.site), version: "published", sources };
 }
 
 /**
@@ -589,7 +619,7 @@ async function renderEntryPage(
 	const site = await siteParts(view, languages);
 	const related = await relatedEntries(
 		scope,
-		found,
+		found.postTypes,
 		linksIn(version.values, postType.fields).map((link) => link.targetId),
 		languages,
 	);
@@ -637,12 +667,14 @@ async function renderSitePage(
 	const site = globalsParts(globalValues.fields, globalValues.values);
 	const siteRoot: Parts = { text: undefined, part: (name) => (name === "site" ? site : undefined) };
 	const siteTemplate = await publishedSiteTemplate(scope);
-	// The Media the page may show: `media:<id>` written in either template, and every media value the
-	// page reads (its content's, the Globals'). Ids that aren't the Site's ready Media find nothing.
+	const placed = await pageComponents(scope, [page.content, siteTemplate], view.sources, site, languages);
+	// The Media the page may show: `media:<id>` written in either template or a Component it places,
+	// and every media value the page reads (its content's, the Globals'). Ids that aren't the Site's
+	// ready Media find nothing.
 	const shown = await pageMedia(
 		scope,
 		[
-			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null])),
+			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null, placed.trees])),
 			...uuidsIn(JSON.stringify([contentValues, globalValues.values])),
 		],
 		languages,
@@ -656,7 +688,90 @@ async function renderSitePage(
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
 		editMode: editing && { ...editing.head, region: editRegions(entry, storedFields(globalsRow?.fields)) },
+		component: placed.render,
 	});
+}
+
+/**
+ * The published Components the trees place, directly or through other Components, that can show on
+ * the Site (a Component that isn't published, or a Module's that doesn't run there, shows nothing).
+ * Components are Structure: even in Edit mode, pages show their published versions.
+ */
+async function placedComponents(
+	scope: ReadScope,
+	trees: readonly (ElementTree | undefined)[],
+	sources: ComponentSources,
+): Promise<{ catalogue: SiteComponents; used: Map<string, ComponentVersion> }> {
+	const catalogue = await siteComponents(scope, "published", sources);
+	const used = new Map<string, ComponentVersion>();
+	const visit = (tree: ElementTree) => {
+		for (const placement of placementsIn(tree.nodes)) {
+			if (used.has(placement.component) || !isComponentInfo(catalogue.byId(placement.component))) continue;
+			const version = catalogue.version(placement.component);
+			if (!version) continue;
+			used.set(placement.component, version);
+			visit(version.tree);
+		}
+	};
+	for (const tree of trees) if (tree) visit(tree);
+	return { catalogue, used };
+}
+
+/**
+ * How a page's Placements render: each Component's published tree, reading its Prop values
+ * (`props.x`) and the Globals (`site.x`). Relationship Props written as Entry ids show those
+ * published Entries of their Post Types.
+ */
+async function pageComponents(
+	scope: ReadScope,
+	trees: readonly (ElementTree | undefined)[],
+	sources: ComponentSources,
+	site: Parts,
+	languages: { language: string; defaultLanguage: string },
+): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
+	const { catalogue, used } = await placedComponents(scope, trees, sources);
+	const shownTrees = [...used.values()].map((version) => version.tree);
+	const related = await relatedOfProps(scope, [...trees, ...shownTrees], catalogue, languages);
+	return {
+		trees: shownTrees,
+		render: (componentId, props, outer) => {
+			const version = used.get(componentId);
+			if (!version) return undefined;
+			return {
+				tree: version.tree,
+				values: placementValues(version.props, props, outer, { site, related, read: propValue }),
+			};
+		},
+	};
+}
+
+/** The published Entries Relationship Props written as Entry ids point at, with their Post Type's key. */
+async function relatedOfProps(
+	scope: ReadScope,
+	trees: readonly (ElementTree | undefined)[],
+	catalogue: SiteComponents,
+	languages: { language: string; defaultLanguage: string },
+): Promise<Map<string, RelatedEntry & { postTypeKey: string }>> {
+	const ids: string[] = [];
+	for (const tree of trees) {
+		for (const placement of placementsIn(tree?.nodes ?? [])) {
+			const props = catalogue.version(placement.component)?.props ?? [];
+			for (const given of placement.props) {
+				const prop = props.find((candidate) => candidate.key === given.name);
+				if (prop?.type !== "relationship" || given.value.some((part) => part.type === "value")) continue;
+				const value = propValue(prop, given.value.map((part) => (part.type === "text" ? part.text : "")).join(""));
+				ids.push(...(Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === "string"));
+			}
+		}
+	}
+	if (ids.length === 0) return new Map();
+	const postTypes = await listPostTypes(scope);
+	const keys = new Map(postTypes.map((postType) => [postType.id, postType.key]));
+	const related = new Map<string, RelatedEntry & { postTypeKey: string }>();
+	for (const [id, entry] of await relatedEntries(scope, postTypes, ids, languages)) {
+		related.set(id, { ...entry, postTypeKey: keys.get(entry.postTypeId) ?? "" });
+	}
+	return related;
 }
 
 /** The Site template visitors see, or undefined while none is published (pages get the built-in one). */
@@ -671,18 +786,18 @@ async function publishedSiteTemplate(scope: ReadScope): Promise<ElementTree | un
 /** The published Entries the page's Relationships point at, read in the page's language. */
 async function relatedEntries(
 	scope: ReadScope,
-	found: FoundEntry,
+	postTypes: readonly PostType[],
 	ids: readonly string[],
 	languages: Languages,
-): Promise<Map<string, RelatedEntry>> {
-	const byId = new Map(found.postTypes.map((postType) => [postType.id, postType]));
-	const related = new Map<string, RelatedEntry>();
+): Promise<Map<string, RelatedEntry & { postTypeId: string }>> {
+	const byId = new Map(postTypes.map((postType) => [postType.id, postType]));
+	const related = new Map<string, RelatedEntry & { postTypeId: string }>();
 	// Entries hidden in the page's language have no place on it.
 	const rows = (await publishedEntries(scope, [...new Set(ids)])).filter((row) =>
 		isVisibleIn(storedVersion(row.published), languages),
 	);
 	const addresses = new Map<string, { slug: string; path: string }>();
-	for (const postType of found.postTypes) {
+	for (const postType of postTypes) {
 		const own = rows.filter((row) => row.postTypeId === postType.id).map((row) => row.id);
 		for (const [id, address] of await publishedAddresses(scope, postType, own, languages)) addresses.set(id, address);
 	}
@@ -692,6 +807,7 @@ async function relatedEntries(
 		const values = entryValues(storedVersion(row.published), postType.fields, languages);
 		const address = addresses.get(row.id);
 		related.set(row.id, {
+			postTypeId: postType.id,
 			fields: postType.fields,
 			values: values.fields,
 			builtIns: {

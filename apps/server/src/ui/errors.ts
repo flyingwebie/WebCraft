@@ -37,13 +37,41 @@ export function errorMessage(error: unknown): MessageKey {
 		case "MEDIA_TOO_LARGE":
 		case "MEDIA_INVALID":
 		case "STORAGE_UNREACHABLE":
+		case "POST_TYPE_NOT_FOUND":
+		case "POST_TYPE_INVALID":
+		case "ENTRY_NOT_FOUND":
+		case "ENTRY_INVALID":
+		case "ENTRY_INCOMPLETE":
+		case "ENTRY_SLUG_TAKEN":
+		case "ENTRY_LINKED":
+		case "GLOBALS_INVALID":
+		case "GLOBALS_INCOMPLETE":
+		case "PAGE_NOT_FOUND":
+		case "PAGE_PARENT_UNPUBLISHED":
+		case "PAGE_HAS_CHILDREN":
 		case "EDIT_MODE_UNAVAILABLE":
-		case "CONFIRMATION_INVALID":
 		case "LANGUAGE_INVALID":
 		case "LANGUAGE_TAKEN":
 		case "LANGUAGE_NOT_FOUND":
-		case "PATH_TAKEN":
 			return `errors.${code}`;
+		case "POST_TYPE_TAKEN":
+			return (data as { field?: unknown } | undefined)?.field === "key"
+				? "errors.POST_TYPE_TAKEN_KEY"
+				: "errors.POST_TYPE_TAKEN_URL_PATTERN";
+		case "PATH_TAKEN": {
+			const kind = (data as { by?: { kind?: unknown } } | undefined)?.by?.kind;
+			return kind === "page"
+				? "errors.PATH_TAKEN_BY_PAGE"
+				: kind === "language"
+					? "errors.PATH_TAKEN_BY_LANGUAGE"
+					: "errors.PATH_TAKEN_BY_POST_TYPE";
+		}
+		case "CONFIRMATION_INVALID":
+			return data?.problem === "expired"
+				? "errors.CONFIRMATION_EXPIRED"
+				: data?.problem === "changed"
+					? "errors.CONFIRMATION_CHANGED"
+					: "errors.CONFIRMATION_INVALID";
 		case "MEDIA_TYPE_REFUSED":
 			return (data as { reason?: unknown } | undefined)?.reason === "svg"
 				? "errors.MEDIA_TYPE_REFUSED_SVG"

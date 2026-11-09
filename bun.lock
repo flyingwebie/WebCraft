@@ -47,6 +47,7 @@
         "@webcraft/core": "workspace:*",
         "@webcraft/db": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
+        "@webcraft/renderer": "workspace:*",
         "@webcraft/ui": "workspace:*",
         "drizzle-orm": "catalog:",
         "lucide-react": "^1.41.0",
@@ -168,7 +169,7 @@
     },
     "packages/module-sdk": {
       "name": "@webcraft/module-sdk",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "drizzle-orm": "catalog:",
         "zod": "catalog:",

@@ -2,7 +2,7 @@
  * One reason something was refused, and where: `urlPattern`, `parentId`, `fields[2].key`, or a value's path such
  * as `fields.team[1].name`. A value that breaks one of its Field's rules says which (`required`,
  * `min`, `max`, `minLength`, `maxLength`, `pattern`, `integer`, `email`, `options`, `url`,
- * `postTypes`), so the admin can word it in the person's language.
+ * `postTypes`, `media`: `VALUE_RULES`), so the admin can word it in the person's language.
  */
 export type ContentProblem = {
 	at: string;
@@ -205,6 +205,73 @@ export class PageParentUnpublishedError extends Error {
 	override name = "PageParentUnpublishedError";
 	constructor() {
 		super("Publish the parent Page first: a Page's address starts with its parent's.");
+	}
+}
+
+/** There is no such Component on the Site (nor one a Module running there declares). */
+export class ComponentNotFoundError extends Error {
+	override name = "ComponentNotFoundError";
+	constructor() {
+		super("There is no such Component on this Site.");
+	}
+}
+
+/** A Component's name or Props can't be saved: `problems` says what and where (`name`, `props[1].options`). */
+export class ComponentInvalidError extends Error {
+	override name = "ComponentInvalidError";
+	readonly problems: readonly ContentProblem[];
+	constructor(problems: readonly ContentProblem[]) {
+		super(`The Component can't be saved: ${describe(problems)}`);
+		this.problems = problems;
+	}
+}
+
+/** What already has a Component's name: another Component of the Site, or a Module's Component. */
+export type ComponentNameHolder = { kind: "component"; id: string } | { kind: "module"; moduleId: string };
+
+/** Another Component already has the name: a tag names one Component. */
+export class ComponentNameTakenError extends Error {
+	override name = "ComponentNameTakenError";
+	readonly componentName: string;
+	readonly by: ComponentNameHolder;
+	constructor(componentName: string, by: ComponentNameHolder) {
+		super(
+			by.kind === "module"
+				? `The Module ${by.moduleId} has a Component named ${componentName}: choose another name.`
+				: `Another Component of this Site is named ${componentName}: choose another name.`,
+		);
+		this.componentName = componentName;
+		this.by = by;
+	}
+}
+
+/** Where a Component is placed: a Template's or another Component's Draft or published version. */
+export type ComponentUse =
+	| {
+			kind: "template";
+			id: string;
+			templateKind: "entry" | "site";
+			/** The Post Type an Entry template renders; null for the Site template. */
+			postTypeId: string | null;
+			versions: ("draft" | "published")[];
+	  }
+	| { kind: "component"; id: string; name: string; versions: ("draft" | "published")[] };
+
+/** A Component that is placed somewhere can't be deleted: `usedIn` says where. */
+export class ComponentInUseError extends Error {
+	override name = "ComponentInUseError";
+	readonly usedIn: readonly ComponentUse[];
+	constructor(usedIn: readonly ComponentUse[]) {
+		super(`The Component is placed in ${usedIn.length} Template(s) or Component(s): remove those Placements first.`);
+		this.usedIn = usedIn;
+	}
+}
+
+/** A Module's Component is changed by its Module, never on a Site. */
+export class ComponentFromModuleError extends Error {
+	override name = "ComponentFromModuleError";
+	constructor() {
+		super("This Component comes from a Module: it changes with the Module, not on the Site.");
 	}
 }
 

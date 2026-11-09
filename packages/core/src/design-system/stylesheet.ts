@@ -8,7 +8,7 @@
  * agrees on its name without storing it. A publish that changes it keeps the one it replaces for a
  * while (`stylesheets`), so a page a visitor loaded just before still finds its stylesheet.
  */
-import { designSystems, stylesheets, templates } from "@webcraft/db/schema";
+import { components, designSystems, stylesheets, templates } from "@webcraft/db/schema";
 import {
 	compileStylesheet,
 	contentHash,
@@ -22,6 +22,7 @@ import {
 } from "@webcraft/renderer";
 import { eq, isNotNull, lt } from "drizzle-orm";
 
+import { storedComponentVersion } from "../content/component-versions.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 
 /** Where every Site serves its stylesheets: `/_wc/css/<hash>.css`. */
@@ -49,10 +50,17 @@ export async function publishedDesignSystem(scope: Pick<VisitorScope, "first">):
 	return row?.published ? readDesignSystem(row.published) : defaultDesignSystem();
 }
 
-/** The published element trees of the Site: its Templates. Components and Popups (#63) join them. */
+/**
+ * The published element trees of the Site: its Templates and its own Components (a Module's hold
+ * no Classes). Popups join them.
+ */
 export async function publishedTrees(scope: Pick<VisitorScope, "select">): Promise<ElementTree[]> {
 	const rows = await scope.select(templates, isNotNull(templates.published));
-	return rows.map((row) => row.published as ElementTree);
+	const placed = await scope.select(components, isNotNull(components.published));
+	return [
+		...rows.map((row) => row.published as ElementTree),
+		...placed.map((row) => storedComponentVersion(row.published).tree),
+	];
 }
 
 /** Every Class and token utility the trees give elements, by id. */

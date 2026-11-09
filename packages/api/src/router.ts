@@ -1,6 +1,7 @@
 import type { RouterClient } from "@orpc/server";
 
 import { audit } from "./procedures/audit.ts";
+import { components } from "./procedures/components.ts";
 import { designSystem } from "./procedures/design-system.ts";
 import { editMode } from "./procedures/edit-mode.ts";
 import { entries } from "./procedures/entries.ts";
@@ -39,6 +40,7 @@ export const apiRouter = {
 	globals,
 	languages,
 	templates,
+	components,
 	designSystem,
 	media,
 	pages,

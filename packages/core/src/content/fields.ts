@@ -2,6 +2,14 @@ import { EXPRESSION_KEYWORDS } from "@webcraft/renderer";
 
 import type { ContentProblem } from "./errors.ts";
 import {
+	FIELD_HELP_MAX_LENGTH,
+	FIELD_KEY,
+	FIELD_LABEL_MAX_LENGTH,
+	FIELD_TYPE_TRAITS,
+	MAX_FIELD_DEPTH,
+	MAX_FIELDS,
+} from "./field-rules.ts";
+import {
 	type DefineContext,
 	FIELD_TYPE_SPECS,
 	type FieldDefinition,
@@ -12,6 +20,12 @@ import {
 	specOf,
 } from "./field-types.ts";
 
+export {
+	FIELD_HELP_MAX_LENGTH,
+	FIELD_LABEL_MAX_LENGTH,
+	MAX_FIELD_DEPTH,
+	MAX_FIELDS,
+} from "./field-rules.ts";
 export {
 	DATE_MODES,
 	type DateMode,
@@ -73,19 +87,6 @@ export const RESERVED_FIELD_KEYS: ReadonlySet<string> = new Set(
  */
 const RESERVED_NESTED_KEYS: ReadonlySet<string> = new Set(["id", ...EXPRESSION_KEYWORDS]);
 
-/** A Field key: starts with a lower-case letter, then letters, digits and underscores; at most 64. */
-const FIELD_KEY = /^[a-z][A-Za-z0-9_]{0,63}$/;
-
-/** The most Fields a Post Type (or the Globals) has, counting those inside Groups and Repeaters. */
-export const MAX_FIELDS = 200;
-
-/** How deep Groups and Repeaters nest: a Field at the top is at depth 1. */
-export const MAX_FIELD_DEPTH = 3;
-
-/** The longest label and help text, in characters. */
-export const FIELD_LABEL_MAX_LENGTH = 100;
-export const FIELD_HELP_MAX_LENGTH = 500;
-
 /**
  * Checks a list of Fields (a Post Type's or the Globals'), adding a problem for each setting that is
  * wrong, where it is (`fields[2].fields[0].key`). `existing` holds the Fields stored so far: a Field
@@ -94,9 +95,16 @@ export const FIELD_HELP_MAX_LENGTH = 500;
 export function parseFields(
 	inputs: readonly FieldInput[],
 	problems: ContentProblem[],
-	context: DefineContext & { reservedKeys: ReadonlySet<string> },
+	context: DefineContext & {
+		reservedKeys: ReadonlySet<string>;
+		/** What the top-level list is called in problems: `fields` (a Post Type's, the Globals') or `props` (a Component's). */
+		listName?: "fields" | "props";
+	},
 	existing: readonly FieldDefinition[] = [],
 ): FieldDefinition[] {
+	const listName = context.listName ?? "fields";
+	/** Props are declared with the Field types; problems about the top-level list name what they are. */
+	const word = (depth: number) => (depth === 1 && listName === "props" ? "Prop" : "Field");
 	let count = 0;
 	const parseList = (
 		list: readonly FieldInput[],
@@ -120,17 +128,17 @@ export function parseFields(
 			if (!FIELD_KEY.test(key)) {
 				report(
 					"key",
-					"A Field key starts with a lower-case letter, then letters, digits and underscores (at most 64).",
+					`A ${word(depth)} key starts with a lower-case letter, then letters, digits and underscores (at most 64).`,
 				);
 			} else if (reserved.has(key.toLowerCase())) {
 				report("key", `${key} is kept for WebCraft; choose another key.`);
 			} else if (seen.has(key.toLowerCase())) {
-				report("key", `Two Fields have the key ${key}.`);
+				report("key", `Two ${word(depth)}s have the key ${key}.`);
 			}
 			seen.add(key.toLowerCase());
 			const label = typeof input.label === "string" ? input.label.trim() : "";
 			if (!label || label.length > FIELD_LABEL_MAX_LENGTH) {
-				report("label", `A Field's label has 1 to ${FIELD_LABEL_MAX_LENGTH} characters.`);
+				report("label", `A ${word(depth)}'s label has 1 to ${FIELD_LABEL_MAX_LENGTH} characters.`);
 			}
 			const help = typeof input.help === "string" ? input.help.trim() : "";
 			if (help.length > FIELD_HELP_MAX_LENGTH)
@@ -139,7 +147,7 @@ export function parseFields(
 			if (!isFieldType(input.type)) report("type", `There is no Field type ${String(input.type)}.`);
 			const previous = before.find((field) => field.key === key);
 			if (previous && previous.type !== input.type) {
-				report("type", `${key} is a ${previous.type} Field; a Field keeps its type.`);
+				report("type", `${key} is a ${previous.type} ${word(depth)}; a ${word(depth)} keeps its type.`);
 			}
 
 			const spec = FIELD_TYPE_SPECS[type];
@@ -185,7 +193,7 @@ export function parseFields(
 			return field;
 		});
 	};
-	return parseList(inputs, "fields", 1, existing);
+	return parseList(inputs, listName, 1, existing);
 }
 
 /** Checks a Field's default against its own type and rules. Only some types have one. */
@@ -196,7 +204,7 @@ function parseDefault(
 ): never {
 	if (input === undefined || input === null) return null as never;
 	const value = specOf(field).value;
-	if (!value || field.type === "media" || field.type === "relationship") {
+	if (!value || !FIELD_TYPE_TRAITS[field.type].hasDefault) {
 		report("default", "This kind of Field has no default.");
 		return null as never;
 	}

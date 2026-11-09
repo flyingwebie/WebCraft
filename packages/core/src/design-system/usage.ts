@@ -4,7 +4,7 @@
  * published version; the Design system uses them in its own CSS (Classes' styles and custom CSS,
  * base styles, the Site's custom CSS), its focus style and Classes' breakpoint styles.
  */
-import { templates } from "@webcraft/db/schema";
+import { components, templates } from "@webcraft/db/schema";
 import {
 	type CssText,
 	type DesignSystem,
@@ -14,6 +14,7 @@ import {
 	UTILITY_ID_PREFIX,
 } from "@webcraft/renderer";
 
+import { storedComponentVersion } from "../content/component-versions.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 
 /** One place a Class or token is used. */
@@ -28,13 +29,24 @@ export type DesignUse =
 			/** The ids of the elements that use it. */
 			elements: string[];
 	  }
+	| {
+			kind: "component";
+			componentId: string;
+			name: string;
+			version: "draft" | "published";
+			/** The ids of the elements that use it. */
+			elements: string[];
+	  }
 	| { kind: "class"; classId: string; name: string }
 	| { kind: "baseStyle"; target: string }
 	| { kind: "customCss" }
 	| { kind: "focus" };
 
-/** An element tree that may use Classes, and where it is. Components and Popups (#63) add theirs. */
-type TreeSource = { tree: ElementTree; use: Omit<Extract<DesignUse, { kind: "template" }>, "elements"> };
+/** An element tree that may use Classes, and where it is: a Template or a Component. Popups add theirs. */
+type TreeSource = { tree: ElementTree; use: WithoutElements<Extract<DesignUse, { kind: "template" | "component" }>> };
+
+/** A tree's use before its elements are known: each kind of use without `elements`. */
+type WithoutElements<Use> = Use extends unknown ? Omit<Use, "elements"> : never;
 
 async function treeSources(scope: Pick<SiteScope, "select">): Promise<TreeSource[]> {
 	const sources: TreeSource[] = [];
@@ -43,7 +55,17 @@ async function treeSources(scope: Pick<SiteScope, "select">): Promise<TreeSource
 		sources.push({ tree: row.draft as ElementTree, use: { ...where, version: "draft" } });
 		if (row.published) sources.push({ tree: row.published as ElementTree, use: { ...where, version: "published" } });
 	}
+	// A Component's version is `{ props, tree }`; Modules' Components hold no Classes.
+	for (const row of await scope.select(components)) {
+		const where = { kind: "component", componentId: row.id, name: row.name } as const;
+		sources.push({ tree: treeOf(row.draft), use: { ...where, version: "draft" } });
+		if (row.published) sources.push({ tree: treeOf(row.published), use: { ...where, version: "published" } });
+	}
 	return sources;
+}
+
+function treeOf(version: unknown): ElementTree {
+	return storedComponentVersion(version).tree;
 }
 
 /** Every element tree giving an element a Class or utility that `matches` accepts. */
@@ -53,7 +75,7 @@ async function usesInTrees(scope: Pick<SiteScope, "select">, matches: (classId: 
 		const elements = [...elementsOf(source.tree.nodes)]
 			.filter((element) => element.classes.some(matches))
 			.map((element) => element.id);
-		if (elements.length > 0) uses.push({ ...source.use, elements });
+		if (elements.length > 0) uses.push({ ...source.use, elements } as DesignUse);
 	}
 	return uses;
 }

@@ -1,6 +1,7 @@
 // The sample Module: a working example of every extension point the Module SDK opens, and the
 // Module the Module host's tests drive. It imports nothing from WebCraft but the SDK.
 import {
+	component,
 	defineModule,
 	desc,
 	eq,
@@ -51,7 +52,7 @@ export const sample = defineModule({
 			it: "Tiene note su ogni Sito: l'esempio funzionante dell'SDK dei Moduli.",
 		},
 		version: "1.0.0",
-		sdk: "^1.0.0",
+		sdk: "^1.1.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -239,6 +240,26 @@ export const sample = defineModule({
 			if (!response.ok) throw new Error(`The hook answered ${response.status}.`);
 		},
 	},
+	components: [
+		component({
+			name: "NoteCard",
+			label: { en: "Note card", it: "Scheda nota" },
+			props: [
+				{ key: "body", label: { en: "Text", it: "Testo" }, type: "text", required: true },
+				{
+					key: "tone",
+					label: { en: "Tone", it: "Tono" },
+					type: "select",
+					options: [
+						{ value: "calm", label: "Calm" },
+						{ value: "loud", label: "Loud" },
+					],
+					default: "calm",
+				},
+			],
+			markup: '<aside data-tone="{{ props.tone.value }}"><p>{{ props.body }}</p></aside>',
+		}),
+	],
 	jobs: {
 		remind: job({
 			payload: z.object({ noteId: z.uuid() }),

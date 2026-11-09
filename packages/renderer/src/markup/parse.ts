@@ -4,7 +4,7 @@
  * text with values in other languages (`{{ "Read more" fr: "Lire la suite" }}`) and `\{{` for a
  * literal `{{`. Each element's id is written as `data-wc-id`; an element without one
  * gets a new id. Classes are written by name in `class`, and an inline `style` becomes a generated
- * Class with a notice.
+ * Class with a notice. A PascalCase tag places a Component, its Props written as attributes.
  *
  * WebCraft reads the markup itself, strictly: every element needs its end tag, nothing a browser
  * would silently repair is accepted, and every problem is reported with its line and column. The
@@ -13,6 +13,16 @@
 import { decodeHTML, decodeHTMLAttribute } from "entities";
 
 import { commandNamed, type MarkupSection, RESERVED_COMMANDS, TEMPLATE_COMMANDS } from "../commands.ts";
+import {
+	boundaryProblem,
+	type ComponentCatalogue,
+	expansionProblem,
+	isComponentInfo,
+	isComponentTag,
+	type PlacementNode,
+	type PropValue,
+	placementHoldsNothing,
+} from "../components.ts";
 import { URL_ATTRIBUTES } from "../escape.ts";
 import { type Expression, expressionPaths, readExpression } from "../expressions.ts";
 import { readFormat } from "../formatters.ts";
@@ -68,6 +78,15 @@ export type ParseMarkupOptions = {
 	 * absent.
 	 */
 	classForStyle?: (declarations: string) => { id: string; name: string } | { problem: string };
+	/**
+	 * The Components the markup may place, by name (`<PostCard … />`) and by id, with their Props and
+	 * trees. Every PascalCase tag is refused when absent.
+	 */
+	components?: ComponentCatalogue;
+	/** Why a path names no value here, when `isKnownValue` refuses it; `unknownValueMessage` by default. */
+	unknownValue?: (path: string) => string;
+	/** How deep the markup already sits in Components: 0 for a Template (the default), 1 for a Component's. */
+	placedDepth?: number;
 	/** Makes an id for an element written without one; random by default. */
 	newId?: () => string;
 };
@@ -104,7 +123,10 @@ type Curly = { inner: string; offset: number; innerOffset: number };
 
 /** An attribute as written, before it is checked. */
 type WrittenAttribute = {
+	/** The name in lower case, as HTML reads it. */
 	name: string;
+	/** The name as written: a Placement's Props keep their case (`heroImage`). */
+	rawName: string;
 	offset: number;
 	parts: AttributePart[];
 	/** Whether the value holds a binding. */
@@ -156,6 +178,8 @@ class MarkupParser {
 	/** Where each node was read, for problems `checkTree` reports on a node. */
 	private readonly offsets = new WeakMap<object, number>();
 	private count = 0;
+	/** Boundary checks already made, by Component and where it sits. */
+	private readonly boundaries = new Map<string, string | undefined>();
 	private readonly newId: () => string;
 	private readonly options: ParseMarkupOptions;
 
@@ -172,6 +196,11 @@ class MarkupParser {
 			const content = this.readContent({ kind: "root" }, [], 1);
 			nodes = content.nodes;
 			this.unexpectedEnd(content.end, { kind: "root" });
+			const components = this.options.components;
+			if (this.problems.length === 0 && components) {
+				const tooBig = expansionProblem(nodes, (id) => components.byId(id));
+				if (tooBig) this.problem(this.offsets.get(tooBig.node) ?? 0, tooBig.message);
+			}
 			if (this.problems.length === 0) {
 				this.options.checkTree?.(nodes, (node, message) =>
 					this.problem((node && this.offsets.get(node)) ?? 0, message),
@@ -190,6 +219,9 @@ class MarkupParser {
 					isKnownValue: this.options.isKnownValue,
 					refuseElement: this.options.refuseElement,
 					refuseCommand: this.options.refuseCommand,
+					components: this.options.components,
+					unknownValue: this.options.unknownValue,
+					placedDepth: this.options.placedDepth,
 					classIds: this.classIds,
 					newId: this.newId,
 				},
@@ -436,7 +468,7 @@ class MarkupParser {
 			return undefined;
 		}
 		if (this.options.isKnownValue && !this.options.isKnownValue(path)) {
-			this.problem(pathOffset, unknownValueMessage(path));
+			this.problem(pathOffset, (this.options.unknownValue ?? unknownValueMessage)(path));
 			return undefined;
 		}
 		if (formats.length === 0) return { type: "value", path };
@@ -551,7 +583,7 @@ class MarkupParser {
 		);
 		if (unknown !== undefined) {
 			const at = new RegExp(`(?<![A-Za-z0-9_.])${unknown.replaceAll(".", "\\.")}(?![A-Za-z0-9_])`).exec(text);
-			this.problem(offset + (at?.index ?? 0), unknownValueMessage(unknown));
+			this.problem(offset + (at?.index ?? 0), (this.options.unknownValue ?? unknownValueMessage)(unknown));
 			return undefined;
 		}
 		return read.expression;
@@ -643,7 +675,7 @@ class MarkupParser {
 		return { kind: "endTag", name: match[1] ?? "", offset };
 	}
 
-	private readElement(ancestors: readonly string[], depth: number): ElementNode | undefined {
+	private readElement(ancestors: readonly string[], depth: number): ElementNode | PlacementNode | undefined {
 		const offset = this.pos;
 		this.pos++;
 		const namePattern = /[^\s/>]*/y;
@@ -651,15 +683,11 @@ class MarkupParser {
 		const nameMatch = namePattern.exec(this.text)?.[0] ?? "";
 		this.pos += nameMatch.length;
 		if (nameMatch.includes("{")) this.stop(offset, "Values can't be used in tag names.");
-		const isComponent = /^[A-Z]/.test(nameMatch) && /[a-z]/.test(nameMatch);
+		const isComponent = isComponentTag(nameMatch);
 		const tag = isComponent ? nameMatch : nameMatch.toLowerCase();
 		const { attributes, selfClosing } = this.readAttributes(offset, nameMatch);
 
-		if (isComponent) {
-			this.problem(offset, `There is no Component named ${nameMatch}.`);
-			if (!selfClosing) this.skipElementContent(tag, nameMatch, offset, ancestors, depth);
-			return undefined;
-		}
+		if (isComponent) return this.readPlacement(nameMatch, attributes, selfClosing, offset, ancestors, depth);
 		if (RAW_TEXT_ELEMENTS.has(tag)) {
 			this.problem(offset, elementProblem(tag) ?? `There is no element named ${tag} in Templates.`);
 			const close = this.text.toLowerCase().indexOf(`</${tag}`, this.pos);
@@ -690,16 +718,83 @@ class MarkupParser {
 		return refused ? undefined : element;
 	}
 
-	/** Skips a refused element's content, still checking it, up to its end tag. */
-	private skipElementContent(
-		tag: string,
+	/**
+	 * A PascalCase tag: a Placement of the Component with that name, its Props written as attributes
+	 * (`<PostCard heading="{{ title }}" featured />`). It holds nothing: Components have no slots.
+	 */
+	private readPlacement(
 		name: string,
+		written: readonly WrittenAttribute[],
+		selfClosing: boolean,
 		offset: number,
 		ancestors: readonly string[],
 		depth: number,
-	): void {
-		const { end } = this.readContent({ kind: "element", tag, name, offset }, [...ancestors, tag], depth + 1);
-		this.expectEndTag(end, tag, name, offset);
+	): PlacementNode | undefined {
+		if (depth > TREE_LIMITS.depth) this.stop(offset, `Elements nest at most ${TREE_LIMITS.depth} deep.`);
+		if (!selfClosing) {
+			const { nodes, end } = this.readContent({ kind: "element", tag: name, name, offset }, ancestors, depth + 1);
+			this.expectEndTag(end, name, name, offset);
+			const inside = nodes[0];
+			if (inside) this.problem(this.offsets.get(inside) ?? offset, placementHoldsNothing(name));
+		}
+		const catalogue = this.options.components;
+		const found = catalogue?.named(name);
+		if (!isComponentInfo(found)) {
+			this.problem(offset, found?.refused ?? `There is no Component named ${name}.`);
+			return undefined;
+		}
+		const boundary = boundaryProblem(
+			found,
+			ancestors,
+			(id) => catalogue?.byId(id),
+			this.boundaries,
+			(this.options.placedDepth ?? 0) + 1,
+		);
+		if (boundary) this.problem(offset, boundary);
+		let id: string | undefined;
+		const props: PropValue[] = [];
+		const given = new Set<string>();
+		for (const attribute of written) {
+			if (attribute.name === ID_ATTRIBUTE) {
+				if (attribute.bound || !isElementId(attribute.text)) {
+					this.problem(attribute.valueOffset, `${ID_ATTRIBUTE} is 1 to 64 letters, digits, dashes and underscores.`);
+				} else {
+					id = attribute.text;
+				}
+				continue;
+			}
+			const key = attribute.rawName;
+			if (given.has(key)) {
+				this.problem(attribute.offset, `${key} is given twice.`);
+				continue;
+			}
+			given.add(key);
+			const prop = found.props.find((candidate) => candidate.key === key);
+			if (!prop) {
+				const near = found.props.find((candidate) => candidate.key.toLowerCase() === key.toLowerCase());
+				this.problem(
+					attribute.offset,
+					near
+						? `${found.name} has no Prop named ${key}: Props are written as declared, ${near.key}.`
+						: `${found.name} has no Prop named ${key}.`,
+				);
+				continue;
+			}
+			if (!attribute.bound) {
+				const refused = prop.check(attribute.text);
+				if (refused) {
+					this.problem(attribute.valueOffset, `${key}: ${refused}`);
+					continue;
+				}
+			}
+			props.push({ name: key, value: canonicalNodes(attribute.parts) });
+		}
+		for (const prop of found.props) {
+			if (prop.required && !given.has(prop.key)) {
+				this.problem(offset, `${found.name} needs ${prop.key}: the Prop is required.`);
+			}
+		}
+		return { type: "component", id: this.elementId(id, offset), component: found.id, props };
 	}
 
 	private expectEndTag(end: End, tag: string, name: string, offset: number): void {
@@ -873,12 +968,20 @@ class MarkupParser {
 			const name = rawName.toLowerCase();
 			this.skipSpace();
 			if (this.text[this.pos] !== "=") {
-				attributes.push({ name, offset: nameOffset, parts: [], bound: false, text: "", valueOffset: nameOffset });
+				attributes.push({
+					name,
+					rawName,
+					offset: nameOffset,
+					parts: [],
+					bound: false,
+					text: "",
+					valueOffset: nameOffset,
+				});
 				continue;
 			}
 			this.pos++;
 			this.skipSpace();
-			attributes.push({ name, offset: nameOffset, ...this.readAttributeValue(tagOffset, tagName) });
+			attributes.push({ name, rawName, offset: nameOffset, ...this.readAttributeValue(tagOffset, tagName) });
 		}
 	}
 

@@ -1,5 +1,5 @@
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
-import { escapeAttribute, escapeText, renderTree } from "./html.ts";
+import { escapeAttribute, escapeText, type PlacementRenderer, renderTree } from "./html.ts";
 import type { MediaReader } from "./media.ts";
 import type { ElementNode, ElementTree, ValueNode } from "./tree.ts";
 import type { ValueReader } from "./values.ts";
@@ -64,6 +64,8 @@ export type PageToRender = {
 	className?: (classId: string) => string | undefined;
 	/** The Site's Media items that `media:<id>` refers to, for both templates. */
 	media?: MediaReader;
+	/** What Placements show, in both templates: their Components' published trees. */
+	component?: PlacementRenderer;
 	/** How the page is styled: the Site's published Design system (ADR 0009). */
 	styles?: PageStyles;
 	/**
@@ -133,6 +135,7 @@ export function renderPage(page: PageToRender): string {
 		className: page.className,
 		media: page.media,
 		priorityImage: { given: false },
+		component: page.component,
 		themeToggle,
 		languageSwitcher,
 		editRegion: editMode && ((value) => editMode.region(value, "content")),
@@ -144,6 +147,7 @@ export function renderPage(page: PageToRender): string {
 		media: page.media,
 		outlet: () => content,
 		extraAttributes: mainAttributes,
+		component: page.component,
 		themeToggle,
 		languageSwitcher,
 		editRegion: editMode && ((value) => editMode.region(value, "site")),

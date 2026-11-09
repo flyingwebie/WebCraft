@@ -61,7 +61,13 @@ describe("the Modules screen", () => {
 				outsideHosts: [{ host: "hooks.sample.example", isNew: true }],
 				siteScript: null,
 			},
-			adds: { siteRoutes: "/_wc/m/sample/", adminPages: ["Notes"], tables: 1, events: ["entry.published"] },
+			adds: {
+				siteRoutes: "/_wc/m/sample/",
+				adminPages: ["Notes"],
+				tables: 1,
+				events: ["entry.published"],
+				components: ["NoteCard"],
+			},
 		});
 	});
 

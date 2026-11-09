@@ -77,9 +77,8 @@ type Editing = { personId: string; scope: SiteScope };
 export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost, path: string): Promise<PageState> {
 	if (!isEditPath(path)) throw new EditPathInvalidError();
 	const { scope } = editing;
-	const content = await deps.pageContent(host, path);
+	const { content, items, changes } = await pageItems(deps, editing, host, path);
 	const entry = content.entryId ? await getEntry(scope, content.entryId, content.language) : null;
-	const items = itemsOf(content);
 	const [person] = await scope.db
 		.select({ name: people.name, adminLanguage: people.adminLanguage })
 		.from(people)
@@ -95,7 +94,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 			workspaceId: scope.workspace.id,
 			siteId: scope.site.id,
 		}),
-		changes: await changesOf(scope, items, editing.personId),
+		changes,
 		publishAll: {
 			url: new URL(`/sites/${scope.site.id}`, deps.config.adminOrigin).toString(),
 			otherDrafts: await otherDrafts(scope, items),
@@ -122,8 +121,7 @@ export async function undoChange(
 	input: { path: string; item: string; key: string },
 ): Promise<PageState> {
 	if (!isEditPath(input.path)) throw new EditPathInvalidError();
-	const items = itemsOf(await deps.pageContent(host, input.path));
-	const changes = await changesOf(editing.scope, items, editing.personId);
+	const { items, changes } = await pageItems(deps, editing, host, input.path);
 	if (!changes.some((change) => change.item === input.item && change.key === input.key)) {
 		throw new EditFieldInvalidError();
 	}
@@ -168,17 +166,26 @@ export async function publishPage(deps: PageDeps, editing: Editing, host: SiteHo
 
 /** The page's items that have changes, its Entry first. */
 async function changedItems(deps: PageDeps, editing: Editing, host: SiteHost, path: string): Promise<EditItem[]> {
-	const items = itemsOf(await deps.pageContent(host, path));
-	const changes = await changesOf(editing.scope, items, editing.personId);
+	const { items, changes } = await pageItems(deps, editing, host, path);
 	return items.filter((item) => changes.some((change) => change.item === nameOf(item)));
 }
 
-/** The items a page shows: its Entry, then the Globals when its Templates read them. */
-function itemsOf(content: PageContent): EditItem[] {
-	return [
+/**
+ * What the page at `path` shows and what of it has changed: its content, its items (its Entry,
+ * then the Globals when its Templates read them) and their changes.
+ */
+async function pageItems(
+	deps: PageDeps,
+	editing: Editing,
+	host: SiteHost,
+	path: string,
+): Promise<{ content: PageContent; items: EditItem[]; changes: PageChange[] }> {
+	const content = await deps.pageContent(host, path);
+	const items: EditItem[] = [
 		...(content.entryId ? [{ kind: "entry", id: content.entryId } as const] : []),
 		...(content.readsGlobals ? [{ kind: "globals" } as const] : []),
 	];
+	return { content, items, changes: await changesOf(editing.scope, items, editing.personId) };
 }
 
 function nameOf(item: EditItem): string {

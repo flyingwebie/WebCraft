@@ -66,7 +66,7 @@ type GlobalsRow = typeof globals.$inferSelect;
 
 /** The Site's Globals, in a language (the Default language unless given). */
 export async function getGlobals(scope: SiteScope, language?: string): Promise<Globals> {
-	const languages = await languagesOf(scope, language);
+	const languages = await globalsLanguages(scope, language);
 	const row = await scope.first(globals);
 	return toGlobals(scope, row, languages);
 }
@@ -119,7 +119,7 @@ export async function setGlobalFields(scope: SiteScope, inputs: readonly FieldIn
  */
 export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange): Promise<Globals> {
 	return scope.transaction(async (tx) => {
-		const languages = await languagesOf(tx, change.language);
+		const languages = await globalsLanguages(tx, change.language);
 		const row = await lockGlobals(tx);
 		const fields = storedFields(row.fields);
 		const problems: ContentProblem[] = [];
@@ -144,7 +144,7 @@ export async function saveGlobalsDraft(scope: SiteScope, change: GlobalsChange):
  */
 export async function undoGlobalsChanges(scope: SiteScope, keys: readonly string[] | "all"): Promise<Globals> {
 	return scope.transaction(async (tx) => {
-		const languages = await languagesOf(tx);
+		const languages = await globalsLanguages(tx);
 		const row = await lockGlobals(tx);
 		const draft = storedVersion(row.draft);
 		const restored = restoredVersion(draft, storedVersion(row.published), keys);
@@ -236,7 +236,7 @@ function toGlobals(scope: Pick<SiteScope, "site">, row: GlobalsRow | undefined, 
 }
 
 /** The Site's language `language` names (the Default language when absent); `GlobalsInvalidError` for one it doesn't have. */
-async function languagesOf(scope: Pick<SiteScope, "db" | "site">, language?: string): Promise<Languages> {
+async function globalsLanguages(scope: Pick<SiteScope, "db" | "site">, language?: string): Promise<Languages> {
 	const languages = languagesFor(await siteLanguages(scope), language);
 	if (!languages) {
 		throw new GlobalsInvalidError([{ at: "language", message: `The Site has no language ${language}.` }]);

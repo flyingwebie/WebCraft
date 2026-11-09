@@ -28,7 +28,7 @@ import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
-import { errorMessage } from "../../ui/errors.ts";
+import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
@@ -171,7 +171,7 @@ function AddLanguage({ siteId }: { siteId: string }) {
 			setDomain("");
 			await router.invalidate();
 		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
+			toast.error(errorCode(failure) === "PATH_TAKEN" ? t("siteLanguages.prefixTaken") : t(errorMessage(failure)));
 		} finally {
 			setBusy(false);
 		}
@@ -466,7 +466,7 @@ function MakeDefaultDialog({ siteId, language, current, onClose, finalFocus }: D
 			await router.invalidate();
 		} catch (failure) {
 			setAsked(null);
-			toast.error(t(errorMessage(failure)));
+			toast.error(errorCode(failure) === "PATH_TAKEN" ? t("siteLanguages.prefixTaken") : t(errorMessage(failure)));
 		} finally {
 			setBusy(false);
 		}

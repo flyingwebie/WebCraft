@@ -14,6 +14,7 @@ import {
 	EntrySlugTakenError,
 	PageHasChildrenError,
 } from "./errors.ts";
+import { ENTRY_TITLE_MAX_LENGTH } from "./field-rules.ts";
 import type { FieldDefinition, Json } from "./field-types.ts";
 import {
 	checkFields,
@@ -135,7 +136,7 @@ export type EntryDeletion =
 	  }
 	| { deleted: true; links: number; confirmation?: undefined };
 
-export const ENTRY_TITLE_MAX_LENGTH = 300;
+export { ENTRY_TITLE_MAX_LENGTH };
 
 type EntryRow = typeof entries.$inferSelect;
 
@@ -156,7 +157,7 @@ export async function createEntry(scope: SiteScope, input: NewEntry): Promise<En
 			createdAt: now,
 			updatedAt: now,
 		});
-		const languages = await languagesOf(tx, input.language);
+		const languages = await entryLanguages(tx, input.language);
 		const taken = isPagePostType(postType)
 			? (candidate: string) => pageSlugTaken(tx, row, input.parentId ?? null, { ...languages, value: candidate })
 			: (candidate: string) => slugTaken(tx, postType.id, row.id, languages.language, candidate);
@@ -176,7 +177,7 @@ export async function saveDraft(scope: SiteScope, entryId: string, change: Draft
 	return scope.transaction(async (tx) => {
 		// Moving a Page is checked against the other Pages' parents: hold them first.
 		if (change.parentId !== undefined) await lockSitePaths(tx);
-		const languages = await languagesOf(tx, change.language);
+		const languages = await entryLanguages(tx, change.language);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
 		const saved = await changeDraft(tx, row, postType, { change }, languages);
@@ -189,13 +190,13 @@ export async function getEntry(scope: SiteScope, entryId: string, language?: str
 	const row = isUuid(entryId) ? await scope.first(entries, eq(entries.id, entryId)) : undefined;
 	if (!row) throw new EntryNotFoundError();
 	const postType = await getPostType(scope, row.postTypeId);
-	return toEntry(scope, row, postType, await languagesOf(scope, language));
+	return toEntry(scope, row, postType, await entryLanguages(scope, language));
 }
 
 /** The Entries of a Post Type, newest first, in a language (the Default language unless given). */
 export async function listEntries(scope: SiteScope, postTypeId: string, language?: string): Promise<Entry[]> {
 	const postType = await getPostType(scope, postTypeId);
-	const languages = await languagesOf(scope, language);
+	const languages = await entryLanguages(scope, language);
 	const rows = await scope.select(entries, eq(entries.postTypeId, postType.id), {
 		orderBy: [desc(entries.createdAt), asc(entries.id)],
 	});
@@ -270,7 +271,7 @@ export async function undoDraftChanges(
 	keys: readonly string[] | "all",
 ): Promise<Entry> {
 	return scope.transaction(async (tx) => {
-		const languages = await languagesOf(tx);
+		const languages = await entryLanguages(tx);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
 		const saved = await changeDraft(tx, row, postType, { restore: keys }, languages);
@@ -453,7 +454,7 @@ async function freeSlug(taken: (candidate: string) => Promise<boolean>, stem: st
  * The scope's Site's language `language` names (its Default language when absent), with the Default
  * language values fall back to. A language the Site doesn't have is refused (`EntryInvalidError`).
  */
-export async function languagesOf(scope: Pick<SiteScope, "db" | "site">, language?: string): Promise<Languages> {
+export async function entryLanguages(scope: Pick<SiteScope, "db" | "site">, language?: string): Promise<Languages> {
 	const languages = languagesFor(await siteLanguages(scope), language);
 	if (!languages) {
 		throw new EntryInvalidError([{ at: "language", message: `The Site has no language ${language}.` }]);

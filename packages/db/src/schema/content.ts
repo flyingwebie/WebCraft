@@ -173,6 +173,41 @@ export const templates = pgTable(
 );
 
 /**
+ * Components: reusable element trees with Props, made by Staff (Structure). Each version holds the
+ * Component's Props (Field definitions) and its element tree, published together as one item:
+ * `{ props, tree }`. Templates and other Components place one by its id, so renaming it changes
+ * only how Template markup writes the tag. Components a Module declares aren't stored here: they
+ * come from the Module's definition.
+ */
+export const components = pgTable(
+	"components",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		/** Its PascalCase tag name in Template markup, such as `PostCard`. Unique on the Site. */
+		name: text("name").notNull(),
+		/** The Draft: `{ props, tree }`. */
+		draft: jsonb("draft").notNull(),
+		/** The published version, `{ props, tree }`; null until the first publish. */
+		published: jsonb("published"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		publishedAt: timestamp("published_at", { withTimezone: true }),
+		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
+	},
+	(table) => [
+		foreignKey({
+			name: "components_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		unique("components_site_id_id_unique").on(table.siteId, table.id),
+		unique("components_site_id_name_unique").on(table.siteId, table.name),
+	],
+);
+
+/**
  * The links Relationship values make: one row per Entry, version, Relationship Field and Entry
  * pointed at, written whenever a Draft is saved or published. The values themselves stay in the
  * versions; these rows let WebCraft find what points at an Entry (the link back of a two-way

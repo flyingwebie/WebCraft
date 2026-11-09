@@ -8,6 +8,8 @@
  * - Values print as `{{ path }}` or `{{ path | formatter }}`, comments as `<!--text-->`, Template
  *   commands as `{{@name …}} … {{/name}}`.
  * - Fixed text with values in other languages prints as `{{ "Read more" fr: "Lire la suite" }}`.
+ * - Placements print as their Component's PascalCase tag with their Prop values as attributes, in
+ *   order, then `data-wc-id`, closing themselves: `<PostCard heading="{{ title }}" featured data-wc-id="…" />`.
  */
 import { commandForNode } from "../commands.ts";
 import { writeFormat } from "../formatters.ts";
@@ -24,6 +26,8 @@ import { ID_ATTRIBUTE } from "./parse.ts";
 export type PrintMarkupOptions = {
 	/** The name of the Site's Class with this id. */
 	className?: (classId: string) => string | undefined;
+	/** The name (PascalCase tag) of the Component with this id. */
+	componentName?: (componentId: string) => string | undefined;
 };
 
 /** Attributes that print without a value when their value is empty (`hidden`, not `hidden=""`). */
@@ -74,6 +78,15 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 			// An HTML parser drops a newline right after <pre>; repeat it so the content stays as written.
 			if (node.tag === "pre" && children.startsWith("\n")) children = `\n${children}`;
 			return `<${node.tag}${attributes}>${children}</${node.tag}>`;
+		}
+		case "component": {
+			// A Prop with an empty value prints as its name alone: `featured`.
+			let props = "";
+			for (const prop of node.props) {
+				props += prop.value.length === 0 ? ` ${prop.name}` : ` ${prop.name}="${prop.value.map(printPart).join("")}"`;
+			}
+			const name = options.componentName?.(node.component) ?? node.component;
+			return `<${name}${props} ${ID_ATTRIBUTE}="${markupText(node.id, true)}" />`;
 		}
 	}
 	const command = commandForNode(node.type);

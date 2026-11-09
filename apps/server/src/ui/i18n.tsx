@@ -39,3 +39,9 @@ export function pageTitle(language: AdminLanguageCode, page: MessageKey): string
 	const t = createTranslator({ locale: language, messages: adminMessages[language] });
 	return t("app.pageTitle", { page: t(page) });
 }
+
+/** A page's `<title>` when its name is data (an Entry's title, a Post Type's name), with the place it is in. */
+export function pageTitleOf(language: AdminLanguageCode, ...names: readonly (string | undefined)[]): string {
+	const t = createTranslator({ locale: language, messages: adminMessages[language] });
+	return t("app.pageTitle", { page: names.filter(Boolean).join(" · ") });
+}

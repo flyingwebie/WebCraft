@@ -145,7 +145,7 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 	const get = async (scope: SiteScope, mediaId: string, language?: string) => {
 		const row = isUuid(mediaId) ? await scope.first(media, eq(media.id, mediaId)) : undefined;
 		if (!row) throw new MediaNotFoundError();
-		const { language: chosen, defaultLanguage } = await languagesOf(scope, language);
+		const { language: chosen, defaultLanguage } = await mediaLanguages(scope, language);
 		const [item] = await views(scope, [row], chosen, defaultLanguage);
 		if (!item) throw new MediaNotFoundError();
 		return item;
@@ -223,7 +223,7 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 		},
 
 		async list(scope, query = {}) {
-			const { language, defaultLanguage } = await languagesOf(scope, query.language);
+			const { language, defaultLanguage } = await mediaLanguages(scope, query.language);
 			const conditions: SQL[] = [];
 			if (query.folderId === "none") conditions.push(isNull(media.folderId));
 			else if (query.folderId !== undefined)
@@ -248,7 +248,7 @@ export function createMediaLibrary(options: { storage: InstallStorage; jobs: Job
 		get,
 
 		async update(scope, mediaId, change) {
-			const { language } = await languagesOf(scope, change.language);
+			const { language } = await mediaLanguages(scope, change.language);
 			const personId = actingPerson(scope.access.actor);
 			await scope.transaction(async (tx) => {
 				const [row] = isUuid(mediaId)
@@ -371,7 +371,7 @@ function canManage(scope: SiteScope): boolean {
 }
 
 /** The Site's language `language` names (the Default language when absent); `MediaInvalidError` for one it doesn't have. */
-async function languagesOf(
+async function mediaLanguages(
 	scope: Pick<SiteScope, "db" | "site">,
 	language?: string,
 ): Promise<{ language: string; defaultLanguage: string }> {

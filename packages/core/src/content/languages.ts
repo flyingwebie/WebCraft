@@ -184,3 +184,12 @@ export function preferredLanguage(acceptLanguage: string | null, available: read
 	}
 	return undefined;
 }
+
+/**
+ * The languages Content is written in on the scope's Site, as the admin shows them: the Default
+ * language, and every language's code in order with the Default language first.
+ */
+export async function languagesOf(scope: Pick<SiteScope, "db" | "site">): Promise<{ default: string; all: string[] }> {
+	const site = await siteLanguages(scope);
+	return { default: site.defaultLanguage, all: site.languages.map((language) => language.code) };
+}

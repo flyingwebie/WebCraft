@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "bac7a1ee-3bcc-4305-b75b-aaff5261d0ca",
+  "id": "6dcd8ea3-4638-44f2-bec9-96b8cf2e11ae",
   "prevIds": [
     "10fc9a8e-1217-4495-80d6-8ffc140e83d5"
   ],
@@ -12,101 +12,20 @@
       "statementTarget": [
         "table",
         "public",
-        "site_languages"
+        "components"
       ],
       "writes": [
-        "s|tbl|public.site_languages",
-        "n|tbl|public.site_languages",
-        "e|tbl|public.site_languages",
-        "n|rel|public.site_languages",
-        "n|type|public.site_languages",
-        "n|rel|public.site_languages_pkey",
-        "n|rel|public.site_languages_domain_unique"
+        "s|tbl|public.components",
+        "n|tbl|public.components",
+        "e|tbl|public.components",
+        "n|rel|public.components",
+        "n|type|public.components",
+        "n|rel|public.components_pkey",
+        "n|rel|public.components_site_id_id_unique",
+        "n|rel|public.components_site_id_name_unique"
       ],
       "reads": [
         "n|sch|public"
-      ]
-    },
-    {
-      "statementType": "drop_pk",
-      "statementTarget": [
-        "table",
-        "public",
-        "special_pages"
-      ],
-      "writes": [
-        "s|pk|public.special_pages",
-        "n|pk|public.special_pages",
-        "e|pk|public.special_pages",
-        "n|con|public.special_pages.special_pages_pkey",
-        "n|rel|public.special_pages_pkey"
-      ],
-      "reads": [
-        "n|tbl|public.special_pages",
-        "n|sch|public",
-        "e|col|public.special_pages.site_id",
-        "e|col|public.special_pages.role"
-      ],
-      "sharedWrites": [
-        "e|uniqueness|public.special_pages.role.site_id"
-      ]
-    },
-    {
-      "statementType": "add_column",
-      "statementTarget": [
-        "column",
-        "public",
-        "special_pages",
-        "language"
-      ],
-      "writes": [
-        "s|col|public.special_pages.language",
-        "n|col|public.special_pages.language",
-        "e|col|public.special_pages.language"
-      ],
-      "reads": [
-        "n|tbl|public.special_pages",
-        "n|sch|public"
-      ]
-    },
-    {
-      "statementType": "add_column",
-      "statementTarget": [
-        "column",
-        "public",
-        "sites",
-        "browser_language_redirect"
-      ],
-      "writes": [
-        "s|col|public.sites.browser_language_redirect",
-        "n|col|public.sites.browser_language_redirect",
-        "e|col|public.sites.browser_language_redirect"
-      ],
-      "reads": [
-        "n|tbl|public.sites",
-        "n|sch|public"
-      ]
-    },
-    {
-      "statementType": "add_unique",
-      "statementTarget": [
-        "table",
-        "public",
-        "special_pages"
-      ],
-      "writes": [
-        "s|uq|public.special_pages.special_pages_site_id_role_language_unique",
-        "n|uq|public.special_pages.special_pages_site_id_role_language_unique",
-        "e|uq|public.special_pages.special_pages_site_id_role_language_unique",
-        "n|con|public.special_pages.special_pages_site_id_role_language_unique",
-        "n|rel|public.special_pages_site_id_role_language_unique"
-      ],
-      "reads": [
-        "n|tbl|public.special_pages",
-        "n|sch|public",
-        "n|col|public.special_pages.site_id",
-        "n|col|public.special_pages.role",
-        "n|col|public.special_pages.language"
       ]
     },
     {
@@ -114,21 +33,21 @@
       "statementTarget": [
         "table",
         "public",
-        "site_languages"
+        "components"
       ],
       "writes": [
-        "s|fk|public.site_languages.site_languages_site_fkey",
-        "n|fk|public.site_languages.site_languages_site_fkey",
-        "e|fk|public.site_languages.site_languages_site_fkey",
-        "n|con|public.site_languages.site_languages_site_fkey"
+        "s|fk|public.components.components_site_fkey",
+        "n|fk|public.components.components_site_fkey",
+        "e|fk|public.components.components_site_fkey",
+        "n|con|public.components.components_site_fkey"
       ],
       "reads": [
-        "n|tbl|public.site_languages",
+        "n|tbl|public.components",
         "n|sch|public",
         "n|tbl|public.sites",
         "n|sch|public",
-        "n|col|public.site_languages.workspace_id",
-        "n|col|public.site_languages.site_id",
+        "n|col|public.components.workspace_id",
+        "n|col|public.components.site_id",
         "n|col|public.sites.workspace_id",
         "n|col|public.sites.id",
         "e|uniqueness|public.sites.id.workspace_id"
@@ -140,7 +59,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "name": "site_languages",
+        "name": "components",
         "isRlsEnabled": false,
         "entityType": "tables"
       }
@@ -149,13 +68,13 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "special_pages",
-        "name": "language",
-        "type": "text",
+        "table": "components",
+        "name": "id",
+        "type": "uuid",
         "typeSchema": null,
-        "notNull": false,
+        "notNull": true,
         "dimensions": 0,
-        "default": null,
+        "default": "gen_random_uuid()",
         "generated": null,
         "identity": null,
         "entityType": "columns"
@@ -165,7 +84,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
+        "table": "components",
         "name": "workspace_id",
         "type": "uuid",
         "typeSchema": null,
@@ -181,7 +100,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
+        "table": "components",
         "name": "site_id",
         "type": "uuid",
         "typeSchema": null,
@@ -197,23 +116,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
-        "name": "code",
-        "type": "text",
-        "typeSchema": null,
-        "notNull": true,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_languages",
+        "table": "components",
         "name": "name",
         "type": "text",
         "typeSchema": null,
@@ -229,9 +132,9 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
-        "name": "direction",
-        "type": "text",
+        "table": "components",
+        "name": "draft",
+        "type": "jsonb",
         "typeSchema": null,
         "notNull": true,
         "dimensions": 0,
@@ -245,9 +148,9 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
-        "name": "domain",
-        "type": "text",
+        "table": "components",
+        "name": "published",
+        "type": "jsonb",
         "typeSchema": null,
         "notNull": false,
         "dimensions": 0,
@@ -261,23 +164,7 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
-        "name": "position",
-        "type": "integer",
-        "typeSchema": null,
-        "notNull": true,
-        "dimensions": 0,
-        "default": null,
-        "generated": null,
-        "identity": null,
-        "entityType": "columns"
-      }
-    },
-    {
-      "op": "create",
-      "row": {
-        "schema": "public",
-        "table": "site_languages",
+        "table": "components",
         "name": "created_at",
         "type": "timestamp with time zone",
         "typeSchema": null,
@@ -293,13 +180,13 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "sites",
-        "name": "browser_language_redirect",
-        "type": "boolean",
+        "table": "components",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
         "typeSchema": null,
         "notNull": true,
         "dimensions": 0,
-        "default": "false",
+        "default": null,
         "generated": null,
         "identity": null,
         "entityType": "columns"
@@ -309,8 +196,40 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
-        "name": "site_languages_site_fkey",
+        "table": "components",
+        "name": "published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "components",
+        "name": "last_published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "components",
+        "name": "components_site_fkey",
         "nameExplicit": true,
         "columns": [
           "workspace_id",
@@ -331,11 +250,10 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
-        "name": "site_languages_pkey",
+        "table": "components",
+        "name": "components_pkey",
         "columns": [
-          "site_id",
-          "code"
+          "id"
         ],
         "nameExplicit": false,
         "entityType": "pks"
@@ -345,15 +263,14 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "special_pages",
-        "name": "special_pages_site_id_role_language_unique",
+        "table": "components",
+        "name": "components_site_id_id_unique",
         "nameExplicit": true,
         "columns": [
           "site_id",
-          "role",
-          "language"
+          "id"
         ],
-        "nullsNotDistinct": true,
+        "nullsNotDistinct": false,
         "entityType": "uniques"
       }
     },
@@ -361,19 +278,16 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "site_languages",
-        "name": "site_languages_domain_unique",
+        "table": "components",
+        "name": "components_site_id_name_unique",
         "nameExplicit": true,
         "columns": [
-          "domain"
+          "site_id",
+          "name"
         ],
         "nullsNotDistinct": false,
         "entityType": "uniques"
       }
-    },
-    {
-      "op": "drop",
-      "key": "pks\u0000[\"public\",\"special_pages\",\"special_pages_pkey\"]"
     }
   ]
 }
