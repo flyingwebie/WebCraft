@@ -89,6 +89,8 @@ export type TestInstallOptions = {
 	sitesDomain?: string | null;
 	/** `WEBCRAFT_ADMIN_HOST`: `TEST_ADMIN_HOST` unless given. */
 	adminHost?: string;
+	/** The largest image the worker processes, in pixels: the real limit unless given (to test it without huge files). */
+	maxImagePixels?: number;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -294,7 +296,9 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		clock,
 		log,
 		// The real image processing the worker does (it isn't an edge, so it isn't faked).
-		images: createImageProcessor(),
+		images: createImageProcessor(
+			options.maxImagePixels === undefined ? {} : { maxInputPixels: options.maxImagePixels },
+		),
 	};
 	/**
 	 * Starts the services as the web process does: the Master key check (web and worker never start
