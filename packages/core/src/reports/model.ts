@@ -6,6 +6,9 @@
 import { ADMIN_LANGUAGE_CODES, type AdminLanguageCode, isAdminLanguage } from "../admin-languages.ts";
 import type { DashboardRange } from "../dashboards/model.ts";
 
+/** The label the Share link address takes under the sites domain; no Site may take it as its slug. */
+export const SHARE_LINK_LABEL = "share";
+
 /** How often a Report goes out: every Monday for the week before, or on the 1st for the month before. */
 export const REPORT_SCHEDULES = ["weekly", "monthly"] as const;
 export type ReportSchedule = (typeof REPORT_SCHEDULES)[number];

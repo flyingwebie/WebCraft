@@ -7,7 +7,7 @@ import type { Dns } from "../dns.ts";
 import type { Email } from "../email/index.ts";
 import type { OutgoingHttp } from "../http.ts";
 import type { Logger } from "../log.ts";
-import { SHARE_LINK_LABEL } from "../reports/share-links.ts";
+import { SHARE_LINK_LABEL } from "../reports/model.ts";
 import { slugOfStagingHostname } from "../site-pages/addresses.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import type { TlsProbe } from "../tls.ts";

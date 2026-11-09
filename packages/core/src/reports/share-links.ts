@@ -13,7 +13,7 @@ import type { Access, BackgroundScope, DataLayer, SiteScope } from "../tenancy/d
 import { hashToken, newToken } from "../tokens.ts";
 import { resolveBrand } from "./branding.ts";
 import { ShareLinkInvalidError, ShareLinkNotFoundError, ShareLinksUnavailableError } from "./errors.ts";
-import { isReportLanguage, previousOf, rangeOf } from "./model.ts";
+import { isReportLanguage, previousOf, rangeOf, SHARE_LINK_LABEL } from "./model.ts";
 import { type ReportExplore, reportPage } from "./page.ts";
 import { inPlace, openPlace, requireDashboard, scoped } from "./service.ts";
 
@@ -25,9 +25,6 @@ import { inPlace, openPlace, requireDashboard, scoped } from "./service.ts";
  * the link is shown once, when it is made. Opens are counted (how many, and the last one), with
  * nothing about who opened it. Dashboards' own rules for people with accounts are untouched.
  */
-
-/** The label the Share link address takes under the sites domain; no Site may take it as its slug. */
-export const SHARE_LINK_LABEL = "share";
 
 /** A Share link's password: as long as a staging password. */
 export const SHARE_LINK_PASSWORD = { min: 8, max: 200 } as const;

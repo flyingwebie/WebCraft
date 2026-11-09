@@ -45,6 +45,7 @@ export {
 	REPORT_SCHEDULES,
 	type ReportLanguage,
 	type ReportSchedule,
+	SHARE_LINK_LABEL,
 } from "./model.ts";
 export {
 	REPORT_PAGE_POLICY,
@@ -71,7 +72,6 @@ export {
 	createShareLinks,
 	MAX_SHARE_LINKS,
 	type OpenShareLink,
-	SHARE_LINK_LABEL,
 	SHARE_LINK_PASSWORD,
 	type ShareLinkInput,
 	type ShareLinks,
