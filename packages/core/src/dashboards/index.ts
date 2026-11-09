@@ -594,14 +594,21 @@ export function createDashboards(deps: {
 			const opened = await open(access, place, false);
 			const sites = await opened.sites();
 			const catalog: CatalogKind[] = [];
-			for (const info of kinds(language).values()) {
-				let available = info.moduleId === null;
-				for (const site of info.moduleId ? sites : []) {
-					if (await modules.runsOn(site, info.moduleId as string)) {
-						available = true;
-						break;
-					}
+			// Whether each Module runs here (on one of the Workspace's Sites at least), asked once per Module.
+			const running = new Map<string, Promise<boolean>>();
+			const runsHere = (moduleId: string) => {
+				let found = running.get(moduleId);
+				if (!found) {
+					found = (async () => {
+						for (const site of sites) if (await modules.runsOn(site, moduleId)) return true;
+						return false;
+					})();
+					running.set(moduleId, found);
 				}
+				return found;
+			};
+			for (const info of kinds(language).values()) {
+				const available = info.moduleId === null || (await runsHere(info.moduleId));
 				catalog.push({
 					kind: info.kind,
 					module: info.module,

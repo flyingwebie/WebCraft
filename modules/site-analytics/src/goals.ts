@@ -181,8 +181,3 @@ export function goalMatches(definition: GoalDefinition, event: EventFacts): bool
 			return event.type === "event" && event.name === definition.event;
 	}
 }
-
-/** What a Goal's definition says, to Staff and in exports: `/thanks`, `/shop/*`, `outbound *shop.example*`. */
-export function describePath({ path, match }: PathMatch): string {
-	return match === "exact" ? path : `${baseOf(path)}/*`;
-}

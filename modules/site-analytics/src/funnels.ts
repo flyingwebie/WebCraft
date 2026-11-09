@@ -11,6 +11,7 @@ import {
 	and,
 	asc,
 	count,
+	eq,
 	inArray,
 	isNotNull,
 	type ModuleContext,
@@ -102,7 +103,7 @@ function counted(step: FunnelStep, goals: ReadonlyMap<string, Goal>): CountedSte
 	if (step.kind === "page") {
 		const page: PathMatch = { path: step.path, match: step.match };
 		return {
-			where: and(isNotNull(events.visitor), pathWhere(page), inArray(events.type, ["pageview"])),
+			where: and(eq(events.type, "pageview"), isNotNull(events.visitor), pathWhere(page)),
 			matches: (event) => event.type === "pageview" && pathMatches(page, event.path),
 		};
 	}

@@ -208,7 +208,7 @@ for (const theme of THEMES) {
 		test("a Workspace Dashboard adding up its Sites", async () => {
 			const page = await open(`/workspaces/${workspaceId}/dashboards/${workspaceDashboardId}`);
 			await page.getByRole("heading", { name: "All Sites", level: 1 }).waitFor();
-			await page.getByText("Counted on 1 of 1 Sites.").waitFor();
+			await page.getByText("Counted on 1 of 1 Sites, visitors added up Site by Site and day by day.").waitFor();
 			await expectAccessibleScreen(page, `Workspace Dashboard (${theme})`);
 		});
 
