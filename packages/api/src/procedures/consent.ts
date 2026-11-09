@@ -27,4 +27,15 @@ export const consentBanner = {
 				banner: await context.services.consent.setSettings(site, { mode: input.mode, layout: input.layout }),
 			};
 		}),
+
+	/**
+	 * One of the Site's Consent records, by the id its visitor's `webcraft.consent` cookie names: the
+	 * proof of what they chose. `CONSENT_RECORD_NOT_FOUND` for any other id (records go after 12 months).
+	 */
+	record: signedIn
+		.input(z.object({ siteId: id, recordId: z.string().max(100) }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "site.view");
+			return { record: await context.services.consent.findRecord(site, input.recordId) };
+		}),
 };

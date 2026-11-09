@@ -267,7 +267,7 @@ export async function createInstallServices(
 		},
 		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
-		consent: createConsent(),
+		consent: createConsent({ data, rateLimits }),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,

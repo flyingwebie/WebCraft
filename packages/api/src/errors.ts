@@ -19,6 +19,7 @@ import {
 	ComponentNameTakenError,
 	ComponentNotFoundError,
 	ConfirmationInvalidError,
+	ConsentRecordNotFoundError,
 	DomainChangeRefusedError,
 	DomainInvalidError,
 	DomainNotFoundError,
@@ -168,6 +169,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ComponentFromModuleError) {
 		return new ORPCError("COMPONENT_FROM_MODULE", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof ConsentRecordNotFoundError) {
+		return new ORPCError("CONSENT_RECORD_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof FormNotFoundError) {
 		return new ORPCError("FORM_NOT_FOUND", { status: 404, message: error.message, cause: error });

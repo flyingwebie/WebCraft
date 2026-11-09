@@ -1,3 +1,4 @@
+import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
 import {
 	domainsCheck,
 	domainsCheckAll,
@@ -45,6 +46,7 @@ export const coreJobs = [
 	domainsVerify,
 	domainsCheckAll,
 	domainsCheck,
+	consentRecordsPurge,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -57,6 +59,7 @@ export const coreSchedules = [
 	siteFilesPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
+	consentRecordsPurgeSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {
