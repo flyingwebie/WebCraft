@@ -1,4 +1,6 @@
-import type { OutgoingHttp } from "@webcraft/core";
+import { isIP } from "node:net";
+
+import type { Dns, OutgoingHttp } from "@webcraft/core";
 
 /** An outgoing request as the fake received it, with the body already read. */
 export type RecordedRequest = {
@@ -9,6 +11,12 @@ export type RecordedRequest = {
 	body: string;
 	/** The body as it was sent, byte for byte (for binary bodies, such as files sent to storage). */
 	bytes: Uint8Array;
+	/**
+	 * The address the call connected to: the one the caller pinned it to (`connectTo`), or else the
+	 * first one DNS answers for the URL's host at that moment, as a runtime's own `fetch` resolves the
+	 * name again when it connects. Null when the name doesn't resolve.
+	 */
+	address: string | null;
 };
 
 /** How the fake answers: a status (200 unless given), a body (text or bytes) and headers. */
@@ -43,7 +51,8 @@ export class UnexpectedRequestError extends TypeError {
 	override name = "UnexpectedRequestError";
 }
 
-export function createFakeHttp(): FakeHttp {
+/** `dns` is the DNS a call that isn't pinned to an address resolves its host through. */
+export function createFakeHttp(dns?: Dns): FakeHttp {
 	const rules: { method: string; url: string | RegExp; answer: FakeAnswer | Responder }[] = [];
 	const requests: RecordedRequest[] = [];
 
@@ -56,7 +65,7 @@ export function createFakeHttp(): FakeHttp {
 			rules.length = 0;
 			requests.length = 0;
 		},
-		async fetch(request) {
+		async fetch(request, options) {
 			const bytes = new Uint8Array(await request.arrayBuffer());
 			const recorded: RecordedRequest = {
 				method: request.method,
@@ -64,6 +73,7 @@ export function createFakeHttp(): FakeHttp {
 				headers: new Headers(request.headers),
 				body: new TextDecoder().decode(bytes),
 				bytes,
+				address: options?.connectTo ?? (await resolveHost(new URL(request.url).hostname, dns)),
 			};
 			requests.push(recorded);
 			const rule = rules.find(
@@ -81,4 +91,12 @@ export function createFakeHttp(): FakeHttp {
 			return new Response(body, { status: answer.status ?? 200, headers: answer.headers });
 		},
 	};
+}
+
+/** The first address `hostname` resolves to (an IP address resolves to itself), or null. */
+async function resolveHost(hostname: string, dns: Dns | undefined): Promise<string | null> {
+	const bare = hostname.startsWith("[") ? hostname.slice(1, -1) : hostname;
+	if (isIP(bare)) return bare;
+	const addresses = await dns?.resolve(bare).catch(() => []);
+	return addresses?.[0] ?? null;
 }

@@ -173,6 +173,19 @@ describe("verifying a domain", () => {
 		expect(await domainOf(loopback.siteId, "loopback-bakery.example")).toMatchObject({ problem: "dns" });
 		expect(install.http.requests.filter((request) => /intranet|loopback/.test(request.url))).toEqual([]);
 	});
+
+	test("the check connects to the address it checked, though DNS answers otherwise when it connects", async () => {
+		const { siteId } = await siteWithDomain("rebinding-bakery.example");
+		install.connectDomain("rebinding-bakery.example");
+		const own = TEST_INSTALL_ADDRESSES[0];
+		// DNS rebinding: the Install's address while the domain is checked, then one inside its network.
+		install.dns.answerInTurn("rebinding-bakery.example", [[own], [own], ["10.0.0.5"]]);
+
+		await after(MINUTE);
+
+		expect(verifyRequests("rebinding-bakery.example").map((request) => request.address)).toEqual([own]);
+		expect(await domainOf(siteId, "rebinding-bakery.example")).toMatchObject({ status: "active", problem: null });
+	});
 });
 
 describe("checking again until it is verified", () => {

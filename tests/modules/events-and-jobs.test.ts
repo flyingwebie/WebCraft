@@ -315,6 +315,37 @@ describe("outside calls", () => {
 		}
 	});
 
+	test("connect to the address that was checked, though DNS answers otherwise when the connection is made", async () => {
+		const { siteId, entryId } = await siteWithEntry();
+		// DNS rebinding: a public address for the check, then one inside the server's network.
+		install.dns.answerInTurn("hooks.sample.example", [["93.184.216.34"], ["10.0.0.5"]]);
+		const before = hookCalls().length;
+
+		await staff.api.entries.publish({ siteId, entryId });
+		await install.drainJobs();
+
+		const connectedTo = hookCalls()
+			.slice(before)
+			.map((call) => call.address);
+		expect(connectedTo).toEqual(["93.184.216.34"]);
+	});
+
+	test("connect, after a redirect, to the address checked for that hop", async () => {
+		const { siteId, entryId } = await siteWithEntry();
+		install.dns.answerInTurn("hooks.sample.example", [["93.184.216.34"], ["93.184.216.35"], ["10.0.0.5"]]);
+		install.http.respond("POST", SAMPLE_HOOK, { status: 307, headers: { location: "/moved" } });
+		install.http.respond("POST", "https://hooks.sample.example/moved", { status: 204 });
+		const before = install.http.requests.length;
+
+		await staff.api.entries.publish({ siteId, entryId });
+		await install.drainJobs();
+
+		expect(install.http.requests.slice(before).map((call) => [call.url, call.address])).toEqual([
+			[SAMPLE_HOOK, "93.184.216.34"],
+			["https://hooks.sample.example/moved", "93.184.216.35"],
+		]);
+	});
+
 	test("follow at most 3 redirects", async () => {
 		const { siteId, entryId } = await siteWithEntry();
 		install.http.respond("POST", SAMPLE_HOOK, { status: 302, headers: { location: "/hop" } });

@@ -315,8 +315,8 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	}
 
 	const mail = createFakeMailer();
-	const http = createFakeHttp();
 	const dns = createFakeDns();
+	const http = createFakeHttp(dns.resolver);
 	const tls = createFakeTls();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
