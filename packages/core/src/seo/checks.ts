@@ -5,8 +5,8 @@ import { entryParts, type Parts, resolvePath } from "../content/render-values.ts
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import type { EntrySeo } from "./entry-seo.ts";
 import { firstImage, shareableImages } from "./images.ts";
-import { descriptionFrom, imageFrom } from "./page-seo.ts";
-import { applyTitlePattern, SEO_CHECK_LIMITS, type SeoCheckKind } from "./seo-rules.ts";
+import { descriptionFrom, imageFrom, titleFor } from "./page-seo.ts";
+import { SEO_CHECK_LIMITS, type SeoCheckKind } from "./seo-rules.ts";
 import { siteSeoSettings } from "./site-settings.ts";
 
 /**
@@ -64,14 +64,7 @@ export async function seoReports(
 		"",
 	);
 	return read.map(({ draft, values, field }) => {
-		const title =
-			draft.seo.title ??
-			applyTitlePattern(postType.seo.titlePattern, {
-				title: draft.title,
-				site: siteName,
-				postType: postType.name,
-				separator: settings.separator,
-			});
+		const title = draft.seo.title ?? titleFor(siteName, settings.separator, postType.seo, draft.title, postType.name);
 		const description = draft.seo.description ?? descriptionFrom(postType, postType.seo, values);
 		const candidates = [
 			{ mediaId: draft.seo.image, from: "entry" as const },
