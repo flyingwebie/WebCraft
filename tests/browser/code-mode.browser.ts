@@ -165,6 +165,19 @@ describe("the keyboard alone", () => {
 		expect(js).toBeGreaterThan(css);
 	});
 
+	test("{{ offers the Components too, placed with their required Props", async () => {
+		const page = await codeModePage("light");
+		const html = page.getByRole("textbox", { name: /^HTML of / });
+
+		await html.focus();
+		await page.keyboard.press("ControlOrMeta+End");
+		await page.keyboard.type("{{Her");
+		await page.getByRole("option", { name: /<Hero>/ }).waitFor();
+		await page.keyboard.press("Enter");
+
+		expect(await html.inputValue()).toEndWith('</article><Hero heading="" />');
+	});
+
 	test("{{@ offers the Template commands and presets", async () => {
 		const page = await codeModePage("light");
 		const html = page.getByRole("textbox", { name: /^HTML of / });

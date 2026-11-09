@@ -884,6 +884,10 @@ export function codeMode(config: CodeModeConfig): void {
 				["discard", word("discardAndOpen"), "danger"],
 			]);
 			if (keep !== "discard") return;
+			await Promise.all([open(ref), cssDirty() ? Promise.resolve() : loadCss(ref)]);
+			// The page showed the discarded markup: it shows the Drafts again.
+			await preview();
+			return;
 		}
 		await Promise.all([open(ref), cssDirty() ? Promise.resolve() : loadCss(ref)]);
 	}
@@ -1678,6 +1682,9 @@ export function codeMode(config: CodeModeConfig): void {
 					label: loop.name,
 					insert: `{{@loop ${loop.name}}}$0{{/loop}}`,
 				})),
+				...current.suggestions.components
+					.filter((each) => each.name.toLowerCase().includes(query))
+					.map((each) => componentSuggestion(each)),
 			);
 			return { from, to, items };
 		}
@@ -1692,16 +1699,7 @@ export function codeMode(config: CodeModeConfig): void {
 					to: caret,
 					items: current.suggestions.components
 						.filter((each) => each.name.startsWith(query))
-						.map((each) => {
-							const required = each.props.filter((prop) => prop.required);
-							const props = required.map((prop, index) => ` ${prop.key}="${index === 0 ? "$0" : ""}"`).join("");
-							return {
-								group: word("groups.components"),
-								label: `<${each.name}>`,
-								detail: each.props.map((prop) => prop.key).join(", "),
-								insert: `<${each.name}${props}${required.length === 0 ? "$0" : ""} />`,
-							};
-						}),
+						.map((each) => componentSuggestion(each)),
 				};
 			}
 			const classValue = /\sclass="([^"]*)$/.exec(inTag);
@@ -1726,6 +1724,18 @@ export function codeMode(config: CodeModeConfig): void {
 			}
 		}
 		return asked ? markupSuggestions(`${text.slice(0, caret)}{{${text.slice(caret)}`, caret + 2, false) : null;
+	}
+
+	/** A Component placed with its required Props, the caret in the first one. */
+	function componentSuggestion(component: Opened["suggestions"]["components"][number]): Suggestion {
+		const required = component.props.filter((prop) => prop.required);
+		const props = required.map((prop, index) => ` ${prop.key}="${index === 0 ? "$0" : ""}"`).join("");
+		return {
+			group: word("groups.components"),
+			label: `<${component.name}>`,
+			detail: component.props.map((prop) => prop.key).join(", "),
+			insert: `<${component.name}${props}${required.length === 0 ? "$0" : ""} />`,
+		};
 	}
 
 	function cssSuggestions(text: string, caret: number, asked: boolean): Context | null {
