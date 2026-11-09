@@ -1,14 +1,21 @@
 import {
 	FILTER_CONTROL_ID,
 	FILTER_CONTROL_TYPES,
+	FILTER_DATE_PRESETS,
 	FILTER_EMPTY_OPTIONS,
 	FILTER_KEY,
+	FILTER_LAYOUTS,
 	FILTER_LIMITS,
 	FILTER_MODES,
 	FILTER_OPTION_ORDERS,
+	FILTER_PHONE_LAYOUTS,
 	type FilterControl,
 	type FilterControlType,
+	type FilterDatePreset,
+	type FilterLayout,
 	type FilterOptionSource,
+	type FilterPhoneLayout,
+	type FilterSlider,
 	type FilterText,
 	type FilterVersion,
 	newFilterVersion,
@@ -19,7 +26,7 @@ import {
 
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
-import { fieldAt, type LoopQuery, sortable } from "../content/loop-queries.ts";
+import { fieldAt, type LoopQuery, SORTABLE_BUILT_INS, sortable } from "../content/loop-queries.ts";
 import type { PostType } from "../content/post-types.ts";
 import { readText } from "../forms/definition.ts";
 
@@ -31,7 +38,14 @@ import { readText } from "../forms/definition.ts";
  */
 
 /** A Filter's Draft change: the parts given replace those of the Draft. */
-export type FilterVersionInput = { mode?: unknown; label?: unknown; applyLabel?: unknown; controls?: unknown };
+export type FilterVersionInput = {
+	mode?: unknown;
+	layout?: unknown;
+	phone?: unknown;
+	label?: unknown;
+	applyLabel?: unknown;
+	controls?: unknown;
+};
 
 /** What a Filter's controls are checked against: the Post Types its Loop lists, and the Site's. */
 export type FilterContext = { query: LoopQuery; postTypes: readonly PostType[] };
@@ -44,9 +58,20 @@ export function storedFilterVersion(stored: unknown): FilterVersion {
 	const raw = (stored ?? {}) as Partial<FilterVersion>;
 	return {
 		mode: raw.mode === "submit" ? "submit" : fresh.mode,
+		layout: (FILTER_LAYOUTS as readonly unknown[]).includes(raw.layout) ? (raw.layout as FilterLayout) : fresh.layout,
+		phone: (FILTER_PHONE_LAYOUTS as readonly unknown[]).includes(raw.phone)
+			? (raw.phone as FilterPhoneLayout)
+			: fresh.phone,
 		label: raw.label ?? null,
 		applyLabel: raw.applyLabel ?? null,
-		controls: Array.isArray(raw.controls) ? raw.controls : [],
+		// A range stored before ranges had a slider and presets has neither.
+		controls: Array.isArray(raw.controls)
+			? raw.controls.map((control) =>
+					control.type === "range"
+						? { ...control, slider: control.slider ?? null, presets: control.presets ?? [] }
+						: control,
+				)
+			: [],
 	};
 }
 
@@ -67,14 +92,69 @@ export function readFilterVersion(
 		if ((FILTER_MODES as readonly unknown[]).includes(input.mode)) mode = input.mode as FilterVersion["mode"];
 		else report("mode", "A Filter updates as controls change (live) or when Apply is pressed (submit).");
 	}
+	let layout = current.layout;
+	if (input.layout !== undefined) {
+		if ((FILTER_LAYOUTS as readonly unknown[]).includes(input.layout)) layout = input.layout as FilterLayout;
+		else report("layout", "A Filter is laid out as a sidebar, a top bar (topbar) or a drawer.");
+	}
+	let phone = current.phone;
+	if (input.phone !== undefined) {
+		if ((FILTER_PHONE_LAYOUTS as readonly unknown[]).includes(input.phone)) phone = input.phone as FilterPhoneLayout;
+		else report("phone", "On phones a Filter becomes a drawer, or keeps its layout (same).");
+	}
 	const words = (value: unknown, at: string, fallback: FilterText | null) =>
 		value === undefined ? fallback : readWords(value, at, report);
 	return {
 		mode,
+		layout,
+		phone,
 		label: words(input.label, "label", current.label),
 		applyLabel: words(input.applyLabel, "applyLabel", current.applyLabel),
 		controls: input.controls === undefined ? current.controls : readControls(input.controls, context, report),
 	};
+}
+
+/**
+ * What a Filter's controls can use from its Loop's Post Types, as the Filter builder offers them: the
+ * select and Relationship Fields options can come from (Post Types are always offered), the true/false
+ * Fields toggles keep, the number and date Fields ranges cover, and what a sort menu can sort by (the
+ * built-in values first, their labels left to the admin), each by its path, read by the same rules a
+ * save keeps.
+ */
+export type FilterSources = {
+	options: { field: string; label: string; type: "select" | "relationship" }[];
+	toggles: { field: string; label: string }[];
+	ranges: { field: string; label: string; kind: "number" | "date" }[];
+	sorts: { by: string; label: string | null }[];
+};
+
+export function filterSources(context: FilterContext): FilterSources {
+	const listed = context.postTypes.filter((postType) => context.query.postTypes.includes(postType.key));
+	const paths = new Map<string, string>();
+	const walk = (fields: readonly FieldDefinition[], prefix: string) => {
+		for (const field of fields) {
+			const path = `${prefix}${field.key}`;
+			if (!paths.has(path)) paths.set(path, field.label);
+			if (field.type === "group" || field.type === "repeater") walk(field.fields, `${path}.`);
+		}
+	};
+	for (const postType of listed) walk(postType.fields, "");
+	const quiet: Report = () => {};
+	const sources: FilterSources = { options: [], toggles: [], ranges: [], sorts: [] };
+	for (const by of SORTABLE_BUILT_INS) sources.sorts.push({ by, label: null });
+	for (const [path, label] of paths) {
+		if (readSource({ kind: "field", field: path }, "", listed, quiet)) {
+			const type = fieldAt(listed, path, true)?.found[0]?.field.type;
+			sources.options.push({ field: path, label, type: type === "relationship" ? "relationship" : "select" });
+		}
+		if (readField(path, "", listed, quiet, ["boolean"], "")) sources.toggles.push({ field: path, label });
+		const range = readField(path, "", listed, quiet, ["number", "date"], "");
+		if (range && !(range.definition.type === "date" && range.definition.mode === "time")) {
+			sources.ranges.push({ field: path, label, kind: range.definition.type === "date" ? "date" : "number" });
+		}
+		if (sortable(listed, path)) sources.sorts.push({ by: path, label });
+	}
+	return sources;
 }
 
 /** Checks a whole version again (on publish, against the Loop's published query), reporting what no longer fits. */
@@ -98,7 +178,7 @@ const SETTINGS: Readonly<Record<FilterControlType, readonly string[]>> = {
 	choice: ["key", "label", "source", "counts", "empty", "order", "display", "allLabel"],
 	toggle: ["key", "label", "field"],
 	// A range's `kind` is read from its Field: given back as stored, it changes nothing.
-	range: ["key", "label", "field", "minLabel", "maxLabel", "kind"],
+	range: ["key", "label", "field", "minLabel", "maxLabel", "kind", "slider", "presets"],
 	sort: ["key", "label", "defaultLabel", "options"],
 	chips: ["label", "resetLabel"],
 	count: ["one", "other", "none"],
@@ -239,6 +319,9 @@ function readControl(
 				report(`${at}.field`, "A range of dates needs a date Field with a day in it.");
 				return undefined;
 			}
+			const kind = field?.definition.type === "date" ? "date" : "number";
+			const slider = readSlider(raw.slider, `${at}.slider`, field ? kind : undefined, report);
+			const presets = readPresets(raw.presets, `${at}.presets`, field ? kind : undefined, report);
 			if (key === undefined || !label || !field) return undefined;
 			return {
 				id,
@@ -246,9 +329,11 @@ function readControl(
 				key,
 				label,
 				field: field.path,
-				kind: field.definition.type === "date" ? "date" : "number",
+				kind,
 				minLabel: words("minLabel"),
 				maxLabel: words("maxLabel"),
+				slider,
+				presets,
 			};
 		}
 		case "sort": {
@@ -264,6 +349,54 @@ function readControl(
 			};
 		}
 	}
+}
+
+/** A range's slider: numbers only, its ends in order and a step above 0 (null: none). */
+function readSlider(
+	value: unknown,
+	at: string,
+	kind: "number" | "date" | undefined,
+	report: Report,
+): FilterSlider | null {
+	if (value === undefined || value === null) return null;
+	if (kind === "date") {
+		report(at, "A slider is for a range of numbers: a range of days can offer presets instead.");
+		return null;
+	}
+	const { min, max, step } = isRecord(value) ? value : {};
+	const finite = (number: unknown): number is number => typeof number === "number" && Number.isFinite(number);
+	if (!finite(min) || !finite(max) || !finite(step) || min >= max || step <= 0 || step > max - min) {
+		report(at, "A slider goes from its min to a greater max, in steps above 0 (such as 0, 30 and 0.5).");
+		return null;
+	}
+	return { min, max, step };
+}
+
+/** A range's date presets: days only, each one of `FILTER_DATE_PRESETS`, once. */
+function readPresets(
+	value: unknown,
+	at: string,
+	kind: "number" | "date" | undefined,
+	report: Report,
+): FilterDatePreset[] {
+	if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) return [];
+	if (kind === "number") {
+		report(at, "Presets are periods of days: a range of numbers can have a slider instead.");
+		return [];
+	}
+	if (!Array.isArray(value)) {
+		report(at, `Presets are a list of ${FILTER_DATE_PRESETS.join(", ")}.`);
+		return [];
+	}
+	const presets: FilterDatePreset[] = [];
+	value.forEach((preset: unknown, index) => {
+		if (!(FILTER_DATE_PRESETS as readonly unknown[]).includes(preset)) {
+			report(`${at}[${index}]`, `A preset is one of ${FILTER_DATE_PRESETS.join(", ")}.`);
+		} else if (presets.includes(preset as FilterDatePreset)) {
+			report(`${at}[${index}]`, `The preset ${String(preset)} is offered once.`);
+		} else presets.push(preset as FilterDatePreset);
+	});
+	return presets;
 }
 
 function readKey(value: unknown, at: string, report: Report): string | undefined {

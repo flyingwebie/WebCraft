@@ -14,7 +14,9 @@ import {
 	filterTextIn,
 	filterWords,
 	isStateControl,
+	presetDays,
 	renderFilter,
+	renderFilterPart,
 	type TreeNode,
 } from "@webcraft/renderer";
 import { and, eq, inArray, isNotNull, or, type SQL } from "drizzle-orm";
@@ -60,7 +62,15 @@ export type PageFilters = {
 	/** Whether a Loop of the Site is narrowed by a Filter on the page. */
 	filtered(loop: string): boolean;
 	/** How each placed Filter renders, once the page's Loops ran (the result count is theirs). */
-	render(loops: PageLoops): Promise<(node: FilterNode) => string>;
+	render(loops: PageLoops): Promise<RenderedFilters>;
+	/** When the page's Filters show something else: the next midnight (UTC) when they offer date presets. */
+	changesAt: Date | null;
+};
+
+/** The page's Filters once its Loops ran: each placement's HTML, and what each Filter says its result count is. */
+export type RenderedFilters = {
+	html(node: FilterNode): string;
+	announce(filterId: string): string | undefined;
 };
 
 /** A page with no Filter. */
@@ -69,7 +79,8 @@ const NO_FILTERS_ON_PAGE: PageFilters = {
 	state: { values: new Map(), query: "", differs: false, search: undefined },
 	narrowing: new Map(),
 	filtered: () => false,
-	render: async () => () => "",
+	render: async () => ({ html: () => "", announce: () => undefined }),
+	changesAt: null,
 };
 
 /** One option of a control: its slug in the address, its label, and what it matches in SQL. */
@@ -102,6 +113,8 @@ export type FilterPlace = Pick<LoopPlace, "languages" | "version" | "path" | "cu
 	kept?: readonly (readonly [string, string])[];
 	/** Whether the page shares its address with Site search (the search results page): its Filters' keys are then prefixed. */
 	shared?: boolean;
+	/** The Filter builder's preview: only this Filter shows, in the version it is given (not saved yet). */
+	only?: { id: string; version: FilterVersion };
 };
 
 /** Works out the page's Filters from its trees. */
@@ -111,7 +124,10 @@ export async function pageFilters(
 	place: FilterPlace,
 	postTypes: readonly PostType[],
 ): Promise<PageFilters> {
-	const ids = [...new Set(trees.flatMap((tree) => (tree ? filterNodesIn(tree.nodes) : [])).map((node) => node.filter))];
+	const nodes = trees.flatMap((tree) => (tree ? filterNodesIn(tree.nodes) : []));
+	// The Loops the page shows: a control shown on its own elsewhere shows only where its Loop does.
+	const loopsShown = new Set(trees.flatMap((tree) => (tree ? loopSourcesIn(tree.nodes) : [])));
+	const ids = [...new Set(nodes.map((node) => node.filter))].filter((id) => !place.only || id === place.only.id);
 	if (ids.length === 0) return NO_FILTERS_ON_PAGE;
 	const rows = await scope.select(filterRows, inArray(filterRows.id, ids));
 	const loopRows = await scope.select(
@@ -124,7 +140,7 @@ export async function pageFilters(
 	const read: PageFilter[] = [];
 	for (const id of ids) {
 		const row = rows.find((candidate) => candidate.id === id);
-		const stored = place.structure === "draft" ? row?.draft : row?.published;
+		const stored = place.only ? place.only.version : place.structure === "draft" ? row?.draft : row?.published;
 		const loopRow = loopRows.find((candidate) => candidate.name === row?.loop);
 		const loopStored = place.version === "draft" ? loopRow?.draft : loopRow?.published;
 		// A Filter never published, or one whose Loop has no query, shows nothing and narrows nothing.
@@ -136,7 +152,7 @@ export async function pageFilters(
 			id: row.id,
 			name: row.name,
 			loop: row.loop,
-			version: storedFilterVersion(stored),
+			version: place.only ? place.only.version : storedFilterVersion(stored),
 			query: loop.query,
 			listed: postTypes.filter((postType) => loop.query.postTypes.includes(postType.key)),
 			controls: [],
@@ -160,10 +176,17 @@ export async function pageFilters(
 	const narrowing = new Map<string, Narrowing>();
 	const sqlFor = (filter: PageFilter) => new QuerySql(filter.listed, { ...place, page: null }, scope.now());
 	for (const filter of read) narrowing.set(filter.loop, narrowingOf(filter, state, sqlFor(filter)));
+	// Date presets count from today: the page shows other days from midnight on.
+	const presets = read.some((filter) =>
+		filter.version.controls.some((control) => control.type === "range" && control.presets.length > 0),
+	);
+	const today = scope.now();
+	const midnight = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1));
 	return {
 		reader,
 		state,
 		narrowing,
+		changesAt: presets ? midnight : null,
 		filtered: (loop) => narrowing.has(loop),
 		render: async (pageLoops) => {
 			const views = new Map<string, FilterView>();
@@ -171,15 +194,36 @@ export async function pageFilters(
 				views.set(filter.id, await viewOf(scope, filter, state, place, postTypes, pageLoops, sqlFor(filter)));
 			}
 			const shown = new Map<string, number>();
-			return (node) => {
+			const html = (node: FilterNode) => {
 				const view = views.get(node.filter);
-				if (!view) return "";
-				const occurrence = (shown.get(node.filter) ?? 0) + 1;
-				shown.set(node.filter, occurrence);
-				return renderFilter(view, occurrence);
+				const filter = read.find((each) => each.id === node.filter);
+				if (!view || !filter) return "";
+				const indexOf = (control: string) => filter.controls.findIndex((page) => page.control.id === control);
+				// Controls shown on their own: the Filter's form leaves them out, and their fields belong to it.
+				const placed = nodes.filter((each) => each.filter === node.filter);
+				const apart = new Set(placed.flatMap((each) => (each.control === undefined ? [] : [indexOf(each.control)])));
+				const key = node.control === undefined ? node.filter : `${node.filter}#${node.control}`;
+				const occurrence = (shown.get(key) ?? 0) + 1;
+				shown.set(key, occurrence);
+				if (node.control === undefined) return renderFilter(view, occurrence, apart);
+				const index = indexOf(node.control);
+				if (index < 0 || !loopsShown.has(filter.loop)) return "";
+				const form = placed.some((each) => each.control === undefined) ? `wc-filter-${view.name}` : null;
+				return renderFilterPart(view, index, occurrence, form);
 			};
+			return { html, announce: (filterId) => views.get(filterId)?.announce };
 		},
 	};
+}
+
+/** The names of the Loops of the Site a tree's nodes show (`{{@loop <name>}}`). */
+function loopSourcesIn(nodes: readonly TreeNode[]): string[] {
+	const found: string[] = [];
+	for (const node of nodes) {
+		if (node.type === "loop") found.push(node.source);
+		for (const children of childListsOf(node)) found.push(...loopSourcesIn(children));
+	}
+	return found;
 }
 
 /** The Filters placed in a tree's nodes, in order (never inside a Loop's items, which can't hold one). */
@@ -488,7 +532,10 @@ async function viewOf(
 				break;
 			case "range": {
 				const kind = page.field?.type === "date" ? "date" : "number";
-				const [min, max] = rangeSides(kind, state.values.get(key) ?? "");
+				const value = state.values.get(key) ?? "";
+				const [min, max] = rangeSides(kind, value);
+				// Presets keep the page's other choices, as chips do; they count from the day the page is shown.
+				const others = mine.filter(([other]) => other !== key);
 				views.push({
 					type: "range",
 					name: key,
@@ -498,6 +545,20 @@ async function viewOf(
 					maxLabel: text(control.maxLabel, words.to),
 					min,
 					max,
+					slider: kind === "number" ? control.slider : null,
+					presets:
+						kind === "date"
+							? control.presets.map((preset) => {
+									const [from, to] = presetDays(preset, scope.now());
+									return {
+										label: words.presets[preset],
+										href: href([...others, [key, `${from}..${to}`]]),
+										from,
+										to,
+										current: value === `${from}..${to}`,
+									};
+								})
+							: [],
 				});
 				break;
 			}
@@ -532,13 +593,27 @@ async function viewOf(
 				break;
 		}
 	}
+	const chips = filter.controls.find((page) => page.control.type === "chips")?.control;
 	return {
 		name: filter.name,
 		action: place.path,
 		mode: filter.version.mode,
+		layout: filter.version.layout,
+		phone: filter.version.phone,
 		label: text(filter.version.label, words.filters),
 		applyLabel: text(filter.version.applyLabel, words.apply),
+		drawer: {
+			close: words.close,
+			reset: text(chips?.type === "chips" ? chips.resetLabel : null, words.reset),
+			resetHref: href([]),
+			show: words.show.replace(
+				"{results}",
+				total === 0 ? countText(0, language, countControl?.type === "count" ? countControl : null, "other") : counted,
+			),
+		},
+		chosen: words.chosen,
 		keep: others,
+		choices: mine,
 		controls: views,
 		announce: counted,
 	};
@@ -572,10 +647,17 @@ async function countsOf(
 }
 
 /** How many items the Loop lists, in the count control's words (or WebCraft's) in the page's language. */
-function countText(total: number, language: string, control: Extract<FilterControl, { type: "count" }> | null): string {
+function countText(
+	total: number,
+	language: string,
+	control: Extract<FilterControl, { type: "count" }> | null,
+	/** `other` words the number even when it is 0 ("Show 0 products"), instead of the no-results words. */
+	form?: "other",
+): string {
 	const words = filterWords(language);
 	const pick = (value: FilterText | null | undefined, fallback: string) =>
 		(value ? filterTextIn(value, language) : fallback).replaceAll("{count}", String(total));
+	if (form === "other") return pick(control?.other, words.other);
 	if (total === 0) return pick(control?.none, words.none);
 	const one = new Intl.PluralRules(language).select(total) === "one";
 	return one ? pick(control?.one, words.one.replace("1", "{count}")) : pick(control?.other, words.other);

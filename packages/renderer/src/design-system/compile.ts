@@ -122,32 +122,69 @@ const SEARCH_PARTS = [
  * A Filter's hooks (`FILTER_HOOKS`, GLOSSARY.md › Filter): its controls in a column, each labelled
  * above (a toggle's beside its switch), options in a list with their counts at the end, boxes, menus,
  * chips and buttons big enough to tap, in the page's own colours so they read in light and dark. The
- * Apply button hides in Live mode once the Filter script runs. Staff restyle any of it in the Site's
- * custom CSS.
+ * Apply button hides in Live mode once the Filter script runs. Its layout presets: a top bar is one
+ * row of dropdown buttons whose popovers open below them (where browsers anchor popovers); a drawer is
+ * a modal dialog rising from the bottom on phones and from the side on wider screens; a Filter that
+ * becomes a drawer on phones only (`phone`, below the Design system's smallest breakpoint) shows the
+ * dialog's content in place on wider screens. Staff restyle any of it in the Site's custom CSS.
  */
-const FILTER_PARTS = [
-	".wc-filter{display:grid;gap:1em;margin-block:1em}",
-	".wc-filter[aria-busy=true]{cursor:progress}",
-	".wc-filter-control{display:grid;gap:0.5em;margin:0;padding:0;border:0;min-inline-size:0}",
-	".wc-filter-control>legend{padding:0;margin-block-end:0.5em;font-weight:bolder}",
-	".wc-filter-control>label{font-weight:bolder}",
-	".wc-filter-control input[type=search],.wc-filter-control input[type=number],.wc-filter-control input[type=date],.wc-filter-control select{box-sizing:border-box;inline-size:100%;min-block-size:2.75rem;padding:0.5em 0.75em;border:1px solid currentColor;border-radius:0.25em;background-color:Canvas;color:CanvasText;font:inherit}",
-	".wc-filter-control[data-wc-control=toggle]{display:flex;align-items:center;gap:0.5em}",
-	".wc-filter-control[data-wc-control=toggle]>label{font-weight:inherit}",
-	".wc-filter-options{display:grid;gap:0.5em;margin:0;padding:0;list-style:none}",
-	".wc-filter-options>li{display:flex;align-items:center;gap:0.5em}",
-	".wc-filter-options label{display:flex;flex:1;justify-content:space-between;gap:0.5em}",
-	".wc-filter-options input,.wc-filter-control[data-wc-control=toggle]>input{inline-size:1.5rem;block-size:1.5rem;margin:0;flex:none}",
-	".wc-filter-option-count{font-variant-numeric:tabular-nums}",
-	".wc-filter-more>summary{min-block-size:1.5rem;cursor:pointer}",
-	".wc-filter-more>ul{margin-block-start:0.5em}",
-	".wc-filter-chips{display:flex;flex-wrap:wrap;align-items:center;gap:0.5em}",
-	".wc-filter-chips>ul{display:flex;flex-wrap:wrap;gap:0.5em;margin:0;padding:0;list-style:none}",
-	".wc-filter-chip{display:inline-flex;align-items:center;min-block-size:1.5rem;padding:0.25em 0.75em;border:1px solid currentColor;border-radius:999px;color:inherit;text-decoration:none}",
-	".wc-filter-reset{display:inline-flex;align-items:center;min-block-size:1.5rem;color:inherit}",
-	".wc-filter-count{margin:0;font-weight:bolder}",
-	".wc-filter-apply{justify-self:start;min-block-size:2.75rem;padding:0.5em 1.25em;border:1px solid currentColor;border-radius:0.25em;background-color:CanvasText;color:Canvas;font:inherit;cursor:pointer}",
-];
+function filterParts(phoneWidth: number): string[] {
+	const wide = `@media (min-width:${phoneWidth}px)`;
+	const narrow = `@media (max-width:${phoneWidth - 0.02}px)`;
+	const inPlace = ".wc-filter[data-wc-phone=drawer]:not([data-wc-layout=drawer])";
+	const button =
+		"display:inline-flex;align-items:center;gap:0.5em;min-block-size:2.75rem;padding:0.5em 1em;border:1px solid currentColor;border-radius:999px;background-color:Canvas;color:CanvasText;font:inherit;cursor:pointer";
+	return [
+		".wc-filter{display:grid;gap:1em;margin-block:1em}",
+		".wc-filter[aria-busy=true]{cursor:progress}",
+		".wc-filter-control{display:grid;gap:0.5em;margin:0;padding:0;border:0;min-inline-size:0}",
+		".wc-filter-control>legend{padding:0;margin-block-end:0.5em;font-weight:bolder}",
+		".wc-filter-control>label{font-weight:bolder}",
+		".wc-filter-control input[type=search],.wc-filter-control input[type=number],.wc-filter-control input[type=date],.wc-filter-control select{box-sizing:border-box;inline-size:100%;min-block-size:2.75rem;padding:0.5em 0.75em;border:1px solid currentColor;border-radius:0.25em;background-color:Canvas;color:CanvasText;font:inherit}",
+		".wc-filter-control[data-wc-control=toggle]{display:flex;align-items:center;gap:0.5em}",
+		".wc-filter-control[data-wc-control=toggle]>label{font-weight:inherit}",
+		".wc-filter-options{display:grid;gap:0.5em;margin:0;padding:0;list-style:none}",
+		".wc-filter-options>li{display:flex;align-items:center;gap:0.5em}",
+		".wc-filter-options label{display:flex;flex:1;justify-content:space-between;gap:0.5em}",
+		".wc-filter-options input,.wc-filter-control[data-wc-control=toggle]>input{inline-size:1.5rem;block-size:1.5rem;margin:0;flex:none}",
+		".wc-filter-option-count{font-variant-numeric:tabular-nums}",
+		".wc-filter-more>summary{min-block-size:1.5rem;cursor:pointer}",
+		".wc-filter-more>ul{margin-block-start:0.5em}",
+		".wc-filter-chips{display:flex;flex-wrap:wrap;align-items:center;gap:0.5em}",
+		".wc-filter-chips>ul{display:flex;flex-wrap:wrap;gap:0.5em;margin:0;padding:0;list-style:none}",
+		".wc-filter-chip{display:inline-flex;align-items:center;min-block-size:1.5rem;padding:0.25em 0.75em;border:1px solid currentColor;border-radius:999px;color:inherit;text-decoration:none}",
+		".wc-filter-reset{display:inline-flex;align-items:center;min-block-size:1.5rem;color:inherit}",
+		".wc-filter-count{margin:0;font-weight:bolder}",
+		".wc-filter-apply{justify-self:start;min-block-size:2.75rem;padding:0.5em 1.25em;border:1px solid currentColor;border-radius:0.25em;background-color:CanvasText;color:Canvas;font:inherit;cursor:pointer}",
+
+		".wc-filter-presets{display:flex;flex-wrap:wrap;gap:0.5em;margin:0;padding:0;list-style:none}",
+		".wc-filter-presets a{display:inline-flex;align-items:center;min-block-size:1.5rem;padding:0.25em 0.75em;border:1px solid currentColor;border-radius:999px;color:inherit;text-decoration:none}",
+		".wc-filter-presets a[aria-current=true]{background-color:CanvasText;color:Canvas}",
+		".wc-filter-slider{display:grid;gap:0.5em}",
+		".wc-filter-slider>input{inline-size:100%;min-block-size:1.5rem;margin:0}",
+		".wc-filter-badge{display:inline-flex;align-items:center;justify-content:center;min-inline-size:1.5em;padding:0 0.4em;border-radius:999px;background-color:CanvasText;color:Canvas;font-size:0.875em;font-variant-numeric:tabular-nums}",
+		`.wc-filter-open,.wc-filter-pop-button{${button}}`,
+		".wc-filter-open{justify-self:start}",
+		".wc-filter[data-wc-layout=topbar]{display:flex;flex-wrap:wrap;align-items:flex-end;gap:0.75em}",
+		".wc-filter[data-wc-layout=topbar] .wc-filter-control[data-wc-control=sort]{margin-inline-start:auto}",
+		".wc-filter[data-wc-layout=topbar]>.wc-filter-chips,.wc-filter[data-wc-layout=topbar]>.wc-filter-count{flex-basis:100%}",
+		".wc-filter-pop-panel{box-sizing:border-box;min-inline-size:16em;max-inline-size:min(24em,100vw - 2em);max-block-size:70vh;margin:0;padding:1em;overflow:auto;border:1px solid currentColor;border-radius:0.5em;background-color:Canvas;color:CanvasText}",
+		".wc-filter-pop-panel:popover-open{display:grid;gap:1em}",
+		"@supports (position-area:block-end){.wc-filter-pop-panel{position-area:block-end span-inline-end;margin-block-start:0.25em;position-try-fallbacks:flip-inline,flip-block}}",
+		".wc-filter-drawer[open]{box-sizing:border-box;position:fixed;inset:auto 0 0;display:flex;flex-direction:column;inline-size:100%;max-inline-size:100%;max-block-size:85dvh;margin:0;padding:0;border:0;border-radius:1em 1em 0 0;background-color:Canvas;color:CanvasText}",
+		".wc-filter-drawer::backdrop{background-color:#000000a6}",
+		".wc-filter-drawer-head,.wc-filter-drawer-foot{display:flex;align-items:center;justify-content:space-between;gap:0.75em;padding:0.5em 1em}",
+		".wc-filter-drawer-head{border-block-end:1px solid currentColor}",
+		".wc-filter-drawer-foot{border-block-start:1px solid currentColor}",
+		".wc-filter-drawer-title{margin:0;font-size:1.25em;font-weight:bolder}",
+		".wc-filter-drawer-body{display:grid;gap:1.5em;padding:1em;overflow:auto;flex:1}",
+		".wc-filter-close{display:inline-flex;align-items:center;justify-content:center;inline-size:2.75rem;block-size:2.75rem;padding:0;border:0;background:none;color:inherit;font:inherit;font-size:1.5em;cursor:pointer}",
+		".wc-filter-drawer-reset{display:inline-flex;align-items:center;min-block-size:2.75rem;color:inherit}",
+		".wc-filter-show{min-block-size:2.75rem;padding:0.5em 1.25em;border:1px solid currentColor;border-radius:0.25em;background-color:CanvasText;color:Canvas;font:inherit;cursor:pointer}",
+		`${wide}{.wc-filter-drawer[open]{inset:0 auto 0 0;inline-size:min(24rem,100%);max-block-size:100dvh;block-size:100dvh;border-radius:0}${inPlace} .wc-filter-open,${inPlace} .wc-filter-drawer-head,${inPlace} .wc-filter-drawer-foot{display:none}${inPlace} .wc-filter-drawer:not([open]),${inPlace} .wc-filter-drawer:not([open])>.wc-filter-drawer-body{display:contents}}`,
+		`${narrow}{.wc-filter[data-wc-phone=drawer] .wc-filter-pop-button{display:none}.wc-filter[data-wc-phone=drawer] .wc-filter-pop-panel{display:grid;position:static;inset:auto;min-inline-size:0;max-inline-size:none;max-block-size:none;padding:0;overflow:visible;border:0}}`,
+	];
+}
 
 /**
  * The Consent banner's hooks (`CONSENT_HOOKS`, ADR 0020): the banner in its three layouts (a bar along
@@ -204,6 +241,11 @@ function consentTokens(names: { propertyOf(ref: { token: string; step?: string }
 	].join("");
 }
 
+/** Where phones end: the Design system's smallest breakpoint (768 px by default, and without one). */
+export function phoneWidthOf(breakpoints: readonly { width: number }[]): number {
+	return breakpoints.length > 0 ? Math.min(...breakpoints.map((breakpoint) => breakpoint.width)) : 768;
+}
+
 /** The tones of a body's callouts: info follows the primary colour (while the Site has it). */
 function calloutTones(primary: string | undefined): string {
 	return [
@@ -247,7 +289,7 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		...BODY_PARTS,
 		...FORM_PARTS,
 		...SEARCH_PARTS,
-		...FILTER_PARTS,
+		...filterParts(phoneWidthOf(tokens.breakpoints)),
 		...CONSENT_PARTS,
 		...focalPointRules(),
 	);

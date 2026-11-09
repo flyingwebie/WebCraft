@@ -100,7 +100,9 @@ describe("languages", () => {
 
 		expect(listed(html)).toEqual(["Country sourdough", "Rosemary focaccia"]);
 		expect(html).toContain("<legend>Catégorie</legend>");
-		expect(html).toContain('<p class="wc-filter-count" data-wc-control="count">2 produits</p>');
+		expect(html).toContain(
+			'<p class="wc-filter-count" id="wc-filter-shop-9-control" data-wc-control="count">2 produits</p>',
+		);
 		expect(html).toContain('aria-label="Filtres"');
 		expect(html).toContain('<button class="wc-filter-apply" type="submit">Appliquer</button>');
 		expect(html).toContain('action="/fr/shop"');

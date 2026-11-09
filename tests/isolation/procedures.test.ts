@@ -702,6 +702,9 @@ describe("Filters", () => {
 		const loop = await loopIn(target);
 		return api.filters.create({ siteId: target.siteId, name: `made-${loop}`, loop });
 	});
+	isolation.refuses("filters.preview", async (api, target) =>
+		api.filters.preview({ siteId: target.siteId, filterId: await filterIn(target), layout: "topbar" }),
+	);
 	isolation.refuses("filters.saveDraft", async (api, target) =>
 		api.filters.saveDraft({ siteId: target.siteId, filterId: await filterIn(target), mode: "submit" }),
 	);

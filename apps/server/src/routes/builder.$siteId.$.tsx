@@ -1,4 +1,5 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { getApi } from "../ui/api.ts";
 import { Builder } from "../ui/builder/Builder.tsx";
@@ -23,7 +24,11 @@ const NOT_THERE = new Set([
  * (`site-template`, `search-template`, `entry-template/<Post Type>`, `archive-template/<Post Type>`)
  * or one of the Site's Components (`component/<id>`).
  */
+/** What is selected when it opens: where a Filter is placed (`?filter=<id>`, from the Filter builder). */
+const search = z.object({ filter: z.uuid().optional().catch(undefined) });
+
 export const Route = createFileRoute("/builder/$siteId/$")({
+	validateSearch: search,
 	beforeLoad: ({ context, location }) => {
 		const { shell } = context;
 		if (shell.setup.stage === "claim") throw redirect({ to: "/setup" });
@@ -62,6 +67,7 @@ export const Route = createFileRoute("/builder/$siteId/$")({
 function BuilderPage() {
 	const t = useT();
 	const { site, target, opened } = Route.useLoaderData();
+	const { filter } = Route.useSearch();
 	if (!opened) {
 		return (
 			<main id="main" tabIndex={-1} className="mx-auto max-w-xl p-10 outline-none">
@@ -80,6 +86,7 @@ function BuilderPage() {
 			target={target}
 			initial={opened}
 			back={back}
+			{...(filter ? { select: { filter } } : {})}
 		/>
 	);
 }

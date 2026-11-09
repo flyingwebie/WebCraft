@@ -25,6 +25,16 @@ export type FilterVersion = {
 	 * and the page loads again either way.
 	 */
 	mode: FilterMode;
+	/**
+	 * How its controls are laid out (its layout preset): stacked beside the results (`sidebar`), one row
+	 * of dropdown buttons above them (`topbar`), or behind a "Filters" button opening a drawer (`drawer`).
+	 */
+	layout: FilterLayout;
+	/**
+	 * What it becomes on phones (below the Design system's smallest breakpoint): a drawer (`drawer`), or
+	 * the same layout as on wider screens (`same`). A drawer applies choices with its "Show" button only.
+	 */
+	phone: FilterPhoneLayout;
 	/** What the Filter is called for screen readers (its form's name); WebCraft's word ("Filters") when null. */
 	label: FilterText | null;
 	/** The Apply button's words; WebCraft's ("Apply") when null. */
@@ -35,6 +45,14 @@ export type FilterVersion = {
 
 export const FILTER_MODES = ["live", "submit"] as const;
 export type FilterMode = (typeof FILTER_MODES)[number];
+
+/** A Filter's layout presets, as the builder's Layout tab offers them. */
+export const FILTER_LAYOUTS = ["sidebar", "topbar", "drawer"] as const;
+export type FilterLayout = (typeof FILTER_LAYOUTS)[number];
+
+/** What a Filter becomes on phones: a drawer, or its layout as on wider screens. */
+export const FILTER_PHONE_LAYOUTS = ["drawer", "same"] as const;
+export type FilterPhoneLayout = (typeof FILTER_PHONE_LAYOUTS)[number];
 
 /** The eight kinds of Filter control, as the builder's "Add control" menu lists them. */
 export const FILTER_CONTROL_TYPES = [
@@ -126,7 +144,60 @@ export type RangeControl = ControlCommon & {
 	/** The two boxes' labels; WebCraft's words ("From", "To") when null. */
 	minLabel: FilterText | null;
 	maxLabel: FilterText | null;
+	/**
+	 * A range of numbers may also show a slider for each end, between `min` and `max` in steps of
+	 * `step`: the Filter script shows it and keeps it and the boxes in step (null: no slider).
+	 */
+	slider: FilterSlider | null;
+	/** A range of days may offer periods to pick at once, counted from today, in order. */
+	presets: FilterDatePreset[];
 };
+
+/** A range's slider: its ends and the step between its values. */
+export type FilterSlider = { min: number; max: number; step: number };
+
+/**
+ * The periods a range of days may offer, counted in days from today (in UTC): today, the next 7 or
+ * 30 days, this calendar month, the last 7 or 30 days, the last 12 months and this calendar year.
+ */
+export const FILTER_DATE_PRESETS = [
+	"today",
+	"next-7-days",
+	"next-30-days",
+	"this-month",
+	"last-7-days",
+	"last-30-days",
+	"last-12-months",
+	"this-year",
+] as const;
+export type FilterDatePreset = (typeof FILTER_DATE_PRESETS)[number];
+
+/** The first and last day a preset covers, as `YYYY-MM-DD`, from the day `now` falls on (in UTC). */
+export function presetDays(preset: FilterDatePreset, now: Date): [from: string, to: string] {
+	const day = (date: Date) => date.toISOString().slice(0, 10);
+	const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+	const plus = (days: number) => new Date(today.getTime() + days * 86_400_000);
+	const year = today.getUTCFullYear();
+	const month = today.getUTCMonth();
+	switch (preset) {
+		case "today":
+			return [day(today), day(today)];
+		case "next-7-days":
+			return [day(today), day(plus(6))];
+		case "next-30-days":
+			return [day(today), day(plus(29))];
+		case "this-month":
+			return [day(new Date(Date.UTC(year, month, 1))), day(new Date(Date.UTC(year, month + 1, 0)))];
+		case "last-7-days":
+			return [day(plus(-6)), day(today)];
+		case "last-30-days":
+			return [day(plus(-29)), day(today)];
+		case "last-12-months":
+			return [day(new Date(Date.UTC(year - 1, month, today.getUTCDate() + 1))), day(today)];
+		case "this-year":
+			return [day(new Date(Date.UTC(year, 0, 1))), day(new Date(Date.UTC(year, 11, 31)))];
+	}
+}
 
 /** One sort visitors may choose: its URL value, its words, and the order (`relevance`: best search match first). */
 export type SortOption = { value: string; label: FilterText; by: string; direction: "asc" | "desc" };
@@ -221,7 +292,7 @@ export const FILTER_LIMITS = {
 	labelLength: 200,
 } as const;
 
-/** A new Filter's version: Live, no controls yet. */
+/** A new Filter's version: Live, a sidebar that turns into a drawer on phones, no controls yet. */
 export function newFilterVersion(): FilterVersion {
-	return { mode: "live", label: null, applyLabel: null, controls: [] };
+	return { mode: "live", layout: "sidebar", phone: "drawer", label: null, applyLabel: null, controls: [] };
 }
