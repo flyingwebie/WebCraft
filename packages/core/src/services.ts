@@ -58,6 +58,7 @@ import type { ModuleHost } from "./modules/host.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
+import type { SiteSearch } from "./search/service.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { InstallSetup } from "./setup.ts";
 import type { DataSample } from "./site-pages/data-samples.ts";
@@ -366,6 +367,8 @@ export type InstallServices = InstallPorts & {
 	};
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
+	/** Site search's background work: rebuilding search indexes that are behind (ADR 0021). */
+	search: SiteSearch;
 	/**
 	 * Site script safety (ADRs 0022, 0023): each Site's Content Security Policy and allowed hosts, its
 	 * outside scripts and its Libraries. Open the Site with `structure.edit`.

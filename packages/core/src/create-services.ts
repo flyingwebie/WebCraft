@@ -78,6 +78,7 @@ import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createRateLimits } from "./rate-limits.ts";
+import { createSiteSearch } from "./search/service.ts";
 import {
 	domainVerificationKey,
 	editModeSigningKey,
@@ -296,6 +297,7 @@ export async function createInstallServices(
 		},
 		publishing: { publish: (scope, item) => publish(scope, item, componentSources) },
 		sitePages,
+		search: createSiteSearch({ database, data, log }),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,

@@ -19,6 +19,7 @@ import {
 } from "../modules/jobs.ts";
 import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
+import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
 import type { JobDefinition } from "./define.ts";
 import { samplePing } from "./sample-ping.ts";
@@ -45,6 +46,8 @@ export const coreJobs = [
 	domainsVerify,
 	domainsCheckAll,
 	domainsCheck,
+	searchRebuildDue,
+	searchRebuild,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -57,6 +60,7 @@ export const coreSchedules = [
 	siteFilesPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
+	searchRebuildDueSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {
