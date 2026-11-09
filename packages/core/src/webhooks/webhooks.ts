@@ -1,6 +1,7 @@
 import { webhookDeliveries, webhooks } from "@webcraft/db/schema";
 import { asc, desc, eq, sql } from "drizzle-orm";
 
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { can } from "../permissions/can.ts";
 import type { SecretDescription } from "../secrets/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -198,4 +199,89 @@ export async function setWebhookEnabled(scope: SiteScope, webhookId: string, ena
 		return updated ?? current;
 	});
 	return webhookView(scope, row);
+}
+
+/** A change to a Webhook: its name (the URL's host when empty), URL and events, all given. */
+export type WebhookChange = { name?: string | undefined; url: string; events: readonly string[] };
+
+/** Changes a Webhook's name, URL and events at once; deliveries waiting for an attempt go to the new URL. */
+export async function updateWebhook(scope: SiteScope, webhookId: string, change: WebhookChange): Promise<WebhookView> {
+	const url = webhookUrl(change.url);
+	const events = eventsOf(change.events);
+	const name = change.name?.trim() || hostOf(url);
+	const row = await scope.transaction(async (tx) => {
+		const current = await lockWebhook(tx, webhookId);
+		const changed = [
+			...(current.name !== name ? ["name"] : []),
+			...(current.url !== url ? ["url"] : []),
+			...(current.events.join() !== events.join() ? ["events"] : []),
+		];
+		if (changed.length === 0) return current;
+		const [updated] = await tx.update(
+			webhooks,
+			{ name, url, events, updatedAt: tx.now() },
+			eq(webhooks.id, current.id),
+		);
+		await tx.audit("webhook.update", { webhookId: current.id, name, host: hostOf(url), events, changed });
+		return updated ?? current;
+	});
+	return webhookView(scope, row);
+}
+
+/**
+ * Replaces a Webhook's signing secret with the one Staff give, or a new one WebCraft makes (answered
+ * once). Every attempt from now on is signed with it.
+ */
+export async function changeWebhookSecret(
+	scope: SiteScope,
+	webhookId: string,
+	secret: string | undefined,
+): Promise<WebhookWithSecret> {
+	const given = secret?.trim() ? givenSecret(secret) : null;
+	const value = given ?? newSigningSecret();
+	const row = await scope.transaction(async (tx) => {
+		const current = await lockWebhook(tx, webhookId);
+		await tx.update(webhooks, { updatedAt: tx.now() }, eq(webhooks.id, current.id));
+		await tx.audit("webhook.changeSecret", { webhookId: current.id, name: current.name });
+		return current;
+	});
+	await scope.secrets.set(signingSecretName(row.id), value);
+	return { webhook: await webhookView(scope, row), secret: given ? null : value };
+}
+
+/** What removing a Webhook would remove, and the confirmation to send back; or that it was removed. */
+export type WebhookRemoval =
+	| {
+			removed: false;
+			preview: { name: string; url: string; deliveries: number };
+			confirmation: Confirmation;
+	  }
+	| { removed: true };
+
+/**
+ * Removes a Webhook in two steps: without `confirmation` it answers what would go (its name, URL and
+ * how many deliveries its log holds) with a confirmation id; with it, the Webhook, its delivery log
+ * and its signing secret go at once.
+ */
+export async function removeWebhook(
+	scope: SiteScope,
+	webhookId: string,
+	confirmation?: string,
+): Promise<WebhookRemoval> {
+	const asked = await scope.transaction(async (tx) => {
+		const row = await lockWebhook(tx, webhookId);
+		const deliveries = await tx.count(webhookDeliveries, eq(webhookDeliveries.webhookId, row.id));
+		const preview = { name: row.name, url: row.url, deliveries };
+		const request = { action: "webhook.remove", target: row.id, preview };
+		if (confirmation === undefined) {
+			return { removed: false as const, preview, confirmation: await askConfirmation(tx, request) };
+		}
+		await useConfirmation(tx, confirmation, request);
+		await tx.delete(webhooks, eq(webhooks.id, row.id));
+		await tx.audit("webhook.remove", { webhookId: row.id, name: row.name, host: hostOf(row.url) });
+		return null;
+	});
+	if (asked) return asked;
+	await scope.secrets.remove(signingSecretName(webhookId));
+	return { removed: true };
 }

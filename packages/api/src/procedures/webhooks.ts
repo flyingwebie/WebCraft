@@ -1,7 +1,8 @@
-import { WEBHOOK_EVENTS } from "@webcraft/core";
+import { os } from "@orpc/server";
+import { type Access, type Permission, WEBHOOK_EVENTS } from "@webcraft/core";
 import { z } from "zod";
 
-import { sensitive, signedIn } from "../context.ts";
+import { type ApiContext, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 
 /** A Webhook's name; the URL's host when left empty. */
@@ -18,6 +19,19 @@ const events = z
 
 /** A signing secret Staff give; the server checks it (`WEBHOOK_INVALID`). Empty or left out: WebCraft makes one. */
 const secret = z.string().max(300).optional();
+
+/**
+ * Opens the Site a procedure's input names with a Permission, as `context.site`, before any other
+ * middleware: a Sensitive action is asked to be confirmed only by someone who may take it.
+ */
+function onSite(permission: Permission) {
+	return os
+		.$context<ApiContext & { access: Access }>()
+		.middleware(async ({ context, next }, input: { siteId: string }) => {
+			const site = await context.services.data.site(context.access, input.siteId, permission);
+			return next({ context: { site } });
+		});
+}
 
 /**
  * A Site's Webhooks (spec story 139): signed calls to outside addresses when something happens on the
@@ -40,12 +54,47 @@ export const webhooks = {
 	 */
 	add: signedIn
 		.input(z.object({ siteId: id, name, url, events, secret }))
-		.use(async ({ context, next }, input) => {
-			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-			return next({ context: { site } });
-		})
+		.use(onSite("structure.edit"))
 		.use(sensitive("webhook.change"))
 		.handler(async ({ context, input }) => await context.services.webhooks.add(context.site, input)),
+
+	/**
+	 * Changes a Webhook's name (its URL's host when empty), URL and events at once; deliveries waiting
+	 * for an attempt go to the new URL. A Sensitive action.
+	 */
+	update: signedIn
+		.input(z.object({ siteId: id, webhookId: id, name, url, events }))
+		.use(onSite("structure.edit"))
+		.use(sensitive("webhook.change"))
+		.handler(async ({ context, input }) => ({
+			webhook: await context.services.webhooks.update(context.site, input.webhookId, input),
+		})),
+
+	/**
+	 * Replaces a Webhook's signing secret with the one given, or a new one WebCraft makes and answers
+	 * here (`secret`), once. Every attempt from now on is signed with it. A Sensitive action.
+	 */
+	changeSecret: signedIn
+		.input(z.object({ siteId: id, webhookId: id, secret }))
+		.use(onSite("structure.edit"))
+		.use(sensitive("webhook.change"))
+		.handler(
+			async ({ context, input }) =>
+				await context.services.webhooks.changeSecret(context.site, input.webhookId, input.secret),
+		),
+
+	/**
+	 * Removes a Webhook, in two steps. The first call removes nothing: it answers what would go
+	 * (`preview`: its name, URL and how many deliveries its log holds) and a `confirmation` id, valid
+	 * for 5 minutes; calling again with it removes the Webhook, its delivery log and its secret.
+	 */
+	remove: signedIn
+		.input(z.object({ siteId: id, webhookId: id, confirmation: z.string().max(100).optional() }))
+		.use(onSite("structure.edit"))
+		.handler(
+			async ({ context, input }) =>
+				await context.services.webhooks.remove(context.site, input.webhookId, input.confirmation),
+		),
 
 	/**
 	 * A Webhook's delivery log, newest first, 20 at a time (up to 100): each delivery's body as sent,

@@ -3,16 +3,23 @@
 // recorded in the Audit log, and are never part of Publish all.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import type { RecordedRequest } from "../harness/fake-http.ts";
+import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { confirmed, receiverAccepts } from "./support.ts";
+
+const MINUTE = 60_000;
 
 let install: TestInstall;
 let workspaceId: string;
 let staff: TestBrowser;
+let staffAccount: TestAccount;
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
-	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
+	({ browser: staff, account: staffAccount } = await install.createStaff({ workspaces: [workspaceId] }));
+	install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
+	install.dns.answer("new-hooks.agency.example", ["93.184.216.35"]);
 });
 
 afterAll(async () => {
@@ -21,6 +28,26 @@ afterAll(async () => {
 
 async function newSite(): Promise<string> {
 	return (await install.createSite(workspaceId, { name: "Acme Bakery" })).id;
+}
+
+/** A new Site with one Webhook receiving `publish`, answered 200 at its URL. */
+async function siteWithWebhook(url: string) {
+	const siteId = await newSite();
+	install.http.respond("POST", url, { status: 200 });
+	const { webhook, secret } = await confirmed(staff, staffAccount, () =>
+		staff.api.webhooks.add({ siteId, name: "Build hook", url, events: ["publish"] }),
+	);
+	return { siteId, webhookId: webhook.id, secret: secret ?? "" };
+}
+
+function requestsTo(url: string): RecordedRequest[] {
+	return install.http.requests.filter((request) => request.url === url);
+}
+
+/** The Audit log entries of a Site with an action, newest first. */
+async function auditOf(siteId: string, action: string) {
+	const { entries } = await (await install.superadmin()).api.audit.list({ limit: 200 });
+	return entries.filter((entry) => entry.siteId === siteId && entry.action === action);
 }
 
 describe("adding a Webhook", () => {
@@ -178,5 +205,171 @@ describe("who sees and changes Webhooks", () => {
 		const { webhooks } = await owner.browser.api.webhooks.list({ siteId });
 		expect(webhooks).toMatchObject([{ name: "Chat", url: "https://chat.agency.example", secret: null }]);
 		expect(JSON.stringify(webhooks)).not.toContain("token-in-the-path");
+	});
+});
+
+describe("changing a Webhook", () => {
+	test("its name, URL and events change at once, as a Sensitive action, logged with the hosts only", async () => {
+		const { siteId, webhookId } = await siteWithWebhook("https://hooks.agency.example/old/token-a");
+
+		await install.clock.advance(11 * MINUTE);
+		const change = {
+			siteId,
+			webhookId,
+			name: "Search index",
+			url: "https://new-hooks.agency.example/new/token-b",
+			events: ["publish" as const],
+		};
+		await expect(staff.api.webhooks.update(change)).rejects.toMatchObject({
+			code: "IDENTITY_CHECK_REQUIRED",
+			data: { action: "webhook.change" },
+		});
+		const { webhook } = await confirmed(staff, staffAccount, () => staff.api.webhooks.update(change));
+
+		expect(webhook).toMatchObject({ name: "Search index", url: "https://new-hooks.agency.example/new/token-b" });
+		const [entry] = await auditOf(siteId, "webhook.update");
+		expect(entry?.details).toEqual({
+			webhookId,
+			name: "Search index",
+			host: "new-hooks.agency.example",
+			events: ["publish"],
+			changed: ["name", "url"],
+		});
+		expect(JSON.stringify(entry)).not.toContain("token-");
+
+		await staff.api.globals.publish({ siteId });
+		await install.drainJobs();
+		expect(requestsTo("https://new-hooks.agency.example/new/token-b")).toHaveLength(1);
+		expect(requestsTo("https://hooks.agency.example/old/token-a")).toEqual([]);
+	});
+
+	test("its new URL keeps the rules", async () => {
+		const { siteId, webhookId } = await siteWithWebhook("https://hooks.agency.example/rules");
+		await expect(
+			confirmed(staff, staffAccount, () =>
+				staff.api.webhooks.update({ siteId, webhookId, url: "http://hooks.agency.example/rules", events: ["publish"] }),
+			),
+		).rejects.toMatchObject({ code: "WEBHOOK_INVALID", data: { field: "url", reason: "scheme" } });
+	});
+
+	test("replacing its secret: a new one is made and shown once, or Staff give one; deliveries are signed with it", async () => {
+		const url = "https://hooks.agency.example/rotated";
+		const { siteId, webhookId, secret: first } = await siteWithWebhook(url);
+
+		const made = await confirmed(staff, staffAccount, () => staff.api.webhooks.changeSecret({ siteId, webhookId }));
+		expect(made.secret).toMatch(/^[A-Za-z0-9_-]{32,}$/);
+		expect(made.secret).not.toBe(first);
+		expect(made.webhook.secret).toMatchObject({ set: true, lastFour: made.secret?.slice(-4) });
+
+		const given = "the-receivers-own-secret-0042";
+		const kept = await confirmed(staff, staffAccount, () =>
+			staff.api.webhooks.changeSecret({ siteId, webhookId, secret: given }),
+		);
+		expect(kept).toMatchObject({ secret: null, webhook: { secret: { set: true, lastFour: "0042" } } });
+
+		await staff.api.globals.publish({ siteId });
+		await install.drainJobs();
+		const [request] = requestsTo(url);
+		if (!request) throw new Error("Nothing was delivered.");
+		expect(receiverAccepts(request, given, install.clock.now())).toBe(true);
+		expect(receiverAccepts(request, first, install.clock.now())).toBe(false);
+
+		const entries = await auditOf(siteId, "webhook.changeSecret");
+		expect(entries.map((entry) => entry.details)).toEqual([
+			{ webhookId, name: "Build hook" },
+			{ webhookId, name: "Build hook" },
+		]);
+		expect(JSON.stringify(entries)).not.toContain(given);
+	});
+
+	test("switched off, it receives nothing; switched on again, it does; both are logged", async () => {
+		const url = "https://hooks.agency.example/switched";
+		const { siteId, webhookId } = await siteWithWebhook(url);
+
+		const off = await staff.api.webhooks.setEnabled({ siteId, webhookId, enabled: false });
+		expect(off.webhook).toMatchObject({ status: "off", offReason: "staff" });
+		await staff.api.globals.publish({ siteId });
+		await install.drainJobs();
+		expect(requestsTo(url)).toEqual([]);
+		expect((await staff.api.webhooks.deliveries({ siteId, webhookId })).deliveries).toEqual([]);
+
+		const on = await staff.api.webhooks.setEnabled({ siteId, webhookId, enabled: true });
+		expect(on.webhook).toMatchObject({ status: "on", offReason: null });
+		await staff.api.globals.publish({ siteId });
+		await install.drainJobs();
+		expect(requestsTo(url)).toHaveLength(1);
+
+		expect((await auditOf(siteId, "webhook.switchOff")).map((entry) => entry.details)).toEqual([
+			{ webhookId, name: "Build hook" },
+		]);
+		expect(await auditOf(siteId, "webhook.switchOn")).toHaveLength(1);
+	});
+
+	test("switching it off stops deliveries still waiting, which can be redelivered once it is on again", async () => {
+		const url = "https://hooks.agency.example/paused";
+		const { siteId, webhookId } = await siteWithWebhook(url);
+		install.http.respond("POST", url, { status: 503 });
+		await staff.api.globals.publish({ siteId });
+		await install.drainJobs();
+
+		await staff.api.webhooks.setEnabled({ siteId, webhookId, enabled: false });
+		const [stopped] = (await staff.api.webhooks.deliveries({ siteId, webhookId })).deliveries;
+		expect(stopped).toMatchObject({ status: "failed", lastProblem: "switched-off", nextAttemptAt: null });
+		await install.clock.advance(60 * MINUTE);
+		await install.drainJobs();
+		expect(requestsTo(url)).toHaveLength(1);
+
+		install.http.respond("POST", url, { status: 200 });
+		await staff.api.webhooks.setEnabled({ siteId, webhookId, enabled: true });
+		await staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: stopped?.id ?? "" });
+		await install.drainJobs();
+		expect((await staff.api.webhooks.deliveries({ siteId, webhookId })).deliveries[0]).toMatchObject({
+			status: "delivered",
+		});
+	});
+
+	test("removing it takes two steps, and it goes with its secret and its delivery log", async () => {
+		const url = "https://hooks.agency.example/removed";
+		const { siteId, webhookId } = await siteWithWebhook(url);
+		await staff.api.globals.publish({ siteId });
+		await install.drainJobs();
+
+		const asked = await staff.api.webhooks.remove({ siteId, webhookId });
+		expect(asked).toMatchObject({ removed: false, preview: { name: "Build hook", url, deliveries: 1 } });
+		expect((await staff.api.webhooks.list({ siteId })).webhooks).toHaveLength(1);
+		if (asked.removed) throw new Error("Removed without confirming.");
+
+		expect(await staff.api.webhooks.remove({ siteId, webhookId, confirmation: asked.confirmation.id })).toEqual({
+			removed: true,
+		});
+
+		expect((await staff.api.webhooks.list({ siteId })).webhooks).toEqual([]);
+		await expect(staff.api.webhooks.deliveries({ siteId, webhookId })).rejects.toMatchObject({
+			code: "WEBHOOK_NOT_FOUND",
+		});
+		const signingSecret = {
+			owner: { kind: "site", workspaceId, siteId },
+			name: `webhook:${webhookId}:signing`,
+		} as const;
+		expect(await install.secrets.describe(signingSecret)).toEqual({ set: false });
+		expect((await auditOf(siteId, "webhook.remove")).map((entry) => entry.details)).toEqual([
+			{ webhookId, name: "Build hook", host: "hooks.agency.example" },
+		]);
+		await staff.api.globals.publish({ siteId });
+		await install.drainJobs();
+		expect(requestsTo(url)).toHaveLength(1);
+	});
+
+	test("Members change nothing", async () => {
+		const { siteId, webhookId } = await siteWithWebhook("https://hooks.agency.example/members");
+		const owner = await install.createMember({ workspaceId, role: "owner" });
+		const calls = [
+			() =>
+				owner.browser.api.webhooks.update({ siteId, webhookId, url: "https://evil.example/x", events: ["publish"] }),
+			() => owner.browser.api.webhooks.changeSecret({ siteId, webhookId }),
+			() => owner.browser.api.webhooks.setEnabled({ siteId, webhookId, enabled: false }),
+			() => owner.browser.api.webhooks.remove({ siteId, webhookId }),
+		];
+		for (const call of calls) await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 });

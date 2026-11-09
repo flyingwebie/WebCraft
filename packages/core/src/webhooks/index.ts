@@ -20,10 +20,15 @@ import {
 import type { WebhookEvent } from "./events.ts";
 import {
 	addWebhook,
+	changeWebhookSecret,
 	findWebhook,
 	listWebhooks,
 	type NewWebhook,
+	removeWebhook,
 	setWebhookEnabled,
+	updateWebhook,
+	type WebhookChange,
+	type WebhookRemoval,
 	type WebhookRow,
 	type WebhookView,
 	type WebhookWithSecret,
@@ -46,6 +51,8 @@ export { WEBHOOK_HEADERS } from "./signing.ts";
 export {
 	MAX_WEBHOOKS_PER_SITE,
 	type NewWebhook,
+	type WebhookChange,
+	type WebhookRemoval,
 	type WebhookStatus,
 	type WebhookView,
 	type WebhookWithSecret,
@@ -62,6 +69,15 @@ export type Webhooks = {
 	list(scope: SiteScope): Promise<WebhookView[]>;
 	/** Adds a Webhook, on at once; answers the signing secret WebCraft made, once, when none was given. */
 	add(scope: SiteScope, input: NewWebhook): Promise<WebhookWithSecret>;
+	/** Changes a Webhook's name, URL and events at once. */
+	update(scope: SiteScope, webhookId: string, change: WebhookChange): Promise<WebhookView>;
+	/** Replaces a Webhook's signing secret with the one given, or a new one WebCraft makes (answered once). */
+	changeSecret(scope: SiteScope, webhookId: string, secret?: string): Promise<WebhookWithSecret>;
+	/**
+	 * Removes a Webhook in two steps: without `confirmation` it answers what would go and a
+	 * confirmation id; with it, the Webhook, its delivery log and its secret go.
+	 */
+	remove(scope: SiteScope, webhookId: string, confirmation?: string): Promise<WebhookRemoval>;
 	/**
 	 * Switches a Webhook on or off. Off, it receives nothing, and deliveries waiting for an attempt
 	 * are stopped (to redeliver once it is on again).
@@ -105,6 +121,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 	return {
 		list: listWebhooks,
 		add: addWebhook,
+		update: updateWebhook,
+		changeSecret: changeWebhookSecret,
+		remove: removeWebhook,
 		setEnabled: setWebhookEnabled,
 		test: async (scope, webhookId) => sendTest(ports, scope, await findWebhook(scope, webhookId)),
 		redeliver: async (scope, webhookId, deliveryId) =>
