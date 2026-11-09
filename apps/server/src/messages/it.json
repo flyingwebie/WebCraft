@@ -982,6 +982,7 @@
 			"pageScript": "Script della pagina",
 			"component": "Componente",
 			"loop": "Loop",
+			"filter": "Filtro",
 			"form": "Modulo",
 			"formEmails": "Email del modulo",
 			"globals": "Globali",
@@ -3716,6 +3717,7 @@
 			"placeholders": {
 				"outlet": "Qui va il contenuto di ogni pagina",
 				"form": "Form {name}",
+				"filter": "Filtro {name}",
 				"search": "Casella di ricerca",
 				"themeToggle": "Selettore del tema",
 				"languageSwitcher": "Selettore della lingua",
@@ -3927,14 +3929,16 @@
 			"search": "Casella di ricerca",
 			"themeToggle": "Selettore del tema",
 			"languageSwitcher": "Selettore della lingua",
-			"consentSettings": "Impostazioni dei cookie"
+			"consentSettings": "Impostazioni dei cookie",
+			"filter": "Filtro"
 		},
 		"commandHelp": {
 			"outlet": "Dove va il contenuto di ogni pagina. Il Site template ne ha uno, dentro il suo elemento main.",
 			"search": "Una casella che porta i visitatori alla pagina dei risultati di ricerca del Sito.",
 			"themeToggle": "Un pulsante per passare tra chiaro e scuro, mostrato quando la Modalità scura è attiva.",
 			"languageSwitcher": "Link alla pagina in ognuna delle lingue del Sito.",
-			"consentSettings": "Un pulsante che riapre il Consent banner."
+			"consentSettings": "Un pulsante che riapre il Consent banner.",
+			"filter": "Controlli con cui i visitatori restringono, cercano e ordinano un Loop di questo Template."
 		},
 		"style": {
 			"classes": "Class",

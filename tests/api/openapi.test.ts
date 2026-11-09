@@ -144,6 +144,7 @@ describe("the document", () => {
 			"forms.publish",
 			"forms.publishEmails",
 			"loops.publish",
+			"filters.publish",
 			"scripts.publish",
 			"consentBanner.publish",
 			"designSystem.publish",

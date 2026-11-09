@@ -3,6 +3,7 @@ import { type InstallServices, normaliseHostname } from "@webcraft/core";
 import { healthz, readyz } from "./admin/health.ts";
 import { createAdminSide } from "./admin/side.ts";
 import { type Handler, notFound, plainText } from "./responses.ts";
+import { createPageCache } from "./site/page-cache.ts";
 import { createSitePipeline } from "./site/pipeline.ts";
 
 export type { Handler } from "./responses.ts";
@@ -20,15 +21,20 @@ export type WebHandlerOptions = {
 	 * answer itself. Absent in tests, where those requests get a 404.
 	 */
 	adminApp?: Handler;
+	/**
+	 * How many filtered pages (variants) the page cache keeps per Site at a time: the default
+	 * (`DEFAULT_FILTER_VARIANTS`) unless given, as a test of the limit needs fewer.
+	 */
+	filterVariants?: number;
 };
 
 /**
  * The web process's request handler: a plain `(Request) => Promise<Response>`. It routes every
  * request by hostname: the admin host to the admin side, every other hostname to the Site pipeline.
  */
-export function createWebHandler({ services, adminApp }: WebHandlerOptions): Handler {
+export function createWebHandler({ services, adminApp, filterVariants }: WebHandlerOptions): Handler {
 	const adminSide = createAdminSide(services, adminApp);
-	const sitePipeline = createSitePipeline(services);
+	const sitePipeline = createSitePipeline(services, { pageCache: createPageCache({ maxVariants: filterVariants }) });
 
 	return async (request) => {
 		try {

@@ -60,6 +60,7 @@ import type { Dns } from "./dns.ts";
 import type { Domains } from "./domains/index.ts";
 import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
+import type { Filters } from "./filters/index.ts";
 import type { Forms } from "./forms/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { Imports } from "./imports/index.ts";
@@ -334,6 +335,12 @@ export type InstallServices = InstallPorts & {
 		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
 		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
 	};
+	/**
+	 * Filters: the controls visitors use to narrow, search and sort one query Loop, with a Draft and a
+	 * published version (published through `publishing.publish` with `{ kind: "filter" }`). Structure:
+	 * open the Site with `structure.edit`.
+	 */
+	filters: Filters;
 	/**
 	 * Loops: repeated parts of a Site placed in Templates and Components by name, with a Draft and a
 	 * published version (published through `publishing.publish` with `{ kind: "loop" }`). Structure:

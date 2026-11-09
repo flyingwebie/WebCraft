@@ -95,6 +95,7 @@ export {
 	readExpression,
 	writeExpression,
 } from "./expressions.ts";
+export * from "./filters/index.ts";
 export {
 	DATE_STYLES,
 	type DateStyle,
@@ -106,6 +107,7 @@ export {
 export * from "./forms/index.ts";
 export {
 	CODE_ATTRIBUTE,
+	FILTER_REGION_MARK,
 	type PaginationWords,
 	type PlacementRenderer,
 	type RenderOptions,
@@ -202,6 +204,9 @@ export {
 	type ElementTree,
 	ElementTreeInvalidError,
 	elementsOf,
+	type FilterCatalogue,
+	type FilterFound,
+	type FilterNode,
 	type FormCatalogue,
 	type FormFound,
 	type FormNode,

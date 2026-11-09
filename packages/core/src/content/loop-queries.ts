@@ -256,7 +256,8 @@ export function parseQuery(input: unknown, postTypes: readonly PostType[], probl
 	return query;
 }
 
-function sortable(postTypes: readonly PostType[], by: string): boolean {
+/** Whether a query over `postTypes` can sort by `by`: the title, a built-in date, or one sortable Field. */
+export function sortable(postTypes: readonly PostType[], by: string): boolean {
 	if ((SORTABLE_BUILT_INS as readonly string[]).includes(by)) return true;
 	const at = fieldAt(postTypes, by);
 	return (

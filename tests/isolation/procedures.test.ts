@@ -654,6 +654,44 @@ describe("Loops", () => {
 	);
 });
 
+describe("Filters", () => {
+	let names = 0;
+	/** A new published query Loop of Pages in a target's Site, made by the Superadmin: one Filter each. */
+	const loopIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const name = `filtered-${++names}`;
+		const { loop } = await api.loops.create({
+			siteId: target.siteId,
+			name,
+			source: "query",
+			query: { postTypes: ["page"] },
+		});
+		await api.loops.publish({ siteId: target.siteId, loopId: loop.id });
+		return name;
+	};
+	/** A new Filter in a target's Site, made by the Superadmin. */
+	const filterIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const loop = await loopIn(target);
+		return (await api.filters.create({ siteId: target.siteId, name: `filter-${loop}`, loop })).filter.id;
+	};
+
+	isolation.refuses("filters.list", (api, { siteId }) => api.filters.list({ siteId }));
+	isolation.refuses("filters.get", async (api, target) =>
+		api.filters.get({ siteId: target.siteId, filterId: await filterIn(target) }),
+	);
+	isolation.refuses("filters.create", async (api, target) => {
+		const loop = await loopIn(target);
+		return api.filters.create({ siteId: target.siteId, name: `made-${loop}`, loop });
+	});
+	isolation.refuses("filters.saveDraft", async (api, target) =>
+		api.filters.saveDraft({ siteId: target.siteId, filterId: await filterIn(target), mode: "submit" }),
+	);
+	isolation.refuses("filters.publish", async (api, target) =>
+		api.filters.publish({ siteId: target.siteId, filterId: await filterIn(target) }),
+	);
+});
+
 describe("Design system", () => {
 	/** A new Class in a target's Site's Design system, made by the Superadmin. */
 	const classIn = async (target: IsolationTarget) => {

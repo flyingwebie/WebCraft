@@ -37,6 +37,7 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import { NO_FILTERS, type SiteFilters, siteFilters } from "../filters/filters.ts";
 import { NO_FORMS, type SiteForms, siteForms } from "../forms/forms.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
@@ -607,6 +608,7 @@ export function componentTreeRules(
 		refuseCommand: refuseSiteTemplateCommands,
 		components: catalogue,
 		forms: catalogue.forms,
+		filters: catalogue.filters,
 		loops: context.loops,
 		// A Component's tree is itself placed: what it places sits one level deeper.
 		placedDepth: 1,
@@ -630,6 +632,7 @@ export function moduleComponentTreeRules(props: readonly FieldDefinition[]) {
 			tag === "main" ? "A Component goes inside pages, so it holds no <main>." : undefined,
 		refuseCommand: refuseSiteTemplateCommands,
 		forms: NO_FORMS,
+		filters: NO_FILTERS,
 		placedDepth: 1,
 	};
 }
@@ -650,6 +653,7 @@ function printMarkup(tree: ElementTree, classes: ClassCatalogue, names: SiteComp
 		className: classes.nameOf,
 		componentName: names.nameOf,
 		formKey: names.forms.keyOf,
+		filterName: names.filters.nameOf,
 	});
 }
 
@@ -666,6 +670,8 @@ export type SiteComponents = ComponentCatalogue & {
 	reaches(from: string, target: string): boolean;
 	/** The Site's Forms in the same version, which trees place with `{{@form <key>}}`. */
 	forms: SiteForms;
+	/** The Site's Filters in the same version, which trees place with `{{@filter <name> for="…"}}`. */
+	filters: SiteFilters;
 };
 
 type CatalogueEntry = {
@@ -766,6 +772,7 @@ export async function siteComponents(
 		version: (id) => byId.get(id)?.version ?? undefined,
 		reaches,
 		forms: await siteForms(scope, which),
+		filters: await siteFilters(scope, which),
 	};
 }
 

@@ -20,12 +20,13 @@ export function notFound(): Response {
 	return plainText(404, "Not Found");
 }
 
-export function json(status: number, data: unknown): Response {
+export function json(status: number, data: unknown, headers: Record<string, string> = {}): Response {
 	return new Response(JSON.stringify(data), {
 		status,
 		headers: {
 			"content-type": "application/json; charset=utf-8",
 			"cache-control": "no-store",
+			...headers,
 		},
 	});
 }

@@ -16,6 +16,7 @@ import {
 	BlocksIcon,
 	CodeIcon,
 	FileTextIcon,
+	FilterIcon,
 	InfoIcon,
 	LayoutTemplateIcon,
 	ListIcon,
@@ -357,6 +358,8 @@ function kindOf(t: T, draft: SiteDraft): string {
 			return t("publishAll.kinds.component");
 		case "loop":
 			return t("publishAll.kinds.loop");
+		case "filter":
+			return t("publishAll.kinds.filter");
 		case "form":
 			return t("publishAll.kinds.form");
 		case "formEmails":
@@ -421,6 +424,8 @@ function iconOf(draft: SiteDraft): LucideIcon {
 			return BlocksIcon;
 		case "loop":
 			return RepeatIcon;
+		case "filter":
+			return FilterIcon;
 		case "form":
 			return ListIcon;
 		case "formEmails":

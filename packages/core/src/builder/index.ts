@@ -165,6 +165,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 				tree,
 				className: catalogue.nameOf,
 				formKey: source.components.forms.keyOf,
+				filterName: source.components.filters.nameOf,
 			});
 			const styles = await draftStyles(scope, {
 				designSystem: { ...designSystem, classes: [...designSystem.classes, ...catalogue.created] },
@@ -185,6 +186,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 					className: catalogue.nameOf,
 					componentName: source.components.nameOf,
 					formKey: source.components.forms.keyOf,
+					filterName: source.components.filters.nameOf,
 					inlineStyle: (elementId) => styles.get(elementId),
 				}),
 			};
