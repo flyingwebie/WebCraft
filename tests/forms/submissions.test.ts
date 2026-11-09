@@ -191,8 +191,13 @@ describe("the inbox", () => {
 		expect(listed.submissions.map((one) => [one.values[0]?.value, one.language])).toEqual([["Giorgia", "it"]]);
 	});
 
-	test("Authors never see Submissions", async () => {
+	test("Authors never see Submissions; the admin learns who may from the Site's Module Permissions", async () => {
 		await expect(submissions(author).submissions.list({ siteId, formId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect((await author.api.sites.get({ siteId })).modulePermissions).toEqual([]);
+		expect((await editor.api.sites.get({ siteId })).modulePermissions).toEqual([
+			"forms.submissions.view",
+			"forms.submissions.manage",
+		]);
 	});
 });
 

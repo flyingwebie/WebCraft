@@ -176,6 +176,11 @@ export type ModuleHost = {
 	removeData(scope: PlaceScope, moduleId: string, confirmation?: string): Promise<ModuleDataRemoval>;
 	/** The admin pages of the Modules running at a place that the scope's person may open. */
 	pages(scope: PlaceScope, language: string): Promise<ModulePageView[]>;
+	/**
+	 * The Permissions Modules add that the scope's person holds at the place, of the Modules running
+	 * there (`forms.submissions.view`): the admin shows what they allow, such as a Form's Submissions.
+	 */
+	permissionsAt(scope: PlaceScope): Promise<string[]>;
 	/** Runs one of a Module's procedures for a person, where the Module runs and they hold its Permission. */
 	callProcedure(call: ProcedureCall): Promise<unknown>;
 	/**
@@ -747,6 +752,18 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				}
 			}
 			return pages;
+		},
+
+		async permissionsAt(scope) {
+			const held: string[] = [];
+			for (const module of registry.all()) {
+				if (!module.runnable || module.level !== scope.level || module.permissions.size === 0) continue;
+				if (!(await runsAt(scope, module))) continue;
+				for (const permission of module.permissions.values()) {
+					if (canAt(scope, permission)) held.push(permission.key);
+				}
+			}
+			return held;
 		},
 
 		async callProcedure(call) {
