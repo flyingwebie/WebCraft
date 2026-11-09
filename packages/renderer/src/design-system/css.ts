@@ -124,11 +124,13 @@ export function printCss(css: readonly CssPart[], names: CssPrintNames): string 
 
 /**
  * Stored CSS as the stylesheet holds it: printed with `names`, parsed and written out again by the
- * parser (so it can't end a layer early), without comments or spaces that change nothing.
+ * parser (so it can't end a layer early), without comments or spaces that change nothing. It is
+ * checked again first, and left out when it fails: CSS stored before these checks existed (Classes
+ * an earlier release made from inline styles) never reaches a stylesheet unchecked.
  */
 export function buildCss(css: readonly CssPart[], kind: CssKind, names: CssPrintNames): string {
 	const text = printCss(css, names);
-	if (!text.trim()) return "";
+	if (!text.trim() || checkCss(text, kind).length > 0) return "";
 	return generate(parse(text, { context: kind === "stylesheet" ? "stylesheet" : "declarationList" }));
 }
 
