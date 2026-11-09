@@ -13,7 +13,7 @@
 import { entries, importItems, importRunChanges, importRunProblems, importRuns, media } from "@webcraft/db/schema";
 import { and, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import { createEntry, lockEntry, saveDraft } from "../content/entries.ts";
-import { EntryInvalidError, EntrySlugTakenError } from "../content/errors.ts";
+import { EntryInvalidError, EntryNotFoundError, EntrySlugTakenError } from "../content/errors.ts";
 import type { Json } from "../content/field-types.ts";
 import { listPostTypes } from "../content/post-types.ts";
 import {
@@ -300,7 +300,8 @@ export async function writeItem(
 			item.problems.push({ column: null, rule: "slugTaken", params: { slug: error.slug }, row: true });
 			return "problem";
 		}
-		if (error instanceof EntryInvalidError) {
+		// A value the content store refused, or an Entry deleted since the row was matched to it.
+		if (error instanceof EntryInvalidError || error instanceof EntryNotFoundError) {
 			item.problems.push({ column: null, rule: "refused", params: { message: error.message }, row: true });
 			return "problem";
 		}
