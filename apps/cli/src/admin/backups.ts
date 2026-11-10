@@ -8,6 +8,7 @@ import {
 	type Logger,
 	loadInstallConfig,
 	loadMasterKey,
+	logSettings,
 	type MigrateStepReport,
 	migrateStep,
 	moduleSchemas,
@@ -52,12 +53,35 @@ export async function backupCommand(env: Environment, options: { to?: string }):
 
 /** `webcraft admin migrate [--no-backup]`. */
 export async function migrateCommand(env: Environment, options: { backup: boolean }): Promise<number> {
-	const report = await migrateStep({
-		databaseUrl: loadDatabaseUrlOnly(env),
-		modules: FIRST_PARTY_MODULES,
-		takeBackup: options.backup ? () => backUpBeforeMigrations(env) : null,
+	// Run as a deployment's step (`WEBCRAFT_LOG_FORMAT=json`, as web and worker log), it writes JSON
+	// lines like them; run by a person, a readable report.
+	const json = env.WEBCRAFT_LOG_FORMAT?.trim().toLowerCase() === "json";
+	const log = json ? createLogger({ fields: { process: "migrate" }, ...logSettings(env) }) : null;
+	let report: MigrateStepReport;
+	try {
+		report = await migrateStep({
+			databaseUrl: loadDatabaseUrlOnly(env),
+			modules: FIRST_PARTY_MODULES,
+			takeBackup: options.backup ? () => backUpBeforeMigrations(env) : null,
+		});
+	} catch (error) {
+		if (!log) throw error;
+		log.error("The migrate step failed", { error });
+		return 1;
+	}
+	if (!log) {
+		process.stdout.write(migrateReport(report));
+		return 0;
+	}
+	log.info("The migrate step finished", {
+		backup:
+			report.backup.state === "taken"
+				? { state: "taken", location: report.backup.backup.location, sizeBytes: report.backup.backup.sizeBytes }
+				: report.backup,
+		appliedMigrations: report.appliedMigrations,
+		jobQueueSchema: report.jobQueueSchema,
+		createdQueues: report.createdQueues.length,
 	});
-	process.stdout.write(migrateReport(report));
 	return 0;
 }
 

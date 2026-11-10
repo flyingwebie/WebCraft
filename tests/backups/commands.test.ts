@@ -15,10 +15,10 @@ const EMPTY_DIRECTORY = mkdtempSync(join(tmpdir(), "webcraft-cli-"));
 // A real process does the real leaked-password lookup, so this one must not be on any leaked list.
 const PASSWORD = "ops team keeps this webcraft install safe 2026";
 
-async function webcraft(install: TestInstall, args: string[], stdin = "") {
+async function webcraft(install: TestInstall, args: string[], stdin = "", env: Record<string, string> = {}) {
 	const child = Bun.spawn(["bun", CLI, ...args], {
 		cwd: EMPTY_DIRECTORY,
-		env: { PATH: process.env.PATH ?? "", ...install.env },
+		env: { PATH: process.env.PATH ?? "", ...install.env, ...env },
 		stdin: new TextEncoder().encode(stdin),
 		stdout: "pipe",
 		stderr: "pipe",
@@ -117,4 +117,24 @@ test("webcraft admin migrate says when nothing was pending, and that no Backup w
 	expect(code).toBe(0);
 	expect(stdout).toContain("No migrations were pending.");
 	expect(stdout).not.toContain("Backup");
+});
+
+test("run as a deployment's step (WEBCRAFT_LOG_FORMAT=json), the migrate step writes JSON log lines like web and worker", async () => {
+	const { code, stdout } = await webcraft(target, ["admin", "migrate"], "", { WEBCRAFT_LOG_FORMAT: "json" });
+
+	expect(code).toBe(0);
+	const lines = stdout
+		.trim()
+		.split("\n")
+		.map((line) => JSON.parse(line) as Record<string, unknown>);
+	expect(lines).toEqual([
+		expect.objectContaining({
+			level: "info",
+			process: "migrate",
+			msg: "The migrate step finished",
+			appliedMigrations: [],
+			backup: { state: "not-needed", reason: "nothing-pending" },
+		}),
+	]);
+	expect(lines[0]?.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
 });
