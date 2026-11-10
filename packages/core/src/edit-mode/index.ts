@@ -7,6 +7,7 @@ import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
 import { domainOrigin, verifiedDomains } from "../domains/addresses.ts";
+import type { FocalPoint, MediaLibrary } from "../media/library.ts";
 import { type PersonActor, personIdOf } from "../permissions/can.ts";
 import { stagingUrl } from "../site-pages/addresses.ts";
 import type { PageContent, SiteHost } from "../site-pages/index.ts";
@@ -14,6 +15,15 @@ import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.t
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+import {
+	changeImage,
+	type EditMediaItem,
+	type EditMediaQuery,
+	libraryImage,
+	libraryImages,
+	suggestImageAlt,
+	uploadImage,
+} from "./media.ts";
 import {
 	discardChanges,
 	type PageDeps,
@@ -35,6 +45,7 @@ import {
 } from "./regions.ts";
 
 export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+export { EDIT_MEDIA_PAGE, type EditMediaItem, type EditMediaQuery } from "./media.ts";
 export type { PageChange, PageState } from "./page.ts";
 export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";
@@ -129,6 +140,33 @@ export type EditMode = {
 	): Promise<PageState>;
 	/** Withdraws the page's Reviews the person submitted, answering the page's state afterwards. */
 	withdrawReview(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/** The image popover's Media library: the Site's images and folders, as the admin's Media screen has them. */
+	media: {
+		/** The Site's images out of the Trash, newest first, `EDIT_MEDIA_PAGE` at a time, and the library's folders. */
+		list(
+			session: EditSession,
+			query: EditMediaQuery,
+		): Promise<{ items: EditMediaItem[]; total: number; folders: { id: string; name: string; count: number }[] }>;
+		/** One image, its alt text in a language, and whether alt text can be suggested (the Workspace has an AI key). */
+		get(
+			session: EditSession,
+			mediaId: string,
+			language?: string,
+		): Promise<{ media: EditMediaItem; altTextSuggestions: boolean }>;
+		/** Changes an image's alt text in a language, or its Focal point: live at once, as in the library. */
+		update(
+			session: EditSession,
+			mediaId: string,
+			change: { language?: string; alt?: string | null; focalPoint?: FocalPoint | null },
+		): Promise<{ media: EditMediaItem }>;
+		/** An AI provider's alt text for an image in a language; nothing is saved. */
+		suggestAlt(session: EditSession, mediaId: string, language?: string): Promise<{ alt: string }>;
+		/** Uploads a file to the library as the Media screen does (check the Install's largest file first). */
+		upload(
+			session: EditSession,
+			upload: { fileName: string; data: Uint8Array; folderId?: string | null },
+		): Promise<{ media: EditMediaItem }>;
+	};
 };
 
 export function createEditMode(options: {
@@ -147,9 +185,12 @@ export function createEditMode(options: {
 	signingKey: CryptoKey;
 	/** What a page shows from the content store (`SitePages.pageContent`). */
 	pageContent(host: SiteHost, pathname: string): Promise<PageContent>;
+	/** The Sites' Media libraries. */
+	media: MediaLibrary;
 }): EditMode {
 	const { database, clock, config, auth, data, actors, signingKey } = options;
 	const deps: PageDeps = { config, data, pageContent: options.pageContent };
+	const mediaDeps = { data, media: options.media };
 	const { db } = database;
 
 	/**
@@ -296,6 +337,13 @@ export function createEditMode(options: {
 		publish: (session, host, path) => publishPage(deps, session, host, path),
 		submitForReview: (session, host, input) => submitPage(deps, session, host, input),
 		withdrawReview: (session, host, path) => withdrawPage(deps, session, host, path),
+		media: {
+			list: (session, query) => libraryImages(mediaDeps, session, query),
+			get: (session, mediaId, language) => libraryImage(mediaDeps, session, mediaId, language),
+			update: (session, mediaId, change) => changeImage(mediaDeps, session, mediaId, change),
+			suggestAlt: (session, mediaId, language) => suggestImageAlt(mediaDeps, session, mediaId, language),
+			upload: (session, upload) => uploadImage(mediaDeps, session, upload),
+		},
 	};
 }
 

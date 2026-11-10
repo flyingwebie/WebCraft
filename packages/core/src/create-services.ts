@@ -551,6 +551,7 @@ export async function createInstallServices(
 			signingKey: await editModeSigningKey(masterKey),
 			mustSetUpTwoFactor: twoFactor.mustSetUp,
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
+			media,
 		}),
 		staging: createStaging({
 			database,

@@ -34,8 +34,9 @@ let sites = 0;
 
 type Bakery = { siteId: string; origin: string; entryId: string; loaf: string; rolls: string };
 
-/** A ready image in the Site's Media library. */
+/** A ready image in the Site's Media library, uploaded a second after the one before. */
 async function readyImage(browser: TestBrowser, siteId: string, name: string, width = 800, height = 600) {
+	await install.clock.advance(1000);
 	const { media } = await browser.api.media.upload({ siteId, file: upload(await photo({ width, height }), name) });
 	expect((await install.drainJobs()).failed).toEqual([]);
 	return media.id;
@@ -234,5 +235,262 @@ describe("choosing an image", () => {
 			status: 409,
 			code: "MEDIA_IN_TRASH",
 		});
+	});
+});
+
+type LibraryItem = {
+	id: string;
+	fileName: string;
+	alt: string | null;
+	url: string | null;
+	thumbnail: string | null;
+	status: string;
+	canEdit: boolean;
+};
+
+describe("the Media library in Edit mode", () => {
+	let site: Bakery;
+	let editing: EditModeBrowser;
+
+	beforeAll(async () => {
+		site = await bakery();
+		editing = await openEditMode(install, editor, site.siteId, "/recipes/sourdough");
+	});
+
+	test("lists the Site's images, newest first, with a small file to show each and its alt text", async () => {
+		await editor.api.media.update({ siteId: site.siteId, mediaId: site.rolls, alt: "Six rolls on a tray" });
+		await editor.api.media.upload({ siteId: site.siteId, file: upload(await pdf(), "allergens.pdf") });
+
+		const response = await editing.edit("media/list", {});
+
+		expect(response.status).toBe(200);
+		const listed = (await json(response)) as { items: LibraryItem[]; total: number };
+		expect(listed.items.map((item) => item.fileName)).toEqual(["rolls.jpg", "loaf.jpg"]);
+		expect(listed.total).toBe(2);
+		const [rolls] = listed.items;
+		expect(rolls).toMatchObject({ id: site.rolls, alt: "Six rolls on a tray", status: "ready", canEdit: true });
+		expect(rolls?.url).toStartWith("/_media/");
+		expect(rolls?.thumbnail).toMatch(/^\/_media\/[0-9a-f]{16}-rolls-320\.webp$/);
+	});
+
+	test("searches by name, title and alt text, and opens folders", async () => {
+		const { folder } = await editor.api.media.folders.create({ siteId: site.siteId, name: "Breads" });
+		await editor.api.media.update({ siteId: site.siteId, mediaId: site.loaf, folderId: folder.id });
+
+		const searched = (await json(await editing.edit("media/list", { search: "tray" }))) as { items: LibraryItem[] };
+		expect(searched.items.map((item) => item.id)).toEqual([site.rolls]);
+		const inFolder = (await json(await editing.edit("media/list", { folderId: folder.id }))) as {
+			items: LibraryItem[];
+			folders: { id: string; name: string; count: number }[];
+		};
+		expect(inFolder.items.map((item) => item.id)).toEqual([site.loaf]);
+		expect(inFolder.folders).toEqual([{ id: folder.id, name: "Breads", count: 1 }]);
+	});
+
+	test("never lists another Site's images", async () => {
+		const other = await bakery();
+
+		const listed = (await json(await editing.edit("media/list", {}))) as { items: LibraryItem[] };
+
+		expect(listed.items.map((item) => item.id)).not.toContain(other.loaf);
+		const elsewhere = await editing.edit("media/get", { media: other.loaf });
+		expect(elsewhere.status).toBe(404);
+	});
+});
+
+describe("alt text and the Focal point", () => {
+	let site: Bakery;
+	let editing: EditModeBrowser;
+
+	beforeAll(async () => {
+		site = await bakery();
+		await staff.api.languages.add({ siteId: site.siteId, code: "it" });
+		editing = await openEditMode(install, editor, site.siteId, "/recipes/sourdough");
+	});
+
+	test("one image, as the popover shows it: its alt text in a language, its size and Focal point", async () => {
+		await editor.api.media.update({ siteId: site.siteId, mediaId: site.loaf, alt: "A round loaf" });
+
+		const response = await editing.edit("media/get", { media: site.loaf, language: "en" });
+
+		expect(response.status).toBe(200);
+		expect(await json(response)).toMatchObject({
+			media: { id: site.loaf, alt: "A round loaf", width: 800, height: 600, focalPoint: null, canEdit: true },
+			altTextSuggestions: false,
+		});
+	});
+
+	test("alt text is saved per language, on the Media item: published pages show it at once", async () => {
+		const english = await editing.edit("media/update", { media: site.loaf, language: "en", alt: "Sourdough loaf" });
+		const italian = await editing.edit("media/update", { media: site.loaf, language: "it", alt: "Pagnotta" });
+
+		expect(english.status).toBe(200);
+		expect(await json(italian)).toMatchObject({ media: { alt: "Pagnotta" } });
+		const { media } = await editor.api.media.get({ siteId: site.siteId, mediaId: site.loaf, language: "it" });
+		expect(media.alt).toBe("Pagnotta");
+		const visitors = await (await install.request(`${site.origin}/recipes/sourdough`)).text();
+		expect(visitors).toContain('alt="Sourdough loaf"');
+		const inItalian = await (await install.request(`${site.origin}/it/recipes/sourdough`)).text();
+		expect(inItalian).toContain('alt="Pagnotta"');
+	});
+
+	test("the Focal point is set once for the image, in every language; null clears it", async () => {
+		const set = await editing.edit("media/update", { media: site.loaf, focalPoint: { x: 30, y: 70 } });
+
+		expect(await json(set)).toMatchObject({ media: { focalPoint: { x: 30, y: 70 } } });
+		const visitors = await (await install.request(`${site.origin}/recipes/sourdough`)).text();
+		expect(visitors).toContain("wc-focus wc-fx-30 wc-fy-70");
+		const cleared = await editing.edit("media/update", { media: site.loaf, focalPoint: null });
+		expect(await json(cleared)).toMatchObject({ media: { focalPoint: null } });
+		const outside = await editing.edit("media/update", { media: site.loaf, focalPoint: { x: 120, y: 5 } });
+		expect(outside.status).toBe(400);
+	});
+
+	test("Authors change the alt text and Focal point of their own uploads only", async () => {
+		const authoring = await openEditMode(install, author, site.siteId, "/recipes/sourdough");
+		const own = await readyImage(author, site.siteId, "crust.jpg");
+
+		const theirs = await authoring.edit("media/update", { media: own, alt: "The crust" });
+		expect(theirs.status).toBe(200);
+		const editors = await authoring.edit("media/update", { media: site.loaf, alt: "Not mine" });
+		expect({ status: editors.status, code: (await json(editors)).code }).toEqual({ status: 403, code: "FORBIDDEN" });
+		const listed = (await json(await authoring.edit("media/list", {}))) as { items: LibraryItem[] };
+		expect(listed.items.find((item) => item.id === site.loaf)?.canEdit).toBe(false);
+		expect(listed.items.find((item) => item.id === own)?.canEdit).toBe(true);
+	});
+
+	test("suggests alt text in a language where the Workspace has an AI key; nothing is saved", async () => {
+		const without = await editing.edit("media/suggestAlt", { media: site.rolls, language: "it" });
+		expect({ status: without.status, code: (await json(without)).code }).toEqual({
+			status: 409,
+			code: "AI_KEY_MISSING",
+		});
+
+		await staff.api.aiKeys.setOwn({
+			workspaceId,
+			provider: "openai",
+			model: "gpt-5-mini",
+			endpoint: null,
+			key: "sk-test-workspace-key-0123456789",
+		});
+		install.ai.answer(({ language }) => ({ text: language === "it" ? "Sei panini" : "Six rolls" }));
+
+		expect(await json(await editing.edit("media/get", { media: site.rolls }))).toMatchObject({
+			altTextSuggestions: true,
+		});
+		const suggested = await editing.edit("media/suggestAlt", { media: site.rolls, language: "it" });
+		expect(await json(suggested)).toEqual({ alt: "Sei panini" });
+		const { media } = await editor.api.media.get({ siteId: site.siteId, mediaId: site.rolls, language: "it" });
+		expect(media.alt).toBeNull();
+	});
+});
+
+/** Uploads a file from a page in Edit mode, as the image popover does: a multipart body with the header token. */
+async function uploadInEditMode(
+	editing: EditModeBrowser,
+	file: File,
+	options: { folderId?: string; headers?: Record<string, string>; body?: BodyInit } = {},
+): Promise<Response> {
+	const form = new FormData();
+	form.set("file", file);
+	if (options.folderId) form.set("folderId", options.folderId);
+	return editing.browser.request(`${editing.origin}/_webcraft/edit/api/media/upload`, {
+		method: "POST",
+		headers: { "x-webcraft-edit-token": await editing.headerToken(), ...options.headers },
+		body: options.body ?? form,
+	});
+}
+
+describe("uploading in Edit mode", () => {
+	let site: Bakery;
+	let editing: EditModeBrowser;
+
+	beforeAll(async () => {
+		site = await bakery();
+		editing = await openEditMode(install, editor, site.siteId, "/recipes/sourdough");
+	});
+
+	test("takes an image into the library as the Media screen does: cleaned by the worker before it shows", async () => {
+		const { folder } = await editor.api.media.folders.create({ siteId: site.siteId, name: "Cakes" });
+
+		const response = await uploadInEditMode(editing, upload(await photo({ width: 900, height: 600 }), "cake.jpg"), {
+			folderId: folder.id,
+		});
+
+		expect(response.status).toBe(200);
+		const { media } = (await json(response)) as { media: LibraryItem };
+		expect(media).toMatchObject({ fileName: "cake.jpg", status: "processing", url: null });
+		expect((await install.drainJobs()).failed).toEqual([]);
+		expect(await json(await editing.edit("media/get", { media: media.id }))).toMatchObject({
+			media: { status: "ready", width: 900, height: 600 },
+		});
+		const { media: stored } = await editor.api.media.get({ siteId: site.siteId, mediaId: media.id });
+		expect(stored.folderId).toBe(folder.id);
+		expect(stored.uploadedBy?.id).toBeDefined();
+	});
+
+	test("refuses what the library refuses: a file of no type it takes, a file over the largest", async () => {
+		const unknown = await uploadInEditMode(editing, upload("just some words", "notes.jpg"));
+		expect({ status: unknown.status, code: (await json(unknown)).code }).toEqual({
+			status: 400,
+			code: "MEDIA_TYPE_REFUSED",
+		});
+
+		const { api: admin } = await install.superadmin();
+		await admin.install.media.update({ maxFileBytes: 1024 * 1024 });
+		try {
+			const big = new Uint8Array(1024 * 1024 + 70 * 1024);
+			big.set(await photo({ width: 10, height: 10 }));
+			const tooLarge = await uploadInEditMode(editing, upload(big, "huge.jpg"));
+			expect({ status: tooLarge.status, body: await json(tooLarge) }).toMatchObject({
+				status: 413,
+				body: { code: "MEDIA_TOO_LARGE", data: { maxBytes: 1024 * 1024 } },
+			});
+		} finally {
+			await admin.install.media.update({ maxFileBytes: 50 * 1024 * 1024 });
+		}
+	});
+
+	test("a body that says it is larger than the largest file is refused before it is read", async () => {
+		let pulled = 0;
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				pulled += 64 * 1024;
+				controller.enqueue(new Uint8Array(64 * 1024));
+			},
+		});
+
+		const response = await uploadInEditMode(editing, upload("", "x.jpg"), {
+			headers: { "content-type": "multipart/form-data; boundary=x", "content-length": String(400 * 1024 * 1024) },
+			body,
+		});
+
+		expect(response.status).toBe(413);
+		expect(pulled).toBeLessThanOrEqual(2 * 1024 * 1024);
+	});
+
+	test("an upload needs the header token and the Site's own page, as every edit request does", async () => {
+		const file = upload(await photo({ width: 20, height: 20 }), "sneaky.jpg");
+
+		const noToken = await uploadInEditMode(editing, file, { headers: { "x-webcraft-edit-token": "" } });
+		expect(noToken.status).toBe(403);
+		// Another site's page, sending the edit cookie along with the token it can't read anyway.
+		const form = new FormData();
+		form.set("file", file);
+		const elsewhere = await install.request(
+			new Request(`${editing.origin}/_webcraft/edit/api/media/upload`, {
+				method: "POST",
+				headers: {
+					cookie: Array.from(editing.browser.cookies, ([name, value]) => `${name}=${value}`).join("; "),
+					origin: "https://elsewhere.test",
+					"sec-fetch-site": "cross-site",
+					"x-webcraft-edit-token": await editing.headerToken(),
+				},
+				body: form,
+			}),
+		);
+		expect(elsewhere.status).toBe(403);
+		const listed = (await json(await editing.edit("media/list", { search: "sneaky" }))) as { items: LibraryItem[] };
+		expect(listed.items).toEqual([]);
 	});
 });
