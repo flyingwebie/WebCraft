@@ -12,7 +12,7 @@ const CHECKED_IN = new URL("../../docs/api/content-api.openapi.json", import.met
 
 type Document = {
 	openapi: string;
-	servers: { url: string }[];
+	servers: { url: string; description: string }[];
 	paths: Record<string, Record<string, { operationId: string; responses: Record<string, unknown> }>>;
 	"x-webcraft-errors": Record<string, { status: number }>;
 };
