@@ -222,6 +222,27 @@ describe("what the Install doesn't offer", () => {
 	});
 });
 
+describe("the Install's limits", () => {
+	test("past its writes for the minute, a command waits as the Install says, then goes on", async () => {
+		const admin = await install.superadmin();
+		const { secret } = await createApiToken(admin, { workspaceId, name: "Busy script" });
+		const busy = { WEBCRAFT_TOKEN: secret, WEBCRAFT_INSTALL: install.adminUrl("/") };
+		for (let folder = 1; folder <= 30; folder++) {
+			expect(
+				(await cli.run(["media", "folders", "create", "--site-id", siteId, "--name", `Batch ${folder}`], { env: busy }))
+					.code,
+			).toBe(0);
+		}
+
+		const { code, stderr } = await cli.run(["media", "folders", "create", "--site-id", siteId, "--name", "Batch 31"], {
+			env: busy,
+		});
+
+		expect(stderr).toContain("reached the Install's limit for now; waiting");
+		expect(code).toBe(0);
+	});
+});
+
 describe("the Install's version", () => {
 	test("an older webcraft says so once per run, on standard error", async () => {
 		const admin = await install.superadmin();

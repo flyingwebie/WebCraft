@@ -118,6 +118,15 @@ function connection(
 		if (response.status === 401 && renew && (await problemOf(response.clone() as Response)) === "expired") {
 			response = await attempt(await renew());
 		}
+		// Past the client's requests or writes for this minute: wait as the Install says (a minute at
+		// most), then go on, rather than fail halfway through a pull or push.
+		for (let retries = 0; response.status === 429 && retries < 3; retries++) {
+			const wait = Number(response.headers.get("retry-after"));
+			if (!Number.isFinite(wait) || wait <= 0 || wait > 120) break;
+			io.stderr(`webcraft: this client reached the Install's limit for now; waiting ${wait} seconds…\n`);
+			await io.sleep(wait * 1000);
+			response = await attempt(await credential());
+		}
 		noteVersion(context, response);
 		return response;
 	};

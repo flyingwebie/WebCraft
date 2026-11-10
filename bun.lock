@@ -298,6 +298,7 @@
         "@webcraft/cli": "workspace:*",
         "@webcraft/core": "workspace:*",
         "@webcraft/db": "workspace:*",
+        "@webcraft/mcp": "workspace:*",
         "@webcraft/module-forms": "workspace:*",
         "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
