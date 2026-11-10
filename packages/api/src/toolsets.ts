@@ -17,6 +17,7 @@ import type { PROCEDURES } from "./catalogue.ts";
  * Adding a public procedure to the catalogue fails the typecheck until it has a line here.
  */
 export const TOOL_PLACES = {
+	"access.current": always(),
 	"workspaces.list": always("workspace.view"),
 	"workspaces.get": always("workspace.view"),
 	"workspaces.storage": place(["media"], "workspace.view"),

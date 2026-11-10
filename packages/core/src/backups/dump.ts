@@ -19,9 +19,14 @@ import { type BackupManifest, PARTITION_BOUND } from "./manifest.ts";
  * - the job queue (`pgboss`): waiting jobs aren't part of a Backup; a restore makes the queues
  *   again and queues what it can rebuild;
  * - the migration records (`drizzle`, `module_migrations`): the restore's migrations write them;
- * - `visitor_salts`: a day's salt must not outlive its day (Site analytics).
+ * - `visitor_salts`: a day's salt must not outlive its day (Site analytics);
+ * - `worker_heartbeats`: which workers run says something about now, never about a restored Install.
  */
-export const LEFT_OUT_TABLES = new Set(["public.module_migrations", "public.visitor_salts"]);
+export const LEFT_OUT_TABLES = new Set([
+	"public.module_migrations",
+	"public.visitor_salts",
+	"public.worker_heartbeats",
+]);
 
 /** The schemas a Backup holds: WebCraft's own and the Modules'. */
 const SCHEMAS_HELD = `(n.nspname = 'public' OR n.nspname LIKE 'm\\_%')`;

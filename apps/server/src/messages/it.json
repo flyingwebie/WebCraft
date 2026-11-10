@@ -639,7 +639,7 @@
 		"aiClients": {
 			"pageTitle": "Client AI",
 			"heading": "Client AI",
-			"intro": "I client AI che hai approvato agiscono come te tramite il server MCP di WebCraft, in un Workspace e con i Siti, i Toolset e l'accesso che hai scelto. Non fanno mai più di quanto puoi fare tu, né modifiche che richiedono la tua password.",
+			"intro": "I client AI e i dispositivi che hai approvato (come webcraft, la riga di comando) agiscono come te tramite il server MCP di WebCraft o la sua API, entro un Workspace e i Siti, i Toolset e l'accesso che hai scelto. Non fanno mai più di quanto puoi fare tu, né modifiche che richiedono la tua password.",
 			"cardIntro": "I client AI che hai approvato ad agire come te tramite il server MCP.",
 			"manage": "Gestisci i client AI",
 			"emptyTitle": "Ancora nessun client AI",
@@ -658,6 +658,7 @@
 			"readOnly": "Sola lettura",
 			"mayPublish": "Può pubblicare",
 			"sendsBackTo": "Ti rimanda a {host}",
+			"onDevice": "Accesso con un codice dispositivo",
 			"approvedAt": "Approvato il {date}",
 			"active": "Attivo",
 			"expired": "Scaduto: inutilizzato da 30 giorni",
@@ -5108,7 +5109,28 @@
 		"refusedHeading": "Questa richiesta non può essere approvata",
 		"refusedClient": "L'app che ti ha mandato qui non è registrata in questo WebCraft. Non è stato approvato nulla.",
 		"refusedRedirect": "L'app ha chiesto di rimandarti a un indirizzo che non ha registrato. Non è stato approvato nulla e non sei stato mandato da nessuna parte.",
-		"toAdmin": "Vai all'admin"
+		"toAdmin": "Vai all'admin",
+		"device": {
+			"pageTitle": "Accedi da un dispositivo",
+			"heading": "Accedi da un dispositivo",
+			"enterIntro": "Inserisci il codice mostrato dal terminale o dal dispositivo, come quello stampato da webcraft login.",
+			"codeLabel": "Codice",
+			"codeHelp": "8 lettere, come BCDF-GHJK.",
+			"codeRequired": "Inserisci il codice mostrato dal terminale.",
+			"continue": "Continua",
+			"unknown": "Questo codice non esiste. Controlla il codice mostrato dal terminale, o ricomincia l'accesso.",
+			"expired": "Questo codice è scaduto. Ricomincia l'accesso per averne uno nuovo.",
+			"decided": "Questo codice è già stato usato. Ricomincia l'accesso per averne uno nuovo.",
+			"approveHeading": "Far accedere {client}?",
+			"approveIntro": "{client} chiede di lavorare in WebCraft come te, {person}. Potrà fare ciò che scegli qui, e mai più di quanto puoi fare tu.",
+			"client": "Client",
+			"codeShown": "Codice",
+			"warning": "Approva solo un accesso che hai avviato tu, proprio ora, con lo stesso codice che vedi sul tuo schermo. Chi ti manda un codice sta cercando di agire come te.",
+			"approvedHeading": "{client} ha effettuato l'accesso",
+			"approvedBody": "Torna al terminale: prosegue da solo. Puoi revocarlo in qualsiasi momento in Il tuo account › Client AI.",
+			"deniedHeading": "Accesso rifiutato",
+			"deniedBody": "Non è stato fatto accedere nulla. Puoi chiudere questa pagina."
+		}
 	},
 	"history": {
 		"pageTitle": "Cronologia",

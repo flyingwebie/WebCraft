@@ -42,6 +42,7 @@ import {
 	DashboardInvalidError,
 	DashboardNotFoundError,
 	DashboardTemplateNotFoundError,
+	DeviceCodeInvalidError,
 	DomainChangeRefusedError,
 	DomainInvalidError,
 	DomainNotFoundError,
@@ -1015,6 +1016,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ApiTokenNotFoundError) {
 		return new ORPCError("API_TOKEN_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof DeviceCodeInvalidError) {
+		return new ORPCError("DEVICE_CODE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problem: error.problem },
+			cause: error,
+		});
 	}
 	if (error instanceof OAuthGrantNotFoundError) {
 		return new ORPCError("AI_CLIENT_NOT_FOUND", { status: 404, message: error.message, cause: error });

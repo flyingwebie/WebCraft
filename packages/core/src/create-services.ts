@@ -159,6 +159,7 @@ import { createTwoFactor } from "./two-factor/index.ts";
 import { createSecondFactorKeys } from "./two-factor/keys.ts";
 import { createUpdates } from "./updates.ts";
 import { createWebhooks } from "./webhooks/index.ts";
+import { createWorkers } from "./workers.ts";
 
 export type CreateServicesOptions = {
 	/** The Modules this Install loads: the first-party Modules of this build unless given. */
@@ -597,6 +598,7 @@ export async function createInstallServices(
 			modules: options.modules ?? FIRST_PARTY_MODULES,
 		}),
 		updates: createUpdates({ database, feed: config.updateFeed, fetch: guardedFetch, clock, log }),
+		workers: createWorkers({ database, clock }),
 		reports,
 		shareLinks: createShareLinks({
 			database,

@@ -85,3 +85,19 @@ export const cdnRanges = pgTable("cdn_ranges", {
 	ranges: text("ranges").array().notNull(),
 	fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
 });
+
+/**
+ * The workers working the job queue now: each worker process checks in every 30 seconds while it
+ * runs, and its row goes when it stops. `webcraft admin health --worker` and `doctor` read it; a
+ * worker that died without stopping leaves a row that stops being fresh.
+ */
+export const workerHeartbeats = pgTable("worker_heartbeats", {
+	/** The worker process's own id, made when it starts. */
+	id: uuid("id").primaryKey(),
+	/** The machine (or container) it runs on. */
+	hostname: text("hostname").notNull(),
+	/** The WebCraft version it runs. */
+	version: text("version").notNull(),
+	startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+	beatAt: timestamp("beat_at", { withTimezone: true }).notNull(),
+});

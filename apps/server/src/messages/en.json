@@ -639,7 +639,7 @@
 		"aiClients": {
 			"pageTitle": "AI clients",
 			"heading": "AI clients",
-			"intro": "AI clients you approved act as you through WebCraft's MCP server, within one Workspace and the Sites, Toolsets and access you chose. They never do more than you may, and never a change that needs your password.",
+			"intro": "AI clients and devices you approved (such as webcraft, the command line) act as you through WebCraft's MCP server or its API, within one Workspace and the Sites, Toolsets and access you chose. They never do more than you may, and never a change that needs your password.",
 			"cardIntro": "AI clients you approved to act as you through the MCP server.",
 			"manage": "Manage AI clients",
 			"emptyTitle": "No AI clients yet",
@@ -658,6 +658,7 @@
 			"readOnly": "Read only",
 			"mayPublish": "May publish",
 			"sendsBackTo": "Sends you back to {host}",
+			"onDevice": "Signed in with a device code",
 			"approvedAt": "Approved {date}",
 			"active": "Active",
 			"expired": "Expired: unused for 30 days",
@@ -5108,7 +5109,28 @@
 		"refusedHeading": "This request can't be approved",
 		"refusedClient": "The app that sent you here isn't registered with this WebCraft. Nothing was approved.",
 		"refusedRedirect": "The app asked to send you back to an address it didn't register. Nothing was approved, and you weren't sent anywhere.",
-		"toAdmin": "Go to the admin"
+		"toAdmin": "Go to the admin",
+		"device": {
+			"pageTitle": "Sign in a device",
+			"heading": "Sign in a device",
+			"enterIntro": "Enter the code your terminal or device shows, such as the one webcraft login prints.",
+			"codeLabel": "Code",
+			"codeHelp": "8 letters, such as BCDF-GHJK.",
+			"codeRequired": "Enter the code your terminal shows.",
+			"continue": "Continue",
+			"unknown": "There is no such code. Check the code your terminal shows, or start signing in again.",
+			"expired": "This code has expired. Start signing in again to get a new one.",
+			"decided": "This code was already used. Start signing in again to get a new one.",
+			"approveHeading": "Sign in {client}?",
+			"approveIntro": "{client} asks to work in WebCraft as you, {person}. It will be able to do what you choose here, and never more than you may do.",
+			"client": "Client",
+			"codeShown": "Code",
+			"warning": "Approve only a sign-in you started yourself, just now, whose code matches the one on your screen. Someone who sends you a code is trying to act as you.",
+			"approvedHeading": "{client} is signed in",
+			"approvedBody": "Go back to your terminal: it carries on by itself. You can revoke it at any time under Your account › AI clients.",
+			"deniedHeading": "Sign-in denied",
+			"deniedBody": "Nothing was signed in. You can close this page."
+		}
 	},
 	"history": {
 		"pageTitle": "History",

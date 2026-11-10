@@ -14,6 +14,6 @@ bun run dev
 
 Then open the link to the setup wizard that the web process prints in its log, and create the Superadmin.
 
-To run an Install for real (Docker Compose with Caddy on a server of your own, Coolify or Railway), see [`docs/deploy/`](docs/deploy/README.md).
+To run an Install for real (Docker Compose with Caddy on a server of your own, Coolify or Railway), see [`docs/deploy/`](docs/deploy/README.md). To work with an Install from your terminal (its API's commands, Structure as files), see the `webcraft` CLI in [`docs/cli.md`](docs/cli.md).
 
 WebCraft is licensed AGPL-3.0-or-later (see ADR 0012).

@@ -14,10 +14,12 @@ import {
 	ApiTokenInvalidError,
 	type InstallServices,
 	moduleToolset,
+	OAUTH_PREFIXES,
 	type Permission,
 	type RateLimitTally,
 	resolvePermission,
 	type ToolsetKey,
+	WEBCRAFT_VERSION,
 } from "@webcraft/core";
 
 import { exposureOf } from "./catalogue.ts";
@@ -214,7 +216,8 @@ async function recordSubmissionsRead(
  * The public Management API (ADR 0029): every public procedure at `POST /api/v1/<path>` (its
  * router path with slashes: `/api/v1/entries/publish`, `/api/v1/m/redirects/rules/list`), its input
  * as a JSON body (multipart form data for uploads), its answer as JSON, its refusals as
- * `{ code, status, message, data }`. Every call carries an API token (`Authorization: Bearer …`)
+ * `{ code, status, message, data }`. Every call carries an API token (`Authorization: Bearer …`),
+ * or the access token of a device sign-in (`webcraft login`: an OAuth grant made for this API),
  * and acts as its person within its limits (its Workspace and Sites, read-only if so, the Toolsets
  * switched on for it), recorded in the Audit log as `via: token`; session cookies are never read
  * here. A token makes at most 300 requests a minute, 30 of them writes (429 with `Retry-After`;
@@ -233,14 +236,19 @@ export function createPublicApi(
 		if (pathname === OPENAPI_DOCUMENT_PATH) {
 			if (request.method !== "GET" && request.method !== "HEAD")
 				return refusal(405, "METHOD_NOT_SUPPORTED", "Use GET.", undefined, { allow: "GET, HEAD" });
-			const document = await openApiDocument(services);
-			return Response.json(document, { headers: { "cache-control": "no-cache" } });
+			const { text, etag } = await documentText(services);
+			const headers = { "cache-control": "no-cache", etag };
+			if (matchesEtag(request.headers.get("if-none-match"), etag)) return new Response(null, { status: 304, headers });
+			return new Response(text, { headers: { ...headers, "content-type": "application/json" } });
 		}
 		if (pathname !== PUBLIC_API_PREFIX && !pathname.startsWith(`${PUBLIC_API_PREFIX}/`)) return null;
 
 		let use: ApiClientUse;
+		const secret = bearerToken(request.headers);
+		// The CLI's sign-in (`webcraft login`) is an OAuth grant made for this API; anything else is an API token.
+		const grant = secret?.startsWith(OAUTH_PREFIXES.access) ?? false;
 		try {
-			use = await services.apiTokens.use(bearerToken(request.headers));
+			use = grant ? await services.oauth.use(secret, services.oauth.apiResource) : await services.apiTokens.use(secret);
 		} catch (error) {
 			if (!(error instanceof ApiTokenInvalidError)) throw error;
 			return tokenRefusal(error);
@@ -252,12 +260,22 @@ export function createPublicApi(
 			.filter(Boolean);
 		const procedure = publicProcedure(services, path);
 		const access: ApiAccess = procedure?.access ?? "read";
-		const { requests, writes } = await services.apiTokens.count(use.client.id, use.client.readOnly ? "read" : access);
-		const limits = rateLimitHeaders(services, [requests, writes]);
+		const counted = use.client.readOnly ? "read" : access;
+		const { requests, writes } = grant
+			? await services.oauth.count(use.client.id, counted)
+			: await services.apiTokens.count(use.client.id, counted);
+		// A signed-in client learns the Install's version, so the CLI can say when it is older.
+		const limits = { ...rateLimitHeaders(services, [requests, writes]), [VERSION_HEADER]: WEBCRAFT_VERSION };
 		if (!requests.within || (writes && !writes.within)) return tooManyRequests(services, requests, writes, limits);
 		return withHeaders(await call({ request, path, client: use, clientAddress }), limits);
 	};
 }
+
+/**
+ * The header every answer to a client whose token works carries: the Install's WebCraft version
+ * (`WEBCRAFT_VERSION`). Never sent to anyone else, so the version isn't announced to the world.
+ */
+export const VERSION_HEADER = "webcraft-version";
 
 /** A request's bearer token that doesn't work, answered as 401 with its problem. */
 export function tokenRefusal(error: ApiTokenInvalidError, challenge = `Bearer realm="WebCraft"`): Response {
@@ -334,6 +352,38 @@ export function rateLimitHeaders(
 }
 
 const documents = new WeakMap<object, Promise<Record<string, unknown>>>();
+const texts = new WeakMap<object, Promise<{ text: string; etag: string }>>();
+
+/**
+ * The OpenAPI document as served, with its ETag (a hash of its text), so a client that kept it (the
+ * CLI) asks again with `If-None-Match` and gets 304 while it is unchanged.
+ */
+function documentText(services: InstallServices): Promise<{ text: string; etag: string }> {
+	const router = adminRouter(services);
+	let found = texts.get(router);
+	if (!found) {
+		found = openApiDocument(services).then(async (document) => {
+			const text = JSON.stringify(document);
+			const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+			const hex = Array.from(new Uint8Array(digest).slice(0, 12), (byte) => byte.toString(16).padStart(2, "0")).join(
+				"",
+			);
+			return { text, etag: `"${hex}"` };
+		});
+		texts.set(router, found);
+		found.catch(() => texts.delete(router));
+	}
+	return found;
+}
+
+/** Whether an `If-None-Match` header names this ETag (or `*`). */
+function matchesEtag(header: string | null, etag: string): boolean {
+	if (!header) return false;
+	return header
+		.split(",")
+		.map((each) => each.trim().replace(/^W\//, ""))
+		.some((each) => each === "*" || each === etag);
+}
 
 /**
  * The OpenAPI 3.1 document of `/api/v1` for the Install's Modules: every public procedure as
@@ -369,7 +419,7 @@ async function generateDocument(services: InstallServices, router: Router): Prom
 			title: "WebCraft Management API",
 			version: "1",
 			description:
-				"Every public procedure of the Management API. Call each with POST and an API token (`Authorization: Bearer <token>`), made under Your account › API tokens in the admin.",
+				"Every public procedure of the Management API. Call each with POST and an API token (`Authorization: Bearer <token>`), made under Your account › API tokens in the admin, or the access token of a device sign-in (`webcraft login`).",
 		},
 		servers: [{ url: PUBLIC_API_PREFIX }],
 		security: [{ apiToken: [] }],

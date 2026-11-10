@@ -2,7 +2,7 @@
 	"info": {
 		"title": "WebCraft Management API",
 		"version": "1",
-		"description": "Every public procedure of the Management API. Call each with POST and an API token (`Authorization: Bearer <token>`), made under Your account › API tokens in the admin."
+		"description": "Every public procedure of the Management API. Call each with POST and an API token (`Authorization: Bearer <token>`), made under Your account › API tokens in the admin, or the access token of a device sign-in (`webcraft login`)."
 	},
 	"servers": [
 		{
@@ -24,6 +24,33 @@
 	},
 	"openapi": "3.1.1",
 	"paths": {
+		"/access/current": {
+			"post": {
+				"operationId": "access.current",
+				"summary": "Who the caller acts as: the person and, for an API client, its Workspace, Sites, Toolsets and limits.",
+				"tags": ["access"],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": "always",
+				"x-webcraft-permissions": []
+			}
+		},
 		"/aiKeys/get": {
 			"post": {
 				"operationId": "aiKeys.get",
