@@ -3,7 +3,7 @@ import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
 import { announcePublished } from "../co-editing/store.ts";
 import { publishConsentText } from "../consent/text.ts";
-import { isUniqueViolation } from "../db-errors.ts";
+import { isSerializationFailure, isUniqueViolation } from "../db-errors.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem, lockDesignSystem } from "../design-system/design-systems.ts";
 import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
@@ -138,8 +138,9 @@ export type FrozenVersions = (item: PublishItem) => unknown;
  * for each other in a circle; one page cache clear, and one replaced stylesheet kept; each item writes
  * its own Audit log entry, as publishing it alone does. Each item needs its own Permission
  * (`publishPermission`). `refusal`, when given, turns the reason an item can't be published into the
- * error that stops them all (a failure of the database itself, such as two transactions at once, is
- * never turned).
+ * error that stops them all (a deadlock or serialization failure, Postgres giving up because another
+ * transaction conflicted, is never turned: trying again later may just work; a deterministic failure,
+ * such as a constraint, is turned like any other refusal, naming the item that caused it).
  *
  * `frozen`, when given, names the version to publish of each item instead of its Draft: a Scheduled
  * publish's, which the worker publishes at its time; every check runs on it as on a Draft. Without it
@@ -174,7 +175,7 @@ export async function publishItems(
 			try {
 				published.push(await publishItem(tx, item, sources, frozen?.(item)));
 			} catch (error) {
-				throw refusal && !isDatabaseFailure(error) ? refusal(item, error) : error;
+				throw refusal && !isSerializationFailure(error) ? refusal(item, error) : error;
 			}
 			// Each publish saves a Revision of what it published, unless Revisions are off.
 			await saveRevision(tx, item);

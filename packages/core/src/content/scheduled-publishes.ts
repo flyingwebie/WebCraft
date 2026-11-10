@@ -5,7 +5,7 @@ import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import { type AuditVia, clientNameOf, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
-import { isUniqueViolation } from "../db-errors.ts";
+import { isSerializationFailure, isUniqueViolation } from "../db-errors.ts";
 import type { Email } from "../email/index.ts";
 import { peopleNames, storedVia } from "../history/attribution.ts";
 import { itemState } from "../history/items.ts";
@@ -17,7 +17,7 @@ import { PermissionDeniedError } from "../tenancy/errors.ts";
 import type { ComponentSources } from "./components.ts";
 import { draftVersion } from "./json.ts";
 import { orderForPublish, PublishAllInvalidError, PublishAllRefusedError, siteDrafts } from "./publish-all.ts";
-import { isDatabaseFailure, type PublishItem, publishItems, publishPermission } from "./publishing.ts";
+import { type PublishItem, publishItems, publishPermission } from "./publishing.ts";
 import { type ScheduleAction, type ScheduleKind, scheduledItemId, scheduledItemWhere } from "./scheduled-items.ts";
 import { unpublishEntry } from "./unpublishing.ts";
 
@@ -815,8 +815,10 @@ async function runOne(deps: ScheduledPublishingDeps, due: Due): Promise<RunOutco
 			return "done";
 		});
 	} catch (error) {
-		if (isDatabaseFailure(error) && due.attempts + 1 < SCHEDULE_LIMITS.maxAttempts) {
-			// Postgres gave up on it (two transactions at once): it is tried again the next minute.
+		if (isSerializationFailure(error) && due.attempts + 1 < SCHEDULE_LIMITS.maxAttempts) {
+			// Postgres gave up on it (a deadlock or a serialization failure, two transactions at once): it
+			// is tried again the next minute. Any other database failure (a constraint, a timeout, a lock
+			// that gave up) is deterministic, so trying again wouldn't help: it fails at once, below.
 			const background = await deps.data.background(due.siteId);
 			await background?.update(scheduledPublishes, { attempts: due.attempts + 1 }, eq(scheduledPublishes.id, due.id));
 			deps.log.warn("A Scheduled publish will be tried again", { siteId: due.siteId, scheduleId: due.id, error });
