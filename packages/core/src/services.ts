@@ -1,5 +1,7 @@
 import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
+import type { Block } from "@webcraft/renderer";
+
 import type { Account } from "./account.ts";
 import type { AiKeys, AiProviders } from "./ai/index.ts";
 import type { ApiTokens } from "./api-tokens.ts";
@@ -13,6 +15,7 @@ import type { InstallConfig } from "./config.ts";
 import type { Confirmation } from "./confirmations.ts";
 import type { ConsentService } from "./consent/index.ts";
 import type {
+	BodyComponent,
 	Component,
 	ComponentDeletion,
 	ComponentDraftChange,
@@ -22,6 +25,7 @@ import type {
 	DraftChange,
 	Entry,
 	EntryDeletion,
+	EntryReading,
 	FieldInput,
 	Globals,
 	GlobalsChange,
@@ -35,6 +39,7 @@ import type {
 	NewLanguage,
 	NewLoop,
 	NewPostType,
+	Pasted,
 	PostType,
 	PostTypeChange,
 	PublishAllDone,
@@ -249,8 +254,9 @@ export type InstallServices = InstallPorts & {
 	};
 	/** Entries, each with a Draft and a published version. Open the Site with `entry.edit` to change them. */
 	entries: {
-		list(scope: SiteScope, postTypeId: string, language?: string): Promise<Entry[]>;
-		get(scope: SiteScope, entryId: string, language?: string): Promise<Entry>;
+		/** With `bodyFormat: "markdown"`, the Body field's values are Markdown (`body-exchange.ts`). */
+		list(scope: SiteScope, postTypeId: string, language?: string, reading?: EntryReading): Promise<Entry[]>;
+		get(scope: SiteScope, entryId: string, language?: string, reading?: EntryReading): Promise<Entry>;
 		create(scope: SiteScope, input: NewEntry): Promise<Entry>;
 		/** The one way an Entry's Draft changes. */
 		saveDraft(scope: SiteScope, entryId: string, change: DraftChange): Promise<Entry>;
@@ -260,6 +266,10 @@ export type InstallServices = InstallPorts & {
 		 * `entry.delete`.
 		 */
 		delete(scope: SiteScope, entryId: string, confirmation?: string): Promise<EntryDeletion>;
+		/** The Components a Post Type's Body field allows that are published, with their Props, for the block editors. */
+		bodyComponents(scope: SiteScope, postTypeId: string): Promise<BodyComponent[]>;
+		/** What was pasted into a Post Type's body (HTML, Markdown or plain text), as Blocks; nothing is saved. */
+		pasteBody(scope: SiteScope, postTypeId: string, pasted: Pasted): Promise<Block[]>;
 	};
 	/**
 	 * The Globals: one set of Fields per Site. Staff set the Fields (`structure.edit`); Members edit the

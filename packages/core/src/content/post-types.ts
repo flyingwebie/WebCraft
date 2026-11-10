@@ -1,4 +1,4 @@
-import { entries, postTypes } from "@webcraft/db/schema";
+import { components, entries, postTypes } from "@webcraft/db/schema";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
@@ -293,7 +293,9 @@ async function defineContext(
 	// A Page's parent is one of its built-in Fields.
 	const reservedKeys = isPagePostType(postType) ? new Set([...RESERVED_FIELD_KEYS, "parent"]) : RESERVED_FIELD_KEYS;
 	const owner = isPagePostType(postType) ? ("page" as const) : ("postType" as const);
-	return { postTypeKeys: keys, owner, reservedKeys };
+	// The Site's own Components, which its Body field may allow.
+	const componentIds = new Set((await scope.select(components)).map((component) => component.id));
+	return { postTypeKeys: keys, owner, reservedKeys, componentIds };
 }
 
 /** The Post Types of the scope's Site, by name. */

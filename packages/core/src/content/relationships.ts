@@ -2,6 +2,7 @@ import { entries, entryLinks, media, postTypes } from "@webcraft/db/schema";
 import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
+import { checkBodyComponents } from "./body-components.ts";
 import type { ContentProblem } from "./errors.ts";
 import type { Reference } from "./field-types.ts";
 import type { Link } from "./field-values.ts";
@@ -62,6 +63,11 @@ export async function checkReferences(
 	await checkMedia(
 		scope,
 		checks.filter((check) => check.kind === "media"),
+		mode,
+	);
+	await checkBodyComponents(
+		scope,
+		checks.filter((check): check is Extract<ReferenceCheck, { kind: "components" }> => check.kind === "components"),
 		mode,
 	);
 	const entryChecks = checks.filter(

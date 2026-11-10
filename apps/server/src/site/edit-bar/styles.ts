@@ -57,6 +57,25 @@ html.wc-edit-on [data-wc-loop-focus]:focus { outline: 2px solid #4338ca; outline
 	html.wc-edit [data-wc-type="media"]:not(img) { background: rgba(165, 180, 252, 0.12); }
 	html.wc-edit [data-wc-type="media"]:not(img)::after { color: #c7d2fe; }
 }
+html.wc-edit-on [data-wc-type="body"] { cursor: auto; }
+html.wc-edit-on [data-wc-type="body"] [data-wc-block-part] { cursor: text; }
+html.wc-edit-on [data-wc-type="body"] [data-wc-block-part]:focus { outline: 2px solid #4338ca; outline-offset: 2px; }
+html.wc-edit-on [data-wc-type="body"] [data-wc-placeholder]:empty::before {
+	content: attr(data-wc-placeholder); color: #52525b; pointer-events: none;
+}
+html.wc-edit .wc-edit-block { display: block; }
+html.wc-edit-on .wc-edit-block { cursor: default; }
+html.wc-edit-on .wc-edit-block:focus { outline: 2px solid #4338ca; outline-offset: 3px; }
+html.wc-edit-on [data-wc-block-id][data-wc-invalid] { outline: 2px solid #b91c1c; outline-offset: 2px; }
+html.wc-edit-on [data-wc-block-id][data-wc-check] { outline: 1px dashed #b45309; outline-offset: 2px; }
+html.wc-edit .wc-edit-empty {
+	display: inline-block; padding: 0.5rem 0.75rem; border: 1px dashed #71717a; border-radius: 0.5rem;
+	background: #f4f4f5; color: #3f3f46; font: 500 13px/1.3 ui-sans-serif, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+	html.wc-edit-on [data-wc-type="body"] [data-wc-placeholder]:empty::before { color: #d4d4d8; }
+	html.wc-edit .wc-edit-empty { background: #27272a; color: #e4e4e7; border-color: #a1a1aa; }
+}
 `;
 
 /** The editing bar's own stylesheet, inside its shadow root: a dark bar, light or dark popovers. */
@@ -435,6 +454,37 @@ dialog::backdrop { background: rgba(9, 9, 11, 0.5); }
 .primary.wide { width: 100%; justify-content: center; height: 3rem; margin-top: 0.75rem; }
 .publish-sheet .actions { flex-wrap: wrap; }
 
+.body-toolbar {
+	position: fixed; z-index: 2147483001; display: flex; align-items: center; gap: 0.125rem; padding: 0.25rem;
+	background: var(--bar); color: var(--bar-text); border-radius: 0.625rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.body-toolbar :focus-visible { outline-color: var(--focus); }
+.body-toolbar .drag { cursor: grab; touch-action: none; }
+.body-toolbar [aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.body-notes {
+	position: fixed; z-index: 2147483000; margin: 0; padding: 0.375rem 0.625rem; list-style: none; max-width: 22rem;
+	background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 0.5rem;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); font-size: 13px;
+}
+.body-notes li + li { margin-top: 0.25rem; }
+.body-drop { position: fixed; z-index: 2147483002; height: 3px; border-radius: 2px; background: #4338ca; pointer-events: none; }
+.body-panel { width: min(24rem, calc(100vw - 1.5rem)); max-height: calc(100vh - 5rem); overflow: auto; padding: 0.75rem 1rem 1rem; }
+.body-panel .panel-title { font-size: 15px; }
+.body-menu { padding: 0; min-width: 0; max-height: none; }
+.body-menu [role="menuitem"] { flex-direction: row; }
+.danger-item { color: var(--danger); }
+.chooser { display: flex; flex-direction: column; gap: 0.5rem; }
+.chooser-list { max-height: 18rem; overflow: auto; }
+.chooser-group {
+	padding: 0.5rem 0.5rem 0.25rem; color: var(--muted); font-size: 12px; font-weight: 700;
+	letter-spacing: 0.05em; text-transform: uppercase;
+}
+.chooser-option { padding: 0.5rem 0.625rem; border-radius: 0.5rem; cursor: default; }
+.chooser-option[aria-selected="true"] { background: var(--hover); font-weight: 600; }
+.check-field { display: flex; align-items: center; gap: 0.5rem; margin: 0.75rem 0 0; font-weight: 600; font-size: 13px; }
+.check-field input { width: 1.125rem; height: 1.125rem; margin: 0; }
+.body-form > .secondary.small { margin: 0.75rem 0.5rem 0 0; }
+.props-form textarea.text-input { min-height: 5rem; font-family: ui-monospace, monospace; }
 .toolbar-wrap.above-keyboard .toolbar { width: calc(100vw - 0.75rem); overflow-x: auto; }
 .toolbar-wrap.above-keyboard .done { margin-inline-start: auto; }
 
@@ -453,6 +503,8 @@ dialog::backdrop { background: rgba(9, 9, 11, 0.5); }
 		min-height: 44px;
 	}
 	.tool, .icon-button, .avatar, .more { min-width: 44px; min-height: 44px; }
+	.chooser-option, .check-field { min-height: 44px; }
+	.check-field input { width: 1.5rem; height: 1.5rem; }
 	.switch { min-width: 44px; }
 	.text-input, .small-select { min-height: 44px; }
 }

@@ -1,20 +1,39 @@
-import { entries, media, mediaFiles } from "@webcraft/db/schema";
-import { type Block, bodyMarkdown, type PageMedia, pageWords, renderBody } from "@webcraft/renderer";
+import { entries, globals, media, mediaFiles } from "@webcraft/db/schema";
+import {
+	type Block,
+	blockPlacement,
+	bodyMarkdown,
+	designSystemNames,
+	ELEMENT_TREE_VERSION,
+	type ElementTree,
+	mediaReferencesIn,
+	type PageMedia,
+	type PlacementRenderer,
+	pageWords,
+	placementsInValues,
+	renderBody,
+	renderTree,
+} from "@webcraft/renderer";
 import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
+import { componentNames } from "../content/body-components.ts";
+import type { ComponentSources } from "../content/components.ts";
 import { publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition, Json, TextField } from "../content/field-types.ts";
 import { type LanguageChain, readFieldsThrough } from "../content/field-values.ts";
 import { isPagePostType, parentIn } from "../content/pages.ts";
 import type { PostType } from "../content/post-types.ts";
+import { globalsParts } from "../content/render-values.ts";
 import { storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
+import { publishedDesignSystem } from "../design-system/stylesheet.ts";
 import { placeOf, type SiteAddresses } from "../domains/addresses.ts";
-import { isUuid } from "../ids.ts";
+import { isUuid, uuidsIn } from "../ids.ts";
 import { VARIANT_FORMATS } from "../media/images.ts";
 import { focalPointOf, originalUrl, variantsOf } from "../media/library.ts";
 import { type MediaText, storedTexts } from "../media/texts.ts";
 import { SEO_GROUP, SEO_KEY } from "../seo/entry-seo.ts";
+import { pageComponents } from "../site-pages/index.ts";
 import type { VisitorScope } from "../tenancy/data-layer.ts";
 import type { Exposure } from "./exposure.ts";
 import type { BodyFormat, Reading } from "./params.ts";
@@ -23,7 +42,8 @@ type EntryRow = typeof entries.$inferSelect;
 
 /** What presenting content needs: the Site, what it exposes, the languages read in and where its pages and files are. */
 export type Presenting = {
-	scope: Pick<VisitorScope, "select" | "first" | "db" | "where">;
+	scope: VisitorScope;
+	components: ComponentSources;
 	exposure: Exposure;
 	reading: Reading;
 	body: BodyFormat;
@@ -298,21 +318,58 @@ export async function presentEntries(
 		}
 	}
 	const origin = presenting.addresses.main;
+	// Component Blocks use the same published Placements as Site pages. Content API exposure still
+	// limits the Globals and Relationship Fields their bindings may read.
+	const placements = read.flatMap((item) => placementsInValues(item.values));
+	let component: PlacementRenderer | undefined;
+	let className: ((id: string) => string | undefined) | undefined;
+	if (presenting.body === "html" && placements.length > 0) {
+		const row = await scope.first(globals);
+		const values = row?.published
+			? readFieldsThrough(storedVersion(row.published).values, exposure.globals, reading.chain)
+			: {};
+		const tree: ElementTree = { version: ELEMENT_TREE_VERSION, nodes: placements };
+		const placed = await pageComponents(
+			scope,
+			[tree],
+			presenting.components,
+			globalsParts(exposure.globals, values, { language: reading.language, name: scope.site.name }),
+			languages,
+			{ which: "published" },
+			exposure.postTypes,
+		);
+		component = placed.render;
+		className = designSystemNames(await publishedDesignSystem(scope)).nameOf;
+		for (const id of mediaReferencesIn(JSON.stringify([tree, placed.trees]))) mediaIds.add(id);
+		for (const id of uuidsIn(JSON.stringify(values))) mediaIds.add(id);
+	}
 	const found = await contentMedia(scope, [...mediaIds], reading.chain, origin);
 	const words = pageWords(reading.language);
+	const mediaOf = (id: string) => {
+		const item = found.get(id);
+		return item ? pageMediaOf(item) : undefined;
+	};
 	const html = (blocks: readonly Block[]) =>
 		renderBody(blocks, {
 			words,
-			media: (id) => {
-				const item = found.get(id);
-				return item ? pageMediaOf(item) : undefined;
-			},
+			media: mediaOf,
+			component: (block) =>
+				renderTree(
+					{ version: ELEMENT_TREE_VERSION, nodes: [blockPlacement(block)] },
+					{ values: () => undefined, component, className, media: mediaOf, words, language: reading.language },
+				),
 		});
 
 	// The Markdown copies' converter (ADR 0018: worked out from the Blocks). Links stay as written, as
 	// in the HTML; Media images are at their absolute addresses on the Site's domain.
+	const names =
+		presenting.body === "markdown" && placements.length > 0 ? await componentNames(scope) : new Map<string, string>();
 	const markdown = (blocks: readonly Block[]) =>
 		bodyMarkdown(blocks, {
+			component: (block) => {
+				const name = names.get(block.component);
+				return name ? { name } : undefined;
+			},
 			link: (url) => url,
 			image: (id) => {
 				const item = found.get(id);

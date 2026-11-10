@@ -148,6 +148,7 @@ export function EntryEditor({
 	const problems = [...entry.problems, ...refused];
 	const context: ValueContext = {
 		siteId,
+		postTypeId: postType.id,
 		idPrefix: "entry",
 		language: entry.language,
 		defaultLanguage: languages.default,

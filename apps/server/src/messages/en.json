@@ -2544,6 +2544,8 @@
 			"blocksOffList": "Choose the Blocks to switch off from the list.",
 			"blockUnknown": "There is no Block type {type}.",
 			"blockAlwaysOn": "A Body always offers {type} Blocks.",
+			"componentsList": "Choose the Components a body allows from the list.",
+			"componentUnknown": "This Site has no such Component.",
 			"relationshipInGlobals": "Globals can't hold Relationships.",
 			"relationshipInModuleComponent": "A Module's Component can't have Relationship Props: each Site has its own Post Types.",
 			"postTypesCount": "A Relationship points at Entries of 1 to {max} Post Types.",
@@ -2643,6 +2645,7 @@
 		}
 	},
 	"body": {
+		"saveFailed": "Not saved: reconnect or correct this Block and try again.",
 		"block": "{type}, block {number}",
 		"actions": "{block}: actions",
 		"turnInto": "Turn into",
@@ -2666,7 +2669,8 @@
 		"menu": {
 			"label": "Blocks",
 			"placeholder": "Filter Blocks",
-			"none": "No Block matches."
+			"none": "No Block matches.",
+			"blocks": "Blocks"
 		},
 		"choices": {
 			"paragraph": "Paragraph",
@@ -2746,6 +2750,60 @@
 			"vagueLink": "The link text “{detail}” doesn't say where the link goes.",
 			"tableHeader": "This table has no header row.",
 			"untitledVideo": "This video has no title for people who can't see it."
+		},
+		"addAfter": "Add a Block after this one",
+		"cancel": "Cancel",
+		"done": "Done",
+		"drag": "Drag to move {block}",
+		"dragHelp": "Drag to move the Block. From its text, Alt+Shift with the arrow keys moves it.",
+		"editCallout": "Callout tone",
+		"editImage": "Change image",
+		"editTable": "Table rows and columns",
+		"editVideo": "Video address and title",
+		"linkApply": "Add link",
+		"linkInvalid": "A link goes to an http, https, mailto or tel address, a path or an #anchor.",
+		"more": "More",
+		"moveUp": "Move up",
+		"moveDown": "Move down",
+		"region": "Body: {label}",
+		"tools": "{block}: tools",
+		"empty": {
+			"generic": "Nothing to show yet.",
+			"video": "Video",
+			"noVideo": "No video address yet.",
+			"component": "This Component shows nothing here yet."
+		},
+		"paste": {
+			"added": "{count} Blocks pasted.",
+			"failed": "What was pasted couldn't be added.",
+			"uploading": "Uploading the pasted images…"
+		},
+		"components": {
+			"allowed": "Allowed Components",
+			"allowedHelp": "Members may insert these published Components from the / menu and fill their Props.",
+			"group": "Components",
+			"label": "{name} (Component)",
+			"title": "{name}: Props",
+			"insert": "Insert",
+			"save": "Save",
+			"edit": "{name}: Props",
+			"required": "required",
+			"chooseImage": "Choose an image",
+			"imageChosen": "Image chosen",
+			"noImage": "No image chosen",
+			"json": "Written as JSON.",
+			"missing": "{prop} is required.",
+			"none": "This Component has no Props to fill.",
+			"unknown": "a Component",
+			"help": "Components Staff allow here are in the / menu: Members fill their Props, never what is inside them."
+		},
+		"problems": {
+			"blockType": "This Body field has these Blocks switched off.",
+			"video": "A video is on YouTube or Vimeo.",
+			"media": "The image is no longer in the Media library.",
+			"component": "This Body field doesn't allow this Component, or it isn't published.",
+			"prop": "A Prop's value is missing or doesn't fit.",
+			"invalid": "Check this Block."
 		}
 	},
 	"entries": {

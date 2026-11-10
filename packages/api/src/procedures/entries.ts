@@ -1,4 +1,4 @@
-import { ENTRY_TITLE_MAX_LENGTH, publishPermission } from "@webcraft/core";
+import { ENTRY_BODY_FORMATS, ENTRY_TITLE_MAX_LENGTH, PASTE_MAX_LENGTH, publishPermission } from "@webcraft/core";
 import { z } from "zod";
 
 import { confirmationInput, confirmedPublish } from "../confirm.ts";
@@ -6,22 +6,67 @@ import { signedIn } from "../context.ts";
 import { fieldValues, language, seoFields } from "../fields.ts";
 import { id } from "../inputs.ts";
 
+/**
+ * How the Body field's value is read or written: its JSON Blocks (the default), or Markdown with the
+ * body's extensions (`:::callout{tone="info"}`, `:::toggle[Summary]`, `::video[Title]{url="…"}`,
+ * `::image`, `![alt](media:<id>)`, Components as `<Name prop="value" />`). Markdown that doesn't
+ * convert is refused (`ENTRY_INVALID`), each problem at the Field with its `line`.
+ */
+const bodyFormat = z.enum(ENTRY_BODY_FORMATS).optional();
+
 /** Entries: Content. Members and Staff write them; Editors, Owners and Staff publish them. */
 export const entries = {
 	/** The Entries of a Post Type, newest first, with their Draft and published values. */
 	list: signedIn
-		.input(z.object({ siteId: id, postTypeId: id, language: language.optional() }))
+		.input(z.object({ siteId: id, postTypeId: id, language: language.optional(), bodyFormat }))
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "site.view");
-			return { entries: await context.services.entries.list(site, input.postTypeId, input.language) };
+			return {
+				entries: await context.services.entries.list(site, input.postTypeId, input.language, {
+					bodyFormat: input.bodyFormat,
+				}),
+			};
 		}),
 
 	/** One Entry: its built-in Fields (title, slug, status, author, dates), its Draft and its published version. */
 	get: signedIn
-		.input(z.object({ siteId: id, entryId: id, language: language.optional() }))
+		.input(z.object({ siteId: id, entryId: id, language: language.optional(), bodyFormat }))
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "site.view");
-			return { entry: await context.services.entries.get(site, input.entryId, input.language) };
+			return {
+				entry: await context.services.entries.get(site, input.entryId, input.language, {
+					bodyFormat: input.bodyFormat,
+				}),
+			};
+		}),
+
+	/**
+	 * The Components a Post Type's Body field allows (Staff choose them), that are published, with
+	 * their Props: what the block editors offer from the `/` menu, and what Markdown may place as
+	 * `<Name prop="value" />`.
+	 */
+	bodyComponents: signedIn.input(z.object({ siteId: id, postTypeId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "site.view");
+		return { components: await context.services.entries.bodyComponents(site, input.postTypeId) };
+	}),
+
+	/**
+	 * What was pasted into a Post Type's body, as Blocks (nothing is saved): the clipboard's HTML (from
+	 * a document or a web page) when it has some, else its text (Markdown, or plain paragraphs).
+	 */
+	pasteBody: signedIn
+		.input(
+			z.object({
+				siteId: id,
+				postTypeId: id,
+				html: z.string().max(PASTE_MAX_LENGTH).optional(),
+				text: z.string().max(PASTE_MAX_LENGTH).optional(),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "entry.edit");
+			const { siteId: _, postTypeId, ...pasted } = input;
+			return { blocks: await context.services.entries.pasteBody(site, postTypeId, pasted) };
 		}),
 
 	/**
@@ -41,6 +86,7 @@ export const entries = {
 				fields: fieldValues.optional(),
 				/** Its SEO fields: the SEO title, description, canonical URL and social image, and noindex. */
 				seo: seoFields.optional(),
+				bodyFormat,
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -74,6 +120,7 @@ export const entries = {
 				 * those given change; null or "" clears one.
 				 */
 				seo: seoFields.optional(),
+				bodyFormat,
 			}),
 		)
 		.handler(async ({ context, input }) => {

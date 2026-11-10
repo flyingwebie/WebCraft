@@ -151,9 +151,15 @@ type Segment = { runs: Run[] } | { image: Node } | { embed: Node };
 
 type Inline = { marks: readonly Mark[]; link: string | null; preserve: boolean };
 
-/** Reads HTML into a body's Blocks (see the module's comment). */
-export function blocksFromHtml(html: string): HtmlBody {
-	const reader = new Reader();
+/**
+ * Reads HTML into a body's Blocks (see the module's comment). `paste` reads what someone pasted from
+ * a document or a web page (#79) instead of an Import's post: layout is read through rather than kept
+ * as a leftover, a word processor's styles give bold, italic and strikethrough (and its list
+ * paragraphs a list), an embed with no Block gives only its text, and every image, whatever its
+ * address, becomes an image Block with none chosen yet (its address is never fetched).
+ */
+export function blocksFromHtml(html: string, options: { paste?: boolean } = {}): HtmlBody {
+	const reader = new Reader(options.paste ?? false);
 	const fragment = parseFragment(html) as unknown as Node;
 	reader.blocks(fragment.childNodes ?? [], { loose: true });
 	return reader.finish();
@@ -171,10 +177,15 @@ export function shortcodeIn(text: string): string | null {
 }
 
 class Reader {
+	private readonly paste: boolean;
 	private readonly out: Record<string, unknown>[] = [];
 	private readonly leftovers: HtmlLeftover[] = [];
 	private readonly images: HtmlImage[] = [];
 	private characters = 0;
+
+	constructor(paste: boolean) {
+		this.paste = paste;
+	}
 
 	finish(): HtmlBody {
 		const { blocks } = readBody(this.out);
@@ -218,6 +229,12 @@ class Reader {
 	}
 
 	private image(node: Node, caption: string | null): void {
+		if (this.paste) {
+			// A pasted image is never fetched: its Block waits for an image to be chosen or uploaded.
+			this.add({ type: "image", media: null });
+			if (caption) this.paragraph([{ text: caption }]);
+			return;
+		}
 		const address = attribute(node, "src")?.trim() ?? "";
 		if (!/^https?:\/\//i.test(address)) {
 			const alt = attribute(node, "alt")?.trim();
@@ -238,6 +255,12 @@ class Reader {
 			this.add({ type: "video", url: videoAt(address)?.watchUrl ?? address, title }, title);
 			return;
 		}
+		if (this.paste) {
+			// Pasted, an embed with no Block keeps only its text, never its markup.
+			const text = collapse(textOf(node)).trim();
+			if (text) this.paragraph([{ text }]);
+			return;
+		}
 		this.leftover(collapse(textOf(node)), openingTag(node));
 	}
 
@@ -249,9 +272,33 @@ class Reader {
 			this.inlineBlocks(pending, options.loose);
 			pending = [];
 		};
-		for (const node of nodes) {
+		const all = [...nodes];
+		for (let index = 0; index < all.length; index++) {
+			const node = all[index] as Node;
 			const name = node.nodeName;
 			if (name === "#comment" || DROPPED.has(name)) continue;
+			if (this.paste && isWordListParagraph(node)) {
+				// A word processor writes a list as paragraphs, each with its level: they are one list.
+				flush();
+				const run = [node];
+				let next = index + 1;
+				while (next < all.length) {
+					const candidate = all[next] as Node;
+					if (isWordListParagraph(candidate)) run.push(candidate);
+					else if (!(candidate.nodeName === "#comment" || (candidate.nodeName === "#text" && !candidate.value?.trim())))
+						break;
+					next++;
+				}
+				this.wordList(run);
+				index = next - 1;
+				continue;
+			}
+			if (this.paste && !BLOCK_LEVEL.has(name) && !EMBEDS.has(name) && holdsBlocks(node)) {
+				// Pasted, an inline element around blocks (a document's wrapper) is layout: read through it.
+				flush();
+				this.blocks(node.childNodes ?? [], options);
+				continue;
+			}
 			if (!BLOCK_LEVEL.has(name) && !EMBEDS.has(name)) {
 				pending.push(node);
 				continue;
@@ -357,12 +404,25 @@ class Reader {
 				break;
 		}
 		if (CONTAINERS.has(name)) {
-			if (isLayout(node)) {
+			if (isLayout(node) && !this.paste) {
 				this.leftover(blockText(node), openingTag(node));
 				return;
 			}
 			this.blocks(node.childNodes ?? [], { loose: false });
 		}
+	}
+
+	/** A word processor's list paragraphs as one list, nested by their levels. */
+	private wordList(paragraphs: readonly Node[]): void {
+		const lines = paragraphs.map((paragraph) => {
+			const level = Number(/level(\d+)/.exec(attribute(paragraph, "style") ?? "")?.[1] ?? "1");
+			const text = canonicalInline(trimRuns(this.flowRuns(paragraph.childNodes ?? [])));
+			return { depth: Math.max(0, Math.min(BODY_LIMITS.listDepth - 1, level - 1)), text };
+		});
+		const marker = collapse(textOf(findFirst(paragraphs[0] as Node, isWordListMarker) ?? { nodeName: "#text" })).trim();
+		const style: ListStyle = /^\(?[0-9A-Za-z]{1,4}[.)]$/.test(marker) ? "numbered" : "bulleted";
+		const items = nestLines(lines);
+		if (items.length > 0) this.add({ type: "list", style, items }, items.map(itemText).join(""));
 	}
 
 	private figure(node: Node): void {
@@ -498,9 +558,19 @@ class Reader {
 				out.push({ embed: node });
 				return;
 			}
+			// A word processor's list marker is the list's, not the text's.
+			if (this.paste && isWordListMarker(node)) return;
 			let next = context;
 			const mark = MARK_OF[name];
-			if (mark) next = { ...context, marks: [...context.marks, mark] };
+			if (this.paste) {
+				// A word processor marks text with styles (a document's wrapper is a <b> that isn't bold).
+				const marks = styledMarks(node, mark ? [...context.marks, mark] : context.marks);
+				next = { ...context, marks };
+				if (name === "a") {
+					const href = (attribute(node, "href") ?? "").trim();
+					next = { ...next, link: href !== "" && href.length <= LINK_MAX_LENGTH && isSafeLink(href) ? href : null };
+				}
+			} else if (mark) next = { ...context, marks: [...context.marks, mark] };
 			else if (name === "a") {
 				const href = (attribute(node, "href") ?? "").trim();
 				next = { ...context, link: href !== "" && href.length <= LINK_MAX_LENGTH && isSafeLink(href) ? href : null };
@@ -660,4 +730,56 @@ function findFirst(node: Node, test: (node: Node) => boolean): Node | null {
 
 function contains(node: Node, target: Node): boolean {
 	return node === target || (node.childNodes ?? []).some((child) => contains(child, target));
+}
+
+/** Whether an element is a word processor's list paragraph (`mso-list:l0 level1 lfo1`). */
+function isWordListParagraph(node: Node): boolean {
+	if (node.nodeName !== "p") return false;
+	const style = attribute(node, "style") ?? "";
+	return /mso-list\s*:\s*l\d+/i.test(style);
+}
+
+/** A word processor's list marker inside a list paragraph (`mso-list:Ignore`). */
+function isWordListMarker(node: Node): boolean {
+	return /mso-list\s*:\s*ignore/i.test(attribute(node, "style") ?? "");
+}
+
+/** The marks an element's inline style gives (or takes away from) the marks around it. */
+function styledMarks(node: Node, marks: readonly Mark[]): Mark[] {
+	const style = (attribute(node, "style") ?? "").toLowerCase();
+	const out = new Set(marks);
+	const weight = /font-weight\s*:\s*([a-z0-9]+)/.exec(style)?.[1];
+	if (weight === "bold" || weight === "bolder" || Number(weight) >= 600) out.add("bold");
+	else if (weight === "normal" || weight === "lighter" || (weight !== undefined && Number(weight) < 600))
+		out.delete("bold");
+	const fontStyle = /font-style\s*:\s*([a-z]+)/.exec(style)?.[1];
+	if (fontStyle === "italic" || fontStyle === "oblique") out.add("italic");
+	else if (fontStyle === "normal") out.delete("italic");
+	if (/text-decoration[a-z-]*\s*:[^;]*line-through/.test(style)) out.add("strike");
+	return [...out];
+}
+
+/** List items from lines with their depth: each line under the closest line before it that is less deep. */
+function nestLines(lines: readonly { depth: number; text: Run[] }[]): ListItem[] {
+	const root: ListItem[] = [];
+	const stack: { depth: number; items: ListItem[] }[] = [{ depth: -1, items: root }];
+	for (const line of lines) {
+		while ((stack.at(-1)?.depth ?? -1) >= line.depth) stack.pop();
+		const parent = stack.at(-1) ?? { depth: -1, items: root };
+		const item: ListItem = { text: line.text };
+		parent.items.push(item);
+		const children: ListItem[] = [];
+		stack.push({ depth: Math.min(line.depth, parent.depth + 1), items: children });
+		item.items = children;
+	}
+	const tidy = (items: ListItem[]): ListItem[] =>
+		items.map((item) =>
+			item.items && item.items.length > 0 ? { text: item.text, items: tidy(item.items) } : { text: item.text },
+		);
+	return tidy(root);
+}
+
+/** Whether an element holds block-level elements (a list, a heading, a paragraph), however deep. */
+function holdsBlocks(node: Node): boolean {
+	return findFirst(node, (child) => BLOCK_LEVEL.has(child.nodeName) && !CONTAINERS.has(child.nodeName)) !== null;
 }

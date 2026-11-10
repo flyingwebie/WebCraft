@@ -18,6 +18,7 @@ import { ArrowDownIcon, ArrowUpIcon, CircleAlertIcon, PlusIcon, Trash2Icon, XIco
 import type { ReactNode } from "react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
+import { AllowedComponents } from "./body/AllowedComponents.tsx";
 import { FIELD_TYPE_ICONS, type FieldOwner, offeredTypes } from "./FieldBuilder.tsx";
 import { FieldValue, type ValueContext } from "./FieldValues.tsx";
 import { changeField, type FieldDraft, freeKey, keyFromLabel, newField, replaceDraft } from "./field-drafts.ts";
@@ -45,6 +46,7 @@ const SHOWN_SETTINGS = [
 	"postTypes",
 	"twoWay",
 	"blocksOff",
+	"components",
 	"default",
 	"required",
 	"translatable",
@@ -219,7 +221,7 @@ export function FieldSettingsPanel({
 				)}
 			</SettingField>
 
-			<TypeSettings field={field} at={at} update={update} postTypes={postTypes} />
+			<TypeSettings siteId={siteId} field={field} at={at} update={update} postTypes={postTypes} />
 
 			{traits.hasDefault ? (
 				<div className="grid gap-2 border-t pt-5">
@@ -309,11 +311,13 @@ function defaultContext(siteId: string, defaultLanguage: string): ValueContext {
 
 /** The settings only some Field types have. */
 function TypeSettings({
+	siteId,
 	field,
 	at,
 	update,
 	postTypes,
 }: {
+	siteId: string;
 	field: FieldDefinition;
 	at(setting: Setting): SettingProblems;
 	update(values: Record<string, unknown>): void;
@@ -562,6 +566,12 @@ function TypeSettings({
 						</p>
 						<SettingNotes id="setting-blocksOff" problems={at("blocksOff")} />
 					</fieldset>
+					<AllowedComponents
+						siteId={siteId}
+						value={field.components}
+						onChange={(components) => update({ components })}
+					/>
+					<SettingNotes id="setting-components" problems={at("components")} />
 				</div>
 			);
 		case "group":

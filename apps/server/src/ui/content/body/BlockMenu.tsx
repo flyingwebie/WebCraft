@@ -1,5 +1,7 @@
 import { Input } from "@webcraft/ui/components/input.tsx";
+import { BoxesIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import type { BodyComponentChoice } from "../../../body-editor/model.ts";
 
 import { useT } from "../../i18n.tsx";
 import { type BlockChoice, matches } from "./choices.ts";
@@ -11,10 +13,14 @@ import { type BlockChoice, matches } from "./choices.ts";
  */
 export function BlockMenu({
 	choices,
+	components = [],
+	onComponent,
 	onChoose,
 	onClose,
 }: {
 	choices: readonly BlockChoice[];
+	components?: readonly BodyComponentChoice[];
+	onComponent?(component: BodyComponentChoice): void;
 	onChoose(choice: BlockChoice): void;
 	onClose(): void;
 }) {
@@ -23,7 +29,23 @@ export function BlockMenu({
 	const input = useRef<HTMLInputElement>(null);
 	const [query, setQuery] = useState("");
 	const [active, setActive] = useState(0);
-	const shown = choices.filter((choice) => matches(choice, t(choice.label), query));
+	const shown = [
+		...choices
+			.filter((choice) => matches(choice, t(choice.label), query))
+			.map((choice) => ({ id: choice.id, name: t(choice.label), icon: choice.icon, choose: () => onChoose(choice) })),
+		...components
+			.filter((component) => component.name.toLowerCase().includes(query.toLowerCase()))
+			.map((component) => ({
+				id: component.id,
+				name: component.name,
+				icon: BoxesIcon,
+				choose: () => onComponent?.(component),
+			})),
+	].sort(
+		(a, b) =>
+			Number(b.name.toLowerCase().startsWith(query.toLowerCase())) -
+			Number(a.name.toLowerCase().startsWith(query.toLowerCase())),
+	);
 	const current = shown[Math.min(active, shown.length - 1)];
 
 	useEffect(() => {
@@ -42,7 +64,7 @@ export function BlockMenu({
 			setActive(event.key === "Home" ? 0 : Math.max(0, shown.length - 1));
 		} else if (event.key === "Enter") {
 			event.preventDefault();
-			if (current) onChoose(current);
+			current?.choose();
 		} else if (event.key === "Escape" || (event.key === "Backspace" && query === "")) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -85,11 +107,11 @@ export function BlockMenu({
 						className="aria-selected:bg-accent aria-selected:text-accent-foreground flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
 						onMouseDown={(event) => event.preventDefault()}
 						onMouseMove={() => setActive(shown.indexOf(choice))}
-						onClick={() => onChoose(choice)}
+						onClick={() => choice.choose()}
 						onKeyDown={() => {}}
 					>
 						<choice.icon className="text-muted-foreground size-4" aria-hidden="true" />
-						{t(choice.label)}
+						{choice.name}
 					</div>
 				))}
 			</div>

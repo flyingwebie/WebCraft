@@ -1,5 +1,6 @@
 import type {
 	BarKit,
+	BodyTools,
 	DetailsPanel,
 	ImageTools,
 	LoopTools,
@@ -7,13 +8,14 @@ import type {
 	PanelOptions,
 	PresencePlace,
 	PresenceTarget,
+	SharedDraft,
 } from "./kit.ts";
 
 /**
  * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
  * the module that opens the page's Drafts live (Co-editing).
  */
-export type EditingBarConfig = { styles: string; drafts: string };
+export type EditingBarConfig = { styles: string; drafts: string; body: string };
 
 /**
  * The bar's parts, each one self-contained function served in the same script (`assets.ts`): the
@@ -97,6 +99,10 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	type DraftClient = {
 		place(at: string | null): void;
 		connect(transport: { send(data: string | Uint8Array): void; close(): void }): DraftEnds;
+		draft(): unknown;
+		change(next: (current: unknown) => unknown): boolean;
+		status(): string;
+		flush(): void;
 	};
 	/** The shared-Draft module (`@webcraft/core/draft-document`), as it hands itself to the bar. */
 	type DraftsModule = {
@@ -105,6 +111,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		createDraftClient(options: {
 			onChange(draft: unknown, from: "local" | "remote"): void;
 			onPresence(participants: Participant[]): void;
+			onRefused(refusal: { code: string }): void;
 			onPublished(by: { name: string; via: string | null } | null): void;
 		}): DraftClient;
 	};
@@ -225,6 +232,15 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			"M5 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
 		],
 		forward: ["m9 18 6-6-6-6"],
+		grip: [
+			"M9 5a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+			"M9 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+			"M9 17a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+			"M15 5a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+			"M15 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+			"M15 17a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+		],
+		strike: ["M16 4H9a3 3 0 0 0-2.83 4", "M14 12a4 4 0 0 1 0 8H6", "M4 12h16"],
 	};
 
 	let state: State | null = null;
@@ -255,6 +271,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let images: ImageTools | null = null;
 	let loops: LoopTools | null = null;
 	let details: DetailsPanel | null = null;
+	/** The block editor's body part (#79), once its module loaded (pages showing a body). */
+	let body: BodyTools | null = null;
 	let detailsButton: HTMLButtonElement | null = null;
 	/** Phones get a compact bar and bottom sheets instead of popovers and the drawer. */
 	const phoneWidth = win.matchMedia("(max-width: 640px)");
@@ -263,8 +281,17 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 
 	/** The regions typed over in place (text and rich text); images and Loop items are the parts'. */
 	let regions: HTMLElement[] = [];
-	/** The page's shared Drafts, by item (`entry:<id>`, `globals`), and who else is in each. */
-	const drafts = new Map<string, { client: DraftClient; participants: Participant[] }>();
+	/** The page's shared Drafts, by item (`entry:<id>`, `globals`), who else is in each, and the parts hearing it. */
+	const drafts = new Map<
+		string,
+		{
+			client: DraftClient;
+			participants: Participant[];
+			listeners: Set<(draft: unknown) => void>;
+			synced: boolean;
+			refusals: number;
+		}
+	>();
 	/** The names shown beside regions (and images, Loop items) someone else is in, by what they mark. */
 	const presenceTags = new Map<string, HTMLElement>();
 	let othersList: HTMLElement;
@@ -345,6 +372,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		kit.pickImage = images.pick;
 		kit.openImage = images.open;
 		setUpRegions();
+		loadBody();
 		openDrafts();
 		every(() => void refresh(), 60_000);
 		doc.addEventListener("visibilitychange", () => {
@@ -851,8 +879,58 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				win.history.replaceState(win.history.state, "", next);
 			},
 			pickImage: () => Promise.resolve(null),
+			shared: (item) => sharedDraft(item),
 		};
 		return made;
+	}
+
+	/** One of the page's shared Drafts as a part changes it (the body part), once it is open. */
+	function sharedDraft(item: string): SharedDraft | null {
+		const link = drafts.get(item);
+		if (!link) return null;
+		const refusals = link.refusals;
+		return {
+			ready: () => link.synced && link.client.status() !== "readOnly" && link.client.status() !== "ended",
+			draft: () => link.client.draft(),
+			change: (next) => link.client.change(next),
+			listen(listener) {
+				link.listeners.add(listener);
+				return () => link.listeners.delete(listener);
+			},
+			saved() {
+				link.client.flush();
+				const started = Date.now();
+				return new Promise((resolve) => {
+					const check = () => {
+						const status = link.client.status();
+						if (link.refusals !== refusals) resolve(false);
+						else if (status === "saved") resolve(true);
+						else if (status === "readOnly" || status === "ended" || Date.now() - started > 8000) resolve(false);
+						else later(check, 100);
+					};
+					later(check, 50);
+				});
+			},
+		};
+	}
+
+	/** Loads the block editor's module on a page showing a body (it hands its part over in an event). */
+	function loadBody(): void {
+		if (!doc.querySelector('[data-wc-type="body"]')) return;
+		doc.addEventListener(
+			"webcraft:body",
+			(event) => {
+				const module = (event as CustomEvent<{ bodyTools(kit: BarKit): BodyTools }>).detail;
+				body = module.bodyTools(kit);
+				body.setUp(doc);
+				body.mode(editing && !ended);
+			},
+			{ once: true },
+		);
+		const script = doc.createElement("script");
+		script.type = "module";
+		script.src = config.body;
+		doc.head.append(script);
 	}
 
 	/** The page as Edit mode shows it now, read again from the server. */
@@ -1564,7 +1642,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	// Editing in place
 
 	/** Text and rich text regions: image regions are the image tools'. */
-	const TEXT_REGION = '[data-wc-item][data-wc-field]:not([data-wc-type="media"])';
+	const TEXT_REGION = '[data-wc-item][data-wc-field]:not([data-wc-type="media"]):not([data-wc-type="body"])';
 	const plainTextOnly = (() => {
 		try {
 			const probe = doc.createElement("div");
@@ -1621,6 +1699,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			const found = [...(node.matches(TEXT_REGION) ? [node] : []), ...node.querySelectorAll(TEXT_REGION)];
 			for (const region of found) if (region instanceof HTMLElement) setUpRegion(region);
 			images?.setUp(node);
+			body?.setUp(node);
 		}
 		applyMode();
 	}
@@ -1666,6 +1745,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		}
 		images?.mode(on);
 		loops?.mode(on);
+		body?.mode(on);
 		if (!on) {
 			hideTag();
 			hideToolbar();
@@ -1787,6 +1867,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		const shown = [
 			...regions.map((region) => region.dataset.wcItem ?? ""),
 			...(images?.targets() ?? []).map((target) => target.item),
+			...[...doc.querySelectorAll<HTMLElement>('[data-wc-type="body"]')].map((region) => region.dataset.wcItem ?? ""),
 			state?.page.item ?? "",
 		];
 		const items = [...new Set(shown)].filter((item) => item === "globals" || item.startsWith("entry:"));
@@ -1809,9 +1890,21 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		const [kind = "", id = ""] = item.split(":");
 		const link = {
 			participants: [] as Participant[],
+			listeners: new Set<(draft: unknown) => void>(),
+			synced: false,
+			refusals: 0,
 			client: module.createDraftClient({
 				onChange: (draft, from) => {
-					if (from === "remote") showRemote(item, draft);
+					link.synced = true;
+					if (from === "remote") {
+						showRemote(item, draft);
+						for (const listener of link.listeners) listener(draft);
+					}
+				},
+				onRefused: (refusal) => {
+					link.refusals++;
+					savedNote.textContent = word("saveFailed", { reason: errorText(refusal.code) });
+					announce(savedNote.textContent);
 				},
 				onPresence: (participants) => {
 					link.participants = participants;
@@ -1983,6 +2076,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			}),
 			...(images?.targets() ?? []),
 			...(loops?.targets() ?? []),
+			...(body?.targets() ?? []),
 		];
 		const outlined = new Set<HTMLElement>();
 		const tagged = new Set<string>();

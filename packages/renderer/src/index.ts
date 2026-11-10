@@ -13,6 +13,7 @@ export {
 	type TemplateCommand,
 } from "./commands.ts";
 export {
+	blockPlacement,
 	boundaryProblem,
 	COMPONENT_LIMITS,
 	type ComponentCatalogue,
@@ -28,6 +29,7 @@ export {
 	type PropValue,
 	placementProblems,
 	placementsIn,
+	placementsInValues,
 } from "./components.ts";
 export * from "./consent/index.ts";
 export {

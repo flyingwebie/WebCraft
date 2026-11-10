@@ -79,7 +79,7 @@ export function newField(type: FieldType, key: string, label: string): FieldDefi
 		case "richText":
 			return { ...common, type, maxLength: null };
 		case "body":
-			return { ...common, type, blocksOff: [] };
+			return { ...common, type, blocksOff: [], components: [] };
 		case "number":
 			return { ...common, type, min: null, max: null, integer: false };
 		case "boolean":
