@@ -25,7 +25,9 @@ curl -X POST "https://admin.example.com/api/v1/sites/list" \
   -d '{"workspaceId":"…"}'
 ```
 
-Answers are JSON. Dates are ISO 8601 strings, in answers and inputs.
+Answers are JSON. Dates are ISO 8601 strings, in answers and inputs. Every answer to a request whose token works says the Install's WebCraft version in `WebCraft-Version`; `access.current` says who the token acts as and what it reaches. The document answers with an `ETag`: ask again with `If-None-Match` and an unchanged document answers 304.
+
+The `webcraft` CLI (`docs/cli.md`) is a ready-made client of this API: one command for each procedure (`webcraft sites list --workspace-id …`), with an API token in `WEBCRAFT_TOKEN`, or signed in with `webcraft login`, a device code you approve in the admin (the OAuth 2.0 device authorization grant at `/oauth/device_authorization`, approved at `/oauth/device`; its tokens are for `/api/v1` only).
 
 A refusal has the status that fits and a body `{ "code", "status", "message", "data" }`. Codes a script should expect besides each procedure's own:
 

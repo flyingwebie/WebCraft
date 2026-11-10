@@ -16,7 +16,7 @@ This page covers what every target shares: the images, the settings, the first s
 
 Two images, published to the GitHub Container Registry for `linux/amd64` and `linux/arm64`:
 
-- `ghcr.io/flyingwebie/webcraft-web`: the web process (Bun): the admin, the APIs and every Site. It also holds the `webcraft` command for the server commands (`webcraft admin migrate`, `backup`, `restore`, `check-update`, `create-superadmin`, `rotate-key`), so `docker compose exec web webcraft admin …` works. Its health check asks `/readyz` on the admin host.
+- `ghcr.io/flyingwebie/webcraft-web`: the web process (Bun): the admin, the APIs and every Site. It also holds the `webcraft` command for the server commands (`webcraft admin migrate`, `backup`, `restore`, `check-update`, `create-superadmin`, `rotate-key`, `reset-2fa`, `setup`, `doctor`, `health`, `media move`; see [`docs/cli.md`](../cli.md)), so `docker compose exec web webcraft admin …` works. `webcraft admin doctor` checks the whole Install and says what is Failing. Its health check asks `/readyz` on the admin host.
 - `ghcr.io/flyingwebie/webcraft-worker`: the worker (Node LTS): jobs, image processing, email, Webhooks, Domain checks and the daily Backup. It answers no HTTP, so it has no health check.
 
 Tags: a release `v1.2.3` is published as `1.2.3`, `1.2`, `1` and `latest`; the `main` branch as `main` and `sha-<commit>`. Pin an exact release (`1.2.3`) in production, so an update happens only when you change it. Both images run as an unprivileged user (uid 1000) and keep files in `/var/lib/webcraft/storage` and Backups in `/var/lib/webcraft/backups`, two volumes they share (with the migrate step, which runs the web image). Neither image needs `pg_dump`: WebCraft writes and reads a Backup's database dump itself.
@@ -44,7 +44,7 @@ Web and worker refuse to start when a setting is missing or malformed, when the 
 ## The first start
 
 1. The migrate step runs first and creates the database's tables (each target's files run it before web and worker, on every deploy).
-2. The web process prints a **setup link** in its log (`setupUrl`, with a one-time `setupToken`) while the Install has no Superadmin. Open it on the admin host to create the Superadmin. On a server without a browser, `webcraft admin create-superadmin <email>` does the same from the shell.
+2. The web process prints a **setup link** in its log (`setupUrl`, with a one-time `setupToken`) while the Install has no Superadmin. Open it on the admin host to create the Superadmin. On a server without a browser, `webcraft admin create-superadmin <email>` does the same from the shell; `webcraft admin setup` prints a new setup link if the log is out of reach.
 3. In the admin, confirm you have stored the Master key outside the server (a banner asks until you do), set up the Install SMTP, and approve the first-party Modules.
 
 ## The Master key
