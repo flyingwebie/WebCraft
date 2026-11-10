@@ -1,5 +1,5 @@
 import type { ModuleSchema } from "@webcraft/db";
-import { moduleApprovals, moduleSwitches, people, sites, workspaces } from "@webcraft/db/schema";
+import { moduleApprovals, moduleSwitches, people, siteModuleComponents, sites, workspaces } from "@webcraft/db/schema";
 import {
 	type AddedRule,
 	type FormSender,
@@ -35,6 +35,8 @@ import type pg from "pg";
 import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import type { ComponentSources, ModuleComponent } from "../content/components.ts";
+import type { FieldDefinition } from "../content/field-types.ts";
+import { sameJson } from "../content/json.ts";
 import { clearEveryPageCache, clearPageCache } from "../content/page-cache.ts";
 import { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
@@ -568,11 +570,29 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	/** The Components Modules add: placed on Sites where their Module runs. */
 	const components: ComponentSources = {
 		allModuleComponents: () => registry.all().flatMap((module) => (module.runnable ? module.components : [])),
+		async retainedModuleComponentsAt(site) {
+			const rows = await db
+				.select({ id: siteModuleComponents.componentId, props: siteModuleComponents.props })
+				.from(siteModuleComponents)
+				.where(and(eq(siteModuleComponents.workspaceId, site.workspaceId), eq(siteModuleComponents.siteId, site.id)));
+			return rows.map((row) => ({ id: row.id, props: row.props as FieldDefinition[] }));
+		},
 		async moduleComponentsAt(site) {
+			const retained = new Map(
+				(await components.retainedModuleComponentsAt(site)).map((component) => [component.id, component.props]),
+			);
 			const found: ModuleComponent[] = [];
 			for (const module of registry.all()) {
 				if (!module.runnable || module.level !== "site" || module.components.length === 0) continue;
-				if (await runsOnSite(site, module)) found.push(...module.components);
+				if (await runsOnSite(site, module))
+					found.push(
+						...module.components.filter((component) => {
+							const source = retained.get(component.id);
+							// Approval does not migrate imported Props. Mixing contracts would corrupt both
+							// translation and re-export when a key changes type, even inside a Group/Repeater.
+							return source === undefined || sameJson(source, component.props);
+						}),
+					);
 			}
 			return found;
 		},

@@ -17,7 +17,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { AiKeys } from "../ai/keys.ts";
 import { type AiLanguage, AiProviderError, type AiProviders } from "../ai/providers.ts";
-import type { ModuleComponent } from "../content/components.ts";
+import type { ModuleComponentProps } from "../content/components.ts";
 import type { Json } from "../content/field-types.ts";
 import { blockContent, blockState, translationState } from "../content/translation-sources.ts";
 import type { LanguageValue } from "../content/values.ts";
@@ -38,7 +38,7 @@ import { leafAt, type StoredLeaf, type Unit } from "./units.ts";
 export type TranslationJob = { unit: Unit; source: Json; target: LanguageValue | undefined };
 
 export type TranslateContext = {
-	moduleComponents?: readonly ModuleComponent[];
+	moduleComponents?: readonly ModuleComponentProps[];
 	ai: AiProviders;
 	keys: AiKeys;
 	db: Executor;
@@ -84,7 +84,7 @@ export function pendingJobs(
 /** What translating one value takes: its pieces, and how to build the new value from their translations. */
 type Plan = { pieces: string[]; finish(translations: readonly string[]): LanguageValue };
 
-function planFor(job: TranslationJob, force: boolean, components: readonly ModuleComponent[]): Plan {
+function planFor(job: TranslationJob, force: boolean, components: readonly ModuleComponentProps[]): Plan {
 	const by = { kind: "ai" } as const;
 	const { source } = job;
 	switch (job.unit.kind) {
@@ -127,7 +127,7 @@ export function bodyPlan(
 	defaults: readonly Block[],
 	current: readonly Block[],
 	force = false,
-	components: readonly ModuleComponent[] = [],
+	components: readonly ModuleComponentProps[] = [],
 ): { work: boolean; pieces: string[]; finish(translations: readonly string[]): Block[] } {
 	const sourceIds = new Set(defaults.map((block) => block.id));
 	const sourceOf = (block: Block) => block.source?.id ?? (sourceIds.has(block.id) ? block.id : null);

@@ -101,6 +101,14 @@ export async function bodyComponentFinder(
 ): Promise<(name: string) => ComponentFound> {
 	const rows = await scope.select(components);
 	const allowed = new Map((await bodyComponents(scope, field)).map((component) => [component.name, component]));
+	const placed = new Set(previous.flatMap((block) => (block.type === "component" ? [block.component] : [])));
+	for (const component of await scope.componentSources.retainedModuleComponentsAt(scope.site)) {
+		if (!placed.has(component.id)) continue;
+		const name = component.id.slice(component.id.indexOf(":") + 1);
+		// The source schema reads an unchanged Block even if the installed Module changed. The
+		// ordinary Body save still refuses inserting another one or changing these retained Props.
+		allowed.set(name, { ...component, name });
+	}
 	// An older Site Component may share a Module's new tag. Include unavailable and retained
 	// Block identities too: Markdown must never silently retarget their data to another Component.
 	const known = new Map(
@@ -129,7 +137,7 @@ export async function bodyComponentFinder(
 		if (module || unavailable)
 			return {
 				refused: unavailable
-					? `${name}'s Module is unavailable: switch on its approved Module first.`
+					? `${name}'s Module is unavailable: restore a compatible approved Module first.`
 					: `This Body field doesn't allow ${name}.`,
 			};
 		const row = rows.find((each) => each.name === name);
@@ -176,7 +184,7 @@ export async function checkBodyComponents(
 					report(
 						`${here}.component`,
 						"component",
-						"This Module Block is unavailable: switch on its approved Module before inserting or changing it.",
+						"This Module Block is unavailable: restore a compatible approved Module before inserting or changing it.",
 					);
 					continue;
 				}

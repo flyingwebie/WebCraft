@@ -64,6 +64,7 @@ import { isPagePostType } from "./pages.ts";
 import { listPostTypes, type PostType } from "./post-types.ts";
 import { readPropText } from "./props.ts";
 import { componentKnownValues } from "./render-values.ts";
+import { checkRetainedModulePlacements } from "./retained-module-props.ts";
 
 export type { ComponentVersion } from "./component-versions.ts";
 
@@ -117,18 +118,24 @@ export type ModuleComponent = {
 	tree: ElementTree;
 };
 
+/** Data-only source declarations: retained types never bring executable Module markup with them. */
+export type ModuleComponentProps = Pick<ModuleComponent, "id" | "props">;
+
 /** Where the content store finds Modules' Components (the Module host). */
 export type ComponentSources = {
 	/** Every Component the Install's Modules declare, wherever they run: their names are taken. */
 	allModuleComponents(): readonly ModuleComponent[];
 	/** The Components of the Modules that run on a Site: only those may be placed there. */
 	moduleComponentsAt(site: { id: string; workspaceId: string }): Promise<readonly ModuleComponent[]>;
+	/** Source Prop contracts kept with imported Sites, including missing or incompatible Modules. */
+	retainedModuleComponentsAt(site: { id: string; workspaceId: string }): Promise<readonly ModuleComponentProps[]>;
 };
 
 /** No Module declares a Component. */
 export const NO_MODULE_COMPONENTS: ComponentSources = {
 	allModuleComponents: () => [],
 	moduleComponentsAt: async () => [],
+	retainedModuleComponentsAt: async () => [],
 };
 
 export type NewComponent = { name: string; props?: FieldInput[] };
@@ -452,6 +459,7 @@ async function nextProps(
 }
 
 async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentVersion): Promise<Component> {
+	await checkRetainedModulePlacements(scope, draft.tree, storedComponentVersion(row.draft).tree);
 	const [updated] = await scope.update(
 		components,
 		{
@@ -724,19 +732,33 @@ export async function siteComponents(
 	};
 	const entries: CatalogueEntry[] = rows.map((row) => ({ id: row.id, name: row.name, version: versionOf(row) }));
 	const running = new Set((await sources.moduleComponentsAt(scope.site)).map((component) => component.id));
+	const retained = new Map(
+		(await sources.retainedModuleComponentsAt(scope.site)).map((component) => [component.id, component]),
+	);
 	for (const component of sources.allModuleComponents()) {
 		// The Site's own Component keeps a name a Module's Component took later.
 		if (entries.some((entry) => entry.name === component.name)) continue;
+		const source = retained.get(component.id);
+		retained.delete(component.id);
 		entries.push(
 			running.has(component.id)
 				? { id: component.id, name: component.name, version: { props: component.props, tree: component.tree } }
-				: {
-						id: component.id,
-						name: component.name,
-						version: null,
-						away: `${component.name} comes from the Module ${component.moduleId}, which isn't on for this Site.`,
-					},
+				: source
+					? { id: component.id, name: component.name, version: { props: source.props, tree: EMPTY_TREE } }
+					: {
+							id: component.id,
+							name: component.name,
+							version: null,
+							away: `${component.name} comes from the Module ${component.moduleId}, which isn't on for this Site.`,
+						},
 		);
+	}
+	// Source-only entries let unchanged Placements round-trip through markup. They render nothing;
+	// the shared Draft writes refuse new or changed Props until a compatible Module is available.
+	for (const component of retained.values()) {
+		const name = component.id.slice(component.id.indexOf(":") + 1);
+		if (entries.some((entry) => entry.name === name)) continue;
+		entries.push({ id: component.id, name, version: { props: component.props, tree: EMPTY_TREE } });
 	}
 	const byId = new Map(entries.map((entry) => [entry.id, entry]));
 	const byName = new Map(entries.map((entry) => [entry.name, entry]));
