@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { FieldError, FieldGroup } from "@webcraft/ui/components/field.tsx";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,7 +16,11 @@ export const Route = createFileRoute("/_admin/settings/security")({
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return { security: null };
 		const api = await getApi();
-		return { security: await api.install.security.get() };
+		const [security, retention] = await Promise.all([
+			api.install.security.get(),
+			api.install.security.auditRetention(),
+		]);
+		return { security: { ...security, auditRetentionDays: retention.days } };
 	},
 	head: ({ match }) => ({
 		meta: [{ title: pageTitle(match.context.shell.language.code, "securitySettings.pageTitle") }],
@@ -23,7 +28,10 @@ export const Route = createFileRoute("/_admin/settings/security")({
 	component: SecuritySettingsPage,
 });
 
-/** Install settings › Security: how the Install checks people's passwords, and whether everyone must use two-factor authentication. */
+/**
+ * Install settings › Security: how the Install checks people's passwords, whether everyone must use
+ * two-factor authentication, and how long the Audit log keeps entries.
+ */
 function SecuritySettingsPage() {
 	const t = useT();
 	const { security } = Route.useLoaderData();
@@ -35,13 +43,18 @@ function SecuritySettingsPage() {
  * One form, one Save: each setting that changed goes to its own procedure, each a Sensitive action.
  * Requiring two-factor authentication needs the Superadmin's own second factor first.
  */
-function SecuritySettingsForm({ saved }: { saved: { leakedPasswordCheck: boolean; requireTwoFactor: boolean } }) {
+function SecuritySettingsForm({
+	saved,
+}: {
+	saved: { leakedPasswordCheck: boolean; requireTwoFactor: boolean; auditRetentionDays: number };
+}) {
 	const t = useT();
 	const router = useRouter();
 	const runSensitive = useSensitiveAction();
 	const { shell } = Route.useRouteContext();
 	const [leakedPasswordCheck, setLeakedPasswordCheck] = useState(saved.leakedPasswordCheck);
 	const [requireTwoFactor, setRequireTwoFactor] = useState(saved.requireTwoFactor);
+	const [auditRetentionDays, setAuditRetentionDays] = useState(saved.auditRetentionDays);
 	const [error, setError] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
 	const ownOff = shell.twoFactor?.on !== true;
@@ -58,6 +71,10 @@ function SecuritySettingsForm({ saved }: { saved: { leakedPasswordCheck: boolean
 			}
 			if (requireTwoFactor !== saved.requireTwoFactor) {
 				await runSensitive(() => api.install.security.requireTwoFactor({ required: requireTwoFactor }));
+			}
+			// A Sensitive action: a shorter time removes entries for good.
+			if (auditRetentionDays !== saved.auditRetentionDays) {
+				await runSensitive(() => api.install.security.setAuditRetention({ days: auditRetentionDays }));
 			}
 			toast.success(t("securitySettings.saved"));
 			await router.invalidate();
@@ -104,6 +121,24 @@ function SecuritySettingsForm({ saved }: { saved: { leakedPasswordCheck: boolean
 							</span>
 						</span>
 					</label>
+					<Field className="max-w-xs">
+						<FieldLabel htmlFor="audit-retention">{t("securitySettings.auditRetention")}</FieldLabel>
+						<NativeSelect
+							id="audit-retention"
+							value={String(auditRetentionDays)}
+							onChange={(event) => setAuditRetentionDays(Number(event.target.value))}
+							aria-describedby="audit-retention-help"
+						>
+							{retentionChoices(saved.auditRetentionDays).map((days) => (
+								<NativeSelectOption key={days} value={String(days)}>
+									{days % 365 === 0
+										? t("securitySettings.auditRetentionYears", { years: days / 365 })
+										: t("securitySettings.auditRetentionDays", { days })}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<FieldDescription id="audit-retention-help">{t("securitySettings.auditRetentionHelp")}</FieldDescription>
+					</Field>
 					{error ? <FieldError>{t(error)}</FieldError> : null}
 					<div>
 						<Button type="submit" disabled={busy}>
@@ -114,4 +149,10 @@ function SecuritySettingsForm({ saved }: { saved: { leakedPasswordCheck: boolean
 			</form>
 		</>
 	);
+}
+
+/** How long the Audit log may keep entries, from 90 days to 10 years, with the one saved among them. */
+function retentionChoices(saved: number): number[] {
+	const choices = [90, 180, 365, 730, 1095, 1825, 3650];
+	return choices.includes(saved) ? choices : [...choices, saved].sort((a, b) => a - b);
 }

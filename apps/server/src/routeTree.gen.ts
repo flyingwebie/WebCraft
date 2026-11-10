@@ -16,11 +16,13 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
+import { Route as AdminAuditLogRouteImport } from './routes/_admin/audit-log'
 import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminServicesRouteImport } from './routes/_admin/services'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
 import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
 import { Route as AdminAccountIndexRouteImport } from './routes/_admin/account.index'
+import { Route as AdminAccountActivityRouteImport } from './routes/_admin/account.activity'
 import { Route as AdminAccountAiClientsRouteImport } from './routes/_admin/account.ai-clients'
 import { Route as AdminAccountApiTokensRouteImport } from './routes/_admin/account.api-tokens'
 import { Route as AdminSettingsAiRouteImport } from './routes/_admin/settings.ai'
@@ -61,6 +63,7 @@ import { Route as AdminSitesSiteIdTranslationsRouteImport } from './routes/_admi
 import { Route as AdminSitesSiteIdWebhooksRouteImport } from './routes/_admin/sites.$siteId.webhooks'
 import { Route as AdminWorkspacesWorkspaceIdIndexRouteImport } from './routes/_admin/workspaces.$workspaceId.index'
 import { Route as AdminWorkspacesWorkspaceIdAiKeysRouteImport } from './routes/_admin/workspaces.$workspaceId.ai-keys'
+import { Route as AdminWorkspacesWorkspaceIdAuditLogRouteImport } from './routes/_admin/workspaces.$workspaceId.audit-log'
 import { Route as AdminWorkspacesWorkspaceIdMembersRouteImport } from './routes/_admin/workspaces.$workspaceId.members'
 import { Route as AdminWorkspacesWorkspaceIdModulesRouteImport } from './routes/_admin/workspaces.$workspaceId.modules'
 import { Route as AdminWorkspacesWorkspaceIdProtectedTermsRouteImport } from './routes/_admin/workspaces.$workspaceId.protected-terms'
@@ -125,6 +128,11 @@ const AdminAccountRoute = AdminAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAuditLogRoute = AdminAuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminEmailLogRoute = AdminEmailLogRouteImport.update({
   id: '/email-log',
   path: '/email-log',
@@ -148,6 +156,11 @@ const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
 const AdminAccountIndexRoute = AdminAccountIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AdminAccountRoute,
+} as any)
+const AdminAccountActivityRoute = AdminAccountActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AdminAccountRoute,
 } as any)
 const AdminAccountAiClientsRoute = AdminAccountAiClientsRouteImport.update({
@@ -365,6 +378,12 @@ const AdminWorkspacesWorkspaceIdAiKeysRoute =
     path: '/ai-keys',
     getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
   } as any)
+const AdminWorkspacesWorkspaceIdAuditLogRoute =
+  AdminWorkspacesWorkspaceIdAuditLogRouteImport.update({
+    id: '/audit-log',
+    path: '/audit-log',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
 const AdminWorkspacesWorkspaceIdMembersRoute =
   AdminWorkspacesWorkspaceIdMembersRouteImport.update({
     id: '/members',
@@ -547,10 +566,12 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
   '/account': typeof AdminAccountRouteWithChildren
+  '/audit-log': typeof AdminAuditLogRoute
   '/email-log': typeof AdminEmailLogRoute
   '/services': typeof AdminServicesRoute
   '/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/account/activity': typeof AdminAccountActivityRoute
   '/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/settings/ai': typeof AdminSettingsAiRoute
@@ -590,6 +611,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
   '/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
   '/workspaces/$workspaceId/ai-keys': typeof AdminWorkspacesWorkspaceIdAiKeysRoute
+  '/workspaces/$workspaceId/audit-log': typeof AdminWorkspacesWorkspaceIdAuditLogRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
@@ -627,11 +649,13 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
+  '/audit-log': typeof AdminAuditLogRoute
   '/email-log': typeof AdminEmailLogRoute
   '/services': typeof AdminServicesRoute
   '/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
   '/': typeof AdminIndexRoute
+  '/account/activity': typeof AdminAccountActivityRoute
   '/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/settings/ai': typeof AdminSettingsAiRoute
@@ -666,6 +690,7 @@ export interface FileRoutesByTo {
   '/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
   '/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
   '/workspaces/$workspaceId/ai-keys': typeof AdminWorkspacesWorkspaceIdAiKeysRoute
+  '/workspaces/$workspaceId/audit-log': typeof AdminWorkspacesWorkspaceIdAuditLogRoute
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
@@ -704,11 +729,13 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
   '/_admin/account': typeof AdminAccountRouteWithChildren
+  '/_admin/audit-log': typeof AdminAuditLogRoute
   '/_admin/email-log': typeof AdminEmailLogRoute
   '/_admin/services': typeof AdminServicesRoute
   '/_admin/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
   '/_admin/': typeof AdminIndexRoute
+  '/_admin/account/activity': typeof AdminAccountActivityRoute
   '/_admin/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/_admin/account/api-tokens': typeof AdminAccountApiTokensRoute
   '/_admin/settings/ai': typeof AdminSettingsAiRoute
@@ -748,6 +775,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
   '/_admin/sites/$siteId/webhooks': typeof AdminSitesSiteIdWebhooksRoute
   '/_admin/workspaces/$workspaceId/ai-keys': typeof AdminWorkspacesWorkspaceIdAiKeysRoute
+  '/_admin/workspaces/$workspaceId/audit-log': typeof AdminWorkspacesWorkspaceIdAuditLogRoute
   '/_admin/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/_admin/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/_admin/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
@@ -789,10 +817,12 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/two-factor'
     | '/account'
+    | '/audit-log'
     | '/email-log'
     | '/services'
     | '/staff'
     | '/oauth/authorize'
+    | '/account/activity'
     | '/account/ai-clients'
     | '/account/api-tokens'
     | '/settings/ai'
@@ -832,6 +862,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/translations'
     | '/sites/$siteId/webhooks'
     | '/workspaces/$workspaceId/ai-keys'
+    | '/workspaces/$workspaceId/audit-log'
     | '/workspaces/$workspaceId/members'
     | '/workspaces/$workspaceId/modules'
     | '/workspaces/$workspaceId/protected-terms'
@@ -869,11 +900,13 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/two-factor'
+    | '/audit-log'
     | '/email-log'
     | '/services'
     | '/staff'
     | '/oauth/authorize'
     | '/'
+    | '/account/activity'
     | '/account/ai-clients'
     | '/account/api-tokens'
     | '/settings/ai'
@@ -908,6 +941,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/translations'
     | '/sites/$siteId/webhooks'
     | '/workspaces/$workspaceId/ai-keys'
+    | '/workspaces/$workspaceId/audit-log'
     | '/workspaces/$workspaceId/members'
     | '/workspaces/$workspaceId/modules'
     | '/workspaces/$workspaceId/protected-terms'
@@ -945,11 +979,13 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/two-factor'
     | '/_admin/account'
+    | '/_admin/audit-log'
     | '/_admin/email-log'
     | '/_admin/services'
     | '/_admin/staff'
     | '/oauth/authorize'
     | '/_admin/'
+    | '/_admin/account/activity'
     | '/_admin/account/ai-clients'
     | '/_admin/account/api-tokens'
     | '/_admin/settings/ai'
@@ -989,6 +1025,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/translations'
     | '/_admin/sites/$siteId/webhooks'
     | '/_admin/workspaces/$workspaceId/ai-keys'
+    | '/_admin/workspaces/$workspaceId/audit-log'
     | '/_admin/workspaces/$workspaceId/members'
     | '/_admin/workspaces/$workspaceId/modules'
     | '/_admin/workspaces/$workspaceId/protected-terms'
@@ -1083,6 +1120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAccountRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/_admin/audit-log': {
+      id: '/_admin/audit-log'
+      path: '/audit-log'
+      fullPath: '/audit-log'
+      preLoaderRoute: typeof AdminAuditLogRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/_admin/email-log': {
       id: '/_admin/email-log'
       path: '/email-log'
@@ -1116,6 +1160,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/account/'
       preLoaderRoute: typeof AdminAccountIndexRouteImport
+      parentRoute: typeof AdminAccountRoute
+    }
+    '/_admin/account/activity': {
+      id: '/_admin/account/activity'
+      path: '/activity'
+      fullPath: '/account/activity'
+      preLoaderRoute: typeof AdminAccountActivityRouteImport
       parentRoute: typeof AdminAccountRoute
     }
     '/_admin/account/ai-clients': {
@@ -1398,6 +1449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWorkspacesWorkspaceIdAiKeysRouteImport
       parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
+    '/_admin/workspaces/$workspaceId/audit-log': {
+      id: '/_admin/workspaces/$workspaceId/audit-log'
+      path: '/audit-log'
+      fullPath: '/workspaces/$workspaceId/audit-log'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdAuditLogRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
     '/_admin/workspaces/$workspaceId/members': {
       id: '/_admin/workspaces/$workspaceId/members'
       path: '/members'
@@ -1605,12 +1663,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminAccountRouteChildren {
+  AdminAccountActivityRoute: typeof AdminAccountActivityRoute
   AdminAccountAiClientsRoute: typeof AdminAccountAiClientsRoute
   AdminAccountApiTokensRoute: typeof AdminAccountApiTokensRoute
   AdminAccountIndexRoute: typeof AdminAccountIndexRoute
 }
 
 const AdminAccountRouteChildren: AdminAccountRouteChildren = {
+  AdminAccountActivityRoute: AdminAccountActivityRoute,
   AdminAccountAiClientsRoute: AdminAccountAiClientsRoute,
   AdminAccountApiTokensRoute: AdminAccountApiTokensRoute,
   AdminAccountIndexRoute: AdminAccountIndexRoute,
@@ -1786,6 +1846,7 @@ const AdminSitesSiteIdRouteWithChildren =
 
 interface AdminWorkspacesWorkspaceIdRouteChildren {
   AdminWorkspacesWorkspaceIdAiKeysRoute: typeof AdminWorkspacesWorkspaceIdAiKeysRoute
+  AdminWorkspacesWorkspaceIdAuditLogRoute: typeof AdminWorkspacesWorkspaceIdAuditLogRoute
   AdminWorkspacesWorkspaceIdMembersRoute: typeof AdminWorkspacesWorkspaceIdMembersRoute
   AdminWorkspacesWorkspaceIdModulesRoute: typeof AdminWorkspacesWorkspaceIdModulesRoute
   AdminWorkspacesWorkspaceIdProtectedTermsRoute: typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
@@ -1801,6 +1862,8 @@ const AdminWorkspacesWorkspaceIdRouteChildren: AdminWorkspacesWorkspaceIdRouteCh
   {
     AdminWorkspacesWorkspaceIdAiKeysRoute:
       AdminWorkspacesWorkspaceIdAiKeysRoute,
+    AdminWorkspacesWorkspaceIdAuditLogRoute:
+      AdminWorkspacesWorkspaceIdAuditLogRoute,
     AdminWorkspacesWorkspaceIdMembersRoute:
       AdminWorkspacesWorkspaceIdMembersRoute,
     AdminWorkspacesWorkspaceIdModulesRoute:
@@ -1827,6 +1890,7 @@ const AdminWorkspacesWorkspaceIdRouteWithChildren =
 
 interface AdminRouteChildren {
   AdminAccountRoute: typeof AdminAccountRouteWithChildren
+  AdminAuditLogRoute: typeof AdminAuditLogRoute
   AdminEmailLogRoute: typeof AdminEmailLogRoute
   AdminServicesRoute: typeof AdminServicesRoute
   AdminStaffRoute: typeof AdminStaffRoute
@@ -1848,6 +1912,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAccountRoute: AdminAccountRouteWithChildren,
+  AdminAuditLogRoute: AdminAuditLogRoute,
   AdminEmailLogRoute: AdminEmailLogRoute,
   AdminServicesRoute: AdminServicesRoute,
   AdminStaffRoute: AdminStaffRoute,

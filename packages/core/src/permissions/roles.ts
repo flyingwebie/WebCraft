@@ -41,6 +41,12 @@ export const PERMISSIONS = {
 	 */
 	"twoFactor.reset": ["workspace"],
 	/**
+	 * Impersonate a person (ADR 0008): on a Workspace, its Members (Staff, and the Superadmin); on the
+	 * Install, Staff (the Superadmin). Nobody impersonates the Superadmin, and Staff never another
+	 * Staff member: Staff hold this in their Workspaces only, never on the Install.
+	 */
+	"impersonation.start": ["install", "workspace"],
+	/**
 	 * Switch Modules on and off, and remove their data: Workspace-level Modules on a Workspace,
 	 * Site-level Modules on a Site.
 	 */
@@ -157,6 +163,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"member.manage",
 			"twoFactor.require",
 			"twoFactor.reset",
+			"impersonation.start",
 			"module.manage",
 			"quota.manage",
 			"aiKey.manage",

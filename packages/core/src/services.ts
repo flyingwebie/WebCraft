@@ -4,7 +4,7 @@ import type { Database } from "@webcraft/db";
 import type { Account } from "./account.ts";
 import type { AiKeys, AiProviders } from "./ai/index.ts";
 import type { ApiTokens } from "./api-tokens.ts";
-import type { AuditEntry } from "./audit.ts";
+import type { AuditLog } from "./audit-log.ts";
 import type { Backups } from "./backups/service.ts";
 import type { Builder } from "./builder/index.ts";
 import type { Cdns } from "./cdns/index.ts";
@@ -69,6 +69,7 @@ import type { Filters } from "./filters/index.ts";
 import type { Forms } from "./forms/index.ts";
 import type { HistoryService } from "./history/index.ts";
 import type { OutgoingHttp } from "./http.ts";
+import type { Impersonation } from "./impersonation.ts";
 import type { Imports } from "./imports/index.ts";
 import type { InstallSettings } from "./install-settings.ts";
 import type { JobQueue } from "./jobs/define.ts";
@@ -161,6 +162,11 @@ export type InstallServices = InstallPorts & {
 	 * emailed to them), whether it is required of them, the switches that require it, and resets.
 	 */
 	twoFactor: TwoFactor;
+	/**
+	 * Impersonation (ADR 0008): who an admin session acts as, and starting and ending it. Every
+	 * action while it goes on is recorded as "<Staff> as <Member>".
+	 */
+	impersonation: Impersonation;
 	/** Rate limits, counted in Postgres so every web process shares them (`RATE_LIMITS`). */
 	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */
@@ -568,10 +574,11 @@ export type InstallServices = InstallPorts & {
 	staff: StaffService;
 	/** Invite links (Staff and Member invites): what they offer, and accepting them. */
 	invites: InvitesService;
-	audit: {
-		/** The newest entries of the whole Install's Audit log; open the Install with `audit.view` first. */
-		list(scope: InstallScope, options: { limit: number }): Promise<AuditEntry[]>;
-	};
+	/**
+	 * Reading the Audit log at each level, a person's own activity, its CSV export and its retention.
+	 * Writing it is `scope.audit(…)` (`recordAudit`).
+	 */
+	audit: AuditLog;
 	/** The Install SMTP, Install branding, the System email sender, the Email log and email preferences. */
 	email: Email;
 	/** Where the Install stores files (Install settings › Storage), and the storage holding each one. */

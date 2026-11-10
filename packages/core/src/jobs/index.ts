@@ -1,3 +1,4 @@
+import { auditPrune, auditPruneSchedule } from "../audit-log.ts";
 import { backupsScheduled, backupsScheduledSchedule } from "../backups/jobs.ts";
 import { cdnRefreshRanges, cdnRefreshRangesSchedule } from "../cdns/index.ts";
 import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
@@ -13,6 +14,7 @@ import {
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
 import { historyPrune, historyPruneSchedule } from "../history/prune.ts";
+import { impersonationEnd } from "../impersonation.ts";
 import { importsPurge, importsPurgeSchedule } from "../imports/purge.ts";
 import { importsRun } from "../imports/runs.ts";
 import { importsPreview } from "../imports/source-runs.ts";
@@ -95,6 +97,8 @@ export const coreJobs = [
 	reportsRender,
 	reportsPurge,
 	historyPrune,
+	auditPrune,
+	impersonationEnd,
 	scheduledPublishesDue,
 ] as readonly JobDefinition<unknown>[];
 
@@ -123,6 +127,7 @@ export const coreSchedules = [
 	reportsDueSchedule,
 	reportsPurgeSchedule,
 	historyPruneSchedule,
+	auditPruneSchedule,
 	scheduledPublishesDueSchedule,
 ] as readonly JobSchedule<unknown>[];
 

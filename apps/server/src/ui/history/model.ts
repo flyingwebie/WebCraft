@@ -67,7 +67,10 @@ export function readItem(search: { item?: string; itemId?: string }): HistoryIte
 	}
 }
 
-/** "<person>", "<person> via <client>", AI translation for a person, a Module, or nobody known. */
+/**
+ * "<person>", "<person> via <client>", "<Staff> as <Member>", AI translation for a person, a Module,
+ * or nobody known.
+ */
 export function attributionText(t: Translate, by: Attribution | null): string {
 	if (!by) return t("history.by.unknown");
 	const person = by.person?.name ?? t("history.by.gone");
@@ -75,6 +78,7 @@ export function attributionText(t: Translate, by: Attribution | null): string {
 	if (by.via.kind === "translation") return t("history.by.translation", { person });
 	if (by.via.kind === "scheduledPublish") return t("history.by.scheduledPublish", { person });
 	if (by.client) return t("history.by.via", { person, client: by.client });
+	if (by.impersonator) return t("history.by.as", { impersonator: by.impersonator, person });
 	return person;
 }
 

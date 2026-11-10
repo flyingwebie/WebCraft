@@ -37,6 +37,7 @@ describe("the role table", () => {
 				"staff.manage",
 				"audit.view",
 				"module.approve",
+				"impersonation.start",
 				"servicesList.edit",
 			],
 			workspace: [
@@ -47,6 +48,7 @@ describe("the role table", () => {
 				"member.manage",
 				"twoFactor.require",
 				"twoFactor.reset",
+				"impersonation.start",
 				"module.manage",
 				"quota.manage",
 				"aiKey.manage",
@@ -102,6 +104,7 @@ describe("the role table", () => {
 				"member.manage",
 				"twoFactor.require",
 				"twoFactor.reset",
+				"impersonation.start",
 				"module.manage",
 				"quota.manage",
 				"aiKey.manage",

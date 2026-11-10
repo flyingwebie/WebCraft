@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
 	inAdminSession,
 	inAdminSessionBeforeTwoFactor,
+	notWhileImpersonating,
 	sensitive,
 	setCookies,
 	signedIn,
@@ -19,6 +20,7 @@ export const me = {
 	 * default) and light or dark (or `system`, following the device).
 	 */
 	updatePreferences: signedInBeforeTwoFactor
+		.use(notWhileImpersonating("preferences"))
 		.input(
 			z.object({ adminLanguage: adminLanguage.nullable().optional(), adminTheme: z.enum(ADMIN_THEMES).optional() }),
 		)
@@ -30,19 +32,26 @@ export const me = {
 	sessions: {
 		/** Every session that hasn't ended: browser, system, network, when it started and was last used. */
 		list: inAdminSession.handler(async ({ context }) => ({
-			sessions: await context.services.account.sessions(context.session),
+			// While impersonating, the person's own sessions, none of them this browser's.
+			sessions: await context.services.account.sessions(
+				context.person.id,
+				context.impersonation ? null : context.session.id,
+			),
 		})),
 		/** Signs one of the person's sessions out at once; for this browser's own session, as signing out does. */
-		revoke: inAdminSession.input(z.object({ sessionId: id })).handler(async ({ context, input }) => {
-			const { services, access, session } = context;
-			const { wasCurrent } = await services.account.revokeSession(access, session, input.sessionId);
-			if (wasCurrent) setCookies(context, (await services.auth.signOut(context.headers)).setCookie);
-			return { ok: true as const };
-		}),
+		revoke: inAdminSession
+			.use(notWhileImpersonating("sessions"))
+			.input(z.object({ sessionId: id }))
+			.handler(async ({ context, input }) => {
+				const { services, access, session } = context;
+				const { wasCurrent } = await services.account.revokeSession(access, session, input.sessionId);
+				if (wasCurrent) setCookies(context, (await services.auth.signOut(context.headers)).setCookie);
+				return { ok: true as const };
+			}),
 		/** Signs out every other session of the person, keeping this browser signed in. */
-		revokeOthers: inAdminSession.handler(async ({ context }) =>
-			context.services.account.revokeOtherSessions(context.access, context.session),
-		),
+		revokeOthers: inAdminSession
+			.use(notWhileImpersonating("sessions"))
+			.handler(async ({ context }) => context.services.account.revokeOtherSessions(context.access, context.session)),
 	},
 
 	/**
@@ -50,6 +59,7 @@ export const me = {
 	 * browser stays signed in.
 	 */
 	changePassword: inAdminSession
+		.use(notWhileImpersonating("password"))
 		.use(sensitive("password.change"))
 		.input(z.object({ newPassword: password }))
 		.handler(async ({ context, input }) => {
@@ -88,6 +98,7 @@ export const me = {
 		 * code holds. Nothing changes until `confirmAuthenticator` gets a code from the app.
 		 */
 		startAuthenticator: inAdminSessionBeforeTwoFactor
+			.use(notWhileImpersonating("twoFactor"))
 			.use(sensitive("twoFactor.change"))
 			.handler(({ context }) => context.services.twoFactor.startAuthenticator(context.access, context.person)),
 
@@ -96,6 +107,7 @@ export const me = {
 		 * factor, answers their 10 backup codes, shown this once.
 		 */
 		confirmAuthenticator: inAdminSessionBeforeTwoFactor
+			.use(notWhileImpersonating("twoFactor"))
 			.use(sensitive("twoFactor.change"))
 			.input(z.object({ code: authenticatorCode }))
 			.handler(({ context, input }) =>
@@ -104,6 +116,7 @@ export const me = {
 
 		/** Removes the authenticator app. */
 		removeAuthenticator: inAdminSession
+			.use(notWhileImpersonating("twoFactor"))
 			.use(sensitive("twoFactor.change"))
 			.handler(({ context }) => context.services.twoFactor.removeAuthenticator(context.access, context.session)),
 
@@ -111,15 +124,19 @@ export const me = {
 		 * Starts adding a passkey: options for the person's device (the admin's hostname as the relying
 		 * party, user verification required). The device's answer goes to `addPasskey`.
 		 */
-		passkeyOptions: inAdminSessionBeforeTwoFactor.use(sensitive("twoFactor.change")).handler(async ({ context }) => ({
-			options: await context.services.twoFactor.passkeyOptions(context.access, context.person),
-		})),
+		passkeyOptions: inAdminSessionBeforeTwoFactor
+			.use(notWhileImpersonating("twoFactor"))
+			.use(sensitive("twoFactor.change"))
+			.handler(async ({ context }) => ({
+				options: await context.services.twoFactor.passkeyOptions(context.access, context.person),
+			})),
 
 		/**
 		 * Adds the passkey the device made, under the name the person gives it. When it is their first
 		 * second factor, answers their 10 backup codes, shown this once.
 		 */
 		addPasskey: inAdminSessionBeforeTwoFactor
+			.use(notWhileImpersonating("twoFactor"))
 			.use(sensitive("twoFactor.change"))
 			.input(z.object({ credential: registrationCredential, name: z.string().trim().min(1).max(100) }))
 			.handler(({ context, input }) =>
@@ -128,6 +145,7 @@ export const me = {
 
 		/** Removes one of the person's passkeys. */
 		removePasskey: inAdminSession
+			.use(notWhileImpersonating("twoFactor"))
 			.use(sensitive("twoFactor.change"))
 			.input(z.object({ passkeyId: id }))
 			.handler(({ context, input }) =>
@@ -136,12 +154,40 @@ export const me = {
 
 		/** Replaces the backup codes with 10 new ones, answered this once; the old ones stop working. */
 		regenerateBackupCodes: inAdminSession
+			.use(notWhileImpersonating("twoFactor"))
 			.use(sensitive("twoFactor.change"))
 			.handler(({ context }) => context.services.twoFactor.regenerateBackupCodes(context.access)),
 
 		/** "Remind me later": hides the reminder to add two-factor authentication for 7 days. */
-		remindLater: inAdminSession.handler(({ context }) => context.services.twoFactor.remindLater(context.person.id)),
+		remindLater: inAdminSession
+			.use(notWhileImpersonating("twoFactor"))
+			.handler(({ context }) => context.services.twoFactor.remindLater(context.person.id)),
 	},
+
+	/**
+	 * What the person did, anywhere on the Install, newest first (Your account › Activity): as
+	 * themselves, and what the Superadmin or Staff did as them while impersonating them ("<Staff> as
+	 * <you>"), and, for Staff, what they did as others. While impersonating, the Workspaces the
+	 * impersonation reaches only.
+	 */
+	activity: signedIn
+		.input(
+			z
+				.object({
+					after: z
+						.string()
+						.regex(/^\d{1,18}$/)
+						.optional(),
+					limit: z.number().int().min(1).max(200).default(50),
+				})
+				.default({ limit: 50 }),
+		)
+		.handler(({ context, input }) =>
+			context.services.audit.activity(context.person.id, {
+				...input,
+				workspaceIds: context.impersonation?.workspaceIds ?? null,
+			}),
+		),
 
 	/** The person's email switches: work and alert emails can be turned off; security emails always go. */
 	emails: {
@@ -151,6 +197,7 @@ export const me = {
 		})),
 		/** Sets exactly which work and alert emails the person turned off; every other type is on. */
 		update: signedIn
+			.use(notWhileImpersonating("preferences"))
 			.input(z.object({ turnedOff: z.array(z.enum(SYSTEM_EMAIL_TYPE_IDS)).max(100) }))
 			.handler(async ({ context, input }) => ({
 				emails: await context.services.email.preferences.update(context.person.id, input.turnedOff),

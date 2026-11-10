@@ -1,4 +1,4 @@
-import { HISTORY_LIMITS, INSTALL_NAME_MAX_LENGTH, MEDIA_MAX_FILE_BYTES } from "@webcraft/core";
+import { AUDIT_RETENTION_DAYS, HISTORY_LIMITS, INSTALL_NAME_MAX_LENGTH, MEDIA_MAX_FILE_BYTES } from "@webcraft/core";
 import { z } from "zod";
 
 import { onInstall, sensitive } from "../context.ts";
@@ -103,6 +103,16 @@ export const install = {
 			.handler(({ context, input }) =>
 				context.services.twoFactor.setInstallRequirement(context.install, input.required),
 			),
+		/** How many days Audit log entries are kept (1 year unless the Superadmin chose another). */
+		auditRetention: onInstall("install.manage").handler(({ context }) => context.services.audit.retention()),
+		/**
+		 * Sets how many days Audit log entries are kept, from 90 days to 10 years; the worker removes
+		 * older ones every day. A Sensitive action: a shorter time removes entries.
+		 */
+		setAuditRetention: onInstall("install.manage")
+			.use(sensitive("auditRetention.change"))
+			.input(z.object({ days: z.number().int().min(AUDIT_RETENTION_DAYS.min).max(AUDIT_RETENTION_DAYS.max) }))
+			.handler(({ context, input }) => context.services.audit.setRetention(context.install, input.days)),
 	},
 	/** Install settings › Storage: where Media is stored, local disk or an S3-compatible bucket. */
 	storage: {

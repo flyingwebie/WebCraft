@@ -8,6 +8,7 @@ import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
+import { addAuthenticator, signInWithAuthenticator } from "../harness/two-factor.ts";
 import { sample } from "../modules/sample/index.ts";
 
 const MINUTE = 60 * 1000;
@@ -23,8 +24,16 @@ type Fixture = {
 	removedMemberId: string;
 	/** An AI client's authorization request, as it sends the person to the approval page. */
 	authorization: Record<string, string>;
+	/** Staff with an authenticator app, for the actions that need one of the person's own. */
+	impersonator: { account: TestAccount; secret: string };
 	next: () => number;
 };
+
+/**
+ * The actions that need the person's own second factor: Staff with an authenticator app take them
+ * (impersonating a Member of their Workspace), since the Superadmin here signs in with a password only.
+ */
+const AS_STAFF_WITH_SECOND_FACTOR: readonly SensitiveAction[] = ["impersonation.start"];
 
 /** How the Superadmin takes each Sensitive action. */
 const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: Fixture) => Promise<unknown>> = {
@@ -73,6 +82,8 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
 	"shareLink.change": (api, { siteId, dashboardId, next }) =>
 		api.shareLinks.create({ siteId, dashboardId, name: `Client link ${next()}` }),
+	"impersonation.start": (api, { changedMemberId }) => api.impersonation.start({ personId: changedMemberId }),
+	"auditRetention.change": (api) => api.install.security.setAuditRetention({ days: 365 }),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 	"aiClient.approve": (api, { workspaceId, authorization }) =>
 		api.oauth.approve({ parameters: authorization, workspaceId }),
@@ -88,6 +99,8 @@ beforeAll(async () => {
 	const workspace = await install.createWorkspace();
 	const site = await install.createSite(workspace.id);
 	const staff = await install.createStaff({ workspaces: "all" });
+	const impersonator = await install.createStaff({ workspaces: [workspace.id] });
+	const { secret } = await addAuthenticator(install, impersonator.browser);
 	const changed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const removed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const client = await registerClient(install);
@@ -96,6 +109,7 @@ beforeAll(async () => {
 	let made = 0;
 	fixture = {
 		authorization: authorizationParameters(install, String(client.body.client_id), challenge),
+		impersonator: { account: impersonator.account, secret },
 		staffId: staff.personId,
 		workspaceId: workspace.id,
 		siteId: site.id,
@@ -114,7 +128,9 @@ describe("each Sensitive action", () => {
 	for (const action of ALL_SENSITIVE_ACTIONS) {
 		test(`${action}: refused without a recent identity check, allowed after one`, async () => {
 			const call = SENSITIVE_ACTION_CALLS[action];
-			const browser = await install.signIn(superadmin);
+			const browser = AS_STAFF_WITH_SECOND_FACTOR.includes(action)
+				? await signInWithAuthenticator(install, fixture.impersonator.account, fixture.impersonator.secret)
+				: await install.signIn(superadmin);
 			await install.clock.advance(11 * MINUTE);
 
 			await expect(call(browser.api, fixture)).rejects.toMatchObject({
@@ -122,7 +138,7 @@ describe("each Sensitive action", () => {
 				data: { action },
 			});
 
-			await browser.api.session.confirmIdentity({ password: superadmin.password });
+			await browser.api.session.confirmIdentity({ password: TEST_PASSWORD });
 			await expect(call(browser.api, fixture)).resolves.toBeDefined();
 		});
 	}

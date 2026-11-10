@@ -10,6 +10,7 @@ import {
 	ComponentIcon,
 	CookieIcon,
 	DatabaseIcon,
+	FileClockIcon,
 	FileCodeIcon,
 	FileTextIcon,
 	GlobeIcon,
@@ -154,6 +155,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						requires: "install.manage",
 					},
 					{
+						id: "audit-log",
+						label: "shell.nav.auditLog",
+						icon: FileClockIcon,
+						to: "/audit-log",
+						requires: "audit.view",
+					},
+					{
 						id: "services-list",
 						label: "shell.nav.servicesList",
 						icon: BriefcaseIcon,
@@ -267,6 +275,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: KeyRoundIcon,
 						to: "/workspaces/$workspaceId/ai-keys",
 						requires: "aiKey.manage",
+					},
+					{
+						id: "workspace-audit-log",
+						label: "shell.nav.auditLog",
+						icon: FileClockIcon,
+						to: "/workspaces/$workspaceId/audit-log",
+						requires: "audit.view",
 					},
 					{
 						id: "workspace-report-branding",

@@ -37,6 +37,18 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Install › Workspaces", path: "/workspaces", as: "superadmin" },
 	{ name: "Install › Workspaces (Staff)", path: "/workspaces", as: "staff" },
 	{ name: "Install › Staff", path: "/staff", as: "superadmin" },
+	{ name: "Install › Audit log", path: "/audit-log", as: "superadmin" },
+	{
+		name: "Workspace › Audit log (Staff)",
+		path: ({ workspaceId }) => `/workspaces/${workspaceId}/audit-log`,
+		as: "staff",
+	},
+	{
+		name: "Workspace › Audit log (Owner)",
+		path: ({ workspaceId }) => `/workspaces/${workspaceId}/audit-log`,
+		as: "owner",
+	},
+	{ name: "Your account › Activity", path: "/account/activity", as: "owner" },
 	{ name: "Install settings › General", path: "/settings/general", as: "superadmin" },
 	{ name: "Install settings › Security", path: "/settings/security", as: "superadmin" },
 	{ name: "Install settings › AI, no shared keys", path: "/settings/ai", as: "superadmin" },

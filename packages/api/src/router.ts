@@ -15,6 +15,7 @@ import { filters } from "./procedures/filters.ts";
 import { forms } from "./procedures/forms.ts";
 import { globals } from "./procedures/globals.ts";
 import { history } from "./procedures/history.ts";
+import { impersonation } from "./procedures/impersonation.ts";
 import { imports } from "./procedures/imports.ts";
 import { install } from "./procedures/install.ts";
 import { invites } from "./procedures/invites.ts";
@@ -94,6 +95,7 @@ export const apiRouter = {
 	staff,
 	invites,
 	audit,
+	impersonation,
 	modules,
 	dashboards,
 	dashboardTemplates,

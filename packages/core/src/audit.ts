@@ -1,6 +1,5 @@
 import type { Database, Transaction } from "@webcraft/db";
 import { auditLog } from "@webcraft/db/schema";
-import { desc } from "drizzle-orm";
 
 type Executor = Database["db"] | Transaction;
 
@@ -16,8 +15,9 @@ type Executor = Database["db"] | Transaction;
  *   who scheduled it (the entry's person).
  * - `aiClient`: an AI client a person approved (its name as they approved it), through the MCP
  *   server at `/mcp`: shown as "<person> via <client>".
- *
- * Later ways in add their kinds here, such as Impersonation ("<Staff> as <Member>").
+ * - `impersonation`: the Superadmin or a Staff member acting in the admin as the person (ADR 0008):
+ *   `name` is the impersonator's name as it was then and `by` their id, shown as "<Staff> as <Member>".
+ *   The entry's person is the one impersonated, so it shows in their own activity too.
  */
 export type AuditVia =
 	| { kind: "admin" }
@@ -27,7 +27,23 @@ export type AuditVia =
 	| { kind: "token"; name: string }
 	| { kind: "translation" }
 	| { kind: "scheduledPublish" }
-	| { kind: "aiClient"; name: string };
+	| { kind: "aiClient"; name: string }
+	| { kind: "impersonation"; name: string; by: string };
+
+/** Every way in, as the Audit log stores it (`via`). */
+export const AUDIT_VIA_KINDS = [
+	"admin",
+	"command",
+	"module",
+	"editMode",
+	"token",
+	"translation",
+	"scheduledPublish",
+	"aiClient",
+	"impersonation",
+] as const satisfies readonly AuditVia["kind"][];
+
+export type AuditViaKind = (typeof AUDIT_VIA_KINDS)[number];
 
 /**
  * The API client or AI client an action came through (its name), or null when the person acted
@@ -35,6 +51,15 @@ export type AuditVia =
  */
 export function clientNameOf(via: AuditVia): string | null {
 	return via.kind === "token" || via.kind === "aiClient" ? via.name : null;
+}
+
+/**
+ * Who acted as the person (their name as it was then), when the Superadmin or a Staff member
+ * impersonated them; null otherwise. History and presence show it as "<Staff> as <Member>", beside
+ * `clientNameOf`'s "<person> via <client>".
+ */
+export function impersonatorNameOf(via: AuditVia): string | null {
+	return via.kind === "impersonation" ? via.name : null;
 }
 
 /** Something changed, as the Audit log keeps it. Values are plain JSON; never put a secret's value here. */
@@ -78,6 +103,7 @@ export async function recordAudit(executor: Executor, at: Date, entry: NewAuditE
 		personId: entry.personId,
 		via: via.kind,
 		viaName: "name" in via ? via.name : null,
+		impersonatorId: via.kind === "impersonation" ? via.by : null,
 		workspaceId: entry.workspaceId,
 		siteId: entry.siteId,
 		action: entry.action,
@@ -85,22 +111,9 @@ export async function recordAudit(executor: Executor, at: Date, entry: NewAuditE
 	});
 }
 
-/** The newest entries of the whole Install's Audit log, newest first. */
-export async function listAuditEntries(executor: Executor, options: { limit: number }): Promise<AuditEntry[]> {
-	const rows = await executor.select().from(auditLog).orderBy(desc(auditLog.id)).limit(options.limit);
-	return rows.map((row) => ({
-		id: String(row.id),
-		at: row.occurredAt,
-		action: row.action,
-		personId: row.personId,
-		via: viaOf(row.via, row.viaName),
-		workspaceId: row.workspaceId,
-		siteId: row.siteId,
-		details: (row.details ?? {}) as AuditDetails,
-	}));
-}
-
-function viaOf(kind: string, name: string | null): AuditVia {
+/** How an entry came in, read back from its stored columns. */
+export function viaOf(kind: string, name: string | null, impersonatorId: string | null): AuditVia {
+	if (kind === "impersonation") return { kind, name: name ?? "", by: impersonatorId ?? "" };
 	if (kind === "command" || kind === "module" || kind === "token" || kind === "aiClient") {
 		return { kind, name: name ?? "" };
 	}
