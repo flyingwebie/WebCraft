@@ -198,17 +198,6 @@ export async function publishItems(
 	});
 }
 
-/** Whether Postgres itself refused (an SQLSTATE code on the error or its causes), rather than a publish's own check. */
-export function isDatabaseFailure(error: unknown): boolean {
-	let current: unknown = error;
-	for (let depth = 0; current && depth < 5; depth++) {
-		const code = (current as { code?: unknown }).code;
-		if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return true;
-		current = (current as { cause?: unknown }).cause;
-	}
-	return false;
-}
-
 /** Publishes one item: its Draft, or `version` when given (as its table stores its Draft). */
 async function publishItem(
 	scope: SiteScope,
