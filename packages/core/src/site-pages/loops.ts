@@ -49,6 +49,11 @@ export type LoopPlace = {
 	 */
 	current: string | null;
 	languages: Languages;
+	/**
+	 * The languages Translatable values are read in, in order (the Content API's `fallback`): the
+	 * page's language, then the Default language, unless given.
+	 */
+	chain?: readonly string[];
 	/** The page visitors asked for where Loops paginate (Archive templates and Pages); null elsewhere. */
 	page: number | null;
 	/** The page's address in its language (`/fr/blog`), which pagination's links go to. */
@@ -555,7 +560,7 @@ export class QuerySql {
 	order(query: LoopQuery): SQL[] {
 		const orders: SQL[] = [];
 		for (const sort of query.sort) {
-			const value = this.sortValue(sort.by);
+			const value = this.valueOf(sort.by);
 			if (!value) continue;
 			orders.push(sort.direction === "asc" ? sql`${value} asc nulls last` : sql`${value} desc nulls last`);
 		}
@@ -571,7 +576,7 @@ export class QuerySql {
 	 * Type at a time (`this.listed` holding only that Post Type).
 	 */
 	titleOrder(): SQL[] {
-		const value = this.sortValue("title");
+		const value = this.valueOf("title");
 		return value ? [asc(value), asc(entries.id)] : [asc(entries.id)];
 	}
 
@@ -687,7 +692,12 @@ export class QuerySql {
 		return fieldAt(this.listed, field) ? date(this.leaf(field)) : undefined;
 	}
 
-	private sortValue(by: string): SQL | undefined {
+	/**
+	 * What a query compares and sorts by, as typed SQL: a built-in (`title`, a built-in date) or a
+	 * Field's value at a path (a number, a time, true/false, else text); undefined for a name the
+	 * listed Post Types don't have.
+	 */
+	valueOf(by: string): SQL | undefined {
 		if (by === "title") return text(this.translatable(sql`${this.column} -> 'values' -> 'title'`));
 		if ((DATE_BUILT_INS as readonly string[]).includes(by)) return this.builtIn(by);
 		const found = fieldAt(this.listed, by)?.found[0];
@@ -785,10 +795,12 @@ export class QuerySql {
 		return sql`(case ${entries.postTypeId} ${sql.join(cases, sql` `)} end)`;
 	}
 
-	/** A translatable value in the page's language, else the Default language's. */
+	/** A translatable value in the page's language, else the Default language's (or each of `place.chain`'s in turn). */
 	private translatable(node: SQL): SQL {
 		const { language, defaultLanguage } = this.place.languages;
-		return sql`(coalesce(${node} -> ${language}::text, ${node} -> ${defaultLanguage}::text) -> 'value')`;
+		const chain = this.place.chain ?? [language, defaultLanguage];
+		const each = chain.map((code) => sql`${node} -> ${code}::text`);
+		return each.length === 1 ? sql`(${each[0]} -> 'value')` : sql`(coalesce(${sql.join(each, sql`, `)}) -> 'value')`;
 	}
 }
 

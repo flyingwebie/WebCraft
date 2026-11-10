@@ -79,6 +79,7 @@ import {
 	updatePostType,
 	updateScheduled,
 } from "./content/index.ts";
+import { createContentApi } from "./content-api/index.ts";
 import { createDashboards } from "./dashboards/index.ts";
 import {
 	createClass,
@@ -114,6 +115,8 @@ import { createReports, createShareLinks, type Reports, reportsPrepare, reportsR
 import { createSiteSearch } from "./search/service.ts";
 import {
 	apiTokenKey,
+	contentCursorKey,
+	contentKeyKey,
 	domainVerificationKey,
 	editModeSigningKey,
 	formTimeKey,
@@ -501,6 +504,14 @@ export async function createInstallServices(
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),
 		seo: createSeo(),
+		contentApi: createContentApi({
+			database,
+			data,
+			config,
+			clock,
+			keyHash: await contentKeyKey(masterKey),
+			cursorKey: await contentCursorKey(masterKey),
+		}),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,

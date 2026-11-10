@@ -105,6 +105,7 @@ export {
 } from "./confirmations.ts";
 export * from "./consent/index.ts";
 export * from "./content/index.ts";
+export * from "./content-api/index.ts";
 export { isWebCraftCookie, WEBCRAFT_COOKIE_PREFIX } from "./cookies.ts";
 export { type Countries, countriesFromFile, unknownCountries } from "./countries.ts";
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";

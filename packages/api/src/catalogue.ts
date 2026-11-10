@@ -245,6 +245,13 @@ export const PROCEDURES = {
 	"consentBanner.record": read("One of the Site's Consent records, by its id."),
 	"seoSettings.get": read("The Site's SEO settings."),
 	"seoSettings.update": write("Changes the Site's SEO settings."),
+	"contentApi.get": read(
+		"The Site's Content API: whether it is on, what it hides, its Content keys and where it answers.",
+	),
+	"contentApi.update": write("Switches the Site's Content API on or off and changes what it hides."),
+	"contentApi.keys.create": write("Makes a Content key for the Site's Content API; the key is answered once."),
+	"contentApi.keys.update": write("Renames a Content key or changes its origins."),
+	"contentApi.keys.revoke": write("Revokes a Content key at once."),
 	"designSystem.get": read("The Design system's Draft and published version."),
 	"designSystem.saveDraft": write("Saves a change to the Design system's Draft."),
 	"designSystem.createClass": write("Adds a Class to the Design system's Draft."),

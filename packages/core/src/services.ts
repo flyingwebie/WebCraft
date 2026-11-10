@@ -57,6 +57,7 @@ import type {
 	TemplateListing,
 	TemplateMarkup,
 } from "./content/index.ts";
+import type { ContentApi } from "./content-api/index.ts";
 import type { Countries } from "./countries.ts";
 import type { Dashboards } from "./dashboards/index.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
@@ -534,6 +535,11 @@ export type InstallServices = InstallPorts & {
 	consent: ConsentService;
 	/** SEO (the SEO decision): each Site's SEO settings; Entries' SEO fields and Post Types' are in the content store. */
 	seo: SeoService;
+	/**
+	 * The Content API (ADR 0029): each Site's switch, what it hides and its Content keys (Site
+	 * settings, Staff only), and the read-only API frontends built elsewhere call on the Site's domains.
+	 */
+	contentApi: ContentApi;
 	/**
 	 * Site script safety (ADRs 0022, 0023): each Site's Content Security Policy and allowed hosts, its
 	 * outside scripts and its Libraries. Open the Site with `structure.edit`.

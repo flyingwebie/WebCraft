@@ -116,6 +116,56 @@ function readField(node: unknown, field: FieldDefinition, languages: Languages):
 	});
 }
 
+/**
+ * Languages to read values in, in order: the language asked for, then each one a missing value falls
+ * back to (the Content API's `fallback`). A shared Field's value is always the one kept under the
+ * Default language.
+ */
+export type LanguageChain = { languages: readonly string[]; defaultLanguage: string };
+
+/**
+ * The values of a list of Fields read through a chain of languages, by key, as the APIs show them:
+ * each Translatable leaf's value in the first language of the chain that has one, one Field at a
+ * time (ADR 0003), and each shared Field's own. `fellBack` hears each value read from a language
+ * other than the first, with its path (`summary`, `address.city`, `team[0].name`).
+ */
+export function readFieldsThrough(
+	values: StoredValues,
+	fields: readonly FieldDefinition[],
+	chain: LanguageChain,
+	fellBack: (path: string, language: string) => void = () => {},
+	at = "",
+): Record<string, Json> {
+	return Object.fromEntries(
+		fields.map((field) => {
+			const path = `${at}${field.key}`;
+			const node = values[field.key];
+			const read = byKind<Json>(field, {
+				group: (group) => readFieldsThrough(groupOf(node).values, group.fields, chain, fellBack, `${path}.`),
+				repeater: (repeater) =>
+					rowsOf(node).map((row, index) => ({
+						id: row.id,
+						...readFieldsThrough(row.values, repeater.fields, chain, fellBack, `${path}[${index}].`),
+					})),
+				leaf: (leaf) => {
+					const spec = leafSpec(leaf);
+					const byLanguage = record(node) as StoredLeaf;
+					const language = leaf.translatable
+						? chain.languages.find((code) => byLanguage[code] !== undefined)
+						: chain.defaultLanguage;
+					const stored = language === undefined ? undefined : byLanguage[language]?.value;
+					const value = stored === undefined ? null : spec.read(stored, leaf);
+					if (value !== null && leaf.translatable && language !== undefined && language !== chain.languages[0]) {
+						fellBack(path, language);
+					}
+					return value ?? spec.empty(leaf);
+				},
+			});
+			return [field.key, read];
+		}),
+	);
+}
+
 // ---------------------------------------------------------------------------------------------------
 // Writing
 
