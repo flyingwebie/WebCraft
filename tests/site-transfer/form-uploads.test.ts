@@ -3,7 +3,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
 import forms from "@webcraft/module-forms";
 
 import { formVisitor } from "../harness/forms.ts";
@@ -457,15 +456,10 @@ test("a missing Forms Module keeps its remapped Submissions and attachment bytes
 			expect.objectContaining({ id: "forms", status: "missing", keptAside: true }),
 		);
 		const siteId = imported.site?.id ?? "";
-		const kept = gunzipSync(
-			readFileSync(join(target.storageDir, workspaceId, siteId, "kept-aside/m_forms.submissions/part-000001")),
-		).toString();
-		const rows = kept
-			.trim()
-			.split("\n")
-			.map((line) => JSON.parse(line));
+		const again = await exportedArchive(target, admin, siteId);
+		const rows = rowsIn(again, "m_forms.submissions");
 		for (const row of rows) {
-			for (const file of files(row)) {
+			for (const file of files(row as Submission)) {
 				expect(file).not.toHaveProperty("url");
 				expect(readFileSync(join(target.storageDir, workspaceId, siteId, "form-uploads", file.uploadId))).toEqual(
 					fixtureBytes(file.name),
@@ -581,4 +575,61 @@ test("a valid empty text attachment survives export, import and download", async
 		}
 	}
 	expect(checked).toBe(true);
+});
+
+test("Submissions and private files survive re-export from an Install without Forms, after its report expires", async () => {
+	const intermediate = await createTestInstall({ modules: [] });
+	try {
+		let admin = await intermediate.superadmin();
+		const workspaceId = (await intermediate.createWorkspace("Intermediate")).id;
+		const remote = bucket(intermediate);
+		await admin.api.install.storage.update(remote.settings);
+		const imported = await importArchive(intermediate, admin, workspaceId, archive, { name: "Held", slug: "held" });
+		expect(imported.status).toBe("done");
+		const id = imported.site?.id ?? "";
+		await intermediate.clock.advance(91 * 24 * 60 * 60 * 1000);
+		await intermediate.drainJobs({ only: ["siteTransfers.purge"] });
+		admin = await intermediate.superadmin();
+		expect((await admin.api.siteImports.list({ workspaceId })).imports).toEqual([]);
+		await admin.api.install.storage.update({ kind: "disk" });
+		const again = await exportedArchive(intermediate, admin, id);
+		expect(manifestIn(again).modules).toContainEqual(
+			expect.objectContaining({
+				id: "forms",
+				version: forms.manifest.version,
+				tables: expect.arrayContaining(["submissions"]),
+			}),
+		);
+		const result = await importArchive(source, sourceAdmin, sourceWorkspaceId, again, {
+			name: "Returned",
+			slug: "returned",
+		});
+		expect(result.status).toBe("done");
+		const siteId = result.site?.id ?? "";
+		const { submissions } = await api(sourceAdmin).submissions.list({ siteId });
+		expect(submissions).toHaveLength(2);
+		for (const listed of submissions) {
+			const { submission } = await api(sourceAdmin).submissions.get({ siteId, id: listed.id });
+			for (const file of files(submission)) {
+				expect(file.url).toBe(source.adminUrl(`/api/forms/uploads/${siteId}/${file.uploadId}`));
+				const response = await sourceAdmin.request(file.url);
+				expect(response.status).toBe(200);
+				expect(Buffer.from(await response.arrayBuffer())).toEqual(fixtureBytes(file.name));
+				expect((await source.browser().request(file.url)).status).toBe(404);
+			}
+		}
+		const without = await exportedArchive(intermediate, admin, id, { includeSubmissions: false });
+		expect(manifestIn(without).tables.map((table: { name: string }) => table.name)).not.toContain(
+			"m_forms.submissions",
+		);
+		expect(tarFiles(without).filter((file) => file.path.includes("/form-uploads/"))).toEqual([]);
+		const empty = await importArchive(source, sourceAdmin, sourceWorkspaceId, without, {
+			name: "Without retained answers",
+			slug: "without-retained",
+		});
+		expect(empty.status).toBe("done");
+		expect((await api(sourceAdmin).submissions.list({ siteId: empty.site?.id ?? "" })).total).toBe(0);
+	} finally {
+		await intermediate.close();
+	}
 });

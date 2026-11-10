@@ -23,7 +23,7 @@ import { WEBCRAFT_VERSION } from "../version.ts";
 export const SITE_EXPORT_FORMAT = "webcraft-site-export";
 
 /** The version of the archive's layout this build writes. Older ones are brought up by `UPGRADES`. */
-export const SITE_EXPORT_FORMAT_VERSION = 1;
+export const SITE_EXPORT_FORMAT_VERSION = 2;
 
 export const MANIFEST_FILE = "manifest.json";
 export const SECRETS_FILE = "secrets.json";
@@ -42,7 +42,7 @@ const PLAIN_NAME = /^[a-z_][a-z0-9_]*$/;
 /** A table of WebCraft's (`public`) or a Module's (`m_<id>`) schema. */
 const TABLE_NAME = /^(?:public|m_[a-z0-9_]+)\.[a-z_][a-z0-9_]*$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export const TRANSFER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const tableSchema = z.object({
 	/** `<schema>.<table>`, such as `public.entries` or `m_forms.submissions`. */
@@ -51,6 +51,10 @@ const tableSchema = z.object({
 	module: z.string().nullable(),
 	/** The columns its rows hold. */
 	columns: z.array(z.string().regex(PLAIN_NAME)),
+	/** Source SQL types allow absent Modules to retain identities without guessing from literal strings. */
+	personColumns: z.array(z.string().regex(PLAIN_NAME)).optional(),
+	primaryColumns: z.array(z.string().regex(PLAIN_NAME)).optional(),
+	uuidColumns: z.array(z.object({ name: z.string().regex(PLAIN_NAME), array: z.boolean() })).optional(),
 	rows: z.number().safe().nonnegative(),
 	file: z.string().regex(/^data\/\d{4}-[a-z0-9_.]+\.jsonl\.gz$/),
 	sha256: z.string().regex(SHA256),
@@ -101,8 +105,8 @@ export const siteExportManifestSchema = z.object({
 	/** WebCraft's migrations the data was written at. */
 	migrations: z.array(z.string()),
 	site: z.object({
-		id: z.string().regex(UUID),
-		workspaceId: z.string().regex(UUID),
+		id: z.string().regex(TRANSFER_UUID),
+		workspaceId: z.string().regex(TRANSFER_UUID),
 		name: z.string(),
 		slug: z.string(),
 		/** The rest of the Site's own settings, as its row holds them. */
@@ -161,12 +165,8 @@ export type FormatUpgrade = {
 	row?(table: string, row: Record<string, unknown>): Record<string, unknown>;
 };
 
-/**
- * The upgrade chain, oldest first. Format 1 is the first layout, so it is empty: data an older
- * WebCraft wrote in it is brought up by the import itself (a table or column that didn't exist yet
- * takes its default; see `import.ts`).
- */
-export const FORMAT_UPGRADES: readonly FormatUpgrade[] = [];
+/** Format 2 adds source column contracts. Format 1 resolves them from installed table schemas. */
+export const FORMAT_UPGRADES: readonly FormatUpgrade[] = [{ from: 1, manifest: (manifest) => manifest }];
 
 /**
  * Reads a manifest as an import takes it: refuses what isn't a Site export, a layout or WebCraft
@@ -233,10 +233,19 @@ export function readManifest(
 		!unique(manifest.tables.map((table) => table.name)) ||
 		!unique(manifest.tables.map((table) => table.file)) ||
 		!unique(manifest.modules.map((module) => module.id)) ||
+		manifest.modules.some((module) => !semver.valid(module.version)) ||
 		!unique(manifest.secrets.names) ||
 		manifest.tables.some(
 			(table) =>
 				!unique(table.columns) ||
+				(formatVersion >= 2 && (!table.uuidColumns || !table.primaryColumns || !table.personColumns)) ||
+				(table.personColumns !== undefined &&
+					(!unique(table.personColumns) || table.personColumns.some((column) => !table.columns.includes(column)))) ||
+				(table.primaryColumns !== undefined &&
+					(!unique(table.primaryColumns) || table.primaryColumns.some((column) => !table.columns.includes(column)))) ||
+				(table.uuidColumns !== undefined &&
+					(!unique(table.uuidColumns.map((column) => column.name)) ||
+						table.uuidColumns.some((column) => !table.columns.includes(column.name)))) ||
 				(table.module === null
 					? !table.name.startsWith("public.")
 					: !modules.has(table.module) || !table.name.startsWith(`m_${table.module.replaceAll("-", "_")}.`)),

@@ -5,11 +5,12 @@
  */
 import { createHash } from "node:crypto";
 
-import type { Database } from "@webcraft/db";
+import { type Database, databaseOn } from "@webcraft/db";
 import { mediaQuotas, people, siteExports, siteImports, sites } from "@webcraft/db/schema";
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import type pg from "pg";
 import { z } from "zod";
-import { recordAudit } from "../audit.ts";
+import { type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
 import { isUuid } from "../ids.ts";
@@ -49,6 +50,7 @@ import {
 import { type ExportSecrets, writeSiteExport } from "./export.ts";
 import { ArchiveRefusedError, type SiteExportManifest } from "./format.ts";
 import {
+	type ImportedSite,
 	type ImportReaderContext,
 	importSite,
 	type ModuleTransferStatus,
@@ -231,10 +233,14 @@ export type SiteTransferDeps = {
 	linkKey: CryptoKey;
 	/** Lower thresholds for tests: rows fetched at a time, and the size of an archive's parts. */
 	tuning?: { batchRows?: number; partBytes?: number };
-	/**
-	 * A Site's secrets for the server commands, where no person (and so no Site scope) acts: listed,
-	 * used inside a callback, and set, as a Site scope's are.
-	 */
+	/** Internal import writer: authorization precedes import; the new Site is still uncommitted. */
+	writeImportSecret(
+		client: pg.PoolClient,
+		site: { workspaceId: string; id: string },
+		name: string,
+		value: string,
+	): Promise<void>;
+	/** Site secrets read by server commands, where no person or Site scope acts. */
 	commandSecrets: {
 		names(site: { workspaceId: string; id: string }): Promise<string[]>;
 		useWith<Result>(
@@ -242,7 +248,6 @@ export type SiteTransferDeps = {
 			name: string,
 			use: (value: string) => Promise<Result>,
 		): Promise<Result>;
-		set(site: { workspaceId: string; id: string }, name: string, value: string): Promise<void>;
 	};
 };
 
@@ -373,7 +378,10 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 		error instanceof SiteNotFoundError ||
 		error instanceof WorkspaceNotFoundError;
 
-	const readerContext = (progress: ImportReaderContext["progress"]): ImportReaderContext => ({
+	const readerContext = (
+		progress: ImportReaderContext["progress"],
+		finish: ImportReaderContext["finish"],
+	): ImportReaderContext => ({
 		database: deps.database,
 		storage,
 		moduleSchemas: new Map([...moduleSchemas()].map(([schema, module]) => [schema, module.id])),
@@ -382,13 +390,37 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 			deps.modules.preparePartitions(client, moduleId, table, months),
 		now: () => clock.now(),
 		progress,
+		finish,
 	});
 
 	/** Rebuilds derived files for the new Site; card rendering reads only published Content. */
-	const regenerateFiles = async (siteId: string, media: { process: string[]; variants: string[] }) => {
-		for (const mediaId of media.process) await deps.jobs.send(mediaProcess, { siteId, mediaId });
-		for (const mediaId of media.variants) await deps.jobs.send(mediaVariants, { siteId, mediaId });
-		await deps.jobs.send(socialCardsRender, { siteId });
+	const finishImport = async (
+		client: pg.PoolClient,
+		row: { id: string; workspaceId: string; name: string | null; slug: string | null },
+		imported: ImportedSite,
+		actor: { personId: string | null; via: AuditVia },
+	) => {
+		const site = { workspaceId: row.workspaceId, id: imported.siteId };
+		for (const secret of imported.secrets) await deps.writeImportSecret(client, site, secret.name, secret.value);
+		const options = { db: { executeSql: (text: string, values?: unknown[]) => client.query(text, values) } };
+		for (const mediaId of imported.media.process)
+			await deps.jobs.send(mediaProcess, { siteId: site.id, mediaId }, options);
+		for (const mediaId of imported.media.variants)
+			await deps.jobs.send(mediaVariants, { siteId: site.id, mediaId }, options);
+		await deps.jobs.send(socialCardsRender, { siteId: site.id }, options);
+		const db = databaseOn(client);
+		const where = { ...actor, workspaceId: row.workspaceId, siteId: site.id };
+		await recordAudit(db, clock.now(), {
+			...where,
+			action: "site.import",
+			details: importDetails(row, imported.report),
+		});
+		for (const invite of imported.report.invited)
+			await recordAudit(db, clock.now(), {
+				...where,
+				action: "member.invite",
+				details: { email: invite.email, role: invite.role, sites: [site.id], sent: false, siteImport: row.id },
+			});
 	};
 
 	/** The details a `site.import` entry records. */
@@ -793,67 +825,48 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 				key = await passphraseKey(input.passphrase, kdfSchema.parse(head.secrets.kdf));
 				if (!(await keyOpens(key, head.secrets.check))) throw new PassphraseWrongError();
 			}
-			const imported = await importSite(
-				readerContext(async () => {}),
-				input.open(),
-				{
-					workspaceId: input.workspaceId,
-					name,
-					slug,
-					importer: null,
-					secretsKey: key,
-				},
-			);
-			const site = { workspaceId: input.workspaceId, id: imported.siteId };
-			for (const secret of imported.secrets) await deps.commandSecrets.set(site, secret.name, secret.value);
-			await regenerateFiles(imported.siteId, imported.media);
+			const id = crypto.randomUUID();
 			const now = clock.now();
 			const target = await storage.current();
-			const id = crypto.randomUUID();
-			const [row] = await deps.database.db
-				.insert(siteImports)
-				.values({
-					id,
-					workspaceId: input.workspaceId,
-					status: "done",
-					startedBy: null,
-					fileName: cleanFileName(input.fileName),
-					sizeBytes: input.sizeBytes,
-					receivedBytes: input.sizeBytes,
-					partBytes: IMPORT_PART_BYTES,
-					parts: [],
-					storage: target.kind,
-					key: `${input.workspaceId}/site-imports/${id}`,
-					manifest: null,
-					name,
-					slug,
-					siteId: imported.siteId,
-					report: imported.report,
-					createdAt: now,
-					startedAt: now,
-					finishedAt: now,
-					expiresAt: new Date(now.getTime() + SITE_IMPORT_REPORT_LIFETIME_MS),
-				})
-				.returning();
-			const via = { kind: "command", name: "site import" } as const;
-			await recordAudit(deps.database.db, now, {
-				personId: null,
-				via,
-				workspaceId: input.workspaceId,
-				siteId: imported.siteId,
-				action: "site.import",
-				details: importDetails({ id, name, slug }, imported.report),
-			});
-			for (const invite of imported.report.invited) {
-				await recordAudit(deps.database.db, now, {
-					personId: null,
-					via,
-					workspaceId: input.workspaceId,
-					siteId: imported.siteId,
-					action: "member.invite",
-					details: { email: invite.email, role: invite.role, sites: [imported.siteId], sent: false, siteImport: id },
-				});
-			}
+			const imported = await importSite(
+				readerContext(
+					async () => {},
+					async (client, imported) => {
+						await finishImport(client, { id, workspaceId: input.workspaceId, name, slug }, imported, {
+							personId: null,
+							via: { kind: "command", name: "site import" },
+						});
+						const finished = clock.now();
+						await databaseOn(client)
+							.insert(siteImports)
+							.values({
+								id,
+								workspaceId: input.workspaceId,
+								status: "done",
+								startedBy: null,
+								fileName: cleanFileName(input.fileName),
+								sizeBytes: input.sizeBytes,
+								receivedBytes: input.sizeBytes,
+								partBytes: IMPORT_PART_BYTES,
+								parts: [],
+								storage: target.kind,
+								key: `${input.workspaceId}/site-imports/${id}`,
+								manifest: null,
+								name,
+								slug,
+								siteId: imported.siteId,
+								report: imported.report,
+								createdAt: now,
+								startedAt: now,
+								finishedAt: finished,
+								expiresAt: new Date(finished.getTime() + SITE_IMPORT_REPORT_LIFETIME_MS),
+							});
+					},
+				),
+				input.open(),
+				{ workspaceId: input.workspaceId, name, slug, importer: null, secretsKey: key },
+			);
+			const [row] = await deps.database.db.select().from(siteImports).where(eq(siteImports.id, id));
 			log.info("Imported a Site by command", { workspaceId: input.workspaceId, siteId: imported.siteId });
 			return importView(row as ImportRow);
 		},
@@ -928,7 +941,10 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 					await archive.done();
 				}
 			} catch (error) {
-				log[error instanceof StorageError ? "warn" : "error"]("A Site export failed", { siteId, exportId, error });
+				log[error instanceof StorageError || error instanceof ArchiveRefusedError ? "warn" : "error"](
+					"A Site export failed",
+					{ siteId, exportId, error },
+				);
 				await removeParts(backend, row.key, written).catch(() => {});
 				await update({ status: "failed", failure: { reason: "error" }, progress: null, finishedAt: clock.now() });
 			} finally {
@@ -941,7 +957,11 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 			const [row] = background ? await background.select(siteImports, eq(siteImports.id, importId)) : [];
 			if (!background || !row || (row.status !== "waiting" && row.status !== "running")) return;
 			const update = (values: Partial<typeof siteImports.$inferInsert>) =>
-				background.update(siteImports, values, eq(siteImports.id, row.id));
+				background.update(
+					siteImports,
+					values,
+					and(eq(siteImports.id, row.id), inArray(siteImports.status, ["waiting", "running"])),
+				);
 			const backend = await storage.holding(row.storage as StorageKind);
 			const fail = async (reason: string, message?: string) => {
 				await update({
@@ -965,8 +985,26 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 				await update({ status: "running", startedAt: clock.now() });
 				const archive = await streamParts(storage, row);
 				if (!archive) return await fail("damaged", "A part of the file is missing from storage.");
-				const context = readerContext((step, done, total) =>
-					update({ progress: { step, done, total } }).then(() => {}),
+				const context = readerContext(
+					(step, done, total) => update({ progress: { step, done, total } }).then(() => {}),
+					async (client, imported) => {
+						await finishImport(client, row, imported, {
+							personId: personIdOf(scope.access.actor),
+							via: scope.access.via,
+						});
+						const now = clock.now();
+						await databaseOn(client)
+							.update(siteImports)
+							.set({
+								status: "done",
+								siteId: imported.siteId,
+								report: imported.report,
+								progress: null,
+								finishedAt: now,
+								expiresAt: new Date(now.getTime() + SITE_IMPORT_REPORT_LIFETIME_MS),
+							})
+							.where(and(eq(siteImports.id, row.id), eq(siteImports.workspaceId, workspaceId)));
+					},
 				);
 				const run = async (secretsKey: string | null) => {
 					const imported = await importSite(context, archive as AsyncIterable<Uint8Array>, {
@@ -976,35 +1014,10 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 						importer: personIdOf(scope.access.actor),
 						secretsKey,
 					});
-					// The Site exists now: its secrets go in through its own scope.
-					if (imported.secrets.length > 0) {
-						const site = await data.site(scope.access, imported.siteId, "site.view");
-						for (const secret of imported.secrets) await site.secrets.set(secret.name, secret.value);
-					}
-					return { siteId: imported.siteId, report: imported.report, media: imported.media };
+					return { siteId: imported.siteId };
 				};
 				const hasKey = (await deps.secrets.describe(importKey(row.id))).set;
 				const result = hasKey ? await deps.secrets.useWith(importKey(row.id), run) : await run(null);
-				await regenerateFiles(result.siteId, result.media);
-				await scope.transaction(async (tx) => {
-					await tx.audit("site.import", importDetails(row, result.report), { siteId: result.siteId });
-					for (const invite of result.report.invited) {
-						await tx.audit(
-							"member.invite",
-							{ email: invite.email, role: invite.role, sites: [result.siteId], sent: false, siteImport: row.id },
-							{ siteId: result.siteId },
-						);
-					}
-				});
-				const now = clock.now();
-				await update({
-					status: "done",
-					siteId: result.siteId,
-					report: result.report,
-					progress: null,
-					finishedAt: now,
-					expiresAt: new Date(now.getTime() + SITE_IMPORT_REPORT_LIFETIME_MS),
-				});
 				log.info("Imported a Site", { workspaceId, importId, siteId: result.siteId });
 			} catch (error) {
 				if (error instanceof ArchiveRefusedError) await fail(error.reason, error.message);

@@ -3,14 +3,11 @@
 // uploader's alone; the worker reads it in as the person who started it, with their access then. Data
 // of a Module this Install lacks is kept aside, and the Site import report says which Module it needs.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
 import type redirects from "@webcraft/module-redirects";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
-import { exportedArchive, importArchive, rewritten, uploadArchive } from "../harness/site-transfer.ts";
+import { exportedArchive, importArchive, rewritten, rowsIn, uploadArchive } from "../harness/site-transfer.ts";
 import { approveModules } from "./support.ts";
 
 let install: TestInstall;
@@ -147,16 +144,8 @@ describe("Modules", () => {
 			keptAside: true,
 		});
 		expect(imported.archive?.modules).toContainEqual({ id: "popups", version: "1.0.0", status: "missing" });
-		// Its rows wait in the new Site's private storage folder, for when this Install has the Module.
-		const kept = join(
-			install.storageDir,
-			target,
-			imported.site?.id ?? "",
-			"kept-aside",
-			"m_popups.popups",
-			"part-000001",
-		);
-		expect(gunzipSync(readFileSync(kept)).toString()).toContain('"name":"Spring sale"');
+		const again = await exportedArchive(install, admin, imported.site?.id ?? "");
+		expect(rowsIn(again, "m_popups.popups")).toContainEqual(expect.objectContaining({ name: "Spring sale" }));
 	});
 
 	test("data of a Module waiting for approval here comes in, and works once it is approved", async () => {

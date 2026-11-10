@@ -203,7 +203,12 @@ export function rewritten(
 		manifest?: (manifest: any) => void;
 		rows?: (table: string, rows: Record<string, unknown>[]) => Record<string, unknown>[] | null;
 		/** Tables to add after the archive's own, such as a Module's this Install doesn't have. */
-		extraTables?: { name: string; module: string | null; rows: Record<string, unknown>[] }[];
+		extraTables?: {
+			name: string;
+			module: string | null;
+			rows: Record<string, unknown>[];
+			uuidColumns?: { name: string; array: boolean }[];
+		}[];
 	},
 ): Uint8Array {
 	const files = tarFiles(bytes);
@@ -220,6 +225,13 @@ export function rewritten(
 					name: extra.name,
 					module: extra.module,
 					columns: Object.keys(extra.rows[0] ?? {}),
+					primaryColumns: [],
+					personColumns: [],
+					uuidColumns:
+						extra.uuidColumns ??
+						Object.keys(extra.rows[0] ?? {})
+							.filter((name) => ["id", "site_id", "workspace_id"].includes(name))
+							.map((name) => ({ name, array: false })),
 					rows: extra.rows.length,
 					file: path,
 					sha256: createHash("sha256").update(data).digest("hex"),

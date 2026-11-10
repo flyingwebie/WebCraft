@@ -6,6 +6,7 @@ import {
 	integer,
 	jsonb,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uuid,
@@ -148,5 +149,54 @@ export const pausedDomains = pgTable(
 			foreignColumns: [sites.workspaceId, sites.id],
 		}).onDelete("cascade"),
 		index("paused_domains_site_id_idx").on(table.siteId),
+	],
+);
+
+/** Module tables unavailable on this Install: durable inventory, independent of import reports. */
+export const siteRetainedTables = pgTable(
+	"site_retained_tables",
+	{
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		tableName: text("table_name").notNull(),
+		moduleId: text("module_id").notNull(),
+		moduleVersion: text("module_version").notNull(),
+		/** Source columns and declared reference types; re-exported with fresh row counts and checksums. */
+		definition: jsonb("definition").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.workspaceId, table.siteId, table.tableName] }),
+		foreignKey({
+			name: "site_retained_tables_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		index("site_retained_tables_site_id_idx").on(table.siteId),
+	],
+);
+
+/** One remapped row per record: cursor-readable even for a Module with millions of rows. */
+export const siteRetainedRows = pgTable(
+	"site_retained_rows",
+	{
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		tableName: text("table_name").notNull(),
+		position: bigint("position", { mode: "number" }).notNull(),
+		value: jsonb("value").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.workspaceId, table.siteId, table.tableName, table.position] }),
+		foreignKey({
+			name: "site_retained_rows_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		foreignKey({
+			name: "site_retained_rows_table_fkey",
+			columns: [table.workspaceId, table.siteId, table.tableName],
+			foreignColumns: [siteRetainedTables.workspaceId, siteRetainedTables.siteId, siteRetainedTables.tableName],
+		}).onDelete("cascade"),
+		index("site_retained_rows_site_id_idx").on(table.siteId),
 	],
 );

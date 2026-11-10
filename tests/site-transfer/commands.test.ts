@@ -4,13 +4,13 @@
 // makes a new Site with its Site import report, which the admin lists; both are in the Audit log as
 // done by the command.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { manifestIn, PASSPHRASE } from "../harness/site-transfer.ts";
+import { manifestIn, PASSPHRASE, rewritten } from "../harness/site-transfer.ts";
 
 const CLI = join(new URL("../../", import.meta.url).pathname, "apps/cli/src/main.ts");
 const EMPTY_DIRECTORY = mkdtempSync(join(tmpdir(), "webcraft-cli-"));
@@ -175,4 +175,31 @@ describe("webcraft site import", () => {
 			]),
 		);
 	});
+});
+
+test("the real import command refuses invalid identities and leaves no Site or success report", async () => {
+	const bad = join(folder, "invalid-id.tar");
+	writeFileSync(
+		bad,
+		rewritten(readFileSync(archive), {
+			manifest: (manifest) => {
+				manifest.site.id = "00000000-0000-0000-0000-000000000001";
+			},
+		}),
+	);
+	const workspaceId = (await install.createWorkspace("Refused CLI import")).id;
+	const result = await webcraft(install, [
+		"site",
+		"import",
+		bad,
+		"--workspace",
+		workspaceId,
+		"--slug",
+		"bad-id",
+		"--name",
+		"Invalid ID",
+	]);
+	expect(result.code).toBe(1);
+	expect((await admin.api.sites.list({ workspaceId })).sites).toEqual([]);
+	expect((await admin.api.siteImports.list({ workspaceId })).imports).toEqual([]);
 });

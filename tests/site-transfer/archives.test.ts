@@ -60,12 +60,12 @@ describe("refused before anything is read in", () => {
 	test("an export in a newer layout than this WebCraft reads", async () => {
 		const newer = rewritten(archive, {
 			manifest: (manifest) => {
-				manifest.formatVersion = 2;
+				manifest.formatVersion = 3;
 			},
 		});
 		await expect(uploadArchive(admin, await workspace("Refusals 2"), newer)).rejects.toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
-			data: { reason: "newer-format", formatVersion: 2, readable: 1 },
+			data: { reason: "newer-format", formatVersion: 3, readable: 2 },
 		});
 	});
 
@@ -143,4 +143,31 @@ test("exporting an imported Site leaves its Install's transfer jobs and reports 
 	const manifest = manifestIn(copy);
 	expect(manifest.tables.map((table: { name: string }) => table.name)).not.toContain("public.site_imports");
 	expect(manifest.leftOut.tables).toContainEqual({ name: "public.site_imports", reason: "working" });
+});
+
+test("format 1 uses known column contracts, while a new archive must declare reference metadata", async () => {
+	const legacy = rewritten(archive, {
+		manifest: (manifest) => {
+			manifest.formatVersion = 1;
+			for (const table of manifest.tables) {
+				delete table.uuidColumns;
+				delete table.primaryColumns;
+				delete table.personColumns;
+			}
+		},
+	});
+	const imported = await importArchive(install, admin, await workspace("Legacy"), legacy, {
+		name: "Legacy",
+		slug: "legacy",
+	});
+	expect(imported.status).toBe("done");
+	expect(imported.report?.from.upgraded).toBe(true);
+	const incomplete = rewritten(archive, {
+		manifest: (manifest) => {
+			delete manifest.tables[0].uuidColumns;
+		},
+	});
+	await expect(uploadArchive(admin, await workspace("Incomplete metadata"), incomplete)).rejects.toMatchObject({
+		code: "SITE_IMPORT_REFUSED",
+	});
 });
