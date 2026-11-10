@@ -60,12 +60,12 @@ describe("refused before anything is read in", () => {
 	test("an export in a newer layout than this WebCraft reads", async () => {
 		const newer = rewritten(archive, {
 			manifest: (manifest) => {
-				manifest.formatVersion = 3;
+				manifest.formatVersion = 4;
 			},
 		});
 		await expect(uploadArchive(admin, await workspace("Refusals 2"), newer)).rejects.toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
-			data: { reason: "newer-format", formatVersion: 3, readable: 2 },
+			data: { reason: "newer-format", formatVersion: 4, readable: 3 },
 		});
 	});
 

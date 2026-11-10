@@ -2,6 +2,7 @@ import semver from "semver";
 import { z } from "zod";
 
 import { WEBCRAFT_VERSION } from "../version.ts";
+import { moduleComponentDeclarationSchema } from "./module-declarations.ts";
 
 /**
  * A Site export's archive (ADR 0033) is a plain tar file (the same writer and reader as Backups'),
@@ -23,7 +24,7 @@ import { WEBCRAFT_VERSION } from "../version.ts";
 export const SITE_EXPORT_FORMAT = "webcraft-site-export";
 
 /** The version of the archive's layout this build writes. Older ones are brought up by `UPGRADES`. */
-export const SITE_EXPORT_FORMAT_VERSION = 2;
+export const SITE_EXPORT_FORMAT_VERSION = 3;
 
 export const MANIFEST_FILE = "manifest.json";
 export const SECRETS_FILE = "secrets.json";
@@ -114,6 +115,8 @@ export const siteExportManifestSchema = z.object({
 	}),
 	/** The Modules whose data is in it, with the version that wrote it, and whether it ran on the Site. */
 	modules: z.array(z.object({ id: z.string(), version: z.string(), tables: z.array(z.string()) })),
+	/** Source types for reusable Module Components and Block types, even when their Module has no tables. */
+	moduleComponents: z.array(moduleComponentDeclarationSchema).optional(),
 	tables: z.array(tableSchema),
 	people: fileSchema,
 	files: fileSchema.extend({ bytes: z.number().safe().nonnegative(), mediaBytes: z.number().safe().nonnegative() }),
@@ -165,8 +168,11 @@ export type FormatUpgrade = {
 	row?(table: string, row: Record<string, unknown>): Record<string, unknown>;
 };
 
-/** Format 2 adds source column contracts. Format 1 resolves them from installed table schemas. */
-export const FORMAT_UPGRADES: readonly FormatUpgrade[] = [{ from: 1, manifest: (manifest) => manifest }];
+/** Format 3 is the release baseline. Unpublished layouts 1/2 use installed source contracts when known. */
+export const FORMAT_UPGRADES: readonly FormatUpgrade[] = [
+	{ from: 1, manifest: (manifest) => manifest },
+	{ from: 2, manifest: (manifest) => manifest },
+];
 
 /**
  * Reads a manifest as an import takes it: refuses what isn't a Site export, a layout or WebCraft
@@ -233,6 +239,9 @@ export function readManifest(
 		!unique(manifest.tables.map((table) => table.name)) ||
 		!unique(manifest.tables.map((table) => table.file)) ||
 		!unique(manifest.modules.map((module) => module.id)) ||
+		(formatVersion >= 3 && !manifest.moduleComponents) ||
+		!unique((manifest.moduleComponents ?? []).map((component) => component.id)) ||
+		(manifest.moduleComponents ?? []).some((component) => !modules.has(component.moduleId)) ||
 		manifest.modules.some((module) => !semver.valid(module.version)) ||
 		!unique(manifest.secrets.names) ||
 		manifest.tables.some(
