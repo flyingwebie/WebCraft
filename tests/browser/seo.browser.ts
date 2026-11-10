@@ -113,11 +113,14 @@ for (const theme of THEMES) {
 			await page.keyboard.type(" ");
 			await page.getByRole("button", { name: "Add {postType} to the title pattern" }).click();
 			expect(await pattern.inputValue()).toBe("{title} {separator} {site} {postType}");
+			// Adding a token puts the caret back in the pattern on the next frame: let it land first.
+			await page.waitForFunction(() => document.activeElement instanceof HTMLInputElement);
 			await page.getByRole("combobox", { name: "Schema type" }).selectOption("blogPosting");
 			expect(await page.getByRole("combobox", { name: "Where headline comes from" }).inputValue()).toBe("title");
 			await page.getByRole("combobox", { name: "Summary" }).selectOption("summary");
 			const sitemap = page.getByRole("checkbox", { name: "List in sitemaps and llms.txt" });
 			await sitemap.focus();
+			expect(await sitemap.evaluate((element) => element === document.activeElement)).toBe(true);
 			await page.keyboard.press("Space");
 			// The switch shows its new state once the screen has it, so Save sends it.
 			for (let look = 0; look < 100 && (await sitemap.isChecked()); look++) await page.waitForTimeout(50);
