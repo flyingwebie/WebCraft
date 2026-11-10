@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import { CliError, EXIT } from "../exit-codes.ts";
+import { readFlags } from "../flags.ts";
 import { type Connection, connect, type RunContext } from "../remote/connection.ts";
 import { call } from "../remote/run.ts";
 import { dedent, topLevelBlocks } from "./css-blocks.ts";
@@ -82,25 +83,24 @@ type Options = { siteId?: string; dir: string; force: boolean; dryRun: boolean }
 
 function parseOptions(args: string[], command: "pull" | "push"): Options {
 	const options: Options = { dir: ".", force: false, dryRun: false };
-	for (let index = 0; index < args.length; index++) {
-		const arg = args[index] ?? "";
-		const [flag, inline] = arg.includes("=")
-			? [arg.slice(0, arg.indexOf("=")), arg.slice(arg.indexOf("=") + 1)]
-			: [arg, undefined];
-		const value = () => {
-			const found = inline ?? args[++index];
-			if (!found) throw new CliError(EXIT.usage, `${flag} needs a value.`);
-			return found;
-		};
-		if (flag === "--site-id" && command === "pull") options.siteId = value();
-		else if (flag === "--dir") options.dir = value();
-		else if (flag === "--force") options.force = true;
-		else if (flag === "--dry-run" && command === "push") options.dryRun = true;
+	const flags = readFlags(args);
+	for (let flag = flags.next(); flag; flag = flags.next()) {
+		if (!flag.short && flag.name === "site-id" && command === "pull") {
+			options.siteId = flags.value(flag, `--${flag.name} needs a value.`);
+		} else if (!flag.short && flag.name === "dir") options.dir = flags.value(flag, `--${flag.name} needs a value.`);
+		else if (!flag.short && flag.name === "force") options.force = true;
+		else if (!flag.short && flag.name === "dry-run" && command === "push") options.dryRun = true;
 		else
 			throw new CliError(
 				EXIT.usage,
-				`webcraft structure ${command} has no option ${arg}. See webcraft structure ${command} --help.`,
+				`webcraft structure ${command} has no option ${flag.raw}. See webcraft structure ${command} --help.`,
 			);
+	}
+	if (flags.rest.length > 0) {
+		throw new CliError(
+			EXIT.usage,
+			`webcraft structure ${command} has no option ${flags.rest[0]}. See webcraft structure ${command} --help.`,
+		);
 	}
 	return options;
 }
