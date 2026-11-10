@@ -91,6 +91,9 @@ export const MAX_ROWS = 500;
 /** How deep Pages nest: a Page's path has at most this many parts. */
 export const MAX_PAGE_DEPTH = 10;
 
+/** How long a Review's note and a reviewer's comment may be, and how many items one submission holds. */
+export const REVIEW_LIMITS = { noteMax: 2000, commentMax: 5000, itemsMax: 50 } as const;
+
 /** The longest `pattern` setting (a regular expression in RE2 syntax), in characters. */
 export const PATTERN_MAX_LENGTH = 200;
 
