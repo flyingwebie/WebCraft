@@ -28,6 +28,13 @@ export function defineJob<Payload>(definition: JobDefinition<Payload>): JobDefin
 /** Enqueues jobs. The web process and jobs themselves use it; the worker runs what it holds. */
 export type JobQueue = {
 	send<Payload>(job: JobDefinition<Payload>, payload: Payload, options?: SendOptions): Promise<string>;
+	/**
+	 * Tries failed jobs of a queue again (Install health's Retry): answers how many went back in the
+	 * queue. Only a process with a job queue has it (not server commands).
+	 */
+	retry?(queue: string, jobIds: readonly string[]): Promise<number>;
+	/** Deletes failed jobs of a queue for good (Install health's Discard): answers how many. */
+	discard?(queue: string, jobIds: readonly string[]): Promise<number>;
 };
 
 /** A JobQueue on top of a started pg-boss instance. */
@@ -48,7 +55,21 @@ export function createJobQueue(boss: PgBoss): JobQueue {
 			}
 			return id;
 		},
+		async retry(queue, jobIds) {
+			if (jobIds.length === 0) return 0;
+			return affected(await boss.retry(queue, [...jobIds]));
+		},
+		async discard(queue, jobIds) {
+			if (jobIds.length === 0) return 0;
+			return affected(await boss.deleteJob(queue, [...jobIds]));
+		},
 	};
+}
+
+/** How many jobs a job queue command changed: its answer says, though its type doesn't. */
+function affected(answer: object): number {
+	const count = (answer as { affected?: unknown }).affected;
+	return typeof count === "number" ? count : 0;
 }
 
 /** Creates each job's queue if it doesn't exist yet. */

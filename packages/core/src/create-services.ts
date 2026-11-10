@@ -99,6 +99,7 @@ import {
 	updateClass,
 } from "./design-system/drafts.ts";
 import { createDiscovery } from "./discovery/index.ts";
+import { systemDiskSpace } from "./disk.ts";
 import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
@@ -109,10 +110,12 @@ import { createFilters } from "./filters/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
 import { createSubmissionActions } from "./forms/kept.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
+import { createInstallHealth } from "./health/service.ts";
 import { createHistory } from "./history/index.ts";
 import { createImpersonation } from "./impersonation.ts";
 import { createImports } from "./imports/index.ts";
 import { createInstallSettings, MEDIA_MAX_FILE_BYTES } from "./install-settings.ts";
+import { coreJobs } from "./jobs/index.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
 import { MEDIA_IMPORT_TIMEOUT_MS } from "./media/import.ts";
 import { createInstallStorage } from "./media/install-storage.ts";
@@ -387,6 +390,17 @@ export async function createInstallServices(
 		},
 	});
 	attachments.read = reports.attachment;
+	const backups = createBackups({
+		config,
+		database,
+		secrets: installSecrets,
+		http: ports.http,
+		clock,
+		log,
+		fingerprint: await masterKey.fingerprint(),
+		modules: options.modules ?? FIRST_PARTY_MODULES,
+	});
+	const workers = createWorkers({ database, clock });
 	return {
 		...ports,
 		secrets: installSecrets,
@@ -604,19 +618,24 @@ export async function createInstallServices(
 		media,
 		imports: createImports({ storage, jobs: ports.jobs, modules }),
 		modules,
-		backups: createBackups({
-			config,
+		backups,
+		updates: createUpdates({ database, feed: config.updateFeed, fetch: guardedFetch, clock, log }),
+		workers,
+		errorLog,
+		health: createInstallHealth({
 			database,
-			secrets: installSecrets,
-			http: ports.http,
 			clock,
 			log,
-			fingerprint: await masterKey.fingerprint(),
-			modules: options.modules ?? FIRST_PARTY_MODULES,
+			schema: { modules: modules.schemas },
+			workers,
+			storage,
+			disk: ports.disk ?? systemDiskSpace,
+			backups,
+			email,
+			errorLog,
+			jobs: ports.jobs,
+			queueNames: coreJobs.map((job) => job.name),
 		}),
-		updates: createUpdates({ database, feed: config.updateFeed, fetch: guardedFetch, clock, log }),
-		workers: createWorkers({ database, clock }),
-		errorLog,
 		reports,
 		shareLinks: createShareLinks({
 			database,

@@ -63,6 +63,7 @@ import type { Countries } from "./countries.ts";
 import type { Dashboards } from "./dashboards/index.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
 import type { Discovery } from "./discovery/index.ts";
+import type { DiskSpace } from "./disk.ts";
 import type { Dns } from "./dns.ts";
 import type { Domains } from "./domains/index.ts";
 import type { EditMode } from "./edit-mode/index.ts";
@@ -70,6 +71,7 @@ import type { Email, Mailer } from "./email/index.ts";
 import type { ErrorLog } from "./error-log/service.ts";
 import type { Filters } from "./filters/index.ts";
 import type { Forms } from "./forms/index.ts";
+import type { InstallHealth } from "./health/service.ts";
 import type { HistoryService } from "./history/index.ts";
 import type { OutgoingHttp } from "./http.ts";
 import type { Impersonation } from "./impersonation.ts";
@@ -144,6 +146,8 @@ export type InstallPorts = {
 	 * with a fake) has a real one; the web process and server commands get `pdfOnlyInWorker`.
 	 */
 	pdf: PdfRenderer;
+	/** The room on the disk local storage is on, for Install health: the real disk unless given. */
+	disk?: DiskSpace;
 };
 
 /**
@@ -632,6 +636,8 @@ export type InstallServices = InstallPorts & {
 	workers: Workers;
 	/** The Error log: unexpected failures, grouped by cause, for the Superadmin (`error-log/`). */
 	errorLog: ErrorLog;
+	/** Install health and its Health alerts (`health/`). */
+	health: InstallHealth;
 	/**
 	 * Reports (#104): a Dashboard sent as a PDF on a schedule, with AI text, its history and review;
 	 * the worker's steps of making and sending one.

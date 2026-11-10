@@ -88,6 +88,7 @@ import {
 	ItemAlreadyScheduledError,
 	ItemInReviewError,
 	isModuleFailure,
+	JobQueueNotFoundError,
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
@@ -853,6 +854,9 @@ export function toApiError(error: unknown): unknown {
 			data: { key: error.key, resumesAt: error.resumesAt.toISOString() },
 			cause: error,
 		});
+	}
+	if (error instanceof JobQueueNotFoundError) {
+		return new ORPCError("JOB_QUEUE_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof ErrorGroupNotFoundError) {
 		return new ORPCError("ERROR_GROUP_NOT_FOUND", { status: 404, message: error.message, cause: error });

@@ -60,6 +60,7 @@ import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { testCountryFile } from "./countries.ts";
 import { createEmptyDatabase, createMigratedDatabase, type TestDatabase } from "./database.ts";
 import { createFakeAi, type FakeAi } from "./fake-ai.ts";
+import { createFakeDisk, type FakeDisk } from "./fake-disk.ts";
 import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
@@ -70,6 +71,7 @@ import { TEST_MODULES } from "./modules.ts";
 export { API_PATH, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 export type { TestInstallClock } from "./clock.ts";
 export type { FakeAi } from "./fake-ai.ts";
+export type { FakeDisk } from "./fake-disk.ts";
 export type { FakeDns } from "./fake-dns.ts";
 export type { FakeHttp, RecordedRequest } from "./fake-http.ts";
 export { FAKE_SMTP_RESPONSE, type FakeMailer, type SentEmail } from "./fake-mailer.ts";
@@ -161,6 +163,11 @@ export type TestInstallOptions = {
 	sitemapLimits?: { urls?: number; bytes?: number };
 	/** `WEBCRAFT_ERROR_DSN`: an outside error tracker failures are also sent to; none unless given. */
 	errorDsn?: string;
+	/**
+	 * Whether drains run the worker's minute `health.check` (Install health and its Health alerts).
+	 * Off unless given: other tests would get Health alerts among their emails.
+	 */
+	healthChecks?: boolean;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -287,7 +294,9 @@ export type TestInstall = {
 	/**
 	 * Runs every job that is due by the test clock, including the jobs those jobs enqueue, and the
 	 * scheduled jobs (such as the daily Email log purge) whose time came since the last drain. Give
-	 * `only` to run just the jobs with those names (`media.process`), leaving the rest queued.
+	 * `only` to run just the jobs with those names (`media.process`), leaving the rest queued. A drain
+	 * works the queue as the worker does, so it checks in as a worker first (`drainJobs({ only: [] })`
+	 * only checks in).
 	 */
 	drainJobs(options?: {
 		only?: readonly string[];
@@ -329,6 +338,8 @@ export type TestInstall = {
 	tls: FakeTls;
 	/** The AI providers WebCraft calls with a Workspace's AI key: unavailable until a test answers them. */
 	ai: FakeAi;
+	/** The room on the disk local storage is on: plenty unless a test says (`disk.set({ freeBytes, totalBytes })`). */
+	disk: FakeDisk;
 	/** Turns Reports into PDFs without a browser: each holds the page's text (`pdfText` in `fake-pdf.ts`). */
 	pdf: FakePdf;
 	/**
@@ -419,6 +430,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const tls = createFakeTls();
 	const ai = createFakeAi();
 	const pdf = createFakePdf();
+	const disk = createFakeDisk();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
 	const adminHost = options.adminHost ?? TEST_ADMIN_HOST;
@@ -476,6 +488,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			options.maxImagePixels === undefined ? {} : { maxInputPixels: options.maxImagePixels },
 		),
 		pdf: pdf.renderer,
+		disk: disk.space,
 	};
 	/**
 	 * Starts the services as the web process does: the Master key check (web and worker never start
@@ -494,6 +507,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	};
 	// Scheduled jobs come due by the test clock: the drain sends each one whose time came since then.
 	const schedulesCheckedAt = { time: clock.now() };
+	const workerStartedAt = clock.now();
 	// The handler keeps this object; a restart swaps the services inside it.
 	const services: InstallServices = await start(env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY);
 	const secretStore = (masterKey: string) =>
@@ -663,9 +677,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		},
 		drainJobs: async (drainOptions = {}) => {
 			if (!boss) throw new Error(`An Install with an ${started} database has no job queue to drain.`);
+			// The drain works the queue as a worker does, so it checks in as one.
+			await services.workers.beat({ id: TEST_WORKER_ID, hostname: "test-worker", startedAt: workerStartedAt });
 			// The 404 log's misses wait in the web process for a few seconds; the drain hands them over first.
 			await services.modules.flushMisses();
-			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt);
+			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt, options.healthChecks === true);
 			return drainJobs(boss, services, drainOptions.only, drainOptions.batchSize);
 		},
 		get secrets() {
@@ -679,6 +695,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		tls,
 		ai,
 		pdf,
+		disk,
 		connectDomain(name, connectOptions = {}) {
 			const domain = name.toLowerCase();
 			dns.answer(domain, [publicAddresses[0] ?? "203.0.113.10"]);
@@ -794,14 +811,24 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
  * Sends each scheduled job whose time came, by the test clock, since the last drain: once, however
  * many times it came due (as the worker does after being down).
  */
-async function sendDueSchedules(boss: PgBoss, jobs: JobQueue, clock: Clock, checkedAt: { time: Date }) {
+async function sendDueSchedules(
+	boss: PgBoss,
+	jobs: JobQueue,
+	clock: Clock,
+	checkedAt: { time: Date },
+	healthChecks: boolean,
+) {
 	const now = clock.now();
 	for (const schedule of coreSchedules) {
+		if (!healthChecks && schedule.job.name === "health.check") continue;
 		const [next] = boss.previewSchedule(schedule.cron, { from: checkedAt.time, count: 1, tz: "UTC" });
 		if (next && next.getTime() <= now.getTime()) await jobs.send(schedule.job, schedule.payload);
 	}
 	checkedAt.time = now;
 }
+
+/** The worker a drain checks in as. */
+const TEST_WORKER_ID = "7e57c0de-0000-4000-8000-000000000001";
 
 /** Every round fetches each queue until a round finds nothing due; this stops a job loop. */
 const MAX_DRAIN_ROUNDS = 100;

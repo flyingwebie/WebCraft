@@ -112,6 +112,7 @@ export { type CreateServicesOptions, createInstallServices } from "./create-serv
 export * from "./dashboards/index.ts";
 export * from "./design-system/index.ts";
 export * from "./discovery/index.ts";
+export { type DiskRoom, type DiskSpace, systemDiskSpace } from "./disk.ts";
 export { type Dns, systemDns } from "./dns.ts";
 export * from "./domains/index.ts";
 export {
@@ -158,6 +159,28 @@ export {
 	type GuardedFetchProblem,
 	isPublicAddress,
 } from "./guarded-fetch.ts";
+export { HEALTH_LIMITS, type HealthReason, type HealthRowView } from "./health/checks.ts";
+export {
+	FAILING_REASONS,
+	type FailingReason,
+	HEALTH_PARTS,
+	HEALTH_STATUSES,
+	type HealthPart,
+	type HealthStatus,
+	INSTALL_HEALTH_PATH,
+} from "./health/parts.ts";
+export {
+	ALERT_AFTER_MS,
+	type FailedJob,
+	type HealthCheckBy,
+	type HealthReport,
+	type InstallHealth,
+	JobQueueNotFoundError,
+	type JobTarget,
+	type QueueView,
+	RECOVERED_AFTER_MS,
+	STALE_CHECK_MS,
+} from "./health/service.ts";
 export * from "./history/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";

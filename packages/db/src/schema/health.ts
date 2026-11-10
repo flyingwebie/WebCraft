@@ -73,7 +73,10 @@ export const healthRows = pgTable("health_rows", {
 	/** Why, as a reason code and its values (`{ code: "stale", data: { lastBeatAt } }`), worded by the admin. */
 	reason: jsonb("reason").notNull().default(sql`'{}'::jsonb`),
 	checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
-	/** Since when it has been Failing without a break; null while it isn't. */
+	/**
+	 * Since when it has been Failing: the start of the episode, kept after an alert until the part has
+	 * worked again for a while (a short break doesn't start a new one); null otherwise.
+	 */
 	failingSince: timestamp("failing_since", { withTimezone: true }),
 	/** Since when it hasn't been Failing, after an alert went out; null otherwise. */
 	clearSince: timestamp("clear_since", { withTimezone: true }),

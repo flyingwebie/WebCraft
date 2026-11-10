@@ -63,6 +63,12 @@ export type OutboxEmail = {
 	replyTo?: string | null;
 	/** Files to send with it, named here and read when it is sent (a Report's PDF). */
 	attachments?: readonly EmailAttachmentRef[];
+	/**
+	 * Tried at once from this process too, besides being queued: for Health alerts, which can't wait
+	 * for the worker when the worker may be what is failing. The queued attempt then finds it done; a
+	 * failed attempt is retried by the worker as usual.
+	 */
+	now?: boolean;
 };
 
 export type OutboxPorts = {
@@ -130,12 +136,13 @@ export async function queueEmail(
 		writeToLog(ports.log, row.id, email);
 		return { emailId: row.id, status: "logged" };
 	}
-	await jobs.send(emailSend, {
-		emailId: row.id,
-		attempt: 1,
-		smtp: email.smtp,
-		message: messageOf(email),
-	});
+	const attempt: EmailAttempt = { emailId: row.id, attempt: 1, smtp: email.smtp, message: messageOf(email) };
+	await jobs.send(emailSend, attempt);
+	if (email.now) {
+		await attemptDelivery(ports, attempt).catch((error: unknown) => {
+			ports.log.warn("An email couldn't be sent at once; the worker will try it", { emailId: row.id, error });
+		});
+	}
 	return { emailId: row.id, status: "queued" };
 }
 

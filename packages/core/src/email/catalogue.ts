@@ -1,10 +1,13 @@
 import { z } from "zod";
 
+import { FAILING_REASONS, HEALTH_PARTS } from "../health/parts.ts";
+
 /**
  * What kind of System email a type is, which decides whether people can turn it off:
  * - `security`: about a person's account and its safety (invites, resets, sign-in changes). Always sent.
  * - `work`: about their work (Review, Scheduled publishes, AI caps). Each can be turned off.
- * - `alert`: about something on the Install going wrong (domains, a Site's SMTP). Each can be turned off.
+ * - `alert`: about something on the Install going wrong (domains, a Site's SMTP). Each can be turned off,
+ *   except those marked `alwaysSent`: Health alerts, which the Superadmin must get.
  */
 export const EMAIL_CATEGORIES = ["security", "work", "alert"] as const;
 
@@ -194,6 +197,33 @@ export const SYSTEM_EMAIL_TYPES = {
 		category: "alert",
 		data: z.object({ reportName: title, placeName: name, reportsPath: adminPath }),
 	},
+	/**
+	 * A Health alert: parts of the Install have been Failing for a few minutes (`health/alerts.ts`).
+	 * To the Superadmin; it can't be turned off.
+	 */
+	"health-failing": {
+		category: "alert",
+		alwaysSent: true,
+		data: z.object({
+			parts: z
+				.array(z.object({ part: z.enum(HEALTH_PARTS), reason: z.enum(FAILING_REASONS) }))
+				.min(1)
+				.max(HEALTH_PARTS.length),
+			healthPath: adminPath,
+		}),
+	},
+	/** A Health alert: parts that were Failing have been working again for a while. It can't be turned off. */
+	"health-recovered": {
+		category: "alert",
+		alwaysSent: true,
+		data: z.object({
+			parts: z
+				.array(z.object({ part: z.enum(HEALTH_PARTS), failedMinutes: z.number().int().min(0).max(10_000_000) }))
+				.min(1)
+				.max(HEALTH_PARTS.length),
+			healthPath: adminPath,
+		}),
+	},
 	"webhook-switched-off": {
 		category: "alert",
 		data: z.object({
@@ -204,7 +234,7 @@ export const SYSTEM_EMAIL_TYPES = {
 			webhooksPath: adminPath,
 		}),
 	},
-} as const satisfies Record<string, { category: EmailCategory; data: z.ZodType }>;
+} as const satisfies Record<string, { category: EmailCategory; alwaysSent?: true; data: z.ZodType }>;
 
 export type SystemEmailType = keyof typeof SYSTEM_EMAIL_TYPES;
 
@@ -221,7 +251,11 @@ export function categoryOf(type: SystemEmailType): EmailCategory {
 	return SYSTEM_EMAIL_TYPES[type].category;
 }
 
-/** Whether people can turn a type off in their profile: work and alert emails, never security ones. */
+/**
+ * Whether people can turn a type off in their profile: work and alert emails, never security ones,
+ * nor an alert marked `alwaysSent` (Health alerts).
+ */
 export function canTurnOff(type: SystemEmailType): boolean {
-	return categoryOf(type) !== "security";
+	const definition: { category: EmailCategory; alwaysSent?: true } = SYSTEM_EMAIL_TYPES[type];
+	return definition.category !== "security" && definition.alwaysSent !== true;
 }
