@@ -138,6 +138,47 @@ for (const theme of THEMES) {
 }
 
 for (const theme of THEMES) {
+	test(`Plain-permalink live source shows decoded titles through Map, Preview and Run, ${theme}`, async () => {
+		const workspace = await install.install.createWorkspace(`Plain source ${theme}`);
+		const site = await install.install.createSite(workspace.id);
+		const member = await install.install.createStaff({ workspaces: [workspace.id] });
+		install.install.dns.answer("live-browser.example", ["93.184.216.80"]);
+		for (const method of ["GET", "HEAD"])
+			install.install.http.respond(method, /^https:\/\/live-browser.example\/review\//, (request) =>
+				liveWordpressReply(new URL(request.url), request.method),
+			);
+		const page = await install.newPage(theme);
+		try {
+			await open(page, member.account, `/sites/${site.id}/imports/new?source=wordpress-import.live`);
+			await page.getByLabel("Import name", { exact: true }).fill("Plain source");
+			await page.getByLabel("Site address", { exact: true }).fill("https://live-browser.example/review/");
+			await page.getByLabel("Username", { exact: true }).fill("editor");
+			await page.getByLabel("Application password", { exact: true }).fill("plain-source-login");
+			await press(page, "Test connection");
+			await page.getByText("Connected · Role: editor", { exact: true }).waitFor();
+			await drainUntil(page, "live-browser.example was read");
+			await press(page, "Continue to mapping");
+			await page.getByRole("heading", { name: "Sample Entry" }).waitFor();
+			await page.getByText("Bread & butter – today", { exact: true }).first().waitFor();
+			await expectAccessibleScreen(page, `Plain source Map (${theme})`);
+			await press(page, "Preview");
+			await drainUntil(page, /Entr(?:y as a Draft|ies as Drafts)/);
+			await page.getByRole("button", { name: /^Bread & butter – today/ }).waitFor();
+			await expectAccessibleScreen(page, `Plain source Preview (${theme})`);
+			await press(page, "Start Import");
+			await drainUntil(page, "Import report: Plain source");
+			await expectAccessibleScreen(page, `Plain source report (${theme})`);
+			const { api } = member.browser;
+			const posts = (await api.postTypes.list({ siteId: site.id })).postTypes.find((type) => type.name === "Posts");
+			if (!posts) throw new Error("Expected the run to create Posts.");
+			expect(
+				(await api.entries.list({ siteId: site.id, postTypeId: posts.id })).entries.map((entry) => entry.draft.title),
+			).toEqual(["Bread & butter – today"]);
+		} finally {
+			await page.close();
+		}
+	});
+
 	test(`Live connection, password and visibility controls from the keyboard, ${theme}`, async () => {
 		install.install.dns.answer("live-browser.example", ["93.184.216.80"]);
 		install.install.http.respond("GET", /^https:\/\/live-browser.example\//, (r) => liveWordpressReply(new URL(r.url)));

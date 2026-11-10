@@ -8,6 +8,7 @@
  */
 import { importFiles } from "@webcraft/db/schema";
 import { isModuleError, type SourceFile, type SourceItem, type SourceValue } from "@webcraft/module-sdk";
+import { textFromHtml } from "@webcraft/renderer/body";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { defineJob, type JobContext } from "../jobs/define.ts";
@@ -183,9 +184,10 @@ export async function surveyItems(items: AsyncIterable<SourceItem>): Promise<Sou
 		}
 		const type = typeOf(item.type, "entries");
 		type.count++;
-		note(type, "title", "title", shortText(item.title));
+		note(type, "title", "title", item.values.title ? sampleOf(item.values.title) : shortText(item.title));
 		if (item.slug) note(type, "slug", "slug", item.slug);
-		for (const [key, value] of Object.entries(item.values)) note(type, key, value.kind, sampleOf(value));
+		for (const [key, value] of Object.entries(item.values))
+			if (key !== "title") note(type, key, value.kind, sampleOf(value));
 		if (type.samples.length < SURVEY_SAMPLES) type.samples.push(trimmedSample(item));
 	}
 	return {
@@ -209,7 +211,7 @@ function sampleOf(value: SourceValue): string | null {
 		case "text":
 			return shortText(value.text);
 		case "html":
-			return shortText(value.html.replace(/<[^>]*>/g, " "));
+			return shortText(textFromHtml(value.html));
 		case "date":
 			return value.date;
 		case "file":

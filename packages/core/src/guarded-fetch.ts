@@ -139,7 +139,7 @@ export function createGuardedFetch({
 				const location = response.headers.get("location");
 				// With no redirects allowed, a redirect is handed back as it is, for the caller to read.
 				if (!REDIRECTS.has(response.status) || location === null || maxRedirects === 0) {
-					const read = await Promise.race([readLimited(response, maxBytes), aborted]);
+					const read = await Promise.race([readLimited(response, maxBytes, hop.method === "HEAD"), aborted]);
 					// As `fetch` does, the answer says where it finally came from.
 					Object.defineProperty(read, "url", { value: hop.url.toString() });
 					return read;
@@ -212,9 +212,10 @@ function redirected(hop: Hop, url: URL, status: number): Hop {
 }
 
 /** The response, with its body read in full: refused once it grows past `maxBytes`. */
-async function readLimited(response: Response, maxBytes: number): Promise<Response> {
+async function readLimited(response: Response, maxBytes: number, isHead: boolean): Promise<Response> {
 	const declared = Number(response.headers.get("content-length"));
-	if (Number.isFinite(declared) && declared > maxBytes) {
+	// HEAD declares the representation's GET size, not a response body. Actual bytes remain bounded.
+	if (!isHead && Number.isFinite(declared) && declared > maxBytes) {
 		await response.body?.cancel();
 		throw new GuardedFetchError("size", `The answer is larger than ${maxBytes} bytes.`);
 	}

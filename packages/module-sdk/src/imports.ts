@@ -156,7 +156,7 @@ export type SourceValue =
 /** Live Import sources (SDK 1.13). No raw credentials, arbitrary URLs or request headers. */
 export type LiveConnection = {
 	readonly includeHidden: boolean;
-	/** A relative REST route under the chosen Site's wp-json/ root. GET only; redirects refused. */
+	/** A relative route under the chosen Site's discovered REST root. GET only; redirects refused. */
 	http(path: string, options?: { anonymous?: boolean }): Promise<Response>;
 };
 export type LiveSurvey = {

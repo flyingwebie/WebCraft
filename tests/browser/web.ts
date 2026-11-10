@@ -16,8 +16,8 @@ const http = createBunHttp();
 	http: async (request, options) => {
 		const url = new URL(request.url);
 		if (url.hostname !== "live-browser.example") return http(request, options);
-		const reply = liveWordpressReply(url);
-		return new Response(reply.body, { headers: reply.headers });
+		const reply = liveWordpressReply(url, request.method);
+		return new Response(reply.body, { status: reply.status, headers: reply.headers });
 	},
 };
 await import("../../apps/server/src/serve.ts");
