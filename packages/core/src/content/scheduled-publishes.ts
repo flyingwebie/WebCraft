@@ -19,7 +19,7 @@ import type { ComponentSources } from "./components.ts";
 import { draftVersion } from "./json.ts";
 import { orderForPublish, PublishAllInvalidError, PublishAllRefusedError, siteDrafts } from "./publish-all.ts";
 import { type PublishItem, publishItems, publishPermission, requirePublishPermissions } from "./publishing.ts";
-import { reviewsOnSchedule } from "./review-items.ts";
+import { reopenReviewsOfSchedule, reviewItemOf, reviewsOnSchedule } from "./review-items.ts";
 import { type ScheduleAction, type ScheduleKind, scheduledItemId, scheduledItemWhere } from "./scheduled-items.ts";
 import { unpublishEntry } from "./unpublishing.ts";
 
@@ -656,12 +656,28 @@ export async function updateScheduled(
 /**
  * Cancels a Scheduled publish (open the Site with `site.view`; the person must be allowed to publish
  * every item of it): nothing is published, and the Drafts stay as they are. Logged as
- * `scheduledPublish.cancel`.
+ * `scheduledPublish.cancel`. Items it had put In review by scheduling them wait for a reviewer again
+ * (`reopenReviewsOfSchedule`, logged as `review.reopen`), in the same transaction: a time that will
+ * never come must not leave them stuck "Scheduled" forever.
  */
 export async function cancelScheduled(scope: SiteScope, scheduleId: string): Promise<void> {
 	await scope.transaction(async (tx) => {
 		const { row, items } = await lockForChange(tx, scheduleId);
+		// Found and reopened before the row leaves: deleting it would null `schedule_id` itself
+		// (`ON DELETE SET NULL`), losing which Reviews to put back before this can find them.
+		const reopened = await reopenReviewsOfSchedule(tx, row.id);
 		await tx.delete(scheduledPublishes, eq(scheduledPublishes.id, row.id));
+		for (const review of reopened) {
+			await tx.audit("review.reopen", {
+				reviewId: review.row.id,
+				item: reviewItemOf(review.row),
+				name: review.name,
+				postTypeId: review.postTypeId,
+				submittedBy: review.row.submittedBy,
+				scheduleId: row.id,
+				reason: "cancelled",
+			});
+		}
 		await tx.audit("scheduledPublish.cancel", {
 			scheduleId: row.id,
 			action: row.action,
@@ -876,6 +892,9 @@ async function fail(
 		});
 		const named = (blocked ? items.find((each) => itemKey(itemOf(each)) === itemKey(blocked)) : undefined) ?? items[0];
 		const names = await itemNames(tx, named ? itemOf(named) : null, named?.name ?? null);
+		// Found and reopened before the row leaves: deleting it would null `schedule_id` itself
+		// (`ON DELETE SET NULL`), losing which Reviews to put back before this can find them.
+		const reopened = await reopenReviewsOfSchedule(tx, row.id);
 		await tx.delete(scheduledPublishes, eq(scheduledPublishes.id, row.id));
 		// WebCraft failed it, on behalf of the person who scheduled it.
 		await recordAudit(tx.db, deps.clock.now(), {
@@ -896,6 +915,26 @@ async function fail(
 				count: items.length,
 			},
 		});
+		// Items it had put In review by scheduling them wait for a reviewer again: nothing of theirs
+		// published, so a run that failed must not leave them stuck "Scheduled" for a time that won't come.
+		for (const review of reopened) {
+			await recordAudit(tx.db, deps.clock.now(), {
+				personId: row.createdBy,
+				via: { kind: "scheduledPublish" },
+				workspaceId: row.workspaceId,
+				siteId: row.siteId,
+				action: "review.reopen",
+				details: {
+					reviewId: review.row.id,
+					item: reviewItemOf(review.row),
+					name: review.name,
+					postTypeId: review.postTypeId,
+					submittedBy: review.row.submittedBy,
+					scheduleId: row.id,
+					reason: "failed",
+				},
+			});
+		}
 		return { row, items, ...names };
 	});
 	if (!failed) return "skipped";

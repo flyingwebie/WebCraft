@@ -372,6 +372,80 @@ describe("acting on it", () => {
 	});
 });
 
+describe("when the Scheduled publish it waited in disappears without publishing it", () => {
+	test('cancelling it: the item waits for a reviewer again, not stuck "Scheduled" for a time that will never come', async () => {
+		const site = await newSite();
+		const { entry, review } = await submitted(site, "Summer menu");
+		const at = new Date(install.clock.now().getTime() + 90 * MINUTE);
+		const { scheduled } = await site.editor.browser.api.publishing.schedule({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			at,
+		});
+		expect(
+			(await site.author.browser.api.reviews.get({ siteId: site.siteId, reviewId: review.id })).review,
+		).toMatchObject({ status: "scheduled", scheduledAt: at });
+		await install.drainJobs();
+		install.mail.clear();
+
+		await site.editor.browser.api.publishing.cancelScheduled({ siteId: site.siteId, scheduleId: scheduled.id });
+
+		expect(
+			(await site.author.browser.api.reviews.get({ siteId: site.siteId, reviewId: review.id })).review,
+		).toMatchObject({
+			status: "inReview",
+			scheduledAt: null,
+			decidedBy: null,
+			decidedAt: null,
+			canWithdraw: true,
+		});
+		expect((await site.editor.browser.api.reviews.list({ siteId: site.siteId })).reviews).toMatchObject([
+			{ item: { kind: "entry", id: entry.id }, status: "inReview", canAct: true },
+		]);
+		expect((await auditOf(site.siteId)).find((each) => each.action === "review.reopen")).toMatchObject({
+			personId: site.editor.personId,
+			details: { reviewId: review.id, scheduleId: scheduled.id, reason: "cancelled" },
+		});
+		// Nothing was decided: the Author isn't told it is no longer scheduled.
+		expect(await emailsTo(site.author.email)).toEqual([]);
+	});
+
+	test("a run that fails: nothing of it was published, so its Review waits again too", async () => {
+		const site = await newSite();
+		const { entry, review } = await submitted(site, "Winter sale");
+		const at = new Date(install.clock.now().getTime() + 60 * MINUTE);
+		const { scheduled } = await site.editor.browser.api.publishing.schedule({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			at,
+		});
+		// Breaks the frozen Draft at run time without touching it: a required Field it never had.
+		await staff.api.postTypes.update({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			fields: [{ key: "price", label: "Price", type: "text", required: true }],
+		});
+		await install.drainJobs();
+		install.mail.clear();
+
+		await install.clock.advance(60 * MINUTE);
+		await install.drainJobs();
+
+		expect((await site.editor.browser.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toEqual([]);
+		expect(
+			(await site.author.browser.api.reviews.get({ siteId: site.siteId, reviewId: review.id })).review,
+		).toMatchObject({ status: "inReview", scheduledAt: null, decidedBy: null });
+		expect((await staff.api.reviews.list({ siteId: site.siteId })).reviews).toMatchObject([
+			{ item: { kind: "entry", id: entry.id }, status: "inReview" },
+		]);
+		expect((await auditOf(site.siteId)).find((each) => each.action === "review.reopen")).toMatchObject({
+			details: { reviewId: review.id, scheduleId: scheduled.id, reason: "failed" },
+		});
+		const [failEmail] = await emailsTo(site.editor.email);
+		expect(failEmail?.subject).toContain("wasn't published as scheduled");
+	});
+});
+
 describe("withdrawing", () => {
 	test("its Author withdraws it while it waits; nobody else can, and nobody is emailed", async () => {
 		const site = await newSite();
