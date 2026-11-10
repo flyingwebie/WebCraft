@@ -32,8 +32,8 @@ export function createReferenceLookup(
 			return result.rows[0]?.value;
 		},
 		async prop(componentId, path, version) {
-			// Filter each version by the requested key path before LIMIT: a removed Prop can still
-			// belong to a former live version. A historical lookup cannot take a later reused key's type.
+			// Prefer the declaration that existed when this copy was written. If retention removed
+			// it, use surviving Structure as restoring that copy on the source Site would.
 			const fields = path.map((_, index) => `f${index}`);
 			const joins = fields.map(
 				(field, index) =>
@@ -53,11 +53,16 @@ export function createReferenceLookup(
  UNION ALL
  SELECT row->'content', row->>'changed_at', 'draft', 1
  FROM (${rows("public.checkpoints")}) source WHERE row->>'item_kind' = 'component' AND row->>'item_id' = ${parameter(1)}
+ ), candidates AS (
+ SELECT ${fields.at(-1)}.value, priority, kind, at::timestamptz AS at,
+ (${parameter(3)}::timestamptz IS NOT NULL AND at::timestamptz <= ${parameter(3)}::timestamptz) AS historical
+ FROM versions ${joins.join(" ")} WHERE ${matches.join(" AND ")}
  )
- SELECT ${fields.at(-1)}.value FROM versions ${joins.join(" ")}
- WHERE ${matches.join(" AND ")} AND (${parameter(3)}::timestamptz IS NULL OR at::timestamptz <= ${parameter(3)}::timestamptz)
- ORDER BY CASE WHEN ${parameter(3)}::timestamptz IS NULL THEN priority ELSE 0 END,
- CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END, at::timestamptz DESC NULLS LAST
+ SELECT value FROM candidates
+ ORDER BY CASE WHEN historical THEN 0 ELSE 1 END,
+ CASE WHEN historical THEN 0 ELSE priority END,
+ CASE WHEN historical AND ${parameter(2)} = 'draft' THEN 0 WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END,
+ at DESC NULLS LAST, CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END
  LIMIT 1`,
 				[...scope, componentId, version.kind, version.at ?? null, ...path],
 			);
