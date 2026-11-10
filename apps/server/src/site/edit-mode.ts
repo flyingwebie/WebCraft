@@ -172,6 +172,9 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	},
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
+	/** Puts a new image (or none) in an image region's media Field, in the Draft. */
+	image: async (services, session, body) =>
+		json(200, await services.editMode.saveImage(session, parse(imageChange, body))),
 	/**
 	 * What the editing bar shows for a page: its changes, the Site's pages, who is editing, and the
 	 * bar's words in the person's Admin language.
@@ -285,6 +288,13 @@ const regionChange = z.object({
 	item: z.string().max(100),
 	field: z.string().max(200),
 	value: z.string().max(200_000),
+	language: z.string().max(35).optional(),
+});
+
+const imageChange = z.object({
+	item: z.string().max(100),
+	field: z.string().max(200),
+	media: z.string().max(100).nullable(),
 	language: z.string().max(35).optional(),
 });
 

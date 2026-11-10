@@ -1,10 +1,14 @@
-import { editableField } from "../content/editable.ts";
+import { media } from "@webcraft/db/schema";
+import { eq } from "drizzle-orm";
+
+import { editableField, imageField } from "../content/editable.ts";
 import { getEntry, saveDraft } from "../content/entries.ts";
 import type { ContentProblem } from "../content/errors.ts";
 import type { Json } from "../content/field-types.ts";
 import { getGlobals, saveGlobalsDraft } from "../content/globals.ts";
 import { getPostType } from "../content/post-types.ts";
 import { isUuid } from "../ids.ts";
+import { MediaInTrashError, MediaInvalidError, MediaNotFoundError } from "../media/errors.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { EditFieldInvalidError } from "./errors.ts";
 
@@ -32,6 +36,25 @@ export type SavedRegion = {
 	/** The value as stored: trimmed text, cleaned rich text. */
 	value: Json;
 	/** What keeps the value from being published (an empty required value, a broken rule). */
+	problems: ContentProblem[];
+};
+
+/** A new image for an image region: a Media image of the Site's library, or null for none. */
+export type ImageChange = {
+	/** `entry:<id>` or `globals`, as the region's `data-wc-item` says. */
+	item: string;
+	/** The media Field's path within it, as `data-wc-field` says. */
+	field: string;
+	/** The Media item's id, or null to empty the region. */
+	media: string | null;
+	/** The language of the page the region is on (the Default language when absent). */
+	language?: string;
+};
+
+/** What choosing an image did: the item's status, the Media item now shown, and the value's problems. */
+export type SavedImage = {
+	status: "draft" | "published" | "changed";
+	media: string | null;
 	problems: ContentProblem[];
 };
 
@@ -77,7 +100,7 @@ export async function saveRegion(scope: SiteScope, change: RegionChange): Promis
 }
 
 /** A value given at a path, as a change to Fields takes it: `address.city` is `{ address: { city } }`. */
-function nested(path: string, value: string): Record<string, unknown> {
+function nested(path: string, value: string | null): Record<string, unknown> {
 	return path.split(".").reduceRight<unknown>((inner, name) => ({ [name]: inner }), value) as Record<string, unknown>;
 }
 
@@ -93,4 +116,47 @@ function valueAt(values: Record<string, Json>, path: string): Json {
 /** The problems of one value. */
 function problemsAt(problems: readonly ContentProblem[], at: string): ContentProblem[] {
 	return problems.filter((problem) => problem.at === at);
+}
+
+/**
+ * Puts a new image in an image region's media Field, in the Draft (the Site opened with
+ * `entry.edit`), through the same saves as the admin. The image must be one of the Site's Media
+ * library's images, out of the Trash; null empties the region.
+ */
+export async function saveImage(scope: SiteScope, change: ImageChange): Promise<SavedImage> {
+	const item = readEditItem(change.item);
+	const { language } = change;
+	const fields =
+		item.kind === "globals"
+			? (await getGlobals(scope, language)).fields
+			: (await getPostType(scope, (await getEntry(scope, item.id, language)).postTypeId)).fields;
+	if (!imageField(fields, change.field)) throw new EditFieldInvalidError();
+	if (change.media !== null) await checkImage(scope, change.media);
+	const values = nested(change.field, change.media);
+	if (item.kind === "globals") {
+		const saved = await saveGlobalsDraft(scope, { language, fields: values });
+		return {
+			status: saved.status,
+			media: mediaIdOf(valueAt(saved.draft, change.field)),
+			problems: problemsAt(saved.problems, `fields.${change.field}`),
+		};
+	}
+	const saved = await saveDraft(scope, item.id, { language, fields: values });
+	return {
+		status: saved.status,
+		media: mediaIdOf(valueAt(saved.draft.fields, change.field)),
+		problems: problemsAt(saved.problems, `fields.${change.field}`),
+	};
+}
+
+/** Refuses what an image region can't show: anything but an image of the Site's library, out of the Trash. */
+export async function checkImage(scope: SiteScope, mediaId: string): Promise<void> {
+	const row = isUuid(mediaId) ? await scope.first(media, eq(media.id, mediaId)) : undefined;
+	if (!row) throw new MediaNotFoundError();
+	if (row.trashedAt) throw new MediaInTrashError();
+	if (row.kind !== "image") throw new MediaInvalidError([{ at: "media", message: "An image region shows an image." }]);
+}
+
+function mediaIdOf(value: Json): string | null {
+	return typeof value === "string" ? value : null;
 }

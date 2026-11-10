@@ -25,12 +25,19 @@ import {
 	withdrawPage,
 } from "./page.ts";
 import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
-import { type RegionChange, type SavedRegion, saveRegion } from "./regions.ts";
+import {
+	type ImageChange,
+	type RegionChange,
+	type SavedImage,
+	type SavedRegion,
+	saveImage,
+	saveRegion,
+} from "./regions.ts";
 
 export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
 export type { PageChange, PageState } from "./page.ts";
 export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
-export type { EditItem, RegionChange, SavedRegion } from "./regions.ts";
+export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */
 export const EDIT_LINK_LIFETIME_MS = 60 * 1000;
@@ -100,6 +107,12 @@ export type EditMode = {
 	 * can't be changed in place (`EditFieldInvalidError`), and an Entry that isn't the Site's.
 	 */
 	save(session: EditSession, change: RegionChange): Promise<SavedRegion>;
+	/**
+	 * Puts a new image (or none) in an image region's media Field, in the Draft. Refuses a region that
+	 * isn't an image's (`EditFieldInvalidError`), and anything but an image of the Site's own Media
+	 * library out of the Trash.
+	 */
+	saveImage(session: EditSession, change: ImageChange): Promise<SavedImage>;
 	/** What the editing bar shows for the page at `path`: its changes, the Site's pages, who is editing. */
 	pageState(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
 	/** Undoes one of the page's changes (`key` of `item`), answering the page's state afterwards. */
@@ -276,6 +289,7 @@ export function createEditMode(options: {
 		},
 
 		save: (session, change) => saveRegion(session.scope, change),
+		saveImage: (session, change) => saveImage(session.scope, change),
 		pageState: (session, host, path) => pageState(deps, session, host, path),
 		undo: (session, host, input) => undoChange(deps, session, host, input),
 		discard: (session, host, path) => discardChanges(deps, session, host, path),

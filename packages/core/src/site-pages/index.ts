@@ -39,7 +39,7 @@ import {
 	siteComponents,
 } from "../content/components.ts";
 import { draftAddresses, findDraftEntry, findDraftPage } from "../content/draft-paths.ts";
-import { editableField } from "../content/editable.ts";
+import { editableField, imageField } from "../content/editable.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
 import { homePageId, type PublishedAddress, publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
@@ -1464,18 +1464,20 @@ function editRegions(
 	entry: { id: string; fields: readonly FieldDefinition[] } | null,
 	globalFields: readonly FieldDefinition[],
 ): EditModePage["region"] {
-	return (value, template, item) => {
+	return (value, template, place) => {
 		// Inside a Loop, values are an item's (Loop items in place are #74), or repeat with every item.
-		if (value.format || item) return undefined;
+		if (value.format || place.item) return undefined;
+		// An image's `src` shows a media Field; everything else is typed over.
+		const editableIn = place.image ? imageField : editableField;
 		if (value.path.startsWith("site.")) {
 			const key = value.path.slice("site.".length);
-			const editable = editableField(globalFields, key);
+			const editable = editableIn(globalFields, key);
 			return editable && regionTags("globals", key, editable.type, editable.label);
 		}
 		if (template !== "content" || !entry) return undefined;
 		// The title is a built-in value: the editing bar names it in the person's own language.
-		if (value.path === "title") return regionTags(`entry:${entry.id}`, "title", "text", null);
-		const editable = editableField(entry.fields, value.path);
+		if (value.path === "title" && !place.image) return regionTags(`entry:${entry.id}`, "title", "text", null);
+		const editable = editableIn(entry.fields, value.path);
 		return editable && regionTags(`entry:${entry.id}`, value.path, editable.type, editable.label);
 	};
 }
