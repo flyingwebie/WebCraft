@@ -395,8 +395,11 @@ async function moduleHttp(
 					const encoded = value.replace(/^Basic /, "");
 					const decoded = Buffer.from(encoded, "base64").toString("utf8");
 					const colon = decoded.indexOf(":");
-					for (const secret of [value, encoded, decoded, decoded.slice(colon + 1)])
-						if (secret) out = out.split(secret).join("[redacted]");
+					for (const secret of [value, encoded, decoded, decoded.slice(colon + 1)]) {
+						if (!secret) continue;
+						out = out.split(JSON.stringify(secret).slice(1, -1)).join("[redacted]");
+						out = out.split(secret).join("[redacted]");
+					}
 				}
 				return out;
 			};

@@ -171,8 +171,24 @@ for (const theme of THEMES) {
 		expect(await page.getByLabel("Site address", { exact: true }).isDisabled()).toBe(true);
 		await press(page, "Continue to mapping");
 		await press(page, "Preview");
-		await drainUntil(page, /Entries as Drafts/);
+		await drainUntil(page, /Entr(?:y as a Draft|ies as Drafts)/);
 		await expectAccessibleScreen(page, `Live Preview (${theme})`);
+		await press(page, "Start Import");
+		await drainUntil(page, "Import report: Live browser import");
+		await page.getByText("Some custom fields may only be in the export file.", { exact: false }).waitFor();
+		await expectAccessibleScreen(page, `Live report (${theme})`);
+		const again = page.getByRole("link", { name: "Run again", exact: true });
+		await again.focus();
+		await page.keyboard.press("Enter");
+		await page.getByRole("heading", { name: "WordPress live site" }).waitFor();
+		expect(await page.getByLabel("Application password", { exact: true }).inputValue()).toBe("");
+		await press(page, "Remove Import and saved login");
+		const dialog = page.getByRole("dialog", { name: "Remove Import and saved login" });
+		await dialog.waitFor();
+		await expectNoAxeViolations(page, `Remove live Import (${theme})`);
+		await dialog.getByRole("button", { name: "Remove Import and saved login", exact: true }).focus();
+		await page.keyboard.press("Enter");
+		await page.getByRole("heading", { name: "Imports", exact: true }).waitFor();
 		await page.close();
 	});
 }

@@ -92,6 +92,15 @@ test("the live SDK port confines a Module to the chosen REST root and never expo
 		const connected = await admin.api.imports.connect(input);
 		expect(connected.connection.roles).toEqual(["[redacted] [redacted] [redacted]", "includeHidden", "http"]);
 		expect(install.http.requests.at(-1)?.url).toBe("https://source.example/blog/wp-json/wp/v2/users/me");
+		install.http.respond("GET", /^https:\/\/source.example\//, (request) => ({
+			body: JSON.stringify({
+				echoed: Buffer.from((request.headers.get("authorization") ?? "").slice(6), "base64")
+					.toString("utf8")
+					.slice("login:".length),
+			}),
+		}));
+		const escaped = await admin.api.imports.connect({ ...input, applicationPassword: 'quoted-"password\\value' });
+		expect(escaped.connection.roles[0]).toBe('{"echoed":"[redacted]"}');
 	} finally {
 		await install.close();
 	}
