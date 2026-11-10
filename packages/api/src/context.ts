@@ -214,6 +214,19 @@ export function onSite(permission: Permission) {
  * `data.what`): changes to the person's account (their password, second factors, sessions, API
  * tokens, AI clients, preferences), confirming who they are, Edit mode and the Staging address.
  */
+/**
+ * The items within reach: while impersonating, only those in the Workspaces the impersonation
+ * reaches (`workspaceOf` names an item's Workspace); otherwise all of them.
+ */
+export function withinImpersonationReach<Item>(
+	context: { impersonation: ImpersonationView | null },
+	items: readonly Item[],
+	workspaceOf: (item: Item) => string,
+): Item[] {
+	const reach = context.impersonation?.workspaceIds;
+	return reach ? items.filter((item) => reach.includes(workspaceOf(item))) : [...items];
+}
+
 export function notWhileImpersonating(what: NotWhileImpersonating) {
 	return base.$context<ApiContext & { access: Access }>().middleware(({ context, next }) => {
 		assertNotImpersonating(context.access, what);
