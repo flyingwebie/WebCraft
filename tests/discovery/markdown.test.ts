@@ -252,11 +252,15 @@ describe("a copy", () => {
 	test("names the canonical URL the Entry gives, as its page's head does", async () => {
 		const site = await newSite();
 		await published(site, site.recipesId, { title: "Syndicated", seo: { canonical: "https://news.example/bread" } });
+		await published(site, site.recipesId, { title: "Abroad", seo: { canonical: "https://news.example/pâtisserie" } });
 
 		const { response } = await copy(`${site.origin}/recipes/syndicated.md`);
+		const abroad = await copy(`${site.origin}/recipes/abroad.md`);
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("link")).toBe('<https://news.example/bread>; rel="canonical"');
+		// A header carries ASCII only: international letters are percent-encoded.
+		expect(abroad.response.headers.get("link")).toBe('<https://news.example/p%C3%A2tisserie>; rel="canonical"');
 	});
 });
 

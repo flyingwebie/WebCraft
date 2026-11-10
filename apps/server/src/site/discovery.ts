@@ -81,7 +81,7 @@ export async function discoveryFile(
 			if (!answer) return null;
 			if ("location" in answer) return { redirect: answer.location };
 			// The page's canonical URL, as its head names it: a copy never competes with its page.
-			return { text: answer.text, headers: { link: `<${answer.canonical}>; rel="canonical"` } };
+			return { text: answer.text, headers: { link: `<${asciiAddress(answer.canonical)}>; rel="canonical"` } };
 		});
 	}
 	return null;
@@ -138,6 +138,18 @@ function fileResponse(request: Request, file: CachedPage, cacheStatus: "HIT" | "
 		return new Response(null, { status: 304, headers });
 	}
 	return new Response(file.html, { status: 200, headers });
+}
+
+/**
+ * An address as a header carries it: ASCII only, every other character percent-encoded (a canonical
+ * URL is kept as Staff wrote it, international letters included).
+ */
+function asciiAddress(address: string): string {
+	try {
+		return new URL(address).href;
+	} catch {
+		return encodeURI(address);
+	}
 }
 
 /** A strong ETag: the SHA-256 of the text, in base64url. */
