@@ -60,6 +60,15 @@ export type PostType = {
 	 */
 	seo: PostTypeSeo;
 	/**
+	 * Its Summary field (GLOSSARY.md › Summary): the text, rich text or Body field (by path) that says
+	 * in short what each Entry is about; null for none. Descriptions fall back to it (else to the start
+	 * of the Body field), and `llms.txt` and Markdown copies show it. It is one setting with the SEO
+	 * settings' `descriptionField`, its older name: both always say the same.
+	 */
+	summaryField: string | null;
+	/** Whether its Entries (and its Archive page) are listed in the Site's sitemaps and `llms.txt`. */
+	sitemap: boolean;
+	/**
 	 * Whether publishing its Entries saves Revisions (the Install's own switch comes first). Revisions
 	 * saved before it was turned off stay until the usual retention removes them.
 	 */
@@ -80,8 +89,12 @@ export type NewPostType = {
 	searchedFields?: unknown[];
 	/** Its SEO settings; WebCraft's defaults for the parts not given. */
 	seo?: PostTypeSeoChange;
+	/** Its Summary field (one setting with `seo.descriptionField`); none when not given. */
+	summaryField?: unknown;
 	/** Whether publishing its Entries saves Revisions; true when not given. */
 	revisions?: boolean;
+	/** Whether the Site's sitemaps and `llms.txt` list its Entries; true when not given. */
+	sitemap?: boolean;
 };
 
 /** What can change on a Post Type. Its key can't: Templates, Loops and files name it. */
@@ -94,8 +107,12 @@ export type PostTypeChange = {
 	searchedFields?: unknown[];
 	/** Changes its SEO settings: each part given replaces that part. */
 	seo?: PostTypeSeoChange;
+	/** Changes its Summary field (one setting with `seo.descriptionField`); null for none. */
+	summaryField?: unknown;
 	/** Turns Revisions of its Entries on or off. */
 	revisions?: boolean;
+	/** Lists its Entries in the Site's sitemaps and `llms.txt`, or leaves them out. */
+	sitemap?: boolean;
 };
 
 export const POST_TYPE_NAME_MAX_LENGTH = 100;
@@ -127,7 +144,11 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 			? defaultSearchedFields(fields)
 			: parseSearchedFields(input.searchedFields, fields, problems);
 	const defaults = keptPostTypeSeo({}, fields);
-	const seo = input.seo === undefined ? undefined : parsePostTypeSeo(input.seo, defaults, fields, problems);
+	const seoChange = withSummary(input, problems);
+	const seo =
+		seoChange === undefined
+			? undefined
+			: summaryProblems(input, problems, () => parsePostTypeSeo(seoChange, defaults, fields, problems));
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 
 	return saving(() =>
@@ -144,6 +165,7 @@ export async function createPostType(scope: SiteScope, input: NewPostType): Prom
 				fields,
 				searchable: input.searchable ?? true,
 				revisions: input.revisions ?? true,
+				sitemap: input.sitemap ?? true,
 				searchedFields,
 				// Until Staff set them, the defaults follow its Fields.
 				seo: seo ?? {},
@@ -186,10 +208,13 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 		change.searchedFields === undefined
 			? keptSearchedFields(existing.searchedFields, fields)
 			: parseSearchedFields(change.searchedFields, fields, problems);
+	const seoChange = withSummary(change, problems);
 	const seo =
-		change.seo === undefined
+		seoChange === undefined
 			? undefined
-			: parsePostTypeSeo(change.seo, keptPostTypeSeo(existing.storedSeo, fields), fields, problems);
+			: summaryProblems(change, problems, () =>
+					parsePostTypeSeo(seoChange, keptPostTypeSeo(existing.storedSeo, fields), fields, problems),
+				);
 	if (problems.length > 0) throw new PostTypeInvalidError(problems);
 	// The search documents of its Entries are built from these: when they change, the index is rebuilt.
 	const searchChanged =
@@ -213,6 +238,7 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 					fields,
 					searchable: change.searchable ?? existing.searchable,
 					revisions: change.revisions ?? existing.revisions,
+					sitemap: change.sitemap ?? existing.sitemap,
 					searchedFields,
 					...(seo ? { seo } : {}),
 					updatedAt: tx.now(),
@@ -287,6 +313,49 @@ async function findPostType(scope: Pick<SiteScope, "first">, postTypeId: string)
 	return row;
 }
 
+/**
+ * The SEO settings' change with the Summary field in it: `summaryField` and `seo.descriptionField` are
+ * one setting, so a change giving both must give the same Field (`summaryFieldTwice` otherwise).
+ */
+function withSummary(
+	change: { seo?: PostTypeSeoChange; summaryField?: unknown },
+	problems: ContentProblem[],
+): PostTypeSeoChange | undefined {
+	if (change.summaryField === undefined) return change.seo;
+	const given = change.seo?.descriptionField;
+	if (given !== undefined && (given || null) !== (change.summaryField || null)) {
+		problems.push({
+			at: "summaryField",
+			message: "summaryField and seo.descriptionField are one setting: give one of them.",
+			rule: "summaryFieldTwice",
+		});
+	}
+	return { ...change.seo, descriptionField: change.summaryField };
+}
+
+/** Reads the SEO settings, a refused Summary field reported where it was given (`summaryField`). */
+function summaryProblems<Result>(
+	change: { summaryField?: unknown },
+	problems: ContentProblem[],
+	read: () => Result,
+): Result {
+	const before = problems.length;
+	const result = read();
+	if (change.summaryField !== undefined) {
+		for (let index = before; index < problems.length; index++) {
+			const problem = problems[index] as ContentProblem;
+			if (problem.at !== "seo.descriptionField") continue;
+			problems[index] = {
+				...problem,
+				at: "summaryField",
+				rule: "summaryField",
+				message: "A Summary comes from a text, rich text or Body field of the Post Type.",
+			};
+		}
+	}
+	return result;
+}
+
 function checkName(input: string, problems: ContentProblem[]): string {
 	const name = input.trim();
 	if (!name || name.length > POST_TYPE_NAME_MAX_LENGTH) {
@@ -327,6 +396,7 @@ async function saving<Result>(save: () => Promise<Result>): Promise<Result> {
 
 export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 	const fields = storedFields(row.fields);
+	const seo = keptPostTypeSeo(row.seo, fields);
 	return {
 		id: row.id,
 		siteId: row.siteId,
@@ -338,7 +408,9 @@ export function toPostType(row: typeof postTypes.$inferSelect): PostType {
 		builtInFields: row.builtIn === "page" ? PAGE_BUILT_IN_FIELDS : BUILT_IN_FIELDS,
 		searchable: row.searchable,
 		searchedFields: keptSearchedFields(row.searchedFields, fields),
-		seo: keptPostTypeSeo(row.seo, fields),
+		seo,
+		summaryField: seo.descriptionField,
+		sitemap: row.sitemap,
 		revisions: row.revisions,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,

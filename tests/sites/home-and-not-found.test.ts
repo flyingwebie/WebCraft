@@ -245,9 +245,11 @@ describe("paths the Install keeps", () => {
 			"/_media/bread-1280.avif",
 			"/_content/v1/entries",
 			"/_wc/m/analytics/collect",
-			"/sitemap.xml",
-			"/robots.txt",
-			"/llms.txt",
+			// Files: the discovery files answer their own (tests/discovery/); these name none.
+			"/favicon.ico",
+			"/old-page.html",
+			"/sitemaps/no-such-post-type-1.xml",
+			"/blog/llms.txt",
 			"/about.md",
 		]) {
 			const response = await install.request(`${site.origin}${path}`);

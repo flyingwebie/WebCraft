@@ -5,8 +5,16 @@
  * each Site sets its own SEO settings (`site-settings.ts`); pages work out what they tell search
  * engines and other sites (`page-seo.ts`) for the renderer to write.
  */
+
+import type { AiCrawlerSetting } from "../discovery/ai-crawlers.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { type SiteSeoChange, type SiteSeoSettings, siteSeoSettings, updateSiteSeoSettings } from "./site-settings.ts";
+import {
+	type SiteSeoChange,
+	type SiteSeoSettings,
+	setAiCrawlers,
+	siteSeoSettings,
+	updateSiteSeoSettings,
+} from "./site-settings.ts";
 
 export { type EntrySeo, type EntrySeoChange, SEO_KEY } from "./entry-seo.ts";
 export * from "./seo-rules.ts";
@@ -22,12 +30,16 @@ export {
 	type SiteSeoSettings,
 } from "./site-settings.ts";
 
-/** A Site's SEO settings: everyone who sees the Site reads them; Staff change them (`structure.edit`). */
+/**
+ * A Site's SEO settings: everyone who sees the Site reads them; Staff change them (`structure.edit`),
+ * and Staff and Owners the AI crawler setting (`aiCrawlers.manage`).
+ */
 export type SeoService = {
 	settings(scope: SiteScope): Promise<SiteSeoSettings>;
 	updateSettings(scope: SiteScope, change: SiteSeoChange): Promise<SiteSeoSettings>;
+	setAiCrawlers(scope: SiteScope, setting: AiCrawlerSetting): Promise<SiteSeoSettings>;
 };
 
 export function createSeo(): SeoService {
-	return { settings: siteSeoSettings, updateSettings: updateSiteSeoSettings };
+	return { settings: siteSeoSettings, updateSettings: updateSiteSeoSettings, setAiCrawlers };
 }

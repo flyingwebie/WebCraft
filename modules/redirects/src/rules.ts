@@ -71,15 +71,44 @@ export async function ruleFor(context: ModuleContext, path: string): Promise<Rul
 	return found.sort((a, b) => b.fromPath.length - a.fromPath.length)[0];
 }
 
-/** Where the rules send a request for a Site path (the Site pipeline asks, through `redirectRules`). */
-export async function findTarget(context: ModuleContext, path: string): Promise<RedirectTarget | null> {
-	const rule = await ruleFor(context, path);
-	if (!rule) return null;
+/**
+ * Where the rules send each of many Site paths, in order (`redirectRules.findMany`, SDK 1.10): two
+ * reads for the whole list, the paths' own rules and the wildcard rules above any of them.
+ */
+export async function findTargets(
+	context: ModuleContext,
+	paths: readonly string[],
+): Promise<(RedirectTarget | null)[]> {
+	if (paths.length === 0) return [];
+	const unique = [...new Set(paths)];
+	const exact = await context.data.select(rules, and(eq(rules.wildcard, false), inArray(rules.fromPath, unique)));
+	const bases = [...new Set(unique.flatMap(wildcardBases))];
+	const wildcards = await context.data.select(rules, and(eq(rules.wildcard, true), inArray(rules.fromPath, bases)));
+	return paths.map((path) => {
+		const own = exact.find((rule) => rule.fromPath === path);
+		const above = wildcardBases(path);
+		const rule =
+			own ??
+			wildcards
+				.filter((candidate) => above.includes(candidate.fromPath))
+				.sort((a, b) => b.fromPath.length - a.fromPath.length)[0];
+		return rule ? targetOf(rule, path) : null;
+	});
+}
+
+/** What a rule answers for a path it matches. */
+function targetOf(rule: RuleRow, path: string): RedirectTarget {
 	return {
 		to: targetFor({ path: rule.fromPath, wildcard: rule.wildcard, target: rule.target }, path),
 		status: rule.status === 302 ? 302 : 301,
 		whereNoPage: rule.automatic,
 	};
+}
+
+/** Where the rules send a request for a Site path (the Site pipeline asks, through `redirectRules`). */
+export async function findTarget(context: ModuleContext, path: string): Promise<RedirectTarget | null> {
+	const rule = await ruleFor(context, path);
+	return rule ? targetOf(rule, path) : null;
 }
 
 /** What a person types for a rule. */

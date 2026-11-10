@@ -245,6 +245,7 @@ export const PROCEDURES = {
 	"consentBanner.record": read("One of the Site's Consent records, by its id."),
 	"seoSettings.get": read("The Site's SEO settings."),
 	"seoSettings.update": write("Changes the Site's SEO settings."),
+	"seoSettings.setAiCrawlers": write("Chooses what the Site's robots.txt says to AI crawlers."),
 	"designSystem.get": read("The Design system's Draft and published version."),
 	"designSystem.saveDraft": write("Saves a change to the Design system's Draft."),
 	"designSystem.createClass": write("Adds a Class to the Design system's Draft."),
