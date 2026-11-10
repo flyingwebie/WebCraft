@@ -288,6 +288,7 @@ async function answer(
 ): Promise<Response> {
 	const cacheKey = `content-api ${host.origin}${key}`;
 	let kept = cache.get(host.site.id, host.cacheGeneration, cacheKey, services.clock.now());
+	const hit = kept !== undefined;
 	if (!kept) {
 		const { body, keep } = await read();
 		const json = JSON.stringify(body);
@@ -300,6 +301,7 @@ async function answer(
 		etag: kept.etag,
 		"x-content-type-options": "nosniff",
 		"x-robots-tag": "noindex",
+		"x-cache": hit ? "HIT" : "MISS",
 		...(await cors.headers()),
 		...rateLimitHeaders(tallies, services),
 	};
