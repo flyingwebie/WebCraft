@@ -178,8 +178,7 @@
 		"BRANDING_INVALID_LOGO": "A logo is a PNG, JPEG or WebP image of at most 256 KB.",
 		"BRANDING_INVALID_ACCENT": "An accent colour is written #rrggbb, such as #c2410c.",
 		"BRANDING_INVALID_NAME": "A name has at most 100 characters.",
-		"SERVICES_LIST_INVALID": "Every service needs a name; the list holds at most 30.",
-		"PDF_UNAVAILABLE": "The PDF couldn't be made here."
+		"SERVICES_LIST_INVALID": "Every service needs a name; the list holds at most 30."
 	},
 	"roles": {
 		"superadmin": "Superadmin",

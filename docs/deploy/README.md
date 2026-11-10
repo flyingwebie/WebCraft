@@ -57,6 +57,10 @@ Change the image tag (`WEBCRAFT_VERSION`) and deploy again. The migrate step run
 
 `webcraft admin migrate --no-backup` skips the Backup (and says so). Each target's files run the step with its Backup; on Railway, send Backups to a bucket first (see [railway.md](railway.md)), since the pre-deploy container keeps nothing.
 
+### Upgrade notes
+
+- **Reports and Share links** (#104) gave the Share link address the slug `share` (`share.<sites domain>`), reserved from then on so no Site may take it. If a Site already had that slug, the migrate step moves it to the first free `share-<n>` the moment you upgrade past this version, and the Audit log records it as WebCraft itself (`site.slugChanged`, with the old and new slug). Nobody loses access: the Site's Staging address and everything that links to it (bookmarks aside) just move to the new slug, visible on the Site's page in the admin.
+
 ### Going back a version
 
 Every migration keeps the previous version working (add first, remove in a later release), so going back one version is changing the tag back: the previous version's migrate step accepts the newer database and changes nothing, and web and worker start on it.

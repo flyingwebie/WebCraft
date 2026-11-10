@@ -178,8 +178,7 @@
 		"BRANDING_INVALID_LOGO": "Un logo è un'immagine PNG, JPEG o WebP di al massimo 256 KB.",
 		"BRANDING_INVALID_ACCENT": "Un colore d'accento si scrive #rrggbb, come #c2410c.",
 		"BRANDING_INVALID_NAME": "Un nome ha al massimo 100 caratteri.",
-		"SERVICES_LIST_INVALID": "Ogni servizio ha bisogno di un nome; l'elenco ne contiene al massimo 30.",
-		"PDF_UNAVAILABLE": "Qui non è stato possibile creare il PDF."
+		"SERVICES_LIST_INVALID": "Ogni servizio ha bisogno di un nome; l'elenco ne contiene al massimo 30."
 	},
 	"roles": {
 		"superadmin": "Superadmin",

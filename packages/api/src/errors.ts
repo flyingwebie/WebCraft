@@ -105,7 +105,6 @@ import {
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
 	PathTakenError,
-	PdfRenderError,
 	PermissionDeniedError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
@@ -534,9 +533,6 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ServicesListInvalidError) {
 		return new ORPCError("SERVICES_LIST_INVALID", { status: 400, message: error.message, cause: error });
-	}
-	if (error instanceof PdfRenderError) {
-		return new ORPCError("PDF_UNAVAILABLE", { status: 503, message: error.message, cause: error });
 	}
 	if (error instanceof WebhookInvalidError) {
 		return new ORPCError("WEBHOOK_INVALID", {
