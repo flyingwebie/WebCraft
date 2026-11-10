@@ -2,6 +2,7 @@ import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
 import {
 	ArchiveIcon,
+	BracesIcon,
 	BriefcaseIcon,
 	Building2Icon,
 	ChartColumnIcon,
@@ -425,6 +426,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						label: "shell.nav.siteEmail",
 						icon: MailIcon,
 						to: "/sites/$siteId/email",
+						requires: "structure.edit",
+					},
+					{
+						id: "site-content-api",
+						label: "shell.nav.contentApi",
+						icon: BracesIcon,
+						to: "/sites/$siteId/content-api",
 						requires: "structure.edit",
 					},
 					{
