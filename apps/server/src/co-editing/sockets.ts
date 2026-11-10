@@ -6,7 +6,6 @@ import {
 	createCoEditing,
 	DRAFTS_PROTOCOL,
 	DraftNotLiveError,
-	EDIT_MODE_PATH,
 	EDIT_TOKEN_PROTOCOL_PREFIX,
 	type HistoryItem,
 	type InstallServices,
@@ -22,6 +21,9 @@ import { clientAddress } from "../client-address.ts";
 import { json, plainText } from "../responses.ts";
 import { cookieValue } from "../site/cookies.ts";
 import { editCookieName, editSessionOf } from "../site/edit-mode.ts";
+import { ADMIN_DRAFTS_PREFIX, EDIT_DRAFTS_PREFIX } from "./paths.ts";
+
+export { ADMIN_DRAFTS_PREFIX, EDIT_DRAFTS_PREFIX } from "./paths.ts";
 
 /**
  * Co-editing's WebSockets (ADR 0025): one per Draft an editor has open, upgraded from a `GET` that
@@ -37,12 +39,6 @@ export type SocketUpgrade = { protocol: string; open(peer: SocketPeer): SocketSe
 
 /** What a WebSocket upgrade gets: a refusal, or a socket to open. */
 export type UpgradeAnswer = Response | SocketUpgrade;
-
-/** Where the admin's editors open a Draft's socket. */
-export const ADMIN_DRAFTS_PREFIX = "/api/drafts/";
-
-/** Where Edit mode opens a Draft's socket, on the Site's own domain. */
-export const EDIT_DRAFTS_PREFIX = `${EDIT_MODE_PATH}drafts/`;
 
 export type DraftSockets = {
 	/** An upgrade on the admin host. */

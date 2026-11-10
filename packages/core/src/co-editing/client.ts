@@ -219,6 +219,11 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 					presence = message.participants;
 					options.onPresence?.(presence);
 					return;
+				case "editable":
+					// Access granted or taken away while the socket stayed open: unlocks or locks at once.
+					mayEdit = message.editable;
+					setStatus(settled());
+					return;
 				case "saved":
 					if (message.seq === 0) stateUnsaved = false;
 					savedThrough = Math.max(savedThrough, message.seq);

@@ -2,12 +2,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ORPCError } from "@orpc/server";
+import { toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
 	type Clock,
+	type CoEditing,
 	coreJobs,
 	coreSchedules,
 	countriesFromFile,
+	createCoEditing,
 	createGuardedFetch,
 	createHttpAiProviders,
 	createInstallServices,
@@ -28,6 +32,8 @@ import {
 	migrateStep,
 	moduleSchemas,
 	type NewMembership,
+	type OpenDraft,
+	type OpenedDraft,
 	parseMasterKey,
 	type RestoreOptions,
 	type RestoreReport,
@@ -206,6 +212,14 @@ export type TestInstall = {
 	webProcess(): { upgrade(request: Request): Promise<UpgradeAnswer>; request(request: Request): Promise<Response> };
 	/** Sends a WebSocket upgrade request through the handler as it is (no cookies or origin added). */
 	upgrade(request: Request): Promise<UpgradeAnswer>;
+	/**
+	 * Opens an item's Draft directly through Co-editing's hub (ADR 0025), with whatever `access` and
+	 * `recheck` are given, instead of a real admin or Edit mode session's: for an access a built-in
+	 * role can't give alone, such as widening or narrowing while connected (every built-in role holds
+	 * `site.view` and `entry.edit` together, so a real session never sees them move apart). Everything
+	 * past that is the real thing: the document, its saves, Postgres LISTEN/NOTIFY. Stopped by `close()`.
+	 */
+	openDraftWithAccess(request: OpenDraft): Promise<OpenedDraft>;
 	/**
 	 * A new browser on the admin: it keeps cookies like a browser and calls the Management API the
 	 * way the admin does. Each browser comes from its own client address unless `address` says
@@ -472,6 +486,26 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const send = (request: Request) => handle(request);
 	const upgrade = (request: Request) => handle.upgrade(request);
 	const otherProcesses: WebHandler[] = [];
+	// Made on first use: a test that never calls `openDraftWithAccess` never gets a hub, nor LISTENs.
+	let directCoEditing: CoEditing | undefined;
+	const coEditingHub = (): CoEditing => {
+		directCoEditing ??= createCoEditing({
+			database: services.database,
+			databaseUrl: services.config.databaseUrl,
+			data: services.data,
+			history: services.history,
+			clock: services.clock,
+			log: services.log.child({ area: "co-editing (direct)" }),
+			components: services.modules.components,
+			describe: (error) => {
+				const refusal = toApiError(error);
+				return refusal instanceof ORPCError
+					? { code: refusal.code, message: refusal.message, data: refusal.data }
+					: null;
+			},
+		});
+		return directCoEditing;
+	};
 
 	let superadminAccount: TestAccount | undefined;
 	let superadminBrowser: TestBrowser | undefined;
@@ -720,9 +754,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			otherProcesses.push(other);
 			return { upgrade: (request) => other.upgrade(request), request: (request) => other(request) };
 		},
+		openDraftWithAccess: (request) => coEditingHub().open(request),
 		async close() {
 			await handle.stop();
 			for (const other of otherProcesses) await other.stop();
+			await directCoEditing?.stop();
 			await boss?.stop({ graceful: false, close: true });
 			await database.close();
 			await testDatabase?.drop();

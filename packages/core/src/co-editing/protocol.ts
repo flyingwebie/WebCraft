@@ -78,6 +78,15 @@ export type ServerMessage =
 			editable: boolean;
 	  }
 	| { type: "presence"; participants: Participant[] }
+	| {
+			/**
+			 * Whether the person may change it moved, since `welcome` or the last one of these: access
+			 * granted or taken away while the socket stayed open (read fresh every batch, and every 30
+			 * seconds whether or not they sent one), so the editor unlocks or locks without reconnecting.
+			 */
+			type: "editable";
+			editable: boolean;
+	  }
 	| { type: "saved"; seq: number }
 	| {
 			/**
