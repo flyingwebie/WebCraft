@@ -90,7 +90,7 @@ describe("failures in requests", () => {
 		const failure = (await groups()).find((group) => group.source.kind === "request");
 		expect(failure).toMatchObject({
 			count: 1,
-			source: { kind: "request", name: "GET /_media/" + name },
+			source: { kind: "request", name: `GET /_media/${name}` },
 			requestId,
 			places: [
 				{ workspace: { id: workspace.id, name: "Acme Ltd" }, site: { id: site.id, name: "Acme Bakery" }, count: 1 },
@@ -133,7 +133,7 @@ describe("resolving", () => {
 	test("marks a cause resolved, recorded in the Audit log; it opens again when it happens again", async () => {
 		await install.jobs.send(samplePing, { url: "https://resolve.unreachable.example/" });
 		await install.drainJobs();
-		const group = (await groups())[0];
+		const group = (await groups()).find((cause) => cause.source.name === "sample.ping");
 		if (!group) throw new Error("No cause was noted.");
 
 		const { group: resolved } = await admin.api.errorLog.resolve({ groupId: group.id });
@@ -222,7 +222,8 @@ describe("a storm of failures", () => {
 		const name = (media.url ?? "").replace("/_media/", "");
 		const folder = join(install.storageDir, workspace.id, site.id, "media");
 		// The failure earlier in this file has the same cause.
-		const before = (await groups()).find((group) => group.message.includes("EACCES"))?.count ?? 0;
+		const all = (await admin.api.errorLog.list({ state: "all" })).groups;
+		const before = all.find((group) => group.message.includes("EACCES"))?.count ?? 0;
 
 		chmodSync(folder, 0o000);
 		let statuses: number[];
