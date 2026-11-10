@@ -25,6 +25,7 @@ import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { ContextSwitcher } from "./ContextSwitcher.tsx";
 import type { ShellContext, SignedInPerson } from "./context.ts";
 import { EditOnSiteButton } from "./EditOnSiteButton.tsx";
+import { ImpersonationBanner } from "./ImpersonationBanner.tsx";
 import { type AdminPlace, navigationFor, placeParams } from "./levels.ts";
 import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
 import { SmtpFailingBanner } from "./SmtpFailingBanner.tsx";
@@ -68,8 +69,11 @@ export function AdminShell({
 					<Breadcrumbs place={place} />
 					{place.level === "site" ? (
 						<div className="ms-auto flex items-center gap-2">
-							<StagingButton siteId={place.site.id} />
-							{place.permissions.includes("entry.edit") ? <EditOnSiteButton siteId={place.site.id} /> : null}
+							{/* The Staging address and Edit mode open only as yourself, never while impersonating. */}
+							{shell.impersonation ? null : <StagingButton siteId={place.site.id} />}
+							{place.permissions.includes("entry.edit") && !shell.impersonation ? (
+								<EditOnSiteButton siteId={place.site.id} />
+							) : null}
 							{mayPublish ? (
 								<PublishAllButton siteId={place.site.id} count={place.drafts} open={publishAllAsked} />
 							) : null}
@@ -77,6 +81,9 @@ export function AdminShell({
 					) : null}
 				</header>
 				<main id="main" tabIndex={-1} className="flex flex-1 flex-col outline-none">
+					{shell.impersonation ? (
+						<ImpersonationBanner key={String(shell.impersonation.endsAt)} impersonation={shell.impersonation} />
+					) : null}
 					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
 					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
 					{shell.banners.backupFailing ? <BackupFailingBanner /> : null}
@@ -183,7 +190,8 @@ function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: S
 					<SidebarMenu>
 						<SidebarMenuItem className="flex items-center gap-1">
 							<UserMenu person={person} />
-							<ThemeSwitch theme={shell.theme} />
+							{/* Light or dark is the person's own preference: never changed while impersonating them. */}
+							{shell.impersonation ? null : <ThemeSwitch theme={shell.theme} />}
 						</SidebarMenuItem>
 					</SidebarMenu>
 				</SidebarFooter>

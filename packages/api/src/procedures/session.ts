@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
 	authEndpoint,
 	inAdminSessionBeforeTwoFactor,
+	notWhileImpersonating,
 	procedure,
 	rateLimited,
 	setCookies,
@@ -76,9 +77,12 @@ export const session = {
 		}),
 
 	/** Options for confirming who the signed-in person is with one of their passkeys. */
-	identityPasskeyOptions: inAdminSessionBeforeTwoFactor.use(rateLimited("auth")).handler(async ({ context }) => ({
-		options: await context.services.auth.identityPasskeyOptions(context.session),
-	})),
+	identityPasskeyOptions: inAdminSessionBeforeTwoFactor
+		.use(notWhileImpersonating("identityCheck"))
+		.use(rateLimited("auth"))
+		.handler(async ({ context }) => ({
+			options: await context.services.auth.identityPasskeyOptions(context.session),
+		})),
 
 	/**
 	 * Confirms who the signed-in person is, for this browser's session only: with their password, a
@@ -86,6 +90,7 @@ export const session = {
 	 * for the next 10 minutes. Wrong passwords and codes count towards the lockout.
 	 */
 	confirmIdentity: inAdminSessionBeforeTwoFactor
+		.use(notWhileImpersonating("identityCheck"))
 		.use(rateLimited("auth"))
 		.input(
 			z.union([z.object({ password }), z.object({ authenticatorCode }), z.object({ passkey: assertionCredential })]),
@@ -95,8 +100,13 @@ export const session = {
 			return { ok: true as const };
 		}),
 
-	/** Ends this browser's session: the answer clears the session cookie. */
+	/**
+	 * Ends this browser's session: the answer clears the session cookie. An impersonation going on in
+	 * it ends first, recorded as ended by signing out.
+	 */
 	signOut: procedure.handler(async ({ context }) => {
+		const { session } = await context.services.auth.session(context);
+		if (session) await context.services.impersonation.stop(session, "signedOut");
 		const { setCookie } = await context.services.auth.signOut(context.headers);
 		setCookies(context, setCookie);
 		return { ok: true as const };

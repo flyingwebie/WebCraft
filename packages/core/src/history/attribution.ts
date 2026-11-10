@@ -1,18 +1,21 @@
 import { people } from "@webcraft/db/schema";
 import { inArray } from "drizzle-orm";
 
-import { type AuditVia, clientNameOf } from "../audit.ts";
+import { type AuditVia, clientNameOf, impersonatorNameOf } from "../audit.ts";
 import type { Executor } from "../tenancy/data-layer.ts";
 
 /**
  * Who made a change, as history shows it: the person (null when nobody did, such as a Module by
  * itself, or they are gone), how they came in, as the Audit log records it, and the client they came
- * in through, which the admin shows as "<person> via <client>": an API token's name, an AI client's.
+ * in through, which the admin shows as "<person> via <client>": an API token's name, an AI client's;
+ * or who impersonated them, shown as "<Staff> as <Member>".
  */
 export type Attribution = {
 	person: { id: string; name: string } | null;
 	via: AuditVia;
 	client: string | null;
+	/** Who acted as the person, while the Superadmin or Staff impersonated them: "<Staff> as <Member>". */
+	impersonator: string | null;
 };
 
 /** A stored `via`, read back; an unreadable one counts as the admin. */
@@ -40,7 +43,9 @@ export function attribution(personId: string | null, via: AuditVia, names: Reado
 	return {
 		person: personId && name !== undefined ? { id: personId, name } : null,
 		via,
-		// The one place history reads the client a change came through ("<person> via <client>").
+		// The one place history reads the client a change came through ("<person> via <client>"), and
+		// who impersonated the person ("<Staff> as <Member>").
 		client: clientNameOf(via),
+		impersonator: impersonatorNameOf(via),
 	};
 }

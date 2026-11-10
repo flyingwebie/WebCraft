@@ -10,16 +10,20 @@ export const shell = {
 	 * the Admin language and theme pages are shown in, the setup stage, the Install's name, and which
 	 * banners to show (all for people who manage the Install): the Master key one, the notice that the
 	 * Install SMTP is Failing, the notice that the last Backup failed, and "Update available" with the
-	 * newest release; and where the person stands with two-factor authentication.
+	 * newest release; where the person stands with two-factor authentication; and the impersonation
+	 * going on in this session, if any (`person` is then the person impersonated).
 	 */
 	context: procedure.use(withPerson).handler(async ({ context }) => {
-		const { services, person } = context;
+		const { services, person, acting, session } = context;
 		const [settings, stage] = await Promise.all([services.settings.read(), services.setup.stage()]);
 		const code = person?.adminLanguage ?? settings.defaultAdminLanguage;
-		const actor = person ? await services.actors.person(person.id) : null;
-		const workspaces = actor ? await services.workspaces.list({ actor, via: context.via }) : [];
+		// While impersonating, the person's access, limited to the Workspaces the impersonation reaches.
+		const actor = acting?.access.actor.kind === "person" ? acting.access.actor : null;
+		const workspaces = actor && acting ? await services.workspaces.list(acting.access) : [];
 		const managesInstall = actor ? can(actor, "install.manage", INSTALL) : false;
-		const twoFactor = person ? await services.twoFactor.status(person.id) : null;
+		// Two-factor authentication is about whoever signed in: never the person they impersonate.
+		const twoFactor = session ? await services.twoFactor.status(session.personId) : null;
+		const impersonation = acting?.impersonation ?? null;
 		const [masterKeyBanner, smtpFailing, backupFailing, update] = managesInstall
 			? await Promise.all([
 					services.masterKey.status().then((status) => !status.stored),
@@ -56,7 +60,24 @@ export const shell = {
 						methods: twoFactor.methods,
 						required: twoFactor.required,
 						mustSetUp: twoFactor.required && !twoFactor.on,
-						reminder: twoFactor.reminder,
+						reminder: twoFactor.reminder && !impersonation,
+					}
+				: null,
+			/**
+			 * The impersonation going on in this session, for the banner on every page: who is
+			 * impersonated, by whom, and when it ends by itself. Null while there is none.
+			 */
+			impersonation: impersonation
+				? {
+						person: impersonation.person,
+						impersonator: impersonation.impersonator,
+						startedAt: impersonation.startedAt,
+						endsAt: impersonation.endsAt,
+						/** How long is left now, by the Install's clock (the banner counts down from it). */
+						secondsLeft: Math.max(
+							0,
+							Math.round((impersonation.endsAt.getTime() - services.clock.now().getTime()) / 1000),
+						),
 					}
 				: null,
 		};

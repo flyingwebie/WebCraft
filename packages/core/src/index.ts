@@ -34,12 +34,23 @@ export {
 	type NewApiToken,
 } from "./api-tokens.ts";
 export {
+	AUDIT_VIA_KINDS,
 	type AuditDetails,
 	type AuditEntry,
 	type AuditVia,
+	type AuditViaKind,
+	clientNameOf,
+	impersonatorNameOf,
 	type NewAuditEntry,
 	recordAudit,
 } from "./audit.ts";
+export {
+	AUDIT_EXPORT_LIMIT,
+	AUDIT_RETENTION_DAYS,
+	type AuditLog,
+	type AuditPage,
+	type AuditQuery,
+} from "./audit-log.ts";
 export { openBackupForCommand } from "./backups/command.ts";
 export * from "./backups/index.ts";
 export {
@@ -140,6 +151,21 @@ export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
 export { createNodeHttp } from "./http-node.ts";
 export { pinnedTarget } from "./http-pinned.ts";
 export { isUuid } from "./ids.ts";
+export {
+	type ActingAs,
+	assertNotImpersonating,
+	IMPERSONATION_MAX_MS,
+	IMPERSONATION_REASON_MAX_LENGTH,
+	type Impersonation,
+	type ImpersonationEnd,
+	ImpersonationNeedsSecondFactorError,
+	type ImpersonationRefusal,
+	ImpersonationRefusedError,
+	type ImpersonationView,
+	type NotWhileImpersonating,
+	NotWhileImpersonatingError,
+	PersonNotFoundError,
+} from "./impersonation.ts";
 export * from "./imports/index.ts";
 export {
 	type InstallProcess,

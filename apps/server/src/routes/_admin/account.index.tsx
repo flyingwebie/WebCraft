@@ -56,12 +56,14 @@ const THEMES: { value: Theme; label: MessageKey }[] = [
  */
 function AccountPage() {
 	const t = useT();
-	const { person } = Route.useRouteContext();
+	const { person, shell } = Route.useRouteContext();
 	const { twoFactor } = Route.useLoaderData();
 	const role = t(roleLabel(person.installRole));
 	return (
 		<>
-			<PageHeader heading={t("account.heading")} />
+			<PageHeader heading={t("account.heading")}>
+				{shell.impersonation ? t("impersonation.accountNotice", { name: person.name }) : null}
+			</PageHeader>
 			<div className="grid max-w-2xl gap-6">
 				<Card>
 					<CardHeader>

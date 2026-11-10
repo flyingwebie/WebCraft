@@ -11,7 +11,6 @@ export function errorMessage(error: unknown): MessageKey {
 		case "SIGN_IN_EXPIRED":
 		case "AUTHENTICATOR_EXISTS":
 		case "TWO_FACTOR_NOT_FOUND":
-		case "TWO_FACTOR_OFF":
 		case "TWO_FACTOR_REQUIRED":
 		case "TWO_FACTOR_SETUP_REQUIRED":
 		case "PASSKEY_INVALID":
@@ -26,6 +25,8 @@ export function errorMessage(error: unknown): MessageKey {
 		case "INVALID_CREDENTIALS":
 		case "UNAUTHORIZED":
 		case "FORBIDDEN":
+		case "NOT_WHILE_IMPERSONATING":
+		case "PERSON_NOT_FOUND":
 		case "WORKSPACE_NOT_FOUND":
 		case "SITE_NOT_FOUND":
 		case "STAFF_NOT_FOUND":
@@ -260,6 +261,19 @@ export function errorMessage(error: unknown): MessageKey {
 				: data?.problem === "leaked"
 					? "errors.PASSWORD_LEAKED"
 					: "errors.PASSWORD_TOO_SHORT";
+		case "TWO_FACTOR_OFF":
+			return (data as { for?: unknown } | undefined)?.for === "impersonation"
+				? "errors.IMPERSONATION_NEEDS_TWO_FACTOR"
+				: "errors.TWO_FACTOR_OFF";
+		case "IMPERSONATION_REFUSED":
+			switch ((data as { reason?: unknown } | undefined)?.reason) {
+				case "self":
+					return "errors.IMPERSONATION_REFUSED_SELF";
+				case "staff":
+					return "errors.IMPERSONATION_REFUSED_STAFF";
+				default:
+					return "errors.IMPERSONATION_REFUSED_SUPERADMIN";
+			}
 		default:
 			return "errors.generic";
 	}

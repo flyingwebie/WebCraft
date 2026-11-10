@@ -66,6 +66,8 @@ import {
 	HomePageUnpublishError,
 	HostInvalidError,
 	IdentityCheckRequiredError,
+	ImpersonationNeedsSecondFactorError,
+	ImpersonationRefusedError,
 	ImportFileNotFoundError,
 	ImportFileNotReadyError,
 	ImportInvalidError,
@@ -106,6 +108,7 @@ import {
 	ModuleFailedError,
 	ModuleNotApprovedError,
 	ModuleNotFoundError,
+	NotWhileImpersonatingError,
 	OAuthGrantNotFoundError,
 	OAuthRequestError,
 	OutsideScriptNotFoundError,
@@ -115,6 +118,7 @@ import {
 	PagesHaveNoEntryTemplateError,
 	PathTakenError,
 	PermissionDeniedError,
+	PersonNotFoundError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
@@ -1016,6 +1020,33 @@ export function toApiError(error: unknown): unknown {
 			data: { error: error.error },
 			cause: error,
 		});
+	}
+	if (error instanceof NotWhileImpersonatingError) {
+		return new ORPCError("NOT_WHILE_IMPERSONATING", {
+			status: 403,
+			message: error.message,
+			data: { what: error.what },
+			cause: error,
+		});
+	}
+	if (error instanceof ImpersonationRefusedError) {
+		return new ORPCError("IMPERSONATION_REFUSED", {
+			status: 403,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof ImpersonationNeedsSecondFactorError) {
+		return new ORPCError("TWO_FACTOR_OFF", {
+			status: 409,
+			message: error.message,
+			data: { for: "impersonation" },
+			cause: error,
+		});
+	}
+	if (error instanceof PersonNotFoundError) {
+		return new ORPCError("PERSON_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof SensitiveActionRefusedError) {
 		return new ORPCError("SENSITIVE_ACTION_REFUSED", {

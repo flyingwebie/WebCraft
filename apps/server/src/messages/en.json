@@ -195,6 +195,12 @@
 		"TWO_FACTOR_SETUP_REQUIRED": "Set up two-factor authentication to continue.",
 		"PASSKEY_INVALID": "The passkey couldn't be used. Try again, or use another way.",
 		"PASSKEY_CANCELLED": "No passkey was used. Try again when you're ready.",
+		"NOT_WHILE_IMPERSONATING": "While you impersonate someone, this can't be done. Stop impersonating first.",
+		"IMPERSONATION_REFUSED_SELF": "You can't impersonate yourself.",
+		"IMPERSONATION_REFUSED_STAFF": "Only the Superadmin impersonates Staff.",
+		"IMPERSONATION_REFUSED_SUPERADMIN": "Nobody impersonates the Superadmin.",
+		"IMPERSONATION_NEEDS_TWO_FACTOR": "Add an authenticator app or a passkey to your own account (Your account) before you impersonate anyone.",
+		"PERSON_NOT_FOUND": "There is no such person, or you can't reach them.",
 		"REVIEW_INVALID_NOTHING": "Its Draft is what visitors see already: there is nothing to review.",
 		"REVIEW_INVALID_NOT_REVIEWABLE": "Only Entries, the Globals and the Consent banner's words are reviewed.",
 		"REVIEW_INVALID_COMMENT": "Say why you're sending it back.",
@@ -340,7 +346,8 @@
 			"account": "Your account",
 			"signOut": "Sign out",
 			"apiTokens": "API tokens",
-			"aiClients": "AI clients"
+			"aiClients": "AI clients",
+			"activity": "Activity"
 		},
 		"darkTheme": "Dark theme",
 		"nav": {
@@ -390,7 +397,8 @@
 			"history": "Revisions",
 			"filters": "Filters",
 			"servicesList": "Services list",
-			"reportBranding": "Report branding"
+			"reportBranding": "Report branding",
+			"auditLog": "Audit log"
 		}
 	},
 	"masterKeyBanner": {
@@ -458,7 +466,11 @@
 		"saved": "Saved.",
 		"requireTwoFactor": "Require two-factor authentication for everyone",
 		"requireTwoFactorHelp": "Everyone without it, Staff included, is asked to set it up right after signing in and can do nothing else until they have. API tokens keep working.",
-		"requireTwoFactorOwnFirst": "Add two-factor authentication to your own account first (Your account)."
+		"requireTwoFactorOwnFirst": "Add two-factor authentication to your own account first (Your account).",
+		"auditRetention": "Keep Audit log entries for",
+		"auditRetentionHelp": "Older entries are removed every day, for good. Changing this needs you to confirm who you are.",
+		"auditRetentionDays": "{days, plural, one {# day} other {# days}}",
+		"auditRetentionYears": "{years, plural, one {# year} other {# years}}"
 	},
 	"storageSettings": {
 		"pageTitle": "Storage",
@@ -4957,7 +4969,8 @@
 			"module": "The {module} Module",
 			"translation": "AI translation for {person}",
 			"via": "{person} via {client}",
-			"scheduledPublish": "{person} (Scheduled publish)"
+			"scheduledPublish": "{person} (Scheduled publish)",
+			"as": "{impersonator} as {person}"
 		},
 		"copy": {
 			"revision": "Revision",
@@ -5571,7 +5584,8 @@
 			"viewOnly": "You can see this Draft as others change it, but not change it yourself.",
 			"ended": "Editing has ended: you signed out or no longer have access. Reload the page to go on."
 		},
-		"refused": "That change wasn't saved: {reason}"
+		"refused": "That change wasn't saved: {reason}",
+		"as": "{impersonator} as {name}"
 	},
 	"schedule": {
 		"localTime": "({time} your time)",
@@ -5772,6 +5786,426 @@
 			"close": "Close",
 			"done": "{name}'s two-factor authentication was reset."
 		}
+	},
+	"audit": {
+		"pageTitle": "Audit log",
+		"heading": "Audit log",
+		"introInstall": "Who did what on this Install, when and how: in every Workspace, and on the Install itself. Entries can't be changed; each is kept for {days, plural, one {# day} other {# days}}.",
+		"introWorkspace": "Who did what in this Workspace, when and how. Entries can't be changed; each is kept for {days, plural, one {# day} other {# days}}.",
+		"filtersLabel": "Filter the entries",
+		"who": "Who",
+		"everyone": "Everyone",
+		"action": "What",
+		"everyAction": "Every action",
+		"how": "How",
+		"everyWay": "Every way",
+		"workspace": "Workspace",
+		"everyWorkspace": "Every Workspace",
+		"site": "Site",
+		"everySite": "Every Site",
+		"from": "From (UTC)",
+		"until": "Until (UTC)",
+		"clear": "Clear filters",
+		"columns": {
+			"time": "Time (UTC)",
+			"who": "Who",
+			"action": "What",
+			"where": "Where",
+			"how": "How"
+		},
+		"tableLabel": "Audit log entries, newest first",
+		"older": "Show older entries",
+		"loading": "Loading…",
+		"shown": "{count, plural, one {# entry shown} other {# entries shown}}",
+		"emptyTitle": "Nothing recorded yet",
+		"emptyBody": "Actions show here as people take them.",
+		"noMatch": "No entries match these filters.",
+		"export": "Export CSV",
+		"exported": "Exported {filename}.",
+		"exportedTruncated": "Exported the newest {count} entries as {filename}.",
+		"details": "Details",
+		"install": "The Install",
+		"workspaceGone": "A deleted Workspace",
+		"siteGone": "A deleted Site",
+		"onlyThisPerson": "Show only what {name} did",
+		"whoWords": {
+			"webcraft": "WebCraft",
+			"gone": "Someone no longer on the Install",
+			"via": "{person} via {client}",
+			"as": "{impersonator} as {person}"
+		},
+		"howWords": {
+			"admin": "Admin",
+			"editMode": "Edit mode",
+			"token": "{name} token",
+			"aiClient": "AI client {name}",
+			"impersonation": "Impersonation",
+			"module": "Module {name}",
+			"command": "webcraft admin {name}",
+			"translation": "AI translation",
+			"scheduledPublish": "Scheduled publish"
+		},
+		"howOptions": {
+			"admin": "Admin",
+			"editMode": "Edit mode",
+			"token": "API token",
+			"aiClient": "AI client",
+			"impersonation": "Impersonation",
+			"module": "Module",
+			"command": "Server command",
+			"translation": "AI translation",
+			"scheduledPublish": "Scheduled publish"
+		},
+		"moduleAction": "{module}: {action}",
+		"actions": {
+			"account": {
+				"lock": "Account locked after wrong passwords"
+			},
+			"aiClient": {
+				"approve": "AI client approved",
+				"revoke": "AI client revoked"
+			},
+			"aiKey": {
+				"changeCap": "AI key's monthly cap changed",
+				"remove": "AI key removed",
+				"set": "AI key set"
+			},
+			"aiSettings": {
+				"change": "AI settings changed"
+			},
+			"allowedHost": {
+				"add": "Allowed host added",
+				"remove": "Allowed host removed"
+			},
+			"apiToken": {
+				"create": "API token created",
+				"revoke": "API token revoked"
+			},
+			"auditRetention": {
+				"change": "Audit log retention changed"
+			},
+			"backupCode": {
+				"use": "Signed in with a backup code"
+			},
+			"backupCodes": {
+				"regenerate": "New backup codes made"
+			},
+			"backups": {
+				"change": "Backup settings changed"
+			},
+			"browserLanguageRedirect": {
+				"change": "Browser language redirect changed"
+			},
+			"cdn": {
+				"change": "CDN settings changed"
+			},
+			"class": {
+				"delete": "Class deleted"
+			},
+			"component": {
+				"create": "Component created",
+				"delete": "Component deleted",
+				"publish": "Component published",
+				"rename": "Component renamed"
+			},
+			"consentBanner": {
+				"change": "Consent banner changed",
+				"publish": "Consent banner published"
+			},
+			"csp": {
+				"change": "Content Security Policy changed"
+			},
+			"dashboard": {
+				"create": "Dashboard created",
+				"delete": "Dashboard deleted",
+				"export": "Dashboard exported as CSV",
+				"update": "Dashboard changed"
+			},
+			"dashboardTemplate": {
+				"create": "Dashboard template created",
+				"delete": "Dashboard template deleted"
+			},
+			"defaultLanguage": {
+				"change": "Default language changed"
+			},
+			"designSystem": {
+				"publish": "Design system published"
+			},
+			"domain": {
+				"add": "Domain added",
+				"makePrimary": "Primary domain changed",
+				"remove": "Domain removed"
+			},
+			"draft": {
+				"restore": "Draft restored from history"
+			},
+			"editMode": {
+				"start": "Edit mode opened"
+			},
+			"entry": {
+				"delete": "Entry deleted",
+				"publish": "Entry published",
+				"unpublish": "Entry unpublished"
+			},
+			"filter": {
+				"create": "Filter created",
+				"publish": "Filter published"
+			},
+			"form": {
+				"create": "Form created",
+				"delete": "Form deleted",
+				"publish": "Form published",
+				"rename": "Form renamed"
+			},
+			"formCaptcha": {
+				"change": "Form CAPTCHA changed"
+			},
+			"formEmails": {
+				"publish": "Form emails published"
+			},
+			"globals": {
+				"publish": "Globals published",
+				"update": "Globals' Fields changed"
+			},
+			"historySettings": {
+				"change": "Revision settings changed"
+			},
+			"homePage": {
+				"change": "Home page changed"
+			},
+			"impersonation": {
+				"start": "Impersonation started",
+				"stop": "Impersonation ended"
+			},
+			"import": {
+				"create": "Import created",
+				"run": "Import run started",
+				"stop": "Import run stopped",
+				"undo": "Import run undone"
+			},
+			"install": {
+				"claim": "Install claimed"
+			},
+			"installSmtp": {
+				"change": "Install SMTP changed"
+			},
+			"language": {
+				"add": "Language added",
+				"remove": "Language removed",
+				"update": "Language changed"
+			},
+			"leakedPasswordCheck": {
+				"change": "Leaked-password check changed"
+			},
+			"library": {
+				"add": "Library added",
+				"remove": "Library removed",
+				"update": "Library changed"
+			},
+			"loop": {
+				"create": "Loop created",
+				"publish": "Loop published"
+			},
+			"masterKey": {
+				"confirmStored": "Master key confirmed stored"
+			},
+			"media": {
+				"deleteForever": "Media file deleted for good",
+				"import": "Media file imported from an address",
+				"replace": "Media file replaced",
+				"restore": "Media file restored from the Trash",
+				"trash": "Media file moved to the Trash",
+				"update": "Media file changed",
+				"upload": "Media file uploaded"
+			},
+			"mediaFolder": {
+				"create": "Media folder created",
+				"delete": "Media folder deleted",
+				"rename": "Media folder renamed"
+			},
+			"mediaMaxFileSize": {
+				"change": "Largest Media file changed"
+			},
+			"mediaTrash": {
+				"empty": "Media Trash emptied"
+			},
+			"member": {
+				"changeRole": "Member's role changed",
+				"changeSites": "Member's Sites changed",
+				"invite": "Member invited",
+				"join": "Member joined",
+				"remove": "Member removed",
+				"resendInvite": "Member invite sent again",
+				"revokeInvite": "Member invite revoked"
+			},
+			"module": {
+				"approve": "Module approved",
+				"changeKeep": "Module's data retention changed",
+				"removeData": "Module's data removed",
+				"switchOff": "Module switched off",
+				"switchOn": "Module switched on",
+				"withdraw": "Module approval withdrawn"
+			},
+			"notFoundPage": {
+				"change": "404 page changed"
+			},
+			"outsideScript": {
+				"add": "Outside script added",
+				"remove": "Outside script removed",
+				"update": "Outside script changed"
+			},
+			"password": {
+				"change": "Password changed"
+			},
+			"postType": {
+				"create": "Post Type created",
+				"update": "Post Type changed"
+			},
+			"protectedTerm": {
+				"add": "Protected term added",
+				"remove": "Protected term removed"
+			},
+			"report": {
+				"approve": "Report approved",
+				"create": "Report created",
+				"delete": "Report deleted",
+				"discard": "Report discarded",
+				"resend": "Report sent again",
+				"test": "Test Report sent",
+				"update": "Report changed"
+			},
+			"reportBranding": {
+				"change": "Report branding changed"
+			},
+			"reportRecipients": {
+				"change": "Report recipients changed"
+			},
+			"script": {
+				"publish": "Script published"
+			},
+			"searchPage": {
+				"change": "Search page changed"
+			},
+			"seoSettings": {
+				"change": "SEO settings changed"
+			},
+			"servicesList": {
+				"change": "Services list changed"
+			},
+			"session": {
+				"revoke": "Session signed out",
+				"revokeOthers": "Other sessions signed out"
+			},
+			"shareLink": {
+				"create": "Share link created",
+				"revoke": "Share link revoked",
+				"update": "Share link changed"
+			},
+			"sharedAiKey": {
+				"add": "Shared AI key added",
+				"assign": "Shared AI key assigned",
+				"remove": "Shared AI key removed",
+				"update": "Shared AI key changed"
+			},
+			"site": {
+				"create": "Site created",
+				"publishAll": "Publish all",
+				"slugChanged": "Site slug moved on upgrade"
+			},
+			"siteSmtp": {
+				"change": "Site email settings changed"
+			},
+			"staff": {
+				"changeWorkspaces": "Staff member's Workspaces changed",
+				"invite": "Staff member invited",
+				"join": "Staff member joined",
+				"revokeInvite": "Staff invite revoked"
+			},
+			"stagingPassword": {
+				"change": "Staging password changed"
+			},
+			"storage": {
+				"change": "Storage changed"
+			},
+			"storageQuota": {
+				"change": "Media storage quota changed"
+			},
+			"submissions": {
+				"read": "Submissions read by an API client"
+			},
+			"superadmin": {
+				"create": "Superadmin created"
+			},
+			"template": {
+				"publish": "Template published"
+			},
+			"translation": {
+				"publish": "Translation published",
+				"run": "Translate now started"
+			},
+			"translationMode": {
+				"change": "Translation mode changed"
+			},
+			"twoFactor": {
+				"add": "Second factor added",
+				"remove": "Second factor removed",
+				"reset": "Two-factor authentication reset"
+			},
+			"twoFactorRequirement": {
+				"change": "Two-factor requirement changed"
+			},
+			"webhook": {
+				"add": "Webhook added",
+				"changeSecret": "Webhook signing secret changed",
+				"remove": "Webhook removed",
+				"switchOff": "Webhook switched off",
+				"switchOn": "Webhook switched on",
+				"update": "Webhook changed"
+			},
+			"workspace": {
+				"create": "Workspace created"
+			},
+			"scheduledPublish": {
+				"create": "Scheduled publish set",
+				"reschedule": "Scheduled publish moved",
+				"update": "Scheduled publish changed",
+				"change": "Scheduled publish's version changed",
+				"cancel": "Scheduled publish cancelled",
+				"run": "Scheduled publish ran",
+				"fail": "Scheduled publish failed"
+			}
+		}
+	},
+	"activity": {
+		"pageTitle": "Activity",
+		"heading": "Your activity",
+		"intro": "What you did on this Install, newest first, and what the Superadmin or Staff did as you while impersonating you.",
+		"introImpersonating": "What {name} did on this Install, newest first, as far as this impersonation reaches.",
+		"tableLabel": "Activity, newest first",
+		"emptyTitle": "Nothing yet",
+		"emptyBody": "What you do in the admin shows here."
+	},
+	"impersonation": {
+		"menuItem": "Impersonate",
+		"title": "Impersonate {name}",
+		"intro": "See the admin exactly as {name} sees it, for up to an hour.",
+		"ruleAccount": "Their password, two-factor authentication, sessions, API tokens and AI clients can't change while you do.",
+		"ruleRecorded": "Everything you do is recorded as “{you} as {name}”, and {name} sees it in their own activity.",
+		"ruleOwn": "Edit mode, the Staging address and actions that need you to confirm who you are stay yours: stop impersonating first.",
+		"reason": "Reason (optional)",
+		"reasonHelp": "Kept in the Audit log, such as a support ticket number.",
+		"start": "Start impersonating",
+		"cancel": "Cancel",
+		"needsSecondFactor": "Add an authenticator app or a passkey to your own account first.",
+		"openAccount": "Open Your account",
+		"bannerLabel": "Impersonation",
+		"bannerText": "You are impersonating {name} ({email}).",
+		"minutesLeft": "{minutes, plural, one {# minute left} other {# minutes left}}",
+		"stop": "Stop impersonating",
+		"stopped": "You are yourself again.",
+		"ended": "The impersonation ended: you are yourself again.",
+		"buttonLabel": "Impersonate {name}",
+		"accountNotice": "While you impersonate {name}, nothing about their account can change: you see it as they do."
 	},
 	"review": {
 		"submit": "Submit for review",

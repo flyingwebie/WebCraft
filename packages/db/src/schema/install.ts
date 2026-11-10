@@ -58,6 +58,8 @@ export const installSettings = pgTable(
 		revisionsKept: integer("revisions_kept"),
 		/** How many days Checkpoints are kept; null for the default (30). */
 		checkpointDays: integer("checkpoint_days"),
+		/** How many days Audit log entries are kept; null for the default (365). */
+		auditRetentionDays: integer("audit_retention_days"),
 	},
 	(table) => [check("install_settings_single_row", sql`${table.id} = 1`)],
 );
