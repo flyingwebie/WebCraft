@@ -329,10 +329,10 @@ describe("moving, duplicating, removing and adding Loop items", () => {
 		editing = await openEditMode(install, editor, site.siteId, "/recipes/menu");
 	});
 
-	const ids = async (language?: string) => (await draftItems(site, language)).map((item) => item.id);
+	const ids = async (language?: string) => (await draftItems(site, language)).map((item) => String(item.id));
 
 	test("an item moves to another place, in every language", async () => {
-		const [sourdough, bun, rye] = site.items;
+		const [sourdough = "", bun = "", rye = ""] = site.items;
 
 		const response = await editing.edit("loop/move", { loop: site.loopId, item: rye, to: 0 });
 
@@ -347,7 +347,7 @@ describe("moving, duplicating, removing and adding Loop items", () => {
 	});
 
 	test("a duplicate comes right after its item, with its values in every language", async () => {
-		const [sourdough, bun, rye] = site.items;
+		const [sourdough = "", bun = "", rye = ""] = site.items;
 
 		const response = await editing.edit("loop/duplicate", { loop: site.loopId, item: sourdough });
 
@@ -403,7 +403,7 @@ describe("moving, duplicating, removing and adding Loop items", () => {
 			item: string;
 			items: string[];
 		};
-		expect(added.items).toEqual([before[0], added.item, ...before.slice(1)]);
+		expect(added.items).toEqual([before[0] ?? "", added.item, ...before.slice(1)]);
 		expect((await draftItems(site))[1]).toEqual({
 			id: added.item,
 			name: null,
@@ -475,7 +475,7 @@ describe("a query Loop's items", () => {
 		const other = await bakery();
 
 		const answer = (await json(await editing.edit("loop/entries", { entries: [entry.id, other.postIds[0]] }))) as {
-			entries: { id: string; href: string; page: boolean }[];
+			entries: { id: string; title: string; href: string; page: boolean }[];
 		};
 
 		expect(answer.entries).toEqual([
@@ -489,7 +489,14 @@ describe("a query Loop's items", () => {
 	});
 });
 
-type Change = { item: string; key: string; label: string | null; type: string; structure?: boolean };
+type Change = {
+	item: string;
+	key: string;
+	label: string | null;
+	type: string;
+	structure?: boolean;
+	by: { name: string; you: boolean } | null;
+};
 type State = { changes: Change[]; canPublish: boolean };
 
 describe("a Loop's items in the Publish menu", () => {
