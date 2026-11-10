@@ -79,13 +79,22 @@ export function useAuditWords() {
 	);
 }
 
+type ActionMessages = { [name: string]: string | ActionMessages };
+
+/** Leaf messages name actions, including nested ones such as import.credentials.use. */
+function actionNames(messages: ActionMessages, prefix = ""): string[] {
+	return Object.entries(messages).flatMap(([name, value]) => {
+		const path = prefix ? `${prefix}.${name}` : name;
+		return typeof value === "string" ? [path] : actionNames(value, path);
+	});
+}
+
 /** Every action the admin has words for, sorted by them, for the "What" filter. */
 function useActionChoices(): { value: string; label: string }[] {
 	const words = useAuditWords();
 	return useMemo(() => {
 		// Every language words the same actions: their names come from the English file.
-		return Object.entries(adminMessages.en.audit.actions as Record<string, Record<string, string>>)
-			.flatMap(([noun, verbs]) => Object.keys(verbs).map((verb) => `${noun}.${verb}`))
+		return actionNames(adminMessages.en.audit.actions)
 			.map((value) => ({ value, label: words.action(value) }))
 			.sort((a, b) => a.label.localeCompare(b.label));
 	}, [words]);

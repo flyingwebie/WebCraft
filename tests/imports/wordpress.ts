@@ -81,7 +81,7 @@ export async function surveyedExport(
 /** Approves the WordPress import and Redirects Modules, as the Superadmin does once. */
 export async function approveModules(install: TestInstall): Promise<void> {
 	const admin = await install.superadmin();
-	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 }
 

@@ -4,7 +4,7 @@ import type { z } from "zod";
 import type { ModuleBlockType, ModuleComponent } from "./component.ts";
 import type { ModuleContext, ModuleTable, ProcedureContext, SiteRouteContext } from "./context.ts";
 import type { ModuleEvent, ModuleEventName } from "./events.ts";
-import type { ImportSource } from "./imports.ts";
+import type { ModuleImportSource } from "./imports.ts";
 import type { Label, ModuleManifestInput } from "./manifest.ts";
 import type { NotFoundLog, RedirectRules } from "./redirects.ts";
 import type { ModuleSchedule, SubmissionReceiver } from "./submissions.ts";
@@ -97,7 +97,7 @@ export type ModuleDefinition = {
 	 * items, which WebCraft's Import pipeline maps, previews and writes as Drafts. See `importSource`.
 	 * Added in SDK 1.7.
 	 */
-	importSources?: readonly ImportSource[];
+	importSources?: readonly ModuleImportSource[];
 	/**
 	 * Kinds of Widget it adds to the catalog Staff build Dashboards from (Site-level Modules only), each
 	 * with its shape, the filters it takes, its settings and its `query` (see `widget`). Added in SDK 1.8.

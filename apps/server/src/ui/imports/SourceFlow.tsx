@@ -27,6 +27,7 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { Tabs } from "../Tabs.tsx";
+import { LiveConnection } from "./LiveConnection.tsx";
 import {
 	blockSummary,
 	type ImportView,
@@ -40,6 +41,7 @@ import {
 	uploadRefusal,
 } from "./model.ts";
 import { Note } from "./Note.tsx";
+import { RemoveImport } from "./RemoveImport.tsx";
 import { type ImportStep, Stepper } from "./Stepper.tsx";
 
 type Step = Extract<ImportStep, "source" | "map" | "preview">;
@@ -49,6 +51,7 @@ const POLL_MS = 1500;
 
 /** What the Source step knows of a Module's import source. */
 export type SourceChoice = {
+	kind?: "file" | "live";
 	id: string;
 	label: string;
 	description: string;
@@ -84,6 +87,7 @@ export function SourceImportFlow({
 	const ids = useId();
 	const heading = useRef<HTMLHeadingElement>(null);
 	const [step, setStep] = useState<Step>("source");
+	const [connectedId, setConnectedId] = useState<string | undefined>(existing?.id);
 	const [name, setName] = useState(existing?.name ?? "");
 	const [file, setFile] = useState<SourceFileView | null>(null);
 	const [sent, setSent] = useState(0);
@@ -180,8 +184,8 @@ export function SourceImportFlow({
 		setError(null);
 		try {
 			const api = await getApi();
-			const importId = existing
-				? (await api.imports.update({ siteId, importId: existing.id, name: name.trim(), settings })).import.id
+			const importId = connectedId
+				? (await api.imports.update({ siteId, importId: connectedId, name: name.trim(), settings })).import.id
 				: (await api.imports.create({ siteId, name: name.trim(), source: source.id, settings })).import.id;
 			const { run } = await api.imports.start({ siteId, importId, fileId: file.id });
 			await navigate({
@@ -276,27 +280,42 @@ export function SourceImportFlow({
 				</FieldError>
 			) : null}
 
-			{step === "source" ? (
-				<div className="grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]">
-					{chooser}
-					<section aria-labelledby={`${ids}-file-title`} className="grid content-start gap-6 rounded-lg border p-6">
-						<div className="grid gap-1">
-							<h2 id={`${ids}-file-title`} className="text-lg font-semibold">
-								{source.label}
-							</h2>
-							<p className="text-muted-foreground text-sm">{t("imports.sourceFlow.fileIntro")}</p>
-						</div>
-						<Field>
-							<FieldLabel htmlFor={`${ids}-name`}>{t("imports.flow.name")}</FieldLabel>
-							<Input
-								id={`${ids}-name`}
-								value={name}
-								maxLength={200}
-								aria-describedby={`${ids}-name-help`}
-								onChange={(event) => setName(event.target.value)}
-							/>
-							<FieldDescription id={`${ids}-name-help`}>{t("imports.flow.nameHelp")}</FieldDescription>
-						</Field>
+			<div className={cn("grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]", step !== "source" && "hidden")}>
+				{chooser}
+				<section aria-labelledby={`${ids}-file-title`} className="grid content-start gap-6 rounded-lg border p-6">
+					<div className="grid gap-1">
+						<h2 id={`${ids}-file-title`} className="text-lg font-semibold">
+							{source.label}
+						</h2>
+						<p className="text-muted-foreground text-sm">
+							{t(source.kind === "live" ? "imports.live.intro" : "imports.sourceFlow.fileIntro")}
+						</p>
+					</div>
+					<Field>
+						<FieldLabel htmlFor={`${ids}-name`}>{t("imports.flow.name")}</FieldLabel>
+						<Input
+							id={`${ids}-name`}
+							value={name}
+							maxLength={200}
+							aria-describedby={`${ids}-name-help`}
+							onChange={(event) => setName(event.target.value)}
+						/>
+						<FieldDescription id={`${ids}-name-help`}>{t("imports.flow.nameHelp")}</FieldDescription>
+					</Field>
+					{source.kind === "live" ? (
+						<LiveConnection
+							siteId={siteId}
+							source={source.id}
+							name={name}
+							existing={existing}
+							onBusy={setUploading}
+							onChange={(next, id) => {
+								setFile(next);
+								if (id) setConnectedId(id);
+								setSettings(null);
+							}}
+						/>
+					) : (
 						<Field>
 							<FieldLabel htmlFor={`${ids}-file`}>{t("imports.sourceFlow.file")}</FieldLabel>
 							<Input
@@ -316,29 +335,30 @@ export function SourceImportFlow({
 									: t("imports.sourceFlow.fileHelp", { gigabytes: Math.round(source.maxBytes / 1024 ** 3) })}
 							</FieldDescription>
 						</Field>
-						{file ? (
-							<FileStatus file={file} percent={percent} uploading={uploading} onRetry={() => setError(null)} />
-						) : null}
-					</section>
-					<aside aria-labelledby={`${ids}-know`} className="grid content-start gap-3">
-						<h2 id={`${ids}-know`} className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-							{t("imports.flow.goodToKnow")}
-						</h2>
-						<Note icon={<FileLockIcon className="size-4" aria-hidden="true" />}>
-							{t("imports.sourceFlow.notePrivate")}
+					)}
+					{connectedId && source.kind === "live" ? <RemoveImport siteId={siteId} importId={connectedId} /> : null}
+					{file ? (
+						<FileStatus file={file} percent={percent} uploading={uploading} onRetry={() => setError(null)} />
+					) : null}
+				</section>
+				<aside aria-labelledby={`${ids}-know`} className="grid content-start gap-3">
+					<h2 id={`${ids}-know`} className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+						{t("imports.flow.goodToKnow")}
+					</h2>
+					<Note icon={<FileLockIcon className="size-4" aria-hidden="true" />}>
+						{t(source.kind === "live" ? "imports.live.loginHelp" : "imports.sourceFlow.notePrivate")}
+					</Note>
+					<Note icon={<CalendarClockIcon className="size-4" aria-hidden="true" />}>{t("imports.flow.noteKept")}</Note>
+					{redirectsOn ? (
+						<Note icon={<CornerDownRightIcon className="size-4" aria-hidden="true" />}>
+							{t("imports.sourceFlow.noteRedirects")}
 						</Note>
-						<Note icon={<CalendarClockIcon className="size-4" aria-hidden="true" />}>{t("imports.flow.noteKept")}</Note>
-						{redirectsOn ? (
-							<Note icon={<CornerDownRightIcon className="size-4" aria-hidden="true" />}>
-								{t("imports.sourceFlow.noteRedirects")}
-							</Note>
-						) : (
-							<Warning>{t("imports.sourceFlow.redirectsOff")}</Warning>
-						)}
-						<Note icon={<ShieldCheckIcon className="size-4" aria-hidden="true" />}>{t("imports.flow.noteDrafts")}</Note>
-					</aside>
-				</div>
-			) : null}
+					) : (
+						<Warning>{t("imports.sourceFlow.redirectsOff")}</Warning>
+					)}
+					<Note icon={<ShieldCheckIcon className="size-4" aria-hidden="true" />}>{t("imports.flow.noteDrafts")}</Note>
+				</aside>
+			</div>
 
 			{step === "map" && file?.survey && settings ? (
 				<MapStep
@@ -347,7 +367,7 @@ export function SourceImportFlow({
 					settings={settings}
 					postTypes={postTypes}
 					onChange={setSettings}
-					importId={existing?.id ?? null}
+					importId={connectedId ?? null}
 				/>
 			) : null}
 
@@ -356,7 +376,7 @@ export function SourceImportFlow({
 					siteId={siteId}
 					fileId={file.id}
 					settings={settings}
-					importId={existing?.id ?? null}
+					importId={connectedId ?? null}
 					onError={(key) => setError({ key })}
 				/>
 			) : null}
@@ -427,7 +447,7 @@ function FileStatus({
 		return (
 			<p className="text-destructive flex items-start gap-2 text-sm" role="alert">
 				<CircleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-				{t(refusalKey(file.refusal?.code))}
+				{t(file.source.endsWith(".live") ? "imports.live.failed" : refusalKey(file.refusal?.code))}
 			</p>
 		);
 	}

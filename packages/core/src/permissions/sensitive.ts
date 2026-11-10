@@ -11,6 +11,8 @@ import type { Access } from "../tenancy/data-layer.ts";
  * add its row to `tests/auth/sensitive-actions.test.ts` (a guard test fails until you do).
  */
 export const SENSITIVE_ACTIONS = {
+	/** A live Import login, bound to its source. */
+	"import.connect": "changes a secret",
 	/** The Install SMTP: its password is a secret. */
 	"installSmtp.change": "changes a secret",
 	/** Inviting Staff. */

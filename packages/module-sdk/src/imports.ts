@@ -30,6 +30,7 @@ export type ImportSource = {
 	permission: string;
 	/** The file it reads: its largest size and the file name endings the admin offers. */
 	file: { maxBytes: number; extensions: readonly string[] };
+	live?: never;
 	/**
 	 * Reads the file into items, in the order they are to be written: a `type` before the first item
 	 * of that type, and an item another item points at (a parent Page, a term) before it where the
@@ -42,8 +43,21 @@ export type ImportSource = {
 	read(file: SourceFile, context: ModuleContext): AsyncIterable<SourceItem>;
 };
 
+/** A live declaration (SDK 1.13), using only Core's source-bound, secret-backed GET port. */
+export type LiveImportSourceDefinition = Pick<ImportSource, "key" | "label" | "description" | "permission"> & {
+	file?: never;
+	read?: never;
+	live: LiveImportSource;
+};
+
+/** The file and live declarations a Module may offer in its source catalogue. */
+export type ModuleImportSource = ImportSource | LiveImportSourceDefinition;
+
 /** Declares an import source. */
-export function importSource(source: ImportSource): ImportSource {
+export function importSource(source: ImportSource): ImportSource;
+export function importSource(source: LiveImportSourceDefinition): LiveImportSourceDefinition;
+export function importSource(source: ModuleImportSource): ModuleImportSource;
+export function importSource(source: ModuleImportSource): ModuleImportSource {
 	return source;
 }
 
@@ -138,3 +152,18 @@ export type SourceValue =
 	| { kind: "date"; date: string }
 	| { kind: "file"; file: SourceFileRef }
 	| { kind: "items"; sourceIds: readonly string[] };
+
+/** Live Import sources (SDK 1.13). No raw credentials, arbitrary URLs or request headers. */
+export type LiveConnection = {
+	readonly includeHidden: boolean;
+	/** A relative REST route under the chosen Site's wp-json/ root. GET only; redirects refused. */
+	http(path: string, options?: { anonymous?: boolean }): Promise<Response>;
+};
+export type LiveSurvey = {
+	roles: string[];
+	types: { key: string; label: string; route: string; holds: "entries" | "media"; taxonomy: boolean; count: number }[];
+};
+export type LiveImportSource = {
+	test(connection: LiveConnection): Promise<LiveSurvey>;
+	read(connection: LiveConnection, survey: LiveSurvey): AsyncIterable<SourceItem>;
+};

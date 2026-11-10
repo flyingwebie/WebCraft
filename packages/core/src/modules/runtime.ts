@@ -337,8 +337,9 @@ async function moduleHttp(
 	deps: RuntimeDeps,
 	url: string | URL,
 	options: ModuleHttpOptions = {},
+	binding?: { host: string; secretName: string },
 ): Promise<Response> {
-	const hosts = module.manifest.outsideHosts;
+	const hosts = binding ? [binding.host] : module.manifest.outsideHosts;
 	let target: URL;
 	try {
 		target = new URL(String(url));
@@ -379,12 +380,37 @@ async function moduleHttp(
 				headers: Object.fromEntries(Object.entries(headers).map(([name, value]) => [name, fill(value)])),
 				body: body === undefined ? undefined : fill(body),
 			});
-			return await deps.fetch(request, {
+			const response = await deps.fetch(request, {
 				allowedHosts: hosts,
 				timeoutMs: options.timeoutMs,
 				maxBytes: options.maxBytes,
 				// A call that carries a secret never follows a redirect: the secret stays with the declared host.
-				maxRedirects: values.size > 0 ? 0 : undefined,
+				maxRedirects: binding || values.size > 0 ? 0 : undefined,
+			});
+			if (!binding) return response;
+			let content = await response.text();
+			const clean = (input: string) => {
+				let out = input;
+				for (const value of values.values()) {
+					const encoded = value.replace(/^Basic /, "");
+					const decoded = Buffer.from(encoded, "base64").toString("utf8");
+					const colon = decoded.indexOf(":");
+					for (const secret of [value, encoded, decoded, decoded.slice(colon + 1)]) {
+						if (!secret) continue;
+						out = out.split(JSON.stringify(secret).slice(1, -1)).join("[redacted]");
+						out = out.split(secret).join("[redacted]");
+					}
+				}
+				return out;
+			};
+			content = clean(content);
+			return new Response([204, 205, 304].includes(response.status) ? null : content, {
+				status: response.status,
+				headers: Object.fromEntries(
+					[...response.headers]
+						.filter(([name]) => ["content-type", "x-wp-total", "x-wp-totalpages"].includes(name))
+						.map(([name, value]) => [name, clean(value)]),
+				),
 			});
 		} catch (error) {
 			// Only WebCraft's own words reach the Module, never the error behind them: an adapter's error
@@ -401,7 +427,7 @@ async function moduleHttp(
 		const [name, ...rest] = remaining;
 		if (name === undefined) return call(values);
 		try {
-			return await scope.secrets.useWith(`module:${module.id}:${name}`, (value) =>
+			return await scope.secrets.useWith(binding?.secretName ?? `module:${module.id}:${name}`, (value) =>
 				withSecrets(rest, new Map(values).set(name, value)),
 			);
 		} catch (error) {
@@ -417,4 +443,40 @@ async function moduleHttp(
 /** Whether an error is a Module's own answer (`ModuleError`), which isn't a failure. */
 export function isModuleAnswer(error: unknown): error is ModuleError | ConfirmationInvalidError {
 	return isModuleError(error) || error instanceof ConfirmationInvalidError;
+}
+
+/** Core-only binding: a live source can GET only beneath the authorized REST root. */
+export async function importSourceHttp(
+	module: RunnableModule,
+	scope: SiteScope,
+	deps: RuntimeDeps,
+	config: { address: string; secretName: string },
+	path: string,
+	anonymous = false,
+): Promise<Response> {
+	if (!module.manifest.uses.includes("importSourceHttp"))
+		throw new ModuleRefusedError("host", "Source requests were not approved.");
+	const base = new URL(`${config.address}wp-json/`);
+	const target = new URL(path, base);
+	if (
+		!path ||
+		target.origin !== base.origin ||
+		!target.pathname.startsWith(base.pathname) ||
+		target.username ||
+		target.password ||
+		target.hash ||
+		target.pathname.includes("%") ||
+		/\{\{|%7b/i.test(path) ||
+		path.includes("\\")
+	)
+		throw new ModuleRefusedError("host", "Only routes of this Import's source may be called.");
+	if (!anonymous) await scope.audit("import.credentials.use", { source: module.id, host: base.host });
+	return moduleHttp(
+		module,
+		scope,
+		deps,
+		target,
+		{ headers: anonymous ? {} : { authorization: "{{wc-secret:login}}" }, maxBytes: 5 * 1024 * 1024 },
+		{ host: base.hostname, secretName: config.secretName },
+	);
 }

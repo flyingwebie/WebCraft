@@ -67,7 +67,11 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 						}),
 			isNew: permission.isNew,
 		})),
-		...asks.uses.map((use) => ({ key: `use:${use.use}`, text: t("modules.consent.useEmail"), isNew: use.isNew })),
+		...asks.uses.map((use) => ({
+			key: `use:${use.use}`,
+			text: t(use.use === "importSourceHttp" ? "modules.consent.useImportSourceHttp" : "modules.consent.useEmail"),
+			isNew: use.isNew,
+		})),
 		...asks.outsideHosts.map((host) => ({
 			key: `host:${host.host}`,
 			text: t("modules.consent.host", { host: host.host }),

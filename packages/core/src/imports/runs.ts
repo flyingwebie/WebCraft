@@ -25,6 +25,7 @@ import type { ModuleHost } from "../modules/host.ts";
 import { actingPerson } from "../permissions/can.ts";
 import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
+import { CONNECTION_LIFETIME, connectionOf } from "./connection.ts";
 import { type CsvDetails, type CsvSeparator, csvColumns, csvRecords } from "./csv.ts";
 import { type CsvSettings, csvItem, csvMapping, csvSettingsSchema, matchKey, skippedColumns } from "./csv-source.ts";
 import {
@@ -120,6 +121,7 @@ const REPORT_LIST_LIMIT = 200;
 /** An Import run's Import report. */
 export type ImportRunReport = ImportRunSummary & {
 	importName: string;
+	warnings: string[];
 	source: ImportSource;
 	postType: { id: string; name: string } | null;
 	/** The language the run wrote values in. */
@@ -160,6 +162,7 @@ export type ImportRunReport = ImportRunSummary & {
 
 /** An Import: its source, its settings, and its runs. */
 export type Import = {
+	connection: import("./live.ts").ImportConnection | null;
 	id: string;
 	name: string;
 	source: ImportSource;
@@ -363,7 +366,22 @@ export async function startRun(
 			({ settings, total, summary } = await checkSourceRun(tx, { modules }, row, file));
 		}
 		const number = row.runs + 1;
-		await tx.update(imports, { runs: number }, eq(imports.id, row.id));
+		const connection = connectionOf(row.connection);
+		await tx.update(
+			imports,
+			{
+				runs: number,
+				...(connection
+					? {
+							connection: {
+								...connection,
+								expiresAt: new Date(tx.now().getTime() + CONNECTION_LIFETIME).toISOString(),
+							},
+						}
+					: {}),
+			},
+			eq(imports.id, row.id),
+		);
 		const created = await tx.insert(importRuns, {
 			importId: row.id,
 			number,
@@ -507,6 +525,7 @@ export async function runReport(scope: SiteScope, runId: string): Promise<Import
 	return {
 		...(summary as ImportRunSummary),
 		importName: parent?.name ?? "",
+		warnings: parent?.source === "wordpress-import.live" ? ["restCustomFields"] : [],
 		source: (parent?.source ?? "csv") as ImportSource,
 		postType: postType ? { id: postType.id, name: postType.name } : null,
 		language: settings.success ? settings.data.language : sourceSettings?.success ? sourceSettings.data.language : null,
@@ -831,6 +850,7 @@ async function importViews(scope: SiteScope, rows: readonly ImportRow[]): Promis
 			runs: row.runs,
 			entries: tracked.get(row.id) ?? 0,
 			lastRun: summaries.get(row.id) ?? null,
+			connection: connectionOf(row.connection),
 		};
 	});
 }

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import type forms from "@webcraft/module-forms";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { formVisitor } from "../harness/forms.ts";
@@ -13,15 +13,17 @@ let staff: TestBrowser;
 let siteId: string;
 let popupId: string;
 let postTypeId: string;
-const PAGE = "https://offers.live.test/pages/welcome";
+let pageUrl: string;
 beforeAll(async () => {
 	install = await createTestInstall();
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "popups", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
+});
+beforeEach(async () => {
 	const ws = await install.createWorkspace();
-	siteId = (await install.createSite(ws.id, { slug: "offers" })).id;
-	await goLive(install, siteId);
+	siteId = (await install.createSite(ws.id)).id;
+	pageUrl = `${await goLive(install, siteId)}/pages/welcome`;
 	staff = (await install.createStaff({ workspaces: [ws.id] })).browser;
 	await staff.api.languages.add({ siteId, code: "it" });
 	const { form } = await staff.api.forms.create({ siteId, name: "Contact", key: "contact" });
@@ -72,7 +74,7 @@ afterAll(async () => {
 	await install.close();
 });
 test("a click Popup has hidden dialog markup, a no-script fallback and same-origin assets", async () => {
-	const response = await install.request(PAGE);
+	const response = await install.request(pageUrl);
 	const html = await expectSafePage(response);
 	expect(html).toContain("data-wc-popup=");
 	expect(html).toContain('<dialog class="wc-popup"');
@@ -86,8 +88,8 @@ test("a click Popup has hidden dialog markup, a no-script fallback and same-orig
 });
 test("the hidden Popup Form participates in normal validation and submission", async () => {
 	const visitor = formVisitor(install);
-	const page = await visitor.open(PAGE);
-	await expectSafePage(await install.request(PAGE));
+	const page = await visitor.open(pageUrl);
+	await expectSafePage(await install.request(pageUrl));
 	const invalid = await visitor.send(page, { email: "invalid" });
 	expect(invalid.status).toBe(422);
 	const html = await expectSafePage(invalid);
@@ -96,7 +98,7 @@ test("the hidden Popup Form participates in normal validation and submission", a
 });
 test("turning the Module off leaves a working page with no promotion", async () => {
 	await staff.api.modules.setOnSite({ siteId, moduleId: "popups", on: false });
-	const html = await expectSafePage(await install.request(PAGE));
+	const html = await expectSafePage(await install.request(pageUrl));
 	expect(html).not.toContain("data-wc-popup=");
 	expect(html).not.toContain('data-wc-module="popups"');
 	await staff.api.modules.setOnSite({ siteId, moduleId: "popups", on: true });
@@ -117,7 +119,7 @@ test("a Popup's image uses normal Media rendering and appears in Used in", async
 	await staff.api.popups.publish({ siteId, popupId });
 	await staff.api.popups.saveContent({ siteId, popupId, values: { image: media.id } });
 	await staff.api.popups.publishContent({ siteId, popupId });
-	const html = await expectSafePage(await install.request(PAGE));
+	const html = await expectSafePage(await install.request(pageUrl));
 	expect(html).toContain('<img src="/_media/');
 	expect(html).toContain("/_media/");
 	const used = await staff.api.media.usage({ siteId, mediaId: media.id });
@@ -141,8 +143,8 @@ test("a hidden Form posts successfully and its private upload stays private", as
 	});
 	await staff.api.forms.publish({ siteId, formId: form.id });
 	const visitor = formVisitor(install);
-	const page = await visitor.open(PAGE);
-	await expectSafePage(await install.request(PAGE));
+	const page = await visitor.open(pageUrl);
+	await expectSafePage(await install.request(pageUrl));
 	const sent = await visitor.send(
 		page,
 		{ email: "popup@example.test" },
@@ -162,7 +164,7 @@ test("a hidden Form posts successfully and its private upload stays private", as
 	expectSiteHeaders(sent);
 	const location = sent.headers.get("location");
 	if (!location) throw new Error("Submission redirect missing");
-	const success = await expectSafePage(await install.request(new URL(location, PAGE)));
+	const success = await expectSafePage(await install.request(new URL(location, pageUrl)));
 	expect(success).toContain("Thank you. We have received your message.");
 	expect(success).toContain(`<section id="popup-offer"`);
 	expect(success).not.toContain("%PDF");
@@ -172,7 +174,7 @@ test("a hidden Form posts successfully and its private upload stays private", as
 	const file = files?.[0];
 	if (!file) throw new Error("Private upload missing");
 	expect(file.uploadId).toBeString();
-	const exposed = await install.request(`https://offers.live.test/_media/${file.uploadId}`);
+	const exposed = await install.request(new URL(`/_media/${file.uploadId}`, pageUrl));
 	expect(exposed.status).toBe(404);
 	expectSiteHeaders(exposed);
 });
@@ -191,7 +193,7 @@ test("removing Popup Module data is scoped and old Template links fail gracefull
 	if (ask.removed) throw new Error("Expected confirmation");
 	await staff.api.modules.removeSiteData({ siteId, moduleId: "popups", confirmation: ask.confirmation.id });
 	expect((await staff.api.popups.list({ siteId })).popups).toEqual([]);
-	const html = await expectSafePage(await install.request(PAGE));
+	const html = await expectSafePage(await install.request(pageUrl));
 	expect(html).toContain("Welcome");
 	expect(html).not.toContain("data-wc-popup=");
 });

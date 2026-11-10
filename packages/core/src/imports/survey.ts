@@ -10,10 +10,10 @@ import { importFiles } from "@webcraft/db/schema";
 import { isModuleError, type SourceFile, type SourceItem, type SourceValue } from "@webcraft/module-sdk";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-
 import { defineJob, type JobContext } from "../jobs/define.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { IMPORT_FILE_LIFETIME_MS } from "./files.ts";
+import { captureLive } from "./live.ts";
 import { streamParts } from "./uploads.ts";
 
 /** How many items of each type a survey keeps as samples. */
@@ -48,6 +48,11 @@ export type SourceSurvey = { items: number; types: SurveyType[] };
 
 /** A source's file once surveyed, or why it was refused. */
 export type SourceFileDetails = {
+	live?: {
+		importId: string;
+		connection: import("./live.ts").ImportConnection;
+		survey: import("@webcraft/module-sdk").LiveSurvey;
+	};
 	survey?: SourceSurvey;
 	refusal?: { code: string; message: string };
 };
@@ -98,7 +103,8 @@ async function runSurvey(context: JobContext, siteId: string, fileId: string): P
 	const scope = await context.data.background(siteId);
 	const row = scope ? await scope.first(importFiles, eq(importFiles.id, fileId)) : undefined;
 	if (!scope || !row || row.status !== "surveying") return;
-	const finish = async (details: SourceFileDetails) => {
+	const finish = async (result: SourceFileDetails) => {
+		const details = { ...(row.details as SourceFileDetails), ...result };
 		const now = scope.now();
 		await scope.update(
 			importFiles,
@@ -115,7 +121,12 @@ async function runSurvey(context: JobContext, siteId: string, fileId: string): P
 		return finish({ refusal: { code: "source", message: "The Module reading this file isn't on for the Site." } });
 	}
 	try {
-		return await finish({ survey: await surveyItems(source.read(sourceFileOf(context.storage, row))) });
+		return await finish({
+			survey:
+				source.kind === "live"
+					? await captureLive(context, row, source)
+					: await surveyItems(source.read(sourceFileOf(context.storage, row))),
+		});
 	} catch (error) {
 		const refusal = refusalOf(error);
 		if (refusal) return finish({ refusal });

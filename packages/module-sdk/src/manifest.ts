@@ -20,7 +20,7 @@ export const MODULE_PERMISSION_ROLES = ["staff", "owner", "editor", "author"] as
 export type ModulePermissionRole = (typeof MODULE_PERMISSION_ROLES)[number];
 
 /** WebCraft services a Module may ask to use. `email`: send emails through the Install's email settings. */
-export const MODULE_USES = ["email"] as const;
+export const MODULE_USES = ["email", "importSourceHttp"] as const;
 
 export type ModuleUse = (typeof MODULE_USES)[number];
 

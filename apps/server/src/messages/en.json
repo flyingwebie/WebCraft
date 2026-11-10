@@ -1480,7 +1480,8 @@
 			"partitions": "Keep {label} in monthly parts, each dropped once older than this Install keeps them (now {months, plural, one {# month} other {# months}})",
 			"redirectRules": "Keep the Sites' Redirect rules, which answer visitors before the Sites' own pages",
 			"notFoundLog": "Keep the Sites' 404 log: the paths visitors asked for that have no page, without their query strings or who asked",
-			"importSources": "Import content into Sites as Drafts from {sources}, creating Post Types, Media files and Redirect rules"
+			"importSources": "Import content into Sites as Drafts from {sources}, creating Post Types, Media files and Redirect rules",
+			"useImportSourceHttp": "Read live Import sources chosen by Staff, using a login confined to that source. Public HTTPS only; no authenticated redirects."
 		},
 		"roles": {
 			"staff": "Staff",
@@ -3920,6 +3921,23 @@
 				"typeTwice": "A type is mapped twice.",
 				"other": "The mapping doesn't fit the Site."
 			}
+		},
+		"live": {
+			"address": "Site address",
+			"username": "Username",
+			"password": "Application password",
+			"passwordHelp": "Create an application password in the WordPress profile screen.",
+			"hidden": "Include drafts and private posts",
+			"loginHelp": "The login is stored encrypted, never shown again, and its use is recorded in the Audit log. It is removed with the Import or 30 days after its last run. Leave both login fields empty to reuse it.",
+			"failed": "Could not connect. Check the Site address, login and source permissions, then test again.",
+			"connected": "Connected · Role: {roles}",
+			"connecting": "Connecting…",
+			"test": "Test connection",
+			"customFields": "Some custom fields may only be in the export file. REST only exposes fields registered by WordPress and its plugins.",
+			"intro": "Read posts, pages, custom post types, taxonomies and Media through the Site’s REST API.",
+			"remove": "Remove Import and saved login",
+			"removed": "Import removed",
+			"removeHelp": "Imported content stays. The mapping, reports, Source id matching and saved login are removed."
 		}
 	},
 	"seo": {
@@ -6344,7 +6362,12 @@
 				"stop": "Impersonation ended"
 			},
 			"import": {
+				"connect": "Import source connected",
 				"create": "Import created",
+				"credentials": {
+					"use": "Import login used"
+				},
+				"remove": "Import removed",
 				"run": "Import run started",
 				"stop": "Import run stopped",
 				"undo": "Import run undone"

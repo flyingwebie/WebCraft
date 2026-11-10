@@ -4,9 +4,8 @@
  * them in the background as Drafts with their Source id, and its Import report records what
  * happened. CSV files are the first source; the WordPress import (#112) plugs into the same seam.
  */
-import { importFiles } from "@webcraft/db/schema";
+import { importFiles, imports } from "@webcraft/db/schema";
 import { and, eq } from "drizzle-orm";
-
 import { listPostTypes } from "../content/post-types.ts";
 import { isUuid } from "../ids.ts";
 import type { JobQueue } from "../jobs/define.ts";
@@ -17,6 +16,7 @@ import type { SiteScope } from "../tenancy/data-layer.ts";
 import type { CsvSettings } from "./csv-source.ts";
 import { ImportFileNotFoundError } from "./errors.ts";
 import { IMPORT_FILE_LIFETIME_MS, type ImportFile, uploadCsv } from "./files.ts";
+import { type ConnectInput, connectSource, removeImport } from "./live.ts";
 import {
 	createImport,
 	getImport,
@@ -117,6 +117,20 @@ export type SourceSample = { entry: PreviewEntry | null; media: PreviewMedia | n
 
 /** A Site's Imports. Open the Site with `import.run`. */
 export type Imports = {
+	connect(
+		scope: SiteScope,
+		input: ConnectInput,
+	): Promise<{
+		importId: string;
+		file: SourceFileView;
+		connection: {
+			address: string;
+			includeHidden: boolean;
+			roles: string[];
+			types: { key: string; label: string; count: number }[];
+		};
+	}>;
+	remove(scope: SiteScope, importId: string, confirmation?: string): ReturnType<typeof removeImport>;
 	/**
 	 * Takes a CSV file for an Import: reads it whole, refusing what an Import can't take
 	 * (`CsvRefusedError`), and keeps it privately until a run takes it, or for a day.
@@ -201,6 +215,15 @@ export function createImports(options: { storage: InstallStorage; jobs: JobQueue
 		const now = scope.now().getTime();
 		if (!row || row.source === "csv" || row.expiresAt.getTime() <= now) throw new ImportFileNotFoundError();
 		await sourceFor(scope, modules, row.source);
+		const live = (row.details as SourceFileDetails).live;
+		if (live) {
+			const parent = await scope.first(imports, eq(imports.id, live.importId));
+			if (
+				!parent ||
+				(parent.connection as import("./live.ts").ImportConnection | null)?.revision !== live.connection.revision
+			)
+				throw new ImportFileNotFoundError();
+		}
 		// Using the file (its status, a sample, the preview) keeps it a day longer.
 		if (row.expiresAt.getTime() - now < IMPORT_FILE_LIFETIME_MS - 60 * 60_000) {
 			const expiresAt = new Date(now + IMPORT_FILE_LIFETIME_MS);
@@ -230,6 +253,11 @@ export function createImports(options: { storage: InstallStorage; jobs: JobQueue
 		};
 	};
 	return {
+		async connect(scope, input) {
+			const result = await connectSource(scope, options, input);
+			return { ...result, file: await view(scope, result.file) };
+		},
+		remove: (scope, importId, confirmation) => removeImport(scope, modules, storage, importId, confirmation),
 		uploadCsv: (scope, upload) => uploadCsv(scope, storage, upload),
 		preview: (scope, input) => previewRun(scope, storage, input),
 		list: listImports,

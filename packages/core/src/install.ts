@@ -6,7 +6,7 @@ import { systemClock } from "./clock.ts";
 import { type Environment, type InstallConfig, loadInstallConfig } from "./config.ts";
 import { countriesFromFile, unknownCountries } from "./countries.ts";
 import { createInstallServices } from "./create-services.ts";
-import { systemDns } from "./dns.ts";
+import { type Dns, systemDns } from "./dns.ts";
 import { createSmtpMailer } from "./email/smtp-mailer.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
 import type { OutgoingHttp } from "./http.ts";
@@ -52,6 +52,8 @@ export type OpenInstallOptions = {
 	 * Bun one.
 	 */
 	http: OutgoingHttp;
+	/** DNS adapter; an embedded host can provide its own resolver alongside outgoing HTTP. */
+	dns?: Dns;
 };
 
 /**
@@ -80,7 +82,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 	// Built before the job queue starts, so a wrong Master key is refused first.
 	const services = await createInstallServices(
 		{
-			...realPorts(config, database, log, options.http),
+			...realPorts(config, database, log, options.http, options.dns),
 			jobs: createJobQueue(boss),
 			images: options.images ?? imagesOnlyInWorker,
 			socialCardRenderer: options.socialCardRenderer ?? socialCardsOnlyInWorker,
@@ -188,17 +190,18 @@ function realPorts(
 	database: Database,
 	log: Logger,
 	http: OutgoingHttp,
+	dns: Dns = systemDns,
 ): Omit<InstallPorts, "jobs" | "images" | "pdf" | "socialCardRenderer"> {
 	return {
 		config,
 		database,
 		mailer: createSmtpMailer(),
 		http,
-		dns: systemDns,
+		dns,
 		tls: systemTls,
 		countries: config.countryFile ? countriesFromFile(config.countryFile, log) : unknownCountries,
 		// AI providers are called directly, through the guarded fetcher on this process's outgoing HTTP.
-		ai: createHttpAiProviders({ fetch: createGuardedFetch({ http, dns: systemDns }) }),
+		ai: createHttpAiProviders({ fetch: createGuardedFetch({ http, dns }) }),
 		clock: systemClock,
 		log,
 	};

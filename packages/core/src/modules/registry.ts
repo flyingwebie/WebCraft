@@ -4,7 +4,6 @@ import {
 	type ComponentProp,
 	type ConsentCategory,
 	IMPORT_FILE_MAX_BYTES,
-	type ImportSource,
 	type Label,
 	labelProblem,
 	MODULE_EVENTS,
@@ -12,6 +11,7 @@ import {
 	type ModuleContext,
 	type ModuleDefinition,
 	type ModuleEventName,
+	type ModuleImportSource,
 	type ModuleJob,
 	type ModuleManifest,
 	type ModuleProcedure,
@@ -104,7 +104,7 @@ export type RunnableModule = {
 	/** How it keeps the Sites' 404 log, when it does (SDK 1.5; at most one Module of a build). */
 	notFoundLog: NotFoundLog | null;
 	/** The sources it imports content from (SDK 1.7), by key. */
-	importSources: ReadonlyMap<string, ImportSource>;
+	importSources: ReadonlyMap<string, ModuleImportSource>;
 	/** The kinds of Widget it adds to Dashboards (SDK 1.8). */
 	widgets: readonly ModuleWidget[];
 	/** The names of a Site's Goals its Widgets' `goal` filter offers (SDK 1.8). */
@@ -540,7 +540,7 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		}
 	}
 
-	const importSources = new Map<string, ImportSource>();
+	const importSources = new Map<string, ModuleImportSource>();
 	for (const source of definition.importSources ?? []) {
 		if (level !== "site") problem("Only Site-level Modules import content: an Import brings it into a Site.");
 		if (typeof source?.key !== "string" || !SOURCE_KEY.test(source.key)) {
@@ -555,14 +555,30 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 			if (missing) problem(`The import source ${source.key}'s ${what}: ${missing}`);
 		}
 		checkPermission(source.permission, `The import source ${source.key}`);
-		const { maxBytes, extensions } = source.file ?? {};
-		if (!isWhole(maxBytes, 1, IMPORT_FILE_MAX_BYTES)) {
-			problem(`The import source ${source.key} takes files of 1 to ${IMPORT_FILE_MAX_BYTES} whole bytes.`);
+		if (source.live) {
+			if (
+				!manifest.uses.includes("importSourceHttp") ||
+				source.file ||
+				source.read ||
+				typeof source.live.test !== "function" ||
+				typeof source.live.read !== "function"
+			)
+				problem("A live source requires importSourceHttp and cannot also read uploads.");
+		} else {
+			const { maxBytes, extensions } = source.file ?? {};
+			if (!isWhole(maxBytes, 1, IMPORT_FILE_MAX_BYTES)) {
+				problem(`The import source ${source.key} takes files of 1 to ${IMPORT_FILE_MAX_BYTES} whole bytes.`);
+			}
+			if (
+				!Array.isArray(extensions) ||
+				extensions.length === 0 ||
+				!extensions.every((ext) => FILE_EXTENSION.test(ext))
+			) {
+				problem(`The import source ${source.key} names the file endings it takes, such as .xml.`);
+			}
+			const { key, read } = source;
+			if (typeof read !== "function") problem(`The import source ${key} has no read function.`);
 		}
-		if (!Array.isArray(extensions) || extensions.length === 0 || !extensions.every((ext) => FILE_EXTENSION.test(ext))) {
-			problem(`The import source ${source.key} names the file endings it takes, such as .xml.`);
-		}
-		if (typeof source.read !== "function") problem(`The import source ${source.key} has no read function.`);
 		importSources.set(source.key, source);
 	}
 

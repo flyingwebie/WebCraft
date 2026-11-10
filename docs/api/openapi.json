@@ -14017,6 +14017,183 @@
 				"x-webcraft-permissions": ["media.manage"]
 			}
 		},
+		"/imports/connect": {
+			"post": {
+				"operationId": "imports.connect",
+				"summary": "Tests a live Import connection and captures its source with a secret-backed login.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"source": {
+										"type": "string",
+										"pattern": "^(?:csv|[a-z][a-z0-9]*(?:-[a-z0-9]+)*\\.[a-z]+(?:-[a-z]+)*)$"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 200
+									},
+									"importId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"address": {
+										"type": "string",
+										"maxLength": 2000
+									},
+									"includeHidden": {
+										"type": "boolean"
+									},
+									"username": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 200
+									},
+									"applicationPassword": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 1000
+									}
+								},
+								"required": ["siteId", "source", "name"],
+								"additionalProperties": false
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-sensitive": "import.connect"
+			}
+		},
+		"/imports/refresh": {
+			"post": {
+				"operationId": "imports.refresh",
+				"summary": "Captures a fresh snapshot using the saved live Import connection.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"importId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "importId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/imports/remove": {
+			"post": {
+				"operationId": "imports.remove",
+				"summary": "Removes an Import and its saved login, keeping imported content.",
+				"tags": ["imports"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"importId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "importId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["import.run"],
+				"x-webcraft-confirmation": true
+			}
+		},
 		"/imports/uploadCsv": {
 			"post": {
 				"operationId": "imports.uploadCsv",
