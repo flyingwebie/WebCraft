@@ -180,7 +180,7 @@ export async function currentReviews(
 				),
 			),
 		)
-		.orderBy(reviews.itemKind, reviews.entryId, desc(reviews.submittedAt), desc(reviews.id));
+		.orderBy(reviews.itemKind, reviews.entryId, desc(reviews.serial));
 	const shown = rows.filter(
 		(row) => row.status === "inReview" || (row.status === "sentBack" && row.clearedAt === null),
 	);

@@ -133,21 +133,25 @@ export const it: EmailWording = {
 		}),
 		"review-result": ({ item, siteName, result, reviewerName, comment, scheduledFor, itemPath }) => {
 			const named = nomeInRevisione(item);
+			// I Globali e i testi del banner del consenso sono plurali.
+			const singolare = item.kind === "entry";
 			const esito = {
 				published: {
-					subject: `${maiuscola(named)}: pubblicato`,
-					heading: "Pubblicato",
+					subject: `${maiuscola(named)}: ${singolare ? "pubblicato" : "pubblicati"}`,
+					heading: singolare ? "Pubblicato" : "Pubblicati",
 					what: `${reviewerName} ha pubblicato ${named} su ${siteName}.`,
 				},
 				scheduled: {
 					subject: `${maiuscola(named)}: pubblicazione programmata`,
-					heading: "Programmato",
+					heading: "Pubblicazione programmata",
 					what: `${reviewerName} ha programmato la pubblicazione di ${named} su ${siteName} alle ${scheduledFor ?? "un'ora successiva"}.`,
 				},
 				"sent-back": {
-					subject: `${maiuscola(named)}: rimandato indietro`,
-					heading: "Rimandato indietro",
-					what: `${reviewerName} ti ha rimandato ${named} su ${siteName}. Modificalo, poi invialo di nuovo in revisione.`,
+					subject: `${maiuscola(named)}: ${singolare ? "rimandato indietro" : "rimandati indietro"}`,
+					heading: singolare ? "Rimandato indietro" : "Rimandati indietro",
+					what: `${reviewerName} ti ha rimandato ${named} su ${siteName}. ${
+						singolare ? "Modificalo, poi invialo" : "Modificali, poi inviali"
+					} di nuovo in revisione.`,
 				},
 			}[result];
 			return {

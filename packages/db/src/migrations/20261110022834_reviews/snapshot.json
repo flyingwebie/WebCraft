@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "8653a990-daf7-47cc-87dd-5688d60b933a",
+  "id": "357d39c2-85c9-4385-9c19-41affd937854",
   "prevIds": [
     "eb13a2cb-d8f0-46bc-8b79-7c7a7edd3e9c"
   ],
@@ -66,7 +66,7 @@
         "n|sch|public",
         "n|col|public.reviews.site_id",
         "n|col|public.reviews.status",
-        "n|col|public.reviews.submitted_at"
+        "n|col|public.reviews.serial"
       ]
     },
     {
@@ -89,7 +89,7 @@
         "n|col|public.reviews.site_id",
         "n|col|public.reviews.item_kind",
         "n|col|public.reviews.entry_id",
-        "n|col|public.reviews.submitted_at"
+        "n|col|public.reviews.serial"
       ]
     },
     {
@@ -232,6 +232,31 @@
         "default": "gen_random_uuid()",
         "generated": null,
         "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "reviews",
+        "name": "serial",
+        "type": "bigint",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": {
+          "type": "always",
+          "name": "reviews_serial_seq",
+          "increment": "1",
+          "startWith": "1",
+          "minValue": "1",
+          "maxValue": "9223372036854775807",
+          "cache": 1,
+          "cycle": false
+        },
         "entityType": "columns"
       }
     },
@@ -552,7 +577,7 @@
             "opclass": null
           },
           {
-            "value": "submitted_at",
+            "value": "serial",
             "isExpression": false,
             "asc": true,
             "nullsFirst": false,
@@ -597,7 +622,7 @@
             "opclass": null
           },
           {
-            "value": "submitted_at",
+            "value": "serial",
             "isExpression": false,
             "asc": true,
             "nullsFirst": false,

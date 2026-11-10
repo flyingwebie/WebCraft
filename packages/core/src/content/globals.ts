@@ -7,6 +7,7 @@ import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { restoredVersion } from "./entries.ts";
 import { type ContentProblem, GlobalsIncompleteError, GlobalsInvalidError } from "./errors.ts";
+import { currentReviews, type Review } from "./review-items.ts";
 import type { FieldDefinition, FieldInput, Json } from "./field-types.ts";
 import {
 	checkFields,
@@ -49,6 +50,11 @@ export type Globals = {
 	updatedAt: Date | null;
 	publishedAt: Date | null;
 	lastPublishedAt: Date | null;
+	/**
+	 * Their Review, while it waits (In review) or once it was sent back (with the comment, until they
+	 * are submitted again or published); null otherwise.
+	 */
+	review: Review | null;
 };
 
 /** A change to the Globals' Draft, in one language (the Site's Default language unless given). */
@@ -334,9 +340,12 @@ function globalsFindings(version: EntryVersion, fields: readonly FieldDefinition
 	return findings;
 }
 
-function toGlobals(scope: Pick<SiteScope, "site">, row: GlobalsRow | undefined, languages: Languages): Globals {
+async function toGlobals(scope: SiteScope, row: GlobalsRow | undefined, languages: Languages): Promise<Globals> {
 	const fields = storedFields(row?.fields);
 	const draft = storedVersion(row?.draft);
+	const reviews = await currentReviews(scope, [
+		{ item: { kind: "globals" }, draft: row?.draft ?? emptyVersion(), name: null, postType: null },
+	]);
 	return {
 		siteId: scope.site.id,
 		fields,
@@ -348,6 +357,7 @@ function toGlobals(scope: Pick<SiteScope, "site">, row: GlobalsRow | undefined, 
 		updatedAt: row?.updatedAt ?? null,
 		publishedAt: row?.publishedAt ?? null,
 		lastPublishedAt: row?.lastPublishedAt ?? null,
+		review: reviews.get("globals") ?? null,
 	};
 }
 

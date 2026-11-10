@@ -131,21 +131,23 @@ export const en: EmailWording = {
 		}),
 		"review-result": ({ item, siteName, result, reviewerName, comment, scheduledFor, itemPath }) => {
 			const named = reviewedName(item);
+			// The Globals and the Consent banner's words are plural.
+			const [was, is, it] = item.kind === "entry" ? ["was", "is", "it"] : ["were", "are", "them"];
 			const outcome = {
 				published: {
-					subject: `${capital(named)} was published`,
+					subject: `${capital(named)} ${was} published`,
 					heading: "Published",
 					what: `${reviewerName} published ${named} on ${siteName}.`,
 				},
 				scheduled: {
-					subject: `${capital(named)} is scheduled to be published`,
+					subject: `${capital(named)} ${is} scheduled to be published`,
 					heading: "Scheduled",
 					what: `${reviewerName} scheduled ${named} on ${siteName} to be published at ${scheduledFor ?? "a later time"}.`,
 				},
 				"sent-back": {
-					subject: `${capital(named)} was sent back`,
+					subject: `${capital(named)} ${was} sent back`,
 					heading: "Sent back",
-					what: `${reviewerName} sent ${named} on ${siteName} back to you. Change it, then submit it for review again.`,
+					what: `${reviewerName} sent ${named} on ${siteName} back to you. Change ${it}, then submit ${it} for review again.`,
 				},
 			}[result];
 			return {

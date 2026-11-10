@@ -241,7 +241,7 @@ export async function listReviews(scope: SiteScope, filter: { item?: PublishItem
 	const rows = await scope.select(
 		reviews,
 		and(eq(reviews.status, "inReview"), filter.item ? reviewItemWhere(filter.item as ReviewItem) : undefined),
-		{ orderBy: [reviews.submittedAt, reviews.id] },
+		{ orderBy: [reviews.serial] },
 	);
 	return reviewViews(scope, rows);
 }
@@ -262,7 +262,7 @@ export async function countReviewsToAct(scope: SiteScope): Promise<number> {
 export async function itemReviewHistory(scope: SiteScope, item: PublishItem): Promise<Review[]> {
 	if (!isReviewable(item)) return [];
 	const rows = await scope.select(reviews, reviewItemWhere(item), {
-		orderBy: [desc(reviews.submittedAt), desc(reviews.id)],
+		orderBy: [desc(reviews.serial)],
 	});
 	return reviewViews(scope, rows);
 }

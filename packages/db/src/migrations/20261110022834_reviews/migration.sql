@@ -1,5 +1,6 @@
 CREATE TABLE "reviews" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"serial" bigint GENERATED ALWAYS AS IDENTITY (sequence name "reviews_serial_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"workspace_id" uuid NOT NULL,
 	"site_id" uuid NOT NULL,
 	"item_kind" text NOT NULL,
@@ -19,8 +20,8 @@ CREATE TABLE "reviews" (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "reviews_one_waiting" ON "reviews" ("site_id","item_kind",coalesce(entry_id::text, '')) WHERE status = 'inReview';--> statement-breakpoint
-CREATE INDEX "reviews_site_id_status_idx" ON "reviews" ("site_id","status","submitted_at");--> statement-breakpoint
-CREATE INDEX "reviews_site_id_item_idx" ON "reviews" ("site_id","item_kind","entry_id","submitted_at");--> statement-breakpoint
+CREATE INDEX "reviews_site_id_status_idx" ON "reviews" ("site_id","status","serial");--> statement-breakpoint
+CREATE INDEX "reviews_site_id_item_idx" ON "reviews" ("site_id","item_kind","entry_id","serial");--> statement-breakpoint
 CREATE INDEX "reviews_entry_id_idx" ON "reviews" ("entry_id");--> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_submitted_by_people_id_fkey" FOREIGN KEY ("submitted_by") REFERENCES "people"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_decided_by_people_id_fkey" FOREIGN KEY ("decided_by") REFERENCES "people"("id") ON DELETE SET NULL;--> statement-breakpoint

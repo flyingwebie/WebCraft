@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { foreignKey, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, foreignKey, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { entries } from "./content.ts";
 import { people } from "./people.ts";
@@ -24,6 +24,8 @@ export const reviews = pgTable(
 	"reviews",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		/** Rises with each submission: an item's newest Review is its highest, even within one moment. */
+		serial: bigint("serial", { mode: "number" }).generatedAlwaysAsIdentity(),
 		workspaceId: uuid("workspace_id").notNull(),
 		siteId: uuid("site_id").notNull(),
 		itemKind: text("item_kind").notNull(),
@@ -59,8 +61,8 @@ export const reviews = pgTable(
 		uniqueIndex("reviews_one_waiting")
 			.on(table.siteId, table.itemKind, sql`coalesce(entry_id::text, '')`)
 			.where(sql`status = 'inReview'`),
-		index("reviews_site_id_status_idx").on(table.siteId, table.status, table.submittedAt),
-		index("reviews_site_id_item_idx").on(table.siteId, table.itemKind, table.entryId, table.submittedAt),
+		index("reviews_site_id_status_idx").on(table.siteId, table.status, table.serial),
+		index("reviews_site_id_item_idx").on(table.siteId, table.itemKind, table.entryId, table.serial),
 		index("reviews_entry_id_idx").on(table.entryId),
 	],
 );

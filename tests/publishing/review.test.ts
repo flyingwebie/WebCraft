@@ -4,7 +4,11 @@
 // Draft as it is then, and sees whether it changed since it was submitted.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
+import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { approveAiClient, connectMcp } from "../harness/mcp.ts";
+import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -179,5 +183,397 @@ describe("who hears of it", () => {
 		expect(install.mail.sent.map((email) => [email.to, email.subject])).toEqual([
 			[agency.account.email, "Al Author submitted “About us” for review"],
 		]);
+	});
+});
+
+const MINUTE = 60_000;
+
+/** The Site's Audit log entries, newest first. */
+async function auditOf(siteId: string) {
+	const { entries } = await (await install.superadmin()).api.audit.list({ limit: 200 });
+	return entries.filter((entry) => entry.siteId === siteId);
+}
+
+/** What a visitor gets at a path of a live Site: the status and the page's heading, if any. */
+async function visit(live: string, path: string): Promise<{ status: number; heading: string | null }> {
+	const response = await install.request(`${live}${path}`);
+	const html = await response.text();
+	return { status: response.status, heading: /<h1>([^<]*)<\/h1>/.exec(html)?.[1] ?? null };
+}
+
+/** An Entry the Author wrote and submitted for Review; answers the Entry and its Review. */
+async function submitted(site: TestSite, title: string, note?: string) {
+	const entry = await draftEntry(site, title);
+	const { reviews } = await site.author.browser.api.reviews.submit({
+		siteId: site.siteId,
+		items: [{ kind: "entry", id: entry.id }],
+		note,
+	});
+	const [review] = reviews;
+	if (!review) throw new Error("Nothing was submitted.");
+	return { entry, review };
+}
+
+/** The emails that went to an address since the mail was last cleared. */
+async function emailsTo(address: string) {
+	await install.drainJobs();
+	return install.mail.sent.filter((email) => email.to === address);
+}
+
+describe("acting on it", () => {
+	test("an Editor publishes it as they publish anything: it goes live, its Review ends and its Author is emailed", async () => {
+		const site = await newSite();
+		const live = await goLive(install, site.siteId);
+		const { entry, review } = await submitted(site, "Spring menu");
+		install.mail.clear();
+
+		await site.editor.browser.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
+
+		expect(await visit(live, "/blog/spring-menu")).toEqual({ status: 200, heading: "Spring menu" });
+		const after = await site.author.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id });
+		expect(after.entry.review).toBeNull();
+		expect((await site.editor.browser.api.reviews.list({ siteId: site.siteId })).reviews).toEqual([]);
+		expect(
+			(await site.author.browser.api.reviews.get({ siteId: site.siteId, reviewId: review.id })).review,
+		).toMatchObject({
+			status: "published",
+			decidedBy: { id: site.editor.personId, name: site.editor.name },
+			canWithdraw: false,
+		});
+		const [email] = await emailsTo(site.author.email);
+		expect(email?.subject).toBe("“Spring menu” was published");
+		expect(email?.text).toContain(`${site.editor.name} published “Spring menu” on Acme Bakery.`);
+		expect(email?.text).toContain(`/sites/${site.siteId}/entries/${site.postTypeId}/${entry.id}`);
+		const actions = (await auditOf(site.siteId)).map((each) => each.action);
+		expect(actions.slice(0, 3)).toEqual(["review.publish", "entry.publish", "review.submit"]);
+	});
+
+	test("Publish all ends the Reviews of what it publishes, and so does Staff publishing", async () => {
+		const site = await newSite();
+		const first = await submitted(site, "First");
+		const second = await submitted(site, "Second");
+		const items = [{ kind: "entry" as const, id: first.entry.id }];
+		const preview = await site.editor.browser.api.publishing.publishAll({ siteId: site.siteId, items });
+		if (!("confirmation" in preview)) throw new Error("Published without a preview.");
+		await site.editor.browser.api.publishing.publishAll({
+			siteId: site.siteId,
+			items,
+			confirmation: preview.confirmation.id,
+		});
+		await staff.api.entries.publish({ siteId: site.siteId, entryId: second.entry.id });
+
+		const statuses = await Promise.all(
+			[first, second].map(
+				async ({ review }) => (await staff.api.reviews.get({ siteId: site.siteId, reviewId: review.id })).review.status,
+			),
+		);
+		expect(statuses).toEqual(["published", "published"]);
+		expect((await emailsTo(site.author.email)).map((email) => email.subject)).toEqual(
+			expect.arrayContaining(["“First” was published", "“Second” was published"]),
+		);
+	});
+
+	test("an Editor schedules it: its Author is told when it goes live, and it goes live then", async () => {
+		const site = await newSite();
+		const live = await goLive(install, site.siteId);
+		const { entry, review } = await submitted(site, "Summer menu");
+		install.mail.clear();
+		const at = new Date(install.clock.now().getTime() + 90 * MINUTE);
+
+		await site.editor.browser.api.publishing.schedule({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			at,
+		});
+
+		expect(
+			(await site.author.browser.api.reviews.get({ siteId: site.siteId, reviewId: review.id })).review,
+		).toMatchObject({ status: "scheduled", scheduledAt: at, decidedBy: { id: site.editor.personId } });
+		const [email] = await emailsTo(site.author.email);
+		expect(email?.subject).toBe("“Summer menu” is scheduled to be published");
+		expect(email?.text).toContain("to be published at 2026-03-02 10:30 UTC");
+		await install.clock.advance(90 * MINUTE);
+		await install.drainJobs();
+		expect(await visit(live, "/blog/summer-menu")).toEqual({ status: 200, heading: "Summer menu" });
+		expect(await emailsTo(site.author.email)).toHaveLength(1);
+		expect((await auditOf(site.siteId)).map((each) => each.action)).toContain("review.schedule");
+	});
+
+	test("sending back needs a comment, which its Author is emailed and sees until they submit it again", async () => {
+		const site = await newSite();
+		const { entry, review } = await submitted(site, "Autumn menu");
+		install.mail.clear();
+		await expect(
+			site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "   " }),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		await expect(
+			site.author.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Fine." }),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+		const { review: sentBack } = await site.editor.browser.api.reviews.sendBack({
+			siteId: site.siteId,
+			reviewId: review.id,
+			comment: "The prices are last year's.",
+		});
+		expect(sentBack).toMatchObject({ status: "sentBack", comment: "The prices are last year's." });
+
+		const [email] = await emailsTo(site.author.email);
+		expect(email?.subject).toBe("“Autumn menu” was sent back");
+		expect(email?.text).toContain("Their comment: The prices are last year's.");
+		const shown = await site.author.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id });
+		expect(shown.entry.review).toMatchObject({
+			status: "sentBack",
+			comment: "The prices are last year's.",
+			decidedBy: { name: site.editor.name },
+		});
+		expect(shown.entry.status).toBe("draft");
+		await expect(
+			site.editor.browser.api.entries
+				.publish({ siteId: site.siteId, entryId: entry.id })
+				.then(() =>
+					site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Again." }),
+				),
+		).rejects.toMatchObject({ code: "REVIEW_DECIDED", data: { status: "sentBack" } });
+		// Published since: the comment no longer shows.
+		const published = await site.author.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id });
+		expect(published.entry.review).toBeNull();
+		expect((await auditOf(site.siteId)).find((each) => each.action === "review.sendBack")).toMatchObject({
+			personId: site.editor.personId,
+			details: { reviewId: review.id, comment: "The prices are last year's." },
+		});
+	});
+
+	test("submitted again after being sent back, the comment gives way to the new Review", async () => {
+		const site = await newSite();
+		const { entry, review } = await submitted(site, "Winter menu");
+		await site.editor.browser.api.reviews.sendBack({
+			siteId: site.siteId,
+			reviewId: review.id,
+			comment: "Add prices.",
+		});
+		await site.author.browser.api.entries.saveDraft({
+			siteId: site.siteId,
+			entryId: entry.id,
+			title: "Winter menu, priced",
+		});
+
+		const again = await site.author.browser.api.reviews.submit({
+			siteId: site.siteId,
+			items: [{ kind: "entry", id: entry.id }],
+			note: "Prices added.",
+		});
+		const shown = await site.author.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id });
+		expect(shown.entry.review).toMatchObject({
+			id: again.reviews[0]?.id,
+			status: "inReview",
+			comment: null,
+			note: "Prices added.",
+		});
+	});
+});
+
+describe("withdrawing", () => {
+	test("its Author withdraws it while it waits; nobody else can, and nobody is emailed", async () => {
+		const site = await newSite();
+		const { entry, review } = await submitted(site, "Pie");
+		const otherAuthor = await install.createMember({ workspaceId, role: "author", sites: [site.siteId] });
+		install.mail.clear();
+		await expect(
+			otherAuthor.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id }),
+		).rejects.toMatchObject({ code: "REVIEW_NOT_YOURS" });
+		await expect(
+			site.editor.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id }),
+		).rejects.toMatchObject({ code: "REVIEW_NOT_YOURS" });
+
+		const { review: withdrawn } = await site.author.browser.api.reviews.withdraw({
+			siteId: site.siteId,
+			reviewId: review.id,
+		});
+		expect(withdrawn).toMatchObject({ status: "withdrawn", decidedBy: { id: site.author.personId } });
+		expect(
+			(await site.editor.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id })).entry.review,
+		).toBeNull();
+		expect((await site.editor.browser.api.reviews.list({ siteId: site.siteId })).reviews).toEqual([]);
+		await expect(
+			site.author.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id }),
+		).rejects.toMatchObject({ code: "REVIEW_DECIDED", data: { status: "withdrawn" } });
+		await expect(
+			site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Late." }),
+		).rejects.toMatchObject({ code: "REVIEW_DECIDED" });
+		await install.drainJobs();
+		expect(install.mail.sent).toEqual([]);
+		expect((await auditOf(site.siteId)).find((each) => each.action === "review.withdraw")).toMatchObject({
+			personId: site.author.personId,
+			details: { reviewId: review.id, item: { kind: "entry", id: entry.id }, name: "Pie" },
+		});
+	});
+});
+
+describe("while it waits", () => {
+	test("its Draft stays shared: the reviewer sees it changed since it was submitted, and history keeps what was", async () => {
+		const site = await newSite();
+		const live = await goLive(install, site.siteId);
+		const { entry, review } = await submitted(site, "Bread");
+		await site.author.browser.api.entries.saveDraft({
+			siteId: site.siteId,
+			entryId: entry.id,
+			title: "Bread and butter",
+		});
+
+		const [waiting] = (await site.editor.browser.api.reviews.list({ siteId: site.siteId })).reviews;
+		expect(waiting).toMatchObject({ id: review.id, name: "Bread and butter", changedSinceSubmitted: true });
+		const { copies } = await site.editor.browser.api.history.list({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+		});
+		const kept = copies.find((copy) => copy.reason === "review");
+		expect(kept).toMatchObject({ type: "checkpoint" });
+		const { content } = await site.editor.browser.api.history.get({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			copy: { type: "checkpoint", id: kept?.id as string },
+		});
+		expect(JSON.stringify(content)).toContain("Bread");
+		expect(JSON.stringify(content)).not.toContain("butter");
+
+		// Whoever acts on it publishes the Draft as it is then, what they see.
+		await site.editor.browser.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
+		expect((await visit(live, "/blog/bread")).heading).toBe("Bread and butter");
+	});
+});
+
+describe("what can be submitted", () => {
+	test("a Draft with changes that could be published, once at a time", async () => {
+		const site = await newSite();
+		const entry = await draftEntry(site, "Scones");
+		const item = { kind: "entry" as const, id: entry.id };
+		await site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] });
+		await expect(site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] })).rejects.toMatchObject({
+			code: "ALREADY_IN_REVIEW",
+			data: { item },
+		});
+		await site.editor.browser.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
+		await expect(site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] })).rejects.toMatchObject({
+			code: "REVIEW_INVALID",
+			data: { reason: "nothingToReview", item },
+		});
+
+		await staff.api.postTypes.update({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			fields: [{ key: "price", label: "Price", type: "text", required: true }],
+		});
+		const unpriced = await draftEntry(site, "Muffins");
+		await expect(
+			site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [{ kind: "entry", id: unpriced.id }] }),
+		).rejects.toMatchObject({ code: "ENTRY_INCOMPLETE", data: { missing: ["price"] } });
+		await expect(
+			site.author.browser.api.reviews.submit({
+				siteId: site.siteId,
+				items: [{ kind: "template", id: entry.id } as never],
+			}),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect((await site.editor.browser.api.reviews.list({ siteId: site.siteId })).reviews).toEqual([]);
+	});
+
+	test("the Globals are reviewed as Entries are", async () => {
+		const site = await newSite();
+		await staff.api.globals.setFields({
+			siteId: site.siteId,
+			fields: [{ key: "phone", label: "Phone", type: "text" }],
+		});
+		await site.author.browser.api.globals.saveDraft({ siteId: site.siteId, fields: { phone: "01 234 5678" } });
+		install.mail.clear();
+
+		const { reviews } = await site.author.browser.api.reviews.submit({
+			siteId: site.siteId,
+			items: [{ kind: "globals" }],
+		});
+		expect(reviews).toMatchObject([{ item: { kind: "globals" }, name: null, status: "inReview" }]);
+		expect((await site.editor.browser.api.globals.get({ siteId: site.siteId })).globals.review).toMatchObject({
+			status: "inReview",
+			canAct: true,
+		});
+		const [asked] = await emailsTo(site.editor.email);
+		expect(asked?.subject).toBe(`${site.author.name} submitted the Globals for review`);
+		expect(asked?.text).toContain(`/sites/${site.siteId}/globals`);
+
+		await site.editor.browser.api.globals.publish({ siteId: site.siteId });
+		const [told] = await emailsTo(site.author.email);
+		expect(told?.subject).toBe("The Globals were published");
+		expect((await site.author.browser.api.globals.get({ siteId: site.siteId })).globals.review).toBeNull();
+	});
+});
+
+describe("Authors never publish", () => {
+	test("not their own item In review, by any way in: the admin, Publish all, scheduling, Edit mode, a token or an AI client", async () => {
+		const site = await newSite();
+		await goLive(install, site.siteId);
+		const { entry } = await submitted(site, "Mine");
+		const item = { kind: "entry" as const, id: entry.id };
+		const author = site.author.browser.api;
+		const forbidden = { code: "FORBIDDEN" };
+
+		await expect(author.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject(forbidden);
+		await expect(author.publishing.publishAll({ siteId: site.siteId, items: [item] })).rejects.toMatchObject(forbidden);
+		const at = new Date(install.clock.now().getTime() + 60 * MINUTE);
+		await expect(author.publishing.schedule({ siteId: site.siteId, item, at })).rejects.toMatchObject(forbidden);
+		await expect(author.publishing.scheduleAll({ siteId: site.siteId, items: [item], at })).rejects.toMatchObject(
+			forbidden,
+		);
+		await expect(author.globals.publish({ siteId: site.siteId })).rejects.toMatchObject(forbidden);
+		const reviewId = (await author.reviews.list({ siteId: site.siteId })).reviews[0]?.id as string;
+		await expect(author.reviews.sendBack({ siteId: site.siteId, reviewId, comment: "Mine." })).rejects.toMatchObject(
+			forbidden,
+		);
+
+		const editing = await openEditMode(install, site.author.browser, site.siteId, "/blog/mine");
+		const fromEditMode = await editing.edit("publish", { path: "/blog/mine" });
+		expect(fromEditMode.status).toBe(403);
+
+		const { secret } = await createApiToken(site.author.browser, { workspaceId, name: "Author's script" });
+		const script = tokenClient(install, secret);
+		await expect(script.api.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject(
+			forbidden,
+		);
+
+		const client = await approveAiClient(install, site.author.browser, { workspaceId, mayPublish: true });
+		const mcp = await connectMcp(install, client.accessToken);
+		const tools = (await mcp.listTools()).tools.map((tool) => tool.name);
+		await mcp.close();
+		expect(tools).toEqual(expect.arrayContaining(["reviews_submit", "reviews_withdraw", "reviews_list"]));
+		for (const publishing of [
+			"entries_publish",
+			"publishing_publish_all",
+			"publishing_schedule",
+			"reviews_send_back",
+		]) {
+			expect(tools).not.toContain(publishing);
+		}
+
+		const { entry: after } = await site.editor.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id });
+		expect(after).toMatchObject({ status: "draft", published: null, review: { status: "inReview" } });
+	});
+});
+
+describe("API clients", () => {
+	test("a script submits through its token, and the Review says so; an Editor's AI client sends back without May publish", async () => {
+		const site = await newSite();
+		const entry = await draftEntry(site, "Scripted");
+		const { secret } = await createApiToken(site.author.browser, { workspaceId, name: "Import script" });
+		const script = tokenClient(install, secret);
+
+		const { reviews } = await script.api.reviews.submit({
+			siteId: site.siteId,
+			items: [{ kind: "entry", id: entry.id }],
+		});
+		expect(reviews[0]).toMatchObject({ submittedBy: { id: site.author.personId, via: "Import script" } });
+
+		const client = await approveAiClient(install, site.editor.browser, { workspaceId, mayPublish: false });
+		const mcp = await connectMcp(install, client.accessToken);
+		const tools = (await mcp.listTools()).tools.map((tool) => tool.name);
+		expect(tools).toContain("reviews_send_back");
+		expect(tools).not.toContain("entries_publish");
+		await mcp.close();
 	});
 });
