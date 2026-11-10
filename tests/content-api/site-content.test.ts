@@ -110,6 +110,8 @@ describe("Media", () => {
 		expect(body.entry.fields.photo).toMatchObject({ id: imageId, alt: "A round loaf" });
 		expect(body.entry.fields.body).toContain(`src="${site.origin}/_media/`);
 		expect(body.entry.fields.body).toContain('alt="A round loaf"');
+		const markdown = (await site.frontend().json<{ entry: Item }>(`/entries/recipes/${id}?fields=body&body=markdown`)).body;
+		expect(markdown.entry.fields.body).toMatch(new RegExp(`^!\\[A round loaf\\]\\(${site.origin}/_media/[0-9a-f]{16}-sourdough\\.jpg\\)$`));
 	});
 
 	test("one in the Trash, another Site's, or no Media at all answers 404 MEDIA_NOT_FOUND", async () => {
