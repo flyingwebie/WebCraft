@@ -6173,6 +6173,13 @@
 				"cancel": "Pubblicazione programmata annullata",
 				"run": "Pubblicazione programmata eseguita",
 				"fail": "Pubblicazione programmata non riuscita"
+			},
+			"review": {
+				"submit": "Inviato in revisione",
+				"withdraw": "Ritirato dalla revisione",
+				"sendBack": "Revisione rimandata indietro",
+				"publish": "Pubblicato dalla revisione",
+				"schedule": "Programmato dalla revisione"
 			}
 		}
 	},

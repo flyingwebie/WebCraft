@@ -6173,6 +6173,13 @@
 				"cancel": "Scheduled publish cancelled",
 				"run": "Scheduled publish ran",
 				"fail": "Scheduled publish failed"
+			},
+			"review": {
+				"submit": "Submitted for review",
+				"withdraw": "Withdrawn from review",
+				"sendBack": "Review sent back",
+				"publish": "Published from review",
+				"schedule": "Scheduled from review"
 			}
 		}
 	},
