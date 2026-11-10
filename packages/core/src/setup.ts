@@ -37,6 +37,12 @@ export type InstallSetup = {
 	 * token and prints it in the log; otherwise it does nothing.
 	 */
 	announce(): Promise<void>;
+	/**
+	 * A new one-time setup token and the wizard's link with it, while the Install has no Superadmin
+	 * (null once it has one): `webcraft admin setup`, for whoever can't find the web process's log.
+	 * The last 10 tokens made stay valid.
+	 */
+	newSetupLink(): Promise<{ token: string; setupUrl: string } | null>;
 	/** Refuses a setup token that can't claim the Install: `SetupClosedError` or `SetupTokenInvalidError`. */
 	checkToken(token: string): Promise<void>;
 	/**
@@ -144,6 +150,21 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			return { personId };
 		});
 
+	const newSetupLink = async () => {
+		if (await superadminExists(db)) return null;
+		const token = newToken();
+		await db.insert(setupTokens).values({ tokenHash: await hashToken(token), createdAt: clock.now() });
+		const newest = db
+			.select({ tokenHash: setupTokens.tokenHash })
+			.from(setupTokens)
+			.orderBy(desc(setupTokens.createdAt))
+			.limit(KEPT_TOKENS);
+		await db.delete(setupTokens).where(notInArray(setupTokens.tokenHash, newest));
+		const setupUrl = new URL("/setup", config.adminOrigin);
+		setupUrl.searchParams.set("token", token);
+		return { token, setupUrl: setupUrl.toString() };
+	};
+
 	return {
 		async stage() {
 			if (!(await superadminExists(db))) return "claim";
@@ -152,23 +173,16 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 		},
 
 		async announce() {
-			if (await superadminExists(db)) return;
-			const token = newToken();
-			await db.insert(setupTokens).values({ tokenHash: await hashToken(token), createdAt: clock.now() });
-			const newest = db
-				.select({ tokenHash: setupTokens.tokenHash })
-				.from(setupTokens)
-				.orderBy(desc(setupTokens.createdAt))
-				.limit(KEPT_TOKENS);
-			await db.delete(setupTokens).where(notInArray(setupTokens.tokenHash, newest));
-			const setupUrl = new URL("/setup", config.adminOrigin);
-			setupUrl.searchParams.set("token", token);
+			const link = await newSetupLink();
+			if (!link) return;
 			log.warn(
 				"This Install has no Superadmin yet. Open the setup wizard and enter the setup token to claim it; it works once.",
 				// Printed as it is: the person with access to the server claims the Install with it (spec story 5).
-				{ setupToken: printedOnPurpose(token), setupUrl: printedOnPurpose(setupUrl.toString()) },
+				{ setupToken: printedOnPurpose(link.token), setupUrl: printedOnPurpose(link.setupUrl) },
 			);
 		},
+
+		newSetupLink,
 
 		async checkToken(token) {
 			if (await superadminExists(db)) throw new SetupClosedError();

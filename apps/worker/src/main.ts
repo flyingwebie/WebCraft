@@ -1,5 +1,6 @@
 // The worker process (Node LTS, ADR 0006): works the job queue until it is told to stop.
 // Node runs this TypeScript directly, so every relative import names its `.ts` file.
+import { hostname } from "node:os";
 import {
 	coreJobs,
 	coreSchedules,
@@ -10,6 +11,7 @@ import {
 	type OpenedParts,
 	openInstall,
 	scheduleJobs,
+	startWorkerHeartbeat,
 	workJobs,
 } from "@webcraft/core";
 
@@ -23,10 +25,13 @@ const log = createLogger({ fields: { process: "worker" }, ...logSettings(process
 
 /** What has been opened so far, so a stop signal at any moment closes exactly that. */
 const running: OpenedParts = {};
+/** This worker's check-ins, once it works the job queue. */
+let heartbeat: { stop(): Promise<void> } | undefined;
 
 async function stop(signal: NodeJS.Signals): Promise<void> {
 	log.info("The worker is stopping", { signal });
 	try {
+		await heartbeat?.stop();
 		await running.boss?.stop({ graceful: true, timeout: STOP_TIMEOUT_MS });
 		await running.database?.close();
 		process.exit(0);
@@ -56,6 +61,8 @@ async function main(): Promise<void> {
 	// Schedules before work: a stop signal that comes once jobs run then never lands in the middle of them.
 	await scheduleJobs(boss, coreSchedules);
 	await workJobs(boss, coreJobs, services);
+	// It checks in every 30 seconds while it runs: `webcraft admin health --worker` reads that.
+	heartbeat = await startWorkerHeartbeat(services.workers, { hostname: hostname(), log });
 	log.info("The worker is working the job queue", {
 		jobs: coreJobs.map((job) => job.name),
 		schedules: coreSchedules.map((schedule) => `${schedule.job.name} (${schedule.cron})`),

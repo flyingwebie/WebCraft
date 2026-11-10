@@ -104,6 +104,33 @@ describe("AI clients", () => {
 		async (api, { workspaceId }) => api.oauth.approve({ parameters: await request(), workspaceId }),
 		{ as: ["staff", "author"] },
 	);
+
+	/** A device client (`webcraft login`), registered once; each approval needs a new user code. */
+	let deviceClientId: string | undefined;
+	const userCode = async () => {
+		if (!deviceClientId) {
+			const { body } = await registerClient(install, {
+				client_name: "webcraft CLI",
+				redirect_uris: undefined,
+				response_types: undefined,
+				grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+			});
+			deviceClientId = String(body.client_id);
+		}
+		const response = await install.request(
+			new Request(install.adminUrl("/oauth/device_authorization"), {
+				method: "POST",
+				headers: { "content-type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({ client_id: deviceClientId }),
+			}),
+		);
+		return String(((await response.json()) as { user_code: string }).user_code);
+	};
+	isolation.refuses(
+		"oauth.approveDevice",
+		async (api, { workspaceId }) => api.oauth.approveDevice({ userCode: await userCode(), workspaceId }),
+		{ as: ["staff", "author"] },
+	);
 });
 
 describe("Workspaces", () => {

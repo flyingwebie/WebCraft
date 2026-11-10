@@ -1,7 +1,8 @@
 // AI clients in a real browser: the approval page an AI client sends the person to (the client's
 // name and where it sends them back shown plainly, Workspace, Sites, Toolsets with Submissions'
 // warning, access and May publish), approving from the keyboard, a request that can't be approved,
-// and Your account › AI clients with revoking, in light and dark.
+// signing in a device (`webcraft login`'s code entered and approved from the keyboard, a wrong
+// code said beside its field), and Your account › AI clients with revoking, in light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -12,6 +13,7 @@ import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 let install: BrowserInstall;
 let superadmin: TestAccount;
 let clientId: string;
+let deviceClientId: string;
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
@@ -33,7 +35,29 @@ beforeAll(async () => {
 	const { grants } = await admin.api.aiClients.list();
 	const old = grants.find((grant) => grant.client.name === "Old assistant");
 	await admin.api.aiClients.revoke({ grantId: old?.id as string });
+	deviceClientId = String(
+		(
+			await registerClient(local, {
+				client_name: "webcraft CLI on build-box",
+				redirect_uris: undefined,
+				response_types: undefined,
+				grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+			})
+		).body.client_id,
+	);
 });
+
+/** A new device sign-in's user code, as `webcraft login` would show it. */
+async function userCode(): Promise<string> {
+	const response = await install.install.request(
+		new Request(install.install.adminUrl("/oauth/device_authorization"), {
+			method: "POST",
+			headers: { "content-type": "application/x-www-form-urlencoded" },
+			body: new URLSearchParams({ client_id: deviceClientId }),
+		}),
+	);
+	return ((await response.json()) as { user_code: string }).user_code;
+}
 
 afterAll(async () => {
 	await install.close();
@@ -98,6 +122,54 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "This request can't be approved" }).waitFor();
 
 			await expectAccessibleScreen(page, `Approval page, refused (${theme})`);
+		});
+	});
+
+	describe(`signing in a device, ${theme}`, () => {
+		test("the code entry, and a wrong code said beside its field", async () => {
+			const page = await install.newPage(theme);
+			await install.signIn(page, superadmin);
+			await page.goto(install.adminUrl("/oauth/device"));
+			await page.getByRole("heading", { name: "Sign in a device" }).waitFor();
+			await expectAccessibleScreen(page, `Device sign-in, code entry (${theme})`);
+
+			await page.getByRole("textbox", { name: "Code" }).fill("BBBB-BBBB");
+			await page.keyboard.press("Enter");
+			await page.getByText("There is no such code.").waitFor();
+			expect(await page.getByRole("textbox", { name: "Code" }).getAttribute("aria-invalid")).toBe("true");
+			await expectAccessibleScreen(page, `Device sign-in, unknown code (${theme})`);
+		});
+
+		test("entering the code and approving from the keyboard", async () => {
+			const code = await userCode();
+			const page = await install.newPage(theme);
+			await install.signIn(page, superadmin);
+			await page.goto(install.adminUrl("/oauth/device"));
+			await page.getByRole("textbox", { name: "Code" }).focus();
+			await page.keyboard.type(code.toLowerCase());
+			await page.keyboard.press("Enter");
+			await page.getByRole("heading", { name: "Sign in webcraft CLI on build-box?" }).waitFor();
+			await page.getByText(code, { exact: true }).waitFor();
+			await page.getByText("Approve only a sign-in you started yourself").waitFor();
+			await expectAccessibleScreen(page, `Device sign-in, approval (${theme})`);
+
+			await page.getByRole("button", { name: "Approve webcraft CLI on build-box" }).focus();
+			await page.keyboard.press("Enter");
+			const done = page.getByRole("heading", { name: "webcraft CLI on build-box is signed in" });
+			await done.waitFor();
+			expect(await done.evaluate((element) => element === document.activeElement)).toBe(true);
+			await expectNoAxeViolations(page, `Device sign-in, approved (${theme})`);
+		});
+
+		test("the code filled in from the address webcraft login shows", async () => {
+			const code = await userCode();
+			const page = await install.newPage(theme);
+			await install.signIn(page, superadmin);
+			await page.goto(install.adminUrl(`/oauth/device?user_code=${code}`));
+			await page.getByRole("heading", { name: "Sign in webcraft CLI on build-box?" }).waitFor();
+			await page.getByRole("button", { name: "Deny" }).click();
+			await page.getByRole("heading", { name: "Sign-in denied" }).waitFor();
+			await expectNoAxeViolations(page, `Device sign-in, denied (${theme})`);
 		});
 	});
 

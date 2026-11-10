@@ -134,38 +134,26 @@ async function languagesAnswer(context: ReadContext, query: URLSearchParams) {
 	};
 }
 
-/** How each exposed Field type is filtered (its operators) and whether it is sorted by. */
-function filtersOf(field: FieldDefinition): FilterOperator[] {
+/** How lists use each exposed Field type: the filter operators it takes, and whether it sorts. */
+function listUse(field: FieldDefinition): { filters: FilterOperator[]; sortable: boolean } {
 	switch (field.type) {
 		case "text":
 		case "email":
+			return { filters: ["eq", "in"], sortable: true };
 		case "select":
+			return { filters: ["eq", "in"], sortable: !field.multiple };
 		case "relationship":
-			return ["eq", "in"];
+			return { filters: ["eq", "in"], sortable: false };
 		case "number":
-			return ["eq", "in", "gt", "gte", "lt", "lte"];
+			return { filters: ["eq", "in", "gt", "gte", "lt", "lte"], sortable: true };
 		case "date":
-			return field.mode === "time" ? [] : ["eq", "gt", "gte", "lt", "lte"];
+			return field.mode === "time"
+				? { filters: [], sortable: false }
+				: { filters: ["eq", "gt", "gte", "lt", "lte"], sortable: true };
 		case "boolean":
-			return ["eq"];
+			return { filters: ["eq"], sortable: true };
 		default:
-			return [];
-	}
-}
-
-function sortable(field: FieldDefinition): boolean {
-	switch (field.type) {
-		case "text":
-		case "email":
-		case "number":
-		case "boolean":
-			return true;
-		case "date":
-			return field.mode !== "time";
-		case "select":
-			return !field.multiple;
-		default:
-			return false;
+			return { filters: [], sortable: false };
 	}
 }
 
@@ -199,8 +187,9 @@ function fieldSchema(field: FieldDefinition, topLevel: boolean): Record<string, 
 			break;
 	}
 	if (topLevel) {
-		own.filters = filtersOf(field);
-		own.sortable = sortable(field);
+		const use = listUse(field);
+		own.filters = use.filters;
+		own.sortable = use.sortable;
 	}
 	return own;
 }
@@ -482,7 +471,7 @@ function sortOf(params: QueryParams, postType: PostType): ListSort {
 		params.add("sort", "fieldUnknown", `There is no Field ${by} to sort by.`);
 		return { by: "publishedAt", direction: "desc", type: "timestamptz" };
 	}
-	if (!sortable(field)) {
+	if (!listUse(field).sortable) {
 		params.add("sort", "sortUnsupported", `Entries can't be sorted by ${by}.`);
 		return { by: "publishedAt", direction: "desc", type: "timestamptz" };
 	}
@@ -524,7 +513,7 @@ async function listFilters(
 			params.add(name, "fieldUnknown", `There is no Field ${key} to filter on.`);
 			continue;
 		}
-		const allowed: readonly string[] = field ? filtersOf(field) : ["gt", "gte", "lt", "lte"];
+		const allowed: readonly string[] = field ? listUse(field).filters : ["gt", "gte", "lt", "lte"];
 		if (more.length > 0 || !allowed.includes(operator)) {
 			params.add(name, "filterUnsupported", `${key} can't be filtered on with ${operator}.`);
 			continue;
@@ -536,7 +525,7 @@ async function listFilters(
 		}
 		const type = builtIn ? "date" : (field?.type ?? "text");
 		const invalid = (message: string) => params.add(name, "valueInvalid", message);
-		const value = builtIn ? sqlOf.valueOf(key) : field ? sqlOf.valueOf(key) : undefined;
+		const value = sqlOf.valueOf(key);
 		switch (type) {
 			case "number": {
 				if (values.some((text) => !NUMBER.test(text))) {

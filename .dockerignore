@@ -12,7 +12,9 @@
 storage
 REA-Apps
 design
-docs
+# The CLI in the web image knows its version's commands from the API's checked-in document.
+docs/*
+!docs/api
 deploy
 scripts/*
 !scripts/prune-image-dependencies.sh

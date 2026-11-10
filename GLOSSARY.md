@@ -545,8 +545,12 @@ The way AI clients work with an Install: one tool for each public action of the 
 _Avoid_: AI API, agent endpoint, plugin
 
 **OAuth grant**:
-A person's approval of an AI client, made in their browser: the Workspace, Sites and Toolsets it may work in, whether it only reads, and May publish. It lasts until they revoke it, lose that access, or the client leaves it unused for 30 days.
+A person's approval of an AI client, or of the CLI signing in with a device code, made in their browser: the Workspace, Sites and Toolsets it may work in, whether it only reads, and May publish. It lasts until they revoke it, lose that access, or the client leaves it unused for 30 days.
 _Avoid_: Connection, authorization, AI session
+
+**CLI**:
+The `webcraft` command: on a person's computer, one command for each public action of the Management API, signed in with a device code they approve in their browser (an OAuth grant) or an API token, and `structure pull/push` for a Site's Structure as files; on the server, the server commands (`webcraft admin …`). Each Install it signs in to is a profile.
+_Avoid_: Terminal client, SDK, tool
 
 **May publish**:
 Whether a person lets an AI client they approve publish. Without it the client saves Drafts but never makes them what visitors see; with it, publishing still shows a preview to confirm first.

@@ -61,3 +61,6 @@ coverage
 .cache
 tmp
 temp
+
+# Temporary files bun build --compile leaves when it is stopped.
+*.bun-build
