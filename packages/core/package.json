@@ -32,6 +32,7 @@
 	"dependencies": {
 		"@webcraft/auth": "workspace:*",
 		"@webcraft/db": "workspace:*",
+		"@webcraft/module-extra-blocks": "workspace:*",
 		"@webcraft/module-forms": "workspace:*",
 		"@webcraft/module-redirects": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",

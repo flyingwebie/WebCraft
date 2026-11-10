@@ -268,8 +268,8 @@ describe("Modules WebCraft can't run", () => {
 		],
 		[
 			"an extension point that comes later",
-			{ ...sampleBoard, blockTypes: [{} as never] },
-			"Block types come in a later version",
+			{ ...sampleBoard, structurePresets: [{} as never] },
+			"Structure presets come in a later version",
 		],
 		[
 			"an event WebCraft doesn't have",

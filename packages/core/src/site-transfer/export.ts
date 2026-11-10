@@ -28,6 +28,7 @@ import {
 	type SiteExportManifest,
 } from "./format.ts";
 import { createReferenceLookup } from "./lookup.ts";
+import { exportModuleDeclarations, type ModuleComponentDeclaration, modulePropFields } from "./module-declarations.ts";
 import { type Kdf, type SecretsBundle, secretSealer } from "./passphrase.ts";
 import { createRowRemapper } from "./references.ts";
 import { ident, literal, quoted, type SiteTable, siteTables } from "./tables.ts";
@@ -54,6 +55,7 @@ export type ExportWriterContext = {
 	storage: InstallStorage;
 	/** Each Module schema's Module, with its version: `m_forms` → `forms`. */
 	modules: ReadonlyMap<string, { id: string; version: string }>;
+	moduleComponents: readonly ModuleComponentDeclaration[];
 	/** Rows fetched at a time from each table (the streaming threshold). */
 	batchRows: number;
 	/** Leave the Forms Module's Submissions and every private Form upload out together. */
@@ -118,6 +120,7 @@ export async function writeSiteExport(
 			migrations: snapshot.migrations,
 			site: snapshot.site,
 			modules: snapshot.modules,
+			moduleComponents: snapshot.moduleComponents,
 			tables: snapshot.tables.map((table) => table.entry),
 			people: { file: PEOPLE_FILE, sha256: snapshot.people.sha256, rows: snapshot.people.rows },
 			files: {
@@ -170,6 +173,7 @@ type Snapshot = {
 	version: string | null;
 	migrations: string[];
 	modules: SiteExportManifest["modules"];
+	moduleComponents: ModuleComponentDeclaration[];
 	tables: { entry: SiteExportManifest["tables"][number]; path: string; size: number }[];
 	people: { path: string; size: number; sha256: string; rows: number };
 	leftOut: SiteExportManifest["leftOut"];
@@ -214,6 +218,7 @@ async function readSnapshot(
 		);
 		const siteRow = siteRows.rows[0]?.row;
 		if (!siteRow) throw new Error("The Site was deleted before it could be exported.");
+		const moduleComponents = await exportModuleDeclarations(client, site, context.moduleComponents);
 		const schemaModules = new Map([...context.modules].map(([schema, module]) => [schema, module.id]));
 		const { tables: available, leftOut } = await siteTables(client, schemaModules);
 		const retained = await client.query<{
@@ -268,6 +273,7 @@ async function readSnapshot(
 			{ id: (id) => id, key: (key) => key, secret: (name) => name, mask: "" },
 			new Map(),
 			(id) => named.add(id),
+			modulePropFields(moduleComponents),
 		);
 		const written: Snapshot["tables"] = [];
 		const counts: Record<string, number> = {};
@@ -348,6 +354,10 @@ async function readSnapshot(
 		delete settings.staging_password_hash;
 		delete settings.staging_password_changed_at;
 		const moduleVersions = new Map([...context.modules.values()].map((module) => [module.id, module.version]));
+		for (const component of moduleComponents) {
+			const current = moduleVersions.get(component.moduleId);
+			if (!current || semver.gt(component.version, current)) moduleVersions.set(component.moduleId, component.version);
+		}
 		for (const row of retained.rows) {
 			const current = moduleVersions.get(row.module_id);
 			if (!current || semver.gt(row.module_version, current)) moduleVersions.set(row.module_id, row.module_version);
@@ -357,12 +367,17 @@ async function readSnapshot(
 			version,
 			migrations: [...level.core],
 			modules: [...moduleVersions]
-				.filter(([id]) => tables.some((table) => table.module === id))
+				.filter(
+					([id]) =>
+						tables.some((table) => table.module === id) ||
+						moduleComponents.some((component) => component.moduleId === id),
+				)
 				.map(([id, version]) => ({
 					id,
 					version,
 					tables: tables.filter((table) => table.module === id).map((table) => table.table),
 				})),
+			moduleComponents,
 			tables: written,
 			people: { ...peopleFile, rows: peopleLines.length },
 			leftOut: {

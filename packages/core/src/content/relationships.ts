@@ -56,21 +56,22 @@ export type ReferenceCheck = Reference & { at: string; problems: ContentProblem[
  * a broken rule.
  */
 export async function checkReferences(
-	scope: Pick<SiteScope, "db" | "where">,
+	scope: Pick<SiteScope, "db" | "where" | "site" | "componentSources">,
 	checks: readonly ReferenceCheck[],
 	mode: "refuse" | "rule",
 ): Promise<void> {
-	await checkMedia(
-		scope,
-		checks.filter((check) => check.kind === "media"),
-		mode,
-	);
-	await checkBodyComponents(
+	const nested = await checkBodyComponents(
 		scope,
 		checks.filter((check): check is Extract<ReferenceCheck, { kind: "components" }> => check.kind === "components"),
 		mode,
 	);
-	const entryChecks = checks.filter(
+	const all = [...checks, ...nested];
+	await checkMedia(
+		scope,
+		all.filter((check) => check.kind === "media"),
+		mode,
+	);
+	const entryChecks = all.filter(
 		(check): check is Extract<ReferenceCheck, { kind: "entries" }> => check.kind === "entries",
 	);
 	const ids = [...new Set(entryChecks.flatMap((check) => check.ids))];

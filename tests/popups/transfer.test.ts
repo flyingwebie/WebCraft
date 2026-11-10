@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { defineModule } from "@webcraft/module-sdk";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
@@ -182,4 +183,68 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	const imageSource = /<img\b[^>]*\bsrc="([^"]+)"/.exec(html)?.[1];
 	expect(imageSource).toEqual(expect.any(String));
 	expect(imageSource).not.toContain(media.id);
+});
+
+test("a Popup's generated Component name respects an imported missing Module's declaration", async () => {
+	const source = await createTestInstall({
+		modules: [
+			defineModule({
+				manifest: {
+					id: "popup-names",
+					name: { en: "Popup names" },
+					description: { en: "A source Component whose name stays reserved after transfer." },
+					adminLanguages: ["en"],
+					version: "1.0.0",
+					sdk: "^1.12.0",
+					level: "site",
+					onByDefault: true,
+					permissions: [],
+				},
+				components: [
+					{ name: "PopupOffer", label: { en: "Offer" }, props: [], markup: "<p>Retained Module content</p>" },
+				],
+			}),
+		],
+	});
+	try {
+		const sourceAdmin = await source.superadmin();
+		await sourceAdmin.api.modules.approve({ moduleId: "popup-names", version: "1.0.0" });
+		const workspace = await source.createWorkspace();
+		const siteId = (await source.createSite(workspace.id, { slug: "popup-names-source" })).id;
+		const { postType } = await sourceAdmin.api.postTypes.create({
+			siteId,
+			name: "Offers",
+			key: "offers",
+			urlPattern: "/offers/{slug}",
+		});
+		await sourceAdmin.api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: postType.id,
+			markup: "<PopupOffer/>",
+		});
+		const bytes = await exportedArchive(source, sourceAdmin, siteId);
+		const admin = await install.superadmin();
+		await admin.api.modules.approve({ moduleId: "popups", version: "1.0.0" });
+		const destination = await install.createWorkspace();
+		const imported = await importArchive(install, admin, destination.id, bytes, {
+			name: "Popup names",
+			slug: "popup-names-copy",
+		});
+		expect(imported.status).toBe("done");
+		const copiedSiteId = imported.site?.id ?? "";
+		const { popup } = await admin.api.popups.create({ siteId: copiedSiteId, key: "offer", name: "Offer" });
+		const { component } = await admin.api.components.get({ siteId: copiedSiteId, componentId: popup.componentId });
+		expect(component.name).toBe("PopupOffer2");
+		const copiedType = (await admin.api.postTypes.list({ siteId: copiedSiteId })).postTypes.find(
+			(type) => type.key === "offers",
+		);
+		const original = await admin.api.templates.getEntryTemplateMarkup({
+			siteId: copiedSiteId,
+			postTypeId: copiedType?.id ?? "",
+		});
+		expect(original.markup?.draft).toContain("<PopupOffer");
+		expect(original.markup?.draft).not.toContain("popup-names:");
+	} finally {
+		await source.close();
+	}
 });

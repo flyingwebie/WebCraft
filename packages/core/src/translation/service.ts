@@ -16,6 +16,7 @@ import { type AiKeys, monthOf } from "../ai/keys.ts";
 import { AiKeyMissingError, AiProviderError, type AiProviders } from "../ai/providers.ts";
 import type { RecordedAuditEntry } from "../audit.ts";
 import type { Clock } from "../clock.ts";
+import type { ModuleComponentProps } from "../content/components.ts";
 import type { Json } from "../content/field-types.ts";
 import { sameJson } from "../content/json.ts";
 import { siteLanguages } from "../content/languages.ts";
@@ -43,6 +44,16 @@ import {
 	removeProtectedTerm,
 } from "./terms.ts";
 import { apiPath, breaksRules, leafAt, readableText, storedPath, withLeafAt } from "./units.ts";
+
+/** Source types identify human text even when the installed Module is absent or incompatible. */
+async function modulePropsForTranslation(scope: SiteScope): Promise<readonly ModuleComponentProps[]> {
+	const declarations = new Map(
+		scope.componentSources.allModuleComponents().map(({ id, props }) => [id, { id, props }]),
+	);
+	for (const component of await scope.componentSources.retainedModuleComponentsAt(scope))
+		declarations.set(component.id, component);
+	return [...declarations.values()];
+}
 
 /**
  * AI translation of a Site's languages (GLOSSARY.md › Translation mode): each language other than the
@@ -322,6 +333,7 @@ export function createTranslations(options: TranslationsOptions): Translations {
 				ai,
 				keys,
 				db: scope.db,
+				moduleComponents: await modulePropsForTranslation(scope),
 				place: { workspaceId: scope.workspace.id, siteId: scope.site.id },
 				from: { code: from.code, name: from.name },
 				to: { code: target.code, name: target.name },
@@ -718,6 +730,7 @@ export function createTranslations(options: TranslationsOptions): Translations {
 					ai,
 					keys,
 					db: scope.db,
+					moduleComponents: await modulePropsForTranslation(scope),
 					place: { workspaceId: scope.workspace.id, siteId: scope.site.id },
 					from: { code: from.code, name: from.name },
 					to: { code: language.code, name: language.name },

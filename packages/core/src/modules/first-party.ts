@@ -1,3 +1,4 @@
+import extraBlocks from "@webcraft/module-extra-blocks";
 import forms from "@webcraft/module-forms";
 import popups from "@webcraft/module-popups";
 import redirects from "@webcraft/module-redirects";
@@ -18,4 +19,5 @@ export const FIRST_PARTY_MODULES: readonly ModuleDefinition[] = [
 	siteAnalytics,
 	redirects,
 	wordpressImport,
+	extraBlocks,
 ];

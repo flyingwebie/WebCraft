@@ -200,3 +200,26 @@ export const siteRetainedRows = pgTable(
 		index("site_retained_rows_site_id_idx").on(table.siteId),
 	],
 );
+
+/** Source Prop types of imported Module Components, retained even when that Module is unavailable. */
+export const siteModuleComponents = pgTable(
+	"site_module_components",
+	{
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		componentId: text("component_id").notNull(),
+		moduleId: text("module_id").notNull(),
+		moduleVersion: text("module_version").notNull(),
+		/** Declarative Field definitions only; no executable Template markup or Module code. */
+		props: jsonb("props").notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.workspaceId, table.siteId, table.componentId] }),
+		foreignKey({
+			name: "site_module_components_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		index("site_module_components_site_id_idx").on(table.siteId),
+	],
+);

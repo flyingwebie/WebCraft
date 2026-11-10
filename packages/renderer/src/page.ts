@@ -200,7 +200,13 @@ export type PageLibrary = { name: string; src: string; integrity: string };
 export type PageScript = { kind: "site" | "page"; src: string };
 
 /** A Module's Site script on a page: the Module, where the Site serves the script, and its Consent category. */
-export type PageModuleScript = { moduleId: string; src: string; consentCategory: string; beforeConsent?: boolean };
+export type PageModuleScript = {
+	components?: readonly string[];
+	moduleId: string;
+	src: string;
+	consentCategory: string;
+	beforeConsent?: boolean;
+};
 
 /** One script tag of an outside script: a file on another host, or one the Site serves. */
 export type PageScriptTag = {
@@ -312,6 +318,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	const consent = editMode ? undefined : page.consent;
 	// The embed script comes only with a video to play; the consent script with something held back.
 	const shown = { videos: 0, held: 0, settings: 0 };
+	const shownComponents = new Set<string>();
 	const loopItemsShown = { count: 0 };
 	// The regions of filtered Loops, numbered across both templates; the Filter script comes with a Filter.
 	const regions = new Map<string, number>();
@@ -353,6 +360,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		language: site.language,
 		words,
 		shown,
+		shownComponents,
 		className: page.className,
 		media: page.media,
 		priorityImage: { given: false },
@@ -387,6 +395,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		language: site.language,
 		words,
 		shown,
+		shownComponents,
 		className: page.className,
 		media: page.media,
 		outlet: () => content,
@@ -416,6 +425,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	const popupHtml = (page.popups?.items ?? [])
 		.map((item) => {
 			const inside = renderTree(item.tree, {
+				shownComponents,
 				values: page.values,
 				language: site.language,
 				words,
@@ -449,7 +459,11 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	const heldBack = (category: string) => consent !== undefined && category !== "necessary";
 	// The banner and its script come only to a page that asks something.
 	// Modules' Site scripts, like outside scripts, never run in Edit mode.
-	const moduleScripts = editMode ? [] : (page.moduleScripts ?? []);
+	const moduleScripts = editMode
+		? []
+		: (page.moduleScripts ?? []).filter(
+				(script) => !script.components || script.components.some((id) => shownComponents.has(id)),
+			);
 	const asks =
 		consent !== undefined &&
 		(shown.held > 0 ||

@@ -66,6 +66,7 @@ import { isPagePostType } from "./pages.ts";
 import { listPostTypes, type PostType } from "./post-types.ts";
 import { readPropText } from "./props.ts";
 import { componentKnownValues } from "./render-values.ts";
+import { checkRetainedModulePlacements } from "./retained-module-props.ts";
 
 export type { ComponentVersion } from "./component-versions.ts";
 
@@ -80,7 +81,7 @@ export type Component = {
 	/** Its PascalCase tag in Template markup, such as `PostCard`. */
 	name: string;
 	/** The Module that declares it; null for the Site's own. */
-	module: { id: string } | null;
+	module: { id: string; blockType?: boolean; label?: Readonly<Record<string, string>> } | null;
 	status: ComponentStatus;
 	draft: ComponentVersion;
 	/** What visitors see; null until it is first published. A Module's is always published. */
@@ -111,23 +112,35 @@ export type ModuleComponent = {
 	/** `<module id>:<Name>`. */
 	id: string;
 	moduleId: string;
+	blockType?: boolean;
+	label?: Readonly<Record<string, string>>;
+	localizedProps?: Readonly<Record<string, FieldDefinition[]>>;
 	name: string;
 	props: FieldDefinition[];
 	tree: ElementTree;
 };
+
+/** Data-only source declarations: retained types never bring executable Module markup with them. */
+export type ModuleComponentProps = Pick<ModuleComponent, "id" | "props">;
+
+/** A checked Site read, including the caller's current transaction. */
+type ComponentReadScope = Pick<SiteScope, "site" | "db" | "where">;
 
 /** Where the content store finds Modules' Components (the Module host). */
 export type ComponentSources = {
 	/** Every Component the Install's Modules declare, wherever they run: their names are taken. */
 	allModuleComponents(): readonly ModuleComponent[];
 	/** The Components of the Modules that run on a Site: only those may be placed there. */
-	moduleComponentsAt(site: { id: string; workspaceId: string }): Promise<readonly ModuleComponent[]>;
+	moduleComponentsAt(scope: ComponentReadScope): Promise<readonly ModuleComponent[]>;
+	/** Source Prop contracts kept with imported Sites, including missing or incompatible Modules. */
+	retainedModuleComponentsAt(scope: ComponentReadScope): Promise<readonly ModuleComponentProps[]>;
 };
 
 /** No Module declares a Component. */
 export const NO_MODULE_COMPONENTS: ComponentSources = {
 	allModuleComponents: () => [],
 	moduleComponentsAt: async () => [],
+	retainedModuleComponentsAt: async () => [],
 };
 
 export type NewComponent = { name: string; props?: FieldInput[] };
@@ -179,7 +192,7 @@ export async function createComponent(
 	const name = checkName(input.name, problems);
 	const props = await parseProps(scope, input.props ?? [], [], problems);
 	if (problems.length > 0) throw new ComponentInvalidError(problems);
-	checkNameFree(name, sources);
+	await checkNameFree(scope, name, sources);
 	return naming(scope, name, () =>
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
@@ -207,7 +220,7 @@ export async function listComponents(
 ): Promise<(Component & { usage: ComponentUsage })[]> {
 	const rows = await scope.select(components, undefined, { orderBy: [asc(components.name)] });
 	const own = rows.map(toComponent);
-	const fromModules = (await sources.moduleComponentsAt(scope.site)).map((component) =>
+	const fromModules = (await sources.moduleComponentsAt(scope)).map((component) =>
 		moduleComponent(scope.site.id, component),
 	);
 	const usageOf = await usages(scope);
@@ -397,7 +410,7 @@ export async function renameComponent(
 			await lockComponents(tx);
 			const row = await lockComponent(tx, componentId, sources);
 			if (row.name === name) return toComponent(row);
-			checkNameFree(name, sources);
+			await checkNameFree(tx, name, sources);
 			await checkNameUnused(tx, name);
 			const [updated] = await tx.update(components, { name, updatedAt: tx.now() }, eq(components.id, row.id));
 			if (!updated) throw new ComponentNotFoundError();
@@ -451,6 +464,7 @@ async function nextProps(
 }
 
 async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentVersion): Promise<Component> {
+	await checkRetainedModulePlacements(scope, draft.tree, storedComponentVersion(row.draft).tree);
 	const [updated] = await scope.update(
 		components,
 		{
@@ -496,7 +510,7 @@ async function findComponent(scope: SiteScope, componentId: string, sources: Com
 		if (!row) throw new ComponentNotFoundError();
 		return toComponent(row);
 	}
-	const found = (await sources.moduleComponentsAt(scope.site)).find((component) => component.id === componentId);
+	const found = (await sources.moduleComponentsAt(scope)).find((component) => component.id === componentId);
 	if (!found) throw new ComponentNotFoundError();
 	return moduleComponent(scope.site.id, found);
 }
@@ -551,10 +565,18 @@ function checkName(input: string, problems: ContentProblem[]): string {
 	return name;
 }
 
-/** Refuses a name one of the Install's Modules gives one of its Components. */
-function checkNameFree(name: string, sources: ComponentSources): void {
+/** Installed and retained Module Components keep their names so stored Placements remain readable. */
+async function checkNameFree(scope: SiteScope, name: string, sources: ComponentSources): Promise<void> {
 	const taken = sources.allModuleComponents().find((component) => component.name === name);
 	if (taken) throw new ComponentNameTakenError(name, { kind: "module", moduleId: taken.moduleId });
+	const retained = (await sources.retainedModuleComponentsAt(scope)).find(
+		(component) => component.id.slice(component.id.indexOf(":") + 1) === name,
+	);
+	if (retained)
+		throw new ComponentNameTakenError(name, {
+			kind: "module",
+			moduleId: retained.id.slice(0, retained.id.indexOf(":")),
+		});
 }
 
 /** Refuses a name another Component of the Site has. */
@@ -727,7 +749,7 @@ type CatalogueEntry = {
  * (directly or through others) is refused: Components never place themselves.
  */
 export async function siteComponents(
-	scope: Pick<SiteScope | VisitorScope, "select" | "site">,
+	scope: Pick<SiteScope | VisitorScope, "select" | "site" | "db" | "where">,
 	which: "draft" | "published",
 	sources: ComponentSources,
 	options: {
@@ -743,20 +765,34 @@ export async function siteComponents(
 		return row.published === null ? null : storedComponentVersion(row.published);
 	};
 	const entries: CatalogueEntry[] = rows.map((row) => ({ id: row.id, name: row.name, version: versionOf(row) }));
-	const running = new Set((await sources.moduleComponentsAt(scope.site)).map((component) => component.id));
+	const running = new Set((await sources.moduleComponentsAt(scope)).map((component) => component.id));
+	const retained = new Map(
+		(await sources.retainedModuleComponentsAt(scope)).map((component) => [component.id, component]),
+	);
 	for (const component of sources.allModuleComponents()) {
 		// The Site's own Component keeps a name a Module's Component took later.
 		if (entries.some((entry) => entry.name === component.name)) continue;
+		const source = retained.get(component.id);
+		retained.delete(component.id);
 		entries.push(
 			running.has(component.id)
 				? { id: component.id, name: component.name, version: { props: component.props, tree: component.tree } }
-				: {
-						id: component.id,
-						name: component.name,
-						version: null,
-						away: `${component.name} comes from the Module ${component.moduleId}, which isn't on for this Site.`,
-					},
+				: source
+					? { id: component.id, name: component.name, version: { props: source.props, tree: EMPTY_TREE } }
+					: {
+							id: component.id,
+							name: component.name,
+							version: null,
+							away: `${component.name} comes from the Module ${component.moduleId}, which isn't on for this Site.`,
+						},
 		);
+	}
+	// Source-only entries let unchanged Placements round-trip through markup. They render nothing;
+	// the shared Draft writes refuse new or changed Props until a compatible Module is available.
+	for (const component of retained.values()) {
+		const name = component.id.slice(component.id.indexOf(":") + 1);
+		if (entries.some((entry) => entry.name === name)) continue;
+		entries.push({ id: component.id, name, version: { props: component.props, tree: EMPTY_TREE } });
 	}
 	const byId = new Map(entries.map((entry) => [entry.id, entry]));
 	const byName = new Map(entries.map((entry) => [entry.name, entry]));
@@ -1022,7 +1058,7 @@ function moduleComponent(siteId: string, component: ModuleComponent): Component 
 		id: component.id,
 		siteId,
 		name: component.name,
-		module: { id: component.moduleId },
+		module: { id: component.moduleId, ...(component.blockType ? { blockType: true, label: component.label } : {}) },
 		status: "published",
 		draft: version,
 		published: version,

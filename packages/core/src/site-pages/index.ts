@@ -141,6 +141,7 @@ export { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 
 /** A Module's Site script on a Site where the Module runs: its code, file name and Consent category. */
 export type ModuleScriptFile = {
+	components?: readonly string[];
 	moduleId: string;
 	name: string;
 	code: string;
@@ -2083,6 +2084,7 @@ async function renderSitePage(
 		scope,
 		[
 			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null, placed.trees])),
+			...uuidsIn(JSON.stringify([page.content, siteTemplate ?? null, placed.trees])),
 			...uuidsIn(JSON.stringify([options.contentValues ?? null, popupPage.items, globalValues.values, loops.values])),
 		],
 		languages,
@@ -2153,6 +2155,7 @@ async function renderSitePage(
 						src: `${SCRIPT_PATH}${script.name}`,
 						consentCategory: script.category,
 						beforeConsent: script.beforeConsent,
+						components: script.components,
 					})),
 		// People editing are never asked for consent (ADR 0022).
 		consent: editing ? undefined : await pageConsent(scope, languages, view.version),

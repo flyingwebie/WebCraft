@@ -59,6 +59,7 @@ import {
 	type SiteImportReport,
 	SiteImportSlugError,
 } from "./import.ts";
+import type { ModuleComponentDeclaration } from "./module-declarations.ts";
 import { ARCHIVE_PART_BYTES, removeParts, writeParts } from "./parts.ts";
 import { type Kdf, kdfSchema, keyOpens, newKdf, passphraseKey } from "./passphrase.ts";
 
@@ -363,6 +364,22 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 		return map;
 	};
 
+	/** All compiled declarations are data, including Modules switched off on the Site. */
+	const moduleDeclarations = (): ModuleComponentDeclaration[] => {
+		const declarations: ModuleComponentDeclaration[] = [];
+		for (const component of deps.modules.components.allModuleComponents()) {
+			const module = deps.modules.registry.get(component.moduleId);
+			if (module?.runnable)
+				declarations.push({
+					id: component.id,
+					moduleId: component.moduleId,
+					version: module.manifest.version,
+					props: [...component.props],
+				});
+		}
+		return declarations;
+	};
+
 	/** Opens the person's own access again for a job: they may have lost it since they asked. */
 	const accessOf = async (personId: string | null): Promise<Access | null> => {
 		if (!personId) return null;
@@ -384,6 +401,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 	): ImportReaderContext => ({
 		database: deps.database,
 		storage,
+		moduleComponents: moduleDeclarations(),
 		moduleSchemas: new Map([...moduleSchemas()].map(([schema, module]) => [schema, module.id])),
 		moduleStatus: (moduleId) => deps.modules.transferStatus(moduleId),
 		preparePartitions: (client, moduleId, table, months) =>
@@ -762,6 +780,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 					database: deps.database,
 					storage,
 					modules: moduleSchemas(),
+					moduleComponents: moduleDeclarations(),
 					includeSubmissions: input.includeSubmissions !== false,
 					batchRows,
 					now: () => clock.now(),
@@ -904,6 +923,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 						database: deps.database,
 						storage,
 						modules: moduleSchemas(),
+						moduleComponents: moduleDeclarations(),
 						includeSubmissions: row.withSubmissions,
 						batchRows,
 						now: () => clock.now(),

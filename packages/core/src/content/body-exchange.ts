@@ -23,7 +23,8 @@ export function exchangeMarkdown(blocks: readonly Block[], names: ReadonlyMap<st
 		image: (id) => ({ url: `media:${id}`, alt: null, caption: null }),
 		exchange: true,
 		component: (block) => {
-			const name = names.get(block.component);
+			const name =
+				names.get(block.component) ?? (block.component.includes(":") ? block.component.split(":")[1] : undefined);
 			return name ? { name } : undefined;
 		},
 	});
@@ -57,7 +58,7 @@ export async function withBodyFromMarkdown(
 		return rest;
 	}
 	const { blocks, problems: found } = blocksFromMarkdown(input, {
-		component: await bodyComponentFinder(scope, field),
+		component: await bodyComponentFinder(scope, field, storedBlocks(previous)),
 		previous: storedBlocks(previous),
 	});
 	if (found.length > 0) {

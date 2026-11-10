@@ -220,7 +220,7 @@ export type Reference =
 	| { kind: "components"; ids: string[]; placements: BodyPlacement[] };
 
 /** A Component placed in a body, as its Block holds it, and where the Block is in the value (`[2]`). */
-export type BodyPlacement = { within: string; component: string; props: BlockProp[] };
+export type BodyPlacement = { within: string; component: string; props: BlockProp[]; kept?: boolean };
 
 /**
  * A value written as plain text (a cell of a CSV file), as a Field type reads it:
@@ -442,7 +442,15 @@ const body: FieldTypeSpec<BodyField> = {
 					refused = true;
 					fail("This Body field doesn't allow that Component.", `[${index}].component`);
 				}
-				placements.push({ within: `[${index}]`, component: block.component, props: block.props });
+				const before = storedBlocks(previous).find(
+					(old) => old.id === block.id && old.type === "component" && old.component === block.component,
+				);
+				placements.push({
+					within: `[${index}]`,
+					component: block.component,
+					props: block.props,
+					kept: before?.type === "component" && JSON.stringify(before.props) === JSON.stringify(block.props),
+				});
 			});
 			if (refused) return null;
 			if (placements.length > 0) {

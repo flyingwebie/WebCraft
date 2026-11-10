@@ -1,0 +1,19 @@
+{
+	"name": "@webcraft/module-extra-blocks",
+	"version": "1.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/module-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"typescript": "catalog:"
+	}
+}

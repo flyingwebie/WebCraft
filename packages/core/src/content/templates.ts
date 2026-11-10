@@ -39,6 +39,7 @@ import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { knownValues, loopItemKnownValues } from "./render-values.ts";
+import { checkRetainedModulePlacements } from "./retained-module-props.ts";
 
 /**
  * The kinds of Template: the Site template (one per Site, around every page), Entry templates (one
@@ -600,6 +601,7 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 		.from(templates)
 		.where(scope.where(templates, whereFor(target)))
 		.for("update");
+	await checkRetainedModulePlacements(scope, draft, before?.draft as ElementTree | undefined);
 	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy, updatedVia }, whereFor(target));
 	const row =
 		updated ??

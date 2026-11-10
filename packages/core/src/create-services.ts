@@ -225,6 +225,7 @@ export async function createInstallServices(
 	// react to some, and a publish fires the Site's Webhooks.
 	const listeners: { afterAudit: ModuleHost["afterAudit"][] } = { afterAudit: [] };
 	const data = createDataLayer({
+		componentSources: () => modules.components,
 		database,
 		clock,
 		secrets: store,

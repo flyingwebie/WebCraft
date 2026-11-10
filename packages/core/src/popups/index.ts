@@ -306,7 +306,13 @@ export function createPopups(sources: ComponentSources = NO_MODULE_COMPONENTS) {
 					.split("-")
 					.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
 					.join("")}`.slice(0, 64);
-				const taken = new Set([...(await tx.select(components)), ...sources.allModuleComponents()].map((c) => c.name));
+				const taken = new Set([
+					...(await tx.select(components)).map((component) => component.name),
+					...sources.allModuleComponents().map((component) => component.name),
+					...(await sources.retainedModuleComponentsAt(tx)).map((component) =>
+						component.id.slice(component.id.indexOf(":") + 1),
+					),
+				]);
 				let componentName = baseName;
 				for (let suffix = 2; taken.has(componentName); suffix++)
 					componentName = `${baseName.slice(0, 64 - String(suffix).length)}${suffix}`;

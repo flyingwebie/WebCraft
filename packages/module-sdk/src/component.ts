@@ -30,6 +30,8 @@ export type ComponentProp = {
 	help?: Label;
 	/** Whether every Placement must give it (unless it has a default). */
 	required?: boolean;
+	/** Translate human text per Block; settings and references stay shared. */
+	translatable?: boolean;
 	/** The value a Placement that leaves it out gets, as the APIs take the Field type's value. */
 	default?: unknown;
 	minLength?: number | null;
@@ -77,5 +79,13 @@ export type ModuleComponent = {
 
 /** Declares one of a Module's Components. It only gives the definition back, typed. */
 export function component(definition: ModuleComponent): ModuleComponent {
+	return definition;
+}
+
+/** A declarative Body Block, also reusable as a Component. Stored using the lossless Component
+ * Block representation (stable id, namespaced component id, Prop text). Staff explicitly allow
+ * its id on a Post Type's Body field before editors can insert it. Added in SDK 1.12. */
+export type ModuleBlockType = ModuleComponent;
+export function blockType(definition: ModuleBlockType): ModuleBlockType {
 	return definition;
 }
