@@ -2,6 +2,7 @@ import type { Json } from "../content/field-types.ts";
 import type { Languages } from "../content/field-values.ts";
 import type { PostType } from "../content/post-types.ts";
 import { entryParts, type Parts, resolvePath } from "../content/render-values.ts";
+import type { SocialCardLayout } from "../social-cards/rules.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import type { EntrySeo } from "./entry-seo.ts";
 import { firstImage, shareableImages } from "./images.ts";
@@ -12,13 +13,15 @@ import { siteSeoSettings } from "./site-settings.ts";
 /**
  * What search engines and other sites get from an Entry's Draft, in a language, through the same
  * fallbacks its page uses: its whole title, its description, and its social image with where it comes
- * from (the Entry's own, the Post Type's image Field, or the Site's default image; the Social card,
- * #93, joins them). The Entry editor's SEO card shows it.
+ * from (the Entry's own, the Post Type's image Field, a Social card planned for publication, or the Site's default image). The Entry editor's SEO card shows it.
  */
 export type SeoPreview = {
 	title: string;
 	description: string | null;
-	image: { mediaId: string; from: "entry" | "field" | "site" } | null;
+	image:
+		| { mediaId: string; from: "entry" | "field" | "site" }
+		| { from: "socialCard"; layout: SocialCardLayout; state: "onPublish" }
+		| null;
 };
 
 /**
@@ -71,7 +74,11 @@ export async function seoReports(
 			{ mediaId: field, from: "field" as const },
 			{ mediaId: settings.defaultImage, from: "site" as const },
 		];
-		const chosen = candidates.find((candidate) => firstImage(images, [candidate.mediaId]) !== null);
+		const own = candidates.slice(0, 2).find((candidate) => firstImage(images, [candidate.mediaId]) !== null);
+		const generated = !own && settings.socialCards.enabled;
+		const chosen =
+			own ??
+			(!generated ? candidates.find((candidate) => firstImage(images, [candidate.mediaId]) !== null) : undefined);
 		const image = chosen ? firstImage(images, [chosen.mediaId]) : null;
 		const checks: SeoCheck[] = [];
 		const { titleMax, descriptionMin, descriptionMax } = SEO_CHECK_LIMITS;
@@ -85,13 +92,21 @@ export async function seoReports(
 		} else if (length > descriptionMax) {
 			checks.push({ at: "seo.description", check: "seoDescriptionLong", params: { length, max: descriptionMax } });
 		}
-		if (!image) checks.push({ at: "seo.image", check: "seoImageMissing" });
-		else if (!image.alt?.trim()) checks.push({ at: "seo.image", check: "seoImageAlt" });
+		if (!image && !generated) checks.push({ at: "seo.image", check: "seoImageMissing" });
+		else if (image && !image.alt?.trim()) checks.push({ at: "seo.image", check: "seoImageAlt" });
 		return {
 			preview: {
 				title,
 				description,
-				image: chosen?.mediaId ? { mediaId: chosen.mediaId.toLowerCase(), from: chosen.from } : null,
+				image: generated
+					? {
+							from: "socialCard" as const,
+							layout: postType.seo.socialCardLayout ?? settings.socialCards.layout,
+							state: "onPublish" as const,
+						}
+					: chosen?.mediaId
+						? { mediaId: chosen.mediaId.toLowerCase(), from: chosen.from }
+						: null,
 			},
 			checks,
 		};

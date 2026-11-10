@@ -29,6 +29,7 @@ export const seoSettings = {
 		.input(
 			z.object({
 				siteId: id,
+				socialCards: z.object({ enabled: z.boolean().optional(), layout: z.string().max(100).optional() }).optional(),
 				siteName: z.string().max(1_000).nullable().optional(),
 				separator: z.string().max(100).optional(),
 				defaultImage: z.string().max(100).nullable().optional(),

@@ -1,9 +1,9 @@
 import { media, mediaFiles } from "@webcraft/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-
 import { clearPageCache } from "../content/page-cache.ts";
 import { defineJob, type JobContext } from "../jobs/define.ts";
+import { socialCardsRender } from "../social-cards/jobs.ts";
 import type { BackgroundScope } from "../tenancy/data-layer.ts";
 import { type ImageInput, ImageUnreadableError, SvgRefusedError, VARIANT_FORMATS, variantWidths } from "./images.ts";
 import type { MediaFailure } from "./library.ts";
@@ -126,6 +126,8 @@ async function cleanUpload(context: JobContext, siteId: string, mediaId: string)
 		return;
 	}
 	await source.delete(upload.key);
+	// A logo replacement changes card inputs only once its cleaned original is ready.
+	await jobs.send(socialCardsRender, { siteId });
 	log.info("Cleaned an uploaded image", { siteId, mediaId, width: prepared.width, height: prepared.height });
 	// An SVG is drawn at any size: it has no widths to make.
 	if (format.format !== "svg") await jobs.send(mediaVariants, { siteId, mediaId });

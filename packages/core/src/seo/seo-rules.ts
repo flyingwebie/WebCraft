@@ -1,6 +1,8 @@
 // The admin reads this file in the browser (`@webcraft/core/seo-rules`): it imports types only.
+
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
+import { isSocialCardLayout, type SocialCardLayout } from "../social-cards/rules.ts";
 
 /**
  * A Post Type's SEO settings (the SEO decision): what its Entries' SEO fields fall back to when they
@@ -15,6 +17,7 @@ import type { FieldDefinition } from "../content/field-types.ts";
  *   its value comes from (`SchemaSource`).
  */
 export type PostTypeSeo = {
+	socialCardLayout: SocialCardLayout | null;
 	titlePattern: string;
 	descriptionField: string | null;
 	imageField: string | null;
@@ -384,6 +387,7 @@ export function defaultPostTypeSeo(fields: readonly FieldDefinition[]): PostType
 	const media = fields.find((field) => field.type === "media");
 	const body = fields.find((field) => field.type === "body");
 	return {
+		socialCardLayout: null,
 		titlePattern: DEFAULT_TITLE_PATTERN,
 		descriptionField: null,
 		imageField: media?.key ?? body?.key ?? null,
@@ -433,7 +437,13 @@ export function keptPostTypeSeo(stored: unknown, fields: readonly FieldDefinitio
 		const source = given[property.name];
 		if (typeof source === "string" && sourceGives(fields, source, property.kind)) properties[property.name] = source;
 	}
-	return { titlePattern: pattern, descriptionField, imageField, schema: { type, properties: faqKept(properties) } };
+	return {
+		socialCardLayout: isSocialCardLayout(record.socialCardLayout) ? record.socialCardLayout : null,
+		titlePattern: pattern,
+		descriptionField,
+		imageField,
+		schema: { type, properties: faqKept(properties) },
+	};
 }
 
 /** An FAQ's questions and answers come from the same Repeater, or neither is kept. */
@@ -459,6 +469,7 @@ export function isSchemaType(value: unknown): value is SchemaType {
 
 /** A change to a Post Type's SEO settings: each part given replaces that part. */
 export type PostTypeSeoChange = {
+	socialCardLayout?: unknown;
 	titlePattern?: unknown;
 	descriptionField?: unknown;
 	imageField?: unknown;
@@ -478,6 +489,16 @@ export function parsePostTypeSeo(
 	problems: ContentProblem[],
 ): PostTypeSeo {
 	const next: PostTypeSeo = { ...current, schema: { ...current.schema } };
+	if (change.socialCardLayout !== undefined) {
+		if (change.socialCardLayout === null || isSocialCardLayout(change.socialCardLayout))
+			next.socialCardLayout = change.socialCardLayout;
+		else
+			problems.push({
+				at: "seo.socialCardLayout",
+				rule: "socialCardLayout",
+				message: "Choose a built-in Social card layout.",
+			});
+	}
 	if (change.titlePattern !== undefined) {
 		const problem = titlePatternProblem(change.titlePattern);
 		if (problem) problems.push({ at: "seo.titlePattern", ...problem });

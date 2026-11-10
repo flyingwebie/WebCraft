@@ -1,7 +1,9 @@
 import { useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
+import { SOCIAL_CARD_LAYOUTS, type SocialCardLayout } from "@webcraft/core/social-card-rules";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
+import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
@@ -62,6 +64,7 @@ export function SiteSeoSettings({
 	const id = useId();
 	const [name, setName] = useState(settings.siteName ?? "");
 	const [separator, setSeparator] = useState(settings.separator);
+	const [socialCards, setSocialCards] = useState(settings.socialCards);
 	const [defaultImage, setDefaultImage] = useState(settings.defaultImage);
 	const [organization, setOrganization] = useState(settings.organization);
 	const [profiles, setProfiles] = useState(settings.organization.sameAs.join("\n"));
@@ -84,6 +87,7 @@ export function SiteSeoSettings({
 				siteName: name.trim() || null,
 				separator,
 				defaultImage,
+				socialCards,
 				organization: {
 					...organization,
 					sameAs: profiles
@@ -180,6 +184,38 @@ export function SiteSeoSettings({
 				</p>
 			</div>
 
+			<Card>
+				<CardHeader>
+					<CardTitle>
+						<h2>{t("seo.socialCards.title")}</h2>
+					</CardTitle>
+					<CardDescription>{t("seo.socialCards.help")}</CardDescription>
+				</CardHeader>
+				<CardContent className="grid gap-5">
+					<div className="flex items-center gap-3">
+						<Checkbox
+							id={`${id}-social-enabled`}
+							checked={socialCards.enabled}
+							onCheckedChange={(checked) => setSocialCards({ ...socialCards, enabled: checked === true })}
+						/>
+						<Label htmlFor={`${id}-social-enabled`}>{t("seo.socialCards.enabled")}</Label>
+					</div>
+					<div className="grid gap-2">
+						<Label htmlFor={`${id}-social-layout`}>{t("seo.socialCards.layout")}</Label>
+						<NativeSelect
+							id={`${id}-social-layout`}
+							value={socialCards.layout}
+							onChange={(event) => setSocialCards({ ...socialCards, layout: event.target.value as SocialCardLayout })}
+						>
+							{SOCIAL_CARD_LAYOUTS.map((layout) => (
+								<NativeSelectOption key={layout} value={layout}>
+									{t(`seo.socialCards.layouts.${layout}`)}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</div>
+				</CardContent>
+			</Card>
 			<Card>
 				<CardHeader>
 					<CardTitle>

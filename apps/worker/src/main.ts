@@ -14,9 +14,9 @@ import {
 	startWorkerHeartbeat,
 	workJobs,
 } from "@webcraft/core";
-
 import { createImageProcessor } from "./images.ts";
 import { createChromiumPdf } from "./pdf.ts";
+import { createSocialCardRenderer } from "./social-cards.ts";
 
 /** How long a stopping worker waits for running jobs to finish. */
 const STOP_TIMEOUT_MS = 30_000;
@@ -52,6 +52,7 @@ async function main(): Promise<void> {
 		opened: running,
 		// Only the worker processes images (ADR 0027).
 		images: createImageProcessor(),
+		socialCardRenderer: createSocialCardRenderer(),
 		// Only the worker renders Reports' PDFs, with the headless Chromium its image carries.
 		pdf: createChromiumPdf(),
 		http: createNodeHttp(),

@@ -1,7 +1,6 @@
 import { assertSchemaCurrent, createBoss, type Database, type JobQueueOptions, openDatabase } from "@webcraft/db";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 import type { PgBoss } from "pg-boss";
-
 import { createHttpAiProviders } from "./ai/http-providers.ts";
 import { systemClock } from "./clock.ts";
 import { type Environment, type InstallConfig, loadInstallConfig } from "./config.ts";
@@ -19,6 +18,7 @@ import { moduleSchemas } from "./modules/schemas.ts";
 import { type PdfRenderer, pdfOnlyInWorker } from "./reports/pdf.ts";
 import { loadMasterKey } from "./secrets/master-key.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
+import { type SocialCardRenderer, socialCardsOnlyInWorker } from "./social-cards/renderer.ts";
 import { systemTls } from "./tls.ts";
 
 /** The two long-running processes of an Install (ADR 0006). */
@@ -41,6 +41,7 @@ export type OpenInstallOptions = {
 	opened?: OpenedParts;
 	/** Image processing: the worker hands in the real one; the web process never processes images. */
 	images?: ImageProcessor;
+	socialCardRenderer?: SocialCardRenderer;
 	/** Turning Reports into PDFs: the worker hands in headless Chromium; the web process never renders one. */
 	pdf?: PdfRenderer;
 	/** The Modules to load: the first-party Modules of this build unless given. */
@@ -82,6 +83,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 			...realPorts(config, database, log, options.http),
 			jobs: createJobQueue(boss),
 			images: options.images ?? imagesOnlyInWorker,
+			socialCardRenderer: options.socialCardRenderer ?? socialCardsOnlyInWorker,
 			pdf: options.pdf ?? pdfOnlyInWorker,
 		},
 		masterKey,
@@ -115,6 +117,7 @@ export async function openInstallForCommand(options: {
 				...realPorts(config, database, log, options.http ?? unpinnedHttp),
 				jobs: { send: () => Promise.reject(new Error("Server commands don't send jobs.")) },
 				images: imagesOnlyInWorker,
+				socialCardRenderer: socialCardsOnlyInWorker,
 				pdf: pdfOnlyInWorker,
 			},
 			masterKey,
@@ -152,6 +155,7 @@ export async function openInstallForCommandSendingJobs(options: {
 				...realPorts(config, database, log, unpinnedHttp),
 				jobs: createJobQueue(boss),
 				images: imagesOnlyInWorker,
+				socialCardRenderer: socialCardsOnlyInWorker,
 				pdf: pdfOnlyInWorker,
 			},
 			masterKey,
@@ -184,7 +188,7 @@ function realPorts(
 	database: Database,
 	log: Logger,
 	http: OutgoingHttp,
-): Omit<InstallPorts, "jobs" | "images" | "pdf"> {
+): Omit<InstallPorts, "jobs" | "images" | "pdf" | "socialCardRenderer"> {
 	return {
 		config,
 		database,

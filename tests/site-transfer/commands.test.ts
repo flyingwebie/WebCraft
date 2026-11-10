@@ -41,7 +41,7 @@ let archive: string;
 
 beforeAll(async () => {
 	folder = mkdtempSync(join(tmpdir(), "webcraft-site-exports-"));
-	install = await createTestInstall();
+	install = await createTestInstall({ now: new Date() });
 	admin = await install.superadmin();
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	otherWorkspaceId = (await install.createWorkspace("Beta Ltd")).id;
@@ -122,6 +122,15 @@ describe("webcraft site import", () => {
 		const { imports } = await admin.api.siteImports.list({ workspaceId: otherWorkspaceId });
 		expect(imports.map((each) => [each.status, each.site?.name])).toEqual([["done", "Beta Bakery"]]);
 		const newSiteId = imports[0]?.site?.id ?? "";
+		// The command queues work with the real clock; let the frozen worker clock reach it.
+		await install.clock.set(new Date());
+		const cards = await install.drainJobs({ only: ["socialCards.render"] });
+		expect(cards.failed).toEqual([]);
+		expect(cards.completed).toContainEqual({
+			name: "socialCards.render",
+			data: expect.objectContaining({ siteId: newSiteId }),
+		});
+		expect(install.socialCards.rendered).toEqual([]);
 
 		install.mail.clear();
 		await admin.api.siteSmtp.sendTest({

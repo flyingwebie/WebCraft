@@ -75,11 +75,12 @@ describe("creating an Entry", () => {
 			path: null,
 			problems: [],
 			// The SEO check's warnings (see tests/seo): nothing to describe the page or show when it is shared.
-			checks: [
-				{ at: "seo.description", check: "seoDescriptionMissing", message: expect.any(String) },
-				{ at: "seo.image", check: "seoImageMissing", message: expect.any(String) },
-			],
-			seoPreview: { title: expect.stringMatching(/^Sourdough starter · Site \d+$/), description: null, image: null },
+			checks: [{ at: "seo.description", check: "seoDescriptionMissing", message: expect.any(String) }],
+			seoPreview: {
+				title: expect.stringMatching(/^Sourdough starter · Site \d+$/),
+				description: null,
+				image: { from: "socialCard", layout: "editorial", state: "onPublish" },
+			},
 			linkedFrom: [],
 			// Translations stand only in a language other than the Default language.
 			translation: null,

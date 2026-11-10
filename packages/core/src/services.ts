@@ -108,6 +108,7 @@ import type { DataSample } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
 import type { SiteScripts } from "./site-scripts/index.ts";
 import type { SiteTransfer } from "./site-transfer/index.ts";
+import type { SocialCardRenderer } from "./social-cards/renderer.ts";
 import type { Staging } from "./staging/index.ts";
 import type {
 	Access,
@@ -155,6 +156,7 @@ export type InstallPorts = {
 	 * one; the web process and server commands get `imagesOnlyInWorker` (ADR 0027).
 	 */
 	images: ImageProcessor;
+	socialCardRenderer: SocialCardRenderer;
 	/**
 	 * Turning a Report's page into a PDF (headless Chromium): only the worker (and the test harness,
 	 * with a fake) has a real one; the web process and server commands get `pdfOnlyInWorker`.

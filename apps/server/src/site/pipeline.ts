@@ -21,10 +21,12 @@ import {
 	type SiteHost,
 	type SitemapLimits,
 	type SiteScope,
+	SOCIAL_CARD_PATH,
 	STYLESHEET_PATH,
 	searchQueryIn,
 	showsDrafts,
 	siteScript,
+	socialCardFile,
 	VERIFY_PATH,
 } from "@webcraft/core";
 
@@ -170,6 +172,19 @@ async function siteAnswer(
 	return readOnly(request, async () => {
 		if (url.pathname === MEDIA_PATH.slice(0, -1) || url.pathname.startsWith(MEDIA_PATH)) {
 			return mediaFile(services, request, host, url.pathname.slice(MEDIA_PATH.length));
+		}
+		if (url.pathname.startsWith(SOCIAL_CARD_PATH)) {
+			const file = await socialCardFile(services.data.visitors(host.site), url.pathname.slice(SOCIAL_CARD_PATH.length));
+			if (!file) return plainText(404, "Not Found", addressHeaders(host));
+			const etag = `"${file.hash}"`;
+			const headers = {
+				"content-type": "image/png",
+				"cache-control": "public, max-age=0, must-revalidate",
+				etag,
+				...addressHeaders(host),
+			};
+			if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers });
+			return new Response(request.method === "HEAD" ? null : new Uint8Array(file.png), { headers });
 		}
 		if (url.pathname.startsWith(STYLESHEET_PATH)) {
 			return stylesheet(services, request, host, url.pathname.slice(STYLESHEET_PATH.length));

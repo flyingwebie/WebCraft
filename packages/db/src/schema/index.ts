@@ -34,6 +34,7 @@ export * from "./secrets.ts";
 export * from "./seo.ts";
 export * from "./site-scripts.ts";
 export * from "./site-transfer.ts";
+export * from "./social-cards.ts";
 export * from "./staging.ts";
 export * from "./tenancy.ts";
 export * from "./two-factor.ts";

@@ -31,6 +31,7 @@ export const LEFT_OUT_TABLES: Readonly<Record<string, LeftOutReason>> = {
 	"public.search_documents": "published",
 	"public.gone_paths": "published",
 	"public.stylesheets": "published",
+	"public.social_cards": "published",
 	// Scheduled publishes are dropped (and listed), so nothing publishes by itself on the new Site.
 	"public.scheduled_publishes": "scheduled",
 	"public.scheduled_publish_items": "scheduled",

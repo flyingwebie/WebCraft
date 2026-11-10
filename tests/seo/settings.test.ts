@@ -62,6 +62,7 @@ describe("a Post Type's SEO settings", () => {
 		});
 
 		expect(postType.seo).toEqual({
+			socialCardLayout: null,
 			titlePattern: "{title} {separator} {site}",
 			descriptionField: null,
 			imageField: "cover",
@@ -158,6 +159,7 @@ describe("a Site's SEO settings", () => {
 		const { siteId } = await newSite();
 
 		expect((await editor.api.seoSettings.get({ siteId })).settings).toEqual({
+			socialCards: { enabled: true, layout: "editorial" },
 			siteName: null,
 			separator: "·",
 			defaultImage: null,

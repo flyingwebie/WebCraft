@@ -21,6 +21,7 @@ const searchedFields = z
  * given without `properties` takes WebCraft's guesses.
  */
 const seo = z.object({
+	socialCardLayout: z.string().max(100).nullable().optional(),
 	titlePattern: z.string().max(1_000).optional(),
 	descriptionField: z.string().max(300).nullable().optional(),
 	imageField: z.string().max(300).nullable().optional(),

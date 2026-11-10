@@ -1,0 +1,358 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "492a966f-be98-4c5f-88cd-876365ded722",
+  "prevIds": [
+    "571f1bd7-ab69-483b-bea5-766802bb075d"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "social_cards"
+      ],
+      "writes": [
+        "s|tbl|public.social_cards",
+        "n|tbl|public.social_cards",
+        "e|tbl|public.social_cards",
+        "n|rel|public.social_cards",
+        "n|type|public.social_cards",
+        "n|rel|public.social_cards_pkey",
+        "n|rel|public.social_cards_input_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "seo_settings",
+        "social_cards_enabled"
+      ],
+      "writes": [
+        "s|col|public.seo_settings.social_cards_enabled",
+        "n|col|public.seo_settings.social_cards_enabled",
+        "e|col|public.seo_settings.social_cards_enabled"
+      ],
+      "reads": [
+        "n|tbl|public.seo_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "seo_settings",
+        "social_card_layout"
+      ],
+      "writes": [
+        "s|col|public.seo_settings.social_card_layout",
+        "n|col|public.seo_settings.social_card_layout",
+        "e|col|public.seo_settings.social_card_layout"
+      ],
+      "reads": [
+        "n|tbl|public.seo_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "social_cards"
+      ],
+      "writes": [
+        "s|fk|public.social_cards.social_cards_entry_id_entries_id_fkey",
+        "n|fk|public.social_cards.social_cards_entry_id_entries_id_fkey",
+        "e|fk|public.social_cards.social_cards_entry_id_entries_id_fkey",
+        "n|con|public.social_cards.social_cards_entry_id_entries_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.social_cards",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.social_cards.entry_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "social_cards"
+      ],
+      "writes": [
+        "s|fk|public.social_cards.social_cards_site_fkey",
+        "n|fk|public.social_cards.social_cards_site_fkey",
+        "e|fk|public.social_cards.social_cards_site_fkey",
+        "n|con|public.social_cards.social_cards_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.social_cards",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.social_cards.workspace_id",
+        "n|col|public.social_cards.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "social_cards",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "seo_settings",
+        "name": "social_cards_enabled",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "true",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "seo_settings",
+        "name": "social_card_layout",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'editorial'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "entry_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "language",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "hash",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "png",
+        "type": "bytea",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "social_cards_entry_id_entries_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "entry_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "social_cards_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "social_cards_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "social_cards",
+        "name": "social_cards_input_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "entry_id",
+          "language",
+          "hash"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    }
+  ]
+}

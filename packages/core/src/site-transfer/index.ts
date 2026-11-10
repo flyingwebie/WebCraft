@@ -33,6 +33,7 @@ import type { PersonActor } from "../permissions/can.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { InstallSecrets } from "../secrets/index.ts";
 import { reservedSlugs } from "../site-pages/addresses.ts";
+import { socialCardsRender } from "../social-cards/jobs.ts";
 import type { Access, DataLayer, SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "../tenancy/errors.ts";
 import type { MembersService } from "../tenancy/members.ts";
@@ -383,10 +384,11 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 		progress,
 	});
 
-	/** Queues what the worker does for the new Site's Media, as after a restore. */
-	const redoMedia = async (siteId: string, media: { process: string[]; variants: string[] }) => {
+	/** Rebuilds derived files for the new Site; card rendering reads only published Content. */
+	const regenerateFiles = async (siteId: string, media: { process: string[]; variants: string[] }) => {
 		for (const mediaId of media.process) await deps.jobs.send(mediaProcess, { siteId, mediaId });
 		for (const mediaId of media.variants) await deps.jobs.send(mediaVariants, { siteId, mediaId });
+		await deps.jobs.send(socialCardsRender, { siteId });
 	};
 
 	/** The details a `site.import` entry records. */
@@ -804,7 +806,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 			);
 			const site = { workspaceId: input.workspaceId, id: imported.siteId };
 			for (const secret of imported.secrets) await deps.commandSecrets.set(site, secret.name, secret.value);
-			await redoMedia(imported.siteId, imported.media);
+			await regenerateFiles(imported.siteId, imported.media);
 			const now = clock.now();
 			const target = await storage.current();
 			const id = crypto.randomUUID();
@@ -983,10 +985,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 				};
 				const hasKey = (await deps.secrets.describe(importKey(row.id))).set;
 				const result = hasKey ? await deps.secrets.useWith(importKey(row.id), run) : await run(null);
-				for (const mediaId of result.media.process)
-					await deps.jobs.send(mediaProcess, { siteId: result.siteId, mediaId });
-				for (const mediaId of result.media.variants)
-					await deps.jobs.send(mediaVariants, { siteId: result.siteId, mediaId });
+				await regenerateFiles(result.siteId, result.media);
 				await scope.transaction(async (tx) => {
 					await tx.audit("site.import", importDetails(row, result.report), { siteId: result.siteId });
 					for (const invite of result.report.invited) {

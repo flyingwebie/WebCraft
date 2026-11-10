@@ -33,7 +33,7 @@ ENV NODE_ENV=production \
 	WEBCRAFT_BACKUP_DIR=/var/lib/webcraft/backups
 # Headless Chromium for Reports' PDFs, and fonts for their text.
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends chromium fonts-liberation \
+	&& apt-get install -y --no-install-recommends chromium fonts-liberation fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji \
 	&& rm -rf /var/lib/apt/lists/*
 ENV WEBCRAFT_CHROMIUM=/usr/bin/chromium
 COPY --from=runtime-files /app /app

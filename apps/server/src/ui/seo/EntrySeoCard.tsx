@@ -48,7 +48,9 @@ export function EntrySeoCard({
 		preview.image && preview.image.from !== "entry"
 			? preview.image.from === "field"
 				? t("seo.card.imageFromField", { field: imageField?.field.label ?? postType.seo.imageField ?? "" })
-				: t("seo.card.imageFromSite")
+				: preview.image.from === "socialCard"
+					? t("seo.socialCards.onPublish")
+					: t("seo.card.imageFromSite")
 			: imageField
 				? t("seo.card.imageFromField", { field: imageField.field.label })
 				: t("seo.card.imageNone");

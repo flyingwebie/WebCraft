@@ -88,7 +88,8 @@ export async function pageDetails(
 	const path = address?.path ?? null;
 	const slug = entry.draft.slug;
 	const summaryField = postType.summaryField ? fieldAt(postType.fields, postType.summaryField) : undefined;
-	const shown = entry.draft.seo.image ?? fallbacks.image?.mediaId ?? null;
+	const shown =
+		entry.draft.seo.image ?? (fallbacks.image && "mediaId" in fallbacks.image ? fallbacks.image.mediaId : null);
 	return {
 		item: `entry:${entryId}`,
 		language: languages.language,
