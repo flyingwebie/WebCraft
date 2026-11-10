@@ -6,6 +6,7 @@
 // person who scheduled it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { scheduledPublishesDue } from "@webcraft/core";
+import pg from "pg";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -832,5 +833,114 @@ describe("two people at once", () => {
 		const refused = answers.find((answer) => answer.status === "rejected") as PromiseRejectedResult;
 		expect(refused.reason).toMatchObject({ code: "ALREADY_SCHEDULED" });
 		expect((await staff.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toHaveLength(1);
+	});
+});
+
+// A run can hit Postgres refusing a statement for a reason that has nothing to do with two workers
+// racing (a constraint, a timeout, a lock request that gave up): unlike a deadlock or a serialization
+// failure, trying the same thing again a minute later wouldn't help. These tests act as someone with
+// write access to the database (like tests/tenancy/audit-log.test.ts) to make Postgres itself refuse a
+// specific Entry's publish with a chosen SQLSTATE, since forcing a genuine deadlock deterministically
+// would mean reaching into scheduled-publishes.ts's own locking.
+describe("a Scheduled publish whose run hits a database error", () => {
+	let database: pg.Client;
+
+	beforeAll(async () => {
+		database = new pg.Client({ connectionString: install.databaseUrl });
+		await database.connect();
+	});
+
+	afterAll(async () => {
+		await database.end();
+	});
+
+	/** Makes Postgres refuse the next UPDATE of `entryId` with SQLSTATE `code`, until the answered function undoes it. */
+	async function poisonEntry(entryId: string, code: string): Promise<() => Promise<void>> {
+		const name = `test_block_${entryId.replaceAll("-", "_")}`;
+		await database.query(
+			`CREATE OR REPLACE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $fn$
+				BEGIN RAISE EXCEPTION 'simulated database failure' USING ERRCODE = '${code}'; END;
+			$fn$`,
+		);
+		await database.query(
+			`CREATE TRIGGER ${name}_trigger BEFORE UPDATE ON entries FOR EACH ROW WHEN (NEW.id = '${entryId}') EXECUTE FUNCTION ${name}()`,
+		);
+		return async () => {
+			await database.query(`DROP TRIGGER IF EXISTS ${name}_trigger ON entries`);
+			await database.query(`DROP FUNCTION IF EXISTS ${name}()`);
+		};
+	}
+
+	test("a non-transient error (lock_not_available) fails on the first run and emails at once, naming the item that actually failed", async () => {
+		const site = await newSite();
+		const kept = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Kept",
+		});
+		const poisoned = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Poisoned",
+		});
+		const scheduled = await scheduleAll(
+			site.editor,
+			site.siteId,
+			[
+				{ kind: "entry", id: kept.entry.id },
+				{ kind: "entry", id: poisoned.entry.id },
+			],
+			inMinutes(10),
+		);
+		const undo = await poisonEntry(poisoned.entry.id, "55P03");
+		try {
+			await waitMinutes(10);
+
+			// Not tried again: the Scheduled publish is gone after a single look, and nothing was published.
+			expect((await site.editor.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toEqual([]);
+			expect((await install.request(`${site.live}/blog/kept`)).status).toBe(404);
+			expect((await install.request(`${site.live}/blog/poisoned`)).status).toBe(404);
+
+			const email = await install.lastEmailTo(site.editorEmail);
+			// The item named is the one that actually failed, not a guess (the first item of the set).
+			expect(email.text).toContain("Poisoned");
+			expect(email.text).not.toContain("Kept");
+
+			expect((await auditOf(site.siteId)).find((each) => each.action === "scheduledPublish.fail")).toMatchObject({
+				details: { scheduleId: scheduled.id, reason: "other", item: { kind: "entry", id: poisoned.entry.id } },
+			});
+		} finally {
+			await undo();
+		}
+	});
+
+	test("a deadlock (serialization failure) still gets tried again the next minute instead of failing at once", async () => {
+		const site = await newSite();
+		const { entry } = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Retried",
+		});
+		const { scheduled } = await site.editor.api.publishing.schedule({
+			siteId: site.siteId,
+			item: { kind: "entry", id: entry.id },
+			at: inMinutes(5),
+		});
+		const undo = await poisonEntry(entry.id, "40P01");
+		try {
+			await waitMinutes(5);
+			// Tried again, not failed: still scheduled, and nobody was emailed yet.
+			expect((await site.editor.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toMatchObject([
+				{ id: scheduled.id },
+			]);
+			expect(install.mail.sent.some((email) => email.to.toLowerCase() === site.editorEmail.toLowerCase())).toBe(false);
+		} finally {
+			await undo();
+		}
+
+		await waitMinutes(1);
+		expect(await visit(site.live, "/blog/retried")).toEqual({ status: 200, heading: "Retried" });
+		expect((await site.editor.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toEqual([]);
+		expect(install.mail.sent.some((email) => email.to.toLowerCase() === site.editorEmail.toLowerCase())).toBe(false);
 	});
 });
