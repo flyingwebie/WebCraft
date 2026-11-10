@@ -218,8 +218,11 @@ type Unit = {
 	describe: string;
 };
 
-/** A local file path recognised as one of a kind's units: its key (after `kind:`) and what to call it. */
-type PathMatch = { key: string; describe: string };
+/**
+ * A local file path recognised as one of a kind's units: its key (after `kind:`), what to call it, and
+ * its own push order where it differs from its kind's.
+ */
+type PathMatch = { key: string; describe: string; order?: number };
 
 /** `path`, with `suffix` taken off its end, or null when it doesn't end with it. */
 function withoutSuffix(path: string, suffix: string): string | null {
@@ -354,6 +357,8 @@ const KINDS: Record<StructureItem["kind"], Kind> = {
 				return key && SAFE_NAME.test(key)
 					? {
 							key: `${parts[1]}:${key}`,
+							// After the Site and Search results templates, as before the table.
+							order: 5,
 							describe: `the ${parts[1] === "entry" ? "Entry" : "Archive"} template of ${key}`,
 						}
 					: null;
@@ -447,7 +452,12 @@ const KINDS: Record<StructureItem["kind"], Kind> = {
 function unitOf(path: string): { key: string; order: number; describe: string } | null {
 	for (const [kind, entry] of Object.entries(KINDS) as [StructureItem["kind"], Kind][]) {
 		const found = entry.pathOf(path);
-		if (found) return { key: found.key ? `${kind}:${found.key}` : kind, order: entry.order, describe: found.describe };
+		if (found)
+			return {
+				key: found.key ? `${kind}:${found.key}` : kind,
+				order: found.order ?? entry.order,
+				describe: found.describe,
+			};
 	}
 	return null;
 }
