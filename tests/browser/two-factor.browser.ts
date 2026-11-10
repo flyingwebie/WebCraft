@@ -84,6 +84,9 @@ for (const theme of THEMES) {
 			await page.locator("#sign-in-code").fill("000000");
 			await page.getByRole("button", { name: "Verify" }).click();
 			await page.locator("#sign-in-code-error").waitFor();
+			expect(await page.locator("#sign-in-code-error").textContent()).toContain(
+				"That code is wrong or was already used.",
+			);
 			await expectAccessibleScreen(page, `second sign-in step, a refused code (${theme})`);
 
 			await page.getByRole("button", { name: "Use a backup code instead" }).click();

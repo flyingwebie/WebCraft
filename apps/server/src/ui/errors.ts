@@ -7,6 +7,14 @@ import type { MessageKey } from "./i18n.tsx";
 export function errorMessage(error: unknown): MessageKey {
 	const { code, data } = (error ?? {}) as { code?: unknown; data?: { problem?: unknown } };
 	switch (code) {
+		case "TWO_FACTOR_CODE_INVALID":
+		case "SIGN_IN_EXPIRED":
+		case "AUTHENTICATOR_EXISTS":
+		case "TWO_FACTOR_NOT_FOUND":
+		case "TWO_FACTOR_OFF":
+		case "TWO_FACTOR_REQUIRED":
+		case "TWO_FACTOR_SETUP_REQUIRED":
+		case "PASSKEY_INVALID":
 		case "DASHBOARD_NOT_FOUND":
 		case "WIDGET_NOT_FOUND":
 		case "DASHBOARD_TEMPLATE_NOT_FOUND":
