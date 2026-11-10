@@ -1,0 +1,2055 @@
+{
+	"openapi": "3.1.0",
+	"info": {
+		"title": "WebCraft Content API",
+		"version": "1",
+		"description": "A Site's read-only API for frontends built elsewhere: its published content only, never Drafts.\n\nIt answers on each of the Site's domains and its Staging address under `/_content/v1`, once Staff switch it on (Site settings › Content API).\n\nEvery request carries one of the Site's Content keys in the Authorization header (`Authorization: Bearer webcraft-ck_…`), never in the address. A key reads published content only, so it may sit in browser code; browsers on other sites may send it only from the origins it lists (CORS, with preflights).\n\nLimits: 600 requests a minute per Content key and 120 per client address, then 429 with Retry-After. Every answer carries RateLimit-Limit, RateLimit-Remaining and RateLimit-Reset (seconds) of the limit closest to running out.\n\nCaching: answers carry a strong ETag and `Cache-Control: public, max-age=0, must-revalidate`; `If-None-Match` gets 304. Every publish (Publish all, Scheduled publishes and unpublishes, AI translation's publishes included) gives new answers at once.\n\nLanguages: `lang` reads one of the Site's languages (on a language's own domain, that language unless given). A value with none of its own falls back one Field at a time through `fallback` (the Default language unless given; `none` for none), and `fallbacks` names each value read from another language. An Entry hidden in the language never appears there.\n\nVersioning: changes within v1 are additive only; a breaking change ships as a new major version beside this one for at least 12 months, with a Deprecation header meanwhile.",
+		"license": {
+			"name": "AGPL-3.0-or-later"
+		}
+	},
+	"servers": [
+		{
+			"url": "/_content/v1",
+			"description": "On each of the Site's domains and its Staging address."
+		}
+	],
+	"security": [
+		{
+			"contentKey": []
+		}
+	],
+	"x-webcraft-errors": {
+		"CONTENT_API_OFF": {
+			"status": 404,
+			"meaning": "The Site's Content API is switched off (the default)."
+		},
+		"NOT_FOUND": {
+			"status": 404,
+			"meaning": "No such path in the Content API."
+		},
+		"METHOD_NOT_ALLOWED": {
+			"status": 405,
+			"meaning": "Only GET, HEAD and OPTIONS (a CORS preflight) are answered."
+		},
+		"CONTENT_KEY_INVALID": {
+			"status": 401,
+			"meaning": "The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`)."
+		},
+		"CONTENT_KEY_IN_QUERY": {
+			"status": 400,
+			"meaning": "A key was sent in the query string, where logs keep it: send it in the `Authorization` header."
+		},
+		"ORIGIN_NOT_ALLOWED": {
+			"status": 403,
+			"meaning": "A browser on another site sent the request, and the key doesn't list its origin (`data.origin`)."
+		},
+		"TOO_MANY_REQUESTS": {
+			"status": 429,
+			"meaning": "Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds."
+		},
+		"QUERY_INVALID": {
+			"status": 400,
+			"meaning": "The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`."
+		},
+		"POST_TYPE_NOT_FOUND": {
+			"status": 404,
+			"meaning": "The Site exposes no Post Type with that key."
+		},
+		"ENTRY_NOT_FOUND": {
+			"status": 404,
+			"meaning": "No published Entry of that Post Type, shown in the language, is there."
+		},
+		"ENTRY_GONE": {
+			"status": 410,
+			"meaning": "The Entry was published, then unpublished."
+		},
+		"MEDIA_NOT_FOUND": {
+			"status": 404,
+			"meaning": "The Site has no ready Media item with that id (or it is in the Trash)."
+		}
+	},
+	"x-webcraft-query-problems": {
+		"parameterUnknown": "The path doesn't take this parameter.",
+		"parameterRepeated": "The parameter is given more than once.",
+		"languageUnknown": "The Site has no such language (`lang`, `fallback`).",
+		"bodyFormat": "`body` is `html`, `blocks` or `markdown`.",
+		"fieldUnknown": "No exposed Field of the Post Type (or the Globals) has this key.",
+		"fieldNotRelationship": "Only a Relationship Field's related items take fields of their own (`category.title`).",
+		"tooDeep": "Relationships are read one level deep.",
+		"tooMany": "More values than the parameter takes.",
+		"filterUnsupported": "The Field can't be filtered on this way (see the schema's `filters`).",
+		"valueInvalid": "The value isn't one the Field (or the filter) takes.",
+		"sortUnsupported": "The Field can't be sorted by (see the schema's `sortable`).",
+		"limitInvalid": "`limit` is a whole number from 1 to 100.",
+		"cursorInvalid": "The cursor isn't one this list gave, for this same query.",
+		"queryMissing": "`q` is the text to search for.",
+		"tooFar": "Search answers its first 1,000 hits.",
+		"pathInvalid": "`path` is a path on the Site, starting with `/`.",
+		"notForPages": "Pages are found by their path (`/entry?path=`), as their slugs repeat under different parents."
+	},
+	"paths": {
+		"/entries/{postType}": {
+			"get": {
+				"operationId": "entries.list",
+				"summary": "A Post Type's published Entries",
+				"description": "Newest published first unless `sort` asks otherwise, 20 at a time (`limit`, up to 100); `next` is a cursor for the rest, to send as `cursor` with the same query.\n\nFilters: `filter.<field>=<value>` (equality), `filter.<field>.in=<a>,<b>` (one of, up to 50), and for numbers and days `filter.<field>.gt|gte|lt|lte=<value>`; a Relationship by the id of what it points at. Which Fields take which is each Field's `filters` in the schema; `publishedAt` and `lastPublishedAt` take the ranges. Several filters must all hold.\n\nOne sort Field: `sort=<field>`, `-<field>` for descending (Fields whose `sortable` is true, `title`, `publishedAt`, `lastPublishedAt`); Entries without a value come last, then the Entry's id breaks ties, so pages never repeat or skip one.",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/postType"
+					},
+					{
+						"$ref": "#/components/parameters/lang"
+					},
+					{
+						"$ref": "#/components/parameters/fallback"
+					},
+					{
+						"$ref": "#/components/parameters/body"
+					},
+					{
+						"$ref": "#/components/parameters/fields"
+					},
+					{
+						"$ref": "#/components/parameters/sort"
+					},
+					{
+						"$ref": "#/components/parameters/limit"
+					},
+					{
+						"$ref": "#/components/parameters/cursor"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/EntryList"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "QUERY_INVALID: The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`. CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["QUERY_INVALID", "CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "POST_TYPE_NOT_FOUND: The Site exposes no Post Type with that key. CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["POST_TYPE_NOT_FOUND", "CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/entries/{postType}/{id}": {
+			"get": {
+				"operationId": "entries.get",
+				"summary": "One published Entry, by id",
+				"description": "An Entry unpublished since answers 410 ENTRY_GONE.",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/postType"
+					},
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"$ref": "#/components/parameters/lang"
+					},
+					{
+						"$ref": "#/components/parameters/fallback"
+					},
+					{
+						"$ref": "#/components/parameters/body"
+					},
+					{
+						"$ref": "#/components/parameters/fields"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OneEntry"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "QUERY_INVALID: The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`. CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["QUERY_INVALID", "CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "POST_TYPE_NOT_FOUND: The Site exposes no Post Type with that key. ENTRY_NOT_FOUND: No published Entry of that Post Type, shown in the language, is there. CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["POST_TYPE_NOT_FOUND", "ENTRY_NOT_FOUND", "CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"410": {
+						"description": "ENTRY_GONE: The Entry was published, then unpublished.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ENTRY_GONE"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/entries/{postType}/slug/{slug}": {
+			"get": {
+				"operationId": "entries.bySlug",
+				"summary": "One published Entry, by its slug in the language",
+				"description": "Not for Pages, whose slugs repeat under different parents: find them by path.",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/postType"
+					},
+					{
+						"name": "slug",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"$ref": "#/components/parameters/lang"
+					},
+					{
+						"$ref": "#/components/parameters/fallback"
+					},
+					{
+						"$ref": "#/components/parameters/body"
+					},
+					{
+						"$ref": "#/components/parameters/fields"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OneEntry"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "QUERY_INVALID: The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`. CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["QUERY_INVALID", "CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "POST_TYPE_NOT_FOUND: The Site exposes no Post Type with that key. ENTRY_NOT_FOUND: No published Entry of that Post Type, shown in the language, is there. CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["POST_TYPE_NOT_FOUND", "ENTRY_NOT_FOUND", "CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"410": {
+						"description": "ENTRY_GONE: The Entry was published, then unpublished.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ENTRY_GONE"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/entry": {
+			"get": {
+				"operationId": "entries.atPath",
+				"summary": "The published Entry at a path on the Site",
+				"description": "`path` is the Entry's `path` as answered: under its language's prefix (`/fr/blog/pain-frais`), which names the language read; `/` is the home page.",
+				"parameters": [
+					{
+						"name": "path",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"example": "/blog/fresh-bread"
+						}
+					},
+					{
+						"$ref": "#/components/parameters/fallback"
+					},
+					{
+						"$ref": "#/components/parameters/body"
+					},
+					{
+						"$ref": "#/components/parameters/fields"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OneEntry"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "QUERY_INVALID: The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`. CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["QUERY_INVALID", "CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "ENTRY_NOT_FOUND: No published Entry of that Post Type, shown in the language, is there. CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ENTRY_NOT_FOUND", "CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"410": {
+						"description": "ENTRY_GONE: The Entry was published, then unpublished.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ENTRY_GONE"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/globals": {
+			"get": {
+				"operationId": "globals.get",
+				"summary": "The Globals' published values",
+				"description": "Every exposed Global (`fields` names some), null for one never published.",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/lang"
+					},
+					{
+						"$ref": "#/components/parameters/fallback"
+					},
+					{
+						"$ref": "#/components/parameters/fields"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Globals"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "QUERY_INVALID: The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`. CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["QUERY_INVALID", "CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/media/{id}": {
+			"get": {
+				"operationId": "media.get",
+				"summary": "A Media item's details",
+				"description": "A ready Media item of the Site, not in the Trash: its addresses on the Site's domain, its resized copies, and its title, alt text and caption in the language.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"format": "uuid"
+						}
+					},
+					{
+						"$ref": "#/components/parameters/lang"
+					},
+					{
+						"$ref": "#/components/parameters/fallback"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OneMedia"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "QUERY_INVALID: The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`. CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["QUERY_INVALID", "CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "MEDIA_NOT_FOUND: The Site has no ready Media item with that id (or it is in the Trash). CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["MEDIA_NOT_FOUND", "CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/search": {
+			"get": {
+				"operationId": "search",
+				"summary": "Searches the Site's published Entries",
+				"description": "Through Site search: the published Entries of searchable Post Types whose Searched fields are all exposed, in the language, best match first, each with a snippet (escaped text, matches in `<mark>`). Never kept in the page cache; its first 1,000 hits.",
+				"parameters": [
+					{
+						"name": "q",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"maxLength": 200
+						}
+					},
+					{
+						"name": "postType",
+						"in": "query",
+						"schema": {
+							"type": "string"
+						},
+						"description": "Post Type keys, comma-separated."
+					},
+					{
+						"$ref": "#/components/parameters/lang"
+					},
+					{
+						"$ref": "#/components/parameters/fallback"
+					},
+					{
+						"$ref": "#/components/parameters/limit"
+					},
+					{
+						"$ref": "#/components/parameters/cursor"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SearchHits"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "QUERY_INVALID: The query string asks for something the API can't answer: `data.problems`, each with its `parameter` and `problem`. CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["QUERY_INVALID", "CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/languages": {
+			"get": {
+				"operationId": "languages.list",
+				"summary": "The Site's languages",
+				"description": "The Default language first.",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Languages"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/schema": {
+			"get": {
+				"operationId": "schema.get",
+				"summary": "What the Site exposes",
+				"description": "Its languages, the built-in values, each exposed Post Type with its exposed Fields (how lists filter and sort by each), and the Globals' exposed Fields.",
+				"parameters": [],
+				"responses": {
+					"200": {
+						"description": "Published content, with a strong ETag.",
+						"headers": {
+							"ETag": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						},
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Schema"
+								}
+							}
+						}
+					},
+					"304": {
+						"description": "Unchanged since the ETag sent in If-None-Match."
+					},
+					"400": {
+						"description": "CONTENT_KEY_IN_QUERY: A key was sent in the query string, where logs keep it: send it in the `Authorization` header.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_IN_QUERY"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "CONTENT_KEY_INVALID: The request carries no Content key (`data.problem`: `missing`), or one that isn't this Site's (`unknown`) or was revoked (`revoked`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_KEY_INVALID"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "ORIGIN_NOT_ALLOWED: A browser on another site sent the request, and the key doesn't list its origin (`data.origin`).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["ORIGIN_NOT_ALLOWED"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "CONTENT_API_OFF: The Site's Content API is switched off (the default).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["CONTENT_API_OFF"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "TOO_MANY_REQUESTS: Past a limit (`data.limit`: `key`, 600 a minute per Content key, or `address`, 120 a minute per client address); wait `Retry-After` seconds.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/Error"
+										},
+										{
+											"properties": {
+												"code": {
+													"enum": ["TOO_MANY_REQUESTS"]
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/openapi.json": {
+			"get": {
+				"operationId": "openapi",
+				"summary": "This document",
+				"description": "Needs no key.",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "This document.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"securitySchemes": {
+			"contentKey": {
+				"type": "http",
+				"scheme": "bearer",
+				"description": "One of the Site's Content keys (`webcraft-ck_…`), made by Staff under Site settings › Content API."
+			}
+		},
+		"parameters": {
+			"postType": {
+				"name": "postType",
+				"in": "path",
+				"required": true,
+				"schema": {
+					"type": "string"
+				},
+				"description": "The Post Type's key."
+			},
+			"lang": {
+				"name": "lang",
+				"in": "query",
+				"schema": {
+					"type": "string",
+					"example": "fr"
+				},
+				"description": "The language read."
+			},
+			"fallback": {
+				"name": "fallback",
+				"in": "query",
+				"schema": {
+					"type": "string",
+					"example": "de,en"
+				},
+				"description": "Languages a missing value falls back through, in order, comma-separated; `none` for none. The Default language unless given."
+			},
+			"body": {
+				"name": "body",
+				"in": "query",
+				"schema": {
+					"type": "string",
+					"enum": ["html", "blocks", "markdown"],
+					"default": "html"
+				},
+				"description": "How Body fields are answered: semantic HTML, the Blocks as stored (with their ids), or Markdown."
+			},
+			"fields": {
+				"name": "fields",
+				"in": "query",
+				"schema": {
+					"type": "string",
+					"example": "summary,category.title,category.colour"
+				},
+				"description": "The Fields to answer, comma-separated (every exposed one unless given; built-in values always come). `<relationship>.<field>` answers the Entries a Relationship points at with those Fields of theirs, one level deep."
+			},
+			"sort": {
+				"name": "sort",
+				"in": "query",
+				"schema": {
+					"type": "string",
+					"example": "-price",
+					"default": "-publishedAt"
+				}
+			},
+			"limit": {
+				"name": "limit",
+				"in": "query",
+				"schema": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100,
+					"default": 20
+				}
+			},
+			"cursor": {
+				"name": "cursor",
+				"in": "query",
+				"schema": {
+					"type": "string"
+				},
+				"description": "A list's `next`, with the same query."
+			}
+		},
+		"schemas": {
+			"Error": {
+				"type": "object",
+				"required": ["code", "status", "message"],
+				"properties": {
+					"code": {
+						"type": "string",
+						"enum": [
+							"CONTENT_API_OFF",
+							"NOT_FOUND",
+							"METHOD_NOT_ALLOWED",
+							"CONTENT_KEY_INVALID",
+							"CONTENT_KEY_IN_QUERY",
+							"ORIGIN_NOT_ALLOWED",
+							"TOO_MANY_REQUESTS",
+							"QUERY_INVALID",
+							"POST_TYPE_NOT_FOUND",
+							"ENTRY_NOT_FOUND",
+							"ENTRY_GONE",
+							"MEDIA_NOT_FOUND"
+						]
+					},
+					"status": {
+						"type": "integer"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"type": "object",
+						"description": "`problem` (CONTENT_KEY_INVALID), `origin`, `limit`, or `problems` (QUERY_INVALID).",
+						"properties": {
+							"problems": {
+								"type": "array",
+								"items": {
+									"$ref": "#/components/schemas/QueryProblem"
+								}
+							}
+						}
+					}
+				}
+			},
+			"QueryProblem": {
+				"type": "object",
+				"required": ["parameter", "problem", "message"],
+				"properties": {
+					"parameter": {
+						"type": "string"
+					},
+					"problem": {
+						"type": "string",
+						"enum": [
+							"parameterUnknown",
+							"parameterRepeated",
+							"languageUnknown",
+							"bodyFormat",
+							"fieldUnknown",
+							"fieldNotRelationship",
+							"tooDeep",
+							"tooMany",
+							"filterUnsupported",
+							"valueInvalid",
+							"sortUnsupported",
+							"limitInvalid",
+							"cursorInvalid",
+							"queryMissing",
+							"tooFar",
+							"pathInvalid",
+							"notForPages"
+						]
+					},
+					"message": {
+						"type": "string"
+					}
+				}
+			},
+			"Entry": {
+				"type": "object",
+				"required": [
+					"id",
+					"postType",
+					"language",
+					"title",
+					"slug",
+					"path",
+					"url",
+					"publishedAt",
+					"lastPublishedAt",
+					"seo",
+					"fields",
+					"fallbacks"
+				],
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"postType": {
+						"type": "string"
+					},
+					"language": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"slug": {
+						"type": ["string", "null"]
+					},
+					"path": {
+						"type": ["string", "null"],
+						"description": "Where visitors find it on the Site, under its language's prefix."
+					},
+					"url": {
+						"type": ["string", "null"],
+						"description": "Its absolute address for visitors (a language's own domain when it has one)."
+					},
+					"parent": {
+						"type": ["string", "null"],
+						"format": "uuid",
+						"description": "Pages only: the parent Page."
+					},
+					"publishedAt": {
+						"type": ["string", "null"],
+						"format": "date-time"
+					},
+					"lastPublishedAt": {
+						"type": ["string", "null"],
+						"format": "date-time"
+					},
+					"seo": {
+						"type": "object",
+						"properties": {
+							"title": {
+								"type": ["string", "null"]
+							},
+							"description": {
+								"type": ["string", "null"]
+							},
+							"canonical": {
+								"type": ["string", "null"]
+							},
+							"image": {
+								"oneOf": [
+									{
+										"$ref": "#/components/schemas/Media"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"noindex": {
+								"type": "boolean"
+							}
+						}
+					},
+					"fields": {
+						"type": "object",
+						"description": "The exposed Fields' values by key: text, numbers, true/false, days and times as text, a choice's value (or a list), Media as their details, a link as `{ url, text }`, a Relationship as Entry ids (or, asked through `fields`, those Entries), a Group's values by key, a Repeater's rows (`{ id, …}`), a Body field as `body` asks.",
+						"additionalProperties": true
+					},
+					"fallbacks": {
+						"type": "object",
+						"description": "Each value read from another language than the one asked, by its path (`summary`, `origin.city`, `steps[1].text`), with that language.",
+						"additionalProperties": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"EntryList": {
+				"type": "object",
+				"required": ["items", "total", "next"],
+				"properties": {
+					"items": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Entry"
+						}
+					},
+					"total": {
+						"type": "integer"
+					},
+					"next": {
+						"type": ["string", "null"],
+						"description": "A cursor for the next page; null on the last."
+					}
+				}
+			},
+			"OneEntry": {
+				"type": "object",
+				"required": ["entry"],
+				"properties": {
+					"entry": {
+						"$ref": "#/components/schemas/Entry"
+					}
+				}
+			},
+			"Media": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "uuid"
+					},
+					"kind": {
+						"type": "string",
+						"enum": ["image", "document", "video", "audio"]
+					},
+					"contentType": {
+						"type": "string"
+					},
+					"fileName": {
+						"type": "string"
+					},
+					"size": {
+						"type": "integer"
+					},
+					"width": {
+						"type": ["integer", "null"]
+					},
+					"height": {
+						"type": ["integer", "null"]
+					},
+					"url": {
+						"type": "string",
+						"format": "uri"
+					},
+					"alt": {
+						"type": ["string", "null"]
+					},
+					"title": {
+						"type": ["string", "null"]
+					},
+					"caption": {
+						"type": ["string", "null"]
+					},
+					"focalPoint": {
+						"type": ["object", "null"],
+						"properties": {
+							"x": {
+								"type": "integer"
+							},
+							"y": {
+								"type": "integer"
+							}
+						}
+					},
+					"variants": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"type": {
+									"type": "string"
+								},
+								"width": {
+									"type": "integer"
+								},
+								"height": {
+									"type": "integer"
+								},
+								"url": {
+									"type": "string",
+									"format": "uri"
+								}
+							}
+						}
+					}
+				}
+			},
+			"OneMedia": {
+				"type": "object",
+				"properties": {
+					"media": {
+						"$ref": "#/components/schemas/Media"
+					},
+					"language": {
+						"type": "string"
+					}
+				}
+			},
+			"Globals": {
+				"type": "object",
+				"properties": {
+					"language": {
+						"type": "string"
+					},
+					"publishedAt": {
+						"type": ["string", "null"],
+						"format": "date-time"
+					},
+					"lastPublishedAt": {
+						"type": ["string", "null"],
+						"format": "date-time"
+					},
+					"fields": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"fallbacks": {
+						"type": "object",
+						"additionalProperties": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"SearchHits": {
+				"type": "object",
+				"properties": {
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"description": "An Entry's built-in values, with `snippet`.",
+							"properties": {
+								"snippet": {
+									"type": "string"
+								}
+							},
+							"additionalProperties": true
+						}
+					},
+					"total": {
+						"type": "integer"
+					},
+					"next": {
+						"type": ["string", "null"]
+					}
+				}
+			},
+			"Languages": {
+				"type": "object",
+				"properties": {
+					"defaultLanguage": {
+						"type": "string"
+					},
+					"languages": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"code": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"direction": {
+									"type": "string",
+									"enum": ["ltr", "rtl"]
+								},
+								"default": {
+									"type": "boolean"
+								},
+								"url": {
+									"type": "string",
+									"format": "uri"
+								}
+							}
+						}
+					}
+				}
+			},
+			"Schema": {
+				"type": "object",
+				"properties": {
+					"defaultLanguage": {
+						"type": "string"
+					},
+					"languages": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"builtInFields": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"additionalProperties": true
+						}
+					},
+					"postTypes": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"key": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"pages": {
+									"type": "boolean"
+								},
+								"urlPattern": {
+									"type": ["string", "null"]
+								},
+								"searchable": {
+									"type": "boolean"
+								},
+								"fields": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"description": "A Field: its key, label, type, whether it is translatable and required, its type's settings (options, multiple, postTypes, mode, integer, fields), and at the top level `filters` (operators) and `sortable`.",
+										"additionalProperties": true
+									}
+								}
+							}
+						}
+					},
+					"globals": {
+						"type": "object",
+						"properties": {
+							"fields": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
