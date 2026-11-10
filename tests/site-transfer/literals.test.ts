@@ -7,7 +7,7 @@ import { formVisitor } from "../harness/forms.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
-import { expectSafePage } from "../harness/site-safety.ts";
+import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive, rowsIn, tarFiles } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 import { publishEverything } from "./support.ts";
@@ -194,9 +194,12 @@ test("Form answers and labels keep UUID literals and external URLs", async () =>
 	await admin.api.entries.publish({ siteId, entryId: entry.id });
 	const visitor = formVisitor(install);
 	const page = await visitor.open(`${origin}/answers`);
+	await expectSafePage(new Response(page.html, page.response));
 	await install.clock.advance(5000);
 	const external = `https://external.example/${entry.id}`;
-	expect((await visitor.send(page, { reference: literal, external })).status).toBe(303);
+	const submitted = await visitor.send(page, { reference: literal, external });
+	expectSiteHeaders(submitted);
+	expect(submitted.status).toBe(303);
 	const analytics = analyticsApi(admin);
 	const { goal } = await analytics.goals.create({
 		siteId,

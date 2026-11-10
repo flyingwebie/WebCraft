@@ -27,6 +27,7 @@ import {
 	SITE_EXPORT_FORMAT_VERSION,
 	type SiteExportManifest,
 } from "./format.ts";
+import { createReferenceLookup } from "./lookup.ts";
 import { type Kdf, type SecretsBundle, secretSealer } from "./passphrase.ts";
 import { createRowRemapper } from "./references.ts";
 import { ident, literal, quoted, type SiteTable, siteTables } from "./tables.ts";
@@ -263,14 +264,7 @@ async function readSnapshot(
 		const named = new Set<string>();
 		// The same typed traversal discovers person references; a UUID in literal text is never an account.
 		const findPeople = createRowRemapper(
-			async (name, id, path) => {
-				const [schema, table] = name.split(".") as [string, string];
-				const result = await client.query<{ value: unknown }>(
-					`SELECT to_jsonb(t) #> $3::text[] AS value FROM ${quoted({ schema, table })} t WHERE t.workspace_id=$1 AND t.site_id=$2 AND ($4::text IS NULL OR to_jsonb(t)->>'id'=$4) LIMIT 1`,
-					[site.workspaceId, site.id, path, id],
-				);
-				return result.rows[0]?.value;
-			},
+			createReferenceLookup(client, site),
 			{ id: (id) => id, key: (key) => key, secret: (name) => name, mask: "" },
 			new Map(),
 			(id) => named.add(id),
