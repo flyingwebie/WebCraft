@@ -3,6 +3,7 @@ import { bigint, foreignKey, index, jsonb, pgTable, text, timestamp, uniqueIndex
 
 import { entries } from "./content.ts";
 import { people } from "./people.ts";
+import { scheduledPublishes } from "./scheduled-publishes.ts";
 import { sites } from "./tenancy.ts";
 
 // Reviews (GLOSSARY.md › Review): an Author submits a Draft, and someone who may publish it publishes
@@ -44,6 +45,12 @@ export const reviews = pgTable(
 		decidedAt: timestamp("decided_at", { withTimezone: true }),
 		comment: text("comment"),
 		scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+		/**
+		 * The Scheduled publish that ended it (`scheduled`); null otherwise. When that Scheduled publish
+		 * is removed without ever publishing it (cancelled, or a run that failed), it is put back to
+		 * `inReview` in the same transaction, so it doesn't wait forever for a time that won't come.
+		 */
+		scheduleId: uuid("schedule_id"),
 		clearedAt: timestamp("cleared_at", { withTimezone: true }),
 	},
 	(table) => [
@@ -57,6 +64,13 @@ export const reviews = pgTable(
 			columns: [table.siteId, table.entryId],
 			foreignColumns: [entries.siteId, entries.id],
 		}).onDelete("cascade"),
+		// A single column, not (site_id, schedule_id): a composite FK's ON DELETE SET NULL would null
+		// site_id too, which is NOT NULL. scheduled_publishes.id is already a Site-wide unique uuid.
+		foreignKey({
+			name: "reviews_schedule_fkey",
+			columns: [table.scheduleId],
+			foreignColumns: [scheduledPublishes.id],
+		}).onDelete("set null"),
 		// One waiting Review per item (the Globals and the Consent banner's words have no Entry).
 		uniqueIndex("reviews_one_waiting")
 			.on(table.siteId, table.itemKind, sql`coalesce(entry_id::text, '')`)
@@ -64,5 +78,6 @@ export const reviews = pgTable(
 		index("reviews_site_id_status_idx").on(table.siteId, table.status, table.serial),
 		index("reviews_site_id_item_idx").on(table.siteId, table.itemKind, table.entryId, table.serial),
 		index("reviews_entry_id_idx").on(table.entryId),
+		index("reviews_schedule_id_idx").on(table.scheduleId),
 	],
 );

@@ -192,26 +192,13 @@ async function listBatch(
 			if (path === undefined || !isVisibleIn(version, languages)) continue;
 			shown.push({ language: language.code, path, href: hrefOf(list.host, languages, path) });
 		}
-		const alternates = alternatesOf(site, shown);
-		const urls: ListedUrl[] = [];
-		if (!list.unlisted.has(row.id)) {
-			for (const place of shown) {
-				if (!list.here.some((language) => language.code === place.language)) continue;
-				const languages = { language: place.language, defaultLanguage: site.defaultLanguage };
-				// An Entry pointing search engines at another address isn't listed in that language.
-				const canonical = readEntrySeo(version.values, languages).canonical;
-				if (canonical && canonicalOf({ addresses: list.host.addresses, languages: site }, canonical) !== place.href) {
-					continue;
-				}
-				urls.push({
-					loc: place.href,
-					sitePath: place.path,
-					language: place.language,
-					lastmod: row.lastPublishedAt,
-					alternates,
-				});
-			}
-		}
+		// An Entry pointing search engines at another address isn't listed in that language.
+		const isOwnCanonical = (place: { language: string; href: string }) => {
+			const languages = { language: place.language, defaultLanguage: site.defaultLanguage };
+			const canonical = readEntrySeo(version.values, languages).canonical;
+			return !canonical || canonicalOf({ addresses: list.host.addresses, languages: site }, canonical) === place.href;
+		};
+		const urls = list.unlisted.has(row.id) ? [] : listedUrlsOf(list, site, shown, row.lastPublishedAt, isOwnCanonical);
 		candidates.push({ id: row.id, postType, values: version, urls });
 	}
 	const redirected = await list.redirected(candidates.flatMap((entry) => entry.urls));
@@ -288,13 +275,28 @@ async function archiveEntry(list: Listing, postType: PostType): Promise<ListedEn
 		const path = languagePath(languages, pathText(archive.parts));
 		return { language: language.code, path, href: hrefOf(list.host, languages, path) };
 	});
-	const alternates = alternatesOf(site, shown);
-	const urls = shown
-		.filter((place) => list.here.some((language) => language.code === place.language))
-		.map((place) => ({ loc: place.href, sitePath: place.path, language: place.language, lastmod, alternates }));
+	const urls = listedUrlsOf(list, site, shown, lastmod);
 	const redirected = await list.redirected(urls);
 	const kept = urls.filter((url) => !redirected.has(url.sitePath));
 	return kept.length > 0 ? { id: "", postType, values: null, urls: kept } : undefined;
+}
+
+/**
+ * The `ListedUrl`s of a page's shown places, as `listBatch` and `archiveEntry` both build them: its
+ * `hreflang` alternates (`alternatesOf`), then each place `list.here` shows (and `keep`, when given,
+ * still agrees with), sharing one `lastmod`.
+ */
+function listedUrlsOf(
+	list: Listing,
+	site: SiteLanguages,
+	shown: readonly { language: string; path: string; href: string }[],
+	lastmod: Date | null,
+	keep: (place: { language: string; path: string; href: string }) => boolean = () => true,
+): ListedUrl[] {
+	const alternates = alternatesOf(site, shown);
+	return shown
+		.filter((place) => list.here.some((language) => language.code === place.language) && keep(place))
+		.map((place) => ({ loc: place.href, sitePath: place.path, language: place.language, lastmod, alternates }));
 }
 
 /** A page's absolute address for visitors: its path in its language where the language's pages are. */

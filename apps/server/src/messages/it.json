@@ -399,7 +399,8 @@
 			"filters": "Filtri",
 			"servicesList": "Elenco dei servizi",
 			"reportBranding": "Brand dei report",
-			"auditLog": "Audit log"
+			"auditLog": "Audit log",
+			"contentApi": "Content API"
 		}
 	},
 	"masterKeyBanner": {
@@ -6330,6 +6331,14 @@
 				"sendBack": "Revisione rimandata indietro",
 				"publish": "Pubblicato dalla revisione",
 				"schedule": "Programmato dalla revisione"
+			},
+			"contentApi": {
+				"change": "Impostazioni della Content API modificate"
+			},
+			"contentKey": {
+				"create": "Chiave Content creata",
+				"revoke": "Chiave Content revocata",
+				"update": "Chiave Content modificata"
 			}
 		}
 	},
@@ -6408,5 +6417,70 @@
 		"authorHelp": "Le tue modifiche sono salvate come bozza. Inviale in revisione quando sono pronte: le pubblica un Editor o un Owner.",
 		"inReviewHelp": "È in revisione. Puoi continuare a modificarlo; chi lo rivede vede cosa è cambiato dopo l'invio.",
 		"navBadge": "{count} da rivedere"
+	},
+	"contentApi": {
+		"heading": "Content API",
+		"intro": "Un'API in sola lettura che i frontend costruiti altrove chiamano per leggere i contenuti pubblicati di questo Sito. Non mostra mai le bozze, e ogni frontend ha bisogno di una chiave Content.",
+		"switchTitle": "Interruttore",
+		"switchIntro": "Spenta finché non la accendi. Mentre è spenta, ogni richiesta risponde che è spenta e le chiavi non funzionano.",
+		"on": "Content API accesa",
+		"switchedOn": "La Content API è accesa.",
+		"switchedOff": "La Content API è spenta.",
+		"mainAddress": "Indirizzo",
+		"stagingAddress": "Sull'indirizzo di Staging",
+		"howTo": "I frontend inviano una chiave Content nell'intestazione {header}, mai nell'indirizzo. Il riferimento è openapi.json allo stesso indirizzo.",
+		"keysTitle": "Chiavi Content",
+		"keysIntro": "Ogni chiave legge i contenuti pubblicati di questo Sito e nient'altro, quindi può stare nel codice del browser. I browser di altri siti possono usarla solo dalle origini che elenca.",
+		"createKey": "Nuova chiave",
+		"noKeysTitle": "Ancora nessuna chiave Content",
+		"noKeysBody": "Crea una chiave per ogni frontend, così ne vedi l'uso e puoi revocarla da sola.",
+		"name": "Nome",
+		"nameHelp": "Cosa la usa, come App del negozio, così sai quale chiave revocare.",
+		"nameProblem": "Dai alla chiave un nome da 1 a 100 caratteri.",
+		"origins": "Origini",
+		"originsHelp": "Una per riga, esattamente come la invia un browser: https://shop.example.com, con una porta quando non è quella solita. Niente percorsi, niente caratteri jolly. Nessuna: solo server.",
+		"originProblem": "{origin} non è un'origine: uno schema e un host, come https://shop.example.com.",
+		"originsProblem": "Una chiave elenca fino a 20 origini.",
+		"keysProblem": "Questo Sito ha 50 chiavi attive: revocane prima una.",
+		"serversOnly": "Solo server",
+		"requests": "Richieste",
+		"today": "{count} oggi",
+		"lastDays": "{week} in 7 giorni · {month} in 30 giorni",
+		"lastUsed": "Ultimo uso",
+		"neverUsed": "Non ancora",
+		"status": "Stato",
+		"active": "Attiva",
+		"revoked": "Revocata",
+		"actions": "Azioni",
+		"hint": "…{hint}",
+		"edit": "Modifica",
+		"editLabel": "Modifica {name}",
+		"editTitle": "Modifica {name}",
+		"createTitle": "Nuova chiave Content",
+		"createIntro": "Una chiave legge solo i contenuti pubblicati. Il codice del browser può contenerla: elenca le origini delle pagine che la inviano.",
+		"createSubmit": "Crea chiave",
+		"save": "Salva",
+		"savedKey": "{name} è stata salvata.",
+		"cancel": "Annulla",
+		"close": "Chiudi",
+		"shownTitle": "{name} è pronta",
+		"shownIntro": "Copia ora la chiave. WebCraft ne conserva solo un hash, quindi non può mostrarla di nuovo.",
+		"key": "Chiave",
+		"copy": "Copia",
+		"copied": "Chiave copiata.",
+		"done": "Fatto",
+		"revoke": "Revoca",
+		"revokeLabel": "Revoca {name}",
+		"revokeTitle": "Revocare {name}?",
+		"revokeText": "I frontend che la inviano vengono rifiutati dalla loro prossima richiesta. Non si può annullare.",
+		"revokedToast": "{name} è stata revocata.",
+		"shownTitleCard": "Cosa mostra",
+		"shownIntroCard": "Togli la spunta a un Post Type o a un Campo per nasconderlo. Quelli nascosti non compaiono mai nelle risposte dell'API: elenchi, Entry, Relazioni, filtri, ordinamenti, ricerca e schema. I nuovi Post Type e Campi sono mostrati finché non li nascondi.",
+		"showPostType": "Mostra {name}",
+		"noFields": "Nessun Campo.",
+		"globals": "Globali",
+		"searchNote": "Un Post Type i cui campi di ricerca includono un Campo nascosto è escluso dalla ricerca dell'API.",
+		"saveShown": "Salva cosa mostra",
+		"shownSaved": "Quello che mostra la Content API è stato salvato."
 	}
 }

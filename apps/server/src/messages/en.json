@@ -399,7 +399,8 @@
 			"filters": "Filters",
 			"servicesList": "Services list",
 			"reportBranding": "Report branding",
-			"auditLog": "Audit log"
+			"auditLog": "Audit log",
+			"contentApi": "Content API"
 		}
 	},
 	"masterKeyBanner": {
@@ -6330,6 +6331,14 @@
 				"sendBack": "Review sent back",
 				"publish": "Published from review",
 				"schedule": "Scheduled from review"
+			},
+			"contentApi": {
+				"change": "Content API settings changed"
+			},
+			"contentKey": {
+				"create": "Content key made",
+				"revoke": "Content key revoked",
+				"update": "Content key changed"
 			}
 		}
 	},
@@ -6408,5 +6417,70 @@
 		"authorHelp": "Your changes are saved as a Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 		"inReviewHelp": "It's In review. You can go on editing; the reviewer sees what changed since you submitted it.",
 		"navBadge": "{count} to review"
+	},
+	"contentApi": {
+		"heading": "Content API",
+		"intro": "A read-only API that frontends built elsewhere call to read this Site's published content. It never shows Drafts, and each frontend needs a Content key.",
+		"switchTitle": "Switch",
+		"switchIntro": "Off until you switch it on. While it is off, every request answers that it is off, and keys don't work.",
+		"on": "Content API on",
+		"switchedOn": "The Content API is on.",
+		"switchedOff": "The Content API is off.",
+		"mainAddress": "Address",
+		"stagingAddress": "On the Staging address",
+		"howTo": "Frontends send a Content key in the {header} header, never in the address. The reference is openapi.json at the same address.",
+		"keysTitle": "Content keys",
+		"keysIntro": "Each key reads this Site's published content and nothing else, so it may sit in browser code. Browsers on other sites may use it only from the origins it lists.",
+		"createKey": "New key",
+		"noKeysTitle": "No Content keys yet",
+		"noKeysBody": "Make a key for each frontend, so you can see its use and revoke it alone.",
+		"name": "Name",
+		"nameHelp": "What uses it, such as Shop app, so you know which key to revoke.",
+		"nameProblem": "Give the key a name of 1 to 100 characters.",
+		"origins": "Origins",
+		"originsHelp": "One per line, exactly as a browser sends it: https://shop.example.com, with a port when it isn't the usual one. No paths, no wildcards. None: servers only.",
+		"originProblem": "{origin} isn't an origin: a scheme and a host, such as https://shop.example.com.",
+		"originsProblem": "A key lists up to 20 origins.",
+		"keysProblem": "This Site has 50 working keys: revoke one first.",
+		"serversOnly": "Servers only",
+		"requests": "Requests",
+		"today": "{count} today",
+		"lastDays": "{week} in 7 days · {month} in 30 days",
+		"lastUsed": "Last used",
+		"neverUsed": "Not yet",
+		"status": "Status",
+		"active": "Active",
+		"revoked": "Revoked",
+		"actions": "Actions",
+		"hint": "…{hint}",
+		"edit": "Edit",
+		"editLabel": "Edit {name}",
+		"editTitle": "Edit {name}",
+		"createTitle": "New Content key",
+		"createIntro": "A key reads published content only. Browser code may hold it: list the origins of the pages that send it.",
+		"createSubmit": "Make key",
+		"save": "Save",
+		"savedKey": "{name} was saved.",
+		"cancel": "Cancel",
+		"close": "Close",
+		"shownTitle": "{name} is ready",
+		"shownIntro": "Copy the key now. WebCraft keeps only a hash of it, so it can't show it again.",
+		"key": "Key",
+		"copy": "Copy",
+		"copied": "Key copied.",
+		"done": "Done",
+		"revoke": "Revoke",
+		"revokeLabel": "Revoke {name}",
+		"revokeTitle": "Revoke {name}?",
+		"revokeText": "Frontends sending it are refused from their next request. This can't be undone.",
+		"revokedToast": "{name} was revoked.",
+		"shownTitleCard": "What it shows",
+		"shownIntroCard": "Untick a Post Type or a Field to hide it. Hidden ones never appear anywhere the API answers: lists, Entries, Relationships, filters, sorts, search and the schema. New Post Types and Fields are shown until you hide them.",
+		"showPostType": "Show {name}",
+		"noFields": "No Fields.",
+		"globals": "Globals",
+		"searchNote": "A Post Type whose Searched fields include a hidden Field is left out of the API's search.",
+		"saveShown": "Save what it shows",
+		"shownSaved": "What the Content API shows was saved."
 	}
 }

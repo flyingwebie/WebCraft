@@ -62,13 +62,29 @@ export function ruleView(row: RuleRow): RuleView {
 	};
 }
 
+/**
+ * The exact rule wins; failing that, the wildcard rule among `wildcards` whose `fromPath` is one of
+ * `bases` (the path's own wildcard bases) with the longest `fromPath`: the wildcard starting nearest
+ * to the path. `ruleFor` and `findTargets` both pick a path's rule this way.
+ */
+function nearestRule(
+	exact: RuleRow | undefined,
+	wildcards: readonly RuleRow[],
+	bases: readonly string[],
+): RuleRow | undefined {
+	if (exact) return exact;
+	return wildcards
+		.filter((candidate) => bases.includes(candidate.fromPath))
+		.sort((a, b) => b.fromPath.length - a.fromPath.length)[0];
+}
+
 /** The rule matching a Site path: one for the path itself, else the wildcard rule starting nearest to it. */
 export async function ruleFor(context: ModuleContext, path: string): Promise<RuleRow | undefined> {
 	const exact = await context.data.first(rules, and(eq(rules.fromPath, path), eq(rules.wildcard, false)));
 	if (exact) return exact;
 	const bases = wildcardBases(path);
-	const found = await context.data.select(rules, and(eq(rules.wildcard, true), inArray(rules.fromPath, bases)));
-	return found.sort((a, b) => b.fromPath.length - a.fromPath.length)[0];
+	const wildcards = await context.data.select(rules, and(eq(rules.wildcard, true), inArray(rules.fromPath, bases)));
+	return nearestRule(undefined, wildcards, bases);
 }
 
 /**
@@ -86,12 +102,7 @@ export async function findTargets(
 	const wildcards = await context.data.select(rules, and(eq(rules.wildcard, true), inArray(rules.fromPath, bases)));
 	return paths.map((path) => {
 		const own = exact.find((rule) => rule.fromPath === path);
-		const above = wildcardBases(path);
-		const rule =
-			own ??
-			wildcards
-				.filter((candidate) => above.includes(candidate.fromPath))
-				.sort((a, b) => b.fromPath.length - a.fromPath.length)[0];
+		const rule = nearestRule(own, wildcards, wildcardBases(path));
 		return rule ? targetOf(rule, path) : null;
 	});
 }

@@ -16,7 +16,7 @@ import { isPagePostType } from "../content/pages.ts";
 import { getPostType, listPostTypes } from "../content/post-types.ts";
 import { siteDrafts } from "../content/publish-all.ts";
 import { publish } from "../content/publishing.ts";
-import { currentReviews, type ReviewItem } from "../content/review-items.ts";
+import { currentReviews, itemKey } from "../content/review-items.ts";
 import { listReviews, submitForReview, withdrawReview } from "../content/reviews.ts";
 import { getEntryTemplate } from "../content/templates.ts";
 import { storedVersion } from "../content/values.ts";
@@ -250,9 +250,9 @@ export async function submitPage(
 	);
 	if (changed.length === 0) throw new ReviewInvalidError("nothingToReview");
 	const waiting = await listReviews(editing.scope);
-	const open = changed.filter((item) => !waiting.some((review) => reviewName(review.item) === nameOf(item)));
+	const open = changed.filter((item) => !waiting.some((review) => itemKey(review.item) === nameOf(item)));
 	if (open.length === 0) {
-		const first = waiting.find((review) => reviewName(review.item) === nameOf(changed[0] as EditItem));
+		const first = waiting.find((review) => itemKey(review.item) === nameOf(changed[0] as EditItem));
 		throw new ItemInReviewError(first?.item ?? null, first?.id ?? "");
 	}
 	await submitForReview(editing.scope, open, input.note);
@@ -265,14 +265,9 @@ export async function withdrawPage(deps: PageDeps, editing: Editing, host: SiteH
 	const { items } = await pageItems(deps, editing, host, path);
 	const names = new Set(items.map(nameOf));
 	for (const review of await listReviews(editing.scope)) {
-		if (review.canWithdraw && names.has(reviewName(review.item))) await withdrawReview(editing.scope, review.id);
+		if (review.canWithdraw && names.has(itemKey(review.item))) await withdrawReview(editing.scope, review.id);
 	}
 	return pageState(deps, editing, host, path);
-}
-
-/** A Review's item as the page's regions name it. */
-function reviewName(item: ReviewItem): string {
-	return item.kind === "entry" ? `entry:${item.id}` : item.kind;
 }
 
 /** The Reviews of the page's items, as the editing bar shows them. */

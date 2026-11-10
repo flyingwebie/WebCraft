@@ -85,7 +85,7 @@ export {
 	UTILITY_ID_PREFIX,
 	utilitiesOf,
 } from "./design-system/tokens.ts";
-export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
+export { escapeAttribute, escapeText, safeUrl, schemeOf } from "./escape.ts";
 export {
 	COMPARE_OPERATORS,
 	type CompareOperator,
