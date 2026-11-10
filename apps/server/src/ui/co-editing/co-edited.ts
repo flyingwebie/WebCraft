@@ -4,18 +4,18 @@ import { useRef, useState } from "react";
 import { type PublishedBy, type SharedDraft, useSharedDraft } from "./shared-draft.ts";
 
 /**
- * A form's values kept in a shared Draft (Co-editing, ADR 0025): what the form shows, read from the
- * document (others' changes show as they are saved), and its person's changes written into it. A
- * change made before the document arrived is written once it has; one made while the Draft can't be
- * changed here (read-only) is put back as the document holds it.
- */
-/**
  * A shared Draft's status in the words the (pre-Co-editing) autosave status badge and save-error
  * retry button already take, and whether the fieldset around its values should be disabled: offline
  * or read-only (no longer, or not yet, able to change it), or the session ended.
  */
 export type LegacyAutosave = { status: "saved" | "saving" | "waiting"; flush(): Promise<boolean> };
 
+/**
+ * A form's values kept in a shared Draft (Co-editing, ADR 0025): what the form shows, read from the
+ * document (others' changes show as they are saved), and its person's changes written into it. A
+ * change made before the document arrived is written once it has; one made while the Draft can't be
+ * changed here (read-only) is put back as the document holds it.
+ */
 export function useCoEditedValues<Values, Change>(options: {
 	path: string;
 	initial: Values;

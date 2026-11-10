@@ -1,5 +1,5 @@
-// Lock order between a live change and every other Draft writer (ADR 0025): every writer that both
-// a Page's parent and the Site's paths touch (`saveDraft`, `publishEntry`, `publishItems`,
+// Lock order between a live change and every other Draft writer (ADR 0025): every writer that
+// touches a Page's parent or the Site's paths (`saveDraft`, `publishEntry`, `publishItems`,
 // `renameComponent`, `deleteComponent`, `saveSiteTemplate`, `saveComponentDraft`, `post-types.ts`,
 // `site-languages.ts`) takes the advisory lock its save needs (`lockSitePaths`, `lockComponents`)
 // before the item's own row, so two of them never wait on each other in a circle. A live change
