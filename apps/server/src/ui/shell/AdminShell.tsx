@@ -88,7 +88,8 @@ export function AdminShell({
 					{shell.banners.health && shell.banners.health.failing.length > 0 ? (
 						<HealthBanner failing={shell.banners.health.failing} />
 					) : null}
-					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
+					{/* Install health's banner says it once the Install SMTP's failure makes that part Failing. */}
+					{shell.banners.smtpFailing && !shell.banners.health?.failing.includes("smtp") ? <SmtpFailingBanner /> : null}
 					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
 					{/* Install health's banner says it once the last Backup's failure makes that part Failing. */}
 					{shell.banners.backupFailing && !shell.banners.health?.failing.includes("backups") ? (
