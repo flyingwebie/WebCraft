@@ -269,7 +269,7 @@ export type InstallServices = InstallPorts & {
 		 */
 		delete(scope: SiteScope, entryId: string, confirmation?: string): Promise<EntryDeletion>;
 		/** The Components a Post Type's Body field allows that are published, with their Props, for the block editors. */
-		bodyComponents(scope: SiteScope, postTypeId: string): Promise<BodyComponent[]>;
+		bodyComponents(scope: SiteScope, postTypeId: string, language?: string): Promise<BodyComponent[]>;
 		/** What was pasted into a Post Type's body (HTML, Markdown or plain text), as Blocks; nothing is saved. */
 		pasteBody(scope: SiteScope, postTypeId: string, pasted: Pasted): Promise<Block[]>;
 	};

@@ -92,6 +92,16 @@
         "typescript": "catalog:",
       },
     },
+    "modules/extra-blocks": {
+      "name": "@webcraft/module-extra-blocks",
+      "version": "1.0.0",
+      "dependencies": {
+        "@webcraft/module-sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "catalog:",
+      },
+    },
     "modules/forms": {
       "name": "@webcraft/module-forms",
       "version": "1.0.0",
@@ -177,6 +187,7 @@
       "dependencies": {
         "@webcraft/auth": "workspace:*",
         "@webcraft/db": "workspace:*",
+        "@webcraft/module-extra-blocks": "workspace:*",
         "@webcraft/module-forms": "workspace:*",
         "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
@@ -236,7 +247,7 @@
     },
     "packages/module-sdk": {
       "name": "@webcraft/module-sdk",
-      "version": "1.11.0",
+      "version": "1.12.0",
       "dependencies": {
         "drizzle-orm": "catalog:",
         "zod": "catalog:",
@@ -786,6 +797,8 @@
     "@webcraft/db": ["@webcraft/db@workspace:packages/db"],
 
     "@webcraft/mcp": ["@webcraft/mcp@workspace:packages/mcp"],
+
+    "@webcraft/module-extra-blocks": ["@webcraft/module-extra-blocks@workspace:modules/extra-blocks"],
 
     "@webcraft/module-forms": ["@webcraft/module-forms@workspace:modules/forms"],
 

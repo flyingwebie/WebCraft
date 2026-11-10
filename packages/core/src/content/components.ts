@@ -78,7 +78,7 @@ export type Component = {
 	/** Its PascalCase tag in Template markup, such as `PostCard`. */
 	name: string;
 	/** The Module that declares it; null for the Site's own. */
-	module: { id: string } | null;
+	module: { id: string; blockType?: boolean; label?: Readonly<Record<string, string>> } | null;
 	status: ComponentStatus;
 	draft: ComponentVersion;
 	/** What visitors see; null until it is first published. A Module's is always published. */
@@ -109,6 +109,9 @@ export type ModuleComponent = {
 	/** `<module id>:<Name>`. */
 	id: string;
 	moduleId: string;
+	blockType?: boolean;
+	label?: Readonly<Record<string, string>>;
+	localizedProps?: Readonly<Record<string, FieldDefinition[]>>;
 	name: string;
 	props: FieldDefinition[];
 	tree: ElementTree;
@@ -988,7 +991,7 @@ function moduleComponent(siteId: string, component: ModuleComponent): Component 
 		id: component.id,
 		siteId,
 		name: component.name,
-		module: { id: component.moduleId },
+		module: { id: component.moduleId, ...(component.blockType ? { blockType: true, label: component.label } : {}) },
 		status: "published",
 		draft: version,
 		published: version,

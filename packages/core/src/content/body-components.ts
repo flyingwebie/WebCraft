@@ -4,8 +4,8 @@
  * places the published version of a Component, as visitors see it, so only published Components can
  * go in and their published Props are what a Block's values are checked against.
  *
- * Module Components can't be allowed in a body yet: Body fields list the Site's own (#110 adds the
- * Modules' through the same catalogue).
+ * Module Block types and Components use the same catalog, allowances and stored Placement shape.
+ * Unavailable Module data stays intact; only new or changed unavailable Placements are refused.
  */
 
 import { components } from "@webcraft/db/schema";
@@ -16,26 +16,37 @@ import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import type { BodyField, FieldDefinition } from "./field-types.ts";
 import { getPostType } from "./post-types.ts";
+import { mapPropLeaves } from "./prop-leaves.ts";
 import { readPropText } from "./props.ts";
 import type { ReferenceCheck } from "./relationships.ts";
 
 /** A Component a body allows, as the block editors offer it: its name and its published Props. */
 export type BodyComponent = { id: string; name: string; props: FieldDefinition[] };
 
-type PublishedComponent = { id: string; name: string; props: FieldDefinition[] | null };
+type PublishedComponent = {
+	id: string;
+	name: string;
+	props: FieldDefinition[] | null;
+	label?: Readonly<Record<string, string>>;
+	localizedProps?: Readonly<Record<string, FieldDefinition[]>>;
+};
 
 async function publishedComponents(
-	scope: Pick<SiteScope | VisitorScope, "db" | "where">,
+	scope: Pick<SiteScope | VisitorScope, "db" | "where" | "site" | "componentSources">,
 	ids: readonly string[],
 ): Promise<Map<string, PublishedComponent>> {
 	const own = [...new Set(ids)].filter(isUuid);
-	if (own.length === 0) return new Map();
-	const rows = await scope.db
-		.select()
-		.from(components)
-		.where(scope.where(components, inArray(components.id, own)));
-	return new Map(
-		rows.map((row) => [
+	const fromModules = await scope.componentSources.moduleComponentsAt(scope.site);
+	const rows =
+		own.length === 0
+			? []
+			: await scope.db
+					.select()
+					.from(components)
+					.where(scope.where(components, inArray(components.id, own)));
+	return new Map<string, PublishedComponent>([
+		...fromModules.map((component): [string, PublishedComponent] => [component.id, component]),
+		...rows.map((row): [string, PublishedComponent] => [
 			row.id,
 			{
 				id: row.id,
@@ -43,18 +54,27 @@ async function publishedComponents(
 				props: row.published === null ? null : storedComponentVersion(row.published).props,
 			},
 		]),
-	);
+	]);
 }
 
 /** The Components a Body field allows that are published, in its order, with their published Props. */
 export async function bodyComponents(
-	scope: Pick<SiteScope, "db" | "where">,
+	scope: Pick<SiteScope, "db" | "where" | "site" | "componentSources">,
 	field: BodyField,
+	language?: string,
 ): Promise<BodyComponent[]> {
 	const found = await publishedComponents(scope, field.components);
 	return field.components.flatMap((id) => {
 		const component = found.get(id);
-		return component?.props ? [{ id, name: component.name, props: component.props }] : [];
+		return component?.props
+			? [
+					{
+						id,
+						name: language ? (component.label?.[language] ?? component.name) : component.name,
+						props: language ? (component.localizedProps?.[language] ?? component.props) : component.props,
+					},
+				]
+			: [];
 	});
 }
 
@@ -75,7 +95,7 @@ function propInfo(prop: FieldDefinition): PropInfo {
  * other of the Site's is refused with the reason.
  */
 export async function bodyComponentFinder(
-	scope: Pick<SiteScope, "select" | "db" | "where">,
+	scope: Pick<SiteScope, "select" | "db" | "where" | "site" | "componentSources">,
 	field: BodyField,
 ): Promise<(name: string) => ComponentFound> {
 	const rows = await scope.select(components);
@@ -89,6 +109,14 @@ export async function bodyComponentFinder(
 				props: component.props.map(propInfo),
 				tree: { version: ELEMENT_TREE_VERSION, nodes: [] },
 			};
+		const module = scope.componentSources.allModuleComponents().find((component) => component.name === name);
+		const unavailable = field.components.some((id) => id.includes(":") && id.split(":")[1] === name);
+		if (module || unavailable)
+			return {
+				refused: unavailable
+					? `${name}'s Module is unavailable: switch on its approved Module first.`
+					: `This Body field doesn't allow ${name}.`,
+			};
 		const row = rows.find((each) => each.name === name);
 		if (!row) return undefined;
 		if (!field.components.includes(row.id)) return { refused: `This Body field doesn't allow ${name}.` };
@@ -97,9 +125,11 @@ export async function bodyComponentFinder(
 }
 
 /** The names of the Site's Components, by id, for writing a body's Components as Markdown. */
-export async function componentNames(scope: Pick<SiteScope | VisitorScope, "select">): Promise<Map<string, string>> {
+export async function componentNames(
+	scope: Pick<SiteScope | VisitorScope, "select" | "componentSources">,
+): Promise<Map<string, string>> {
 	const rows = await scope.select(components);
-	return new Map(rows.map((row) => [row.id, row.name]));
+	return new Map([...scope.componentSources.allModuleComponents(), ...rows].map((row) => [row.id, row.name]));
 }
 
 /**
@@ -109,11 +139,12 @@ export async function componentNames(scope: Pick<SiteScope | VisitorScope, "sele
  * required Prop left empty too, which keeps the Entry from being published.
  */
 export async function checkBodyComponents(
-	scope: Pick<SiteScope, "db" | "where">,
+	scope: Pick<SiteScope, "db" | "where" | "site" | "componentSources">,
 	checks: readonly Extract<ReferenceCheck, { kind: "components" }>[],
 	mode: "refuse" | "rule",
-): Promise<void> {
-	if (checks.length === 0) return;
+): Promise<ReferenceCheck[]> {
+	const references: ReferenceCheck[] = [];
+	if (checks.length === 0) return references;
 	const found = await publishedComponents(
 		scope,
 		checks.flatMap((check) => check.ids),
@@ -125,6 +156,15 @@ export async function checkBodyComponents(
 				check.problems.push(mode === "refuse" ? { at, message } : { at, rule, message });
 			const component = found.get(placement.component);
 			if (!component?.props) {
+				if (placement.component.includes(":")) {
+					if (mode === "rule" || placement.kept) continue;
+					report(
+						`${here}.component`,
+						"component",
+						"This Module Block is unavailable: switch on its approved Module before inserting or changing it.",
+					);
+					continue;
+				}
 				report(
 					`${here}.component`,
 					"component",
@@ -140,6 +180,21 @@ export async function checkBodyComponents(
 					return;
 				}
 				const read = readPropText(prop, given.value);
+				if ("value" in read)
+					mapPropLeaves(prop, read.value, (field, value) => {
+						const at = `${here}.props[${index}]`;
+						if (field.type === "media" && typeof value === "string")
+							references.push({ kind: "media", ids: [value], at, problems: check.problems });
+						if (field.type === "relationship")
+							references.push({
+								kind: "entries",
+								ids: (Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === "string"),
+								postTypes: field.postTypes,
+								at,
+								problems: check.problems,
+							});
+						return value;
+					});
 				// An empty required value is kept, and listed below.
 				if ("problem" in read && given.value.trim() !== "") {
 					report(`${here}.props[${index}]`, "prop", `${component.name}'s ${prop.key}: ${read.problem}`);
@@ -157,11 +212,16 @@ export async function checkBodyComponents(
 			}
 		}
 	}
+	return references;
 }
 
 /** The Components a Post Type's Body field allows that are published (none when it has no Body field). */
-export async function entryBodyComponents(scope: SiteScope, postTypeId: string): Promise<BodyComponent[]> {
+export async function entryBodyComponents(
+	scope: SiteScope,
+	postTypeId: string,
+	language?: string,
+): Promise<BodyComponent[]> {
 	const postType = await getPostType(scope, postTypeId);
 	const field = postType.fields.find((each): each is BodyField => each.type === "body");
-	return field ? bodyComponents(scope, field) : [];
+	return field ? bodyComponents(scope, field, language) : [];
 }

@@ -284,9 +284,9 @@ async function urlPatternPathChanges(scope: SiteScope, postType: PostType, urlPa
 
 /** What defining a Post Type's Fields needs to know: the Post Types Relationships may point at. */
 async function defineContext(
-	scope: Pick<SiteScope, "select">,
+	scope: Pick<SiteScope, "select" | "site" | "componentSources">,
 	ownKey: string,
-	postType: { builtIn: string | null } = { builtIn: null },
+	postType: { builtIn: string | null; fields?: readonly FieldDefinition[] } = { builtIn: null },
 ) {
 	const keys = new Set((await listPostTypes(scope)).map((existing) => existing.key));
 	keys.add(ownKey);
@@ -295,6 +295,9 @@ async function defineContext(
 	const owner = isPagePostType(postType) ? ("page" as const) : ("postType" as const);
 	// The Site's own Components, which its Body field may allow.
 	const componentIds = new Set((await scope.select(components)).map((component) => component.id));
+	for (const component of await scope.componentSources.moduleComponentsAt(scope.site)) componentIds.add(component.id);
+	for (const field of postType.fields ?? [])
+		if (field.type === "body") for (const id of field.components) if (id.includes(":")) componentIds.add(id);
 	return { postTypeKeys: keys, owner, reservedKeys, componentIds };
 }
 

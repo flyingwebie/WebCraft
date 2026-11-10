@@ -1,7 +1,7 @@
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 
-import type { ModuleComponent } from "./component.ts";
+import type { ModuleBlockType, ModuleComponent } from "./component.ts";
 import type { ModuleContext, ModuleTable, ProcedureContext, SiteRouteContext } from "./context.ts";
 import type { ModuleEvent, ModuleEventName } from "./events.ts";
 import type { ImportSource } from "./imports.ts";
@@ -109,10 +109,10 @@ export type ModuleDefinition = {
 	 */
 	widgetGoals?: (context: ModuleContext) => Promise<readonly string[]>;
 	// Later SDK versions open more extension points; until then a Module can't use them:
-	/** Structure presets (#110). */
+	/** Structure presets are reserved for a later SDK version. */
 	structurePresets?: readonly never[];
 	/** Declarative Block types: settings made of Fields, output in Template markup. */
-	blockTypes?: readonly never[];
+	blockTypes?: readonly ModuleBlockType[];
 };
 
 /**
@@ -123,7 +123,12 @@ export type ModuleDefinition = {
  * category (reading `webcraft.consent.has(category)` and the `webcraft:consent` event). Pages
  * carrying it still ask visitors for its category. The Superadmin approves that separately.
  */
-export type ModuleSiteScript = { code: string; beforeConsent?: boolean };
+export type ModuleSiteScript = {
+	code: string;
+	beforeConsent?: boolean;
+	/** Load only when one of these declared Component or Block type names renders. SDK 1.12. */
+	whenUsed?: readonly string[];
+};
 
 /** One of a Module's tables kept in monthly partitions (see `ModuleDefinition.partitions`). */
 export type ModulePartitioning = {

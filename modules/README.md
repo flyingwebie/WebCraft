@@ -15,3 +15,5 @@ sources (a Module reads its file into items; WebCraft's Import pipeline does the
 `modules/site-analytics/` again for SDK 1.8's Dashboard Widgets. One Module of
 a build keeps Form Submissions, Redirect rules and the 404 log: `modules/forms` and
 `modules/redirects` show those.
+
+`modules/extra-blocks/` proves declarative `blockTypes` and usage-gated Site scripts (SDK 1.12); see [Extra blocks](../docs/extra-blocks.md).

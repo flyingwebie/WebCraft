@@ -17,10 +17,12 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { AiKeys } from "../ai/keys.ts";
 import { type AiLanguage, AiProviderError, type AiProviders } from "../ai/providers.ts";
+import type { ModuleComponent } from "../content/components.ts";
 import type { Json } from "../content/field-types.ts";
 import { blockContent, blockState, translationState } from "../content/translation-sources.ts";
 import type { LanguageValue } from "../content/values.ts";
 import type { Executor } from "../tenancy/data-layer.ts";
+import { blockPropsPlan } from "./block-props.ts";
 import { type Glossary, protectTerms, restoreTerms } from "./terms.ts";
 import { leafAt, type StoredLeaf, type Unit } from "./units.ts";
 
@@ -36,6 +38,7 @@ import { leafAt, type StoredLeaf, type Unit } from "./units.ts";
 export type TranslationJob = { unit: Unit; source: Json; target: LanguageValue | undefined };
 
 export type TranslateContext = {
+	moduleComponents?: readonly ModuleComponent[];
 	ai: AiProviders;
 	keys: AiKeys;
 	db: Executor;
@@ -81,7 +84,7 @@ export function pendingJobs(
 /** What translating one value takes: its pieces, and how to build the new value from their translations. */
 type Plan = { pieces: string[]; finish(translations: readonly string[]): LanguageValue };
 
-function planFor(job: TranslationJob, force: boolean): Plan {
+function planFor(job: TranslationJob, force: boolean, components: readonly ModuleComponent[]): Plan {
 	const by = { kind: "ai" } as const;
 	const { source } = job;
 	switch (job.unit.kind) {
@@ -103,7 +106,7 @@ function planFor(job: TranslationJob, force: boolean): Plan {
 			};
 		}
 		case "body": {
-			const plan = bodyPlan(storedBlocks(source), storedBlocks(job.target?.value), force);
+			const plan = bodyPlan(storedBlocks(source), storedBlocks(job.target?.value), force, components);
 			return { pieces: plan.pieces, finish: (texts) => ({ value: plan.finish(texts) as Json, by }) };
 		}
 		default: {
@@ -124,6 +127,7 @@ export function bodyPlan(
 	defaults: readonly Block[],
 	current: readonly Block[],
 	force = false,
+	components: readonly ModuleComponent[] = [],
 ): { work: boolean; pieces: string[]; finish(translations: readonly string[]): Block[] } {
 	const sourceIds = new Set(defaults.map((block) => block.id));
 	const sourceOf = (block: Block) => block.source?.id ?? (sourceIds.has(block.id) ? block.id : null);
@@ -151,11 +155,25 @@ export function bodyPlan(
 	const usedIds = new Set(
 		[...current].filter((block) => kept.has(sourceOf(block) ?? "") || !sourceOf(block)).map((block) => block.id),
 	);
+	const pending = new Set<string>();
 	const pieces: string[] = [];
-	const readers: { block: Block; readers: ((texts: readonly string[]) => BlockText)[]; start: number }[] = [];
+	const readers: { block: Block; finish: (texts: readonly string[]) => Block }[] = [];
 	for (const block of defaults) {
 		if (kept.has(block.id)) continue;
-		const start = pieces.length;
+		const declared = block.type === "component" ? components.find((c) => c.id === block.component) : undefined;
+		// Missing or malformed declarations cannot identify human text. Retain existing translations,
+		// or a plain source copy that stays Missing, so restoring the Module can translate it later.
+		if (block.type === "component" && block.component.includes(":") && !declared) {
+			pending.add(block.id);
+			continue;
+		}
+		if (block.type === "component" && declared) {
+			const plan = blockPropsPlan(block, declared.props);
+			const start = pieces.length;
+			pieces.push(...plan.pieces);
+			readers.push({ block, finish: (texts) => plan.finish(texts.slice(start, start + plan.pieces.length)) });
+			continue;
+		}
 		const parts = blockSpec(block)
 			.translatable(block)
 			.map((text) => {
@@ -169,19 +187,23 @@ export function bodyPlan(
 				pieces.push(inline.piece);
 				return (texts: readonly string[]): BlockText => ({ inline: inline.read(texts[index] ?? inline.piece) });
 			});
-		readers.push({ block, readers: parts, start });
+		readers.push({
+			block,
+			finish: (texts) =>
+				blockSpec(block).translated(
+					block,
+					parts.map((read) => read(texts)),
+				),
+		});
 	}
-	const work = readers.length > 0 || dropped;
+	const work = readers.length > 0 || dropped || pending.size > 0;
 	return {
 		work,
 		pieces,
 		finish(texts) {
 			const made = new Map<string, Block>();
-			for (const { block, readers: parts } of readers) {
-				const translated = blockSpec(block).translated(
-					block,
-					parts.map((read) => read(texts)),
-				);
+			for (const { block, finish } of readers) {
+				const translated = finish(texts);
 				const id = usedIds.has(block.id) ? newBlockId() : block.id;
 				usedIds.add(id);
 				made.set(block.id, {
@@ -192,7 +214,7 @@ export function bodyPlan(
 			}
 			const out: Block[] = [...(orphans.get(null) ?? [])];
 			for (const block of defaults) {
-				const own = made.get(block.id) ?? translations.get(block.id);
+				const own = made.get(block.id) ?? translations.get(block.id) ?? (pending.has(block.id) ? block : undefined);
 				if (own) out.push(own);
 				out.push(...(orphans.get(block.id) ?? []));
 			}
@@ -217,7 +239,7 @@ export async function translateValues(
 	jobs: readonly TranslationJob[],
 	force = false,
 ): Promise<Map<string, LanguageValue>> {
-	const plans = jobs.map((job) => planFor(job, force));
+	const plans = jobs.map((job) => planFor(job, force, context.moduleComponents ?? []));
 	const unique = [...new Set(plans.flatMap((plan) => plan.pieces).filter((piece) => piece.trim() !== ""))];
 	const done = new Map<string, string>();
 	if (unique.length > 0) {

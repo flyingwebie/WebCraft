@@ -1,6 +1,7 @@
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { useEffect, useId, useState } from "react";
+import { useLocale } from "use-intl";
 import { getApi } from "../../api.ts";
 import { errorMessage } from "../../errors.ts";
 import { useT } from "../../i18n.tsx";
@@ -16,6 +17,7 @@ export function AllowedComponents({
 	onChange(ids: string[]): void;
 }) {
 	const t = useT();
+	const language = useLocale();
 	const id = useId();
 	const [components, setComponents] = useState<{ id: string; name: string }[]>([]);
 	const [error, setError] = useState("");
@@ -24,7 +26,13 @@ export function AllowedComponents({
 		void getApi()
 			.then((api) => api.components.list({ siteId }))
 			.then((result) => {
-				if (active) setComponents(result.components.filter((component) => !component.module));
+				if (active)
+					setComponents(
+						result.components.map((component) => ({
+							id: component.id,
+							name: component.module?.label?.[language] ?? component.name,
+						})),
+					);
 			})
 			.catch((error) => {
 				if (active) setError(t(errorMessage(error)));
@@ -32,7 +40,7 @@ export function AllowedComponents({
 		return () => {
 			active = false;
 		};
-	}, [siteId, t]);
+	}, [siteId, t, language]);
 	return (
 		<fieldset className="grid gap-2" aria-describedby={`${id}-help`}>
 			<legend className="mb-1 text-sm font-medium">{t("body.components.allowed")}</legend>

@@ -53,9 +53,11 @@ export {
 export { z } from "zod";
 export { type AddressRange, addressInRanges, isAddressRange, parseAddress, parseAddressRange } from "./addresses.ts";
 export {
+	blockType,
 	type ComponentProp,
 	type ComponentPropType,
 	component,
+	type ModuleBlockType,
 	type ModuleComponent,
 } from "./component.ts";
 export type {

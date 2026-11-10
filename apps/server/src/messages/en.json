@@ -2804,7 +2804,7 @@
 		},
 		"components": {
 			"allowed": "Allowed Components",
-			"allowedHelp": "Members may insert these published Components from the / menu and fill their Props.",
+			"allowedHelp": "Members may insert these published Components and Module Block types from the / menu and fill their Props.",
 			"group": "Components",
 			"label": "{name} (Component)",
 			"title": "{name}: Props",
