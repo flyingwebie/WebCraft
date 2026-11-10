@@ -34,6 +34,7 @@ import { HistoryCard } from "../history/HistoryCard.tsx";
 import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
+import { EntrySchedule } from "../publishing/EntrySchedule.tsx";
 import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
 import { OutdatedTranslations } from "../translations/OutdatedTranslations.tsx";
 import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
@@ -344,6 +345,18 @@ export function EntryEditor({
 							{t("entries.editor.liveAt")} <span className="text-foreground font-mono">{entry.path}</span>
 						</p>
 					) : null}
+					<EntrySchedule
+						siteId={siteId}
+						entry={entry}
+						isPage={isPage}
+						canPublish={canPublish}
+						flush={autosave.flush}
+						onChanged={async () => {
+							const api = await getApi();
+							const { entry: fresh } = await api.entries.get({ siteId, entryId: entry.id, language: entry.language });
+							setEntry(fresh);
+						}}
+					/>
 				</DraftStatusCard>
 
 				<fieldset disabled={locked} className="min-w-0" {...tracking}>

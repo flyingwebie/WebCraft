@@ -14,6 +14,9 @@ import {
 } from "@webcraft/ui/components/dialog.tsx";
 import {
 	BlocksIcon,
+	CalendarClockIcon,
+	CalendarOffIcon,
+	CircleAlertIcon,
 	CodeIcon,
 	FileTextIcon,
 	FilterIcon,
@@ -28,7 +31,7 @@ import {
 	SlidersHorizontalIcon,
 	UploadIcon,
 } from "lucide-react";
-import { type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
@@ -36,9 +39,13 @@ import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useOpenStaging } from "../shell/StagingButton.tsx";
+import { CancelScheduleDialog, ScheduleDialog, ScheduledTime } from "./schedule.tsx";
 
 /** One Draft of the Site, as `publishing.drafts` lists it. */
 export type SiteDraft = Awaited<ReturnType<ApiClient["publishing"]["drafts"]>>["drafts"][number];
+
+/** One Scheduled publish of the Site, as `publishing.scheduled` lists it. */
+type Scheduled = Awaited<ReturnType<ApiClient["publishing"]["scheduled"]>>["scheduled"][number];
 
 type Item = SiteDraft["item"];
 
@@ -101,25 +108,38 @@ function PublishAllDialog({
 	const router = useRouter();
 	const id = useId();
 	const [drafts, setDrafts] = useState<SiteDraft[] | null>(null);
+	const [scheduled, setScheduled] = useState<Scheduled[]>([]);
 	const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
 	const [busy, setBusy] = useState(false);
 	const [problem, setProblem] = useState<string | null>(null);
+	const [scheduling, setScheduling] = useState(false);
+	const scheduleButton = useRef<HTMLButtonElement>(null);
 
-	useEffect(() => {
-		let cancelled = false;
-		(async () => {
-			try {
-				const api = await getApi();
-				const { drafts: listed } = await api.publishing.drafts({ siteId });
-				if (!cancelled) setDrafts(listed);
-			} catch (failure) {
-				if (!cancelled) setProblem(t(errorMessage(failure)));
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [siteId, t]);
+	// The Drafts and the Scheduled publishes, read again after each change made here.
+	const load = useCallback(async () => {
+		const api = await getApi();
+		const [{ drafts: listed }, { scheduled: waiting }] = await Promise.all([
+			api.publishing.drafts({ siteId }),
+			api.publishing.scheduled({ siteId }),
+		]);
+		setDrafts(listed);
+		setScheduled(waiting);
+	}, [siteId]);
+	const reload = useCallback(() => {
+		load().catch((failure: unknown) => setProblem(t(errorMessage(failure))));
+	}, [load, t]);
+	useEffect(() => reload(), [reload]);
+
+	// Each item waiting in a Scheduled publish of its Draft: when, and whether its Draft changed since.
+	const waiting = useMemo(() => {
+		const found = new Map<string, { at: Date | string; changedSinceScheduled: boolean }>();
+		for (const each of scheduled) {
+			if (each.action !== "publish") continue;
+			for (const one of each.items)
+				found.set(keyOf(one.item), { at: each.at, changedSinceScheduled: one.changedSinceScheduled });
+		}
+		return found;
+	}, [scheduled]);
 
 	const mine = useMemo(() => (drafts ?? []).filter((draft) => draft.canPublish), [drafts]);
 	const ticked = mine.filter((draft) => !unticked.has(keyOf(draft.item)));
@@ -152,6 +172,23 @@ function PublishAllDialog({
 		}
 	};
 
+	// "Publish all at…": the same two calls as Publish all, with the time chosen.
+	const scheduleAll = async (at: Date) => {
+		const api = await getApi();
+		const items = ticked.map((draft) => draft.item);
+		try {
+			const preview = await api.publishing.scheduleAll({ siteId, items, at });
+			if (!("confirmation" in preview)) return;
+			await api.publishing.scheduleAll({ siteId, items, at, confirmation: preview.confirmation.id });
+		} catch (failure) {
+			throw new Error(refusalText(t, failure));
+		}
+		setScheduling(false);
+		toast.success(t("schedule.scheduled", { time: formatUtc(at) }));
+		reload();
+		await router.invalidate();
+	};
+
 	const groups: { key: "content" | "structure"; label: MessageKey }[] = [
 		{ key: "content", label: "publishAll.content" },
 		{ key: "structure", label: "publishAll.structure" },
@@ -169,22 +206,27 @@ function PublishAllDialog({
 								: t("publishAll.intro", { count: drafts.length })}
 					</DialogDescription>
 				</DialogHeader>
-				{drafts && drafts.length > 0 ? (
+				{scheduled.length > 0 || (drafts && drafts.length > 0) ? (
 					<div className="-mx-1 grid max-h-[60vh] gap-4 overflow-y-auto px-1">
-						<div className="flex items-center gap-3">
-							<Checkbox
-								id={`${id}-all`}
-								checked={allTicked}
-								indeterminate={ticked.length > 0 && !allTicked}
-								disabled={mine.length === 0}
-								onCheckedChange={(value) => toggleAll(value === true)}
-							/>
-							<label htmlFor={`${id}-all`} className="text-sm font-medium">
-								{t("publishAll.selected", { selected: ticked.length, total: mine.length })}
-							</label>
-						</div>
+						{scheduled.length > 0 ? (
+							<ScheduledSection siteId={siteId} scheduled={scheduled} onChanged={reload} />
+						) : null}
+						{drafts && drafts.length > 0 ? (
+							<div className="flex items-center gap-3">
+								<Checkbox
+									id={`${id}-all`}
+									checked={allTicked}
+									indeterminate={ticked.length > 0 && !allTicked}
+									disabled={mine.length === 0}
+									onCheckedChange={(value) => toggleAll(value === true)}
+								/>
+								<label htmlFor={`${id}-all`} className="text-sm font-medium">
+									{t("publishAll.selected", { selected: ticked.length, total: mine.length })}
+								</label>
+							</div>
+						) : null}
 						{groups.map((group) => {
-							const listed = drafts.filter((draft) => draft.group === group.key);
+							const listed = (drafts ?? []).filter((draft) => draft.group === group.key);
 							if (listed.length === 0) return null;
 							const staffOnly = group.key === "structure" && listed.every((draft) => !draft.canPublish);
 							return (
@@ -207,6 +249,7 @@ function PublishAllDialog({
 												id={`${id}-${keyOf(draft.item)}`}
 												siteId={siteId}
 												draft={draft}
+												waiting={waiting.get(keyOf(draft.item)) ?? null}
 												ticked={draft.canPublish && !unticked.has(keyOf(draft.item))}
 												onToggle={(on) => toggle(draft, on)}
 											/>
@@ -227,16 +270,212 @@ function PublishAllDialog({
 						<InfoIcon aria-hidden="true" className="size-4 shrink-0" />
 						{t("publishAll.cacheNote")}
 					</p>
-					<div className="flex gap-2">
+					<div className="flex flex-wrap gap-2">
 						<DialogClose render={<Button variant="outline" type="button" />}>{t("publishAll.cancel")}</DialogClose>
+						<Button
+							ref={scheduleButton}
+							variant="outline"
+							onClick={() => setScheduling(true)}
+							disabled={busy || ticked.length === 0}
+							aria-haspopup="dialog"
+						>
+							<CalendarClockIcon aria-hidden="true" />
+							{t("schedule.publishAllAtCount", { count: ticked.length })}
+						</Button>
 						<Button onClick={publish} disabled={busy || ticked.length === 0}>
 							<UploadIcon aria-hidden="true" />
 							{t("publishAll.publish", { count: ticked.length })}
 						</Button>
 					</div>
 				</DialogFooter>
+				{scheduling ? (
+					<ScheduleDialog
+						title={t("schedule.scheduleAllTitle")}
+						description={t("schedule.scheduleAllDescription", { count: ticked.length })}
+						submitLabel={t("schedule.scheduleAllSubmit", { count: ticked.length })}
+						onSubmit={scheduleAll}
+						onClose={() => setScheduling(false)}
+						finalFocus={scheduleButton}
+					/>
+				) : null}
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/** Which of a Scheduled publish's dialogs is open. */
+type ScheduledDialog = { kind: "time" | "cancel"; scheduled: Scheduled } | null;
+
+/**
+ * The Site's Scheduled publishes, soonest first: what each publishes or unpublishes and when (UTC,
+ * with the person's local time), who scheduled it, items changed since (their edits stay in the
+ * Draft) or deleted since; changed, given the current Drafts or cancelled by whoever may publish
+ * every item of it.
+ */
+function ScheduledSection({
+	siteId,
+	scheduled,
+	onChanged,
+}: {
+	siteId: string;
+	scheduled: readonly Scheduled[];
+	onChanged: () => void;
+}) {
+	const t = useT();
+	const id = useId();
+	const [open, setOpen] = useState<ScheduledDialog>(null);
+	const [problem, setProblem] = useState<string | null>(null);
+	const trigger = useRef<HTMLElement | null>(null);
+	const close = () => setOpen(null);
+	const after = (message: string) => {
+		close();
+		toast.success(message);
+		onChanged();
+	};
+	const nameOf = (each: Scheduled) =>
+		each.items
+			.slice(0, 3)
+			.map((one) => titleOf(t, one))
+			.join(", ") + (each.items.length > 3 ? "…" : "");
+	const takeDrafts = async (each: Scheduled) => {
+		setProblem(null);
+		try {
+			const api = await getApi();
+			await api.publishing.updateScheduled({ siteId, scheduleId: each.id });
+			toast.success(t("schedule.updated"));
+			onChanged();
+		} catch (failure) {
+			setProblem(refusalText(t, failure));
+		}
+	};
+	return (
+		<section aria-labelledby={`${id}-heading`} className="grid gap-2">
+			<h3 id={`${id}-heading`} className="text-muted-foreground text-xs font-medium uppercase">
+				{t("schedule.scheduledHeading")}
+			</h3>
+			<ul className="grid gap-2">
+				{scheduled.map((each) => {
+					const name = nameOf(each);
+					const changed = each.items.some((one) => one.changedSinceScheduled);
+					const missing = each.items.some((one) => one.missing);
+					return (
+						<li key={each.id} className="grid gap-2 rounded-lg border p-3">
+							<div className="flex items-start gap-3">
+								{each.action === "unpublish" ? (
+									<CalendarOffIcon aria-hidden="true" className="text-muted-foreground mt-0.5 size-5 shrink-0" />
+								) : (
+									<CalendarClockIcon aria-hidden="true" className="text-muted-foreground mt-0.5 size-5 shrink-0" />
+								)}
+								<div className="grid min-w-0 flex-1 gap-0.5 text-sm">
+									<p className="font-medium">
+										{t(each.action === "unpublish" ? "schedule.unpublishAction" : "schedule.publishAction")}{" "}
+										<ScheduledTime value={each.at} />
+									</p>
+									<p className="text-muted-foreground truncate text-xs">
+										{t("schedule.items", { count: each.items.length })} · {name}
+										{each.createdBy
+											? ` · ${
+													each.createdBy.via
+														? t("schedule.byVia", { person: each.createdBy.name, client: each.createdBy.via })
+														: t("schedule.by", { person: each.createdBy.name })
+												}`
+											: ""}
+									</p>
+								</div>
+								<div className="flex flex-wrap justify-end gap-1">
+									{changed ? (
+										<Badge variant="outline">
+											<CircleAlertIcon aria-hidden="true" />
+											{t("schedule.changedSince")}
+										</Badge>
+									) : null}
+									{missing ? (
+										<Badge variant="outline" className="border-destructive/60">
+											<CircleAlertIcon aria-hidden="true" className="text-destructive" />
+											{t("schedule.missing")}
+										</Badge>
+									) : null}
+								</div>
+							</div>
+							{each.canChange ? (
+								<div className="flex flex-wrap gap-2 ps-8">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										aria-label={t("schedule.changeTimeOf", { name })}
+										onClick={(event) => {
+											trigger.current = event.currentTarget;
+											setOpen({ kind: "time", scheduled: each });
+										}}
+									>
+										{t("schedule.changeTime")}
+									</Button>
+									{each.action === "publish" && changed ? (
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											aria-label={t("schedule.takeDraftsOf", { name })}
+											onClick={() => void takeDrafts(each)}
+										>
+											{t("schedule.takeDrafts")}
+										</Button>
+									) : null}
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										aria-label={t("schedule.cancelScheduleOf", { name })}
+										onClick={(event) => {
+											trigger.current = event.currentTarget;
+											setOpen({ kind: "cancel", scheduled: each });
+										}}
+									>
+										{t("schedule.cancelSchedule")}
+									</Button>
+								</div>
+							) : null}
+						</li>
+					);
+				})}
+			</ul>
+			{problem ? (
+				<p role="alert" className="text-destructive text-sm">
+					{problem}
+				</p>
+			) : null}
+			{open?.kind === "time" ? (
+				<ScheduleDialog
+					title={t("schedule.changeTimeTitle")}
+					description={t(
+						open.scheduled.action === "unpublish"
+							? "schedule.changeUnpublishTimeDescription"
+							: "schedule.changeTimeDescription",
+					)}
+					submitLabel={t("schedule.changeTimeSubmit")}
+					initial={open.scheduled.at}
+					onSubmit={async (at) => {
+						const api = await getApi();
+						await api.publishing.reschedule({ siteId, scheduleId: open.scheduled.id, at });
+						after(t("schedule.rescheduled", { time: formatUtc(at) }));
+					}}
+					onClose={close}
+					finalFocus={trigger}
+				/>
+			) : null}
+			{open?.kind === "cancel" ? (
+				<CancelScheduleDialog
+					onConfirm={async () => {
+						const api = await getApi();
+						await api.publishing.cancelScheduled({ siteId, scheduleId: open.scheduled.id });
+						after(t("schedule.cancelled"));
+					}}
+					onClose={close}
+					finalFocus={trigger}
+				/>
+			) : null}
+		</section>
 	);
 }
 
@@ -245,12 +484,15 @@ function DraftRow({
 	id,
 	siteId,
 	draft,
+	waiting,
 	ticked,
 	onToggle,
 }: {
 	id: string;
 	siteId: string;
 	draft: SiteDraft;
+	/** The Scheduled publish it waits in, if any: when, and whether its Draft changed since. */
+	waiting: { at: Date | string; changedSinceScheduled: boolean } | null;
 	ticked: boolean;
 	onToggle: (on: boolean) => void;
 }) {
@@ -288,6 +530,13 @@ function DraftRow({
 					{!draft.canPublish ? ` · ${t("publishAll.staffOnly")}` : ""}
 				</p>
 			</div>
+			{waiting ? (
+				<Badge variant="outline" title={formatUtc(waiting.at)}>
+					<CalendarClockIcon aria-hidden="true" />
+					{t(waiting.changedSinceScheduled ? "schedule.changedSince" : "schedule.badge")}
+					<span className="sr-only"> {formatUtc(waiting.at)}</span>
+				</Badge>
+			) : null}
 			<Badge variant={draft.status === "new" ? "secondary" : "outline"}>
 				{t(draft.status === "new" ? "publishAll.new" : "publishAll.changed")}
 			</Badge>
@@ -333,15 +582,18 @@ function refusalText(t: T, failure: unknown): string {
 	return t(errorMessage(failure));
 }
 
+/** What Publish all names an item by: a Draft, or an item of a Scheduled publish. */
+type Named = Pick<SiteDraft, "item" | "name" | "postType" | "templateKind" | "scriptKind">;
+
 /** What the Draft is called: its name, or what it is when it has none (the Globals, the Design system). */
-function titleOf(t: T, draft: SiteDraft): string {
+function titleOf(t: T, draft: Named): string {
 	if (draft.name !== null && draft.name !== "") return draft.name;
 	if (draft.item.kind === "entry") return t("publishAll.untitled");
 	return kindOf(t, draft);
 }
 
 /** What kind of item a Draft is: an Entry's Post Type, a Template's kind, or the item's kind. */
-function kindOf(t: T, draft: SiteDraft): string {
+function kindOf(t: T, draft: Named): string {
 	switch (draft.item.kind) {
 		case "entry":
 			return draft.postType?.name ?? t("publishAll.kinds.entry");
