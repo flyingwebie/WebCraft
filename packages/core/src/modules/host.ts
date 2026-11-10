@@ -1106,20 +1106,17 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const scope = await openForModule(module, place);
 			if (!scope) return found;
 			const context = moduleContext(module, scope, options);
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			try {
-				const late = new Promise<"late">((resolve) => {
-					timer = setTimeout(() => resolve("late"), FIND_MANY_TIMEOUT_MS);
-				});
-				const asked = rules.findMany
-					? rules.findMany(requests, context)
-					: (async () => {
-							const answers: (RedirectTarget | null)[] = [];
-							for (const request of requests) answers.push(await rules.find(request, context));
-							return answers;
-						})();
-				const answers = await Promise.race([asked, late]);
-				if (answers === "late") {
+			const answers = await timedModuleCall<(RedirectTarget | null)[] | null>(
+				() =>
+					rules.findMany
+						? rules.findMany(requests, context)
+						: (async () => {
+								const answers: (RedirectTarget | null)[] = [];
+								for (const request of requests) answers.push(await rules.find(request, context));
+								return answers;
+							})(),
+				FIND_MANY_TIMEOUT_MS,
+				async () => {
 					await writeLine(
 						options,
 						module,
@@ -1130,22 +1127,22 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 							paths: requests.length,
 						},
 					).catch(() => {});
-					return found;
-				}
-				requests.forEach((request, index) => {
-					const target = answers[index];
-					if (target && !target.whereNoPage) found.add(request.path);
-				});
-				return found;
-			} catch (error) {
-				await writeLine(options, module, place, "warn", "Its Redirect rules failed for a list of pages.", {
-					error: describeError(error),
-				}).catch(() => {});
-				log.warn("A Module's Redirect rules failed", { moduleId: module.id, error });
-				return found;
-			} finally {
-				clearTimeout(timer);
-			}
+					return null;
+				},
+				async (error) => {
+					await writeLine(options, module, place, "warn", "Its Redirect rules failed for a list of pages.", {
+						error: describeError(error),
+					}).catch(() => {});
+					log.warn("A Module's Redirect rules failed", { moduleId: module.id, error });
+					return null;
+				},
+			);
+			if (!answers) return found;
+			requests.forEach((request, index) => {
+				const target = answers[index];
+				if (target && !target.whereNoPage) found.add(request.path);
+			});
+			return found;
 		},
 
 		async redirectFor(site, request, paths) {
@@ -1159,31 +1156,25 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const problem = async (message: string, details: Record<string, unknown>) => {
 				await writeLine(options, module, place, "warn", message, details).catch(() => {});
 			};
-			const ask = async (asked: RedirectRequest): Promise<RedirectTarget | null> => {
-				let timer: ReturnType<typeof setTimeout> | undefined;
-				try {
-					const late = new Promise<"late">((resolve) => {
-						timer = setTimeout(() => resolve("late"), FIND_TIMEOUT_MS);
-					});
-					const answer = await Promise.race([rules.find(asked, context), late]);
-					if (answer === "late") {
+			const ask = async (asked: RedirectRequest): Promise<RedirectTarget | null> =>
+				timedModuleCall(
+					() => rules.find(asked, context),
+					FIND_TIMEOUT_MS,
+					async () => {
 						await problem("Its Redirect rules took too long to answer; the request went on without them.", {
 							path: asked.path,
 						});
 						return null;
-					}
-					return answer;
-				} catch (error) {
-					await problem("Its Redirect rules failed; the request went on without them.", {
-						path: asked.path,
-						error: describeError(error),
-					});
-					log.warn("A Module's Redirect rules failed", { moduleId: module.id, error });
-					return null;
-				} finally {
-					clearTimeout(timer);
-				}
-			};
+					},
+					async (error) => {
+						await problem("Its Redirect rules failed; the request went on without them.", {
+							path: asked.path,
+							error: describeError(error),
+						});
+						log.warn("A Module's Redirect rules failed", { moduleId: module.id, error });
+						return null;
+					},
+				);
 			let path = request.path;
 			let result: Pick<RedirectTarget, "to" | "status"> | null = null;
 			// One 302 on the way makes the whole a 302: the page is elsewhere for now.
@@ -1451,6 +1442,32 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			});
 		},
 	};
+}
+
+/**
+ * A timed Module call, as `pathsWithRules` and `redirectFor`'s `ask` both need it: `call` raced
+ * against a `timeoutMs` timer (a plain `setTimeout` "late" promise), the timer always cleared.
+ * `onTimeout` and `onError` log their own warn line and answer the fallback for their caller; a
+ * call still running when the timer wins is left to settle on its own, unawaited.
+ */
+async function timedModuleCall<T>(
+	call: () => Promise<T>,
+	timeoutMs: number,
+	onTimeout: () => Promise<T>,
+	onError: (error: unknown) => Promise<T>,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		const late = new Promise<"late">((resolve) => {
+			timer = setTimeout(() => resolve("late"), timeoutMs);
+		});
+		const answer = await Promise.race([call(), late]);
+		return answer === "late" ? await onTimeout() : answer;
+	} catch (error) {
+		return await onError(error);
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 /**
