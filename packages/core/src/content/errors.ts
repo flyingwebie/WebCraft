@@ -292,14 +292,17 @@ export type ComponentUse =
 			postTypeId: string | null;
 			versions: ("draft" | "published")[];
 	  }
-	| { kind: "component"; id: string; name: string; versions: ("draft" | "published")[] };
+	| { kind: "component"; id: string; name: string; versions: ("draft" | "published")[] }
+	| { kind: "entry"; id: string; postTypeId: string; versions: ("draft" | "published")[] };
 
 /** A Component that is placed somewhere can't be deleted: `usedIn` says where. */
 export class ComponentInUseError extends Error {
 	override name = "ComponentInUseError";
 	readonly usedIn: readonly ComponentUse[];
 	constructor(usedIn: readonly ComponentUse[]) {
-		super(`The Component is placed in ${usedIn.length} Template(s) or Component(s): remove those Placements first.`);
+		super(
+			`The Component is placed in ${usedIn.length} Template(s), Component(s) or Page(s): remove those Placements first.`,
+		);
 		this.usedIn = usedIn;
 	}
 }

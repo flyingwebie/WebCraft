@@ -25,7 +25,10 @@ const NOT_THERE = new Set([
  * or one of the Site's Components (`component/<id>`).
  */
 /** What is selected when it opens: where a Filter is placed (`?filter=<id>`, from the Filter builder). */
-const search = z.object({ filter: z.uuid().optional().catch(undefined) });
+const search = z.object({
+	element: z.string().max(128).optional().catch(undefined),
+	filter: z.uuid().optional().catch(undefined),
+});
 
 export const Route = createFileRoute("/builder/$siteId/$")({
 	validateSearch: search,
@@ -67,7 +70,7 @@ export const Route = createFileRoute("/builder/$siteId/$")({
 function BuilderPage() {
 	const t = useT();
 	const { site, target, opened } = Route.useLoaderData();
-	const { filter } = Route.useSearch();
+	const { filter, element } = Route.useSearch();
 	if (!opened) {
 		return (
 			<main id="main" tabIndex={-1} className="mx-auto max-w-xl p-10 outline-none">
@@ -86,7 +89,7 @@ function BuilderPage() {
 			target={target}
 			initial={opened}
 			back={back}
-			{...(filter ? { select: { filter } } : {})}
+			{...(element ? { select: { element } } : filter ? { select: { filter } } : {})}
 		/>
 	);
 }

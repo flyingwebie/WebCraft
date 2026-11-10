@@ -42,34 +42,27 @@ const VAGUE_LINK_TEXTS: Readonly<Record<string, readonly string[]>> = {
 /** The Checks a body raises, in Block order. */
 export function bodyChecks(blocks: readonly Block[], context: BodyCheckContext): BodyCheck[] {
 	const checks: BodyCheck[] = [];
-	const [primary = ""] = context.language.toLowerCase().split("-");
-	const vague = new Set(VAGUE_LINK_TEXTS[primary] ?? VAGUE_LINK_TEXTS.en);
 	// The page's H1 is the Entry's title, so a body's first heading is an H2.
 	let previousLevel = 1;
 	blocks.forEach((block, index) => {
 		const raise = (check: BodyCheckKind, detail?: string) =>
 			checks.push({ index, blockId: block.id, check, ...(detail === undefined ? {} : { detail }) });
 		const spec = blockSpec(block);
+		// A Component may supply headings; only the composed page knows which ones.
+		if (block.type === "component") previousLevel = 0;
 		if (block.type === "heading" && spec.hasContent(block)) {
-			if (block.level > previousLevel + 1) raise("skippedHeading", `H${previousLevel} → H${block.level}`);
+			if (previousLevel > 0 && block.level > previousLevel + 1)
+				raise("skippedHeading", `H${previousLevel} → H${block.level}`);
 			previousLevel = block.level;
 		}
-		if (block.type === "image" && block.media) {
+		if (block.type === "image" && block.media && !block.decorative) {
 			const alt = context.altOf(block.media);
 			if (alt !== undefined && (alt ?? "").trim() === "") raise("missingAlt");
 		}
 		if (block.type === "table" && spec.hasContent(block) && !block.headerRow) raise("tableHeader");
 		if (block.type === "video" && videoAt(block.url) && block.title.trim() === "") raise("untitledVideo");
 		for (const text of linkTexts(spec.inlines(block))) {
-			if (
-				vague.has(
-					text
-						.toLowerCase()
-						.replace(/[.…:!?]+$/u, "")
-						.trim(),
-				) ||
-				text.trim() === ""
-			) {
+			if (vagueText(text, context.language)) {
 				raise("vagueLink", text.trim());
 			}
 		}
@@ -93,4 +86,14 @@ function linkTexts(inlines: readonly InlineText[]): string[] {
 		if (current) texts.push(current.text);
 	}
 	return texts;
+}
+
+/** Shared by Body and element-tree Checks. */
+export function vagueText(text: string, language: string): boolean {
+	const primary = language.toLowerCase().split("-")[0] ?? "en";
+	const normal = text
+		.toLowerCase()
+		.replace(/[.…:!?]+$/u, "")
+		.trim();
+	return normal === "" || (VAGUE_LINK_TEXTS[primary] ?? VAGUE_LINK_TEXTS.en ?? []).includes(normal);
 }

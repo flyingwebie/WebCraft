@@ -352,6 +352,7 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						to: "/sites/$siteId/dashboards",
 						dashboards: true,
 					},
+					{ id: "site-checks", label: "shell.nav.checks", icon: SearchCheckIcon, to: "/sites/$siteId/checks" },
 					// The Site's Post Types come here (`postTypeItems`).
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
 					{ id: "site-globals", label: "shell.nav.globals", icon: SlidersHorizontalIcon, to: "/sites/$siteId/globals" },
@@ -442,6 +443,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: SparklesIcon,
 						to: "/sites/$siteId/ai-translation",
 						requires: "translation.manage",
+					},
+					{
+						id: "site-accessibility-statement",
+						label: "statement.heading",
+						icon: SearchCheckIcon,
+						to: "/sites/$siteId/accessibility-statement",
+						requires: "structure.edit",
 					},
 					{
 						id: "site-seo",

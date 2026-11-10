@@ -7,7 +7,7 @@
  * the header token, as every edit request), and then opens the Site with `structure.edit` through the
  * data layer: Members in Edit mode never get it.
  */
-import type { MarkupNotice } from "@webcraft/renderer";
+import type { MarkupNotice, QualityCheck } from "@webcraft/renderer";
 
 import type { ComponentSources } from "../content/components.ts";
 import type { ScriptKind } from "../content/scripts.ts";
@@ -31,6 +31,7 @@ export type { CodeSourceKind, OpenedSource, Suggestions } from "./sources.ts";
 
 /** What a preview answers: the whole page, as Code mode shows it with the unsaved changes, and its stylesheet. */
 export type CodePreviewPage = {
+	checks: QualityCheck[];
 	html: string;
 	stylesheet: { hash: string; css: string };
 	notices: MarkupNotice[];
@@ -136,9 +137,10 @@ export function createCodeMode(options: {
 			let answer = await pages.render(host, input.path, shown);
 			// The home page's own path shows the home page.
 			if (answer?.kind === "redirect") answer = await pages.render(host, answer.location, shown);
-			const html = answer?.kind === "page" ? answer.html : (await pages.notFound(host, input.path, shown)).html;
+			const page = answer?.kind === "page" ? answer : await pages.notFound(host, input.path, shown);
 			return {
-				html,
+				html: page.html,
+				checks: page.checks ?? [],
 				stylesheet: { hash: preview.styles.stylesheet.hash, css: preview.styles.stylesheet.css },
 				notices,
 			};

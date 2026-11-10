@@ -227,6 +227,16 @@ function Settings({
 			const fixed = node.children.map((child, index) => ({ child, index })).filter(({ child }) => isFixedText(child));
 			return (
 				<div className="grid gap-4">
+					{node.tag === "img" ? (
+						<label className="flex items-center gap-2 text-sm">
+							<input
+								type="checkbox"
+								checked={node.decorative === true}
+								onChange={(event) => replace({ ...node, decorative: event.target.checked })}
+							/>
+							{t("checks.decorative")}
+						</label>
+					) : null}
 					<CommitInput
 						label={t("builder.inspector.label")}
 						value={node.label ?? ""}
@@ -247,7 +257,11 @@ function Settings({
 						value={node.tag}
 						mono
 						help={t("builder.inspector.tagHelp")}
-						onCommit={(tag) => replace({ ...node, tag: tag.trim().toLowerCase() })}
+						onCommit={(tag) => {
+							const next = tag.trim().toLowerCase();
+							const { decorative, ...rest } = node;
+							return replace({ ...rest, tag: next, ...(next === "img" && decorative ? { decorative } : {}) });
+						}}
 					/>
 					<AttributesEditor attributes={node.attributes} onChange={(attributes) => replace({ ...node, attributes })} />
 					{fixed.length > 0 ? (

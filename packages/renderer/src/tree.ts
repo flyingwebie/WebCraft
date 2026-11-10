@@ -60,6 +60,8 @@ export type ElementNode = {
 	 * rendered. Absent when it has none, and the Layers panel shows its tag.
 	 */
 	label?: string;
+	/** This placed image carries no meaning; rendered with empty alt text. */
+	decorative?: boolean;
 };
 
 /**
@@ -944,6 +946,8 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		const children = parseNodes(element.children ?? [], `${at}.children`, [...ancestors, tag], depth + 1);
 		if (VOID_ELEMENTS.has(tag) && children.length > 0) problem(`${at}.children`, `${tag} can't have children.`);
 		const label = parseLabel(element.label, `${at}.label`);
+		if (element.decorative !== undefined && (tag !== "img" || typeof element.decorative !== "boolean"))
+			problem(`${at}.decorative`, "Decorative is true or false on an image.");
 		return {
 			type: "element",
 			id,
@@ -952,6 +956,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 			classes: parseClasses(element.classes ?? [], `${at}.classes`),
 			children,
 			...(label === undefined ? {} : { label }),
+			...(tag === "img" && element.decorative === true ? { decorative: true } : {}),
 		};
 	};
 

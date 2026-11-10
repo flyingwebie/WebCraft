@@ -1,5 +1,7 @@
 // The Drizzle schema: every table WebCraft owns, re-exported from one file per area.
 // `bun run db:generate` writes a migration for each change (see docs/development.md).
+
+export * from "./accessibility.ts";
 export * from "./ai.ts";
 export * from "./api-tokens.ts";
 export * from "./audit.ts";

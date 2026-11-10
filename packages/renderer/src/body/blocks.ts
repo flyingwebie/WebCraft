@@ -98,7 +98,7 @@ export type ListItem = { text: InlineText; items?: ListItem[] };
 export type ListBlock = BlockBase & { type: "list"; style: ListStyle; items: ListItem[] };
 export type QuoteBlock = BlockBase & { type: "quote"; text: InlineText };
 /** A Media image; its alt text and caption come from the (translatable) Media item. Null until one is chosen. */
-export type ImageBlock = BlockBase & { type: "image"; media: string | null };
+export type ImageBlock = BlockBase & { type: "image"; media: string | null; decorative?: boolean };
 /** A YouTube or Vimeo video, by its address, with a title for people who can't see it. */
 export type VideoBlock = BlockBase & { type: "video"; url: string; title: string };
 /** A table: rows of cells, the first row its header when `headerRow`. */
@@ -361,14 +361,17 @@ const quote: BlockTypeSpec<QuoteBlock> = {
 const MEDIA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const image: BlockTypeSpec<ImageBlock> = {
-	settings: ["media"],
+	settings: ["media", "decorative"],
 	read(input, report) {
-		if (input.media === undefined || input.media === null || input.media === "") return { media: null };
+		if (input.decorative !== undefined && typeof input.decorative !== "boolean")
+			report(".decorative", "Decorative is true or false.");
+		const decorative = input.decorative === true ? { decorative: true } : {};
+		if (input.media === undefined || input.media === null || input.media === "") return { media: null, ...decorative };
 		if (typeof input.media !== "string" || !MEDIA_ID.test(input.media.trim())) {
 			report(".media", "An image is the id of a file in the Site's Media library.");
 			return { media: null };
 		}
-		return { media: input.media.trim().toLowerCase() };
+		return { media: input.media.trim().toLowerCase(), ...decorative };
 	},
 	inlines: () => [],
 	texts: () => [],
@@ -385,6 +388,8 @@ const image: BlockTypeSpec<ImageBlock> = {
 		const own: [string, string][] = region
 			? [...region.map(([name, value]): [string, string] => [name, value]), ["data-wc-media", block.media ?? ""]]
 			: [];
+		if (block.decorative) own.push(["alt", ""]);
+		if (region && block.decorative) own.push(["data-wc-image-decorative", "true"]);
 		const caption = found.caption?.trim() ? `<figcaption>${escapeText(found.caption.trim())}</figcaption>` : "";
 		return `<figure>${renderMediaImage(found, own, context.priorityImage)}${caption}</figure>`;
 	},

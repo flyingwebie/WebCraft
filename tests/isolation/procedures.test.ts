@@ -2324,6 +2324,39 @@ describe("Site export and import", () => {
 	);
 });
 
+describe("Checks and Accessibility statement", () => {
+	isolation.refuses("checks.list", (api, { siteId }) => api.checks.list({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"checks.entry",
+		async (api, target) => api.checks.entry({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("accessibilityStatement.get", (api, { siteId }) => api.accessibilityStatement.get({ siteId }));
+	isolation.refuses("accessibilityStatement.setEnabled", (api, { siteId }) =>
+		api.accessibilityStatement.setEnabled({ siteId, enabled: true }),
+	);
+	isolation.refuses("accessibilityStatement.generate", (api, { siteId }) =>
+		api.accessibilityStatement.generate({
+			siteId,
+			organisation: "Example Council",
+			website: "https://example.test",
+			standard: "Applicable national legislation",
+			status: "notAssessed",
+			limitations: "Assessment pending.",
+			burden: "None claimed.",
+			excluded: "None identified.",
+			alternatives: "Contact us for accessible copies.",
+			preparedOn: "2026-11-10",
+			reviewedOn: "2026-11-10",
+			method: "Self assessment; manual audit pending.",
+			feedback: "Contact the accessibility officer.",
+			feedbackUrl: "mailto:access@example.test",
+			enforcement: "Contact the national enforcement body.",
+			enforcementUrl: "https://example.test/enforcement",
+		}),
+	);
+});
+
 test("every procedure that takes a Workspace or a Site has an isolation test above", async () => {
 	const scoped: string[] = [];
 	await traverseContractProcedures({ router: apiRouter, path: [] }, ({ contract, path }) => {

@@ -107,7 +107,7 @@ export type BuilderOpened = {
 };
 
 /** The canvas for a tree: its HTML and the stylesheet it shows with (the Design system's Draft). */
-export type BuilderPreview = { html: string; css: string };
+export type BuilderPreview = { html: string; css: string; checks: import("@webcraft/renderer").QualityCheck[] };
 
 export type Builder = {
 	/** Opens a Template or Component (open the Site with `structure.edit`). */
@@ -164,7 +164,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			const designSystem = await draftDesignSystem(scope);
 			const catalogue = classCatalogue(designSystem);
 			const tree = withStyleClasses(checked(draft.tree, source, catalogue), draft.styles ?? {}, catalogue);
-			const { html } = await renderPreview(scope, sources, {
+			const { html, checks } = await renderPreview(scope, sources, {
 				kind: source.kind,
 				postType: source.postType,
 				props: source.props,
@@ -179,7 +179,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			});
 			// Files the stylesheet names on the Site's domain are where the admin serves them.
 			const css = styles.stylesheet.css.replaceAll(/url\((["']?)\/_media\//g, `url($1${adminMediaPath(scope.site.id)}`);
-			return { html, css };
+			return { html, css, checks };
 		},
 
 		async markup(scope, target, draft) {

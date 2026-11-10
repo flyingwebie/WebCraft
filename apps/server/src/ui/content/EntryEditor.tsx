@@ -16,9 +16,10 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@webcraft/ui/compo
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { ArrowLeftIcon, CircleAlertIcon, Trash2Icon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getApi } from "../api.ts";
+import { EntryChecks } from "../Checks.tsx";
 import { useCoEditedValues } from "../co-editing/co-edited.ts";
 import {
 	PresenceList,
@@ -40,7 +41,7 @@ import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
 import { OutdatedTranslations } from "../translations/OutdatedTranslations.tsx";
 import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
-import { type EntryView, type FieldValues, type PostTypeView, type Problem, problemsAt } from "./model.ts";
+import { controlId, type EntryView, type FieldValues, type PostTypeView, type Problem, problemsAt } from "./model.ts";
 import { pageTree, parentSlugs } from "./page-tree.ts";
 import { problemText } from "./problems.ts";
 import type { RelationshipTargets } from "./RelationshipPicker.tsx";
@@ -178,6 +179,24 @@ export function EntryEditor({
 		setEntry(fresh);
 	};
 
+	useEffect(() => {
+		const focus = () => {
+			let path: string;
+			try {
+				path = decodeURIComponent(window.location.hash.slice(1));
+			} catch {
+				return;
+			}
+			if (!path.startsWith("fields.") && !path.startsWith("seo.")) return;
+			const id = controlId("entry", path.replace(/\[\d+\].*$/, ""));
+			const field = document.getElementById(id);
+			field?.scrollIntoView({ block: "center" });
+			field?.focus();
+		};
+		focus();
+		window.addEventListener("hashchange", focus);
+		return () => window.removeEventListener("hashchange", focus);
+	}, []);
 	const titleProblems = problemsAt(problems, "title");
 	const slugProblems = problemsAt(problems, "slug");
 	const parentProblems = problemsAt(problems, "parentId");
@@ -332,6 +351,7 @@ export function EntryEditor({
 			</div>
 
 			<div className="grid content-start gap-6">
+				<EntryChecks siteId={siteId} entryId={entry.id} language={entry.language} version={entry} />
 				<DraftStatusCard
 					status={entry.status}
 					lastPublishedAt={entry.lastPublishedAt}

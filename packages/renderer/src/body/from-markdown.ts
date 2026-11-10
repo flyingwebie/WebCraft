@@ -741,10 +741,18 @@ class Converter {
 			if (!ok || label !== null)
 				this.refuse(node.line, 'An image with none chosen yet is ::image (or ::image{media="<id>"}).');
 			for (const key of attributes?.keys() ?? []) {
-				if (key !== "media") this.refuse(node.line, `An image has no ${key}.`);
+				if (key !== "media" && key !== "decorative") this.refuse(node.line, `An image has no ${key}.`);
 			}
 			const media = attributes?.get("media");
-			return [at(media ? this.image(`media:${media}`, node.line) : { type: "image", media: null })];
+			const decorative = attributes?.get("decorative");
+			if (decorative !== undefined && decorative !== "true" && decorative !== "false")
+				this.refuse(node.line, "Decorative is true or false.");
+			return [
+				at({
+					...(media ? this.image(`media:${media}`, node.line) : { type: "image", media: null }),
+					...(decorative === "true" ? { decorative: true } : {}),
+				}),
+			];
 		}
 		if (node.name === "video") {
 			if (!ok) this.refuse(node.line, 'A video is written ::video[Its title]{url="https://…"}.');

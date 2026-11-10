@@ -250,6 +250,8 @@ export type RenderBodyOptions = {
 	 * the page's layout. Absent for the pages visitors get.
 	 */
 	markBlocks?: boolean;
+	/** Diagnostic rendering only: associates a Check with its Block in the editor. */
+	checkPath?: string;
 };
 
 /**
@@ -265,7 +267,12 @@ export function renderBody(blocks: readonly Block[], options: RenderBodyOptions)
 		// In Edit mode an image Block with no image yet is still there, to choose one in.
 		const regionOnly = block.type === "image" && options.imageRegion !== undefined;
 		if (block.type !== "divider" && !spec.hasContent(block) && !regionOnly) continue;
-		const shown = spec.render(block, context);
+		let shown = spec.render(block, context);
+		if (options.checkPath && block.type !== "component")
+			shown = shown.replace(
+				/^<([a-z][a-z0-9]*)/,
+				`<$1 data-wc-check-at="${escapeAttribute(options.checkPath)}[${blocks.indexOf(block)}]"`,
+			);
 		html += options.markBlocks ? `<!--wc-block ${block.id}-->${shown}<!--/wc-block-->` : shown;
 	}
 	return html;

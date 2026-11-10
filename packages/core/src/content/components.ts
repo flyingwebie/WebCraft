@@ -14,7 +14,7 @@
  * Components with the same Placement node and render them through `placementRenderer`.
  */
 
-import { components, entries, globals, templates } from "@webcraft/db/schema";
+import { accessibilityStatements, components, entries, globals, templates } from "@webcraft/db/schema";
 import {
 	type ComponentCatalogue,
 	componentsPlacedIn,
@@ -879,6 +879,19 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			published: row.published === null ? null : storedComponentVersion(row.published).tree,
 		})),
 	];
+	const statement = await scope.first(accessibilityStatements);
+	const statementPage = statement ? await scope.first(entries, eq(entries.id, statement.pageId)) : undefined;
+	if (statement && statementPage) {
+		const tree: ElementTree = {
+			version: 1,
+			nodes: [{ type: "component", id: "accessibility-statement", component: statement.componentId, props: [] }],
+		};
+		holders.push({
+			use: { kind: "entry", id: statementPage.id, postTypeId: statementPage.postTypeId, versions: [] },
+			draft: tree,
+			published: statementPage.published ? tree : null,
+		});
+	}
 	const directUses = new Map<string, ComponentUse[]>();
 	/** Which published trees place a Component directly: holders by the Component's id. */
 	const publishedPlacers = new Map<string, Holder[]>();
@@ -921,6 +934,7 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 		const stack = [componentId];
 		const postTypeIds = new Set<string>();
 		const archives = new Set<string>();
+		const individualPages = new Set<string>();
 		while (stack.length > 0) {
 			const id = stack.pop() as string;
 			for (const holder of publishedPlacers.get(id) ?? []) {
@@ -929,6 +943,8 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 						seen.add(holder.use.id);
 						stack.push(holder.use.id);
 					}
+				} else if (holder.use.kind === "entry") {
+					individualPages.add(holder.use.id);
 				} else if (holder.use.templateKind === "site") {
 					return allPages;
 				} else if (holder.use.templateKind === "archive" && holder.use.postTypeId) {
@@ -939,7 +955,9 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			}
 		}
 		return (
-			[...postTypeIds].reduce((sum, postTypeId) => sum + (publishedEntries.get(postTypeId) ?? 0), 0) + archives.size
+			[...postTypeIds].reduce((sum, postTypeId) => sum + (publishedEntries.get(postTypeId) ?? 0), 0) +
+			archives.size +
+			individualPages.size
 		);
 	};
 	return (componentId) => ({ pages: pagesShowing(componentId), usedIn: directUses.get(componentId) ?? [] });

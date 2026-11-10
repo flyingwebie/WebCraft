@@ -1294,6 +1294,14 @@ function BlockContent({
 							onChange({ ...block, media: next ? next.id : null });
 						}}
 					/>
+					<label className="flex items-center gap-2 text-sm">
+						<input
+							type="checkbox"
+							checked={block.decorative === true}
+							onChange={(event) => onChange({ ...block, decorative: event.target.checked })}
+						/>
+						{t("checks.decorative")}
+					</label>
 					<p id={`${block.id}-texts`} className="text-muted-foreground text-sm">
 						{item ? (
 							<>

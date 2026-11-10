@@ -880,6 +880,7 @@ class MarkupParser {
 	private elementFrom(tag: string, written: readonly WrittenAttribute[], offset: number): ElementNode {
 		let id: string | undefined;
 		let label: string | undefined;
+		let decorative = false;
 		const classes: string[] = [];
 		const attributes: Attribute[] = [];
 		const seen = new Set<string>();
@@ -897,6 +898,12 @@ class MarkupParser {
 				} else {
 					id = attribute.text;
 				}
+				continue;
+			}
+			if (name === "data-wc-decorative") {
+				if (tag !== "img" || attribute.bound || !["", "true", "false"].includes(attribute.text))
+					this.problem(attribute.offset, "Decorative is true or false on an image.");
+				else decorative = attribute.text !== "false";
 				continue;
 			}
 			if (name === LABEL_ATTRIBUTE) {
@@ -954,7 +961,7 @@ class MarkupParser {
 			classes,
 			children: [],
 		};
-		return label === undefined ? element : { ...element, label };
+		return { ...element, ...(label === undefined ? {} : { label }), ...(decorative ? { decorative: true } : {}) };
 	}
 
 	/** Turns an inline style into the generated Class for it, with a notice. */

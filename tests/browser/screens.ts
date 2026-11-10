@@ -31,6 +31,12 @@ export type ScreenFixture = {
 };
 
 export const ADMIN_SCREENS: readonly Screen[] = [
+	{ name: "Site › Checks", path: ({ siteId }) => `/sites/${siteId}/checks`, as: "staff" },
+	{
+		name: "Site › Accessibility statement",
+		path: ({ siteId }) => `/sites/${siteId}/accessibility-statement`,
+		as: "staff",
+	},
 	{ name: "Sign in", path: "/sign-in", as: "signed-out" },
 	{ name: "Page not found", path: "/no-such-page", as: "signed-out" },
 	{ name: "Install › Overview", path: "/", as: "superadmin" },

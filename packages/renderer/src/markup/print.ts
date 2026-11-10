@@ -85,6 +85,7 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 			for (const attribute of node.attributes) attributes += printAttribute(attribute);
 			const style = options.inlineStyle?.(node.id);
 			if (style) attributes += ` style="${markupText(style, true)}"`;
+			if (node.decorative) attributes += ' data-wc-decorative="true"';
 			if (node.label !== undefined) attributes += ` ${LABEL_ATTRIBUTE}="${markupText(node.label, true)}"`;
 			attributes += ` ${ID_ATTRIBUTE}="${markupText(node.id, true)}"`;
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;

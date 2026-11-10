@@ -26,8 +26,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-
 import { getApi } from "../api.ts";
+import { Checks } from "../Checks.tsx";
 import { StatusBadge } from "../content/DraftParts.tsx";
 import { Announcer } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
@@ -104,7 +104,7 @@ export function Builder({
 	initial: Opened;
 	back: { to: "/sites/$siteId/templates" | "/sites/$siteId/components"; label: string };
 	/** What is selected when the builder opens: where a Filter is placed (the Filter builder opens it so). */
-	select?: { filter: string };
+	select?: { filter: string } | { element: string };
 }) {
 	const t = useT();
 	const [opened, setOpened] = useState(initial);
@@ -113,7 +113,11 @@ export function Builder({
 	const history = useRef<{ past: BuilderDoc[]; future: BuilderDoc[] }>({ past: [], future: [] });
 	const [, setHistoryVersion] = useState(0);
 	const [selection, setSelection] = useState<Selection | null>(() => {
-		const path = select ? pathOfFilter(initial.tree, select.filter) : undefined;
+		const path = select
+			? "filter" in select
+				? pathOfFilter(initial.tree, select.filter)
+				: pathOfId(initial.tree, select.element)
+			: undefined;
 		return path ? { kind: "node", path } : null;
 	});
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
@@ -122,11 +126,16 @@ export function Builder({
 	const [markup, setMarkup] = useState("");
 	const [markupBase, setMarkupBase] = useState("");
 	const [markupProblems, setMarkupProblems] = useState<MarkupProblem[]>([]);
-	const [preview, setPreview] = useState<{ html: string; css: string } | null>(null);
+	const [preview, setPreview] = useState<{
+		html: string;
+		css: string;
+		checks: import("@webcraft/renderer").QualityCheck[];
+	} | null>(null);
 	const [problems, setProblems] = useState<TreeProblem[]>([]);
 	const [theme, setTheme] = useState<"light" | "dark">("light");
 	const [width, setWidth] = useState<CanvasWidth>("desktop");
 	const [showFixed, setShowFixed] = useState(true);
+	const [showChecks, setShowChecks] = useState(false);
 	const [announcement, setAnnouncement] = useState({ text: "", count: 0 });
 	const [insertOpen, setInsertOpen] = useState(false);
 	const [insertWhere, setInsertWhere] = useState<InsertWhere>("inside");
@@ -905,6 +914,36 @@ export function Builder({
 					) : null}
 					{theme === "dark" && !opened.darkMode ? (
 						<p className="text-muted-foreground border-b px-3 py-2 text-sm">{t("builder.theme.noDarkMode")}</p>
+					) : null}
+					{preview ? (
+						<details
+							className="max-h-56 overflow-y-auto border-b p-2 text-sm"
+							onToggle={(event) => setShowChecks(event.currentTarget.open)}
+						>
+							<summary className="cursor-pointer font-semibold">
+								{t("checks.heading")} ({preview.checks.length})
+							</summary>
+							{showChecks ? (
+								<Checks
+									checks={preview.checks.map((check) => ({
+										...check,
+										...(check.componentId
+											? {
+													href: `/builder/${siteId}/component/${check.componentId}?element=${encodeURIComponent((check.at.split("#").at(-1) ?? "").replace(/(?:\.\d+)+$/, ""))}`,
+												}
+											: {}),
+									}))}
+									onSelect={(at) => {
+										const id = at
+											.split("#")
+											.at(-1)
+											?.replace(/(?:\.\d+)+$/, "");
+										const path = id ? pathOfId(doc.tree, id) : undefined;
+										if (path) setSelection({ kind: "node", path });
+									}}
+								/>
+							) : null}
+						</details>
 					) : null}
 					<Canvas
 						html={preview?.html ?? null}

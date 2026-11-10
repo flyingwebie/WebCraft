@@ -15,6 +15,10 @@ import {
 	mediaReferencesIn,
 	type PageMedia,
 	pageWords,
+	placementsInValues,
+	type QualityCheck,
+	type RenderOptions,
+	renderedChecks,
 	renderTree,
 	type TemplateValue,
 	type ValueReader,
@@ -85,7 +89,7 @@ export type PreviewInput = {
 export type PreviewFilter = { id: string; version: FilterVersion; params: URLSearchParams; path: string };
 
 /** The canvas's HTML, and for a Filter shown for real, its page's address with its choices and its result count. */
-export type RenderedPreview = { html: string; filter: { url: string; count: string } | null };
+export type RenderedPreview = { html: string; checks: QualityCheck[]; filter: { url: string; count: string } | null };
 
 /** The canvas's HTML for a tree, in the Site's Default language (or the one asked for). */
 export async function renderPreview(
@@ -119,7 +123,14 @@ export async function renderPreview(
 			read: propValue,
 		});
 	}
-	const placed = await pageComponents(scope, [input.tree], sources, siteValues, languages, { which: "draft" });
+	const placed = await pageComponents(
+		scope,
+		[input.tree, { version: 1, nodes: placementsInValues(contentValues) }],
+		sources,
+		siteValues,
+		languages,
+		{ which: "draft" },
+	);
 	const searchable = postTypes.filter((postType) => postType.searchable).map((postType) => postType.key);
 	const trees = [input.tree, ...placed.trees];
 	const path = input.filter?.path ?? "/";
@@ -165,7 +176,7 @@ export async function renderPreview(
 	);
 	const placeholder = (kind: CanvasPlaceholder, name?: string) =>
 		`<span data-wc-builder-placeholder="${kind}"${name ? ` data-wc-builder-name="${escapeAttribute(name)}"` : ""}></span>`;
-	const html = renderTree(input.tree, {
+	const options: RenderOptions = {
 		values: withPlaceholders(values),
 		language: code,
 		className: input.className,
@@ -185,11 +196,18 @@ export async function renderPreview(
 		component: placed.render,
 		time: { now: scope.now(), changesAt: () => {} },
 		codeSource: CANVAS_SOURCE,
+	};
+	const html = renderTree(input.tree, options);
+	// A Component's unfilled Props are unknown here; actual Placements and Entry samples use their real values.
+	const checkValues = input.kind === "component" ? withPlaceholders(values) : values;
+	const checks = renderedChecks(renderTree(input.tree, { ...options, values: checkValues, checkMarkup: true }), {
+		language: code,
 	});
-	if (!input.filter || !filters) return { html, filter: null };
+	if (!input.filter || !filters) return { html, checks, filter: null };
 	const query = writeQuery([...filters.state.values]);
 	return {
 		html,
+		checks,
 		filter: { url: query ? `${path}?${query}` : path, count: shownFilters?.announce(input.filter.id) ?? "" },
 	};
 }

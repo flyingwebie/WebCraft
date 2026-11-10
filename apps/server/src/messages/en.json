@@ -420,7 +420,8 @@
 			"errorLog": "Error log",
 			"designSystem": "Design system",
 			"siteExport": "Export",
-			"siteImports": "Site imports"
+			"siteImports": "Site imports",
+			"checks": "Checks"
 		}
 	},
 	"masterKeyBanner": {
@@ -2730,7 +2731,8 @@
 			"alt": "Alt text: {alt}.",
 			"noAlt": "No alt text.",
 			"caption": "Caption: {caption}.",
-			"fromLibrary": "Alt text and caption come from the Media library."
+			"fromLibrary": "Alt text and caption come from the Media library.",
+			"decorative": "Decorative — this image carries no meaning"
 		},
 		"video": {
 			"address": "Address",
@@ -2768,7 +2770,7 @@
 		"checks": {
 			"warning": "Check:",
 			"skippedHeading": "This heading skips a level ({detail}). People using screen readers find their way by heading levels.",
-			"missingAlt": "This image has no alt text. Add it in the Media library.",
+			"missingAlt": "This image has no alt text. Add alt text or mark this placement Decorative.",
 			"vagueLink": "The link text “{detail}” doesn't say where the link goes.",
 			"tableHeader": "This table has no header row.",
 			"untitledVideo": "This video has no title for people who can't see it."
@@ -7318,5 +7320,71 @@
 			"domains": "Switch the domains on in Domains",
 			"invite": "Send the invitations"
 		}
+	},
+	"checks": {
+		"heading": "Checks",
+		"intro": "Warnings help improve this Site. They never block publishing. Automated Checks do not certify compliance. WebCraft aims for WCAG 2.2 AA until a manual audit.",
+		"empty": "No open Checks. Manual accessibility testing is still needed.",
+		"decorative": "Decorative — this image carries no meaning",
+		"open": "Open location",
+		"all": "All Site Checks",
+		"missingH1": "The page has no H1 heading.",
+		"multipleH1": "The page has more than one H1 heading.",
+		"missingMain": "The page has no main landmark.",
+		"multipleMain": "The page has more than one main landmark.",
+		"missingLanguage": "A language attribute is empty or invalid.",
+		"emptyButton": "A button has no accessible name.",
+		"vagueButton": "A button’s name does not explain its action.",
+		"missingAlt": "An image has no alt text and is not Decorative.",
+		"skippedHeading": "A heading skips a level.",
+		"vagueLink": "A link’s name does not explain its destination.",
+		"tableHeader": "A table has no header row.",
+		"untitledVideo": "A video has no title.",
+		"contrast": "A colour pair has too little contrast ({ratio}:1; needs {required}:1).",
+		"loading": "Loading Checks…",
+		"items": {
+			"site": "Site template",
+			"entry": "Entry template",
+			"archive": "Archive template",
+			"search": "Search results template",
+			"designSystem": "Design system"
+		}
+	},
+	"statement": {
+		"heading": "Accessibility statement",
+		"intro": "Build an optional Page from facts supplied by Staff. Review the Draft, translate it, and publish it through the usual controls.",
+		"model": "This follows the EU model for public-sector websites. It is not an EAA declaration of conformity. Automated Checks cannot establish compliance. WebCraft aims for WCAG 2.2 AA until a manual audit.",
+		"source": "Read the official EU model",
+		"edit": "Edit or translate the Page",
+		"component": "Edit the statement Component",
+		"enabled": "Link the published Page from the footer",
+		"language": "Statement language",
+		"status": "Assessment result",
+		"statuses": {
+			"notAssessed": "Not assessed — manual audit pending",
+			"full": "Fully compliant — based on the assessment below",
+			"partial": "Partially compliant",
+			"notCompliant": "Not compliant"
+		},
+		"replace": "Generating again replaces this language’s statement text and title in the Draft. Other languages and the published Page stay as they are. Review any manual edits first.",
+		"saved": "Draft saved. Publish the Component and the Page when ready.",
+		"generate": "Generate statement Draft",
+		"fields": {
+			"organisation": "Responsible organisation",
+			"website": "Website covered (HTTPS address)",
+			"standard": "Applicable legislation or standard",
+			"limitations": "Known accessibility limitations",
+			"burden": "Disproportionate burden exemptions (say none if not claimed)",
+			"excluded": "Content outside the applicable legislation (say none if not applicable)",
+			"alternatives": "Accessible alternatives",
+			"preparedOn": "Preparation date",
+			"reviewedOn": "Last review date",
+			"method": "Assessment method and evidence",
+			"feedback": "Feedback process and responsible contact",
+			"feedbackUrl": "Feedback link (HTTPS or mailto)",
+			"enforcement": "Enforcement procedure and body’s contact details",
+			"enforcementUrl": "Enforcement procedure link (HTTPS)"
+		},
+		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing."
 	}
 }

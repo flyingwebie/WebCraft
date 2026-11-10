@@ -22,6 +22,11 @@ import type { ApiRouter } from "./router.ts";
  * part of the versioned API: change them additively only (ADR 0029).
  */
 export const PROCEDURES = {
+	"accessibilityStatement.get": read("The Accessibility statement’s Page and last Staff form."),
+	"accessibilityStatement.generate": write("Create or update the Accessibility statement as an ordinary Draft Page."),
+	"accessibilityStatement.setEnabled": write("Show or hide the published Accessibility statement’s footer link."),
+	"checks.list": read("The Site’s open Checks; warnings never prevent publishing."),
+	"checks.entry": read("Checks for one composed Draft page in a language."),
 	"setup.state": internal(),
 	"setup.checkToken": internal(),
 	"setup.claim": internal(),

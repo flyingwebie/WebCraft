@@ -1,5 +1,6 @@
 import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
+import { createAccessibilityStatement } from "./accessibility/statement.ts";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { createAiKeys } from "./ai/keys.ts";
 import { createApiTokens } from "./api-tokens.ts";
@@ -7,6 +8,7 @@ import { createAuditLog } from "./audit-log.ts";
 import { createBackups } from "./backups/service.ts";
 import { createBuilder } from "./builder/index.ts";
 import { createCdns } from "./cdns/index.ts";
+import { createChecks } from "./checks/index.ts";
 import { createCodeMode } from "./code-mode/index.ts";
 import { createConsent } from "./consent/index.ts";
 import {
@@ -604,6 +606,8 @@ export async function createInstallServices(
 		},
 		history: createHistory({ database, componentSources }),
 		sitePages,
+		checks: createChecks(sitePages, componentSources),
+		accessibilityStatement: createAccessibilityStatement({ sources: componentSources, saveDraft }),
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),
 		seo: createSeo(),

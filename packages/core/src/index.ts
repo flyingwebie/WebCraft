@@ -1,3 +1,4 @@
+export type { StatementForm, StatementSettings } from "./accessibility/statement.ts";
 export {
 	type Account,
 	describeUserAgent,
@@ -65,6 +66,7 @@ export {
 	type PendingStyles,
 } from "./builder/index.ts";
 export * from "./cdns/index.ts";
+export type { ChecksService, SiteCheck } from "./checks/index.ts";
 export { type Clock, systemClock } from "./clock.ts";
 export * from "./co-editing/index.ts";
 export {

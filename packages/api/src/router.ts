@@ -1,10 +1,11 @@
 import type { RouterClient } from "@orpc/server";
-
 import { access } from "./procedures/access.ts";
+import { accessibilityStatement } from "./procedures/accessibility-statement.ts";
 import { aiKeys, sharedAiKeys } from "./procedures/ai-keys.ts";
 import { apiTokens } from "./procedures/api-tokens.ts";
 import { audit } from "./procedures/audit.ts";
 import { builder } from "./procedures/builder.ts";
+import { checks } from "./procedures/checks.ts";
 import { components } from "./procedures/components.ts";
 import { consentBanner } from "./procedures/consent.ts";
 import { contentApi } from "./procedures/content-api.ts";
@@ -56,6 +57,8 @@ import { workspaces } from "./procedures/workspaces.ts";
  * in `catalogue.ts` says which) are also served to API tokens at `/api/v1`, with an OpenAPI document.
  */
 export const apiRouter = {
+	accessibilityStatement,
+	checks,
 	setup,
 	session,
 	shell,

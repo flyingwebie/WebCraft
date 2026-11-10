@@ -1,5 +1,6 @@
 import type { HoldEmbed } from "./body/blocks.ts";
 import { renderBody, renderToc } from "./body/body.ts";
+import { bodyChecks } from "./body/checks.ts";
 import { commandForNode } from "./commands.ts";
 import { blockPlacement, COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, safeUrl, URL_ATTRIBUTES } from "./escape.ts";
@@ -43,6 +44,12 @@ export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
 /** Options for rendering a tree. */
 export type RenderOptions = {
+	/** Site template only: an optional footer link, inserted once across its Components. */
+	footer?: () => string;
+	/** Internal, resolved markup used only by quality Checks. Never visitor output. */
+	checkMarkup?: boolean;
+	/** Source of a Check inside a reusable Component, only in diagnostic rendering. */
+	checkComponent?: string;
 	/** Reads the value a binding names. */
 	values: ValueReader;
 	/**
@@ -239,7 +246,16 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 			}
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
-			for (const attribute of node.attributes) attributes += renderAttribute(attribute, options);
+			for (const attribute of node.attributes) {
+				if (node.decorative && ["alt", "aria-label", "aria-labelledby", "title", "role"].includes(attribute.name))
+					continue;
+				attributes += renderAttribute(attribute, options);
+			}
+			if (node.decorative) attributes += ' alt=""';
+			if (options.checkMarkup && options.checkComponent)
+				attributes += ` data-wc-check-component="${escapeAttribute(options.checkComponent)}"`;
+			if (options.checkMarkup && node.decorative) attributes += ' data-wc-decorative="true"';
+			if (options.editRegion && node.decorative) attributes += ' data-wc-image-decorative="true"';
 			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
@@ -248,6 +264,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
 			let children = renderNodes(node.children, options, state);
+			if (node.tag === "footer") children += options.footer?.() ?? "";
 			// An HTML parser drops a newline right after <pre>; repeat it so the content stays as written.
 			if (node.tag === "pre" && children.startsWith("\n")) children = `\n${children}`;
 			return `<${node.tag}${attributes}>${children}</${node.tag}>`;
@@ -447,6 +464,7 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 	const inner: RenderOptions = {
 		...options,
 		values: withLoopStats(shown.values, options),
+		checkComponent: node.component,
 		outlet: undefined,
 		editRegion: undefined,
 		codeSource: options.codeSource === undefined ? undefined : `${options.codeSource}/${node.id}`,
@@ -476,7 +494,7 @@ function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions
 	if (!node.format && isRichText(value)) return cleanRichText(value.html);
 	if (!node.format && isBody(value)) {
 		const editRegion = options.editRegion;
-		return renderBody(value.blocks, {
+		const rendered = renderBody(value.blocks, {
 			media: options.media,
 			priorityImage: options.priorityImage,
 			words: options.words ?? { playVideo: "Play video", video: "Video" },
@@ -487,7 +505,20 @@ function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions
 			// A Component in the body is a Placement, rendered as a Template's are.
 			component: state ? (block) => renderPlacement(blockPlacement(block), options, state) : undefined,
 			markBlocks: options.markBodyBlocks,
+			checkPath: options.checkMarkup ? `fields.${node.path}` : undefined,
 		});
+		if (!options.checkMarkup) return rendered;
+		const checks = bodyChecks(value.blocks, {
+			language: options.language ?? "en",
+			altOf: (id) => options.media?.(id)?.alt,
+		}).filter((c) => c.check !== "skippedHeading");
+		const notes = checks
+			.map(
+				(c) =>
+					`<template data-wc-check="${c.check}" data-wc-check-at="fields.${escapeAttribute(node.path)}[${c.index}]" ${c.detail === undefined ? "" : `data-wc-check-detail="${escapeAttribute(c.detail)}"`}></template>`,
+			)
+			.join("");
+		return `<div data-wc-body="${escapeAttribute(node.path)}">${rendered}</div>${notes}`;
 	}
 	if (!node.format && isToc(value)) return renderToc(value.headings);
 	return escapeText(valueText(node, value, options));
@@ -515,7 +546,14 @@ function mediaImage(node: ElementNode, media: MediaReader, options: RenderOption
 		return id === undefined ? undefined : "";
 	}
 	const own: [string, string][] = classNames.length > 0 ? [["class", classNames.join(" ")]] : [];
-	for (const attribute of node.attributes) own.push([attribute.name, attributeText(attribute, options)]);
+	for (const attribute of node.attributes) {
+		if (node.decorative && ["alt", "aria-label", "aria-labelledby", "title", "role"].includes(attribute.name)) continue;
+		own.push([attribute.name, attributeText(attribute, options)]);
+	}
+	if (node.decorative) own.push(["alt", ""]);
+	if (options.checkMarkup && options.checkComponent) own.push(["data-wc-check-component", options.checkComponent]);
+	if (options.checkMarkup && node.decorative) own.push(["data-wc-decorative", "true"]);
+	if (options.editRegion && node.decorative) own.push(["data-wc-image-decorative", "true"]);
 	if (options.codeSource !== undefined) own.push([CODE_ATTRIBUTE, `${options.codeSource}#${node.id}`]);
 	if (region) own.push(...region, ["data-wc-media", id ?? ""]);
 	return renderMediaImage(image, own, options.priorityImage);

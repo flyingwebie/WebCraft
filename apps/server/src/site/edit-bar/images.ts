@@ -380,7 +380,12 @@ export function imageTools(kit: BarKit): ImageTools {
 			savedAlt = value;
 			// The page shows the library's alt text where its Template gives none.
 			for (const image of imagesOf(mediaId)) {
-				if (language === s.language.code && image.alt === (media.alt ?? "")) image.alt = value;
+				if (language !== s.language.code || image.dataset.wcImageDecorative === "true") continue;
+				if (image.alt === (media.alt ?? "") || image.hasAttribute("data-wc-decorative")) {
+					image.removeAttribute("data-wc-decorative");
+					image.alt = value;
+					if (known.has(image)) applyTo(image);
+				}
 			}
 			media.alt = value;
 			say(word("altSaved"));

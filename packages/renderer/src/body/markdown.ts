@@ -64,10 +64,12 @@ function blockMarkdown(block: Block, context: MarkdownContext): string {
 			return directive(`:::callout{tone="${block.tone}"}`, inlineMarkdown(block.text, context));
 		}
 		case "image": {
+			if (block.decorative && context.exchange)
+				return `::image{${block.media ? `media="${block.media}" ` : ""}decorative="true"}`;
 			if (!block.media) return context.exchange ? "::image" : "";
 			const image = context.image(block.media);
 			if (!image) return context.exchange ? `![](media:${block.media})` : "";
-			const picture = `![${escapeMarkdownLine(image.alt ?? "")}](${destination(image.url, context)})`;
+			const picture = `![${escapeMarkdownLine(block.decorative ? "" : (image.alt ?? ""))}](${destination(image.url, context)})`;
 			const caption = image.caption?.trim();
 			return caption ? `${picture}\n\n*${escapeMarkdownLine(caption)}*` : picture;
 		}

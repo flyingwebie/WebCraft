@@ -60,6 +60,9 @@ export const BUILT_IN_SITE_TEMPLATE: ElementTree = {
 
 /** One page of a Site, with everything it renders from. */
 export type PageToRender = {
+	checkMarkup?: boolean;
+	/** Link to the Site’s ordinary published Accessibility statement Page. */
+	footerLink?: { href: string; label: string };
 	site: {
 		name: string;
 		/** The page's language, a BCP 47 tag such as `en`. */
@@ -323,6 +326,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		return consentSettingsHtml(consent.words);
 	};
 	const content = renderTree(page.content, {
+		checkMarkup: page.checkMarkup,
 		values: page.values,
 		language: site.language,
 		words,
@@ -346,9 +350,16 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "content", place) : undefined,
 		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		markBodyBlocks: Boolean(editMode && !editMode.code),
-		codeSource: editMode?.code ? "content" : undefined,
+		codeSource: editMode?.code || page.checkMarkup ? "content" : undefined,
 	});
-	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
+	let linked = false;
+	const footer = () => {
+		if (linked || !page.footerLink) return "";
+		linked = true;
+		return `<a href="${escapeAttribute(safeUrl(page.footerLink.href))}">${escapeText(page.footerLink.label)}</a>`;
+	};
+	let body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
+		checkMarkup: page.checkMarkup,
 		values: page.siteValues ?? (() => undefined),
 		language: site.language,
 		words,
@@ -356,6 +367,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		className: page.className,
 		media: page.media,
 		outlet: () => content,
+		footer,
 		extraAttributes: mainAttributes,
 		component: page.component,
 		form,
@@ -373,8 +385,9 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "site", place) : undefined,
 		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		markBodyBlocks: Boolean(editMode && !editMode.code),
-		codeSource: editMode?.code ? "site" : undefined,
+		codeSource: editMode?.code || page.checkMarkup ? "site" : undefined,
 	});
+	if (page.footerLink && !linked) body += `<footer>${footer()}</footer>`;
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
 	const heldBack = (category: string) => consent !== undefined && category !== "necessary";
 	// The banner and its script come only to a page that asks something.

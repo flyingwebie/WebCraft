@@ -24,6 +24,331 @@
 	},
 	"openapi": "3.1.1",
 	"paths": {
+		"/accessibilityStatement/get": {
+			"post": {
+				"operationId": "accessibilityStatement.get",
+				"summary": "The Accessibility statement’s Page and last Staff form.",
+				"tags": ["accessibilityStatement"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/accessibilityStatement/generate": {
+			"post": {
+				"operationId": "accessibilityStatement.generate",
+				"summary": "Create or update the Accessibility statement as an ordinary Draft Page.",
+				"tags": ["accessibilityStatement"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 2,
+										"maxLength": 35
+									},
+									"organisation": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"website": {
+										"type": "string",
+										"maxLength": 2000,
+										"format": "uri"
+									},
+									"standard": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"status": {
+										"enum": ["notAssessed", "full", "partial", "notCompliant"],
+										"type": "string"
+									},
+									"limitations": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"burden": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"excluded": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"alternatives": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"preparedOn": {
+										"type": "string",
+										"format": "date"
+									},
+									"reviewedOn": {
+										"type": "string",
+										"format": "date"
+									},
+									"method": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"feedback": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"feedbackUrl": {
+										"type": "string",
+										"maxLength": 2000
+									},
+									"enforcement": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									},
+									"enforcementUrl": {
+										"type": "string",
+										"maxLength": 2000,
+										"format": "uri"
+									}
+								},
+								"required": [
+									"siteId",
+									"organisation",
+									"website",
+									"standard",
+									"status",
+									"limitations",
+									"burden",
+									"excluded",
+									"alternatives",
+									"preparedOn",
+									"reviewedOn",
+									"method",
+									"feedback",
+									"feedbackUrl",
+									"enforcement",
+									"enforcementUrl"
+								]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/accessibilityStatement/setEnabled": {
+			"post": {
+				"operationId": "accessibilityStatement.setEnabled",
+				"summary": "Show or hide the published Accessibility statement’s footer link.",
+				"tags": ["accessibilityStatement"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"enabled": {
+										"type": "boolean"
+									}
+								},
+								"required": ["siteId", "enabled"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/checks/list": {
+			"post": {
+				"operationId": "checks.list",
+				"summary": "The Site’s open Checks; warnings never prevent publishing.",
+				"tags": ["checks"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/checks/entry": {
+			"post": {
+				"operationId": "checks.entry",
+				"summary": "Checks for one composed Draft page in a language.",
+				"tags": ["checks"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"entryId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 2,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId", "entryId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
 		"/access/current": {
 			"post": {
 				"operationId": "access.current",

@@ -6,6 +6,7 @@
  */
 export * from "./body/index.ts";
 export { VIDEO_SCRIPT } from "./body/video-script.ts";
+export { type QualityCheck, type QualityCheckKind, renderedCheckReport, renderedChecks } from "./checks.ts";
 export {
 	type CommandNode,
 	RESERVED_COMMANDS,

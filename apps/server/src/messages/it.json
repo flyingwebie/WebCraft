@@ -420,7 +420,8 @@
 			"errorLog": "Registro errori",
 			"designSystem": "Design system",
 			"siteExport": "Esporta",
-			"siteImports": "Importazioni di Siti"
+			"siteImports": "Importazioni di Siti",
+			"checks": "Controlli"
 		}
 	},
 	"masterKeyBanner": {
@@ -2730,7 +2731,8 @@
 			"alt": "Testo alternativo: {alt}.",
 			"noAlt": "Nessun testo alternativo.",
 			"caption": "Didascalia: {caption}.",
-			"fromLibrary": "Il testo alternativo e la didascalia vengono dalla libreria Media."
+			"fromLibrary": "Il testo alternativo e la didascalia vengono dalla libreria Media.",
+			"decorative": "Decorativa — questa immagine non comunica informazioni"
 		},
 		"video": {
 			"address": "Indirizzo",
@@ -2768,7 +2770,7 @@
 		"checks": {
 			"warning": "Controllo:",
 			"skippedHeading": "Questo titolo salta un livello ({detail}). Chi usa un lettore di schermo si orienta con i livelli dei titoli.",
-			"missingAlt": "Questa immagine non ha testo alternativo. Aggiungilo nella libreria Media.",
+			"missingAlt": "Questa immagine non ha un testo alternativo. Aggiungilo oppure contrassegna questo posizionamento come Decorativo.",
 			"vagueLink": "Il testo del link “{detail}” non dice dove porta.",
 			"tableHeader": "Questa tabella non ha una riga di intestazione.",
 			"untitledVideo": "Questo video non ha un titolo per chi non può vederlo."
@@ -7318,5 +7320,71 @@
 			"domains": "Attiva i domini in Domini",
 			"invite": "Invia gli inviti"
 		}
+	},
+	"checks": {
+		"heading": "Controlli",
+		"intro": "Gli avvisi aiutano a migliorare il Sito e non bloccano la pubblicazione. I controlli automatici non certificano la conformità. WebCraft mira a WCAG 2.2 AA fino a una verifica manuale.",
+		"empty": "Nessun controllo aperto. Restano necessarie verifiche manuali di accessibilità.",
+		"decorative": "Decorativa — questa immagine non comunica informazioni",
+		"open": "Apri posizione",
+		"all": "Tutti i controlli del Sito",
+		"missingH1": "La pagina non ha un titolo H1.",
+		"multipleH1": "La pagina ha più di un titolo H1.",
+		"missingMain": "La pagina non ha un punto di riferimento principale.",
+		"multipleMain": "La pagina ha più punti di riferimento principali.",
+		"missingLanguage": "Un attributo di lingua è vuoto o non valido.",
+		"emptyButton": "Un pulsante non ha un nome accessibile.",
+		"vagueButton": "Il nome di un pulsante non spiega la sua azione.",
+		"missingAlt": "Un’immagine non ha testo alternativo e non è decorativa.",
+		"skippedHeading": "Un titolo salta un livello.",
+		"vagueLink": "Il nome di un link non spiega la destinazione.",
+		"tableHeader": "Una tabella non ha una riga di intestazione.",
+		"untitledVideo": "Un video non ha un titolo.",
+		"contrast": "Una coppia di colori ha contrasto insufficiente ({ratio}:1; richiesto {required}:1).",
+		"loading": "Caricamento controlli…",
+		"items": {
+			"site": "Template del sito",
+			"entry": "Template delle voci",
+			"archive": "Template archivio",
+			"search": "Template dei risultati di ricerca",
+			"designSystem": "Sistema di design"
+		}
+	},
+	"statement": {
+		"heading": "Dichiarazione di accessibilità",
+		"intro": "Crea una Pagina facoltativa dai fatti forniti dallo Staff. Rivedi la Bozza, traducila e pubblicala con i controlli abituali.",
+		"model": "Segue il modello UE per i siti del settore pubblico. Non è una dichiarazione di conformità EAA. I controlli automatici non possono accertare la conformità. WebCraft mira a WCAG 2.2 AA fino a una verifica manuale.",
+		"source": "Leggi il modello ufficiale UE",
+		"edit": "Modifica o traduci la Pagina",
+		"component": "Modifica il Componente della dichiarazione",
+		"enabled": "Collega la Pagina pubblicata dal piè di pagina",
+		"language": "Lingua della dichiarazione",
+		"status": "Risultato della valutazione",
+		"statuses": {
+			"notAssessed": "Non valutato — verifica manuale in attesa",
+			"full": "Pienamente conforme — in base alla valutazione seguente",
+			"partial": "Parzialmente conforme",
+			"notCompliant": "Non conforme"
+		},
+		"replace": "Generare di nuovo sostituisce testo e titolo della dichiarazione in questa lingua nella Bozza. Le altre lingue e la Pagina pubblicata restano invariate. Rivedi prima le modifiche manuali.",
+		"saved": "Bozza salvata. Pubblica il Componente e la Pagina quando sono pronti.",
+		"generate": "Genera Bozza della dichiarazione",
+		"fields": {
+			"organisation": "Organizzazione responsabile",
+			"website": "Sito interessato (indirizzo HTTPS)",
+			"standard": "Normativa o standard applicabile",
+			"limitations": "Limitazioni di accessibilità note",
+			"burden": "Esenzioni per onere sproporzionato (indica nessuna se non richieste)",
+			"excluded": "Contenuti esclusi dalla normativa (indica nessuno se non applicabile)",
+			"alternatives": "Alternative accessibili",
+			"preparedOn": "Data di preparazione",
+			"reviewedOn": "Data dell’ultimo riesame",
+			"method": "Metodo di valutazione e prove",
+			"feedback": "Procedura di feedback e contatto responsabile",
+			"feedbackUrl": "Link per il feedback (HTTPS o mailto)",
+			"enforcement": "Procedura di attuazione e contatti dell’organismo",
+			"enforcementUrl": "Link alla procedura di attuazione (HTTPS)"
+		},
+		"languages": "Il modulo fornisce testi in inglese e italiano. Per le altre lingue del sito, traduci i campi della pagina con gli strumenti di traduzione prima di pubblicare."
 	}
 }

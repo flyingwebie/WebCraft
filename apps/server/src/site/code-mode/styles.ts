@@ -211,6 +211,11 @@ svg { flex: none; }
 .dialog p { margin: 0.5rem 0 1rem; color: var(--muted); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
 
+.quality-checks { padding: 0.5rem 0.75rem; max-height: 10rem; overflow: auto; border-top: 1px solid var(--line); }
+.quality-checks summary { cursor: pointer; font-weight: 600; }
+.quality-checks p { color: var(--muted); }
+.quality-checks li { margin-block: 0.5rem; }
+
 @media (max-width: 900px) {
 	.panels { grid-template-columns: minmax(0, 1fr); overflow: auto; }
 	.panel { min-height: 16rem; border-inline-end: 0; border-bottom: 1px solid var(--line); }

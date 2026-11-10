@@ -26,7 +26,7 @@ export type EntryCheck = {
 const MESSAGES: Readonly<Record<BodyCheckKind, (detail: string | undefined) => string>> = {
 	skippedHeading: (detail) =>
 		`A heading skips a level (${detail}): people using screen readers find their way by heading levels.`,
-	missingAlt: () => "An image has no alt text in the Media library.",
+	missingAlt: () => "An image has no alt text and is not Decorative.",
 	vagueLink: (detail) => `A link's text ("${detail}") doesn't say where it goes.`,
 	tableHeader: () => "A table has no header row.",
 	untitledVideo: () => "A video has no title for people who can't see it.",

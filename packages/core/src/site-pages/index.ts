@@ -1,5 +1,15 @@
 import type { Database } from "@webcraft/db";
-import { entries, globals, people, publishedSlugs, siteDomains, sites, templates } from "@webcraft/db/schema";
+import {
+	accessibilityStatements,
+	components,
+	entries,
+	globals,
+	people,
+	publishedSlugs,
+	siteDomains,
+	sites,
+	templates,
+} from "@webcraft/db/schema";
 import {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
@@ -20,7 +30,10 @@ import {
 	pageWords,
 	placementsIn,
 	placementsInValues,
+	type QualityCheck,
 	renderDocument,
+	renderedCheckReport,
+	renderedChecks,
 	SCRIPT_PATH,
 	SEARCH_QUERY_VALUE,
 	searchElementIn,
@@ -29,11 +42,12 @@ import {
 	valuePathsOf,
 } from "@webcraft/renderer";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { statementLayout, statementTitle } from "../accessibility/statement.ts";
 
 import { type CdnKey, isCdnKey } from "../cdns/registry.ts";
 import type { InstallConfig } from "../config.ts";
 import { pageConsent } from "../consent/banner.ts";
-import { archiveAt, publishedArchives } from "../content/archives.ts";
+import { archiveAt, archiveParts, publishedArchives } from "../content/archives.ts";
 import {
 	type ComponentSources,
 	type ComponentVersion,
@@ -180,7 +194,6 @@ export type SiteHost = {
 export type LanguageChoice = { language: string; location: string };
 
 /**
-/**
  * A rendered page of a Site, with the security headers it is sent with: the Site's Content Security
  * Policy as the page needs it (a body's video players framed), or Edit mode's own. Pages are cached
  * with them, so a change to the policy clears the page cache. `expiresAt` says until when it may be
@@ -189,6 +202,8 @@ export type LanguageChoice = { language: string; location: string };
  * numbered as their ids are.
  */
 export type SitePage = {
+	/** Advisory Checks, only requested by an editor. */
+	checks?: QualityCheck[];
 	html: string;
 	headers: Record<string, string>;
 	expiresAt: Date | null;
@@ -309,6 +324,13 @@ export type CodePreview = {
  * hostname belongs to, the page at a path and the Site's 404 page. Only published content is read.
  */
 export type SitePages = {
+	/** A Draft rendered for Checks, with the same composition and values as a page. */
+	checkEntry(
+		scope: SiteScope,
+		entryId: string,
+		language: string,
+	): Promise<{ checks: QualityCheck[]; bodies: string[]; templateKind: "entry" | "search" | "page" }>;
+	checkArchive(scope: SiteScope, postTypeId: string, language: string): Promise<QualityCheck[]>;
 	/** The Site a hostname belongs to, or null for a hostname that is no Site's (an unbranded 404). */
 	resolveHost(hostname: string): Promise<SiteHost | null>;
 	/** Whether `pathname` is the Site's search results page, in any of its languages (ADR 0021). */
@@ -456,8 +478,88 @@ export function createSitePages(options: {
 		if (view.staging) return draftStyles(view.scope, {}, STYLESHEET_PATH);
 		return view.editing?.preview?.styles ?? draftStyles(view.scope);
 	};
+	/** The same Draft composition used by Staging, without requiring a public hostname. */
+	const checkView = async (scope: SiteScope): Promise<{ view: View; host: SiteHost; site: SiteLanguages }> => {
+		const site = await siteLanguages(scope);
+		const origin = stagingUrl(config, scope.site.slug) ?? `https://${config.adminHost}`;
+		const addresses = { main: origin, languages: {} };
+		const host: SiteHost = {
+			site: scope.site,
+			address: "staging",
+			language: null,
+			redirectTo: null,
+			origin,
+			addresses,
+			visitorAddresses: async () => addresses,
+			defaultLanguage: site.defaultLanguage,
+			browserLanguageRedirect: false,
+			cspMode: "strict",
+			cdn: null,
+			cacheGeneration: 0,
+		};
+		const view: View = {
+			scope,
+			host,
+			sources,
+			version: "draft",
+			structure: "draft",
+			entries: "draft",
+			routing: "draft",
+			staging: true,
+			page: "/",
+			query: new URLSearchParams(),
+			pageNumber: 1,
+			formsOf: forms,
+			moduleHosts,
+			moduleScripts,
+			checkMarkup: true,
+		};
+		return { view, host, site };
+	};
 	const redirectAnswers = createRedirectAnswers();
 	return {
+		async checkEntry(scope, entryId, code) {
+			const { view, host, site } = await checkView(scope);
+			const languages = { language: code, defaultLanguage: site.defaultLanguage };
+			const entry = await scope.first(entries, eq(entries.id, entryId));
+			const postTypes = await listPostTypes(scope);
+			const postType = postTypes.find((p) => p.id === entry?.postTypeId);
+			if (!entry || !postType || !isVisibleIn(storedVersion(entry.draft), languages))
+				return { checks: [], bodies: [], templateKind: "entry" };
+			const template = await scope.first(
+				templates,
+				and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id)),
+			);
+			const content = (template?.draft as ElementTree | undefined) ?? EMPTY_PAGE_LAYOUT;
+
+			const place: Located = {
+				kind: "found",
+				site,
+				languages,
+				language: languageNamed(site, code),
+				found: { entry, postType, postTypes, content, contentDraft: content },
+			};
+			const templateKind =
+				(await specialPageId(scope, "search")) === entry.id ? "search" : isPagePostType(postType) ? "page" : "entry";
+			const styles = await viewStyles(view);
+			const extras = { alternates: [], languageLinks: [] };
+			const rendered =
+				templateKind === "search"
+					? await renderSearchPage(view, host, styles, place, extras, { page: 1, path: "/", query: "", state: "" })
+					: await renderEntryPage(view, host, styles, place, extras, { page: null, path: "/" });
+			return { ...renderedCheckReport(rendered.html, { language: code, complete: true }), templateKind };
+		},
+		async checkArchive(scope, postTypeId, code) {
+			const { view, host, site } = await checkView(scope);
+			const postType = (await listPostTypes(scope)).find((p) => p.id === postTypeId);
+			const parts = postType && archiveParts(postType.urlPattern);
+			if (!parts) return [];
+			const path = languagePath({ language: code, defaultLanguage: site.defaultLanguage }, pathText(parts));
+			const archive = await locateArchive(scope, host, path, true, "draft");
+			if (!archive) return [];
+			const rendered = await renderArchivePage(view, host, await viewStyles(view), archive, 1);
+			return renderedChecks(rendered.html, { language: code, complete: true });
+		},
 		async resolveHost(hostname) {
 			const slug = slugOfStagingHostname(config, hostname);
 			if (slug) {
@@ -1333,6 +1435,7 @@ type ReadScope = ScopeToRead;
  * tagged) or in Code mode (the Drafts of both, every element tagged).
  */
 type View = {
+	checkMarkup?: boolean;
 	host: SiteHost;
 	scope: ReadScope;
 	/** Which version of the page's Content shows: its Entry's and the Globals'. */
@@ -1620,11 +1723,12 @@ async function renderEntryPage(
 	const { postType, entry } = found;
 	const previewed = view.editing?.preview?.source;
 	const content =
-		view.structure === "published"
+		(isPagePostType(postType) ? await statementLayout(scope, entry.id) : undefined) ??
+		(view.structure === "published"
 			? found.content
 			: previewed?.kind === "entryTemplate"
 				? previewed.tree
-				: found.contentDraft;
+				: found.contentDraft);
 	const draft = view.version === "draft";
 	const version = storedVersion(draft ? entry.draft : entry.published);
 	const published = entryValues(version, postType.fields, languages);
@@ -1978,7 +2082,10 @@ async function renderSitePage(
 	};
 	// Safe mode runs none of the Site's own scripts; outside scripts never run in Edit mode at all.
 	const ownScripts = !editing?.safe;
-	const rendered = renderDocument({
+	const formHtml: string[] = [];
+	const document: PageToRender = {
+		checkMarkup: view.checkMarkup,
+		footerLink: await statementFooter(view, place),
 		...page,
 		title: invalid ? `${formWords(language.code).errorPrefix} ${page.title}` : page.title,
 		// A page sent back with a Form's errors is one visitor's: never indexed. Nor is a filtered or
@@ -2024,20 +2131,33 @@ async function renderSitePage(
 			code: view.structure === "draft",
 		},
 		component: placed.render,
-		form: forms.render,
+		form: (id) => {
+			const html = forms.render(id);
+			formHtml.push(html);
+			return html;
+		},
 		search,
 		formScripts: forms.outsideScripts,
 		loop: loops.run,
 		filter: filterHtml.html,
 		filtered: filters.filtered,
 		time,
-	});
+	};
+	const rendered = renderDocument(document);
+	let formIndex = 0;
+	const checks = editing?.code
+		? renderedChecks(renderDocument({ ...document, checkMarkup: true, form: () => formHtml[formIndex++] ?? "" }).html, {
+				language: language.code,
+				complete: true,
+			})
+		: undefined;
 	const hosts = await policyHosts(view, forms.captchaHost);
 	const headers = editing
 		? { "content-security-policy": editModePolicy(hosts) }
 		: pagePolicyHeaders({ mode: host.cspMode, hosts, frames: rendered.frames });
 	return {
 		html: rendered.html,
+		...(checks ? { checks } : {}),
 		headers,
 		expiresAt,
 		pagination: loops.pagination,
@@ -2199,4 +2319,25 @@ async function publishedSiteTemplate(scope: ReadScope): Promise<ElementTree | un
 async function nameOf(scope: ReadScope, personId: string): Promise<string | null> {
 	const [row] = await scope.db.select({ name: people.name }).from(people).where(eq(people.id, personId));
 	return row?.name ?? null;
+}
+
+async function statementFooter(view: View, place: Place): Promise<{ href: string; label: string } | undefined> {
+	const settings = await view.scope.first(accessibilityStatements);
+	if (!settings?.enabled) return undefined;
+	const component = await view.scope.first(components, eq(components.id, settings.componentId));
+	if (!component || (view.structure === "published" && !component.published)) return undefined;
+	const row = await view.scope.first(entries, eq(entries.id, settings.pageId));
+	if (!row || (view.version === "published" && !row.published)) return undefined;
+	const version = storedVersion(view.version === "published" ? row.published : row.draft);
+	if (!isVisibleIn(version, place.languages)) return undefined;
+	const postType = (await listPostTypes(view.scope)).find((p) => p.id === row.postTypeId);
+	if (!postType) return undefined;
+	const address = (await addressesOf(view.version)(view.scope, postType, [row.id], place.languages)).get(row.id);
+	if (!address) return undefined;
+	const destination = placeOf(view.host.addresses, place.languages, address.path);
+	const href = destination.origin === view.host.origin ? destination.path : `${destination.origin}${destination.path}`;
+	return {
+		href,
+		label: entryValues(version, postType.fields, place.languages).title || statementTitle(place.languages.language),
+	};
 }

@@ -1,7 +1,7 @@
 import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 import type { Block } from "@webcraft/renderer";
-
+import type { AccessibilityStatementService } from "./accessibility/statement.ts";
 import type { Account } from "./account.ts";
 import type { AiKeys, AiProviders } from "./ai/index.ts";
 import type { ApiTokens } from "./api-tokens.ts";
@@ -9,6 +9,7 @@ import type { AuditLog } from "./audit-log.ts";
 import type { Backups } from "./backups/service.ts";
 import type { Builder } from "./builder/index.ts";
 import type { Cdns } from "./cdns/index.ts";
+import type { ChecksService } from "./checks/index.ts";
 import type { Clock } from "./clock.ts";
 import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
@@ -591,6 +592,8 @@ export type InstallServices = InstallPorts & {
 	history: HistoryService;
 	/** The Site side: which Site a hostname belongs to, and its published pages. */
 	sitePages: SitePages;
+	checks: ChecksService;
+	accessibilityStatement: AccessibilityStatementService;
 	/** Site search's background work: rebuilding search indexes that are behind (ADR 0021). */
 	search: SiteSearch;
 	/**

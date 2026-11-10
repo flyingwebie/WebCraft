@@ -82,6 +82,7 @@ const barWordsOf = (messages: typeof en) => ({
 	publishedBy: messages.coEditing.publishedBy,
 	// The block editor's words, shared with the admin's (#79).
 	body: messages.body,
+	codeMode: { ...messages.editBar.codeMode, checks: messages.checks },
 });
 const BAR_WORDS: Record<AdminLanguageCode, ReturnType<typeof barWordsOf>> = { en: barWordsOf(en), it: barWordsOf(it) };
 

@@ -321,6 +321,29 @@ export function codeMode(config: CodeModeConfig): void {
 	let htmlSave: HTMLButtonElement;
 	let htmlFormat: HTMLButtonElement;
 	let htmlProblems: HTMLElement;
+	let checksList: HTMLElement;
+	let checksPanel: HTMLDetailsElement;
+	let checksSummary: HTMLElement;
+	let qualityChecks: { check: string; at: string; detail?: string }[] = [];
+	const showChecks = () => {
+		checksSummary.textContent = `${word("checks.heading")} (${qualityChecks.length})`;
+		checksList.replaceChildren(
+			...(!checksPanel.open
+				? []
+				: qualityChecks.length
+					? qualityChecks.map((check) => {
+							const label = word(`checks.${check.check}`) + (check.detail ? ` (${check.detail})` : "");
+							const item = el("li", {}, label);
+							if (/^(site|content)([/#]|$)/.test(check.at)) {
+								const link = button({ class: "problem-link" }, word("checks.open"));
+								link.addEventListener("click", () => void select(check.at.replace(/(?:\.\d+)+$/, "")));
+								item.append(link);
+							}
+							return item;
+						})
+					: [el("li", {}, word("checks.empty"))]),
+		);
+	};
 	let opened: Opened | null = null;
 	let savedMarkup = "";
 	let selectedRef: string | null = null;
@@ -400,6 +423,7 @@ export function codeMode(config: CodeModeConfig): void {
 		for (const line of pending.splice(0)) logLine("error", line);
 		await Promise.all([open(null), loadCss(null), loadScripts()]);
 		openAskedScript();
+		await preview();
 	}
 
 	/**
@@ -652,6 +676,17 @@ export function codeMode(config: CodeModeConfig): void {
 			"aria-label": word("problemList", { panel: word("html") }),
 			hidden: "",
 		});
+		checksList = el("ul", {});
+		checksSummary = el("summary", {}, word("checks.heading"));
+		const checks = el(
+			"details",
+			{ class: "quality-checks" },
+			checksSummary,
+			el("p", {}, word("checks.intro")),
+			checksList,
+		);
+		checksPanel = checks;
+		checks.addEventListener("toggle", showChecks);
 		html = editor({
 			language: "markup",
 			label: word("html"),
@@ -672,6 +707,7 @@ export function codeMode(config: CodeModeConfig): void {
 			panelHeader(heading, word("html"), "code", htmlTitle, htmlFormat, htmlSave),
 			html.root,
 			htmlProblems,
+			checks,
 		);
 	}
 
@@ -1079,7 +1115,13 @@ export function codeMode(config: CodeModeConfig): void {
 			else if (answer.code === "DESIGN_SYSTEM_INVALID") showCssProblems((answer.data.problems as CssProblem[]) ?? []);
 			return;
 		}
-		const shown = answer.data as { html: string; stylesheet: { css: string } };
+		const shown = answer.data as {
+			html: string;
+			stylesheet: { css: string };
+			checks: { check: string; at: string; detail?: string }[];
+		};
+		qualityChecks = shown.checks;
+		showChecks();
 		showProblems("html", []);
 		showCssProblems([]);
 		swapPage(shown.html);

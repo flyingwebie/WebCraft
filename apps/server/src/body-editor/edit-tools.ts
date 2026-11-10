@@ -1524,7 +1524,27 @@ export function bodyTools(kit: BarKit): BodyTools {
 	function editBlock(body: Body, block: Block, from: HTMLElement): void {
 		if (block.type === "image") {
 			const region = body.views.get(block.id)?.root.querySelector<HTMLElement>('[data-wc-type="media"]');
-			if (region && kit.openImage) kit.openImage(region);
+			const decorative = el("input", { type: "checkbox" });
+			decorative.checked = block.decorative === true;
+			const change = button({ class: "secondary small" }, word("body.editImage"));
+			change.addEventListener("click", () => {
+				close(false);
+				if (region && kit.openImage) kit.openImage(region);
+			});
+			const form = el(
+				"form",
+				{ class: "body-form" },
+				field(word("body.image.decorative"), decorative),
+				change,
+				formActions(word("body.done"), () => close(true)),
+			);
+			form.addEventListener("submit", (event) => {
+				event.preventDefault();
+				close(true);
+				setBlock(body, { ...block, decorative: decorative.checked });
+				void refreshRendered(body, [block.id]);
+			});
+			const close = showPanel({ title: word("body.editImage"), from, content: form, focus: decorative });
 			return;
 		}
 		if (block.type === "component") {
