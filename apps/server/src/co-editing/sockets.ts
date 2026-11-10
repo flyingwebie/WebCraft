@@ -103,6 +103,13 @@ export function createDraftSockets(services: InstallServices): DraftSockets {
 				clientAddress: clientAddress(request, services.config),
 			});
 			if (!session) return json(401, { code: "UNAUTHORIZED", message: "Sign in first." });
+			// Someone who must set up two-factor authentication reaches nothing else until they have.
+			if (await services.twoFactor.mustSetUp(session.personId)) {
+				return json(403, {
+					code: "TWO_FACTOR_SETUP_REQUIRED",
+					message: "Add two-factor authentication to your account to continue.",
+				});
+			}
 			const via = { kind: "admin" } as const;
 			const access: Access = {
 				actor: await services.actors.person(session.personId),
@@ -112,7 +119,7 @@ export function createDraftSockets(services: InstallServices): DraftSockets {
 			// Before every change: the session still signed in, the person's access as it is now.
 			const recheck = async (): Promise<Access | null> => {
 				const current = await services.auth.activeSession(session.id);
-				if (!current) return null;
+				if (!current || (await services.twoFactor.mustSetUp(current.personId))) return null;
 				return {
 					actor: await services.actors.person(current.personId),
 					via,

@@ -1,3 +1,4 @@
+import { useRouteContext } from "@tanstack/react-router";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
 	Dialog,
@@ -7,7 +8,9 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@webcraft/ui/components/dialog.tsx";
-import { Field, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Input } from "@webcraft/ui/components/input.tsx";
+import { KeyRoundIcon } from "lucide-react";
 import {
 	createContext,
 	type FormEvent,
@@ -23,6 +26,7 @@ import { getApi } from "./api.ts";
 import { errorCode, errorMessage } from "./errors.ts";
 import { type MessageKey, useT } from "./i18n.tsx";
 import { PasswordInput } from "./PasswordInput.tsx";
+import { getPasskey, PasskeyCancelledError, passkeysAvailable } from "./two-factor/passkeys.ts";
 
 /** The person closed "Confirm it's you" without confirming: nothing was changed. */
 export class IdentityCheckCancelledError extends Error {
@@ -127,14 +131,29 @@ function refocusWhenUsable(element: HTMLElement | null): void {
 
 function IdentityCheckDialog({ open, onFinish }: { open: boolean; onFinish: (confirmed: boolean) => void }) {
 	const t = useT();
+	const { shell } = useRouteContext({ from: "__root__" });
+	const methods = shell.twoFactor?.methods ?? [];
+	const [way, setWay] = useState<"password" | "authenticator">("password");
 	const [password, setPassword] = useState("");
+	const [code, setCode] = useState("");
 	const [error, setError] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
+	const withPasskey = methods.includes("passkey") && open && passkeysAvailable();
 
 	const close = (confirmed: boolean) => {
 		setPassword("");
+		setCode("");
 		setError(null);
+		setWay("password");
 		onFinish(confirmed);
+	};
+
+	const wrong = (failure: unknown): MessageKey => {
+		const failed = errorCode(failure);
+		if (failed === "INVALID_CREDENTIALS") return "identityCheck.wrongPassword";
+		if (failed === "TWO_FACTOR_CODE_INVALID") return "identityCheck.wrongCode";
+		if (failure instanceof PasskeyCancelledError) return "identityCheck.passkeyCancelled";
+		return errorMessage(failure);
 	};
 
 	const submit = async (event: FormEvent) => {
@@ -143,13 +162,33 @@ function IdentityCheckDialog({ open, onFinish }: { open: boolean; onFinish: (con
 		setError(null);
 		try {
 			const api = await getApi();
-			await api.session.confirmIdentity({ password });
+			await api.session.confirmIdentity(way === "password" ? { password } : { authenticatorCode: code });
 			close(true);
 		} catch (failure) {
-			setError(errorCode(failure) === "INVALID_CREDENTIALS" ? "identityCheck.wrongPassword" : errorMessage(failure));
+			setError(wrong(failure));
 		} finally {
 			setBusy(false);
 		}
+	};
+
+	const confirmWithPasskey = async () => {
+		setBusy(true);
+		setError(null);
+		try {
+			const api = await getApi();
+			const { options } = await api.session.identityPasskeyOptions();
+			await api.session.confirmIdentity({ passkey: await getPasskey(options) });
+			close(true);
+		} catch (failure) {
+			setError(wrong(failure));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const switchTo = (next: "password" | "authenticator") => {
+		setWay(next);
+		setError(null);
 	};
 
 	return (
@@ -159,26 +198,68 @@ function IdentityCheckDialog({ open, onFinish }: { open: boolean; onFinish: (con
 				<form onSubmit={submit} noValidate className="grid gap-6">
 					<DialogHeader>
 						<DialogTitle>{t("identityCheck.title")}</DialogTitle>
-						<DialogDescription>{t("identityCheck.body")}</DialogDescription>
+						<DialogDescription>
+							{way === "password" ? t("identityCheck.body") : t("identityCheck.bodyAuthenticator")}
+						</DialogDescription>
 					</DialogHeader>
-					<Field data-invalid={error ? true : undefined}>
-						<FieldLabel htmlFor="identity-check-password">{t("identityCheck.password")}</FieldLabel>
-						<PasswordInput
-							id="identity-check-password"
-							value={password}
-							onChange={(event) => setPassword(event.target.value)}
-							autoComplete="current-password"
-							required
-							aria-invalid={error ? true : undefined}
-							aria-describedby={error ? "identity-check-error" : undefined}
-						/>
-						{error ? <FieldError id="identity-check-error">{t(error)}</FieldError> : null}
-					</Field>
+					{way === "password" ? (
+						<Field data-invalid={error ? true : undefined}>
+							<FieldLabel htmlFor="identity-check-password">{t("identityCheck.password")}</FieldLabel>
+							<PasswordInput
+								id="identity-check-password"
+								value={password}
+								onChange={(event) => setPassword(event.target.value)}
+								autoComplete="current-password"
+								required
+								aria-invalid={error ? true : undefined}
+								aria-describedby={error ? "identity-check-error" : undefined}
+							/>
+							{error ? <FieldError id="identity-check-error">{t(error)}</FieldError> : null}
+						</Field>
+					) : (
+						<Field data-invalid={error ? true : undefined}>
+							<FieldLabel htmlFor="identity-check-code">{t("identityCheck.code")}</FieldLabel>
+							<Input
+								id="identity-check-code"
+								value={code}
+								onChange={(event) => setCode(event.target.value)}
+								inputMode="numeric"
+								autoComplete="one-time-code"
+								maxLength={12}
+								required
+								aria-invalid={error ? true : undefined}
+								aria-describedby={["identity-check-code-help", error ? "identity-check-error" : null]
+									.filter(Boolean)
+									.join(" ")}
+							/>
+							<FieldDescription id="identity-check-code-help">{t("identityCheck.codeHelp")}</FieldDescription>
+							{error ? <FieldError id="identity-check-error">{t(error)}</FieldError> : null}
+						</Field>
+					)}
+					{withPasskey || methods.includes("authenticator") ? (
+						<div className="flex flex-col items-start gap-1">
+							{withPasskey ? (
+								<Button type="button" variant="outline" onClick={confirmWithPasskey} disabled={busy}>
+									<KeyRoundIcon aria-hidden="true" />
+									{t("identityCheck.usePasskey")}
+								</Button>
+							) : null}
+							{methods.includes("authenticator") ? (
+								<Button
+									type="button"
+									variant="ghost"
+									onClick={() => switchTo(way === "password" ? "authenticator" : "password")}
+								>
+									{way === "password" ? t("identityCheck.useAuthenticator") : t("identityCheck.usePassword")}
+								</Button>
+							) : null}
+						</div>
+					) : null}
 					<DialogFooter>
 						<Button type="button" variant="outline" onClick={() => close(false)}>
 							{t("identityCheck.cancel")}
 						</Button>
-						<Button type="submit" disabled={busy || password === ""}>
+						<Button type="submit" disabled={busy || (way === "password" ? password === "" : code.trim() === "")}>
 							{t("identityCheck.confirm")}
 						</Button>
 					</DialogFooter>

@@ -70,7 +70,9 @@ export const it: EmailWording = {
 			subject: "L'autenticazione a due fattori è stata reimpostata",
 			heading: "L'autenticazione a due fattori è stata reimpostata",
 			paragraphs: [
-				`${resetBy} ha reimpostato l'autenticazione a due fattori del tuo account su ${installName}. Accedi con la password e configurala di nuovo.`,
+				resetBy
+					? `${resetBy} ha reimpostato l'autenticazione a due fattori del tuo account su ${installName}. Accedi con la password e configurala di nuovo.`
+					: `L'autenticazione a due fattori del tuo account su ${installName} è stata reimpostata con un comando sul server. Accedi con la password e configurala di nuovo.`,
 				"Se non l'hai chiesto tu, avvisa subito chi gestisce questa Install.",
 			],
 			action: { label: "Accedi", path: "/sign-in" },

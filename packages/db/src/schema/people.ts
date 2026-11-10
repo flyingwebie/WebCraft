@@ -22,6 +22,11 @@ export const people = pgTable(
 		failedAttempts: integer("failed_attempts").notNull().default(0),
 		/** Until when the account is locked after too many wrong passwords; null or past: not locked. */
 		lockedUntil: timestamp("locked_until", { withTimezone: true }),
+		/**
+		 * Until when the reminder to add two-factor authentication stays hidden, after "Remind me
+		 * later"; null or past: it shows while the person has no second factor.
+		 */
+		twoFactorReminderUntil: timestamp("two_factor_reminder_until", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

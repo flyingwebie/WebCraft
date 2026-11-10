@@ -37,6 +37,8 @@ export const installSettings = pgTable(
 		 * unless the Superadmin switches it off, such as for an Install that is always offline.
 		 */
 		leakedPasswordCheck: boolean("leaked_password_check").notNull().default(true),
+		/** Whether everyone with an account on the Install must use two-factor authentication. */
+		requireTwoFactor: boolean("require_two_factor").notNull().default(false),
 		/** The largest file the Media library takes, in bytes; null for the default (50 MB). */
 		mediaMaxFileBytes: bigint("media_max_file_bytes", { mode: "number" }),
 		/**

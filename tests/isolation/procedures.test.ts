@@ -1157,6 +1157,20 @@ describe("Members", () => {
 		async (api, { workspaceId }) => api.members.remove({ workspaceId, personId: await memberOf(workspaceId) }),
 		{ as: ["staff", "owner"] },
 	);
+	isolation.refuses("members.twoFactor", (api, { workspaceId }) => api.members.twoFactor({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	// Switching it off: switching it on needs the caller's own second factor first.
+	isolation.refuses(
+		"members.requireTwoFactor",
+		(api, { workspaceId }) => api.members.requireTwoFactor({ workspaceId, required: false }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.resetTwoFactor",
+		async (api, { workspaceId }) => api.members.resetTwoFactor({ workspaceId, personId: await memberOf(workspaceId) }),
+		{ as: ["staff"] },
+	);
 });
 
 /** A file in a target's Media library and a folder, made by the Superadmin. */

@@ -30,6 +30,7 @@ import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
 import { SmtpFailingBanner } from "./SmtpFailingBanner.tsx";
 import { StagingButton } from "./StagingButton.tsx";
 import { ThemeSwitch } from "./ThemeSwitch.tsx";
+import { TwoFactorReminderBanner } from "./TwoFactorReminderBanner.tsx";
 import { UpdateBanner } from "./UpdateBanner.tsx";
 import { UserMenu } from "./UserMenu.tsx";
 
@@ -79,6 +80,7 @@ export function AdminShell({
 					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
 					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
 					{shell.banners.backupFailing ? <BackupFailingBanner /> : null}
+					{shell.twoFactor?.reminder ? <TwoFactorReminderBanner /> : null}
 					{shell.banners.update && place.level === "install" ? <UpdateBanner update={shell.banners.update} /> : null}
 					<div className={`mx-auto w-full flex-1 p-6 md:p-10 ${wide ? "max-w-screen-2xl" : "max-w-5xl"}`}>
 						{children}

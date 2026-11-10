@@ -45,6 +45,8 @@ describe("the role table", () => {
 				"site.create",
 				"member.invite",
 				"member.manage",
+				"twoFactor.require",
+				"twoFactor.reset",
 				"module.manage",
 				"quota.manage",
 				"aiKey.manage",
@@ -86,7 +88,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("staff: everything in their Workspaces, including Structure, new Sites, Modules, storage quotas, Reports and Share links; on the Install, only the Services list", async () => {
+	test("staff: everything in their Workspaces, including Structure, new Sites, Modules, storage quotas, Reports, Share links and Members' two-factor resets; on the Install, only the Services list", async () => {
 		const { browser } = await install.createStaff({ workspaces: [workspaceId] });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -97,6 +99,8 @@ describe("the role table", () => {
 				"site.create",
 				"member.invite",
 				"member.manage",
+				"twoFactor.require",
+				"twoFactor.reset",
 				"module.manage",
 				"quota.manage",
 				"aiKey.manage",
@@ -138,7 +142,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("owner: manages Members, the AI key and the staging password, publishes and deletes Entries, changes Form emails, Translation modes and Report recipients, imports CSV files, sees Dashboards, Reports and Share links, but never changes Structure, builds Dashboards or creates Sites", async () => {
+	test("owner: manages Members (and requires two-factor authentication of them), the AI key and the staging password, publishes and deletes Entries, changes Form emails, Translation modes and Report recipients, imports CSV files, sees Dashboards, Reports and Share links, but never changes Structure, builds Dashboards or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -148,6 +152,7 @@ describe("the role table", () => {
 				"workspace.view",
 				"member.invite",
 				"member.manage",
+				"twoFactor.require",
 				"aiKey.manage",
 				"aiUsage.view",
 				"protectedTerms.edit",

@@ -5,8 +5,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
+import { addAuthenticator, confirmIfAsked } from "../harness/two-factor.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -324,6 +325,23 @@ describe("Edit mode ends", () => {
 		await member.browser.api.session.current();
 
 		await expectEnded(editing, site);
+	});
+
+	test("as soon as the person must set up two-factor authentication first", async () => {
+		const { site, editing } = await editingEditor();
+		await addAuthenticator(install, staff);
+
+		await confirmIfAsked(staff, TEST_PASSWORD, () =>
+			staff.api.members.requireTwoFactor({ workspaceId, required: true }),
+		);
+
+		try {
+			await expectEnded(editing, site);
+		} finally {
+			await confirmIfAsked(staff, TEST_PASSWORD, () =>
+				staff.api.members.requireTwoFactor({ workspaceId, required: false }),
+			);
+		}
 	});
 
 	test("when the person ends it from the editing bar", async () => {

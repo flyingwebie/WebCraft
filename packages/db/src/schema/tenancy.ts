@@ -21,6 +21,11 @@ import { installRoles, people } from "./people.ts";
 export const workspaces = pgTable("workspaces", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	name: text("name").notNull(),
+	/**
+	 * Whether the Workspace's Members must use two-factor authentication: set by its Owners and
+	 * Staff. Staff follow the Install's own switch.
+	 */
+	requireTwoFactor: boolean("require_two_factor").notNull().default(false),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
 

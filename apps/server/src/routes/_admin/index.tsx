@@ -55,17 +55,19 @@ function OverviewPage() {
 					</CardHeader>
 					<CardContent>
 						<ul className="divide-y">
-							<li>
-								<Link
-									to="/account"
-									hash="two-factor"
-									className="flex items-center gap-3 rounded-md py-3 hover:underline"
-								>
-									<ShieldCheckIcon className="text-muted-foreground size-4" aria-hidden="true" />
-									<span className="flex-1">{t("overview.nextSteps.twoFactor")}</span>
-									<ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden="true" />
-								</Link>
-							</li>
+							{shell.twoFactor?.on ? null : (
+								<li>
+									<Link
+										to="/account"
+										hash="two-factor"
+										className="flex items-center gap-3 rounded-md py-3 hover:underline"
+									>
+										<ShieldCheckIcon className="text-muted-foreground size-4" aria-hidden="true" />
+										<span className="flex-1">{t("overview.nextSteps.twoFactor")}</span>
+										<ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden="true" />
+									</Link>
+								</li>
+							)}
 							{canManage ? (
 								<li>
 									<Link to="/settings/general" className="flex items-center gap-3 rounded-md py-3 hover:underline">
