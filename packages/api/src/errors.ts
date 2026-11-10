@@ -130,6 +130,7 @@ import {
 	ProtectedTermNotFoundError,
 	PublishAllInvalidError,
 	PublishAllRefusedError,
+	PublishInvalidError,
 	RateLimitedError,
 	ReportInvalidError,
 	ReportNotFoundError,
@@ -457,6 +458,9 @@ export function toApiError(error: unknown): unknown {
 			data: { item: error.item, scheduleId: error.scheduleId, at: error.at.toISOString() },
 			cause: error,
 		});
+	}
+	if (error instanceof PublishInvalidError) {
+		return new ORPCError("PUBLISH_INVALID", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof ReviewInvalidError) {
 		return new ORPCError("REVIEW_INVALID", {

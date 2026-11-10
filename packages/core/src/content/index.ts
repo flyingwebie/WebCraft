@@ -79,6 +79,7 @@ export {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	PublishInvalidError,
 	ReviewDecidedError,
 	ReviewInvalidError,
 	ReviewNotFoundError,

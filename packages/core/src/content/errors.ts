@@ -441,6 +441,17 @@ export class ReviewInvalidError extends Error {
 	}
 }
 
+/**
+ * There is nothing the person may publish: every one of the page's changes is a Loop's items, which
+ * only those who may change Structure (`structure.edit`) publish. Nothing is published.
+ */
+export class PublishInvalidError extends Error {
+	override name = "PublishInvalidError";
+	constructor() {
+		super("There is nothing on this page you may publish: a Loop's item changes wait for Staff.");
+	}
+}
+
 /** The item waits in a Review already: one Review at a time. */
 export class ItemInReviewError extends Error {
 	override name = "ItemInReviewError";
