@@ -12,6 +12,7 @@ import { itemState } from "../history/items.ts";
 import { isUuid } from "../ids.ts";
 import type { Logger } from "../log.ts";
 import { can, type PersonActor, personIdOf } from "../permissions/can.ts";
+import type { Permission } from "../permissions/roles.ts";
 import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import type { ComponentSources } from "./components.ts";
@@ -428,10 +429,16 @@ function siteResource(scope: SiteScope) {
 	return { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 }
 
+/** The Permission needed for each item of a Scheduled publish: `entry.publish` for an unpublish, else each item's own. */
+function changePermissions(action: string, items: readonly PublishItem[]): Permission[] {
+	return action === "unpublish" ? ["entry.publish"] : items.map(publishPermission);
+}
+
 /** Whether the person may publish every item of a Scheduled publish (an unpublish: `entry.publish`). */
 function mayChange(scope: SiteScope, action: string, items: readonly PublishItem[]): boolean {
-	const permissions = action === "unpublish" ? ["entry.publish" as const] : items.map(publishPermission);
-	return permissions.every((permission) => can(scope.access.actor, permission, siteResource(scope)));
+	return changePermissions(action, items).every((permission) =>
+		can(scope.access.actor, permission, siteResource(scope)),
+	);
 }
 
 /**
@@ -556,9 +563,9 @@ async function lockForChange(scope: SiteScope, scheduleId: string): Promise<{ ro
 	const items = await scope.select(scheduledPublishItems, eq(scheduledPublishItems.scheduleId, row.id), {
 		orderBy: [asc(scheduledPublishItems.position)],
 	});
-	const refused = (
-		row.action === "unpublish" ? ["entry.publish" as const] : items.map((each) => publishPermission(itemOf(each)))
-	).find((permission) => !can(scope.access.actor, permission, siteResource(scope)));
+	const refused = changePermissions(row.action, items.map(itemOf)).find(
+		(permission) => !can(scope.access.actor, permission, siteResource(scope)),
+	);
 	if (refused) throw new PermissionDeniedError(refused);
 	return { row, items };
 }
