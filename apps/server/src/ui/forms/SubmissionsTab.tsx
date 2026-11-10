@@ -397,6 +397,54 @@ function detailOf(submission: Submission): string {
 	return String(email?.value ?? submission.page ?? "");
 }
 
+/** A Form upload as the Submission's procedures answer it: never its bytes, a link to download it. */
+type UploadValue = { uploadId: string | null; name: string; size: number; contentType: string; url: string | null };
+
+/** A file field's uploads, or null for any other value. */
+function filesOf(value: Submission["values"][number]): UploadValue[] | null {
+	const raw = value.value;
+	return Array.isArray(raw) && raw.some((item) => typeof item === "object" && item !== null)
+		? (raw as unknown as UploadValue[])
+		: null;
+}
+
+/** A size as people read it: `3 KB`, `2.4 MB`. */
+function sizeOf(bytes: number): string {
+	if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+	return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/**
+ * A Submission's files: each a link to download it through the admin (only people who may read the
+ * Submissions get it, and each download is in the Audit log), or its name when it wasn't kept (spam).
+ */
+function Uploads({ files }: { files: readonly UploadValue[] }) {
+	const t = useT();
+	if (files.length === 0) return <>—</>;
+	return (
+		<ul className="grid gap-1">
+			{files.map((file, index) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: a Submission's files never change order.
+				<li key={index}>
+					{file.url ? (
+						<a
+							href={file.url}
+							download={file.name}
+							className="text-primary underline underline-offset-4"
+							aria-label={t("forms.uploadFiles.download", { name: file.name })}
+						>
+							{file.name}
+						</a>
+					) : (
+						t("forms.uploadFiles.notKept", { name: file.name })
+					)}{" "}
+					<span className="text-muted-foreground">({sizeOf(file.size)})</span>
+				</li>
+			))}
+		</ul>
+	);
+}
+
 /** A value as the panel shows it: a choice by its label (in the Site's Default language), a consent Yes or No. */
 function shown(
 	value: Submission["values"][number],
@@ -412,7 +460,7 @@ function shown(
 		const option = options.find((candidate) => candidate.value === choice);
 		return option ? formTextIn(option.label, language) : choice;
 	};
-	if (Array.isArray(raw)) return raw.map(label).join(", ");
+	if (Array.isArray(raw)) return raw.map((choice) => (typeof choice === "string" ? label(choice) : "")).join(", ");
 	return typeof raw === "string" ? label(raw) : String(raw);
 }
 
@@ -622,7 +670,7 @@ function SubmissionPanel({
 					<div key={value.key} className="grid gap-0.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:gap-3">
 						<dt className="text-muted-foreground min-w-0 text-sm break-words">{value.label}</dt>
 						<dd className="min-w-0 text-sm break-words whitespace-pre-line">
-							{shown(value, fields, defaultLanguage, t)}
+							{filesOf(value) ? <Uploads files={filesOf(value) ?? []} /> : shown(value, fields, defaultLanguage, t)}
 						</dd>
 					</div>
 				))}

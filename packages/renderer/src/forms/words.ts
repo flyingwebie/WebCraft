@@ -14,6 +14,17 @@ export type FormWords = {
 	errorPrefix: string;
 	honeypot: string;
 	captcha: string;
+	/** The buttons and progress of a Form with steps, shown by the forms script (`{n}`, `{count}`). */
+	back: string;
+	next: string;
+	step: string;
+	/** A file field's limits, under its label (`{types}`, `{max}`, `{count}`). */
+	files: string;
+	filesMany: string;
+	/** What the forms script announces when the Form has errors (`{count}`), and while it sends. */
+	problems: string;
+	problem: string;
+	sending: string;
 	errors: Readonly<Record<FormRule, string>>;
 };
 
@@ -40,7 +51,11 @@ export type FormRule =
 	| "pattern"
 	| "option"
 	| "minChoices"
-	| "maxChoices";
+	| "maxChoices"
+	| "requiredFile"
+	| "fileCount"
+	| "fileSize"
+	| "fileType";
 
 const WORDS: Readonly<Record<string, FormWords>> = {
 	en: {
@@ -52,6 +67,14 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 		errorPrefix: "Error:",
 		honeypot: "Leave this field empty",
 		captcha: "Complete the check before sending.",
+		back: "Back",
+		next: "Next",
+		step: "Step {n} of {count}",
+		files: "Accepted: {types}. Largest file: {max}.",
+		filesMany: "Accepted: {types}. Up to {count} files, each at most {max}.",
+		problems: "There is a problem: {count} errors.",
+		problem: "There is a problem: 1 error.",
+		sending: "Sending…",
 		errors: {
 			required: "Enter a value.",
 			requiredChoice: "Choose an option.",
@@ -72,6 +95,10 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 			option: "Choose one of the options.",
 			minChoices: "Choose at least {min}.",
 			maxChoices: "Choose {max} or fewer.",
+			requiredFile: "Choose a file.",
+			fileCount: "Choose {max} files or fewer.",
+			fileSize: "Choose a file of {max} or less.",
+			fileType: "Choose a file of one of these types: {types}.",
 		},
 	},
 	it: {
@@ -83,6 +110,14 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 		errorPrefix: "Errore:",
 		honeypot: "Lascia vuoto questo campo",
 		captcha: "Completa la verifica prima di inviare.",
+		back: "Indietro",
+		next: "Avanti",
+		step: "Passo {n} di {count}",
+		files: "Formati accettati: {types}. File più grande: {max}.",
+		filesMany: "Formati accettati: {types}. Fino a {count} file, ciascuno al massimo {max}.",
+		problems: "C'è un problema: {count} errori.",
+		problem: "C'è un problema: 1 errore.",
+		sending: "Invio in corso…",
 		errors: {
 			required: "Inserisci un valore.",
 			requiredChoice: "Scegli un'opzione.",
@@ -103,6 +138,10 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 			option: "Scegli una delle opzioni.",
 			minChoices: "Scegline almeno {min}.",
 			maxChoices: "Scegline al massimo {max}.",
+			requiredFile: "Scegli un file.",
+			fileCount: "Scegli al massimo {max} file.",
+			fileSize: "Scegli un file di {max} o meno.",
+			fileType: "Scegli un file di uno di questi tipi: {types}.",
 		},
 	},
 	fr: {
@@ -114,6 +153,14 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 		errorPrefix: "Erreur :",
 		honeypot: "Laissez ce champ vide",
 		captcha: "Effectuez la vérification avant d'envoyer.",
+		back: "Retour",
+		next: "Suivant",
+		step: "Étape {n} sur {count}",
+		files: "Formats acceptés : {types}. Fichier le plus lourd : {max}.",
+		filesMany: "Formats acceptés : {types}. Jusqu'à {count} fichiers, chacun de {max} au plus.",
+		problems: "Il y a un problème : {count} erreurs.",
+		problem: "Il y a un problème : 1 erreur.",
+		sending: "Envoi…",
 		errors: {
 			required: "Saisissez une valeur.",
 			requiredChoice: "Choisissez une option.",
@@ -134,6 +181,10 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 			option: "Choisissez l'une des options.",
 			minChoices: "Choisissez-en au moins {min}.",
 			maxChoices: "Choisissez-en {max} au plus.",
+			requiredFile: "Choisissez un fichier.",
+			fileCount: "Choisissez {max} fichiers au plus.",
+			fileSize: "Choisissez un fichier de {max} au plus.",
+			fileType: "Choisissez un fichier de l'un de ces types : {types}.",
 		},
 	},
 	de: {
@@ -145,6 +196,14 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 		errorPrefix: "Fehler:",
 		honeypot: "Dieses Feld leer lassen",
 		captcha: "Schließen Sie die Prüfung vor dem Senden ab.",
+		back: "Zurück",
+		next: "Weiter",
+		step: "Schritt {n} von {count}",
+		files: "Erlaubt: {types}. Größte Datei: {max}.",
+		filesMany: "Erlaubt: {types}. Bis zu {count} Dateien, jede höchstens {max}.",
+		problems: "Es gibt ein Problem: {count} Fehler.",
+		problem: "Es gibt ein Problem: 1 Fehler.",
+		sending: "Wird gesendet…",
 		errors: {
 			required: "Geben Sie einen Wert ein.",
 			requiredChoice: "Wählen Sie eine Option.",
@@ -165,6 +224,10 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 			option: "Wählen Sie eine der Optionen.",
 			minChoices: "Wählen Sie mindestens {min}.",
 			maxChoices: "Wählen Sie höchstens {max}.",
+			requiredFile: "Wählen Sie eine Datei.",
+			fileCount: "Wählen Sie höchstens {max} Dateien.",
+			fileSize: "Wählen Sie eine Datei von höchstens {max}.",
+			fileType: "Wählen Sie eine Datei eines dieser Typen: {types}.",
 		},
 	},
 	es: {
@@ -176,6 +239,14 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 		errorPrefix: "Error:",
 		honeypot: "Deja este campo vacío",
 		captcha: "Completa la verificación antes de enviar.",
+		back: "Atrás",
+		next: "Siguiente",
+		step: "Paso {n} de {count}",
+		files: "Formatos aceptados: {types}. Archivo más grande: {max}.",
+		filesMany: "Formatos aceptados: {types}. Hasta {count} archivos, cada uno de {max} como máximo.",
+		problems: "Hay un problema: {count} errores.",
+		problem: "Hay un problema: 1 error.",
+		sending: "Enviando…",
 		errors: {
 			required: "Introduce un valor.",
 			requiredChoice: "Elige una opción.",
@@ -196,6 +267,10 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 			option: "Elige una de las opciones.",
 			minChoices: "Elige al menos {min}.",
 			maxChoices: "Elige {max} como máximo.",
+			requiredFile: "Elige un archivo.",
+			fileCount: "Elige {max} archivos como máximo.",
+			fileSize: "Elige un archivo de {max} o menos.",
+			fileType: "Elige un archivo de uno de estos tipos: {types}.",
 		},
 	},
 	pt: {
@@ -207,6 +282,14 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 		errorPrefix: "Erro:",
 		honeypot: "Deixe este campo vazio",
 		captcha: "Conclua a verificação antes de enviar.",
+		back: "Voltar",
+		next: "Seguinte",
+		step: "Passo {n} de {count}",
+		files: "Formatos aceites: {types}. Ficheiro maior: {max}.",
+		filesMany: "Formatos aceites: {types}. Até {count} ficheiros, cada um com {max} no máximo.",
+		problems: "Há um problema: {count} erros.",
+		problem: "Há um problema: 1 erro.",
+		sending: "A enviar…",
 		errors: {
 			required: "Introduza um valor.",
 			requiredChoice: "Escolha uma opção.",
@@ -227,6 +310,10 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 			option: "Escolha uma das opções.",
 			minChoices: "Escolha pelo menos {min}.",
 			maxChoices: "Escolha no máximo {max}.",
+			requiredFile: "Escolha um ficheiro.",
+			fileCount: "Escolha no máximo {max} ficheiros.",
+			fileSize: "Escolha um ficheiro de {max} ou menos.",
+			fileType: "Escolha um ficheiro de um destes tipos: {types}.",
 		},
 	},
 	nl: {
@@ -238,6 +325,14 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 		errorPrefix: "Fout:",
 		honeypot: "Laat dit veld leeg",
 		captcha: "Voltooi de controle voordat je verstuurt.",
+		back: "Terug",
+		next: "Volgende",
+		step: "Stap {n} van {count}",
+		files: "Toegestaan: {types}. Grootste bestand: {max}.",
+		filesMany: "Toegestaan: {types}. Tot {count} bestanden, elk hoogstens {max}.",
+		problems: "Er is een probleem: {count} fouten.",
+		problem: "Er is een probleem: 1 fout.",
+		sending: "Bezig met versturen…",
 		errors: {
 			required: "Vul een waarde in.",
 			requiredChoice: "Kies een optie.",
@@ -258,6 +353,10 @@ const WORDS: Readonly<Record<string, FormWords>> = {
 			option: "Kies een van de opties.",
 			minChoices: "Kies er minstens {min}.",
 			maxChoices: "Kies er hoogstens {max}.",
+			requiredFile: "Kies een bestand.",
+			fileCount: "Kies er hoogstens {max} bestanden.",
+			fileSize: "Kies een bestand van {max} of minder.",
+			fileType: "Kies een bestand van een van deze types: {types}.",
 		},
 	},
 };
@@ -270,5 +369,5 @@ export function formWords(language: string | undefined): FormWords {
 
 /** A rule's words with `{min}`, `{max}` and `{count}` filled in. */
 export function ruleMessage(words: FormWords, rule: FormRule, params: Readonly<Record<string, string | number>> = {}) {
-	return words.errors[rule].replace(/\{(min|max|count)\}/g, (_, name: string) => String(params[name] ?? ""));
+	return words.errors[rule].replace(/\{(min|max|count|types)\}/g, (_, name: string) => String(params[name] ?? ""));
 }

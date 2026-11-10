@@ -42,7 +42,7 @@ function mainOf(html: string): string {
 
 beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-04-01T09:00:00Z") });
-	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.1.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.2.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await goLive(install, siteId);

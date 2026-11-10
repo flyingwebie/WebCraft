@@ -1,10 +1,12 @@
 // Forms in a real browser, in the device's light and dark themes: a Form on a Site's page, the same
-// page sent back with errors, and the message once it is sent, each checked with axe-core and the
-// keyboard; the error summary takes focus and its links move focus to their fields. Then the Form
+// page sent back with errors, and the message once it is sent (without JavaScript: the forms script's
+// own flow is in form-steps.browser.ts), each checked with axe-core and the keyboard; the error summary takes focus and its links move focus to their fields. Then the Form
 // builder in the admin, from the keyboard; a Form's Submissions and Emails tabs as an Owner sees
 // them, reading Submissions from the keyboard; and Site › Email (SMTP).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import forms from "@webcraft/module-forms";
+
+import type { Page } from "playwright";
 
 import { formVisitor } from "../harness/forms.ts";
 import type { TestAccount } from "../harness/index.ts";
@@ -148,6 +150,20 @@ afterAll(async () => {
 	await install.close();
 });
 
+/**
+ * The page as a browser sees it when the forms script doesn't run (switched off, or never loaded):
+ * the Form is posted as the browser posts it.
+ */
+async function withoutFormsScript(page: Page): Promise<Page> {
+	// WebCraft's scripts are hashed files under /_wc/js/: the forms script is the one sending its header.
+	await page.route("**/_wc/js/*.js", async (route) => {
+		const response = await route.fetch();
+		if (!(await response.text()).includes("x-webcraft-form")) return route.fulfill({ response });
+		return route.fulfill({ status: 200, contentType: "text/javascript", body: "" });
+	});
+	return page;
+}
+
 for (const theme of THEMES) {
 	describe(`a Form's Submissions and Emails, ${theme}`, () => {
 		test("the Submissions tab with a Submission open, as an Owner sees it", async () => {
@@ -202,7 +218,8 @@ for (const theme of THEMES) {
 		});
 
 		test("sent back with errors: the summary takes focus, and each of its links goes to its field", async () => {
-			const page = await install.newPage(theme);
+			// Without the forms script: the browser posts the Form, and the page comes back with its errors.
+			const page = await withoutFormsScript(await install.newPage(theme));
 			await page.goto(install.liveUrl(slug, PAGE));
 			await page.getByRole("button", { name: "Send" }).focus();
 			await Promise.all([page.waitForURL(`**/_webcraft/forms/${formId}`), page.keyboard.press("Enter")]);
@@ -221,7 +238,7 @@ for (const theme of THEMES) {
 		});
 
 		test("sent: the message shows in place of the Form", async () => {
-			const page = await install.newPage(theme);
+			const page = await withoutFormsScript(await install.newPage(theme));
 			await page.goto(install.liveUrl(slug, PAGE));
 			await page.getByLabel("Your name").fill("Ada");
 			await page.getByLabel("Email").fill("ada@example.com");

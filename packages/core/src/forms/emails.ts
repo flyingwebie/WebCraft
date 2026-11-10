@@ -1,5 +1,6 @@
 import {
 	canRoute,
+	FORM_ATTACHMENTS_MAX_BYTES,
 	FORM_EMAIL_LIMITS,
 	type FormAutoReply,
 	type FormEmails,
@@ -22,7 +23,7 @@ import { readText } from "./definition.ts";
  */
 
 /** A change to a Form's emails Draft: the parts given replace those of the Draft. */
-export type FormEmailsInput = { notifications?: unknown; autoReply?: unknown };
+export type FormEmailsInput = { notifications?: unknown; autoReply?: unknown; attachmentsMaxBytes?: unknown };
 
 /** Stored emails, read back (null: none set yet). They are checked before they are stored. */
 export function storedFormEmails(stored: unknown): FormEmails {
@@ -32,6 +33,8 @@ export function storedFormEmails(stored: unknown): FormEmails {
 	return {
 		notifications: Array.isArray(raw.notifications) ? raw.notifications : [],
 		autoReply: { ...empty.autoReply, ...raw.autoReply },
+		attachmentsMaxBytes:
+			typeof raw.attachmentsMaxBytes === "number" ? raw.attachmentsMaxBytes : empty.attachmentsMaxBytes,
 	};
 }
 
@@ -56,7 +59,17 @@ export function readFormEmails(
 	const notifications =
 		input.notifications === undefined ? current.notifications : readNotifications(input.notifications, fields, report);
 	const autoReply = input.autoReply === undefined ? current.autoReply : readAutoReply(input.autoReply, fields, report);
-	return { notifications, autoReply };
+	let attachmentsMaxBytes = current.attachmentsMaxBytes;
+	if (input.attachmentsMaxBytes !== undefined) {
+		const value = input.attachmentsMaxBytes;
+		if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > FORM_ATTACHMENTS_MAX_BYTES) {
+			report(
+				"attachmentsMaxBytes",
+				`How much Notifications attach, in bytes: from 0 (nothing) to ${FORM_ATTACHMENTS_MAX_BYTES} (25 MB).`,
+			);
+		} else attachmentsMaxBytes = value;
+	}
+	return { notifications, autoReply, attachmentsMaxBytes };
 }
 
 function readNotifications(input: unknown, fields: readonly FormField[], report: Report): FormNotification[] {

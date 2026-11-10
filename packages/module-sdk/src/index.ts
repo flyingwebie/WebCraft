@@ -148,11 +148,13 @@ export {
 export {
 	AUTO_REPLY_WINDOW_HOURS,
 	type FormSubmission,
+	isSubmissionFiles,
 	type KeptSubmission,
 	type ModuleSchedule,
 	type ModuleSubmissions,
 	type SpamReason,
 	type SubmissionDelivery,
+	type SubmissionFile,
 	type SubmissionReceiver,
 	type SubmissionValue,
 	submissionReceiver,

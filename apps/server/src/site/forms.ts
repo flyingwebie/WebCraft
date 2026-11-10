@@ -1,5 +1,11 @@
-import { FORM_POST_MAX_BYTES, type InstallServices, SENT_PARAMETER, type SiteHost } from "@webcraft/core";
-import { FORM_POST_PATH, FORM_TOKEN_MARK } from "@webcraft/renderer";
+import {
+	FORM_POST_MAX_BYTES,
+	type FormPostAnswer,
+	type InstallServices,
+	SENT_PARAMETER,
+	type SiteHost,
+} from "@webcraft/core";
+import { FORM_POST_PATH, FORM_SCRIPT_HEADER, FORM_TOKEN_MARK, FORM_UPLOAD_POST_MAX_BYTES } from "@webcraft/renderer";
 
 import { clientAddress } from "../client-address.ts";
 import { plainText } from "../responses.ts";
@@ -17,6 +23,12 @@ import { editSessionOf } from "./edit-mode.ts";
  * browser sends with every POST (or `Sec-Fetch-Site: same-origin`), and the Site's pages send
  * `form-action 'self'` in their CSP (#99), so a Form can't be made to post elsewhere. The time-trap
  * token proves the post came after a page of this Site was handed out, and how long after.
+ *
+ * A Form with file fields posts `multipart/form-data`, up to `FORM_UPLOAD_POST_MAX_BYTES` in all; its
+ * other fields still take no more than a post without files. The forms script sends the same posts
+ * with `fetch` and a header of its own (`FORM_SCRIPT_HEADER`), and is answered in JSON: sent (with the
+ * Form's message, or the Page to go to) or the errors to show; anything else and it posts the Form as
+ * the browser would.
  */
 
 /** Whether a request is under the Forms' path. */
@@ -41,18 +53,21 @@ export async function formPost(
 	if (request.method !== "POST") return plainText(405, "Method Not Allowed", { allow: "POST", ...addressHeaders });
 	if (!fromSitePages(request)) return plainText(403, "Forbidden", addressHeaders);
 	const type = (request.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
-	if (type !== "application/x-www-form-urlencoded") {
+	if (type !== "application/x-www-form-urlencoded" && type !== "multipart/form-data") {
 		return plainText(415, "Unsupported Media Type", addressHeaders);
 	}
-	const body = await readLimited(request, FORM_POST_MAX_BYTES);
+	const fromScript = request.headers.get(FORM_SCRIPT_HEADER) === "1";
+	const read = type === "multipart/form-data" ? await readMultipart(request) : await readUrlEncoded(request);
 	const answer = await services.forms.receive(host, formId, {
-		fields: body === null ? null : fieldsOf(body),
+		fields: read?.fields ?? null,
+		...(read?.files ? { files: read.files } : {}),
 		clientAddress: clientAddress(request, services.config),
 		referer: request.headers.get("referer"),
 		via: host.address === "staging" ? "staging" : "domain",
 		editing: (await editSessionOf(services, request, host)).session !== null,
 		request,
 	});
+	if (fromScript && (answer.kind === "sent" || answer.kind === "invalid")) return scriptAnswer(answer, addressHeaders);
 	switch (answer.kind) {
 		case "notFound":
 			return plainText(404, "Not Found", addressHeaders);
@@ -149,14 +164,89 @@ function fromSitePages(request: Request): boolean {
 	}
 }
 
-/** The body as text, or null when it is larger than `limit` bytes (reading stops there). */
-async function readLimited(request: Request, limit: number): Promise<string | null> {
+/**
+ * What the forms script is told: sent (the Form's message, or where to go), or each field's error.
+ * It never carries what the visitor typed back.
+ */
+function scriptAnswer(
+	answer: Extract<FormPostAnswer, { kind: "sent" | "invalid" }>,
+	addressHeaders: Record<string, string>,
+): Response {
+	const headers = { "content-type": "application/json; charset=utf-8", ...NO_STORE, ...addressHeaders };
+	if (answer.kind === "sent") {
+		const body =
+			answer.message === null
+				? { sent: true, location: answer.location, message: null }
+				: { sent: true, location: null, message: answer.message };
+		return new Response(JSON.stringify(body), { status: 200, headers });
+	}
+	const state = answer.state.kind === "invalid" ? answer.state : null;
+	return new Response(
+		JSON.stringify({ sent: false, errors: state?.errors ?? {}, formError: state?.formError ?? null }),
+		{
+			status: 422,
+			headers,
+		},
+	);
+}
+
+type ReadPost = {
+	fields: Map<string, string[]>;
+	files?: Map<string, { name: string; bytes: Uint8Array }[]>;
+} | null;
+
+/** A urlencoded post's fields, or null when it is larger than any Form takes. */
+async function readUrlEncoded(request: Request): Promise<ReadPost> {
+	const body = await readLimited(request, FORM_POST_MAX_BYTES);
+	return body === null ? null : { fields: fieldsOf(new TextDecoder().decode(body)) };
+}
+
+/**
+ * A post with files: its fields and files, or null when it is larger than any Form takes, or its
+ * fields besides the files are larger than a post without files may be. A file field left empty sends
+ * a part with no name and no bytes, which counts as no file.
+ */
+async function readMultipart(request: Request): Promise<ReadPost> {
+	const body = await readLimited(request, FORM_UPLOAD_POST_MAX_BYTES);
+	if (body === null) return null;
+	let data: FormData;
+	try {
+		data = await new Response(body as Uint8Array<ArrayBuffer>, {
+			headers: { "content-type": request.headers.get("content-type") ?? "" },
+		}).formData();
+	} catch {
+		return { fields: new Map() };
+	}
+	const fields = new Map<string, string[]>();
+	const files = new Map<string, { name: string; bytes: Uint8Array }[]>();
+	let textBytes = 0;
+	for (const [name, value] of data) {
+		if (typeof value === "string") {
+			textBytes += Buffer.byteLength(name, "utf8") + Buffer.byteLength(value, "utf8");
+			if (textBytes > FORM_POST_MAX_BYTES) return null;
+			const list = fields.get(name) ?? [];
+			list.push(value);
+			fields.set(name, list);
+			continue;
+		}
+		const list = files.get(name) ?? [];
+		files.set(name, list);
+		const fileName = typeof value.name === "string" ? value.name : "";
+		if (value.size === 0 && fileName === "") continue;
+		list.push({ name: fileName, bytes: new Uint8Array(await value.arrayBuffer()) });
+	}
+	if (textBytes > FORM_POST_MAX_BYTES) return null;
+	return { fields, files };
+}
+
+/** The body's bytes, or null when it is larger than `limit` bytes (reading stops there). */
+async function readLimited(request: Request, limit: number): Promise<Uint8Array | null> {
 	const declared = Number(request.headers.get("content-length") ?? "0");
 	if (declared > limit) {
 		await request.body?.cancel();
 		return null;
 	}
-	if (!request.body) return "";
+	if (!request.body) return new Uint8Array();
 	const reader = request.body.getReader();
 	const chunks: Uint8Array[] = [];
 	let size = 0;
@@ -170,7 +260,7 @@ async function readLimited(request: Request, limit: number): Promise<string | nu
 		}
 		chunks.push(value);
 	}
-	return new TextDecoder().decode(Buffer.concat(chunks));
+	return new Uint8Array(Buffer.concat(chunks));
 }
 
 /** A form body's fields, by name: every value sent under it, in order. */

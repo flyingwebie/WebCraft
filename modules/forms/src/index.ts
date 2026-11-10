@@ -16,6 +16,7 @@ import {
 	inArray,
 	isNotNull,
 	isNull,
+	isSubmissionFiles,
 	job,
 	type KeptSubmission,
 	lt,
@@ -47,8 +48,26 @@ const EXPORT_LIMIT = 100_000;
 
 type SubmissionRow = typeof submissions.$inferSelect;
 
+/**
+ * A Submission's values as its procedures answer them: each kept Form upload with its address in the
+ * admin (`url`), where people who may read Submissions download it. Never its bytes.
+ */
+function withUploadLinks(values: FormSubmission["values"], context: ModuleContext) {
+	return values.map((value) =>
+		isSubmissionFiles(value.value)
+			? {
+					...value,
+					value: value.value.map((file) => ({
+						...file,
+						url: file.uploadId ? context.submissions.uploadUrl(file.uploadId) : null,
+					})),
+				}
+			: value,
+	);
+}
+
 /** A Submission as the Module's procedures answer it. */
-function view(row: SubmissionRow) {
+function view(row: SubmissionRow, context: ModuleContext) {
 	return {
 		id: row.id,
 		formId: row.formId,
@@ -58,16 +77,22 @@ function view(row: SubmissionRow) {
 		page: row.page,
 		folder: row.folder as "inbox" | "spam",
 		spamReason: row.spamReason as FormSubmission["spam"],
-		values: row.values as FormSubmission["values"],
+		values: withUploadLinks(row.values as FormSubmission["values"], context),
 		receivedAt: row.receivedAt,
 		read: row.readAt !== null,
 	};
 }
 
-/** A Submission's values as lower-case text, for search. */
+/** A Submission's values as lower-case text, for search (a file by its name). */
 function searchTextOf(values: FormSubmission["values"]): string {
 	return values
-		.flatMap((value) => (Array.isArray(value.value) ? value.value : [value.value]))
+		.flatMap((value): unknown[] =>
+			isSubmissionFiles(value.value)
+				? value.value.map((file) => file.name)
+				: Array.isArray(value.value)
+					? value.value
+					: [value.value],
+		)
 		.filter((value) => value !== null && typeof value !== "boolean")
 		.map((value) => String(value))
 		.join(" ")
@@ -80,11 +105,16 @@ function containing(text: string): string {
 }
 
 /**
- * Deletes Submissions. Their Form uploads (#90) go with them here, so every way a Submission goes
- * (a person deleting it, a Form's retention, the Spam folder's 30 days) takes its files too.
+ * Deletes Submissions, and their Form uploads with them: every way a Submission goes (a person
+ * deleting it, a Form's retention, the Spam folder's 30 days) passes through here, so its files never
+ * outlive it. Inside a transaction, the files' rows go with it and their bytes once it commits.
  */
 async function removeSubmissions(context: ModuleContext, where: SQL | undefined): Promise<number> {
-	return context.data.delete(submissions, where);
+	const going = await context.data.select(submissions, where);
+	if (going.length === 0) return 0;
+	const ids = going.map((row) => row.id);
+	await context.submissions.removeUploads(ids);
+	return context.data.delete(submissions, inArray(submissions.id, ids));
 }
 
 /** The words of a CSV export's own columns, in the person's Admin language. */
@@ -136,8 +166,8 @@ export const forms = defineModule({
 			en: "Keeps what visitors send through each Site's Forms, with a Spam folder kept 30 days, sends their Notifications, Auto-replies and Webhooks, and lets people search, export and delete them. Switched off, a Site's Forms show nothing.",
 			it: "Conserva ciò che i visitatori inviano con i Form di ogni Sito, con una cartella Spam tenuta 30 giorni, invia notifiche, risposte automatiche e Webhook, e permette di cercarli, esportarli ed eliminarli. Se è spento, i Form di un Sito non si vedono.",
 		},
-		version: "1.1.0",
-		sdk: "^1.9.0",
+		version: "1.2.0",
+		sdk: "^1.11.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -161,6 +191,8 @@ export const forms = defineModule({
 	migrations,
 
 	formSubmissions: submissionReceiver({
+		// Those who read Submissions download their Form uploads, through the admin.
+		readPermission: "submissions.view",
 		async receive(submission, context) {
 			const row = await context.data.insert(submissions, {
 				formId: submission.formId,
@@ -210,7 +242,7 @@ export const forms = defineModule({
 						context.data.count(submissions, and(ofForm, eq(submissions.folder, "inbox"), isNull(submissions.readAt))),
 					]);
 					return {
-						submissions: rows.map(view),
+						submissions: rows.map((row) => view(row, context)),
 						total,
 						counts: { inbox, spam, unread },
 						keepDays: input.formId === undefined ? null : await keepDaysOf(context, input.formId),
@@ -226,7 +258,7 @@ export const forms = defineModule({
 				input: z.object({ id: z.uuid() }),
 				async run(input, context) {
 					const row = await found(context, input.id);
-					return { submission: view(row), deliveries: await context.submissions.deliveries(row.id) };
+					return { submission: view(row, context), deliveries: await context.submissions.deliveries(row.id) };
 				},
 			}),
 
@@ -290,7 +322,7 @@ export const forms = defineModule({
 						sender: (moved.sender as FormSender | null) ?? null,
 					};
 					await context.submissions.kept(kept);
-					return { submission: view(moved) };
+					return { submission: view(moved, context) };
 				},
 			}),
 
@@ -417,9 +449,8 @@ export const forms = defineModule({
 			payload: z.object({}),
 			async run(_payload, context) {
 				const before = new Date(context.now().getTime() - SPAM_KEPT_DAYS * DAY_MS);
-				const deleted = await removeSubmissions(
-					context,
-					and(eq(submissions.folder, "spam"), lt(submissions.receivedAt, before)),
+				const deleted = await context.transaction((tx) =>
+					removeSubmissions(tx, and(eq(submissions.folder, "spam"), lt(submissions.receivedAt, before))),
 				);
 				if (deleted > 0) await context.log.info("Deleted Submissions the Spam folder kept 30 days.", { deleted });
 			},

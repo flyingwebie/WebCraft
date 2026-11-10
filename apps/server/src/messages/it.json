@@ -3251,7 +3251,10 @@
 			"radio": "Pulsanti di scelta",
 			"checkboxes": "Caselle di spunta",
 			"consent": "Consenso",
-			"hidden": "Nascosto"
+			"hidden": "Nascosto",
+			"file": "Caricamento file",
+			"section": "Sezione",
+			"step": "Passo"
 		},
 		"field": {
 			"option": "Opzione",
@@ -3291,7 +3294,17 @@
 			"sourceQuery": "Un parametro dell'indirizzo della pagina",
 			"sourceFixed": "Testo fisso",
 			"sourceName": "Nome del parametro",
-			"sourceValue": "Testo"
+			"sourceValue": "Testo",
+			"accept": "Formati di file accettati",
+			"acceptHelp": "I file sono controllati per ciò che contengono, non solo per il nome. I file SVG non sono mai accettati.",
+			"formatGroups": {
+				"image": "Immagini",
+				"document": "Documenti",
+				"media": "Audio e video"
+			},
+			"maxFileMb": "File più grande (MB)",
+			"maxFileMbHelp": "Fino a {max} MB; 10 MB se vuoto.",
+			"maxFiles": "Numero massimo di file"
 		},
 		"settings": {
 			"sendingTitle": "Invio",
@@ -3355,7 +3368,39 @@
 			"off": "Il CAPTCHA è spento.",
 			"switchOff": "Spegni"
 		},
-		"tabsLabel": "Parti di {name}"
+		"tabsLabel": "Parti di {name}",
+		"condition": {
+			"badge": "Condizionale",
+			"title": "Quando si vede",
+			"always": "Sempre visibile. Aggiungi una regola per mostrarlo solo quando i campi precedenti hanno certi valori.",
+			"noFields": "Sempre visibile: non c'è un campo precedente da leggere.",
+			"match": "Mostralo quando",
+			"all": "Valgono tutte le regole",
+			"any": "Vale almeno una regola",
+			"rule": "Regola {number}",
+			"field": "Campo",
+			"op": "Confronto",
+			"value": "Valore",
+			"choose": "Scegli…",
+			"addRule": "Aggiungi una regola",
+			"removeRule": "Rimuovi la regola {number}",
+			"ops": {
+				"is": "è",
+				"isNot": "non è",
+				"isEmpty": "è vuoto",
+				"isNotEmpty": "è compilato",
+				"greaterThan": "è maggiore di",
+				"lessThan": "è minore di"
+			}
+		},
+		"uploadAttachments": {
+			"label": "Allega i file alle notifiche fino a (MB)",
+			"help": "I file inviati con un invio sono allegati finché arrivano a questa dimensione in totale; gli altri sono link per scaricarli nell'amministrazione. 0 non ne allega nessuno."
+		},
+		"uploadFiles": {
+			"download": "Scarica {name}",
+			"notKept": "{name} (non conservato)"
+		}
 	},
 	"workspaceStorage": {
 		"heading": "Spazio per i Media",
@@ -6450,6 +6495,9 @@
 			"job": {
 				"retry": "Job non riusciti riprovati",
 				"discard": "Job non riusciti eliminati"
+			},
+			"formUpload": {
+				"download": "Ha scaricato un file di un Form"
 			}
 		}
 	},

@@ -1,5 +1,6 @@
 import { ADMIN_API_PREFIX, createAdminApi, createPublicApi, PUBLIC_API_PREFIX } from "@webcraft/api";
 import {
+	FORM_UPLOADS_PATH,
 	type InstallServices,
 	mediaPolicy,
 	normaliseHostname,
@@ -21,7 +22,8 @@ import { healthz, readyz } from "./health.ts";
  * `/readyz`, Caddy's ask at `/caddy/ask`, the Management API at `/api/rpc` for the admin's pages
  * and at `/api/v1` for API tokens, the MCP server at `/mcp`, the OAuth endpoints its AI clients use
  * (`/.well-known/…`, `/oauth/register`, `/oauth/token`, `/oauth/revoke`), Media previews at
- * `/api/media/…`, the builder's canvas at `/api/builder/canvas`); the admin app renders the rest,
+ * `/api/media/…`, Form uploads at `/api/forms/uploads/…`, the builder's canvas at
+ * `/api/builder/canvas`); the admin app renders the rest,
  * the approval pages at `/oauth/authorize` and `/oauth/device` included.
  */
 export function createAdminSide(services: InstallServices, adminApp?: Handler): Handler {
@@ -63,6 +65,9 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 		if (oauthAnswer) return oauthAnswer;
 		if ((pathname === APPROVAL_PAGE_PATH || pathname === DEVICE_PAGE_PATH) && adminApp) {
 			return neverFramed(await adminApp(request));
+		}
+		if (pathname.startsWith(FORM_UPLOADS_PATH)) {
+			return readOnly(request, () => formUpload(services, request, pathname.slice(FORM_UPLOADS_PATH.length)));
 		}
 		if (pathname.startsWith(MEDIA_PREVIEW_PREFIX)) {
 			return readOnly(request, () => mediaPreview(services, request, pathname.slice(MEDIA_PREVIEW_PREFIX.length)));
@@ -118,6 +123,53 @@ async function mediaPreview(services: InstallServices, request: Request, rest: s
 			})
 		: null;
 	return response ?? notFound();
+}
+
+/** What a downloaded Form upload may do when opened: nothing (no scripts, no requests, sandboxed). */
+const UPLOAD_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox";
+
+/**
+ * A Form upload (ADR 0026), downloaded through the admin: only for a signed-in person who may read
+ * the Site's Submissions, as an attachment that is never cached, and recorded in the Audit log.
+ * Anyone else gets the plain 404, so nobody learns which files exist.
+ */
+async function formUpload(services: InstallServices, request: Request, rest: string): Promise<Response> {
+	const [siteId = "", uploadId = "", ...more] = rest.split("/");
+	if (more.length > 0 || !uploadId) return notFound();
+	const { session } = await services.auth.session({
+		headers: request.headers,
+		clientAddress: clientAddress(request, services.config),
+	});
+	if (!session) return notFound();
+	let site: SiteScope;
+	try {
+		const { access } = await services.impersonation.actingAs(session);
+		site = await services.data.site(access, siteId, "site.view");
+	} catch (error) {
+		if (error instanceof SiteNotFoundError || error instanceof PermissionDeniedError) return notFound();
+		throw error;
+	}
+	if (!(await services.modules.maySeeSubmissions(site))) return notFound();
+	if (request.method === "HEAD") return new Response(null, { status: 405, headers: { allow: "GET" } });
+	const file = await services.forms.uploads.download(site, uploadId);
+	if (!file) return notFound();
+	return new Response(file.stream, {
+		headers: {
+			"content-type": file.contentType,
+			"content-length": String(file.size),
+			"content-disposition": attachmentDisposition(file.name),
+			"cache-control": "private, no-store",
+			"content-security-policy": UPLOAD_POLICY,
+			"x-content-type-options": "nosniff",
+			"x-robots-tag": "noindex",
+		},
+	});
+}
+
+/** `Content-Disposition` for a download: a plain name for old clients, the exact one encoded. */
+function attachmentDisposition(name: string): string {
+	const plain = name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+	return `attachment; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
 }
 
 /**

@@ -73,6 +73,7 @@ describe("a Form's emails", () => {
 			draft: {
 				notifications: [],
 				autoReply: { enabled: false, field: null, subject: { text: "" }, text: { text: "" } },
+				attachmentsMaxBytes: 10 * 1024 * 1024,
 			},
 			published: null,
 			status: "draft",
@@ -98,6 +99,7 @@ describe("a Form's emails", () => {
 				},
 			],
 			autoReply: AUTO_REPLY,
+			attachmentsMaxBytes: 10 * 1024 * 1024,
 		});
 		expect(saved.form.emails.status).toBe("draft");
 		expect(saved.form.status).toBe("published");

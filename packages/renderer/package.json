@@ -29,6 +29,7 @@
 	"dependencies": {
 		"css-tree": "^3.2.1",
 		"entities": "^9.0.0",
-		"parse5": "^8.1.1"
+		"parse5": "^8.1.1",
+		"re2js": "^2.9.1"
 	}
 }
