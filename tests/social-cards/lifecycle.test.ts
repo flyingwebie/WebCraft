@@ -3,6 +3,7 @@ import type { ApiClient } from "@webcraft/api";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { jsonLdNode, metaProperty } from "../harness/seo.ts";
+import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive, openStaging } from "../harness/staging.ts";
 import { freshBread, translatedSite } from "../translation/support.ts";
 
@@ -36,8 +37,13 @@ async function setup() {
 	const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Bread", slug: "bread" });
 	return { siteId, origin, entryId: entry.id, postTypeId: postType.id, siteSlug: site.slug };
 }
+async function siteResponse(input: string | Request, init?: RequestInit) {
+	const response = await install.request(input, init);
+	expectSiteHeaders(response);
+	return response;
+}
 async function page(origin: string, path = "/news/bread") {
-	return (await install.request(origin + path)).text();
+	return expectSafePage(await install.request(origin + path));
 }
 async function image(siteId: string, name: string) {
 	const { media } = await api.media.upload({
@@ -48,7 +54,7 @@ async function image(siteId: string, name: string) {
 	return media.id;
 }
 const cardText = async (url: string) =>
-	JSON.parse(new TextDecoder().decode(new Uint8Array(await (await install.request(url)).arrayBuffer()).slice(8)));
+	JSON.parse(new TextDecoder().decode(new Uint8Array(await (await siteResponse(url)).arrayBuffer()).slice(8)));
 const cardUrl = async (origin: string, path?: string) => metaProperty(await page(origin, path), "og:image") ?? "";
 const publish = async (site: { siteId: string; entryId: string }) => api.entries.publish(site);
 const drain = () => install.drainJobs({ only: ["socialCards.render"] });
@@ -76,7 +82,7 @@ test("fallback order is explicit image, Post Type Field, Social card, Site defau
 	expect(await cardUrl(site.origin)).toBe(generated);
 	await api.seoSettings.update({ siteId: site.siteId, socialCards: { enabled: false } });
 	expect(await cardUrl(site.origin)).toContain("default.png");
-	expect((await install.request(generated)).status).toBe(404);
+	expect((await siteResponse(generated)).status).toBe(404);
 	const count = install.socialCards.rendered.length;
 	await publish(site);
 	await drain();
@@ -104,8 +110,11 @@ test("published titles are language-specific, hidden languages have no card and 
 	expect(await cardUrl(site.origin, "/it/news/pane")).toBe(italian);
 	expect(install.socialCards.rendered.length).toBe(count);
 	const browser = await install.superadmin();
-	await openStaging(install, browser, site.siteId);
-	const preview = await (await browser.request(`https://${site.siteSlug}.sites.test/it/news/pane`)).text();
+	const staging = await openStaging(install, browser, site.siteId);
+	const previewResponse = await staging.page("/it/news/pane");
+	expect(previewResponse.status).toBe(200);
+	const preview = await expectSafePage(previewResponse);
+	expect(preview).toContain("Segreto");
 	expect(metaProperty(preview, "og:image")).toBeUndefined();
 	expect((await api.entries.get({ ...site, language: "it" })).entry.seoPreview.image).toMatchObject({
 		from: "socialCard",
@@ -114,12 +123,10 @@ test("published titles are language-specific, hidden languages have no card and 
 	await api.entries.saveDraft({ ...site, hiddenLanguages: ["it"] });
 	await publish(site);
 	await drain();
-	expect((await install.request(italian)).status).toBe(404);
+	expect((await siteResponse(italian)).status).toBe(404);
 	const other = await setup();
-	expect((await install.request(english.replace(site.origin, other.origin))).status).toBe(404);
-	expect((await install.request(`${site.origin}/_wc/social/${"-".repeat(36)}/en/${"0".repeat(64)}.png`)).status).toBe(
-		404,
-	);
+	expect((await siteResponse(english.replace(site.origin, other.origin))).status).toBe(404);
+	expect((await siteResponse(`${site.origin}/_wc/social/${"-".repeat(36)}/en/${"0".repeat(64)}.png`)).status).toBe(404);
 });
 
 test("Publish all and a frozen Scheduled publish render exactly what went live, then unpublish and deletion revoke the images", async () => {
@@ -142,22 +149,22 @@ test("Publish all and a frozen Scheduled publish render exactly what went live, 
 	expect((await install.drainJobs()).failed).toEqual([]);
 	const scheduled = await cardUrl(site.origin);
 	expect((await cardText(scheduled)).title).toBe("Scheduled bread");
-	expect((await install.request(first)).status).toBe(404);
+	expect((await siteResponse(first)).status).toBe(404);
 	await api.publishing.scheduleUnpublish({
 		...site,
 		at: new Date(install.clock.now().getTime() + 60000).toISOString(),
 	});
 	await install.clock.advance(60001);
 	await install.drainJobs();
-	expect((await install.request(scheduled)).status).toBe(404);
-	expect((await install.request(`${site.origin}/news/bread`)).status).toBe(410);
+	expect((await siteResponse(scheduled)).status).toBe(404);
+	expect((await siteResponse(`${site.origin}/news/bread`)).status).toBe(410);
 	await publish(site);
 	await drain();
 	const again = await cardUrl(site.origin);
 	const deletion = await api.entries.delete(site);
 	if (deletion.deleted) throw new Error("Missing deletion confirmation");
 	await api.entries.delete({ ...site, confirmation: deletion.confirmation.id });
-	expect((await install.request(again)).status).toBe(404);
+	expect((await siteResponse(again)).status).toBe(404);
 });
 
 test("unchanged inputs reuse the cache; published colours, layout overrides and replaced logos invalidate it", async () => {
@@ -230,7 +237,11 @@ test("an older in-flight render cannot replace a newer card; a failed render kee
 	await api.entries.saveDraft({ ...site, title: "After failure" });
 	await publish(site);
 	install.socialCards.fail();
+	const firstLog = install.logs.length;
 	expect((await drain()).failed.length).toBeGreaterThan(0);
+	expect(install.logs.slice(firstLog).some((line) => line.job === "socialCards.render" && line.level === "error")).toBe(
+		true,
+	);
 	expect(await cardUrl(site.origin)).toContain("fallback.png");
 	install.socialCards.work();
 	// The hourly reconciliation also repairs a lost notification or an exhausted retry, without another publish.
@@ -251,8 +262,8 @@ test("a language domain serves the same published Social card under its own orig
 	const url = await cardUrl("https://cards-it.example", "/news/pane");
 	expect(url).toStartWith("https://cards-it.example/_wc/social/");
 	expect((await cardText(url)).title).toBe("Pane");
-	expect((await install.request(new Request(url, { method: "HEAD" }))).headers.get("content-type")).toBe("image/png");
-	expect((await install.request(url, { method: "POST" })).status).toBe(405);
+	expect((await siteResponse(new Request(url, { method: "HEAD" }))).headers.get("content-type")).toBe("image/png");
+	expect((await siteResponse(url, { method: "POST" })).status).toBe(405);
 });
 
 test("Automatic translation and approving a translation refresh Social cards with the newly published title", async () => {

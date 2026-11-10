@@ -6,7 +6,7 @@ import { siteLanguages } from "../content/languages.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { defineJob, type JobQueue } from "../jobs/define.ts";
 import { defineSchedule } from "../jobs/schedules.ts";
-import type { StorageKind } from "../media/storage.ts";
+import { StorageError, type StorageKind } from "../media/storage.ts";
 import { cardSnapshot } from "./cards.ts";
 import { SOCIAL_CARD_MAX_BYTES } from "./renderer.ts";
 
@@ -33,9 +33,21 @@ export const socialCardsRender = defineJob({
 					eq(socialCards.hash, snapshot.hash),
 				);
 				if (await scope.count(socialCards, where)) continue;
-				const logo = snapshot.logo
-					? await (await context.storage.holding(snapshot.logo.storage as StorageKind)).read(snapshot.logo.key)
-					: null;
+				let logo: Uint8Array | null = null;
+				try {
+					if (snapshot.logo)
+						logo = await (await context.storage.holding(snapshot.logo.storage as StorageKind)).read(snapshot.logo.key);
+				} catch (error) {
+					if (!(error instanceof StorageError)) throw error;
+					context.log.warn("A Social card logo couldn't be read from storage", {
+						siteId,
+						entryId: row.id,
+						language: language.code,
+						error,
+					});
+					// Keep the existing social fallback; hourly reconciliation retries when storage recovers.
+					continue;
+				}
 				if (snapshot.logo && !logo) throw new Error("The Social card logo is missing from storage.");
 				const png = await context.socialCardRenderer.render({ ...snapshot.input, logo });
 				if (

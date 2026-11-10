@@ -66,8 +66,9 @@ export async function cardSnapshot(scope: Reader, entryId: string, language: str
 		},
 	};
 	// Include the original's content-addressed name, not its storage location; a storage move changes no card.
+	// Bump the renderer version when the artwork changes so reconciliation replaces cached images.
 	const hash = await contentHash(
-		new TextEncoder().encode(JSON.stringify({ renderer: 1, input, logo: logo?.name ?? null })),
+		new TextEncoder().encode(JSON.stringify({ renderer: 2, input, logo: logo?.name ?? null })),
 	);
 	return { hash, input, logo };
 }

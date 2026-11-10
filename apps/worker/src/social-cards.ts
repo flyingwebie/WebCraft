@@ -53,7 +53,7 @@ export function createSocialCardRenderer(): SocialCardRenderer {
 					break;
 				case "orbit":
 					art += circle(1080, 90, 220, primary) + circle(1080, 90, 150, background) + circle(1030, 215, 45, accent);
-					box = { x: 80, y: 210, width: 930, height: 300 };
+					box = { x: 80, y: 210, width: 780, height: 300 };
 					break;
 				case "arch":
 					art += rect(880, 190, 250, 500, primary, 125) + rect(940, 300, 130, 400, accent, 65);
@@ -78,6 +78,7 @@ export function createSocialCardRenderer(): SocialCardRenderer {
 					art += circle(600, 320, 410, primary) + circle(600, 320, 370, background) + circle(1080, 540, 55, accent);
 					box = { x: 290, y: 205, width: 620, height: 270 };
 					logo = { x: 520, y: 72, width: 160, height: 90 };
+					label = { x: 360, y: 530, width: 480, height: 40 };
 					align = "centre";
 					break;
 				case "ribbon":
@@ -113,8 +114,8 @@ export function createSocialCardRenderer(): SocialCardRenderer {
 						'"/><path d="M1120 0H1200V630H820Z" fill="' +
 						accent +
 						'"/>';
-					box = { x: 65, y: 180, width: 660, height: 330 };
-					label.width = 650;
+					box = { x: 65, y: 180, width: 550, height: 330 };
+					label.width = 510;
 					break;
 				case "horizon":
 					art += rect(0, 420, 1200, 210, primary) + circle(1030, 420, 95, accent);

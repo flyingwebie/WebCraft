@@ -5,6 +5,7 @@ import { createSocialCardRenderer } from "@webcraft/worker/social-cards";
 import { imageInfo, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { metaProperty } from "../harness/seo.ts";
+import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -40,10 +41,11 @@ test("all 20 original layouts serve distinct 1200 × 630 PNGs with a long litera
 	for (const layout of SOCIAL_CARD_LAYOUTS) {
 		await api.seoSettings.update({ siteId: site.id, socialCards: { layout } });
 		expect((await install.drainJobs({ only: ["socialCards.render"] })).failed).toEqual([]);
-		const html = await (await install.request(`${origin}/bread`)).text();
+		const html = await expectSafePage(await install.request(`${origin}/bread`));
 		const url = metaProperty(html, "og:image");
 		expect(url).toBeDefined();
 		const served = await install.request(url ?? "");
+		expectSiteHeaders(served);
 		const bytes = new Uint8Array(await served.arrayBuffer());
 		expect(await imageInfo(bytes)).toMatchObject({ width: 1200, height: 630, format: "png" });
 		seen.add(createHash("sha256").update(bytes).digest("hex"));
@@ -55,9 +57,11 @@ test("all 20 original layouts serve distinct 1200 × 630 PNGs with a long litera
 		await api.entries.saveDraft({ siteId: site.id, entryId: entry.id, title });
 		await api.entries.publish({ siteId: site.id, entryId: entry.id });
 		expect((await install.drainJobs({ only: ["socialCards.render"] })).failed).toEqual([]);
-		const url = metaProperty(await (await install.request(`${origin}/bread`)).text(), "og:image");
+		const url = metaProperty(await expectSafePage(await install.request(`${origin}/bread`)), "og:image");
 		expect(url).toBeDefined();
-		expect(await imageInfo(new Uint8Array(await (await install.request(url ?? "")).arrayBuffer()))).toMatchObject({
+		const served = await install.request(url ?? "");
+		expectSiteHeaders(served);
+		expect(await imageInfo(new Uint8Array(await served.arrayBuffer()))).toMatchObject({
 			width: 1200,
 			height: 630,
 		});
