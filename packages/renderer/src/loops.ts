@@ -54,10 +54,17 @@ export type LoopRun = {
 };
 
 /**
- * Where a binding inside a Loop is, for Edit mode's tags (#74 tags Loop items): the innermost Loop's
- * items' name and which item it is.
+ * Where a binding inside a Loop is, for Edit mode's tags: the innermost Loop's items' name and which
+ * item it is (`loop:<loop id>:<item id>` for a Loop's own items, `entry:<id>` for a query's).
  */
 export type LoopItemPlace = { alias: string; key?: string };
+
+/**
+ * Where a binding sits, for Edit mode's tags: the Loop item it is in, if any; whether it is an
+ * image's `src` (`image`: a media value the image popover changes) rather than an element's only
+ * content; and for a body's image Block, the Block's id (`block`).
+ */
+export type RegionPlace = { item?: LoopItemPlace; image?: boolean; block?: string };
 
 /** A Loop of the Site as checks see it: which paths its items have (`title`, `category.url`). */
 export type LoopInfo = { isKnownValue(itemPath: string): boolean };

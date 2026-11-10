@@ -136,6 +136,7 @@ export {
 	type LoopItem,
 	type LoopItemPlace,
 	type LoopRun,
+	type RegionPlace,
 	SEARCH_HIT_NAME,
 	SEARCH_LOOP,
 	SEARCH_QUERY_VALUE,

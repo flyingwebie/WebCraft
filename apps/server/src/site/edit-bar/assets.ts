@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 import { type CodeModeConfig, codeMode } from "../code-mode/code.ts";
 import { CODE_STYLES } from "../code-mode/styles.ts";
 import { type EditingBarConfig, editingBar } from "./bar.ts";
+import { pageDetailsPanel } from "./details.ts";
+import { imageTools } from "./images.ts";
+import { loopTools } from "./loops.ts";
 import { BAR_STYLES, PAGE_STYLES } from "./styles.ts";
 
 /** Where the editing bar's files are served on every Site's domain. */
@@ -48,7 +51,9 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const pageStyles = await asset("page", "css", PAGE_STYLES, "text/css; charset=utf-8");
 	const drafts = await asset("drafts", "js", await draftsModule(), "text/javascript; charset=utf-8");
 	const config: EditingBarConfig = { styles: barStyles.path, drafts: drafts.path };
-	const source = `(${editingBar.toString()})(${JSON.stringify(config)});\n`;
+	// The bar and its parts, each a self-contained function, in one file: the parts are made by the bar.
+	const parts = `{ images: ${imageTools.toString()}, loops: ${loopTools.toString()}, details: ${pageDetailsPanel.toString()} }`;
+	const source = `(${editingBar.toString()})(${JSON.stringify(config)}, ${parts});\n`;
 	const script = await asset("bar", "js", source, "text/javascript; charset=utf-8");
 	const codeStyles = await asset("code", "css", CODE_STYLES, "text/css; charset=utf-8");
 	const codeConfig: CodeModeConfig = { styles: codeStyles.path };

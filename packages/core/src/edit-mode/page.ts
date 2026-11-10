@@ -1,4 +1,4 @@
-import { entries, globals, people } from "@webcraft/db/schema";
+import { entries, globals, loops, people } from "@webcraft/db/schema";
 import { builtInNotFoundPage } from "@webcraft/renderer";
 import { eq, inArray } from "drizzle-orm";
 
@@ -11,6 +11,7 @@ import { storedFields } from "../content/fields.ts";
 import { undoGlobalsChanges } from "../content/globals.ts";
 import { sameJson } from "../content/json.ts";
 import { siteLanguages } from "../content/languages.ts";
+import { storedLoopVersion, undoLoopItems } from "../content/loops.ts";
 import { isPagePostType } from "../content/pages.ts";
 import { getPostType, listPostTypes } from "../content/post-types.ts";
 import { siteDrafts } from "../content/publish-all.ts";
@@ -29,17 +30,28 @@ import type { EditItem } from "./regions.ts";
 
 /** A value of the page that differs from what is published, as the Publish menu lists it. */
 export type PageChange = {
-	/** `entry:<id>` or `globals`. */
+	/** `entry:<id>`, `globals`, or `loop:<id>` for the items of a Loop the page shows. */
 	item: string;
-	/** The stored value's key: `title`, `slug`, `parent`, `seo` (the SEO fields) or a Field's key. */
+	/** The stored value's key: `title`, `slug`, `parent`, `seo` (the SEO fields) or a Field's key; `items` for a Loop's items. */
 	key: string;
-	/** The Field's label; null for an Entry's built-in values, which the editing bar names itself. */
+	/** The Field's label; null for an Entry's built-in values, which the editing bar names itself; a Loop's name. */
 	label: string | null;
-	/** The Field's type (`text`, `richText`, …), or `text`, `parent` and `seo` for built-in values. */
+	/** The Field's type (`text`, `richText`, …), or `text`, `parent` and `seo` for built-in values; `loopItems`. */
 	type: string;
 	/** Who wrote the Draft's value, when one person did; `you` when it was the person asking. */
 	by: { name: string; you: boolean } | null;
+	/**
+	 * A change to Structure's Draft (a Loop's items): only those who may change Structure publish it
+	 * (`canCode`), with the page; everyone who edits may change it, undo it and discard it.
+	 */
+	structure?: true;
 };
+
+/**
+ * What a page shows that Edit mode changes: its Entry and the Globals (Content's Drafts), and the
+ * Loops of their own items it shows (Loop items are Content, kept in the Loop's Draft).
+ */
+type PageItem = EditItem | { kind: "loop"; id: string; name: string };
 
 /** The Review of one of the page's items, as the editing bar shows it. */
 export type PageReview = {
@@ -168,6 +180,7 @@ export async function undoChange(
 	}
 	const item = items.find((candidate) => nameOf(candidate) === input.item);
 	if (item?.kind === "entry") await undoDraftChanges(editing.scope, item.id, [input.key]);
+	else if (item?.kind === "loop") await undoLoopItems(editing.scope, item.id);
 	else await undoGlobalsChanges(editing.scope, [input.key]);
 	return pageState(deps, editing, host, input.path);
 }
@@ -184,6 +197,7 @@ export async function discardChanges(
 	await editing.scope.transaction(async (tx) => {
 		for (const item of changed) {
 			if (item.kind === "entry") await undoDraftChanges(tx, item.id, "all");
+			else if (item.kind === "loop") await undoLoopItems(tx, item.id);
 			else await undoGlobalsChanges(tx, "all");
 		}
 	});
@@ -191,18 +205,30 @@ export async function discardChanges(
 }
 
 /**
- * Publishes the page: its Entry and the Globals it shows, those with changes, all or none of them.
- * Needs `entry.publish` (Authors can't); refuses Drafts that can't be published yet, as publishing
- * from the admin does.
+ * Publishes the page: its Entry and the Globals it shows, those with changes, all or none of them,
+ * and for those who may change Structure (Staff) the Loops whose items changed, first. Needs
+ * `entry.publish` (Authors can't); refuses Drafts that can't be published yet, as publishing from the
+ * admin does. Everyone else's Loop item changes wait in the Loop's Draft for Staff.
  */
 export async function publishPage(deps: PageDeps, editing: Editing, host: SiteHost, path: string): Promise<PageState> {
 	if (!isEditPath(path)) throw new EditPathInvalidError();
 	const changed = await changedItems(deps, editing, host, path);
+	const structure = holds(editing.scope, "structure.edit");
 	const scope = await deps.data.site(editing.scope.access, editing.scope.site.id, "entry.publish");
-	await scope.transaction(async (tx) => {
-		for (const item of changed) await publish(tx, item);
+	const publishing = structure ? await deps.data.site(scope.access, scope.site.id, "structure.edit") : scope;
+	const order = [...changed.filter((item) => item.kind === "loop"), ...changed.filter((item) => item.kind !== "loop")];
+	await publishing.transaction(async (tx) => {
+		for (const item of order) {
+			if (item.kind !== "loop") await publish(tx, item);
+			else if (structure) await publish(tx, { kind: "loop", id: item.id });
+		}
 	});
 	return pageState(deps, editing, host, path);
+}
+
+/** Whether the person in Edit mode holds a Permission on the Site. */
+function holds(scope: SiteScope, permission: "entry.publish" | "structure.edit"): boolean {
+	return can(scope.access.actor, permission, { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id });
 }
 
 /**
@@ -218,7 +244,10 @@ export async function submitPage(
 	input: { path: string; note: string | null },
 ): Promise<PageState> {
 	if (!isEditPath(input.path)) throw new EditPathInvalidError();
-	const changed = await changedItems(deps, editing, host, input.path);
+	// A Loop's items are Structure's Draft: Staff publish them, never through a Review.
+	const changed = (await changedItems(deps, editing, host, input.path)).filter(
+		(item): item is EditItem => item.kind !== "loop",
+	);
 	if (changed.length === 0) throw new ReviewInvalidError("nothingToReview");
 	const waiting = await listReviews(editing.scope);
 	const open = changed.filter((item) => !waiting.some((review) => itemKey(review.item) === nameOf(item)));
@@ -242,7 +271,8 @@ export async function withdrawPage(deps: PageDeps, editing: Editing, host: SiteH
 }
 
 /** The Reviews of the page's items, as the editing bar shows them. */
-async function pageReviews(scope: SiteScope, items: readonly EditItem[], you: string): Promise<PageReview[]> {
+async function pageReviews(scope: SiteScope, pageItems: readonly PageItem[], you: string): Promise<PageReview[]> {
+	const items = pageItems.filter((item): item is EditItem => item.kind !== "loop");
 	const states = await Promise.all(
 		items.map(async (item) => {
 			const state = await itemState(scope, item);
@@ -270,7 +300,7 @@ async function pageReviews(scope: SiteScope, items: readonly EditItem[], you: st
 }
 
 /** The page's items that have changes, its Entry first. */
-async function changedItems(deps: PageDeps, editing: Editing, host: SiteHost, path: string): Promise<EditItem[]> {
+async function changedItems(deps: PageDeps, editing: Editing, host: SiteHost, path: string): Promise<PageItem[]> {
 	const { items, changes } = await pageItems(deps, editing, host, path);
 	return items.filter((item) => changes.some((change) => change.item === nameOf(item)));
 }
@@ -284,17 +314,23 @@ async function pageItems(
 	editing: Editing,
 	host: SiteHost,
 	path: string,
-): Promise<{ content: PageContent; items: EditItem[]; changes: PageChange[] }> {
+): Promise<{ content: PageContent; items: PageItem[]; changes: PageChange[] }> {
 	const content = await deps.pageContent(host, path);
-	const items: EditItem[] = [
+	const shownLoops =
+		content.loops.length === 0 ? [] : await editing.scope.select(loops, inArray(loops.name, content.loops));
+	const items: PageItem[] = [
 		...(content.entryId ? [{ kind: "entry", id: content.entryId } as const] : []),
 		...(content.readsGlobals ? [{ kind: "globals" } as const] : []),
+		...shownLoops
+			.filter((row) => storedLoopVersion(row.draft).source === "items")
+			.sort((a, b) => content.loops.indexOf(a.name) - content.loops.indexOf(b.name))
+			.map((row) => ({ kind: "loop" as const, id: row.id, name: row.name })),
 	];
 	return { content, items, changes: await changesOf(editing.scope, items, editing.personId, content.language) };
 }
 
-function nameOf(item: EditItem): string {
-	return item.kind === "entry" ? `entry:${item.id}` : "globals";
+function nameOf(item: PageItem): string {
+	return item.kind === "globals" ? "globals" : `${item.kind}:${item.id}`;
 }
 
 /** Built-in values an Entry stores beside its Fields, in the order the Publish menu lists them. */
@@ -303,13 +339,31 @@ const BUILT_IN_KEYS = ["title", "slug", "parent", "seo"] as const;
 /** Every stored value of the items whose Draft differs from what is published. */
 async function changesOf(
 	scope: SiteScope,
-	items: readonly EditItem[],
+	items: readonly PageItem[],
 	you: string,
 	language: string,
 ): Promise<PageChange[]> {
 	const found: (Omit<PageChange, "by"> & { writer: string | null })[] = [];
 	const { defaultLanguage } = await siteLanguages(scope);
 	for (const item of items) {
+		if (item.kind === "loop") {
+			// A Loop's items, as one change: they differ from what is published (or there are some, while
+			// it was never published). Changes to the rest of its Draft are Staff's, in the admin.
+			const row = await scope.first(loops, eq(loops.id, item.id));
+			if (!row) continue;
+			const draftItems = storedLoopVersion(row.draft).values.items ?? null;
+			const publishedItems = row.published === null ? null : (storedLoopVersion(row.published).values.items ?? null);
+			if (sameJson(draftItems, publishedItems) || (row.published === null && isEmptyItems(draftItems))) continue;
+			found.push({
+				item: nameOf(item),
+				key: "items",
+				label: row.name,
+				type: "loopItems",
+				structure: true,
+				writer: row.updatedBy,
+			});
+			continue;
+		}
 		let draft: Record<string, unknown>;
 		let published: Record<string, unknown>;
 		let fields: readonly FieldDefinition[];
@@ -357,6 +411,12 @@ async function changesOf(
 	});
 }
 
+/** Whether a Loop's stored items hold no item. */
+function isEmptyItems(items: unknown): boolean {
+	const rows = items && typeof items === "object" ? (items as { rows?: unknown }).rows : undefined;
+	return !Array.isArray(rows) || rows.length === 0;
+}
+
 /** Who wrote a stored value in the Draft: one person, for a value held per language; null otherwise. */
 function writerOf(value: unknown, language: string): string | null {
 	if (!value || typeof value !== "object" || "values" in value || Array.isArray(value)) return null;
@@ -375,12 +435,12 @@ function publishAllUrl(adminOrigin: string, siteId: string): string {
  * How many of the Site's Drafts Publish all would hold for the person besides the page's own: every
  * Draft they may publish (Content, and Structure for Staff), but the page's Entry and the Globals.
  */
-async function otherDrafts(scope: SiteScope, items: readonly EditItem[]): Promise<number> {
-	const own = new Set(items.map((item) => (item.kind === "entry" ? `entry:${item.id}` : "globals")));
+async function otherDrafts(scope: SiteScope, items: readonly PageItem[]): Promise<number> {
+	const own = new Set(items.map(nameOf));
 	const drafts = await siteDrafts(scope);
-	return drafts.filter(
-		(draft) => draft.canPublish && !own.has(draft.item.kind === "entry" ? `entry:${draft.item.id}` : draft.item.kind),
-	).length;
+	const nameOfDraft = (item: { kind: string; id?: string }) =>
+		item.kind === "entry" || item.kind === "loop" ? `${item.kind}:${item.id}` : item.kind;
+	return drafts.filter((draft) => draft.canPublish && !own.has(nameOfDraft(draft.item))).length;
 }
 
 /**
