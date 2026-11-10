@@ -31,8 +31,11 @@ export type SiteMail = {
 	subject: string;
 	/** Plain text paragraphs. */
 	paragraphs: readonly string[];
-	/** Labelled values, shown as a table (a Submission's). */
-	rows?: readonly { label: string; value: string }[];
+	/**
+	 * Labelled values, shown as a table (a Submission's); a value may carry links into the admin (a
+	 * Form upload not attached: its download), each an admin path.
+	 */
+	rows?: readonly { label: string; value: string; links?: readonly { label: string; path: string }[] }[];
 	/** A link into the admin: a path such as `/sites/<id>/forms/<id>`. */
 	action?: { label: string; path: string } | null;
 	/** A short last line, in smaller text. */
@@ -122,11 +125,14 @@ export function renderSiteMail(mail: SiteMail, adminOrigin: string): { subject: 
 				`<p style="margin:0 0 16px;font-size:16px;line-height:24px;color:#27272a;">${lines(paragraph)}</p>`,
 		)
 		.join("");
+	const adminUrl = (path: string) => new URL(path, adminOrigin).toString();
 	const rows = (mail.rows ?? [])
-		.map(
-			(row) =>
-				`<tr><th scope="row" style="padding:8px 12px 8px 0;vertical-align:top;text-align:${align};font-size:14px;font-weight:600;color:#52525b;width:35%;">${html(row.label)}</th><td style="padding:8px 0;vertical-align:top;font-size:15px;line-height:22px;color:#18181b;word-break:break-word;">${lines(row.value)}</td></tr>`,
-		)
+		.map((row) => {
+			const links = (row.links ?? [])
+				.map((each) => `<br><a href="${html(adminUrl(each.path))}" style="color:#c2410c;">${html(each.label)}</a>`)
+				.join("");
+			return `<tr><th scope="row" style="padding:8px 12px 8px 0;vertical-align:top;text-align:${align};font-size:14px;font-weight:600;color:#52525b;width:35%;">${html(row.label)}</th><td style="padding:8px 0;vertical-align:top;font-size:15px;line-height:22px;color:#18181b;word-break:break-word;">${lines(row.value)}${links}</td></tr>`;
+		})
 		.join("");
 	const table = rows
 		? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #e4e4e7;margin:0 0 16px;">${rows}</table>`
@@ -159,7 +165,12 @@ ${paragraphs}${table}${link}${note}
 		subject,
 		"",
 		...mail.paragraphs.filter((paragraph) => paragraph.trim() !== "").flatMap((paragraph) => [paragraph, ""]),
-		...(mail.rows ?? []).flatMap((row) => [`${row.label}:`, indent(row.value), ""]),
+		...(mail.rows ?? []).flatMap((row) => [
+			`${row.label}:`,
+			indent(row.value),
+			...(row.links ?? []).map((each) => `  ${each.label}: ${adminUrl(each.path)}`),
+			"",
+		]),
 		...(action ? [`${action.label}: ${action.url}`, ""] : []),
 		...(mail.note ? ["--", mail.note, ""] : []),
 	].join("\n");

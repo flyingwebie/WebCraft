@@ -25,7 +25,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
-	await admin.api.modules.approve({ moduleId: "forms", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 });

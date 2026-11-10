@@ -1,6 +1,17 @@
 import { escapeAttribute, escapeText } from "../escape.ts";
-import { type FormField, type FormText, type FormVersion, formTextIn } from "./version.ts";
+import { formLogic } from "./logic.ts";
+import {
+	FORM_LIMITS,
+	type FormField,
+	type FormText,
+	type FormVersion,
+	formTextIn,
+	isLayoutItem,
+	uploadExtensions,
+} from "./version.ts";
 import type { FormWords } from "./words.ts";
+
+const logic = formLogic();
 
 /**
  * How a Form renders on a page: a `<form>` posting to the Site itself (`/_webcraft/forms/<id>`), which
@@ -8,6 +19,13 @@ import type { FormWords } from "./words.ts";
  * it), its help and its error linked with `aria-describedby`; radio buttons and checkboxes sit in a
  * `<fieldset>` named by its `<legend>`. Nothing is inline: no style, no script, no event handler.
  * Classes are WebCraft's own hooks (`FORM_HOOKS`), styled in the Design system's base layer.
+ *
+ * Sections are `<fieldset>`s named by their `<legend>`. Steps are too: without JavaScript every step
+ * shows, one after the other, and the server checks the whole Form; the forms script shows one step
+ * at a time, with the progress and the Back and Next buttons the page holds for it (hidden until it
+ * runs), and checks each step before the next. Items with a condition carry `data-wc-key`, so the
+ * script can show and hide them; without it they all show, and the server ignores what they hide.
+ * The rules the script checks are the Form's own, in `data-wc-rules` (JSON, never code).
  *
  * The page a Form is cached on holds nothing of any one visitor's: the time it was handed out (the
  * token) is filled in as the page is answered. What a visitor sent comes back only in an answer made
@@ -29,6 +47,14 @@ export const FORM_HOOKS = {
 	submit: "wc-form-submit",
 	sent: "wc-form-sent",
 	honeypot: "wc-form-hp",
+	section: "wc-form-section",
+	step: "wc-form-step",
+	stepNav: "wc-form-step-nav",
+	back: "wc-form-back",
+	next: "wc-form-next",
+	progress: "wc-form-progress",
+	limits: "wc-form-limits",
+	status: "wc-form-status",
 	visuallyHidden: "wc-visually-hidden",
 } as const;
 
@@ -109,7 +135,9 @@ export function renderForm(form: FormToRender): string {
 		return `<div class="${FORM_HOOKS.sent}" id="${formElementId(instance)}" role="status" tabindex="-1" autofocus><p>${escapeText(state.message)}</p></div>`;
 	}
 	const invalid = state?.kind === "invalid" ? state : null;
-	const shown = form.version.fields.filter((field) => field.type !== "hidden");
+	const items = form.version.fields.filter((field) => field.type !== "hidden");
+	const shown = items.filter((field) => !isLayoutItem(field));
+	const steps = items.filter((field) => field.type === "step");
 	const parts: string[] = [];
 	if (invalid) parts.push(errorSummary(form, shown, invalid));
 	parts.push(
@@ -123,7 +151,8 @@ export function renderForm(form: FormToRender): string {
 	if (shown.some((field) => field.required)) {
 		parts.push(`<p class="${FORM_HOOKS.note}">${escapeText(words.required)}</p>`);
 	}
-	for (const field of shown) parts.push(renderField(form, field, invalid));
+	if (steps.length > 0) parts.push(progress(form, steps));
+	parts.push(renderItems(form, items, invalid));
 	if (form.captcha) {
 		const errorId = formElementId(instance, "captcha", "error");
 		const error = invalid?.formError
@@ -133,8 +162,127 @@ export function renderForm(form: FormToRender): string {
 			`<div class="${FORM_HOOKS.field}">${error}<div class="${escapeAttribute(form.captcha.widgetClass)}" id="${formElementId(instance, "captcha")}" data-sitekey="${escapeAttribute(form.captcha.siteKey)}" data-lang="${escapeAttribute(form.language)}"></div></div>`,
 		);
 	}
-	parts.push(`<button type="submit" class="${FORM_HOOKS.submit}">${text(form.version.submitLabel)}</button>`);
-	return `<form class="${FORM_HOOKS.form}" id="${formElementId(instance)}" method="post" action="${FORM_POST_PATH}${escapeAttribute(form.id)}" novalidate>${parts.join("")}</form>`;
+	parts.push(
+		`<div class="${FORM_HOOKS.status} ${FORM_HOOKS.visuallyHidden}" id="${formElementId(instance, "status")}" role="status"></div>`,
+		`<button type="submit" class="${FORM_HOOKS.submit}">${text(form.version.submitLabel)}</button>`,
+	);
+	const enctype = shown.some((field) => field.type === "file") ? ' enctype="multipart/form-data"' : "";
+	return `<form class="${FORM_HOOKS.form}" id="${formElementId(instance)}" method="post" action="${FORM_POST_PATH}${escapeAttribute(form.id)}"${enctype} novalidate data-wc-rules="${escapeAttribute(JSON.stringify(scriptRules(form)))}">${parts.join("")}</form>`;
+}
+
+/**
+ * The Form's items in order, each section and step a `<fieldset>` holding the items after it: a
+ * section up to the next section or step, a step up to the next step.
+ */
+function renderItems(form: FormToRender, items: readonly FormField[], state: FormStateInvalid | null): string {
+	const { instance, language } = form;
+	const steps = items.filter((field) => field.type === "step");
+	let html = "";
+	let inStep = false;
+	let inSection = false;
+	let stepNumber = 0;
+	const closeSection = () => {
+		if (inSection) html += "</fieldset>";
+		inSection = false;
+	};
+	const closeStep = () => {
+		closeSection();
+		if (!inStep) return;
+		html += stepNav(form, stepNumber, steps.length);
+		html += "</fieldset>";
+		inStep = false;
+	};
+	for (const item of items) {
+		if (item.type === "step" || item.type === "section") {
+			if (item.type === "step") {
+				closeStep();
+				stepNumber++;
+				inStep = true;
+			} else {
+				closeSection();
+				inSection = true;
+			}
+			const id = formElementId(instance, item.key);
+			const helpId = formElementId(instance, item.key, "help");
+			const hook = item.type === "step" ? FORM_HOOKS.step : FORM_HOOKS.section;
+			const legendClass = item.hideLabel ? ` class="${FORM_HOOKS.visuallyHidden}"` : "";
+			const help = item.help
+				? `<p class="${FORM_HOOKS.help}" id="${helpId}">${escapeText(formTextIn(item.help, language))}</p>`
+				: "";
+			const describedBy = item.help ? ` aria-describedby="${helpId}"` : "";
+			const number = item.type === "step" ? ` data-wc-step="${stepNumber}"` : "";
+			html += `<fieldset class="${hook}" id="${id}" data-wc-key="${item.key}"${number}${describedBy}><legend${legendClass}>${escapeText(formTextIn(item.label, language))}</legend>${help}`;
+			continue;
+		}
+		html += renderField(form, item, state);
+	}
+	closeStep();
+	return html;
+}
+
+/** The progress of a Form with steps: hidden until the forms script shows one step at a time. */
+function progress(form: FormToRender, steps: readonly FormField[]): string {
+	const titles = steps
+		.map((step, index) => `<li data-wc-step="${index + 1}">${escapeText(formTextIn(step.label, form.language))}</li>`)
+		.join("");
+	return `<ol class="${FORM_HOOKS.progress}" id="${formElementId(form.instance, "progress")}" hidden>${titles}</ol>`;
+}
+
+/** A step's Back and Next buttons, hidden until the forms script runs; the last step has the Form's own button. */
+function stepNav(form: FormToRender, step: number, count: number): string {
+	const back =
+		step > 1 ? `<button type="button" class="${FORM_HOOKS.back}">${escapeText(form.words.back)}</button>` : "";
+	const next =
+		step < count ? `<button type="button" class="${FORM_HOOKS.next}">${escapeText(form.words.next)}</button>` : "";
+	return back || next ? `<div class="${FORM_HOOKS.stepNav}" hidden>${back}${next}</div>` : "";
+}
+
+/**
+ * What the forms script checks, as data: each item's rules and conditions (never its words but its
+ * own error), and the words it writes, in the page's language.
+ */
+function scriptRules(form: FormToRender) {
+	const { words, language } = form;
+	return {
+		fields: form.version.fields
+			.filter((field) => field.type !== "hidden")
+			.map((field) => ({
+				key: field.key,
+				type: field.type,
+				required: field.required,
+				minLength: field.minLength,
+				maxLength: field.maxLength,
+				pattern: field.pattern,
+				min: field.min,
+				max: field.max,
+				integer: field.integer,
+				minDate: field.minDate,
+				maxDate: field.maxDate,
+				options: field.options.map((option) => ({ value: option.value })),
+				minChoices: field.minChoices,
+				maxChoices: field.maxChoices,
+				accept: field.accept,
+				extensions: uploadExtensions(field.accept),
+				maxFileBytes: field.maxFileBytes,
+				maxFiles: field.maxFiles,
+				condition: field.condition,
+				message: field.message ? formTextIn(field.message, language) : null,
+			})),
+		limits: {
+			textLength: FORM_LIMITS.textLength,
+			textareaLength: FORM_LIMITS.textareaLength,
+			options: FORM_LIMITS.options,
+		},
+		words: {
+			errors: words.errors,
+			errorPrefix: words.errorPrefix,
+			step: words.step,
+			problems: words.problems,
+			problem: words.problem,
+			sending: words.sending,
+			sent: words.sent,
+		},
+	};
 }
 
 function hidden(name: string, value: string): string {
@@ -219,15 +367,32 @@ function renderField(form: FormToRender, field: FormField, state: FormStateInval
 		});
 		const legendClass = field.hideLabel ? ` class="${FORM_HOOKS.visuallyHidden}"` : "";
 		const groupDescribedBy = describedBy ? ` aria-describedby="${describedBy}"` : "";
-		return `<fieldset class="${FORM_HOOKS.field}" data-type="${field.type}"${groupDescribedBy}><legend${legendClass}>${labelText}${requiredMark}</legend>${help}${errorLine}<div class="${FORM_HOOKS.options}">${options.join("")}</div></fieldset>`;
+		return `<fieldset class="${FORM_HOOKS.field}" data-type="${field.type}"${keyAttribute(field)}${groupDescribedBy}><legend${legendClass}>${labelText}${requiredMark}</legend>${help}${errorLine}<div class="${FORM_HOOKS.options}">${options.join("")}</div></fieldset>`;
 	}
 
 	if (field.type === "consent") {
 		const checked = sent.includes("yes") ? " checked" : "";
-		return `<div class="${FORM_HOOKS.field}" data-type="consent">${errorLine}<div class="${FORM_HOOKS.option}"><input type="checkbox" id="${id}" name="${field.key}" value="yes"${checked}${common}><label class="${labelClass}" for="${id}">${labelText}${requiredMark}</label></div>${help}</div>`;
+		return `<div class="${FORM_HOOKS.field}" data-type="consent"${keyAttribute(field)}>${errorLine}<div class="${FORM_HOOKS.option}"><input type="checkbox" id="${id}" name="${field.key}" value="yes"${checked}${common}><label class="${labelClass}" for="${id}">${labelText}${requiredMark}</label></div>${help}</div>`;
 	}
 
 	const label = `<label class="${labelClass}" for="${id}">${labelText}${requiredMark}</label>`;
+	if (field.type === "file") {
+		const limitsId = formElementId(instance, field.key, "limits");
+		const extensions = uploadExtensions(field.accept);
+		const types = extensions.join(", ");
+		const max = logic.size(field.maxFileBytes ?? FORM_LIMITS.defaultFileBytes);
+		const most = field.maxFiles ?? 1;
+		const limitsText =
+			most > 1 ? logic.fill(words.filesMany, { types, max, count: most }) : logic.fill(words.files, { types, max });
+		const fileDescribedBy = [field.help ? helpId : null, limitsId, error ? errorId : null].filter(Boolean).join(" ");
+		const fileCommon = [
+			field.required ? " required" : "",
+			error ? ' aria-invalid="true"' : "",
+			` aria-describedby="${fileDescribedBy}"`,
+		].join("");
+		const multiple = most > 1 ? " multiple" : "";
+		return `<div class="${FORM_HOOKS.field}" data-type="file"${keyAttribute(field)}>${label}${help}<p class="${FORM_HOOKS.limits}" id="${limitsId}">${escapeText(limitsText)}</p>${errorLine}<input type="file" id="${id}" name="${field.key}" accept="${escapeAttribute(extensions.join(","))}"${multiple}${fileCommon}></div>`;
+	}
 	const value = sent[0] ?? "";
 	let control: string;
 	if (field.type === "textarea") {
@@ -255,7 +420,12 @@ function renderField(form: FormToRender, field: FormField, state: FormStateInval
 		].join("");
 		control = `<input type="${inputType}" id="${id}" name="${field.key}" value="${escapeAttribute(value)}"${common}${extra}${placeholder}>`;
 	}
-	return `<div class="${FORM_HOOKS.field}" data-type="${field.type}">${label}${help}${errorLine}${control}</div>`;
+	return `<div class="${FORM_HOOKS.field}" data-type="${field.type}"${keyAttribute(field)}>${label}${help}${errorLine}${control}</div>`;
+}
+
+/** The key a field shown only under a condition carries, so the forms script can show and hide it. */
+function keyAttribute(field: FormField): string {
+	return field.condition ? ` data-wc-key="${field.key}"` : "";
 }
 
 const INPUT_TYPES: Partial<Record<FormField["type"], string>> = {

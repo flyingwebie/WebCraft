@@ -62,6 +62,7 @@ export function EmailsTab({
 	const t = useT();
 	const saved = form.emails.draft as FormEmails;
 	const [emails, setEmails] = useState<FormEmails>(saved);
+	const attachmentsId = useId();
 	const [problems, setProblems] = useState<FormProblem[]>([]);
 	const [busy, setBusy] = useState(false);
 	const changed = JSON.stringify(emails) !== JSON.stringify(saved);
@@ -196,6 +197,36 @@ export function EmailsTab({
 							onChange={(next) => setNotification(index, next)}
 						/>
 					))}
+					{fields.some((field) => field.type === "file") ? (
+						<Field data-invalid={problemsAt("attachmentsMaxBytes").length > 0 ? true : undefined}>
+							<FieldLabel htmlFor={`${attachmentsId}-attachments`}>{t("forms.uploadAttachments.label")}</FieldLabel>
+							<Input
+								id={`${attachmentsId}-attachments`}
+								type="number"
+								inputMode="decimal"
+								min={0}
+								max={25}
+								step={0.5}
+								className="max-w-32"
+								value={Math.round((emails.attachmentsMaxBytes / (1024 * 1024)) * 10) / 10}
+								aria-describedby={`${attachmentsId}-attachments-help`}
+								onChange={(event) => {
+									const megabytes = Number(event.target.value);
+									if (!Number.isFinite(megabytes)) return;
+									setEmails((current) => ({
+										...current,
+										attachmentsMaxBytes: Math.round(Math.max(0, megabytes) * 1024 * 1024),
+									}));
+								}}
+							/>
+							<FieldDescription id={`${attachmentsId}-attachments-help`}>
+								{t("forms.uploadAttachments.help")}
+							</FieldDescription>
+							{problemsAt("attachmentsMaxBytes").map((problem) => (
+								<FieldError key={problem.message}>{problem.message}</FieldError>
+							))}
+						</Field>
+					) : null}
 				</CardContent>
 			</Card>
 

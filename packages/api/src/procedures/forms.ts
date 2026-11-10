@@ -26,6 +26,8 @@ async function formsReader(context: { services: InstallServices; access: Access 
 const emailsChange = z.object({
 	notifications: z.array(z.unknown()).max(100).optional(),
 	autoReply: z.unknown().optional(),
+	/** How much of a Submission's Form uploads its Notifications attach, in bytes (0 to 25 MB). */
+	attachmentsMaxBytes: z.number().optional(),
 });
 
 /** A Form's name, as people call it; the server checks its length. */

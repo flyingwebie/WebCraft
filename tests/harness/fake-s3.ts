@@ -26,11 +26,15 @@ export type FakeS3 = FakeS3Options & {
 	readonly requests: readonly { method: string; key: string; signed: boolean }[];
 	/** Multipart uploads started and neither finished nor aborted. */
 	readonly openUploads: number;
+	/** Make the bucket fail a method until recovered (an external storage outage). */
+	fail(method: string, status: number): void;
+	recover(): void;
 };
 
 /** Answers S3 requests for one bucket on the fake outgoing HTTP. */
 export function createFakeS3(http: FakeHttp, options: FakeS3Options): FakeS3 {
 	const objects = new Map<string, FakeS3Object>();
+	const failures = new Map<string, number>();
 	const requests: { method: string; key: string; signed: boolean }[] = [];
 	const uploads = new Map<string, { key: string; contentType: string | null; parts: Map<number, Uint8Array> }>();
 	const prefix = `${options.endpoint.replace(/\/$/, "")}/${options.bucket}/`;
@@ -42,6 +46,8 @@ export function createFakeS3(http: FakeHttp, options: FakeS3Options): FakeS3 {
 		const signed = signatureHolds(request, options);
 		requests.push({ method: request.method, key, signed });
 		if (!signed) return xmlError(403, "SignatureDoesNotMatch");
+		const failure = failures.get(request.method);
+		if (failure) return xmlError(failure, "StorageUnavailable");
 		const uploadId = url.searchParams.get("uploadId");
 		if (request.method === "POST" && url.searchParams.has("uploads")) {
 			const id = crypto.randomUUID();
@@ -119,6 +125,12 @@ export function createFakeS3(http: FakeHttp, options: FakeS3Options): FakeS3 {
 	return {
 		...options,
 		objects,
+		fail(method, status) {
+			failures.set(method.toUpperCase(), status);
+		},
+		recover() {
+			failures.clear();
+		},
 		requests,
 		get openUploads() {
 			return uploads.size;

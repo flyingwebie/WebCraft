@@ -19,6 +19,7 @@ import {
 } from "./forms.ts";
 import { type FormPost, type FormPostAnswer, type ReceiveDeps, receiveFormPost } from "./receive.ts";
 import type { FormTokens } from "./tokens.ts";
+import type { FormUploads } from "./uploads.ts";
 
 export type { CaptchaView } from "./captcha.ts";
 export type { FormVersionInput } from "./definition.ts";
@@ -35,6 +36,13 @@ export type { Form, FormDeletion, FormStatus, FormUsage, NewForm } from "./forms
 export type { CaptchaSettings, PageFormsOptions } from "./page-forms.ts";
 export { FORM_POST_MAX_BYTES, type FormPost, type FormPostAnswer, SENT_PARAMETER } from "./receive.ts";
 export { createFormTokens, type FormTokens } from "./tokens.ts";
+export {
+	createFormUploads,
+	FORM_UPLOADS_PATH,
+	type FormUploads,
+	UPLOAD_ATTACHMENT,
+	type UploadDownload,
+} from "./uploads.ts";
 
 /**
  * Forms (GLOSSARY.md), behind `services.forms`: the Site's Forms as Structure (open the Site with
@@ -63,6 +71,8 @@ export type Forms = {
 	receive(host: SiteHost, formId: string, post: FormPost): Promise<FormPostAnswer>;
 	/** A time-trap token for a page of the Site handed out now (see `FORM_TOKEN_MARK`). */
 	issueToken(site: Site): Promise<string>;
+	/** Form uploads: the private files visitors send with file fields, downloaded through the admin. */
+	uploads: FormUploads;
 	/** The Site's CAPTCHA (`structure.edit`): off unless Staff set one up. */
 	captcha: {
 		get(scope: SiteScope): Promise<CaptchaView>;
@@ -71,7 +81,7 @@ export type Forms = {
 	};
 };
 
-export function createForms(deps: ReceiveDeps & { tokens: FormTokens }): Forms {
+export function createForms(deps: ReceiveDeps & { tokens: FormTokens; uploads: FormUploads }): Forms {
 	return {
 		list: listForms,
 		get: getForm,
@@ -86,6 +96,7 @@ export function createForms(deps: ReceiveDeps & { tokens: FormTokens }): Forms {
 		delete: deleteForm,
 		receive: (host, formId, post) => receiveFormPost(deps, host, formId, post),
 		issueToken: (site) => deps.tokens.issue(site.id),
+		uploads: deps.uploads,
 		captcha: { get: getCaptcha, set: setCaptcha },
 	};
 }

@@ -131,6 +131,10 @@ describe("building a Form", () => {
 			minChoices: null,
 			maxChoices: null,
 			source: null,
+			accept: [],
+			maxFileBytes: null,
+			maxFiles: null,
+			condition: null,
 		});
 		expect(saved.draft.fields.map((field) => [field.key, field.type, field.required])).toEqual([
 			["name", "text", true],

@@ -7740,7 +7740,10 @@
 												"maxItems": 100,
 												"items": {}
 											},
-											"autoReply": {}
+											"autoReply": {},
+											"attachmentsMaxBytes": {
+												"type": "number"
+											}
 										}
 									}
 								},

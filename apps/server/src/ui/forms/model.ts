@@ -55,6 +55,7 @@ export function newField(fields: readonly FormField[], type: FormFieldType, labe
 		];
 	}
 	if (type === "consent") field.required = true;
+	if (type === "file") field.accept = ["pdf"];
 	return field;
 }
 

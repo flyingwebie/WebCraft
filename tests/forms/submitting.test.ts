@@ -25,7 +25,7 @@ async function kept(folder: "inbox" | "spam" = "inbox") {
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.1.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.2.0" });
 	const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await goLive(install, siteId);
@@ -124,7 +124,7 @@ describe("the page shows the Form", () => {
 
 		expect(page.status).toBe(200);
 		expect(page.html).toContain(
-			`<form class="wc-form" id="wc-form-1" method="post" action="/_webcraft/forms/${formId}" novalidate>`,
+			`<form class="wc-form" id="wc-form-1" method="post" action="/_webcraft/forms/${formId}" novalidate data-wc-rules="`,
 		);
 		expect(page.html).toContain(
 			'<label class="wc-form-label" for="wc-form-1-name">Your name<span class="wc-form-required" aria-hidden="true"> *</span></label>',
