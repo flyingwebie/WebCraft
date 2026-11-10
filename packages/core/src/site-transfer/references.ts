@@ -1,10 +1,11 @@
+import type { FieldDefinition } from "../content/field-types.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
+import { ArchiveRefusedError } from "./format.ts";
+import type { ReferenceLookup, ReferenceVersion } from "./lookup.ts";
 import type { IdMap } from "./remap.ts";
 
 type Row = Record<string, unknown>;
 type Column = { name: string; array: boolean };
-/** Reads a bounded piece of the original, staged Structure. No Site-sized in-memory catalogue. */
-export type ReferenceLookup = (table: string, id: string | null, path: string[]) => Promise<unknown>;
 const record = (value: unknown): Row =>
 	value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Row) : {};
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
@@ -60,6 +61,7 @@ export function createRowRemapper(
 	ids: IdMap,
 	missingPeople: ReadonlyMap<string, string | null>,
 	onPerson?: (id: string) => void,
+	moduleProps: ReadonlyMap<string, readonly FieldDefinition[]> = new Map(),
 ) {
 	const ref = (value: unknown, person = false): unknown => {
 		if (typeof value !== "string" || !UUID.test(value)) return value;
@@ -99,37 +101,92 @@ export function createRowRemapper(
 			if ("link" in node) node.link = uri(node.link);
 		}
 	};
-	async function props(componentId: unknown, values: unknown, tree: boolean) {
-		if (typeof componentId !== "string" || !UUID.test(componentId)) return;
-		const fields = list(await lookup("public.components", componentId, ["draft", "props"]));
+	async function props(componentId: unknown, values: unknown, tree: boolean, context: ReferenceVersion) {
+		if (typeof componentId !== "string") return;
+		if (!UUID.test(componentId) && !moduleProps.has(componentId) && list(values).length > 0)
+			throw new ArchiveRefusedError(
+				"damaged",
+				`The Module Component ${componentId} has stored Props but no source declaration. Restore its source Module version before transferring this Site.`,
+				{ componentId },
+			);
+		const definition = async (path: string[]): Promise<Row> => {
+			if (UUID.test(componentId)) return record(await lookup.prop(componentId, path, context));
+			let fields: unknown = moduleProps.get(componentId);
+			let field: Row = {};
+			for (const key of path) {
+				field = record(list(fields).find((item) => record(item).key === key));
+				if (!field.type)
+					throw new ArchiveRefusedError(
+						"damaged",
+						`The source declaration for Module Component ${componentId} has no Prop ${path.join(".")}. Restore its source Module version before transferring this Site.`,
+						{ componentId, path },
+					);
+				fields = field.fields;
+			}
+			return field;
+		};
+		const jsonValue = async (value: unknown, field: Row, path: string[]): Promise<unknown> => {
+			if (field.type !== "group" && field.type !== "repeater") return fieldValue(value, field, context);
+			for (const row of field.type === "group" ? [value] : list(value)) {
+				const object = record(row);
+				for (const key of Object.keys(object)) {
+					const nestedPath = [...path, key];
+					const nested =
+						list(field.fields)
+							.map(record)
+							.find((field) => field.key === key) ?? (await definition(nestedPath));
+					object[key] = await jsonValue(object[key], nested, nestedPath);
+				}
+			}
+			return value;
+		};
+		const fixed = async (value: unknown, field: Row, path: string[]): Promise<unknown> => {
+			if (typeof value !== "string") return value;
+			if (field.type === "relationship") return value.replace(/[^\s,]+/g, (id) => String(ref(id)));
+			if (field.type === "richText") return richText(value);
+			if (field.type === "media" || (field.type === "link" && !value.trimStart().startsWith("{")))
+				return value.replace(/^(\s*)(\S+)(\s*)$/, (_all, before, url, after) => `${before}${uri(url)}${after}`);
+			if (!["group", "repeater", "link"].includes(String(field.type))) return value;
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(value);
+			} catch {
+				return value;
+			}
+			const before = JSON.stringify(parsed);
+			const after = JSON.stringify(await jsonValue(parsed, field, path));
+			// Keep literal JSON and its formatting intact when no typed reference changed.
+			return before === after ? value : after;
+		};
 		for (const prop of list(values)) {
 			const item = record(prop);
-			const field = fields.map(record).find((field) => field.key === item.name);
-			if (!field) continue;
-			if (field.type === "media" || field.type === "relationship" || field.type === "link") {
-				const fixed = field.type === "relationship" ? ref : uri;
-				if (tree) {
-					for (const part of list(item.value))
-						if (record(part).type === "text") {
-							const text = record(part);
-							text.text = fixed(text.text);
-						}
-				} else item.value = fixed(item.value);
-			}
+			if (typeof item.name !== "string") continue;
+			const path = [item.name];
+			const field = await definition(path);
+			if (tree) {
+				for (const part of list(item.value)) {
+					const text = record(part);
+					if (text.type !== "text") continue;
+					text.text = await fixed(text.text, field, path);
+					const translations = record(text.translations);
+					for (const language of Object.keys(translations))
+						translations[language] = await fixed(translations[language], field, path);
+				}
+			} else item.value = await fixed(item.value, field, path);
 		}
 	}
-	async function body(value: unknown) {
+	async function body(value: unknown, context: ReferenceVersion) {
 		for (const part of list(value)) {
 			const block = record(part);
 			at(block, "id");
 			if (block.type === "image") at(block, "media");
 			if (block.type === "component") {
-				await props(block.component, block.props, false);
+				await props(block.component, block.props, false, context);
 				at(block, "component");
 			}
 			const source = record(block.source);
 			at(source, "id");
-			if (source.was) await body([source.was]);
+			if (source.was) await body([source.was], context);
 			inline(block.text);
 			inline(block.summary);
 			for (const row of list(block.rows)) for (const cell of list(row)) inline(cell);
@@ -144,9 +201,9 @@ export function createRowRemapper(
 			items(block.items);
 		}
 	}
-	async function fieldValue(value: unknown, field: Row): Promise<unknown> {
+	async function fieldValue(value: unknown, field: Row, context: ReferenceVersion): Promise<unknown> {
 		if (field.type === "media" || field.type === "relationship") return Array.isArray(value) ? refs(value) : ref(value);
-		if (field.type === "body") await body(value);
+		if (field.type === "body") await body(value, context);
 		if (field.type === "richText") return richText(value);
 		if (field.type === "link") {
 			const link = record(value);
@@ -154,36 +211,36 @@ export function createRowRemapper(
 		}
 		return value;
 	}
-	async function definitions(value: unknown) {
+	async function definitions(value: unknown, context: ReferenceVersion) {
 		for (const item of list(value)) {
 			const field = record(item);
 			if (field.type === "body" && Array.isArray(field.components)) field.components = refs(field.components);
-			if (field.type === "group" || field.type === "repeater") await definitions(field.fields);
-			if ("default" in field) field.default = await fieldValue(field.default, field);
+			if (field.type === "group" || field.type === "repeater") await definitions(field.fields, context);
+			if ("default" in field) field.default = await fieldValue(field.default, field, context);
 		}
 	}
-	async function languageValues(value: unknown, field: Row) {
+	async function languageValues(value: unknown, field: Row, context: ReferenceVersion) {
 		for (const item of Object.values(record(value))) {
 			const language = record(item);
 			writer(language.by);
-			if ("value" in language) language.value = await fieldValue(language.value, field);
-			if ("source" in language) language.source = await fieldValue(language.source, field);
+			if ("value" in language) language.value = await fieldValue(language.value, field, context);
+			if ("source" in language) language.source = await fieldValue(language.source, field, context);
 		}
 	}
-	async function values(value: unknown, fields: unknown) {
+	async function values(value: unknown, fields: unknown, context: ReferenceVersion) {
 		const stored = record(value);
 		const byKey = new Map(list(fields).map((field) => [record(field).key, record(field)]));
 		for (const [key, item] of Object.entries(stored)) {
 			const field = byKey.get(key) ?? { type: "text" };
 			if (key === "seo") {
-				await values(record(item).values, [{ key: "image", type: "media" }]);
-			} else if (field.type === "group") await values(record(item).values, field.fields);
+				await values(record(item).values, [{ key: "image", type: "media" }], context);
+			} else if (field.type === "group") await values(record(item).values, field.fields, context);
 			else if (field.type === "repeater") {
 				for (const row of list(record(item).rows)) {
 					at(row, "id");
-					await values(record(row).values, field.fields);
+					await values(record(row).values, field.fields, context);
 				}
-			} else await languageValues(item, field);
+			} else await languageValues(item, field, context);
 		}
 	}
 	const css = (value: unknown) => {
@@ -192,7 +249,7 @@ export function createRowRemapper(
 			if ("class" in record(part)) record(part).class = classRef(record(part).class);
 		}
 	};
-	async function tree(value: unknown) {
+	async function tree(value: unknown, context: ReferenceVersion) {
 		const visit = async (nodes: unknown) => {
 			for (const item of list(nodes)) {
 				const node = record(item);
@@ -209,7 +266,7 @@ export function createRowRemapper(
 					}
 					await visit(node.children);
 				} else if (node.type === "component") {
-					await props(node.component, node.props, true);
+					await props(node.component, node.props, true, context);
 					at(node, "id");
 					at(node, "component");
 				} else if (node.type === "form") at(node, "form");
@@ -254,29 +311,35 @@ export function createRowRemapper(
 		for (const name of ["postTypeIds", "entryIds", "excludePostTypeIds", "excludeEntryIds"])
 			if (name in rules) rules[name] = refs(rules[name]);
 	}
-	async function version(kind: string, id: string | null, value: unknown, fields?: unknown) {
+	async function version(kind: string, id: string | null, value: unknown, context: ReferenceVersion, fields?: unknown) {
 		const content = record(value);
 		if (kind === "entry") {
-			const typeId = await lookup("public.entries", id, ["post_type_id"]);
-			await values(content.values, [
-				{ key: "parent", type: "relationship" },
-				...list(fields ?? (await lookup("public.post_types", typeof typeId === "string" ? typeId : null, ["fields"]))),
-			]);
+			const typeId = await lookup.row("public.entries", id, ["post_type_id"]);
+			await values(
+				content.values,
+				[
+					{ key: "parent", type: "relationship" },
+					...list(
+						fields ?? (await lookup.row("public.post_types", typeof typeId === "string" ? typeId : null, ["fields"])),
+					),
+				],
+				context,
+			);
 			at(content, "parentId");
 		} else if (kind === "globals")
-			await values(content.values, fields ?? (await lookup("public.globals", null, ["fields"])));
-		else if (kind === "popupContent") await values(content.values, POPUP_FIELDS);
+			await values(content.values, fields ?? (await lookup.row("public.globals", null, ["fields"])), context);
+		else if (kind === "popupContent") await values(content.values, POPUP_FIELDS, context);
 		else if (kind === "popup") {
 			popupSettings(content.settings);
-			await version("component", null, content.component);
-		} else if (kind === "template") await tree(content);
+			await version("component", null, content.component, context);
+		} else if (kind === "template") await tree(content, context);
 		else if (kind === "component") {
-			await definitions(content.props);
-			await tree(content.tree);
+			await definitions(content.props, context);
+			await tree(content.tree, context);
 			css(content.css);
 		} else if (kind === "loop") {
-			await definitions(content.fields);
-			await values(content.values, [{ key: "items", type: "repeater", fields: content.fields }]);
+			await definitions(content.fields, context);
+			await values(content.values, [{ key: "items", type: "repeater", fields: content.fields }], context);
 			for (const value of list(record(content.query).filters)) {
 				const filter = record(value);
 				if (filter.type === "relationship") filter.entries = refs(filter.entries);
@@ -304,19 +367,24 @@ export function createRowRemapper(
 		const kind = kinds[table];
 		if (kind) {
 			const fields =
-				kind === "entry" ? await lookup("public.post_types", String(row.post_type_id), ["fields"]) : row.fields;
-			for (const key of ["draft", "published"]) if (row[key]) await version(kind, originalId, row[key], fields);
+				kind === "entry" ? await lookup.row("public.post_types", String(row.post_type_id), ["fields"]) : row.fields;
+			for (const key of ["draft", "published"] as const)
+				if (row[key]) await version(kind, originalId, row[key], { kind: key }, fields);
 		}
 		if (table === "public.popups") {
 			for (const key of ["draft", "published"]) popupSettings(row[key]);
-			for (const key of ["content_draft", "content_published"]) await version("popupContent", originalId, row[key]);
+			for (const key of ["draft", "published"] as const)
+				await version("popupContent", originalId, row[`content_${key}`], { kind: key });
 		}
-		if (["public.post_types", "public.globals"].includes(table)) await definitions(row.fields);
-		if (table === "public.media") await values(record(row.texts).values, []);
+		if (["public.post_types", "public.globals"].includes(table)) await definitions(row.fields, { kind: "draft" });
+		if (table === "public.media") await values(record(row.texts).values, [], { kind: "draft" });
 		if (table === "public.seo_settings") at(row.organization, "logo");
 		if (table === "m_redirects.rules") row.target = uri(row.target);
 		if (["public.revisions", "public.checkpoints"].includes(table))
-			await version(String(row.item_kind), typeof row.item_id === "string" ? row.item_id : null, row.content);
+			await version(String(row.item_kind), typeof row.item_id === "string" ? row.item_id : null, row.content, {
+				kind: table === "public.revisions" ? "published" : "draft",
+				at: String(table === "public.revisions" ? row.published_at : row.changed_at),
+			});
 		for (const name of ["via", "changed_via", "submitted_via", "decided_via"]) via(row[name]);
 		if (table === "public.dashboards") for (const widget of list(row.widgets)) at(widget, "id");
 		if (table === "m_site_analytics.goals" && row.kind === "form") at(row.definition, "formId");

@@ -941,7 +941,10 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 					await archive.done();
 				}
 			} catch (error) {
-				log[error instanceof StorageError ? "warn" : "error"]("A Site export failed", { siteId, exportId, error });
+				log[error instanceof StorageError || error instanceof ArchiveRefusedError ? "warn" : "error"](
+					"A Site export failed",
+					{ siteId, exportId, error },
+				);
 				await removeParts(backend, row.key, written).catch(() => {});
 				await update({ status: "failed", failure: { reason: "error" }, progress: null, finishedAt: clock.now() });
 			} finally {

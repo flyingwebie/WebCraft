@@ -49,11 +49,25 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 		urlPattern: "/other/{slug}",
 	});
 	const literal = `A seasonal promotion ${entry.id} ${media.id}`;
+	const { component: image } = await staff.api.components.create({
+		siteId,
+		name: "PromoImage",
+		props: [
+			{ key: "photo", label: "Photo", type: "media" },
+			{ key: "reference", label: "Reference", type: "text" },
+		],
+	});
+	await staff.api.components.saveMarkup({
+		siteId,
+		componentId: image.id,
+		markup: '<img src="{{ props.photo }}" alt="Transferred photo"><p>{{ props.reference }}</p>',
+	});
+	await staff.api.components.publish({ siteId, componentId: image.id });
 	const { popup } = await staff.api.popups.create({ siteId, name: "Seasonal", key: "seasonal" });
 	await staff.api.components.saveMarkup({
 		siteId,
 		componentId: popup.componentId,
-		markup: '<p>{{ props.text }}</p><img src="{{ props.image }}">',
+		markup: `<p>{{ props.text }}</p><img src="{{ props.image }}"><PromoImage photo="media:${media.id}" reference="${entry.id}"/>`,
 	});
 	await staff.api.popups.saveDraft({
 		siteId,
@@ -79,6 +93,11 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	await staff.api.popups.saveContent({ siteId, popupId: popup.id, language: "it", values: { title: "Offerta" } });
 	await staff.api.popups.publish({ siteId, popupId: popup.id });
 	await staff.api.popups.publishContent({ siteId, popupId: popup.id });
+	await staff.api.components.saveMarkup({
+		siteId,
+		componentId: popup.componentId,
+		markup: "<p>Unpublished Popup tree</p>",
+	});
 	const { template } = await staff.api.templates.saveEntryTemplateMarkup({
 		siteId,
 		postTypeId: postType.id,
@@ -118,6 +137,18 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	expect(
 		(await targetStaff.api.modules.siteList({ siteId: targetId })).modules.find((m) => m.id === "popups")?.on,
 	).toBe(false);
+	const copiedPostType = (await targetStaff.api.postTypes.list({ siteId: targetId })).postTypes.find(
+		(type) => type.key === "offers",
+	);
+	const copiedTemplate = await targetStaff.api.templates.getEntryTemplateMarkup({
+		siteId: targetId,
+		postTypeId: copiedPostType?.id ?? "",
+	});
+	expect(copiedTemplate.template?.draft.nodes[1]).toEqual({ type: "popup", popup: copied.id });
+	expect(copiedTemplate.markup?.draft).toContain("{{@popup seasonal}}");
+	expect(
+		(await targetStaff.api.components.getMarkup({ siteId: targetId, componentId: copied.componentId })).markup.draft,
+	).toContain("Unpublished Popup tree");
 	for (const kind of ["popup", "popupContent"] as const) {
 		const item = { kind, id: copied.id };
 		const history = await targetStaff.api.history.list({ siteId: targetId, item });
@@ -133,6 +164,14 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	expect(restored.content.draft.values.image).toBe(copiedMediaId);
 	expect(restored.content.draft.values.text).toContain(literal);
 	expect(restored.popup.draft.rules).toEqual(copied.draft.rules);
+	const restoredTree = await targetStaff.api.components.getMarkup({
+		siteId: targetId,
+		componentId: copied.componentId,
+	});
+	expect(restoredTree.markup.draft).toContain("<PromoImage");
+	expect(restoredTree.markup.draft).toContain(`photo="media:${copiedMediaId}"`);
+	expect(restoredTree.markup.draft).toContain(`reference="${entry.id}"`);
+	expect(restoredTree.markup.draft).not.toContain("Unpublished Popup tree");
 	await targetStaff.api.modules.setOnSite({ siteId: targetId, moduleId: "popups", on: true });
 	await publishEverything(targetStaff, targetId);
 	const origin = await goLive(install, targetId);

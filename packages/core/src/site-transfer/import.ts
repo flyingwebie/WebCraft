@@ -28,6 +28,7 @@ import {
 	SECRETS_MAX_BYTES,
 	type SiteExportManifest,
 } from "./format.ts";
+import { createReferenceLookup } from "./lookup.ts";
 import { keyOpens, openSecrets, type SecretsBundle, secretsBundleSchema } from "./passphrase.ts";
 import { createRowRemapper } from "./references.ts";
 import { type IdMap, idMap, newMask } from "./remap.ts";
@@ -196,17 +197,7 @@ export async function importSite(
 				);
 			}
 		}
-		const remap = createRowRemapper(
-			async (table, id, path) => {
-				const result = await client.query<{ value: unknown }>(
-					"SELECT line::jsonb #> $3::text[] AS value FROM site_import_source_rows WHERE table_name = $1 AND ($2::text IS NULL OR line::jsonb->>'id' = $2) ORDER BY n LIMIT 1",
-					[table, id, path],
-				);
-				return result.rows[0]?.value;
-			},
-			ids,
-			missingPeople,
-		);
+		const remap = createRowRemapper(createReferenceLookup(client), ids, missingPeople);
 		for (const [index, table] of manifest.tables.entries()) {
 			const here = target.get(table.name);
 			const columns = here?.uuidColumns ?? table.uuidColumns;
