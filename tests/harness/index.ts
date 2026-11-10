@@ -50,7 +50,7 @@ import {
 	type UpdateCheck,
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import { createWebHandler, type UpgradeAnswer, type WebHandler } from "@webcraft/server/handler";
 import { createImageProcessor } from "@webcraft/worker/images";
 import type { PgBoss } from "pg-boss";
@@ -146,7 +146,7 @@ export type TestInstallOptions = {
 	 * worker load them. Their migrations must already be in the database: every test database has
 	 * had `TEST_MODULES`' (the first-party Modules and the samples).
 	 */
-	modules?: readonly ModuleDefinition[];
+	modules?: readonly AnyModuleDefinition[];
 	/** The largest image the worker processes, in pixels: the real limit unless given (to test it without huge files). */
 	maxImagePixels?: number;
 	/** How long Import from URL waits for a file: 30 seconds unless given (to test it without waiting). */
@@ -372,12 +372,12 @@ export type TestInstall = {
 	 * error and the Install keeps running as before. `modules` starts it with other Modules, as a
 	 * new version of WebCraft with other versions of its Modules would.
 	 */
-	restart(options?: { masterKey?: string; modules?: readonly ModuleDefinition[] }): Promise<void>;
+	restart(options?: { masterKey?: string; modules?: readonly AnyModuleDefinition[] }): Promise<void>;
 	/**
 	 * Runs the `migrate` step on the Install's database, as `webcraft admin migrate` does: WebCraft's
 	 * pending migrations, then the Modules' (the Install's own Modules unless given).
 	 */
-	migrate(options?: { modules?: readonly ModuleDefinition[]; backup?: boolean }): Promise<MigrateStepReport>;
+	migrate(options?: { modules?: readonly AnyModuleDefinition[]; backup?: boolean }): Promise<MigrateStepReport>;
 	/**
 	 * Takes a Backup as `webcraft admin backup` does: where Install settings › Backups says, or into
 	 * the file or folder `to`.

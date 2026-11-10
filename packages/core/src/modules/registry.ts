@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
 	type AdminPage,
+	type AnyModuleDefinition,
 	type ComponentProp,
 	type ConsentCategory,
 	IMPORT_FILE_MAX_BYTES,
@@ -9,7 +10,6 @@ import {
 	MODULE_EVENTS,
 	MODULE_SITE_SCRIPT_MAX_LENGTH,
 	type ModuleContext,
-	type ModuleDefinition,
 	type ModuleEventName,
 	type ModuleImportSource,
 	type ModuleJob,
@@ -65,7 +65,7 @@ export type LoadedModule = RunnableModule | BrokenModule;
 export type BrokenModule = {
 	runnable: false;
 	id: string;
-	definition: ModuleDefinition;
+	definition: AnyModuleDefinition;
 	/** Its manifest, when that much was right. */
 	manifest: ModuleManifest | null;
 	problem: string;
@@ -75,7 +75,7 @@ export type BrokenModule = {
 export type RunnableModule = {
 	runnable: true;
 	id: string;
-	definition: ModuleDefinition;
+	definition: AnyModuleDefinition;
 	manifest: ModuleManifest;
 	/** The Postgres schema of its tables, `m_<id>`. */
 	schema: string;
@@ -186,7 +186,7 @@ const ROUTE_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 const PLACE_KEYS = ["siteId", "workspaceId"];
 
 /** Loads the Modules of this build. Ids and route prefixes are unique: a second one is refused. */
-export function loadModules(definitions: readonly ModuleDefinition[]): ModuleRegistry {
+export function loadModules(definitions: readonly AnyModuleDefinition[]): ModuleRegistry {
 	const loaded: LoadedModule[] = [];
 	for (const definition of definitions) {
 		const module = loadModule(definition);
@@ -251,7 +251,7 @@ export function loadModules(definitions: readonly ModuleDefinition[]): ModuleReg
 	};
 }
 
-function broken(definition: ModuleDefinition, manifest: ModuleManifest | null, problem: string): BrokenModule {
+function broken(definition: AnyModuleDefinition, manifest: ModuleManifest | null, problem: string): BrokenModule {
 	const id = manifest?.id ?? (typeof definition?.manifest?.id === "string" ? definition.manifest.id : "unknown");
 	return { runnable: false, id, definition, manifest, problem };
 }
@@ -259,7 +259,7 @@ function broken(definition: ModuleDefinition, manifest: ModuleManifest | null, p
 /** Thrown inside `loadModule` with the first rule a definition breaks. */
 class DefinitionProblem extends Error {}
 
-function loadModule(definition: ModuleDefinition): LoadedModule {
+function loadModule(definition: AnyModuleDefinition): LoadedModule {
 	const parsed = moduleManifestSchema.safeParse(definition?.manifest);
 	if (!parsed.success) {
 		const issue = parsed.error.issues[0];
@@ -279,7 +279,7 @@ function problem(message: string): never {
 	throw new DefinitionProblem(message);
 }
 
-function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest): RunnableModule {
+function checkDefinition(definition: AnyModuleDefinition, manifest: ModuleManifest): RunnableModule {
 	if (semver.validRange(manifest.sdk) === null) problem(`The SDK range ${manifest.sdk} can't be read.`);
 	if (!semver.satisfies(SDK_VERSION, manifest.sdk)) {
 		problem(`It needs the Module SDK ${manifest.sdk}; this version of WebCraft has SDK ${SDK_VERSION}.`);
@@ -616,7 +616,7 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
  * at a time; Workspace Dashboards add the Sites up), kinds named once, labels in its languages, a
  * shape the admin draws, filters it knows (`goal` with `widgetGoals`), and settings that are choices.
  */
-function checkWidgets(definition: ModuleDefinition, manifest: ModuleManifest): ModuleWidget[] {
+function checkWidgets(definition: AnyModuleDefinition, manifest: ModuleManifest): ModuleWidget[] {
 	const declared = definition.widgets ?? [];
 	const goals = definition.widgetGoals;
 	if (goals !== undefined && typeof goals !== "function") problem("Its widgetGoals isn't a function.");
@@ -702,7 +702,7 @@ function isWhole(value: unknown, least: number, most: number): value is number {
  * Props declared with the Field types (no Relationships: each Site has its own Post Types), and
  * markup that reads only its Props. Element ids are numbered, so every process reads the same tree.
  */
-function compileComponents(definition: ModuleDefinition, manifest: ModuleManifest): ModuleComponent[] {
+function compileComponents(definition: AnyModuleDefinition, manifest: ModuleManifest): ModuleComponent[] {
 	const declared = [...(definition.components ?? []), ...(definition.blockTypes ?? [])];
 	if (declared.length > 0 && manifest.level !== "site") {
 		problem("Only Site-level Modules add Components: Components are placed on Sites.");

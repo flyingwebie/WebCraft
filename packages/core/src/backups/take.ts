@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Database, lastMigratedVersion, readMigrationLevel } from "@webcraft/db";
-import { type ModuleDefinition, SDK_VERSION } from "@webcraft/module-sdk";
+import { type AnyModuleDefinition, SDK_VERSION } from "@webcraft/module-sdk";
 import type pg from "pg";
 
 import type { Clock } from "../clock.ts";
@@ -45,7 +45,7 @@ export type BackupContext = {
 	clock: Clock;
 	log: Logger;
 	/** The Modules of this build, whose versions the manifest lists. */
-	modules: readonly ModuleDefinition[];
+	modules: readonly AnyModuleDefinition[];
 };
 
 /** A Backup that was written. */

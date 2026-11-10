@@ -1,5 +1,5 @@
 import { openDatabase } from "@webcraft/db";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 
 import { systemClock } from "../clock.ts";
 import { type Environment, loadInstallConfig } from "../config.ts";
@@ -21,7 +21,7 @@ export async function openBackupForCommand(options: {
 	env: Environment;
 	log: Logger;
 	http: OutgoingHttp;
-	modules?: readonly ModuleDefinition[];
+	modules?: readonly AnyModuleDefinition[];
 }): Promise<{ context: BackupContext; close(): Promise<void> }> {
 	const config = loadInstallConfig(options.env);
 	const masterKey = loadMasterKey(options.env);

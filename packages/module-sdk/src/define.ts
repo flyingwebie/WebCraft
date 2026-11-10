@@ -4,7 +4,7 @@ import type { z } from "zod";
 import type { ModuleBlockType, ModuleComponent } from "./component.ts";
 import type { ModuleContext, ModuleTable, ProcedureContext, SiteRouteContext } from "./context.ts";
 import type { ModuleEvent, ModuleEventName } from "./events.ts";
-import type { ModuleImportSource } from "./imports.ts";
+import type { ImportSource, ModuleImportSource } from "./imports.ts";
 import type { Label, ModuleManifestInput } from "./manifest.ts";
 import type { NotFoundLog, RedirectRules } from "./redirects.ts";
 import type { ModuleSchedule, SubmissionReceiver } from "./submissions.ts";
@@ -30,7 +30,7 @@ import type { ModuleWidget } from "./widgets.ts";
  * WebCraft checks a definition when it loads it and never runs a Module whose definition breaks a
  * rule (it is listed with the reason on the Modules screen).
  */
-export type ModuleDefinition = {
+export type ModuleDefinition<Source extends ModuleImportSource = ImportSource> = {
 	manifest: ModuleManifestInput;
 	/** The Module's tables, parents before the tables that point at them (see `moduleSchema`). */
 	tables?: readonly ModuleTable[];
@@ -97,7 +97,7 @@ export type ModuleDefinition = {
 	 * items, which WebCraft's Import pipeline maps, previews and writes as Drafts. See `importSource`.
 	 * Added in SDK 1.7.
 	 */
-	importSources?: readonly ModuleImportSource[];
+	importSources?: readonly Source[];
 	/**
 	 * Kinds of Widget it adds to the catalog Staff build Dashboards from (Site-level Modules only), each
 	 * with its shape, the filters it takes, its settings and its `query` (see `widget`). Added in SDK 1.8.
@@ -114,6 +114,9 @@ export type ModuleDefinition = {
 	/** Declarative Block types: settings made of Fields, output in Template markup. */
 	blockTypes?: readonly ModuleBlockType[];
 };
+
+/** A catalogue accepting file and live sources (SDK 1.13); ModuleDefinition defaults to file sources. */
+export type AnyModuleDefinition = ModuleDefinition<ModuleImportSource>;
 
 /**
  * A Module's Site script: its JavaScript, as text (at most `MODULE_SITE_SCRIPT_MAX_LENGTH` characters).
@@ -145,7 +148,7 @@ export type ModulePartitioning = {
 export const MODULE_SITE_SCRIPT_MAX_LENGTH = 200_000;
 
 /** Declares a Module. It only gives the definition back, typed: WebCraft checks it when it loads it. */
-export function defineModule<const Definition extends ModuleDefinition>(definition: Definition): Definition {
+export function defineModule<const Definition extends AnyModuleDefinition>(definition: Definition): Definition {
 	return definition;
 }
 
@@ -248,7 +251,7 @@ export function job<Payload>(definition: ModuleJob<Payload>): ModuleJob<Payload>
  * A Module's procedures as a typed client calls them, such as the admin's pages or a test:
  * `(api.m.sample as ModuleApi<typeof sample>).notes.list({ siteId })`.
  */
-export type ModuleApi<Definition extends ModuleDefinition> = ProceduresApi<
+export type ModuleApi<Definition extends AnyModuleDefinition> = ProceduresApi<
 	NonNullable<Definition["procedures"]>,
 	Definition["manifest"]["level"] extends "workspace" ? { workspaceId: string } : { siteId: string }
 >;

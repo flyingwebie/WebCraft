@@ -1,5 +1,5 @@
 import type { ModuleSchema } from "@webcraft/db";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import { getTableName } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 
@@ -9,7 +9,7 @@ import { loadModules, type ModuleRegistry } from "./registry.ts";
  * What the `migrate` step and the schema check need to know about Modules: each runnable Module's
  * schema, migrations and declared tables. A Module WebCraft can't run has no migrations applied.
  */
-export function moduleSchemas(definitions: readonly ModuleDefinition[]): ModuleSchema[] {
+export function moduleSchemas(definitions: readonly AnyModuleDefinition[]): ModuleSchema[] {
 	return schemasOf(loadModules(definitions));
 }
 

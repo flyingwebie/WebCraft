@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { type ModuleDefinition, ModuleError } from "@webcraft/module-sdk";
+import { type AnyModuleDefinition, ModuleError } from "@webcraft/module-sdk";
 import wordpress from "@webcraft/module-wordpress-import";
 
 import { createTestInstall } from "../harness/index.ts";
@@ -11,7 +11,7 @@ for (const phase of ["test", "read"] as const) {
 				if (expected) throw new ModuleError("source-refused", "The source refused this request.");
 				throw new Error("The live source unexpectedly failed.");
 			};
-			const specimen: ModuleDefinition = {
+			const specimen: AnyModuleDefinition = {
 				...wordpress,
 				importSources: [
 					{

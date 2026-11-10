@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition, ModuleDefinition } from "@webcraft/module-sdk";
 import wordpress from "@webcraft/module-wordpress-import";
 import { createTestInstall } from "../harness/index.ts";
 
@@ -38,7 +38,7 @@ test("adding source HTTP requires fresh consent, and a live source cannot run wi
 
 test("the live SDK port confines a Module to the chosen REST root and never exposes its login", async () => {
 	let route = "wp/v2/users/me";
-	const specimen: ModuleDefinition = {
+	const specimen: AnyModuleDefinition = {
 		...wordpress,
 		importSources: [
 			{

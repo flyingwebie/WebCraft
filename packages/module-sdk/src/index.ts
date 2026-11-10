@@ -82,6 +82,7 @@ export type {
 } from "./context.ts";
 export {
 	type AdminPage,
+	type AnyModuleDefinition,
 	defineModule,
 	job,
 	MODULE_SITE_SCRIPT_MAX_LENGTH,

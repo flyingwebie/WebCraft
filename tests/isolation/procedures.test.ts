@@ -5,7 +5,7 @@ import { traverseContractProcedures } from "@orpc/server";
 import { type ApiClient, apiRouter } from "@webcraft/api";
 import type forms from "@webcraft/module-forms";
 import type redirects from "@webcraft/module-redirects";
-import type { ModuleApi, ModuleDefinition, ModuleProcedures } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition, ModuleApi, ModuleProcedures } from "@webcraft/module-sdk";
 import type siteAnalytics from "@webcraft/module-site-analytics";
 import { formVisitor } from "../harness/forms.ts";
 import { pdf, upload } from "../harness/images.ts";
@@ -2459,7 +2459,7 @@ test("every procedure that takes a Workspace or a Site has an isolation test abo
 });
 
 /** A Module's procedures as the Management API names them: `m.sample.notes.list`. */
-function moduleProcedureNames(module: ModuleDefinition): string[] {
+function moduleProcedureNames(module: AnyModuleDefinition): string[] {
 	const names: string[] = [];
 	const walk = (group: ModuleProcedures, path: readonly string[]) => {
 		for (const [name, entry] of Object.entries(group)) {

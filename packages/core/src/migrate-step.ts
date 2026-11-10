@@ -6,7 +6,7 @@ import {
 	readMigrationLevel,
 	runMigrations,
 } from "@webcraft/db";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 
 import type { TakenBackup } from "./backups/take.ts";
 import { coreJobs } from "./jobs/index.ts";
@@ -34,7 +34,7 @@ export type MigrateStepReport = MigrationReport & { backup: MigrateBackup };
  */
 export async function migrateStep(options: {
 	databaseUrl: string;
-	modules?: readonly ModuleDefinition[];
+	modules?: readonly AnyModuleDefinition[];
 	takeBackup: (() => Promise<TakenBackup>) | null;
 }): Promise<MigrateStepReport> {
 	const modules = moduleSchemas(options.modules ?? FIRST_PARTY_MODULES);

@@ -10,6 +10,7 @@ import {
 } from "@webcraft/db/schema";
 import {
 	type AddedRule,
+	type AnyModuleDefinition,
 	type FormSender,
 	type FormSubmission,
 	formSenderCounted,
@@ -21,7 +22,6 @@ import {
 	type Label,
 	MODULE_EVENTS,
 	type ModuleContext,
-	type ModuleDefinition,
 	type ModuleEventName,
 	type ModuleEvents,
 	type ModuleImportSource,
@@ -433,7 +433,7 @@ const ENTRY_TARGET =
 const SITE_TARGET = /^\/(?![/\\])[^\\\u0000-\u0020\u007f]*$/;
 
 export type ModuleHostOptions = RuntimeDeps & {
-	modules: readonly ModuleDefinition[];
+	modules: readonly AnyModuleDefinition[];
 	/** What follows a kept Form Submission (`forms/kept.ts`). */
 	submissionActions?: SubmissionActions;
 	rateLimits: RateLimits;

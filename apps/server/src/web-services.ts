@@ -11,7 +11,7 @@ import {
 	openInstall,
 } from "@webcraft/core";
 import { assertSchemaCurrent, openDatabase } from "@webcraft/db";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import { createBunHttp } from "./outgoing-http.ts";
 
 type Cache = { webcraftWebServices?: Promise<InstallServices> };
@@ -22,8 +22,8 @@ type Cache = { webcraftWebServices?: Promise<InstallServices> };
  * (the browser tests' entry does, to show the sample Modules' screens). Nothing sets it in
  * production; only code already running in the process could.
  */
-export function webModules(): readonly ModuleDefinition[] {
-	return (globalThis as { webcraftModules?: readonly ModuleDefinition[] }).webcraftModules ?? FIRST_PARTY_MODULES;
+export function webModules(): readonly AnyModuleDefinition[] {
+	return (globalThis as { webcraftModules?: readonly AnyModuleDefinition[] }).webcraftModules ?? FIRST_PARTY_MODULES;
 }
 
 /**

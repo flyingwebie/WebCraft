@@ -1,5 +1,5 @@
 import { assertSchemaCurrent, createBoss, type Database, type JobQueueOptions, openDatabase } from "@webcraft/db";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import type { PgBoss } from "pg-boss";
 import { createHttpAiProviders } from "./ai/http-providers.ts";
 import { systemClock } from "./clock.ts";
@@ -45,7 +45,7 @@ export type OpenInstallOptions = {
 	/** Turning Reports into PDFs: the worker hands in headless Chromium; the web process never renders one. */
 	pdf?: PdfRenderer;
 	/** The Modules to load: the first-party Modules of this build unless given. */
-	modules?: readonly ModuleDefinition[];
+	modules?: readonly AnyModuleDefinition[];
 	/**
 	 * Outgoing HTTP on the process's runtime (ADR 0006), connecting each call the guarded fetcher
 	 * checked to the address it checked: the worker hands in `createNodeHttp()`, the web process its

@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { backupSettings, backups } from "@webcraft/db/schema";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
@@ -96,7 +96,7 @@ type Options = {
 	clock: Clock;
 	log: Logger;
 	fingerprint: string;
-	modules: readonly ModuleDefinition[];
+	modules: readonly AnyModuleDefinition[];
 };
 
 export function createBackups(options: Options): Backups {

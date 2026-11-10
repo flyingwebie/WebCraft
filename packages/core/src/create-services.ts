@@ -1,6 +1,6 @@
 import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 import { databaseOn } from "@webcraft/db";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import { createAccessibilityStatement } from "./accessibility/statement.ts";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { createAiKeys } from "./ai/keys.ts";
@@ -179,7 +179,7 @@ import { createWorkers } from "./workers.ts";
 
 export type CreateServicesOptions = {
 	/** The Modules this Install loads: the first-party Modules of this build unless given. */
-	modules?: readonly ModuleDefinition[];
+	modules?: readonly AnyModuleDefinition[];
 	/** How long Import from URL waits for a file; 30 seconds unless given (the test harness waits less). */
 	mediaImportTimeoutMs?: number;
 	/**
