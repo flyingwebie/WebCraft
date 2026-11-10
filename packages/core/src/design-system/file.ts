@@ -172,7 +172,10 @@ export async function importDesignSystemFile(
 			customCss: changes.customCss,
 			darkMode: changes.darkMode,
 		});
-		return { designSystem: viewOf({ ...locked.row, draft: next, updatedAt: tx.now() }) };
+		// A no-op import (identical content) writes nothing, so it answers the Draft unchanged too.
+		return {
+			designSystem: viewOf(changes.any ? { ...locked.row, draft: next, updatedAt: tx.now() } : locked.row),
+		};
 	});
 }
 

@@ -205,6 +205,29 @@ describe("importing", () => {
 		expect(entries.some((entry) => entry.action === "designSystem.import" && entry.siteId === from.siteId)).toBe(false);
 	});
 
+	test("a no-op import (identical content) writes nothing, so the Draft keeps its updatedAt", async () => {
+		const site = await styledSite();
+		const { file } = await staff.api.designSystem.exportFile({ siteId: site.siteId });
+		const before = (await staff.api.designSystem.get({ siteId: site.siteId })).designSystem;
+		// Time passes before the (no-op) import, so a fresh `updatedAt` would be caught here.
+		await install.clock.advance(60_000);
+
+		const asked = await staff.api.designSystem.importFile({ siteId: site.siteId, file });
+		if (!("confirmation" in asked)) throw new Error("expected a confirmation");
+		expect(asked.preview.changes.any).toBe(false);
+
+		const done = await staff.api.designSystem.importFile({
+			siteId: site.siteId,
+			file,
+			confirmation: asked.confirmation.id,
+		});
+		if (!("designSystem" in done)) throw new Error("the second call should import");
+		expect(done.designSystem.updatedAt).toEqual(before.updatedAt);
+		expect((await staff.api.designSystem.get({ siteId: site.siteId })).designSystem.updatedAt).toEqual(
+			before.updatedAt,
+		);
+	});
+
 	test("API clients import in the same two steps", async () => {
 		const from = await styledSite();
 		const into = await newSite();
