@@ -6217,7 +6217,7 @@
 		"keysProblem": "This Site has 50 working keys: revoke one first.",
 		"serversOnly": "Servers only",
 		"requests": "Requests",
-		"today": "{count, plural, one {# today} other {# today}}",
+		"today": "{count} today",
 		"lastDays": "{week} in 7 days · {month} in 30 days",
 		"lastUsed": "Last used",
 		"neverUsed": "Not yet",

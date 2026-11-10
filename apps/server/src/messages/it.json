@@ -6217,7 +6217,7 @@
 		"keysProblem": "Questo Sito ha 50 chiavi attive: revocane prima una.",
 		"serversOnly": "Solo server",
 		"requests": "Richieste",
-		"today": "{count, plural, one {# oggi} other {# oggi}}",
+		"today": "{count} oggi",
 		"lastDays": "{week} in 7 giorni · {month} in 30 giorni",
 		"lastUsed": "Ultimo uso",
 		"neverUsed": "Non ancora",

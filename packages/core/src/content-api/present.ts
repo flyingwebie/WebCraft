@@ -186,6 +186,29 @@ function eachLeaf(
 	}
 }
 
+/**
+ * Values read by `readFieldsThrough` as the API answers them, by key: Groups' and Repeaters' Fields
+ * walked through, each leaf Field's value as `leaf` presents it.
+ */
+function presentValues(
+	values: Record<string, Json>,
+	fields: readonly FieldDefinition[],
+	leaf: (value: Json, field: FieldDefinition) => unknown,
+): Record<string, unknown> {
+	return Object.fromEntries(
+		fields.map((field) => {
+			const value = values[field.key] ?? null;
+			if (field.type === "group")
+				return [field.key, presentValues((value ?? {}) as Record<string, Json>, field.fields, leaf)];
+			if (field.type === "repeater") {
+				const rows = (Array.isArray(value) ? value : []) as Record<string, Json>[];
+				return [field.key, rows.map((row) => ({ id: row.id, ...presentValues(row, field.fields, leaf) }))];
+			}
+			return [field.key, leaf(value, field)];
+		}),
+	);
+}
+
 /** The ids a Relationship value holds (one or a list). */
 function idsIn(value: Json): string[] {
 	if (typeof value === "string") return [value];
@@ -288,18 +311,6 @@ export async function presentEntries(
 
 	const present = (value: Json, field: FieldDefinition): unknown => {
 		switch (field.type) {
-			case "group": {
-				const group = (value ?? {}) as Record<string, Json>;
-				return Object.fromEntries(field.fields.map((inner) => [inner.key, present(group[inner.key] ?? null, inner)]));
-			}
-			case "repeater":
-				return (Array.isArray(value) ? value : []).map((row) => {
-					const values = row as Record<string, Json>;
-					return {
-						id: values.id,
-						...Object.fromEntries(field.fields.map((inner) => [inner.key, present(values[inner.key] ?? null, inner)])),
-					};
-				});
 			case "media":
 				return typeof value === "string" ? (found.get(value) ?? null) : null;
 			case "relationship": {
@@ -350,9 +361,7 @@ export async function presentEntries(
 				image: typeof item.seo.image === "string" ? (found.get(item.seo.image) ?? null) : null,
 				noindex: item.seo.noindex === true,
 			},
-			fields: Object.fromEntries(
-				item.fields.map((field) => [field.key, present(item.values[field.key] ?? null, field)]),
-			),
+			fields: presentValues(item.values, item.fields, present),
 			fallbacks: item.fallbacks,
 		};
 	});
@@ -390,25 +399,10 @@ export async function presentGlobals(
 		if (field.type === "media" && typeof value === "string") mediaIds.push(value);
 	});
 	const found = await contentMedia(presenting.scope, mediaIds, presenting.reading.chain, presenting.addresses.main);
-	const present = (value: Json, field: FieldDefinition): unknown => {
-		if (field.type === "group") {
-			const group = (value ?? {}) as Record<string, Json>;
-			return Object.fromEntries(field.fields.map((inner) => [inner.key, present(group[inner.key] ?? null, inner)]));
-		}
-		if (field.type === "repeater") {
-			return (Array.isArray(value) ? value : []).map((row) => {
-				const values = row as Record<string, Json>;
-				return {
-					id: values.id,
-					...Object.fromEntries(field.fields.map((inner) => [inner.key, present(values[inner.key] ?? null, inner)])),
-				};
-			});
-		}
-		if (field.type === "media") return typeof value === "string" ? (found.get(value) ?? null) : null;
-		return value;
-	};
+	const present = (value: Json, field: FieldDefinition): unknown =>
+		field.type === "media" ? (typeof value === "string" ? (found.get(value) ?? null) : null) : value;
 	return {
-		fields: Object.fromEntries(fields.map((field) => [field.key, present(values[field.key] ?? null, field)])),
+		fields: presentValues(values, fields, present),
 		fallbacks,
 	};
 }

@@ -36,7 +36,7 @@ export {
 } from "./keys.ts";
 export { CONTENT_API_BASE, type ContentApiChange, type ContentApiView } from "./manage.ts";
 export { contentApiDocument } from "./openapi.ts";
-export { BODY_FORMATS, CONTENT_API_PAGE, CONTENT_API_QUERY_PROBLEMS } from "./params.ts";
+export { BODY_FORMATS, CONTENT_API_PAGE, CONTENT_API_QUERY_PROBLEMS, carriesKey } from "./params.ts";
 export type { ContentRead } from "./read.ts";
 export type { ContentApiHidden, ContentApiSettings } from "./settings.ts";
 

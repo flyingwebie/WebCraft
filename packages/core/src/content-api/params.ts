@@ -42,8 +42,13 @@ export type BodyFormat = (typeof BODY_FORMATS)[number];
 /** How many items a list answers at a time: 20 unless `limit` asks for up to 100. */
 export const CONTENT_API_PAGE = { default: 20, max: 100 } as const;
 
-/** Parameters names a key never travels under: refused so a key never sits in a log. */
+/** Parameter names a key might be sent under: refused, so a key never sits in a log. */
 const KEY_PARAMETERS = new Set(["key", "access_token", "contentKey", "content_key", "apiKey", "api_key"]);
+
+/** Whether a query string carries something named like a key (refused before anything else). */
+export function carriesKey(params: URLSearchParams): boolean {
+	return [...params.keys()].some((name) => KEY_PARAMETERS.has(name));
+}
 
 export class QueryParams {
 	readonly problems: QueryProblem[] = [];
@@ -62,11 +67,6 @@ export class QueryParams {
 			seen.add(name);
 			if (!takes(name)) this.add(name, "parameterUnknown", `This path doesn't take ${name}.`);
 		}
-	}
-
-	/** Whether the query string carries something named like a key (refused before anything else). */
-	static carriesKey(params: URLSearchParams): boolean {
-		return [...params.keys()].some((name) => KEY_PARAMETERS.has(name));
 	}
 
 	get(name: string): string | undefined {

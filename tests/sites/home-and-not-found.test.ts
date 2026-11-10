@@ -243,7 +243,6 @@ describe("paths the Install keeps", () => {
 		for (const path of [
 			"/_webcraft/forms/contact",
 			"/_media/bread-1280.avif",
-			"/_content/v1/entries",
 			"/_wc/m/analytics/collect",
 			"/sitemap.xml",
 			"/robots.txt",

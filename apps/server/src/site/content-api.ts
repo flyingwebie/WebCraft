@@ -3,6 +3,7 @@ import {
 	CONTENT_API_LIMITS,
 	type ContentApiDoor,
 	ContentApiError,
+	carriesKey,
 	contentApiDocument,
 	type InstallServices,
 	type RateLimitTally,
@@ -103,11 +104,7 @@ export async function contentApiAnswer(
 				[byAddress],
 			);
 		}
-		if (
-			["key", "access_token", "contentKey", "content_key", "apiKey", "api_key"].some((name) =>
-				url.searchParams.has(name),
-			)
-		) {
+		if (carriesKey(url.searchParams)) {
 			throw new ContentApiError(
 				"CONTENT_KEY_IN_QUERY",
 				"Send the Content key in the Authorization header (`Authorization: Bearer <key>`), never in the address, where logs keep it.",
