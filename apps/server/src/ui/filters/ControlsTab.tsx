@@ -11,7 +11,7 @@ import { ArrowDownIcon, ArrowUpIcon, EllipsisIcon, InfoIcon, PlusIcon, TrashIcon
 import { type KeyboardEvent, useRef, useState } from "react";
 
 import { useAfterRender } from "../after-render.ts";
-import { Announcer, DragHandle, useDragOrder } from "../content/reorder.tsx";
+import { Announcer, DragHandle, moveItem, useDragOrder } from "../content/reorder.tsx";
 import { useT } from "../i18n.tsx";
 import { ControlSettings } from "./ControlSettings.tsx";
 import { CONTROL_ICONS } from "./icons.ts";
@@ -21,7 +21,6 @@ import {
 	type FilterProblem,
 	type FilterSources,
 	type FilterVersion,
-	moveControl,
 	newControl,
 	ONE_ONLY,
 } from "./model.ts";
@@ -66,7 +65,7 @@ export function ControlsTab({
 	const move = (from: number, to: number, focus = false) => {
 		const control = controls[from];
 		if (!control || to < 0 || to >= controls.length || from === to) return;
-		setControls(moveControl(controls, from, to));
+		setControls(moveItem(controls, from, to));
 		onSelect(control.id);
 		setSaid(t("filters.controls.moved", { name: nameOf(control), place: to + 1, count: controls.length }));
 		if (focus) {

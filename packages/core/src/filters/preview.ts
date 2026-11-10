@@ -1,7 +1,7 @@
-import { type ElementTree, phoneWidthOf, randomElementId, type TreeNode } from "@webcraft/renderer";
+import { type ElementTree, filtersPlacedIn, phoneWidthOf, randomElementId, type TreeNode } from "@webcraft/renderer";
 
 import { adminMediaPath, renderPreview } from "../builder/preview.ts";
-import { type BuilderTarget, readSource } from "../builder/sources.ts";
+import { type BuilderSource, type BuilderTarget, readSource } from "../builder/sources.ts";
 import { archiveParts } from "../content/archives.ts";
 import type { ComponentSources } from "../content/components.ts";
 import type { ContentProblem } from "../content/errors.ts";
@@ -70,11 +70,22 @@ export async function previewFilter(
 	const version = context ? readFilterVersion(change, filter.draft, context, problems) : filter.draft;
 	if (problems.length > 0) throw new FilterInvalidError(problems);
 
-	const placements = (await filterUsages(scope))(filter.id).usedIn;
-	const placement = [...placements].sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind))[0];
-	const target = placement ? targetOf(placement) : undefined;
-	const source = target ? await readSource(scope, target, sources) : undefined;
-	const tree = source && source.draft.nodes.length > 0 ? source.draft : besideItsLoop(filter.id, filter.loop);
+	const placements = [...(await filterUsages(scope))(filter.id).usedIn].sort(
+		(a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind),
+	);
+	// `filterUsages` counts a placement from either its Draft or its published tree; only one whose
+	// *current* Draft still places the Filter (its form, or a control of its own) previews it there.
+	let source: BuilderSource | undefined;
+	for (const placement of placements) {
+		const target = targetOf(placement);
+		if (!target) continue;
+		const candidate = await readSource(scope, target, sources);
+		if (filtersPlacedIn(candidate.draft).includes(filter.id)) {
+			source = candidate;
+			break;
+		}
+	}
+	const tree = source ? source.draft : besideItsLoop(filter.id, filter.loop);
 	const path =
 		source?.kind === "archive" && source.postType
 			? `/${(archiveParts(source.postType.urlPattern) ?? []).join("/")}`
@@ -111,7 +122,14 @@ export async function previewFilter(
 	};
 }
 
-/** The visual builder's target for where a Filter is placed. */
+/**
+ * The visual builder's target for where a Filter is placed. The browser's own mapping of the same
+ * five kinds is `builderPath` in `apps/server/src/ui/filters/LayoutTab.tsx` (the builder's URL
+ * instead of this `BuilderTarget`); kept apart rather than behind one shared table because browser
+ * code may not import `@webcraft/core` itself (only types or its small no-import entry points, see
+ * docs/development.md), and the two outputs differ in shape (a path string there, a target object
+ * here), so a shared table would need its own translation at each call site anyway.
+ */
 function targetOf(placement: FilterPlacement): BuilderTarget | undefined {
 	switch (placement.kind) {
 		case "siteTemplate":
