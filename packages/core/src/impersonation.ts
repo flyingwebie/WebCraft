@@ -140,9 +140,10 @@ export type Impersonation = {
 	/**
 	 * Checks that `access` may impersonate `personId` now, without starting: the Permission and the
 	 * rules about who (404 for a person they can't see), and their own second factor. Run before the
-	 * identity check, so nobody confirms who they are for something they may not do.
+	 * identity check, so nobody confirms who they are for something they may not do. Answers where
+	 * the impersonation would reach (the Workspaces, null for everywhere).
 	 */
-	check(access: Access, personId: string): Promise<void>;
+	check(access: Access, personId: string): Promise<string[] | null>;
 	/** Starts impersonating `personId` in `session`, for at most an hour, and records it. */
 	start(
 		access: Access,
@@ -333,14 +334,14 @@ export function createImpersonation({ database, clock, jobs, actors, hasSecondFa
 			assertNotImpersonating(access, "impersonation");
 			const [person] = await db.select({ id: people.id }).from(people).where(eq(people.id, personId));
 			if (!person) throw new PersonNotFoundError();
-			await reachOf(access.actor, await actors.person(personId));
+			const workspaceIds = await reachOf(access.actor, await actors.person(personId));
 			const byId = personIdOf(access.actor);
 			if (!byId || !(await hasSecondFactor(byId))) throw new ImpersonationNeedsSecondFactorError();
+			return workspaceIds;
 		},
 
 		async start(access, session, input) {
-			await this.check(access, input.personId);
-			const workspaceIds = await reachOf(access.actor, await actors.person(input.personId));
+			const workspaceIds = await this.check(access, input.personId);
 			const names = await namesOf(session.personId, input.personId);
 			const now = clock.now();
 			const row = await db.transaction(async (tx) => {

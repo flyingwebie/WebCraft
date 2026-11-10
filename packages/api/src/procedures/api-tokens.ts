@@ -1,7 +1,14 @@
 import { API_TOKEN_LIFETIMES, DEFAULT_API_TOKEN_LIFETIME } from "@webcraft/core";
 import { z } from "zod";
 
-import { personActorOf as actorOf, inAdminSession, notWhileImpersonating, onWorkspace, sensitive } from "../context.ts";
+import {
+	personActorOf as actorOf,
+	inAdminSession,
+	notWhileImpersonating,
+	onWorkspace,
+	sensitive,
+	withinImpersonationReach,
+} from "../context.ts";
 import { id, memberSites, toolsetsInput } from "../inputs.ts";
 import { toolsetOffer } from "../toolset-offer.ts";
 
@@ -17,9 +24,7 @@ export const apiTokens = {
 	list: inAdminSession.handler(async ({ context }) => {
 		const { services, person } = context;
 		const [tokens, actor] = await Promise.all([services.apiTokens.list(person.id), actorOf(context)]);
-		const reach = context.impersonation?.workspaceIds;
-		// While impersonating, only the Workspaces the impersonation reaches.
-		const seen = reach ? tokens.filter((token) => reach.includes(token.workspace.id)) : tokens;
+		const seen = withinImpersonationReach(context, tokens, (token) => token.workspace.id);
 		return { tokens: seen, workspaces: await services.apiTokens.offer(actor), toolsets: toolsetOffer(services) };
 	}),
 

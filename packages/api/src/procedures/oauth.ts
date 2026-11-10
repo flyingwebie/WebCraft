@@ -1,7 +1,14 @@
 import { defaultToolsets } from "@webcraft/core";
 import { z } from "zod";
 
-import { personActorOf as actorOf, inAdminSession, notWhileImpersonating, onWorkspace, sensitive } from "../context.ts";
+import {
+	personActorOf as actorOf,
+	inAdminSession,
+	notWhileImpersonating,
+	onWorkspace,
+	sensitive,
+	withinImpersonationReach,
+} from "../context.ts";
 import { id, memberSites, toolsetsInput } from "../inputs.ts";
 import { toolsetOffer } from "../toolset-offer.ts";
 
@@ -69,9 +76,7 @@ export const aiClients = {
 	/** The person's approved AI clients, newest first: active, expired and revoked. Never a token. */
 	list: inAdminSession.handler(async ({ context }) => {
 		const grants = await context.services.oauth.list(context.person.id);
-		const reach = context.impersonation?.workspaceIds;
-		// While impersonating, only the Workspaces the impersonation reaches.
-		return { grants: reach ? grants.filter((grant) => reach.includes(grant.workspace.id)) : grants };
+		return { grants: withinImpersonationReach(context, grants, (grant) => grant.workspace.id) };
 	}),
 
 	/** Revokes one of the person's AI clients at once: its next request is refused. */
