@@ -128,10 +128,7 @@ export function imageTools(kit: BarKit): ImageTools {
 	}
 
 	function close(returnFocus = false): void {
-		const was = opened;
-		if (!was) return;
-		opened = null;
-		was.handle.close(returnFocus);
+		opened?.handle.close(returnFocus);
 	}
 
 	// -------------------------------------------------------------------------------------------
@@ -307,6 +304,9 @@ export function imageTools(kit: BarKit): ImageTools {
 				timers = [];
 				kit.placeIn(null);
 				kit.showTag(null);
+			},
+			afterClose: () => {
+				opened = null;
 			},
 			focusBack: () => {
 				if (region.isConnected) region.focus();

@@ -42,9 +42,7 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 	}
 
 	function close(returnFocus: boolean): void {
-		const was = opened;
-		opened = null;
-		was?.close(returnFocus);
+		opened?.close(returnFocus);
 	}
 
 	async function open(from: HTMLElement | null): Promise<void> {
@@ -306,6 +304,9 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 			htmlClass: "wc-edit-drawer",
 			onClose: () => {
 				for (const timer of timers.values()) cancel(timer);
+			},
+			afterClose: () => {
+				opened = null;
 			},
 			focusBack: () => {
 				if (from?.isConnected) from.focus();

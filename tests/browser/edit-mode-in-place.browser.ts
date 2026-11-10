@@ -405,6 +405,19 @@ describe("Page details", () => {
 		expect(await eventually(seoOf, (value) => value !== null)).toBe("Sourdough in Cork");
 		await (await admin()).entries.saveDraft({ siteId, entryId, seo: { title: null } });
 	});
+
+	test("the drawer reopens after Escape closed it", async () => {
+		const page = await editModePage("light");
+		const open = page.getByRole("button", { name: "Page details" });
+
+		await open.click();
+		await page.getByRole("textbox", { name: "SEO title · English" }).waitFor();
+		await page.keyboard.press("Escape");
+		await page.getByRole("dialog", { name: "Page details" }).waitFor({ state: "hidden" });
+
+		await open.click();
+		await page.getByRole("textbox", { name: "SEO title · English" }).waitFor();
+	});
 });
 
 describe("on a phone", () => {
