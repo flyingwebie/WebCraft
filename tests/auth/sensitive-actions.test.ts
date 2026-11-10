@@ -73,6 +73,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
 	"shareLink.change": (api, { siteId, dashboardId, next }) =>
 		api.shareLinks.create({ siteId, dashboardId, name: `Client link ${next()}` }),
+	"auditRetention.change": (api) => api.install.security.setAuditRetention({ days: 365 }),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 	"aiClient.approve": (api, { workspaceId, authorization }) =>
 		api.oauth.approve({ parameters: authorization, workspaceId }),

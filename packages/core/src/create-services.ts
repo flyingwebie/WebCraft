@@ -4,7 +4,7 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccount, reportAccountLock } from "./account.ts";
 import { createAiKeys } from "./ai/keys.ts";
 import { createApiTokens } from "./api-tokens.ts";
-import { listAuditEntries } from "./audit.ts";
+import { createAuditLog } from "./audit-log.ts";
 import { createBackups } from "./backups/service.ts";
 import { createBuilder } from "./builder/index.ts";
 import { createCdns } from "./cdns/index.ts";
@@ -502,7 +502,7 @@ export async function createInstallServices(
 		members: createMembers({ database, email }),
 		staff: createStaff({ email }),
 		invites: createInvites({ database, auth, settings, clock, memberships }),
-		audit: { list: (scope, options) => listAuditEntries(scope.db, options) },
+		audit: createAuditLog({ database, data, clock }),
 		email,
 		storage,
 		media,

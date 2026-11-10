@@ -1,3 +1,4 @@
+import { auditPrune, auditPruneSchedule } from "../audit-log.ts";
 import { backupsScheduled, backupsScheduledSchedule } from "../backups/jobs.ts";
 import { cdnRefreshRanges, cdnRefreshRangesSchedule } from "../cdns/index.ts";
 import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
@@ -94,6 +95,7 @@ export const coreJobs = [
 	reportsRender,
 	reportsPurge,
 	historyPrune,
+	auditPrune,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -121,6 +123,7 @@ export const coreSchedules = [
 	reportsDueSchedule,
 	reportsPurgeSchedule,
 	historyPruneSchedule,
+	auditPruneSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {

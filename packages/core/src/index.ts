@@ -34,12 +34,23 @@ export {
 	type NewApiToken,
 } from "./api-tokens.ts";
 export {
+	AUDIT_VIA_KINDS,
 	type AuditDetails,
 	type AuditEntry,
 	type AuditVia,
+	type AuditViaKind,
+	clientNameOf,
+	impersonatorNameOf,
 	type NewAuditEntry,
 	recordAudit,
 } from "./audit.ts";
+export {
+	AUDIT_EXPORT_LIMIT,
+	AUDIT_RETENTION_DAYS,
+	type AuditLog,
+	type AuditPage,
+	type AuditQuery,
+} from "./audit-log.ts";
 export { openBackupForCommand } from "./backups/command.ts";
 export * from "./backups/index.ts";
 export {

@@ -4,7 +4,7 @@ import type { Database } from "@webcraft/db";
 import type { Account } from "./account.ts";
 import type { AiKeys, AiProviders } from "./ai/index.ts";
 import type { ApiTokens } from "./api-tokens.ts";
-import type { AuditEntry } from "./audit.ts";
+import type { AuditLog } from "./audit-log.ts";
 import type { Backups } from "./backups/service.ts";
 import type { Builder } from "./builder/index.ts";
 import type { Cdns } from "./cdns/index.ts";
@@ -529,10 +529,11 @@ export type InstallServices = InstallPorts & {
 	staff: StaffService;
 	/** Invite links (Staff and Member invites): what they offer, and accepting them. */
 	invites: InvitesService;
-	audit: {
-		/** The newest entries of the whole Install's Audit log; open the Install with `audit.view` first. */
-		list(scope: InstallScope, options: { limit: number }): Promise<AuditEntry[]>;
-	};
+	/**
+	 * Reading the Audit log at each level, a person's own activity, its CSV export and its retention.
+	 * Writing it is `scope.audit(…)` (`recordAudit`).
+	 */
+	audit: AuditLog;
 	/** The Install SMTP, Install branding, the System email sender, the Email log and email preferences. */
 	email: Email;
 	/** Where the Install stores files (Install settings › Storage), and the storage holding each one. */
