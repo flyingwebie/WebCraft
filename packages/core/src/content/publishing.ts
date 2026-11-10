@@ -3,7 +3,7 @@ import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
 import { announcePublished } from "../co-editing/store.ts";
 import { publishConsentText } from "../consent/text.ts";
-import { isUniqueViolation } from "../db-errors.ts";
+import { isSerializationFailure, isUniqueViolation } from "../db-errors.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem, lockDesignSystem } from "../design-system/design-systems.ts";
 import { publishDesignSystem, publishGeneratedClasses } from "../design-system/publishing.ts";
@@ -95,6 +95,18 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
 	return itemPermission(item.kind, "entry.publish");
 }
 
+/**
+ * Checks the person may publish every one of `items` (`publishPermission`), refusing with the first
+ * Permission they lack (`PermissionDeniedError`): what `publishItems`, Publish all and "Publish all
+ * at…" each open with, before taking any lock.
+ */
+export function requirePublishPermissions(scope: SiteScope, items: readonly Pick<PublishItem, "kind">[]): void {
+	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
+	for (const permission of new Set(items.map(publishPermission))) {
+		if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
+	}
+}
+
 /** Items whose publish can change the Site's stylesheet: what it is built from (element trees' Classes). */
 function changesStyles(item: PublishItem): boolean {
 	return item.kind === "template" || item.kind === "component" || item.kind === "designSystem";
@@ -138,8 +150,9 @@ export type FrozenVersions = (item: PublishItem) => unknown;
  * for each other in a circle; one page cache clear, and one replaced stylesheet kept; each item writes
  * its own Audit log entry, as publishing it alone does. Each item needs its own Permission
  * (`publishPermission`). `refusal`, when given, turns the reason an item can't be published into the
- * error that stops them all (a failure of the database itself, such as two transactions at once, is
- * never turned).
+ * error that stops them all (a deadlock or serialization failure, Postgres giving up because another
+ * transaction conflicted, is never turned: trying again later may just work; a deterministic failure,
+ * such as a constraint, is turned like any other refusal, naming the item that caused it).
  *
  * `frozen`, when given, names the version to publish of each item instead of its Draft: a Scheduled
  * publish's, which the worker publishes at its time; every check runs on it as on a Draft. Without it
@@ -153,10 +166,7 @@ export async function publishItems(
 	refusal?: (item: PublishItem, error: unknown) => Error,
 	frozen?: FrozenVersions,
 ): Promise<Published[]> {
-	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
-	for (const permission of new Set(items.map(publishPermission))) {
-		if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
-	}
+	requirePublishPermissions(scope, items);
 	return scope.transaction(async (tx) => {
 		// Where Entries and Archive templates are depends on the patterns and the Page tree: held first.
 		if (items.some((item) => item.kind === "entry" || item.kind === "template")) await lockSitePaths(tx);
@@ -174,7 +184,7 @@ export async function publishItems(
 			try {
 				published.push(await publishItem(tx, item, sources, frozen?.(item)));
 			} catch (error) {
-				throw refusal && !isDatabaseFailure(error) ? refusal(item, error) : error;
+				throw refusal && !isSerializationFailure(error) ? refusal(item, error) : error;
 			}
 			// Each publish saves a Revision of what it published, unless Revisions are off.
 			await saveRevision(tx, item);
@@ -186,17 +196,6 @@ export async function publishItems(
 		await clearPageCache(tx);
 		return published;
 	});
-}
-
-/** Whether Postgres itself refused (an SQLSTATE code on the error or its causes), rather than a publish's own check. */
-export function isDatabaseFailure(error: unknown): boolean {
-	let current: unknown = error;
-	for (let depth = 0; current && depth < 5; depth++) {
-		const code = (current as { code?: unknown }).code;
-		if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return true;
-		current = (current as { cause?: unknown }).cause;
-	}
-	return false;
 }
 
 /** Publishes one item: its Draft, or `version` when given (as its table stores its Draft). */

@@ -414,11 +414,3 @@ export class HomePageUnpublishError extends Error {
 		super("The home page can't be unpublished: choose another home page first.");
 	}
 }
-
-/** Only Entries (Pages included) can be unpublished. */
-export class UnpublishNotAllowedError extends Error {
-	override name = "UnpublishNotAllowedError";
-	constructor() {
-		super("Only Entries and Pages can be scheduled to unpublish.");
-	}
-}
