@@ -185,7 +185,8 @@ function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: S
 					<SidebarMenu>
 						<SidebarMenuItem className="flex items-center gap-1">
 							<UserMenu person={person} />
-							<ThemeSwitch theme={shell.theme} />
+							{/* Light or dark is the person's own preference: never changed while impersonating them. */}
+							{shell.impersonation ? null : <ThemeSwitch theme={shell.theme} />}
 						</SidebarMenuItem>
 					</SidebarMenu>
 				</SidebarFooter>
