@@ -5,7 +5,7 @@ import { clientNameOf } from "../audit.ts";
 import { peopleNames, storedVia } from "../history/attribution.ts";
 import { itemState } from "../history/items.ts";
 import { can, personIdOf } from "../permissions/can.ts";
-import type { SiteScope } from "../tenancy/data-layer.ts";
+import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
 import { itemPermission } from "./item-permission.ts";
 import { draftVersion } from "./json.ts";
 import type { PublishItem } from "./publishing.ts";
@@ -92,7 +92,8 @@ export function reviewItemWhere(item: ReviewItem): SQL {
 	) as SQL;
 }
 
-function itemKey(item: ReviewItem): string {
+/** A Review's item, as a string key: an Entry by id, else its kind alone (one per Site). */
+export function itemKey(item: ReviewItem): string {
 	return item.kind === "entry" ? `entry:${item.id}` : item.kind;
 }
 
@@ -287,9 +288,55 @@ export async function reviewsOnSchedule(
 				decidedVia: scope.access.via,
 				decidedAt: scope.now(),
 				scheduledAt: at,
+				scheduleId,
 			},
 			eq(reviews.id, row.id),
 		);
 		await scope.audit("review.schedule", { ...(await auditItem(scope, row)), at: at.toISOString(), scheduleId });
 	}
+}
+
+/** A Review `reopenReviewsOfSchedule` put back to In review, with what the Audit log needs to say about it. */
+export type ReopenedReview = { row: Row; name: string | null; postTypeId: string | null };
+
+/**
+ * Finds the Reviews a Scheduled publish ended by scheduling (`scheduled`, holding its id) and puts
+ * them back to `inReview`, as if they had never been scheduled: cleared `decidedBy`/`decidedAt`/
+ * `scheduledAt`/`scheduleId`. Called when that Scheduled publish is removed without ever publishing
+ * them (cancelled, or a run that failed), in the same transaction as its own row leaving.
+ *
+ * Only the lookup and the row update: the caller writes its own Audit log entry (`review.reopen`),
+ * since a Scheduled publish is cancelled through a `SiteScope` (a person acted) but a failed run is
+ * found through a `BackgroundScope` (nobody did: `BackgroundScope` keeps no Audit log of its own).
+ * Not emailed: nothing was decided, the Scheduled publish it waited in simply stopped existing, and
+ * whoever removed it (cancelling it, or the `scheduled-publish-failed` email on a failed run) already
+ * knows why; the item just waits for a reviewer again.
+ */
+export async function reopenReviewsOfSchedule(
+	scope: SiteScope | BackgroundScope,
+	scheduleId: string,
+): Promise<ReopenedReview[]> {
+	const rows = await scope.db
+		.select()
+		.from(reviews)
+		.where(scope.where(reviews, and(eq(reviews.scheduleId, scheduleId), eq(reviews.status, "scheduled"))))
+		.for("update");
+	const reopened: ReopenedReview[] = [];
+	for (const row of rows) {
+		await scope.update(
+			reviews,
+			{
+				status: "inReview",
+				decidedBy: null,
+				decidedVia: null,
+				decidedAt: null,
+				scheduledAt: null,
+				scheduleId: null,
+			},
+			eq(reviews.id, row.id),
+		);
+		const state = await itemState(scope, reviewItemOf(row));
+		reopened.push({ row, name: state.summary.name, postTypeId: state.summary.postType?.id ?? null });
+	}
+	return reopened;
 }
