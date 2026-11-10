@@ -119,6 +119,9 @@ for (const theme of THEMES) {
 			const sitemap = page.getByRole("checkbox", { name: "List in sitemaps and llms.txt" });
 			await sitemap.focus();
 			await page.keyboard.press("Space");
+			// The switch shows its new state once the screen has it, so Save sends it.
+			for (let look = 0; look < 100 && (await sitemap.isChecked()); look++) await page.waitForTimeout(50);
+			expect(await sitemap.isChecked()).toBe(false);
 			await page.getByRole("button", { name: "Save" }).click();
 			await page.getByText("SEO settings saved.").first().waitFor();
 			await expectAccessibleScreen(page, `a Post Type's SEO tab, saved (${theme})`);
@@ -209,8 +212,14 @@ for (const theme of THEMES) {
 			await allowAll.focus();
 			await page.keyboard.press("ArrowDown");
 			expect(await page.getByRole("radio", { name: "Allow search, block training" }).isChecked()).toBe(true);
-			await page.getByRole("button", { name: "Save", exact: true }).click();
+			const save = page.getByRole("button", { name: "Save", exact: true });
+			await save.click();
 			await page.getByText("Saved. The Site's robots.txt says so now.").first().waitFor();
+			// Nothing to save until the choice changes again.
+			await page.waitForFunction(
+				() =>
+					[...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Save")?.disabled,
+			);
 			await expectAccessibleScreen(page, `Site › Crawlers, saved (${theme})`);
 
 			const { api } = await install.install.superadmin();

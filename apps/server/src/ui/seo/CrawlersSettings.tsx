@@ -53,8 +53,11 @@ export function CrawlersSettings({
 	const t = useT();
 	const router = useRouter();
 	const id = useId();
+	// What is saved now: the buttons stay off until something differs, without waiting for a reload.
+	const [savedChoice, setSavedChoice] = useState<AiCrawlerSetting>(settings.aiCrawlers);
 	const [choice, setChoice] = useState<AiCrawlerSetting>(settings.aiCrawlers);
 	const [busy, setBusy] = useState(false);
+	const [savedLines, setSavedLines] = useState(settings.robotsLines);
 	const [lines, setLines] = useState(settings.robotsLines);
 	const [linesProblem, setLinesProblem] = useState<string | null>(null);
 	const [savingLines, setSavingLines] = useState(false);
@@ -68,7 +71,8 @@ export function CrawlersSettings({
 		setBusy(true);
 		try {
 			const api = await getApi();
-			await api.seoSettings.setAiCrawlers({ siteId, aiCrawlers: choice });
+			const { settings: saved } = await api.seoSettings.setAiCrawlers({ siteId, aiCrawlers: choice });
+			setSavedChoice(saved.aiCrawlers);
 			toast.success(t("seo.crawlers.saved"));
 			await router.invalidate();
 		} catch (error) {
@@ -86,6 +90,7 @@ export function CrawlersSettings({
 			const api = await getApi();
 			const { settings: saved } = await api.seoSettings.update({ siteId, robotsLines: lines });
 			setLines(saved.robotsLines);
+			setSavedLines(saved.robotsLines);
 			toast.success(t("seo.crawlers.linesSaved"));
 			await router.invalidate();
 		} catch (error) {
@@ -150,7 +155,7 @@ export function CrawlersSettings({
 							</div>
 						</details>
 						<div>
-							<Button type="submit" disabled={busy || choice === settings.aiCrawlers}>
+							<Button type="submit" disabled={busy || choice === savedChoice}>
 								{t("seo.crawlers.save")}
 							</Button>
 						</div>
@@ -196,7 +201,7 @@ export function CrawlersSettings({
 								</p>
 							) : null}
 							<div>
-								<Button type="submit" disabled={savingLines || lines === settings.robotsLines}>
+								<Button type="submit" disabled={savingLines || lines === savedLines}>
 									{t("seo.crawlers.saveLines")}
 								</Button>
 							</div>
