@@ -83,8 +83,9 @@ export type SitePipelineOptions = {
  * Redirect domains and then the Site's Redirect rules (kept by the Module that keeps them, SDK 1.5)
  * come before everything else; a visitor's request the 404 page answers goes to the Site's 404 log.
  *
- * Steps still to come, in their places: each reserved path's feature (the Content API,
- * `sitemap.xml`, `robots.txt`, `llms.txt`, Markdown copies).
+ * The discovery files (robots.txt, sitemaps, `llms.txt`, Markdown copies) answer at the reserved-path
+ * step, kept in the page cache like pages (`discovery.ts`); the Staging address's robots.txt answers
+ * before its access check. Still to come in its place: the Content API.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();

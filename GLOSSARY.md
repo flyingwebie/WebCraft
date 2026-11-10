@@ -336,6 +336,22 @@ _Avoid_: OG image, share image, preview image
 The kind of thing a Post Type's Entries describe to search engines (Article, Product, Event and so on), with each property mapped to a Field. WebCraft outputs it as structured data on every page.
 _Avoid_: Rich snippet, schema markup, JSON-LD type
 
+**Summary**:
+The short text that says what an Entry is about, from the Field its Post Type names as its Summary field. A page without a description of its own takes it as its description, and llms.txt and Markdown copies show it. A Post Type need not have one.
+_Avoid_: Excerpt, teaser, abstract, description (an SEO field)
+
+**Sitemap**:
+The files that list a Site's indexable pages for search engines, on each of its domains: an index with one sitemap per Post Type, each address with when it was last published and its other languages. Staff may leave a Post Type out.
+_Avoid_: XML sitemap, site index
+
+**AI crawler setting**:
+The one Site setting that decides what the Site's robots.txt tells AI crawlers: allow them all, allow AI search but keep out crawlers collecting pages for training, or keep them all out. Search engines are never affected.
+_Avoid_: AI blocking, bot setting, robots setting
+
+**Markdown copy**:
+A copy of an indexable Entry's page in Markdown, at the page's address plus `.md`, for AI engines to read cleanly. Each language's llms.txt lists them.
+_Avoid_: Markdown export, .md version, plain-text page
+
 **Redirect rule**:
 A rule on a Site that sends visitors from one path (or every path under one) to another path or site, added by people on the Redirects screen or by WebCraft when a published path changes (a new slug, a moved Page, a new URL pattern or Default language). It is Content, without a Draft: it applies once saved. Not to be confused with a Redirect domain, which redirects a whole domain.
 _Avoid_: Redirect, 301, URL forward
