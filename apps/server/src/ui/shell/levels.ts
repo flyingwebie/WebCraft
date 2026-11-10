@@ -2,6 +2,7 @@ import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
 import {
 	ArchiveIcon,
+	BotIcon,
 	Building2Icon,
 	ChartColumnIcon,
 	ClipboardListIcon,
@@ -374,6 +375,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: SearchCheckIcon,
 						to: "/sites/$siteId/seo",
 						requires: "structure.edit",
+					},
+					{
+						id: "site-crawlers",
+						label: "shell.nav.crawlers",
+						icon: BotIcon,
+						to: "/sites/$siteId/crawlers",
+						requires: "aiCrawlers.manage",
 					},
 					{
 						id: "site-consent-banner",

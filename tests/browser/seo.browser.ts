@@ -1,6 +1,7 @@
 // The SEO screens in a real browser, in the device's light and dark themes, each checked with axe-core
 // and the keyboard: the Entry editor's SEO & sharing card (with the SEO check's warnings), a Post
-// Type's SEO tab (title pattern tokens, fallbacks, the Schema type and its properties) and Site › SEO.
+// Type's SEO tab (title pattern tokens, its Summary, the sitemap switch, the Schema type and its
+// properties), Site › SEO, and Site › Crawlers (the AI crawler setting and Staff's robots.txt lines).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -9,6 +10,7 @@ import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
+let owner: TestAccount;
 let author: TestAccount;
 let siteId: string;
 let postTypeId: string;
@@ -22,6 +24,7 @@ beforeAll(async () => {
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" })).account;
 	author = (await local.createMember({ workspaceId, role: "author", name: "Aoife Kelly" })).account;
+	owner = (await local.createMember({ workspaceId, role: "owner", name: "Niamh Walsh" })).account;
 	await api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] });
 	const { postType } = await api.postTypes.create({
 		siteId,
@@ -112,7 +115,10 @@ for (const theme of THEMES) {
 			expect(await pattern.inputValue()).toBe("{title} {separator} {site} {postType}");
 			await page.getByRole("combobox", { name: "Schema type" }).selectOption("blogPosting");
 			expect(await page.getByRole("combobox", { name: "Where headline comes from" }).inputValue()).toBe("title");
-			await page.getByRole("combobox", { name: "Description from" }).selectOption("summary");
+			await page.getByRole("combobox", { name: "Summary" }).selectOption("summary");
+			const sitemap = page.getByRole("checkbox", { name: "List in sitemaps and llms.txt" });
+			await sitemap.focus();
+			await page.keyboard.press("Space");
 			await page.getByRole("button", { name: "Save" }).click();
 			await page.getByText("SEO settings saved.").first().waitFor();
 			await expectAccessibleScreen(page, `a Post Type's SEO tab, saved (${theme})`);
@@ -121,13 +127,16 @@ for (const theme of THEMES) {
 			const { postType } = await api.postTypes.get({ siteId, postTypeId });
 			expect(postType.seo).toMatchObject({
 				titlePattern: "{title} {separator} {site} {postType}",
-				descriptionField: "summary",
 				schema: { type: "blogPosting", properties: { headline: "title", author: "author" } },
 			});
+			expect(postType.summaryField).toBe("summary");
+			expect(postType.sitemap).toBe(false);
 			await api.postTypes.update({
 				siteId,
 				postTypeId,
-				seo: { titlePattern: "{title} {separator} {site}", descriptionField: null, schema: { type: "webPage" } },
+				summaryField: null,
+				sitemap: true,
+				seo: { titlePattern: "{title} {separator} {site}", schema: { type: "webPage" } },
 			});
 		});
 
@@ -181,6 +190,51 @@ for (const theme of THEMES) {
 				separator: "·",
 				organization: { kind: "organization", telephone: null },
 			});
+		});
+	});
+}
+
+for (const theme of THEMES) {
+	describe(`Site › Crawlers, ${theme}`, () => {
+		test("an Owner chooses what AI crawlers may read, from the keyboard", async () => {
+			const page = await install.newPage(theme);
+			await install.signIn(page, owner);
+			await page.goto(install.adminUrl(`/sites/${siteId}/crawlers`));
+			await page.waitForLoadState("networkidle");
+			await page.getByRole("heading", { level: 1, name: "Crawlers" }).waitFor();
+			// Owners choose the AI crawler setting; Staff's own robots.txt lines aren't theirs.
+			expect(await page.getByRole("textbox", { name: "Lines" }).count()).toBe(0);
+
+			const allowAll = page.getByRole("radio", { name: "Allow all" });
+			await allowAll.focus();
+			await page.keyboard.press("ArrowDown");
+			expect(await page.getByRole("radio", { name: "Allow search, block training" }).isChecked()).toBe(true);
+			await page.getByRole("button", { name: "Save", exact: true }).click();
+			await page.getByText("Saved. The Site's robots.txt says so now.").first().waitFor();
+			await expectAccessibleScreen(page, `Site › Crawlers, saved (${theme})`);
+
+			const { api } = await install.install.superadmin();
+			expect((await api.seoSettings.get({ siteId })).settings.aiCrawlers).toBe("allowSearch");
+			await api.seoSettings.setAiCrawlers({ siteId, aiCrawlers: "allowAll" });
+		});
+
+		test("Staff's refused robots.txt line is said beside the field, which keeps what they typed", async () => {
+			const page = await install.newPage(theme);
+			await install.signIn(page, staff);
+			await page.goto(install.adminUrl(`/sites/${siteId}/crawlers`));
+			await page.waitForLoadState("networkidle");
+			const lines = page.getByRole("textbox", { name: "Lines" });
+			await lines.fill("Disallow: /private");
+			await page.getByRole("button", { name: "Save lines" }).click();
+			const alert = page
+				.getByRole("alert")
+				.filter({ hasText: "Line 1 is a rule without a User-agent line before it." });
+			await alert.waitFor();
+			await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "alert", undefined, {
+				timeout: 5_000,
+			});
+			expect(await lines.inputValue()).toBe("Disallow: /private");
+			await expectAccessibleScreen(page, `Site › Crawlers, a refused line (${theme})`);
 		});
 	});
 }
