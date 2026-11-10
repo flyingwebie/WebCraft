@@ -562,7 +562,7 @@ describe("a body's image Blocks", () => {
 			{ id: "photo", type: "image", media: site.rolls },
 			{ id: "later", type: "image", media: null },
 		]);
-		expect((entry.published?.fields.body as { media?: string }[])[1]?.media).toBe(site.loaf);
+		expect(((entry.published?.fields.body ?? []) as { media?: string }[])[1]?.media).toBe(site.loaf);
 	});
 
 	test("refuses a Block that isn't one of the body's image Blocks", async () => {
