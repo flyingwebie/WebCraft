@@ -6,6 +6,7 @@ import { and, eq, gt, isNull, lte, type SQL } from "drizzle-orm";
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { domainOrigin, verifiedDomains } from "../domains/addresses.ts";
 import type { FocalPoint, MediaLibrary } from "../media/library.ts";
@@ -50,6 +51,7 @@ import {
 	undoChange,
 	withdrawPage,
 } from "./page.ts";
+import { type PageDetails, type PageDetailsChange, pageDetails, savePageDetails } from "./page-details.ts";
 import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 import {
 	type ImageChange,
@@ -68,6 +70,7 @@ export {
 } from "./errors.ts";
 export { EDIT_MEDIA_PAGE, type EditMediaItem, type EditMediaQuery } from "./media.ts";
 export type { PageChange, PageState } from "./page.ts";
+export type { PageDetails, PageDetailsChange } from "./page-details.ts";
 export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";
 
@@ -161,6 +164,16 @@ export type EditMode = {
 	): Promise<PageState>;
 	/** Withdraws the page's Reviews the person submitted, answering the page's state afterwards. */
 	withdrawReview(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/**
+	 * Page details: the values of the page's Entry that don't show on the page (title, address, SEO
+	 * fields, Summary, social image, noindex) in a language, with what each falls back to.
+	 */
+	details(session: EditSession, input: { item: string; language?: string }): Promise<PageDetails>;
+	/** Saves a change from Page details to the Draft, as the admin's Entry editor does (`ENTRY_SLUG_TAKEN` and all). */
+	saveDetails(
+		session: EditSession,
+		change: PageDetailsChange,
+	): Promise<{ details: PageDetails; problems: ContentProblem[] }>;
 	/** A Loop's own items, edited in place (GLOSSARY.md › Loop item): Content, in the Loop's Draft. */
 	loops: {
 		/**
@@ -389,6 +402,8 @@ export function createEditMode(options: {
 		publish: (session, host, path) => publishPage(deps, session, host, path),
 		submitForReview: (session, host, input) => submitPage(deps, session, host, input),
 		withdrawReview: (session, host, path) => withdrawPage(deps, session, host, path),
+		details: (session, input) => pageDetails(session.scope, options.media, input.item, input.language),
+		saveDetails: (session, change) => savePageDetails(session.scope, options.media, change),
 		loops: {
 			async item(session, input) {
 				const loop = await ownItemsLoop(session.scope, input.loop, input.language);

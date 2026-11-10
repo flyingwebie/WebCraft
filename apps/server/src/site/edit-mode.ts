@@ -174,6 +174,12 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	},
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
+	/** Page details: the page's Entry's values that don't show on the page, with their fallbacks. */
+	details: async (services, session, body) =>
+		json(200, await services.editMode.details(session, parse(detailsItem, body))),
+	/** Saves a change from Page details to the Draft. */
+	"details/save": async (services, session, body) =>
+		json(200, await services.editMode.saveDetails(session, parse(detailsChange, body))),
 	/** The item form of one of a Loop's own items: its Fields and values in a language. */
 	"loop/get": async (services, session, body) =>
 		json(200, await services.editMode.loops.item(session, parse(loopItem, body))),
@@ -341,6 +347,26 @@ const imageChange = z.object({
 	media: z.string().max(100).nullable(),
 	block: z.string().max(64).optional(),
 	language: z.string().max(35).optional(),
+});
+
+const detailsItem = z.object({ item: z.string().max(100), language: z.string().max(35).optional() });
+
+/** An SEO field as the drawer sends it: text, null or "" to clear it. */
+const seoText = z.string().max(2000).nullable().optional();
+
+const detailsChange = detailsItem.extend({
+	title: z.string().max(2000).optional(),
+	slug: z.string().max(200).optional(),
+	seo: z
+		.object({
+			title: seoText,
+			description: seoText,
+			canonical: seoText,
+			image: z.string().max(100).nullable().optional(),
+			noindex: z.boolean().optional(),
+		})
+		.optional(),
+	summary: z.string().max(200_000).nullable().optional(),
 });
 
 /** A Loop's id and one of its own items, by id. */
