@@ -29,6 +29,7 @@ const VIA_KINDS = [
 	"module",
 	"command",
 	"translation",
+	"scheduledPublish",
 ] as const satisfies readonly Via["kind"][];
 
 /** The names a page knows, kept across pages: people, Workspaces and Sites by id. */

@@ -63,6 +63,7 @@ import {
 	FormNotFoundError,
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
+	HomePageUnpublishError,
 	HostInvalidError,
 	IdentityCheckRequiredError,
 	ImpersonationNeedsSecondFactorError,
@@ -79,6 +80,7 @@ import {
 	ImportUploadRefusedError,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
+	ItemAlreadyScheduledError,
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
@@ -129,6 +131,8 @@ import {
 	ReportSendNotFoundError,
 	ReportSendRefusedError,
 	RevisionNotFoundError,
+	ScheduledPublishNotFoundError,
+	ScheduleInvalidError,
 	ScriptNotFoundError,
 	SensitiveActionRefusedError,
 	SeoSettingsInvalidError,
@@ -414,6 +418,28 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof PageParentUnpublishedError) {
 		return new ORPCError("PAGE_PARENT_UNPUBLISHED", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof HomePageUnpublishError) {
+		return new ORPCError("HOME_PAGE_UNPUBLISH", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof ScheduleInvalidError) {
+		return new ORPCError("SCHEDULE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof ItemAlreadyScheduledError) {
+		return new ORPCError("ALREADY_SCHEDULED", {
+			status: 409,
+			message: error.message,
+			data: { item: error.item, scheduleId: error.scheduleId, at: error.at.toISOString() },
+			cause: error,
+		});
+	}
+	if (error instanceof ScheduledPublishNotFoundError) {
+		return new ORPCError("SCHEDULED_PUBLISH_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof EntryLinkedError) {
 		return new ORPCError("ENTRY_LINKED", {

@@ -220,7 +220,9 @@ function WebhookList({
 }
 
 function eventName(t: ReturnType<typeof useT>, event: string): string {
-	return event === "publish" || event === "formSubmitted" || event === "test" ? t(`webhooks.events.${event}`) : event;
+	return event === "publish" || event === "unpublish" || event === "formSubmitted" || event === "test"
+		? t(`webhooks.events.${event}`)
+		: event;
 }
 
 function WebhookStatus({ webhook }: { webhook: WebhookView }) {
@@ -509,9 +511,11 @@ function WebhookDialog({
 										<FieldDescription id={`${id}-event-${event}-help`}>
 											{event === "publish"
 												? t("webhooks.eventHelp.publish")
-												: event === "formSubmitted"
-													? t("webhooks.eventHelp.formSubmitted")
-													: null}
+												: event === "unpublish"
+													? t("webhooks.eventHelp.unpublish")
+													: event === "formSubmitted"
+														? t("webhooks.eventHelp.formSubmitted")
+														: null}
 										</FieldDescription>
 									</div>
 								</Field>

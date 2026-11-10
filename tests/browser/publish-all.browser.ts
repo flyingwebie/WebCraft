@@ -104,7 +104,7 @@ describe("publishing from the list", () => {
 		await dialog.getByRole("checkbox", { name: "Spring menu" }).focus();
 		await page.keyboard.press("Space");
 		await dialog.getByText("2 of 3 selected").waitFor();
-		await dialog.getByRole("button", { name: "Publish 2 items" }).focus();
+		await dialog.getByRole("button", { name: "Publish 2 items", exact: true }).focus();
 		await page.keyboard.press("Enter");
 
 		await dialog.waitFor({ state: "hidden" });

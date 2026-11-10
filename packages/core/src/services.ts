@@ -42,9 +42,13 @@ import type {
 	Published,
 	PublishItem,
 	PublishPreview,
+	RunOutcome,
 	SaveBase,
 	SavedComponentMarkup,
 	SavedTemplateMarkup,
+	ScheduleAllDone,
+	ScheduleAllPreview,
+	ScheduledPublish,
 	Script,
 	SiteDraft,
 	SiteLanguages,
@@ -484,6 +488,35 @@ export type InstallServices = InstallPorts & {
 		 * confirm it before they publish (spec › Management API).
 		 */
 		preview(scope: SiteScope, item: PublishItem): Promise<PublishPreview>;
+		/**
+		 * The Site's Scheduled publishes waiting for their time, soonest first (open the Site with
+		 * `site.view`); with `item`, those it waits in. See `content/scheduled-publishes.ts`.
+		 */
+		scheduled(scope: SiteScope, filter?: { item?: PublishItem }): Promise<ScheduledPublish[]>;
+		/** One Scheduled publish waiting for its time (open the Site with `site.view`). */
+		getScheduled(scope: SiteScope, scheduleId: string): Promise<ScheduledPublish>;
+		/**
+		 * Schedules one item's publish at a time: its Draft as it is now is what goes live then. Open
+		 * the Site with `publishPermission(item)`.
+		 */
+		schedule(scope: SiteScope, item: PublishItem, at: Date): Promise<ScheduledPublish>;
+		/** "Publish all at…", in two calls like Publish all. Open the Site with `site.view`. */
+		scheduleAll(
+			scope: SiteScope,
+			items: readonly PublishItem[],
+			at: Date,
+			confirmation?: string,
+		): Promise<ScheduleAllPreview | ScheduleAllDone>;
+		/** Schedules an Entry's unpublish (410 Gone, its Draft kept). Open the Site with `entry.publish`. */
+		scheduleUnpublish(scope: SiteScope, item: PublishItem, at: Date): Promise<ScheduledPublish>;
+		/** Changes a Scheduled publish's time, keeping the versions it froze. Open the Site with `site.view`. */
+		reschedule(scope: SiteScope, scheduleId: string, at: Date): Promise<ScheduledPublish>;
+		/** Takes the items' current Drafts into a Scheduled publish. Open the Site with `site.view`. */
+		updateScheduled(scope: SiteScope, scheduleId: string): Promise<ScheduledPublish>;
+		/** Cancels a Scheduled publish. Open the Site with `site.view`. */
+		cancelScheduled(scope: SiteScope, scheduleId: string): Promise<void>;
+		/** For the worker: runs every Scheduled publish whose time came. */
+		runDue(): Promise<RunOutcome[]>;
 	};
 	/**
 	 * Every publishable item's history: Revisions saved by each publish and Checkpoints of its Draft,

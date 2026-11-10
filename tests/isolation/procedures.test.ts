@@ -1059,6 +1059,74 @@ describe("Publish all", () => {
 	);
 });
 
+describe("Scheduled publish", () => {
+	const anHourFromNow = () => new Date(install.clock.now().getTime() + 60 * 60_000);
+	/** A Draft Entry of its own in the target's Site, made by the Superadmin. */
+	const draftIn = async (target: IsolationTarget) => {
+		const admin = await install.superadmin();
+		const { postTypeId } = await contentIn(target);
+		return (await admin.api.entries.create({ siteId: target.siteId, postTypeId, title: "Scheduled" })).entry.id;
+	};
+	/** A Scheduled publish of its own in the target's Site, made by the Superadmin. */
+	const scheduleIn = async (target: IsolationTarget) => {
+		const admin = await install.superadmin();
+		const id = await draftIn(target);
+		const { scheduled } = await admin.api.publishing.schedule({
+			siteId: target.siteId,
+			item: { kind: "entry", id },
+			at: anHourFromNow(),
+		});
+		return scheduled.id;
+	};
+	isolation.refuses("publishing.scheduled", (api, { siteId }) => api.publishing.scheduled({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"publishing.schedule",
+		async (api, target) =>
+			api.publishing.schedule({
+				siteId: target.siteId,
+				item: { kind: "entry", id: await draftIn(target) },
+				at: anHourFromNow(),
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.scheduleAll",
+		async (api, target) =>
+			api.publishing.scheduleAll({
+				siteId: target.siteId,
+				items: [{ kind: "entry", id: await draftIn(target) }],
+				at: anHourFromNow(),
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.scheduleUnpublish",
+		async (api, target) =>
+			api.publishing.scheduleUnpublish({ siteId: target.siteId, entryId: await draftIn(target), at: anHourFromNow() }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.reschedule",
+		async (api, target) =>
+			api.publishing.reschedule({ siteId: target.siteId, scheduleId: await scheduleIn(target), at: anHourFromNow() }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.updateScheduled",
+		async (api, target) =>
+			api.publishing.updateScheduled({ siteId: target.siteId, scheduleId: await scheduleIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.cancelScheduled",
+		async (api, target) =>
+			api.publishing.cancelScheduled({ siteId: target.siteId, scheduleId: await scheduleIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
 /** The Revision a target's Entry was published with, made once by the Superadmin. */
 const revisions = new Map<string, Promise<{ entryId: string; revisionId: string }>>();
 function revisionIn(target: IsolationTarget) {

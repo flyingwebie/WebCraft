@@ -50,6 +50,7 @@ import {
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, type LinkBack, linkingEntries, linksBack, saveLinks } from "./relationships.ts";
+import { type EntrySchedule, entrySchedules, NOT_SCHEDULED } from "./scheduled-items.ts";
 import { slugify } from "./slugs.ts";
 import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
 import { type EntryVersion, emptyVersion, readValue, storedVersion, type Writer, writeValue } from "./values.ts";
@@ -60,8 +61,9 @@ export { sameJson } from "./json.ts";
 export { siteLanguages };
 
 /**
- * Where an Entry stands: `draft` (never published), `published` (visitors see the Draft as it is) or
- * `changed` (published, and the Draft has changed since). Review and Scheduled publish add theirs.
+ * Where an Entry stands: `draft` (not published: never, or unpublished since), `published` (visitors
+ * see the Draft as it is) or `changed` (published, and the Draft has changed since). Its Scheduled
+ * publishes are beside it (`Entry.scheduled`); Review adds its own.
  */
 export type EntryStatus = "draft" | "published" | "changed";
 
@@ -94,6 +96,13 @@ export type Entry = {
 	publishedAt: Date | null;
 	/** When it was last published. */
 	lastPublishedAt: Date | null;
+	/**
+	 * When a Scheduled publish unpublished it: its pages answer 410 Gone, and its status is `draft`
+	 * again until it is published again (null then, and while it was never unpublished).
+	 */
+	unpublishedAt: Date | null;
+	/** Its Scheduled publishes: the one publishing it and the one unpublishing it, null when none. */
+	scheduled: EntrySchedule;
 	/** The language the values are in. */
 	language: string;
 	draft: EntryValues;
@@ -737,6 +746,7 @@ async function entryViews(
 	);
 	// The SEO check, after the body's Checks; the Site's list of open Checks (#95) collects both.
 	const seo = await seoReports(scope, postType, drafts, languages);
+	const schedules = await entrySchedules(scope, rows);
 	return rows.map((row, index) => {
 		const address = addresses.get(row.id);
 		const authorName = row.authorId ? authors.get(row.authorId) : undefined;
@@ -750,6 +760,8 @@ async function entryViews(
 			updatedAt: row.updatedAt,
 			publishedAt: row.publishedAt,
 			lastPublishedAt: row.lastPublishedAt,
+			unpublishedAt: row.unpublishedAt,
+			scheduled: schedules.get(row.id) ?? NOT_SCHEDULED,
 			language: languages.language,
 			draft: drafts[index] ?? values(storedVersion(row.draft)),
 			// Visitors find it by the slug it was published with in this language, which never changes on its own.

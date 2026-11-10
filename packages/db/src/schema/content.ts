@@ -111,6 +111,8 @@ export const entries = pgTable(
 		publishedAt: timestamp("published_at", { withTimezone: true }),
 		/** When the Entry was last published. */
 		lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
+		/** When a Scheduled publish last unpublished it (its pages answer 410); null once it is published again. */
+		unpublishedAt: timestamp("unpublished_at", { withTimezone: true }),
 	},
 	(table) => [
 		foreignKey({

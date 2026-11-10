@@ -24,6 +24,7 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtcDate } from "../format.ts";
 import { useT } from "../i18n.tsx";
+import { ScheduleBadges } from "../publishing/schedule.tsx";
 import { initials } from "../shell/context.ts";
 import { languageName, StatusBadge } from "./DraftParts.tsx";
 import type { EntryView } from "./model.ts";
@@ -165,7 +166,10 @@ export function EntriesList({
 											</div>
 										</TableCell>
 										<TableCell>
-											<StatusBadge status={entry.status} />
+											<div className="flex flex-wrap items-center gap-1">
+												<StatusBadge status={entry.status} />
+												<ScheduleBadges scheduled={entry.scheduled} />
+											</div>
 										</TableCell>
 										<TableCell>
 											<ul

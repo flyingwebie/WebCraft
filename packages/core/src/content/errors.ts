@@ -403,3 +403,22 @@ export class ArchiveUnavailableError extends Error {
 		this.reason = reason;
 	}
 }
+
+/**
+ * The Site's home page can't be unpublished (nor a Page above it, which would take it along): `/`
+ * would answer 410 Gone. Choose another home page first.
+ */
+export class HomePageUnpublishError extends Error {
+	override name = "HomePageUnpublishError";
+	constructor() {
+		super("The home page can't be unpublished: choose another home page first.");
+	}
+}
+
+/** Only Entries (Pages included) can be unpublished. */
+export class UnpublishNotAllowedError extends Error {
+	override name = "UnpublishNotAllowedError";
+	constructor() {
+		super("Only Entries and Pages can be scheduled to unpublish.");
+	}
+}
