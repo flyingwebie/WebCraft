@@ -540,6 +540,26 @@ _Avoid_: Scope, capability, plugin
 An action that needs a fresh password, passkey or 2FA check, such as changing secrets, creating API tokens, changing roles or Site access, or deleting a Site or Workspace. AI clients and API tokens can never perform one.
 _Avoid_: Admin action, dangerous action
 
+**Recent identity check**:
+Proof, within the last 10 minutes in the same admin session, that the person is who they say: signing in, or confirming with their password, a code from their Authenticator app or a Passkey. Every Sensitive action needs one.
+_Avoid_: Sudo mode, re-authentication, step-up
+
+**Two-factor authentication (2FA)**:
+Signing in with something only the person has besides their password: a code from their Authenticator app, or a Passkey. The Superadmin can require it across the Install, and Owners or Staff for a Workspace's Members; people who must use it set it up before they can do anything else.
+_Avoid_: MFA, two-step login, second password
+
+**Authenticator app**:
+An app on a person's phone that shows a new 6-digit code every 30 seconds for their account (TOTP), added by scanning a QR code or typing its key.
+_Avoid_: OTP app, token generator, any product name
+
+**Backup code**:
+One of 10 single-use codes a person gets with their first second factor, for signing in when their Authenticator app or Passkey is out of reach. Making new ones ends the old ones.
+_Avoid_: Recovery code, emergency code
+
+**Passkey**:
+A key kept on a person's device (or synced between their devices) for the admin, unlocked with their fingerprint, face or device PIN. It signs in on its own, counting as both factors, or serves as the second step or a Recent identity check.
+_Avoid_: Security key (only for hardware keys), WebAuthn credential, FIDO key
+
 **Management API**:
 WebCraft's documented, versioned API for changing and reading an Install as a person, used by the admin, the MCP server, the CLI and agencies' own scripts through API tokens.
 _Avoid_: Admin API, private API, internal API
