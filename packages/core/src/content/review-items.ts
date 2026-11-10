@@ -92,7 +92,8 @@ export function reviewItemWhere(item: ReviewItem): SQL {
 	) as SQL;
 }
 
-function itemKey(item: ReviewItem): string {
+/** A Review's item, as a string key: an Entry by id, else its kind alone (one per Site). */
+export function itemKey(item: ReviewItem): string {
 	return item.kind === "entry" ? `entry:${item.id}` : item.kind;
 }
 
