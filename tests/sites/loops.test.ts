@@ -421,7 +421,7 @@ describe("Conditions", () => {
 });
 
 describe("Edit mode", () => {
-	test("a Loop shows its published items, and what sits inside it isn't tagged as an editable region", async () => {
+	test("a query Loop shows its published items, marked for Edit mode, and what sits inside isn't tagged as a region", async () => {
 		const name = await recipeLoop({ limit: 2 });
 		await template(
 			recipesId,
@@ -433,6 +433,10 @@ describe("Edit mode", () => {
 
 		const main = /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "";
 		expect(main).toMatch(/^<h1 data-wc-item="entry:[^"]+" data-wc-field="title"/);
-		expect(main).toContain("<ul><li>Apple tart</li><li>Crumble</li><li>Brioche</li><li>Crumble</li></ul>");
+		// Edit mode's marks around the Loop and its items are comments: the list itself is as visitors get it.
+		expect(main.replace(/<!--[^>]*-->/g, "")).toContain(
+			"<ul><li>Apple tart</li><li>Crumble</li><li>Brioche</li><li>Crumble</li></ul>",
+		);
+		expect(main).toMatch(/<ul><!--wc-loop [^>]+ query [^>]+--><!--wc-item entry%3A[^>]+--><li>Apple tart<\/li>/);
 	});
 });

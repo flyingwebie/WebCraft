@@ -6,14 +6,41 @@ import { and, eq, gt, isNull, lte, type SQL } from "drizzle-orm";
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import type { ContentProblem } from "../content/errors.ts";
+import type { FieldDefinition } from "../content/field-types.ts";
 import { domainOrigin, verifiedDomains } from "../domains/addresses.ts";
+import type { FocalPoint, MediaLibrary } from "../media/library.ts";
 import { type PersonActor, personIdOf } from "../permissions/can.ts";
 import { stagingUrl } from "../site-pages/addresses.ts";
 import type { PageContent, SiteHost } from "../site-pages/index.ts";
 import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
-import { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+import { EditModeUnavailableError, EditPathInvalidError, LoopItemRestoreRefusedError } from "./errors.ts";
+import {
+	addLoopItem,
+	duplicateLoopItem,
+	type EntryLink,
+	entryLinks,
+	type ItemOrder,
+	itemIndex,
+	type LoopItemValues,
+	moveLoopItem,
+	ownItemsLoop,
+	removeLoopItem,
+	restoreLoopItem,
+	type SavedLoopItem,
+	saveLoopItemValues,
+} from "./loop-items.ts";
+import {
+	changeImage,
+	type EditMediaItem,
+	type EditMediaQuery,
+	libraryImage,
+	libraryImages,
+	suggestImageAlt,
+	uploadImage,
+} from "./media.ts";
 import {
 	discardChanges,
 	type PageDeps,
@@ -24,13 +51,28 @@ import {
 	undoChange,
 	withdrawPage,
 } from "./page.ts";
+import { type PageDetails, type PageDetailsChange, pageDetails, savePageDetails } from "./page-details.ts";
 import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
-import { type RegionChange, type SavedRegion, saveRegion } from "./regions.ts";
+import {
+	type ImageChange,
+	type RegionChange,
+	type SavedImage,
+	type SavedRegion,
+	saveImage,
+	saveRegion,
+} from "./regions.ts";
 
-export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+export {
+	EditFieldInvalidError,
+	EditModeUnavailableError,
+	EditPathInvalidError,
+	LoopItemRestoreRefusedError,
+} from "./errors.ts";
+export { EDIT_MEDIA_PAGE, type EditMediaItem, type EditMediaQuery } from "./media.ts";
 export type { PageChange, PageState } from "./page.ts";
+export type { PageDetails, PageDetailsChange } from "./page-details.ts";
 export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
-export type { EditItem, RegionChange, SavedRegion } from "./regions.ts";
+export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */
 export const EDIT_LINK_LIFETIME_MS = 60 * 1000;
@@ -100,6 +142,12 @@ export type EditMode = {
 	 * can't be changed in place (`EditFieldInvalidError`), and an Entry that isn't the Site's.
 	 */
 	save(session: EditSession, change: RegionChange): Promise<SavedRegion>;
+	/**
+	 * Puts a new image (or none) in an image region's media Field, in the Draft. Refuses a region that
+	 * isn't an image's (`EditFieldInvalidError`), and anything but an image of the Site's own Media
+	 * library out of the Trash.
+	 */
+	saveImage(session: EditSession, change: ImageChange): Promise<SavedImage>;
 	/** What the editing bar shows for the page at `path`: its changes, the Site's pages, who is editing. */
 	pageState(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
 	/** Undoes one of the page's changes (`key` of `item`), answering the page's state afterwards. */
@@ -116,6 +164,77 @@ export type EditMode = {
 	): Promise<PageState>;
 	/** Withdraws the page's Reviews the person submitted, answering the page's state afterwards. */
 	withdrawReview(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/**
+	 * Page details: the values of the page's Entry that don't show on the page (title, address, SEO
+	 * fields, Summary, social image, noindex) in a language, with what each falls back to.
+	 */
+	details(session: EditSession, input: { item: string; language?: string }): Promise<PageDetails>;
+	/** Saves a change from Page details to the Draft, as the admin's Entry editor does (`ENTRY_SLUG_TAKEN` and all). */
+	saveDetails(
+		session: EditSession,
+		change: PageDetailsChange,
+	): Promise<{ details: PageDetails; problems: ContentProblem[] }>;
+	/** A Loop's own items, edited in place (GLOSSARY.md › Loop item): Content, in the Loop's Draft. */
+	loops: {
+		/**
+		 * The item form of one of a Loop's own items: the Loop, its items' Fields and the item's values in a
+		 * language. Refuses a query Loop and an item the Loop doesn't have (`EditFieldInvalidError`).
+		 */
+		item(
+			session: EditSession,
+			input: { loop: string; item: string; language?: string },
+		): Promise<{ loop: { id: string; name: string }; fields: FieldDefinition[]; item: LoopItemValues }>;
+		/** Saves some of an item's values (by key) in a language, as the item form sends them. */
+		save(
+			session: EditSession,
+			input: { loop: string; item: string; language?: string; values: Record<string, unknown> },
+		): Promise<SavedLoopItem>;
+		/** Moves an item to another place (`to`, from 0), in every language. */
+		move(session: EditSession, input: { loop: string; item: string; to: number }): Promise<ItemOrder>;
+		/** Copies an item, with its values in every language, right after it. */
+		duplicate(session: EditSession, input: { loop: string; item: string }): Promise<ItemOrder & { item: string }>;
+		/**
+		 * Removes an item in every language. `restore` puts it back, as it was, where it was: it holds the
+		 * item signed for this session, so nothing else can be put in its place.
+		 */
+		remove(session: EditSession, input: { loop: string; item: string }): Promise<ItemOrder & { restore: string }>;
+		/** Puts back an item `remove` removed in this session (`LoopItemRestoreRefusedError` for anything else), once. */
+		restore(session: EditSession, restore: string): Promise<ItemOrder & { item: string }>;
+		/** Adds an item with its Fields' defaults after one (`after`), or first. */
+		add(session: EditSession, input: { loop: string; after: string | null }): Promise<ItemOrder & { item: string }>;
+		/**
+		 * Where a query Loop's items (Entries of the Site) are changed, in a language: each one's own page,
+		 * or its editor in the admin when it has none.
+		 */
+		entries(session: EditSession, input: { entries: string[]; language?: string }): Promise<{ entries: EntryLink[] }>;
+	};
+	/** The image popover's Media library: the Site's images and folders, as the admin's Media screen has them. */
+	media: {
+		/** The Site's images out of the Trash, newest first, `EDIT_MEDIA_PAGE` at a time, and the library's folders. */
+		list(
+			session: EditSession,
+			query: EditMediaQuery,
+		): Promise<{ items: EditMediaItem[]; total: number; folders: { id: string; name: string; count: number }[] }>;
+		/** One image, its alt text in a language, and whether alt text can be suggested (the Workspace has an AI key). */
+		get(
+			session: EditSession,
+			mediaId: string,
+			language?: string,
+		): Promise<{ media: EditMediaItem; altTextSuggestions: boolean }>;
+		/** Changes an image's alt text in a language, or its Focal point: live at once, as in the library. */
+		update(
+			session: EditSession,
+			mediaId: string,
+			change: { language?: string; alt?: string | null; focalPoint?: FocalPoint | null },
+		): Promise<{ media: EditMediaItem }>;
+		/** An AI provider's alt text for an image in a language; nothing is saved. */
+		suggestAlt(session: EditSession, mediaId: string, language?: string): Promise<{ alt: string }>;
+		/** Uploads a file to the library as the Media screen does (check the Install's largest file first). */
+		upload(
+			session: EditSession,
+			upload: { fileName: string; data: Uint8Array; folderId?: string | null },
+		): Promise<{ media: EditMediaItem }>;
+	};
 };
 
 export function createEditMode(options: {
@@ -134,9 +253,12 @@ export function createEditMode(options: {
 	signingKey: CryptoKey;
 	/** What a page shows from the content store (`SitePages.pageContent`). */
 	pageContent(host: SiteHost, pathname: string): Promise<PageContent>;
+	/** The Sites' Media libraries. */
+	media: MediaLibrary;
 }): EditMode {
 	const { database, clock, config, auth, data, actors, signingKey } = options;
 	const deps: PageDeps = { config, data, pageContent: options.pageContent };
+	const mediaDeps = { data, media: options.media };
 	const { db } = database;
 
 	/**
@@ -153,12 +275,9 @@ export function createEditMode(options: {
 		}
 	};
 
-	const sign = async (sessionId: string) => {
-		const signature = await crypto.subtle.sign(
-			"HMAC",
-			signingKey,
-			new TextEncoder().encode(`edit-session:${sessionId}`),
-		);
+	/** An HMAC of `text` under the Edit mode signing key, as base64url. */
+	const sign = async (text: string) => {
+		const signature = await crypto.subtle.sign("HMAC", signingKey, new TextEncoder().encode(text));
 		return Buffer.from(signature).toString("base64url");
 	};
 
@@ -255,7 +374,7 @@ export function createEditMode(options: {
 				expiresAt: row.expiresAt,
 				access: opened.access,
 				scope: opened.scope,
-				headerToken: await sign(row.id),
+				headerToken: await sign(`edit-session:${row.id}`),
 			};
 		},
 
@@ -276,12 +395,58 @@ export function createEditMode(options: {
 		},
 
 		save: (session, change) => saveRegion(session.scope, change),
+		saveImage: (session, change) => saveImage(session.scope, change),
 		pageState: (session, host, path) => pageState(deps, session, host, path),
 		undo: (session, host, input) => undoChange(deps, session, host, input),
 		discard: (session, host, path) => discardChanges(deps, session, host, path),
 		publish: (session, host, path) => publishPage(deps, session, host, path),
 		submitForReview: (session, host, input) => submitPage(deps, session, host, input),
 		withdrawReview: (session, host, path) => withdrawPage(deps, session, host, path),
+		details: (session, input) => pageDetails(session.scope, options.media, input.item, input.language),
+		saveDetails: (session, change) => savePageDetails(session.scope, options.media, change),
+		loops: {
+			async item(session, input) {
+				const loop = await ownItemsLoop(session.scope, input.loop, input.language);
+				const index = itemIndex(loop, input.item);
+				return {
+					loop: { id: loop.id, name: loop.name },
+					fields: loop.draft.fields,
+					item: loop.draft.items[index] ?? { id: input.item },
+				};
+			},
+			save: (session, input) =>
+				saveLoopItemValues(session.scope, { loopId: input.loop, itemId: input.item }, input.values, input.language),
+			move: (session, input) => moveLoopItem(session.scope, input.loop, input.item, input.to),
+			duplicate: (session, input) => duplicateLoopItem(session.scope, input.loop, input.item),
+			async remove(session, input) {
+				const { items, removed } = await removeLoopItem(session.scope, input.loop, input.item);
+				const payload = Buffer.from(
+					JSON.stringify({ session: session.id, loop: input.loop, row: removed.row, index: removed.index }),
+				).toString("base64url");
+				return { items, restore: `${payload}.${await sign(`loop-restore:${payload}`)}` };
+			},
+			async restore(session, restore) {
+				const [payload = "", signature = ""] = restore.split(".");
+				const expected = await sign(`loop-restore:${payload}`);
+				if (!payload || signature.length !== expected.length || !timingSafeEqual(signature, expected)) {
+					throw new LoopItemRestoreRefusedError();
+				}
+				const removed = readRemoved(payload);
+				if (!removed || removed.session !== session.id) throw new LoopItemRestoreRefusedError();
+				return restoreLoopItem(session.scope, removed.loop, { row: removed.row, index: removed.index });
+			},
+			add: (session, input) => addLoopItem(session.scope, input.loop, input.after),
+			entries: async (session, input) => ({
+				entries: await entryLinks(session.scope, config.adminOrigin, input.entries, input.language),
+			}),
+		},
+		media: {
+			list: (session, query) => libraryImages(mediaDeps, session, query),
+			get: (session, mediaId, language) => libraryImage(mediaDeps, session, mediaId, language),
+			update: (session, mediaId, change) => changeImage(mediaDeps, session, mediaId, change),
+			suggestAlt: (session, mediaId, language) => suggestImageAlt(mediaDeps, session, mediaId, language),
+			upload: (session, upload) => uploadImage(mediaDeps, session, upload),
+		},
 	};
 }
 
@@ -291,4 +456,42 @@ export function createEditMode(options: {
  */
 function onSite(table: typeof editLinks | typeof editSessions, site: Site, where: SQL | undefined): SQL {
 	return and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id), where) as SQL;
+}
+
+/** Compares two strings of the same length in time that doesn't depend on where they differ. */
+function timingSafeEqual(a: string, b: string): boolean {
+	let difference = 0;
+	for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+	return difference === 0;
+}
+
+/** What a Loop item's restore token holds, once its signature was checked; null when it isn't that shape. */
+function readRemoved(
+	payload: string,
+): { session: string; loop: string; row: { id: string; values: Record<string, unknown> }; index: number } | null {
+	try {
+		const read = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+		const row = read.row as { id?: unknown; values?: unknown } | undefined;
+		if (
+			typeof read.session !== "string" ||
+			typeof read.loop !== "string" ||
+			typeof read.index !== "number" ||
+			!Number.isInteger(read.index) ||
+			read.index < 0 ||
+			typeof row?.id !== "string" ||
+			!row.values ||
+			typeof row.values !== "object" ||
+			Array.isArray(row.values)
+		) {
+			return null;
+		}
+		return {
+			session: read.session,
+			loop: read.loop,
+			row: { id: row.id, values: row.values as Record<string, unknown> },
+			index: read.index,
+		};
+	} catch {
+		return null;
+	}
 }

@@ -239,6 +239,8 @@ export type RenderBodyOptions = {
 	shown?: { videos: number };
 	/** Holds embeds back until visitors accept their Consent category (see `HoldEmbed`). */
 	held?: HoldEmbed;
+	/** Edit mode's tags for an image Block's image, by the Block's id (see `BodyRenderContext.imageRegion`). */
+	imageRegion?: (blockId: string) => readonly (readonly [string, string])[] | undefined;
 };
 
 /**
@@ -251,7 +253,9 @@ export function renderBody(blocks: readonly Block[], options: RenderBodyOptions)
 	let html = "";
 	for (const block of blocks) {
 		const spec = blockSpec(block);
-		if (block.type !== "divider" && !spec.hasContent(block)) continue;
+		// In Edit mode an image Block with no image yet is still there, to choose one in.
+		const regionOnly = block.type === "image" && options.imageRegion !== undefined;
+		if (block.type !== "divider" && !spec.hasContent(block) && !regionOnly) continue;
 		html += spec.render(block, context);
 	}
 	return html;

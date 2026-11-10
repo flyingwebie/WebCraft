@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { toApiError } from "@webcraft/api";
+import { limitBody, MULTIPART_ALLOWANCE, toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
 	CODE_MODE_SCRIPT_PATH,
@@ -9,6 +9,8 @@ import {
 	editModePolicy,
 	type InstallServices,
 	isAdminLanguage,
+	MEDIA_TEXT_MAX_LENGTH,
+	MediaTooLargeError,
 	type PageEditing,
 	RateLimitedError,
 	REVIEW_LIMITS,
@@ -172,6 +174,57 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	},
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
+	/** Page details: the page's Entry's values that don't show on the page, with their fallbacks. */
+	details: async (services, session, body) =>
+		json(200, await services.editMode.details(session, parse(detailsItem, body))),
+	/** Saves a change from Page details to the Draft. */
+	"details/save": async (services, session, body) =>
+		json(200, await services.editMode.saveDetails(session, parse(detailsChange, body))),
+	/** The item form of one of a Loop's own items: its Fields and values in a language. */
+	"loop/get": async (services, session, body) =>
+		json(200, await services.editMode.loops.item(session, parse(loopItem, body))),
+	/** Saves some of a Loop item's values in a language, as the item form sends them. */
+	"loop/save": async (services, session, body) =>
+		json(200, await services.editMode.loops.save(session, parse(loopItemValues, body))),
+	/** Moves a Loop item to another place, in every language. */
+	"loop/move": async (services, session, body) =>
+		json(200, await services.editMode.loops.move(session, parse(loopMove, body))),
+	/** Copies a Loop item right after it. */
+	"loop/duplicate": async (services, session, body) =>
+		json(200, await services.editMode.loops.duplicate(session, parse(loopItem, body))),
+	/** Removes a Loop item, answering what puts it back (the undo). */
+	"loop/remove": async (services, session, body) =>
+		json(200, await services.editMode.loops.remove(session, parse(loopItem, body))),
+	/** Puts back a Loop item removed in this session. */
+	"loop/restore": async (services, session, body) =>
+		json(200, await services.editMode.loops.restore(session, parse(loopRestore, body).restore)),
+	/** Adds a Loop item after one, or first. */
+	"loop/add": async (services, session, body) =>
+		json(200, await services.editMode.loops.add(session, parse(loopAdd, body))),
+	/** Where a query Loop's items (Entries) are changed: their own pages, or the admin's editor. */
+	"loop/entries": async (services, session, body) =>
+		json(200, await services.editMode.loops.entries(session, parse(loopEntries, body))),
+	/** The image popover's Media library: the Site's images (a search, a folder, a page) and its folders. */
+	"media/list": async (services, session, body) =>
+		json(200, await services.editMode.media.list(session, parse(mediaQuery, body))),
+	/** One image, its alt text in a language, and whether alt text can be suggested. */
+	"media/get": async (services, session, body) => {
+		const input = parse(mediaOne, body);
+		return json(200, await services.editMode.media.get(session, input.media, input.language));
+	},
+	/** Changes an image's alt text in a language, or its Focal point: live at once, as in the library. */
+	"media/update": async (services, session, body) => {
+		const { media, ...change } = parse(mediaChange, body);
+		return json(200, await services.editMode.media.update(session, media, change));
+	},
+	/** An AI provider's alt text for an image in a language; nothing is saved. */
+	"media/suggestAlt": async (services, session, body) => {
+		const input = parse(mediaOne, body);
+		return json(200, await services.editMode.media.suggestAlt(session, input.media, input.language));
+	},
+	/** Puts a new image (or none) in an image region's media Field, in the Draft. */
+	image: async (services, session, body) =>
+		json(200, await services.editMode.saveImage(session, parse(imageChange, body))),
 	/**
 	 * What the editing bar shows for a page: its changes, the Site's pages, who is editing, and the
 	 * bar's words in the person's Admin language.
@@ -288,6 +341,77 @@ const regionChange = z.object({
 	language: z.string().max(35).optional(),
 });
 
+const imageChange = z.object({
+	item: z.string().max(100),
+	field: z.string().max(200),
+	media: z.string().max(100).nullable(),
+	block: z.string().max(64).optional(),
+	language: z.string().max(35).optional(),
+});
+
+const detailsItem = z.object({ item: z.string().max(100), language: z.string().max(35).optional() });
+
+/** An SEO field as the drawer sends it: text, null or "" to clear it. */
+const seoText = z.string().max(2000).nullable().optional();
+
+const detailsChange = detailsItem.extend({
+	title: z.string().max(2000).optional(),
+	slug: z.string().max(200).optional(),
+	seo: z
+		.object({
+			title: seoText,
+			description: seoText,
+			canonical: seoText,
+			image: z.string().max(100).nullable().optional(),
+			noindex: z.boolean().optional(),
+		})
+		.optional(),
+	summary: z.string().max(200_000).nullable().optional(),
+});
+
+/** A Loop's id and one of its own items, by id. */
+const loopItem = z.object({
+	loop: z.string().max(100),
+	item: z.string().max(64),
+	language: z.string().max(35).optional(),
+});
+
+const loopItemValues = loopItem.extend({ values: z.record(z.string().max(100), z.unknown()) });
+
+const loopMove = loopItem.extend({ to: z.number().int().min(0).max(1000) });
+
+/** The Entries a page's query Loops show, at most as many as a page lists. */
+const loopEntries = z.object({
+	entries: z.array(z.string().max(100)).max(2000),
+	language: z.string().max(35).optional(),
+});
+
+const loopAdd = z.object({ loop: z.string().max(100), after: z.string().max(64).nullable() });
+
+/** What `loop/remove` answered to put the item back: at most a Loop item's worth of values. */
+const loopRestore = z.object({ restore: z.string().max(2_000_000) });
+
+const mediaId = z.string().max(100);
+
+const mediaQuery = z.object({
+	search: z.string().max(200).optional(),
+	folderId: z.string().max(100).optional(),
+	offset: z.number().int().min(0).max(100_000).optional(),
+	language: z.string().max(35).optional(),
+});
+
+const mediaOne = z.object({ media: mediaId, language: z.string().max(35).optional() });
+
+const mediaChange = z.object({
+	media: mediaId,
+	language: z.string().max(35).optional(),
+	alt: z.string().max(MEDIA_TEXT_MAX_LENGTH.alt).nullable().optional(),
+	focalPoint: z
+		.object({ x: z.number().int().min(0).max(100), y: z.number().int().min(0).max(100) })
+		.nullable()
+		.optional(),
+});
+
 /** A body that isn't what the action takes. */
 class BadEditRequest extends Error {}
 
@@ -324,21 +448,63 @@ async function editRequest(
 	if (!(await services.editMode.checkHeaderToken(edit.session, token))) {
 		return json(403, { code: "EDIT_REQUEST_REFUSED", message: "The request has no valid Edit mode token." });
 	}
+	if (action === UPLOAD_ACTION) return refusalsAsJson(() => uploadMedia(services, edit.session, request));
 	const answer = Object.hasOwn(EDIT_ACTIONS, action) ? EDIT_ACTIONS[action] : undefined;
 	if (!answer) return json(404, { code: "NOT_FOUND", message: "There is no such edit request." });
-	try {
+	const session = edit.session;
+	return refusalsAsJson(async () => {
 		const contentType = request.headers.get("content-type") ?? "";
 		if (!/^application\/json(;|$)/i.test(contentType)) throw new BadEditRequest("Send the request as JSON.");
 		const body: unknown = await request.json().catch(() => {
 			throw new BadEditRequest("The request isn't valid JSON.");
 		});
-		return await answer(services, edit.session, body, request, host);
+		return answer(services, session, body, request, host);
+	});
+}
+
+/** An edit request's answer, with refusals answered as the Management API words them: `{ code, message, data }`. */
+async function refusalsAsJson(work: () => Promise<Response>): Promise<Response> {
+	try {
+		return await work();
 	} catch (error) {
 		if (error instanceof BadEditRequest) return json(400, { code: "BAD_REQUEST", message: error.message });
 		const refusal = toApiError(error);
 		if (!(refusal instanceof ORPCError)) throw error;
 		return json(refusal.status, { code: refusal.code, message: refusal.message, data: refusal.data });
 	}
+}
+
+/** The edit request that uploads a file to the Site's Media library: a multipart body, not JSON. */
+const UPLOAD_ACTION = "media/upload";
+
+/**
+ * Uploads a file from the image popover to the Site's Media library, as the admin's Media screen
+ * does (`media.upload`): a multipart body with `file` and an optional `folderId`, kept to the Install's
+ * largest file before it is read (a body that says it is larger is refused at once).
+ */
+async function uploadMedia(services: InstallServices, session: EditSession, request: Request): Promise<Response> {
+	if (!/^multipart\/form-data(;|$)/i.test(request.headers.get("content-type") ?? "")) {
+		throw new BadEditRequest("Send the file as multipart/form-data.");
+	}
+	const { maxFileBytes } = await services.settings.media();
+	const refusal = () => new MediaTooLargeError(maxFileBytes);
+	const limited = limitBody(request, maxFileBytes + MULTIPART_ALLOWANCE, refusal);
+	if ("refused" in limited) throw limited.refused;
+	const form = await limited.request.formData().catch(() => {
+		throw limited.overflowed() ? refusal() : new BadEditRequest("The upload isn't a form with a file.");
+	});
+	const file = form.get("file");
+	const folderId = form.get("folderId");
+	if (!(file instanceof File)) throw new BadEditRequest("The upload has no file.");
+	if (file.size > maxFileBytes) throw refusal();
+	return json(
+		200,
+		await services.editMode.media.upload(session, {
+			fileName: file.name,
+			data: new Uint8Array(await file.arrayBuffer()),
+			folderId: typeof folderId === "string" && folderId ? folderId : null,
+		}),
+	);
 }
 
 /**

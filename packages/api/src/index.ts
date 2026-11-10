@@ -34,5 +34,11 @@ export {
 	tooManyRequests,
 } from "./public.ts";
 export { type ApiClient, type ApiRouter, apiRouter } from "./router.ts";
-export { ADMIN_API_PREFIX, createAdminApi, type RequestFacts } from "./rpc.ts";
+export {
+	ADMIN_API_PREFIX,
+	createAdminApi,
+	limitBody,
+	MULTIPART_ALLOWANCE,
+	type RequestFacts,
+} from "./rpc.ts";
 export { type PublicProcedurePath, TOOL_PLACES, type ToolPlace, toolPlaceOf } from "./toolsets.ts";

@@ -10,6 +10,7 @@ import {
 	formWords,
 	isComponentInfo,
 	type LanguageLink,
+	loopNamesIn,
 	mediaReferencesIn,
 	type PageAlternate,
 	type PageSearch,
@@ -39,7 +40,7 @@ import {
 	siteComponents,
 } from "../content/components.ts";
 import { draftAddresses, findDraftEntry, findDraftPage } from "../content/draft-paths.ts";
-import { editableField } from "../content/editable.ts";
+import { editableField, imageField } from "../content/editable.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
 import { homePageId, type PublishedAddress, publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
@@ -105,7 +106,7 @@ import { retiredScript } from "../site-scripts/retired.ts";
 import type { DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
 import { pageFilters } from "./filters.ts";
-import { PAGE_PARAMETER, pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
+import { PAGE_PARAMETER, type PageLoops, pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
 import {
 	addressFrom,
 	createRedirectAnswers,
@@ -257,6 +258,8 @@ export type PageContent = {
 	languages: PageInLanguage[];
 	/** Whether the page's Templates read the Globals. */
 	readsGlobals: boolean;
+	/** The Loops of the Site the page's Templates (and the Components they place) name. */
+	loops: string[];
 	/** Whether the path has no page, so the 404 page shows there. */
 	notFound: boolean;
 	/**
@@ -602,6 +605,7 @@ export function createSitePages(options: {
 						current: language.code === archive.language.code,
 					})),
 					readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
+					loops: [...new Set(trees.flatMap((tree) => loopNamesIn(tree)))],
 					notFound: false,
 					// Code mode opens Entry templates and the Site template so far; an Archive page's Template is a later step.
 					templatePostTypeId: null,
@@ -626,6 +630,7 @@ export function createSitePages(options: {
 					current: language.code === place.language.code,
 				})),
 				readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
+				loops: [...new Set(trees.flatMap((tree) => loopNamesIn(tree)))],
 				notFound: located === null,
 				templatePostTypeId: found && !isPagePostType(found.postType) ? found.postType.id : null,
 			};
@@ -1463,19 +1468,38 @@ type Routing = "published" | "draft" | "publishedThenDraft";
 function editRegions(
 	entry: { id: string; fields: readonly FieldDefinition[] } | null,
 	globalFields: readonly FieldDefinition[],
+	loops: Pick<PageLoops, "byId">,
 ): EditModePage["region"] {
-	return (value, template, item) => {
-		// Inside a Loop, values are an item's (Loop items in place are #74), or repeat with every item.
-		if (value.format || item) return undefined;
+	return (value, template, place) => {
+		if (value.format) return undefined;
+		// An image's `src` shows a media Field; everything else is typed over.
+		const editableIn = place.image ? imageField : editableField;
+		if (place.item) {
+			// Inside a Loop: a Loop's own item's values are regions of that item (`loop:<id>:<item id>`);
+			// a query Loop's items are Entries, changed on their own pages; what is around the Loop
+			// repeats with every item.
+			const { alias, key } = place.item;
+			const [kind, loopId] = key?.split(":") ?? [];
+			if (kind !== "loop" || !key || !value.path.startsWith(`${alias}.`)) return undefined;
+			const shown = loopId ? loops.byId(loopId) : undefined;
+			const path = value.path.slice(alias.length + 1);
+			const editable = shown?.source === "items" ? editableIn(shown.fields, path) : undefined;
+			return editable && regionTags(key, path, editable.type, editable.label);
+		}
 		if (value.path.startsWith("site.")) {
 			const key = value.path.slice("site.".length);
-			const editable = editableField(globalFields, key);
+			const editable = editableIn(globalFields, key);
 			return editable && regionTags("globals", key, editable.type, editable.label);
 		}
 		if (template !== "content" || !entry) return undefined;
+		if (place.block !== undefined) {
+			// An image Block of the Entry's body: the image is the region, the body's text the block editor's.
+			const body = entry.fields.find((field) => field.key === value.path && field.type === "body");
+			return body && regionTags(`entry:${entry.id}`, body.key, "media", body.label);
+		}
 		// The title is a built-in value: the editing bar names it in the person's own language.
-		if (value.path === "title") return regionTags(`entry:${entry.id}`, "title", "text", null);
-		const editable = editableField(entry.fields, value.path);
+		if (value.path === "title" && !place.image) return regionTags(`entry:${entry.id}`, "title", "text", null);
+		const editable = editableIn(entry.fields, value.path);
 		return editable && regionTags(`entry:${entry.id}`, value.path, editable.type, editable.label);
 	};
 }
@@ -1889,6 +1913,7 @@ async function renderSitePage(
 			...options.loops,
 			languages,
 			version: view.entries,
+			items: editing ? "draft" : undefined,
 			narrowing: filters.narrowing,
 			state: writeQuery([...filters.state.values, ...kept]),
 		},
@@ -1971,7 +1996,11 @@ async function renderSitePage(
 		consent: editing ? undefined : await pageConsent(scope, languages, view.version),
 		editMode: editing && {
 			...editing.head,
-			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields)),
+			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields), loops),
+			loop: (name) => {
+				const shown = loops.info(name);
+				return shown && [`loop:${shown.id}`, shown.source, shown.name];
+			},
 			code: view.structure === "draft",
 		},
 		component: placed.render,

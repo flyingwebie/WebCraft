@@ -6,7 +6,15 @@ import { escapeAttribute, escapeText, safeAttributeValue, safeUrl, URL_ATTRIBUTE
 import type { RenderTime } from "./expressions.ts";
 import { applyFormat } from "./formatters.ts";
 import { textIn } from "./languages.ts";
-import { isLoopValuePath, LOOP_LIMITS, LOOP_STATS, type LoopItem, type LoopItemPlace, type LoopRun } from "./loops.ts";
+import {
+	isLoopValuePath,
+	LOOP_LIMITS,
+	LOOP_STATS,
+	type LoopItem,
+	type LoopItemPlace,
+	type LoopRun,
+	type RegionPlace,
+} from "./loops.ts";
 import { type ImagePriority, type MediaReader, mediaReference, renderMediaImage } from "./media.ts";
 import { cleanRichText } from "./rich-text.ts";
 import {
@@ -103,14 +111,24 @@ export type RenderOptions = {
 	component?: PlacementRenderer;
 	/**
 	 * Edit mode's tags (ADR 0022): the attributes that mark an element showing one binding alone
-	 * (`<h1>{{ title }}</h1>`) as an editable region, or undefined when that binding isn't editable.
-	 * A tagged element also carries its element id as `data-wc-id`, so Edit mode can find it in the
-	 * tree. Absent for the pages visitors get, which carry no such attributes.
+	 * (`<h1>{{ title }}</h1>`) as an editable region, or an image whose `src` is one binding
+	 * (`<img src="{{ photo }}">`, `place.image`), or undefined when that binding isn't editable. A
+	 * tagged element also carries its element id as `data-wc-id`, so Edit mode can find it in the
+	 * tree, and a tagged image the Media item it shows (`data-wc-media`). Absent for the pages visitors
+	 * get, which carry no such attributes.
 	 */
 	editRegion?: (
 		value: ValueNode,
-		item?: LoopItemPlace,
+		place: RegionPlace,
 	) => readonly (readonly [name: string, value: string])[] | undefined;
+	/**
+	 * Edit mode's marks around a Loop of the Site and each of its items: HTML comments, so they change
+	 * nothing of the page's layout (`<!--wc-loop …-->` and `<!--wc-item <key>-->`, each closed). It
+	 * answers what the Loop's mark says, by the Loop's name (its id, where its items come from, its
+	 * name), or undefined for a Loop not to mark. Absent for the pages visitors get.
+	 */
+	editLoop?: (name: string) => readonly string[] | undefined;
+
 	/**
 	 * Code mode's tags (ADR 0016): where the tree being rendered comes from, such as `content` (the
 	 * page's Entry template) or `site` (the Site template). Every element is tagged with it and its own
@@ -286,18 +304,21 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 	const all = run ? run.items : listItems(node.source, options.values);
 	const items = all.slice(0, Math.max(0, LOOP_LIMITS.items - state.items.count));
 	state.items.count += items.length;
-	if (items.length === 0) return node.empty ? renderNodes(node.empty, options, state) : "";
+	const mark = run ? options.editLoop?.(node.source) : undefined;
+	const marked = (html: string) =>
+		mark ? `<!--wc-loop ${mark.map(markToken).join(" ")}-->${html}<!--/wc-loop-->` : html;
+	if (items.length === 0) return marked(node.empty ? renderNodes(node.empty, options, state) : "");
 	const inner: RenderState = { ...state, loops: state.loops + 1 };
 	let html = "";
 	items.forEach((item, index) => {
 		const place: LoopItemPlace = { alias: node.alias, key: item.key };
 		const editRegion = options.editRegion;
-		html += renderNodes(
+		const shown = renderNodes(
 			node.children,
 			{
 				...options,
 				values: itemReader(node.alias, item, index, items.length, options.values),
-				editRegion: editRegion && ((value) => editRegion(value, place)),
+				editRegion: editRegion && ((value, at) => editRegion(value, { ...at, item: place })),
 				// A Form shows once where it is placed, never once per item: markup can't place one in a
 				// Loop's items, and one a Component brings there renders nothing.
 				form: undefined,
@@ -305,8 +326,17 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 			},
 			inner,
 		);
+		html += mark && item.key ? `<!--wc-item ${markToken(item.key)}-->${shown}<!--/wc-item-->` : shown;
 	});
-	return html;
+	return marked(html);
+}
+
+/**
+ * A word of an Edit mode mark, written so it can't end the comment or break it (`--`, a last `-`):
+ * percent-encoded, dashes too; `decodeURIComponent` reads it back.
+ */
+function markToken(text: string): string {
+	return encodeURIComponent(text).replace(/-/g, "%2D");
 }
 
 /**
@@ -428,7 +458,7 @@ function editTags(node: ElementNode, options: RenderOptions): readonly (readonly
 	const content = node.children.filter((child) => child.type !== "comment");
 	const [only] = content;
 	if (content.length !== 1 || only?.type !== "value") return [];
-	const region = options.editRegion(only);
+	const region = options.editRegion(only, {});
 	return region ? [...region, ["data-wc-id", node.id]] : [];
 }
 
@@ -440,12 +470,15 @@ function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions
 	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options)));
 	if (!node.format && isRichText(value)) return cleanRichText(value.html);
 	if (!node.format && isBody(value)) {
+		const editRegion = options.editRegion;
 		return renderBody(value.blocks, {
 			media: options.media,
 			priorityImage: options.priorityImage,
 			words: options.words ?? { playVideo: "Play video", video: "Video" },
 			shown: options.shown,
 			held: options.held,
+			// Edit mode: each image Block's image is a region of its own, named by the Block.
+			imageRegion: editRegion && ((block) => blockRegion(editRegion(node, { image: true, block }), block)),
 		});
 	}
 	if (!node.format && isToc(value)) return renderToc(value.headings);
@@ -464,15 +497,54 @@ function valueText(node: Pick<ValueNode, "format">, value: TemplateValue, option
  */
 function mediaImage(node: ElementNode, media: MediaReader, options: RenderOptions): string | undefined {
 	const src = node.attributes.find((attribute) => attribute.name === "src");
+	const region = src ? imageRegion(node, src, options) : undefined;
 	const id = src ? mediaReference(attributeText(src, options)) : undefined;
-	if (id === undefined) return undefined;
-	const image = media(id);
-	if (image?.kind !== "image") return "";
+	const image = id === undefined ? undefined : media(id);
 	const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
+	if (image?.kind !== "image") {
+		// In Edit mode an image region with no image to show is still there to choose one in.
+		if (region) return emptyImageRegion(region, classNames);
+		return id === undefined ? undefined : "";
+	}
 	const own: [string, string][] = classNames.length > 0 ? [["class", classNames.join(" ")]] : [];
 	for (const attribute of node.attributes) own.push([attribute.name, attributeText(attribute, options)]);
 	if (options.codeSource !== undefined) own.push([CODE_ATTRIBUTE, `${options.codeSource}#${node.id}`]);
+	if (region) own.push(...region, ["data-wc-media", id ?? ""]);
 	return renderMediaImage(image, own, options.priorityImage);
+}
+
+/**
+ * Edit mode's tags for an image whose `src` is one binding without a formatter, when that binding is
+ * an editable image (`editRegion` with `image`): the region's attributes and the element's id.
+ */
+function imageRegion(node: ElementNode, src: Attribute, options: RenderOptions): [string, string][] | undefined {
+	const [only] = src.value;
+	if (!options.editRegion || src.value.length !== 1 || only?.type !== "value" || only.format) return undefined;
+	const region = options.editRegion(only, { image: true });
+	return region
+		? [...region.map(([name, value]): [string, string] => [name, value]), ["data-wc-id", node.id]]
+		: undefined;
+}
+
+/** An image Block's region: its attributes and the Block's id, or undefined when it isn't editable. */
+function blockRegion(
+	region: readonly (readonly [string, string])[] | undefined,
+	block: string,
+): readonly (readonly [string, string])[] | undefined {
+	return region && [...region, ["data-wc-block", block]];
+}
+
+/**
+ * An image region with no image to show (none chosen, or one that isn't a ready image of the Site):
+ * an empty element in its place, with the Template's Classes, for the editing bar to label.
+ */
+function emptyImageRegion(
+	region: readonly (readonly [string, string])[],
+	classNames: readonly (string | undefined)[],
+): string {
+	const attributes: [string, string][] = classNames.length > 0 ? [["class", classNames.join(" ")]] : [];
+	attributes.push(...region.map(([name, value]): [string, string] => [name, value]));
+	return `<span${attributes.map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`).join("")}></span>`;
 }
 
 /** An attribute's value, its bindings read. */

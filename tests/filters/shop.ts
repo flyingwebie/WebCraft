@@ -160,9 +160,9 @@ export async function buildShop(
 	};
 }
 
-/** The Loop's items a page lists, in order. */
+/** The Loop's items a page lists, in order (comments between them aside: Filters' regions, Edit mode's marks). */
 export function listed(html: string): string[] {
-	const list = /<ul>((?:<!--[^>]*-->)?(?:<li>[^<]*<\/li>)*(?:<!--[^>]*-->)?)<\/ul>/.exec(html)?.[1] ?? "";
+	const list = /<ul>((?:<!--[^>]*-->|<li>[^<]*<\/li>)*)<\/ul>/.exec(html)?.[1] ?? "";
 	return [...list.matchAll(/<li>([^<]*)<\/li>/g)].map(([, title = ""]) => title.replaceAll("&amp;", "&"));
 }
 

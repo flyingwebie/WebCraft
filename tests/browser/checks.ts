@@ -202,7 +202,10 @@ async function markTabbableElements(page: Page) {
 		const radioGroups = new Set<string>();
 		const elements = everything.filter((element) => {
 			if (!element.matches(selector)) return false;
-			if (element.tabIndex < 0 || element.matches(":disabled") || !rendered(element)) return false;
+			// Text edited in place takes focus from the keyboard, though Chromium says its tabIndex is -1
+			// unless the page gives it one.
+			const editable = element.isContentEditable && !element.hasAttribute("tabindex");
+			if ((element.tabIndex < 0 && !editable) || element.matches(":disabled") || !rendered(element)) return false;
 			// A link inside text being edited is part of that text: the keyboard stops at the text once.
 			if (element.parentElement?.closest("[contenteditable]:not([contenteditable=false])")) return false;
 			if (element instanceof HTMLInputElement && element.type === "radio") {

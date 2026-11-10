@@ -23,6 +23,8 @@ import {
 	type Languages,
 	randomRowId,
 	readFields,
+	rowsOf,
+	type StoredRow,
 	type StoredValues,
 	writeFields,
 } from "./field-values.ts";
@@ -256,6 +258,69 @@ export async function saveLoopItems(scope: SiteScope, loopId: string, change: Lo
 		);
 		await noteLoopChange(tx, row, { ...draft, values });
 		return toLoop(saved ?? row, languages);
+	});
+}
+
+/**
+ * Changes which items a Loop's Draft holds and their order, every language at once (open the Site with
+ * `entry.edit`: Loop items are Content): `change` is given the items as stored (their ids and values in
+ * every language) with the Draft they are in, and answers the new list (at most `LOOP_ITEMS_MAX`), with
+ * what the caller wants back. Edit mode moves, duplicates, removes, puts back and adds items this way.
+ */
+export async function rearrangeLoopItems<Result>(
+	scope: SiteScope,
+	loopId: string,
+	change: (rows: readonly StoredRow[], draft: StoredLoopVersion) => { rows: StoredRow[]; result: Result },
+): Promise<{ loop: Loop; result: Result }> {
+	return scope.transaction(async (tx) => {
+		const row = await lockLoop(tx, loopId);
+		const draft = storedLoopVersion(row.draft);
+		const { rows, result } = change(rowsOf(draft.values.items), draft);
+		if (rows.length > LOOP_ITEMS_MAX) {
+			throw new LoopInvalidError([{ at: "items", message: `A Loop holds at most ${LOOP_ITEMS_MAX} Loop items.` }]);
+		}
+		const next: StoredLoopVersion = { ...draft, values: { ...draft.values, items: { rows } } };
+		const [saved] = await tx.update(
+			loops,
+			{
+				draft: next,
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
+			},
+			eq(loops.id, row.id),
+		);
+		await noteLoopChange(tx, row, next);
+		return { loop: toLoop(saved ?? row, await defaultLanguages(tx)), result };
+	});
+}
+
+/**
+ * Puts a Loop's items back as they are published (open the Site with `entry.edit`), keeping the rest
+ * of its Draft: the Publish menu's Undo of an item change in Edit mode. A Loop never published has no
+ * items to go back to.
+ */
+export async function undoLoopItems(scope: SiteScope, loopId: string): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const row = await lockLoop(tx, loopId);
+		const draft = storedLoopVersion(row.draft);
+		const published = row.published === null ? null : storedLoopVersion(row.published);
+		const next: StoredLoopVersion = {
+			...draft,
+			values: { ...draft.values, items: published?.values.items ?? { rows: [] } },
+		};
+		if (sameJson(next, draft)) return;
+		await tx.update(
+			loops,
+			{
+				draft: next,
+				updatedAt: tx.now(),
+				updatedBy: personIdOf(tx.access.actor),
+				updatedVia: clientNameOf(tx.access.via),
+			},
+			eq(loops.id, row.id),
+		);
+		await noteLoopChange(tx, row, next);
 	});
 }
 
