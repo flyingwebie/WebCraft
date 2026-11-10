@@ -1717,12 +1717,7 @@
 				"EDIT_MODE_ENDED": "La modalità di modifica è terminata. Riaprila dall'admin."
 			}
 		},
-		"alsoEditing": "Stanno modificando anche questa pagina",
-		"isHere": "{name} è qui",
-		"via": "{name} tramite {client}",
-		"viaTranslation": "{name} tramite la traduzione con IA",
-		"someone": "Qualcuno",
-		"publishedBy": "Pubblicato da {name}"
+		"alsoEditing": "Stanno modificando anche questa pagina"
 	},
 	"siteLanguages": {
 		"pageTitle": "Lingue",
