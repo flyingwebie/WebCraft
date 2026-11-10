@@ -4162,9 +4162,9 @@
 									"events": {
 										"type": "array",
 										"minItems": 1,
-										"maxItems": 4,
+										"maxItems": 6,
 										"items": {
-											"enum": ["publish", "formSubmitted"],
+											"enum": ["publish", "unpublish", "formSubmitted"],
 											"type": "string"
 										}
 									},
@@ -4232,9 +4232,9 @@
 									"events": {
 										"type": "array",
 										"minItems": 1,
-										"maxItems": 4,
+										"maxItems": 6,
 										"items": {
-											"enum": ["publish", "formSubmitted"],
+											"enum": ["publish", "unpublish", "formSubmitted"],
 											"type": "string"
 										}
 									}

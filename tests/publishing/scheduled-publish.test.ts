@@ -230,6 +230,42 @@ describe("unpublishing an Entry", () => {
 		expect(await found("spring")).toEqual(["Spring menu"]);
 	});
 
+	test("a Webhook receiving `unpublish` hears which Entry went and where it was", async () => {
+		const site = await newSite();
+		const url = "https://hooks.agency.example/gone";
+		install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
+		install.http.respond("POST", url, { status: 204 });
+		await staff.api.webhooks.add({ siteId: site.siteId, url, events: ["unpublish"] });
+		const { entry } = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Offer",
+		});
+		await site.editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
+		await install.drainJobs();
+		expect(install.http.requests.filter((request) => request.url === url)).toEqual([]);
+
+		const { scheduled } = await site.editor.api.publishing.scheduleUnpublish({
+			siteId: site.siteId,
+			entryId: entry.id,
+			at: inMinutes(2),
+		});
+		await waitMinutes(2);
+		await install.drainJobs();
+		const deliveries = install.http.requests.filter((request) => request.url === url);
+		expect(deliveries.map((request) => JSON.parse(request.body))).toMatchObject([
+			{
+				type: "unpublish",
+				data: {
+					item: { kind: "entry", id: entry.id, postTypeId: site.postTypeId },
+					paths: [{ language: "en", path: "/blog/offer" }],
+					by: { id: scheduled.createdBy?.id, name: "Eve Editor" },
+					via: "scheduledPublish",
+				},
+			},
+		]);
+	});
+
 	test("a Page takes the Pages under it along; the home page can't be unpublished", async () => {
 		const site = await newSite();
 		const page = async (title: string, parentId?: string) => {

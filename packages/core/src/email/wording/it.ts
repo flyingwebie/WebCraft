@@ -150,7 +150,7 @@ export const it: EmailWording = {
 				invalid: `${maiuscola(named)} ha valori che violano una regola, o valori obbligatori vuoti.`,
 				pathTaken: `L'indirizzo di ${named} è occupato da qualcosa pubblicato nel frattempo.`,
 				parentUnpublished: `La Pagina superiore di ${named} non è pubblicata.`,
-				structureChanged: `${maiuscola(named)} usa un Template, un Componente, un Campo o una Classe cambiati o eliminati dopo la programmazione.`,
+				structureChanged: `${maiuscola(named)} usa un Template, un Component, un Field o una Class cambiati o eliminati dopo la programmazione.`,
 				access: "Non puoi più pubblicare su questo Sito.",
 				homePage: `${maiuscola(named)} è la home page del Sito, o una Pagina sopra di essa.`,
 				other: `${maiuscola(named)} non è stato possibile pubblicarlo.`,

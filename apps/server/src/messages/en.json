@@ -2129,11 +2129,13 @@
 		"openLog": "Delivery log of {name}",
 		"events": {
 			"publish": "Publish",
+			"unpublish": "Unpublish",
 			"test": "Test",
 			"formSubmitted": "Form submitted"
 		},
 		"eventHelp": {
 			"publish": "When an Entry, a Page, the Globals, a Template, a Component, a script, a Form, a Loop or the Design system is published.",
+			"unpublish": "When an Entry or a Page stops showing (a Scheduled publish unpublished it): its pages answer 410 Gone.",
 			"formSubmitted": "When a visitor sends a Form and its Submission is kept (never spam). It carries what they sent."
 		},
 		"on": "On",

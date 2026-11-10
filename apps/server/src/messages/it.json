@@ -2129,11 +2129,13 @@
 		"openLog": "Registro delle consegne di {name}",
 		"events": {
 			"publish": "Pubblicazione",
+			"unpublish": "Ritiro",
 			"test": "Prova",
 			"formSubmitted": "Form inviato"
 		},
 		"eventHelp": {
 			"publish": "Quando vengono pubblicati una Entry, una Pagina, i Globals, un Template, un Component, uno script, un Form, un Loop o il Design system.",
+			"unpublish": "Quando una Entry o una Pagina smette di essere visibile (ritirata da una pubblicazione programmata): le sue pagine rispondono 410 Gone.",
 			"formSubmitted": "Quando un visitatore invia un Form e l'invio viene conservato (mai lo spam). Contiene ciò che ha inviato."
 		},
 		"on": "Attivo",
