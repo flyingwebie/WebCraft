@@ -73,6 +73,7 @@ describe("the Install's switch", () => {
 			const browser = await install.signIn(person.account);
 			expect((await browser.api.shell.context()).twoFactor).toEqual({
 				on: false,
+				methods: [],
 				required: true,
 				mustSetUp: true,
 				reminder: false,
@@ -232,6 +233,7 @@ describe("the reminder", () => {
 		const member = await install.createMember({ workspaceId, role: "editor" });
 		expect((await member.browser.api.shell.context()).twoFactor).toEqual({
 			on: false,
+			methods: [],
 			required: false,
 			mustSetUp: false,
 			reminder: true,

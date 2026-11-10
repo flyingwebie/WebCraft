@@ -53,6 +53,7 @@ export const shell = {
 			twoFactor: twoFactor
 				? {
 						on: twoFactor.on,
+						methods: twoFactor.methods,
 						required: twoFactor.required,
 						mustSetUp: twoFactor.required && !twoFactor.on,
 						reminder: twoFactor.reminder,

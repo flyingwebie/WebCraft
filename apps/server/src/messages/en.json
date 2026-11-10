@@ -30,7 +30,7 @@
 		"ACCESS_NOT_HELD_GRANT": "You can't give more access than you hold, in role or in Sites.",
 		"ACCESS_NOT_HELD_MANAGE": "This Member has access you don't hold, so you can't change or remove them.",
 		"INVITE_OTHER_ACCOUNT": "This invite was sent to another email address. Sign in with that address to accept it.",
-		"ACCOUNT_LOCKED": "This account is locked for up to 15 minutes after too many wrong passwords. Try again later.",
+		"ACCOUNT_LOCKED": "This account is locked for up to 15 minutes after too many wrong passwords or codes. Try again later.",
 		"TOO_MANY_REQUESTS": "Too many attempts. Wait a minute, then try again.",
 		"IDENTITY_CHECK_REQUIRED": "Confirm it's you to continue.",
 		"IDENTITY_CHECK_CANCELLED": "Nothing was changed: confirm it's you to continue.",
@@ -157,7 +157,16 @@
 		"CHECKPOINT_NOT_FOUND": "This item has no such Checkpoint any more: it may have been removed after the time Checkpoints are kept.",
 		"FILTER_NOT_FOUND": "There is no such Filter on this Site.",
 		"FILTER_INVALID": "The Filter can't be saved: see what to fix.",
-		"FILTER_NAME_TAKEN": "Another Filter of this Site has that name: choose another."
+		"FILTER_NAME_TAKEN": "Another Filter of this Site has that name: choose another.",
+		"TWO_FACTOR_CODE_INVALID": "That code is wrong or was already used. Check it and try again.",
+		"SIGN_IN_EXPIRED": "That took too long. Sign in again with your email and password.",
+		"AUTHENTICATOR_EXISTS": "An authenticator app is already added. Remove it first to add another one.",
+		"TWO_FACTOR_NOT_FOUND": "That way of signing in is no longer on your account.",
+		"TWO_FACTOR_OFF": "Add two-factor authentication to your own account first.",
+		"TWO_FACTOR_REQUIRED": "Two-factor authentication is required for your account: add another way before removing this one.",
+		"TWO_FACTOR_SETUP_REQUIRED": "Set up two-factor authentication to continue.",
+		"PASSKEY_INVALID": "The passkey couldn't be used. Try again, or use another way.",
+		"PASSKEY_CANCELLED": "No passkey was used. Try again when you're ready."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -213,8 +222,9 @@
 				"heading": "Protect your account with two-factor authentication",
 				"intro": "A password alone can be guessed or stolen. With a passkey or an authenticator app, signing in also needs something only you have.",
 				"recommend": "The Superadmin can reach everything on this Install, so we strongly recommend it.",
-				"setUp": "Set up two-factor authentication",
-				"later": "You can also do it later from Your account."
+				"later": "If you skip it, the admin reminds you until you add it.",
+				"done": "Two-factor authentication is on for your account.",
+				"skip": "Skip for now"
 			},
 			"email": {
 				"title": "Install email (SMTP)",
@@ -253,7 +263,25 @@
 		"headingNamed": "Sign in to {name}",
 		"email": "Email",
 		"password": "Password",
-		"submit": "Sign in"
+		"submit": "Sign in",
+		"or": "or",
+		"withPasskey": "Sign in with a passkey",
+		"passkeyCancelled": "No passkey was used. Try again when you're ready.",
+		"secondStep": {
+			"heading": "Two-step verification",
+			"authenticatorBody": "Enter the code your authenticator app shows for this account.",
+			"backupCodeBody": "Enter one of the backup codes you saved. Each works once.",
+			"passkeyBody": "Use your passkey to finish signing in.",
+			"code": "Code from the app",
+			"codeHelp": "The 6 digits the app shows now.",
+			"backupCode": "Backup code",
+			"backupCodeHelp": "Such as abcde-23456.",
+			"submit": "Verify",
+			"usePasskey": "Use a passkey",
+			"useBackupCode": "Use a backup code instead",
+			"useAuthenticator": "Use your authenticator app instead",
+			"startOver": "Sign in again"
+		}
 	},
 	"shell": {
 		"navLabel": "Admin",
@@ -390,7 +418,10 @@
 		"leakedPasswordCheck": "Check new passwords against lists of leaked passwords",
 		"leakedPasswordCheckHelp": "Only the first 5 characters of a password's SHA-1 hash leave the server, so the password itself is never sent. When the lookup can't be reached, the password is accepted. Switch the check off for an Install that is always offline.",
 		"save": "Save",
-		"saved": "Saved."
+		"saved": "Saved.",
+		"requireTwoFactor": "Require two-factor authentication for everyone",
+		"requireTwoFactorHelp": "Everyone without it, Staff included, is asked to set it up right after signing in and can do nothing else until they have. API tokens keep working.",
+		"requireTwoFactorOwnFirst": "Add two-factor authentication to your own account first (Your account)."
 	},
 	"storageSettings": {
 		"pageTitle": "Storage",
@@ -484,8 +515,7 @@
 		},
 		"twoFactor": {
 			"heading": "Two-factor authentication",
-			"status": "Not set up",
-			"body": "Add a passkey or an authenticator app, so signing in also needs something only you have."
+			"body": "Signing in also needs something only you have: a code from an authenticator app, or a passkey. Each change signs out your other sessions and is emailed to you."
 		},
 		"emails": {
 			"heading": "Emails",
@@ -599,7 +629,15 @@
 		"password": "Password",
 		"wrongPassword": "That password is wrong.",
 		"confirm": "Confirm",
-		"cancel": "Cancel"
+		"cancel": "Cancel",
+		"bodyAuthenticator": "Enter the code your authenticator app shows. In this browser you won't be asked again for 10 minutes.",
+		"code": "Code from the app",
+		"codeHelp": "The 6 digits the app shows now.",
+		"wrongCode": "That code is wrong or was already used.",
+		"usePassword": "Use your password instead",
+		"useAuthenticator": "Use your authenticator app instead",
+		"usePasskey": "Use a passkey",
+		"passkeyCancelled": "No passkey was used. Try again, or use another way."
 	},
 	"notFound": {
 		"pageTitle": "Page not found",
@@ -843,7 +881,8 @@
 			"person": "Staff member",
 			"workspaces": "Workspaces",
 			"since": "Since",
-			"actions": "Actions"
+			"actions": "Actions",
+			"twoFactor": "2FA"
 		},
 		"allWorkspaces": "All Workspaces",
 		"noWorkspaces": "No Workspaces",
@@ -896,7 +935,8 @@
 			"member": "Member",
 			"role": "Role",
 			"sites": "Site access",
-			"actions": "Actions"
+			"actions": "Actions",
+			"twoFactor": "2FA"
 		},
 		"allSites": "All Sites",
 		"noSites": "No Sites",
@@ -5221,6 +5261,142 @@
 			"addressHelp": "The page and the choices previewed. Type an address and press Enter, or tick options in the preview.",
 			"waiting": "The preview shows the Draft once these are fixed:",
 			"frame": "Live preview of the Filter {name}"
+		}
+	},
+	"twoFactor": {
+		"status": {
+			"on": "On",
+			"off": "Off",
+			"required": "Required"
+		},
+		"remove": "Remove",
+		"lastUsed": "last used {date}",
+		"methods": {
+			"authenticator": "Authenticator app",
+			"passkey": "Passkey",
+			"none": "Not set up"
+		},
+		"authenticator": {
+			"heading": "Authenticator app",
+			"intro": "A 6-digit code from an app on your phone, new every 30 seconds.",
+			"add": "Add an authenticator app",
+			"added": "Added {date}",
+			"removeLabel": "Remove the authenticator app"
+		},
+		"setupDialog": {
+			"title": "Add an authenticator app",
+			"scan": "Scan this QR code with your authenticator app, then enter the code it shows.",
+			"qrLabel": "QR code adding {account} to an authenticator app",
+			"manual": "Can't scan it? Enter this key in the app instead:",
+			"copyKey": "Copy key",
+			"copied": "Key copied.",
+			"code": "Code from the app",
+			"codeHelp": "The 6 digits the app shows now.",
+			"confirm": "Add app",
+			"cancel": "Cancel",
+			"close": "Close",
+			"added": "Authenticator app added."
+		},
+		"passkeys": {
+			"heading": "Passkeys",
+			"intro": "Sign in with your fingerprint, face or device PIN. A passkey alone is enough to sign in.",
+			"none": "No passkeys yet.",
+			"add": "Add a passkey",
+			"unavailable": "This browser can't use passkeys.",
+			"added": "Added {date}",
+			"neverUsed": "not used yet",
+			"synced": "Synced",
+			"removeLabel": "Remove the passkey {name}",
+			"addedToast": "Passkey added.",
+			"cancelled": "No passkey was made. Try again when you're ready.",
+			"nameDialog": {
+				"title": "Add a passkey",
+				"body": "Give it a name you'll recognise, such as the device it is on. Your browser then asks you to make it.",
+				"name": "Name",
+				"defaultName": "Passkey",
+				"continue": "Continue",
+				"cancel": "Cancel",
+				"close": "Close"
+			}
+		},
+		"backupCodes": {
+			"heading": "Backup codes",
+			"intro": "For when your app or passkey is out of reach. Each code works once.",
+			"left": "{count, plural, =0 {No codes left} one {# code left} other {# codes left}}",
+			"regenerate": "Make new backup codes",
+			"regenerateDialog": {
+				"title": "Make new backup codes?",
+				"body": "Your current backup codes stop working at once.",
+				"confirm": "Make new codes",
+				"cancel": "Cancel",
+				"close": "Close"
+			},
+			"show": {
+				"title": "Save your backup codes",
+				"body": "Keep them somewhere safe, such as a password manager. Each works once, and they won't be shown again.",
+				"listLabel": "Your backup codes",
+				"download": "Download",
+				"copy": "Copy",
+				"copied": "Backup codes copied.",
+				"done": "I've saved them",
+				"close": "Close",
+				"fileHeading": "WebCraft backup codes for {account}. Each works once."
+			}
+		},
+		"removeDialog": {
+			"authenticatorTitle": "Remove the authenticator app?",
+			"passkeyTitle": "Remove the passkey {name}?",
+			"body": "It no longer signs you in. Your other sessions are signed out, and you're emailed about it.",
+			"lastBody": "It's your last second factor: two-factor authentication goes off and your backup codes stop working. Your other sessions are signed out.",
+			"confirm": "Remove",
+			"cancel": "Cancel",
+			"close": "Close",
+			"removed": "Removed."
+		},
+		"setup": {
+			"authenticatorTitle": "Authenticator app",
+			"authenticatorBody": "Scan a QR code with an app on your phone, then type the 6-digit codes it shows when you sign in.",
+			"authenticatorAction": "Set up an authenticator app",
+			"passkeyTitle": "Passkey",
+			"passkeyBody": "Use your fingerprint, face or device PIN. It signs you in on its own.",
+			"passkeyAction": "Add a passkey"
+		},
+		"enforce": {
+			"pageTitle": "Set up two-factor authentication",
+			"heading": "Set up two-factor authentication to continue",
+			"byInstall": "This Install requires two-factor authentication for everyone.",
+			"byWorkspaces": "{count, plural, one {{workspaces} requires} other {{workspaces} require}} two-factor authentication for their Members.",
+			"intro": "Add an authenticator app or a passkey. You'll get backup codes too, for when it's out of reach.",
+			"signedInAs": "Signed in as {email}",
+			"signOut": "Sign out"
+		},
+		"reminder": {
+			"title": "Add two-factor authentication to your account",
+			"body": "With an authenticator app or a passkey, a stolen password alone can't get into your account.",
+			"setUp": "Set it up",
+			"later": "Remind me later",
+			"postponed": "We'll remind you again in 7 days."
+		},
+		"workspaceSwitch": {
+			"heading": "Two-factor authentication",
+			"required": "Required",
+			"optional": "Not required",
+			"body": "When required, Members without it set it up right after signing in and can do nothing else until they have. Staff follow the Install's own setting.",
+			"require": "Require for Members",
+			"stopRequiring": "Stop requiring",
+			"turnedOn": "Two-factor authentication is now required for Members.",
+			"turnedOff": "Two-factor authentication is no longer required for Members."
+		},
+		"reset": {
+			"menu": "Reset two-factor authentication",
+			"menuOf": "Reset two-factor authentication of {name}",
+			"button": "Reset 2FA",
+			"title": "Reset {name}'s two-factor authentication?",
+			"body": "Their authenticator app, passkeys and backup codes are removed, and they are signed out everywhere. They sign in with their password and set it up again. They get an email about it, and it is in the Audit log.",
+			"confirm": "Reset",
+			"cancel": "Cancel",
+			"close": "Close",
+			"done": "{name}'s two-factor authentication was reset."
 		}
 	}
 }

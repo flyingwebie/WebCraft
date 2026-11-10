@@ -30,7 +30,7 @@
 		"ACCESS_NOT_HELD_GRANT": "Non puoi concedere più accesso di quello che hai, né come ruolo né come Site.",
 		"ACCESS_NOT_HELD_MANAGE": "Questo Membro ha un accesso che tu non hai, quindi non puoi modificarlo o rimuoverlo.",
 		"INVITE_OTHER_ACCOUNT": "Questo invito è stato inviato a un altro indirizzo email. Accedi con quell'indirizzo per accettarlo.",
-		"ACCOUNT_LOCKED": "Questo account è bloccato per un massimo di 15 minuti dopo troppe password sbagliate. Riprova più tardi.",
+		"ACCOUNT_LOCKED": "Questo account è bloccato per un massimo di 15 minuti dopo troppe password o codici sbagliati. Riprova più tardi.",
 		"TOO_MANY_REQUESTS": "Troppi tentativi. Aspetta un minuto, poi riprova.",
 		"IDENTITY_CHECK_REQUIRED": "Conferma che sei tu per continuare.",
 		"IDENTITY_CHECK_CANCELLED": "Non è cambiato nulla: conferma che sei tu per continuare.",
@@ -157,7 +157,16 @@
 		"CHECKPOINT_NOT_FOUND": "Questo elemento non ha più questo checkpoint: potrebbe essere stato rimosso dopo il tempo di conservazione dei checkpoint.",
 		"FILTER_NOT_FOUND": "Questo Filtro non esiste su questo Sito.",
 		"FILTER_INVALID": "Il Filtro non si può salvare: guarda cosa correggere.",
-		"FILTER_NAME_TAKEN": "Un altro Filtro di questo Sito ha quel nome: scegline un altro."
+		"FILTER_NAME_TAKEN": "Un altro Filtro di questo Sito ha quel nome: scegline un altro.",
+		"TWO_FACTOR_CODE_INVALID": "Il codice è sbagliato o è già stato usato. Controllalo e riprova.",
+		"SIGN_IN_EXPIRED": "È passato troppo tempo. Accedi di nuovo con email e password.",
+		"AUTHENTICATOR_EXISTS": "Un'app di autenticazione è già aggiunta. Rimuovila prima di aggiungerne un'altra.",
+		"TWO_FACTOR_NOT_FOUND": "Questo metodo di accesso non è più sul tuo account.",
+		"TWO_FACTOR_OFF": "Aggiungi prima l'autenticazione a due fattori al tuo account.",
+		"TWO_FACTOR_REQUIRED": "L'autenticazione a due fattori è obbligatoria per il tuo account: aggiungi un altro metodo prima di rimuovere questo.",
+		"TWO_FACTOR_SETUP_REQUIRED": "Configura l'autenticazione a due fattori per continuare.",
+		"PASSKEY_INVALID": "Non è stato possibile usare la passkey. Riprova oppure usa un altro metodo.",
+		"PASSKEY_CANCELLED": "Nessuna passkey è stata usata. Riprova quando vuoi."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -213,8 +222,9 @@
 				"heading": "Proteggi il tuo account con l'autenticazione a due fattori",
 				"intro": "Una password da sola può essere indovinata o rubata. Con una passkey o un'app di autenticazione, per accedere serve anche qualcosa che hai solo tu.",
 				"recommend": "Il Superadmin può raggiungere tutto in questa Install, quindi la consigliamo vivamente.",
-				"setUp": "Configura l'autenticazione a due fattori",
-				"later": "Puoi farlo anche più tardi da Il tuo account."
+				"later": "Se la salti, l'admin te lo ricorderà finché non la aggiungi.",
+				"done": "L'autenticazione a due fattori è attiva sul tuo account.",
+				"skip": "Salta per ora"
 			},
 			"email": {
 				"title": "Email dell'Install (SMTP)",
@@ -253,7 +263,25 @@
 		"headingNamed": "Accedi a {name}",
 		"email": "Email",
 		"password": "Password",
-		"submit": "Accedi"
+		"submit": "Accedi",
+		"or": "oppure",
+		"withPasskey": "Accedi con una passkey",
+		"passkeyCancelled": "Nessuna passkey è stata usata. Riprova quando vuoi.",
+		"secondStep": {
+			"heading": "Verifica in due passaggi",
+			"authenticatorBody": "Inserisci il codice che la tua app di autenticazione mostra per questo account.",
+			"backupCodeBody": "Inserisci uno dei codici di backup che hai salvato. Ognuno funziona una volta.",
+			"passkeyBody": "Usa la tua passkey per completare l'accesso.",
+			"code": "Codice dell'app",
+			"codeHelp": "Le 6 cifre che l'app mostra ora.",
+			"backupCode": "Codice di backup",
+			"backupCodeHelp": "Ad esempio abcde-23456.",
+			"submit": "Verifica",
+			"usePasskey": "Usa una passkey",
+			"useBackupCode": "Usa invece un codice di backup",
+			"useAuthenticator": "Usa invece l'app di autenticazione",
+			"startOver": "Accedi di nuovo"
+		}
 	},
 	"shell": {
 		"navLabel": "Admin",
@@ -390,7 +418,10 @@
 		"leakedPasswordCheck": "Controlla le nuove password negli elenchi di password trapelate",
 		"leakedPasswordCheckHelp": "Dal server escono solo i primi 5 caratteri dell'hash SHA-1 della password, quindi la password non viene mai inviata. Se il servizio non è raggiungibile, la password viene accettata. Disattiva il controllo per un'Install sempre offline.",
 		"save": "Salva",
-		"saved": "Salvato."
+		"saved": "Salvato.",
+		"requireTwoFactor": "Rendi obbligatoria l'autenticazione a due fattori per tutti",
+		"requireTwoFactorHelp": "Chi non ce l'ha, Staff compreso, deve configurarla subito dopo l'accesso e non può fare altro finché non l'ha fatto. I token API continuano a funzionare.",
+		"requireTwoFactorOwnFirst": "Aggiungi prima l'autenticazione a due fattori al tuo account (Il tuo account)."
 	},
 	"storageSettings": {
 		"pageTitle": "Archiviazione",
@@ -484,8 +515,7 @@
 		},
 		"twoFactor": {
 			"heading": "Autenticazione a due fattori",
-			"status": "Non configurata",
-			"body": "Aggiungi una passkey o un'app di autenticazione, così per accedere serve anche qualcosa che hai solo tu."
+			"body": "Per accedere serve anche qualcosa che hai solo tu: un codice da un'app di autenticazione o una passkey. Ogni modifica disconnette le altre sessioni e ti viene comunicata per email."
 		},
 		"emails": {
 			"heading": "Email",
@@ -599,7 +629,15 @@
 		"password": "Password",
 		"wrongPassword": "La password non è corretta.",
 		"confirm": "Conferma",
-		"cancel": "Annulla"
+		"cancel": "Annulla",
+		"bodyAuthenticator": "Inserisci il codice che mostra la tua app di autenticazione. In questo browser non te lo chiederemo di nuovo per 10 minuti.",
+		"code": "Codice dell'app",
+		"codeHelp": "Le 6 cifre che l'app mostra ora.",
+		"wrongCode": "Il codice è sbagliato o è già stato usato.",
+		"usePassword": "Usa invece la password",
+		"useAuthenticator": "Usa invece l'app di autenticazione",
+		"usePasskey": "Usa una passkey",
+		"passkeyCancelled": "Nessuna passkey è stata usata. Riprova oppure usa un altro metodo."
 	},
 	"notFound": {
 		"pageTitle": "Pagina non trovata",
@@ -843,7 +881,8 @@
 			"person": "Persona dello Staff",
 			"workspaces": "Workspace",
 			"since": "Dal",
-			"actions": "Azioni"
+			"actions": "Azioni",
+			"twoFactor": "2FA"
 		},
 		"allWorkspaces": "Tutti i Workspace",
 		"noWorkspaces": "Nessun Workspace",
@@ -896,7 +935,8 @@
 			"member": "Membro",
 			"role": "Ruolo",
 			"sites": "Accesso ai Site",
-			"actions": "Azioni"
+			"actions": "Azioni",
+			"twoFactor": "2FA"
 		},
 		"allSites": "Tutti i Site",
 		"noSites": "Nessun Site",
@@ -5221,6 +5261,142 @@
 			"addressHelp": "La pagina e le scelte in anteprima. Scrivi un indirizzo e premi Invio, o spunta le opzioni nell'anteprima.",
 			"waiting": "L'anteprima mostra la bozza quando questi problemi sono risolti:",
 			"frame": "Anteprima dal vivo del Filtro {name}"
+		}
+	},
+	"twoFactor": {
+		"status": {
+			"on": "Attiva",
+			"off": "Non attiva",
+			"required": "Obbligatoria"
+		},
+		"remove": "Rimuovi",
+		"lastUsed": "ultimo uso {date}",
+		"methods": {
+			"authenticator": "App di autenticazione",
+			"passkey": "Passkey",
+			"none": "Non configurata"
+		},
+		"authenticator": {
+			"heading": "App di autenticazione",
+			"intro": "Un codice di 6 cifre da un'app sul telefono, nuovo ogni 30 secondi.",
+			"add": "Aggiungi un'app di autenticazione",
+			"added": "Aggiunta il {date}",
+			"removeLabel": "Rimuovi l'app di autenticazione"
+		},
+		"setupDialog": {
+			"title": "Aggiungi un'app di autenticazione",
+			"scan": "Inquadra questo codice QR con la tua app di autenticazione, poi inserisci il codice che mostra.",
+			"qrLabel": "Codice QR per aggiungere {account} a un'app di autenticazione",
+			"manual": "Non riesci a inquadrarlo? Inserisci invece questa chiave nell'app:",
+			"copyKey": "Copia la chiave",
+			"copied": "Chiave copiata.",
+			"code": "Codice dell'app",
+			"codeHelp": "Le 6 cifre che l'app mostra ora.",
+			"confirm": "Aggiungi l'app",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"added": "App di autenticazione aggiunta."
+		},
+		"passkeys": {
+			"heading": "Passkey",
+			"intro": "Accedi con impronta, volto o PIN del dispositivo. Una passkey basta da sola per accedere.",
+			"none": "Ancora nessuna passkey.",
+			"add": "Aggiungi una passkey",
+			"unavailable": "Questo browser non può usare le passkey.",
+			"added": "Aggiunta il {date}",
+			"neverUsed": "mai usata",
+			"synced": "Sincronizzata",
+			"removeLabel": "Rimuovi la passkey {name}",
+			"addedToast": "Passkey aggiunta.",
+			"cancelled": "Nessuna passkey è stata creata. Riprova quando vuoi.",
+			"nameDialog": {
+				"title": "Aggiungi una passkey",
+				"body": "Dalle un nome che riconoscerai, ad esempio il dispositivo su cui si trova. Poi il browser ti chiederà di crearla.",
+				"name": "Nome",
+				"defaultName": "Passkey",
+				"continue": "Continua",
+				"cancel": "Annulla",
+				"close": "Chiudi"
+			}
+		},
+		"backupCodes": {
+			"heading": "Codici di backup",
+			"intro": "Per quando l'app o la passkey non sono a portata di mano. Ogni codice funziona una volta.",
+			"left": "{count, plural, =0 {Nessun codice rimasto} one {# codice rimasto} other {# codici rimasti}}",
+			"regenerate": "Crea nuovi codici di backup",
+			"regenerateDialog": {
+				"title": "Creare nuovi codici di backup?",
+				"body": "I codici di backup attuali smettono subito di funzionare.",
+				"confirm": "Crea nuovi codici",
+				"cancel": "Annulla",
+				"close": "Chiudi"
+			},
+			"show": {
+				"title": "Salva i tuoi codici di backup",
+				"body": "Conservali in un posto sicuro, ad esempio un gestore di password. Ognuno funziona una volta e non verranno mostrati di nuovo.",
+				"listLabel": "I tuoi codici di backup",
+				"download": "Scarica",
+				"copy": "Copia",
+				"copied": "Codici di backup copiati.",
+				"done": "Li ho salvati",
+				"close": "Chiudi",
+				"fileHeading": "Codici di backup WebCraft per {account}. Ognuno funziona una volta."
+			}
+		},
+		"removeDialog": {
+			"authenticatorTitle": "Rimuovere l'app di autenticazione?",
+			"passkeyTitle": "Rimuovere la passkey {name}?",
+			"body": "Non servirà più per accedere. Le altre sessioni vengono disconnesse e ti arriva un'email.",
+			"lastBody": "È il tuo ultimo secondo fattore: l'autenticazione a due fattori si disattiva e i codici di backup smettono di funzionare. Le altre sessioni vengono disconnesse.",
+			"confirm": "Rimuovi",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"removed": "Rimossa."
+		},
+		"setup": {
+			"authenticatorTitle": "App di autenticazione",
+			"authenticatorBody": "Inquadra un codice QR con un'app sul telefono, poi inserisci i codici di 6 cifre che mostra quando accedi.",
+			"authenticatorAction": "Configura un'app di autenticazione",
+			"passkeyTitle": "Passkey",
+			"passkeyBody": "Usa impronta, volto o PIN del dispositivo. Ti fa accedere da sola.",
+			"passkeyAction": "Aggiungi una passkey"
+		},
+		"enforce": {
+			"pageTitle": "Configura l'autenticazione a due fattori",
+			"heading": "Configura l'autenticazione a due fattori per continuare",
+			"byInstall": "Questa Install richiede l'autenticazione a due fattori per tutti.",
+			"byWorkspaces": "{count, plural, one {{workspaces} richiede} other {{workspaces} richiedono}} l'autenticazione a due fattori per i propri Member.",
+			"intro": "Aggiungi un'app di autenticazione o una passkey. Riceverai anche i codici di backup, per quando non sono a portata di mano.",
+			"signedInAs": "Accesso come {email}",
+			"signOut": "Esci"
+		},
+		"reminder": {
+			"title": "Aggiungi l'autenticazione a due fattori al tuo account",
+			"body": "Con un'app di autenticazione o una passkey, una password rubata da sola non basta per entrare nel tuo account.",
+			"setUp": "Configurala",
+			"later": "Ricordamelo più tardi",
+			"postponed": "Te lo ricorderemo di nuovo tra 7 giorni."
+		},
+		"workspaceSwitch": {
+			"heading": "Autenticazione a due fattori",
+			"required": "Obbligatoria",
+			"optional": "Facoltativa",
+			"body": "Quando è obbligatoria, i Member che non ce l'hanno la configurano subito dopo l'accesso e non possono fare altro finché non l'hanno fatto. Lo Staff segue l'impostazione della Install.",
+			"require": "Rendila obbligatoria per i Member",
+			"stopRequiring": "Non renderla più obbligatoria",
+			"turnedOn": "L'autenticazione a due fattori ora è obbligatoria per i Member.",
+			"turnedOff": "L'autenticazione a due fattori non è più obbligatoria per i Member."
+		},
+		"reset": {
+			"menu": "Reimposta l'autenticazione a due fattori",
+			"menuOf": "Reimposta l'autenticazione a due fattori di {name}",
+			"button": "Reimposta 2FA",
+			"title": "Reimpostare l'autenticazione a due fattori di {name}?",
+			"body": "L'app di autenticazione, le passkey e i codici di backup vengono rimossi e la persona viene disconnessa ovunque. Accederà con la password e la configurerà di nuovo. Riceverà un'email e la reimpostazione resta nell'Audit log.",
+			"confirm": "Reimposta",
+			"cancel": "Annulla",
+			"close": "Chiudi",
+			"done": "L'autenticazione a due fattori di {name} è stata reimpostata."
 		}
 	}
 }

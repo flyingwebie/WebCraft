@@ -22,7 +22,15 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@webcraft/ui/compo
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { EllipsisIcon, SearchIcon, UserCogIcon, UserMinusIcon } from "lucide-react";
+import {
+	EllipsisIcon,
+	SearchIcon,
+	ShieldAlertIcon,
+	ShieldCheckIcon,
+	ShieldOffIcon,
+	UserCogIcon,
+	UserMinusIcon,
+} from "lucide-react";
 import { type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -30,6 +38,7 @@ import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
+import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import {
 	type AccessOffer,
 	ChangeAccessSheet,
@@ -41,13 +50,18 @@ import {
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { initials } from "../../ui/shell/context.ts";
 import type { AdminPlace } from "../../ui/shell/levels.ts";
+import { ResetTwoFactorDialog } from "../../ui/two-factor/ResetDialog.tsx";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/members")({
 	staticData: { crumb: "members.pageTitle" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("member.manage")) return null;
 		const api = await getApi();
-		return api.members.list({ workspaceId: params.workspaceId });
+		const [list, twoFactor] = await Promise.all([
+			api.members.list({ workspaceId: params.workspaceId }),
+			api.members.twoFactor({ workspaceId: params.workspaceId }),
+		]);
+		return { ...list, twoFactor };
 	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "members.pageTitle") }] }),
 	component: MembersPage,
@@ -73,6 +87,8 @@ function MembersPage() {
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 
 	const canInvite = place.permissions.includes("member.invite") && data.offer.length > 0;
+	const canReset = place.permissions.includes("twoFactor.reset");
+	const methodsOf = new Map(data.twoFactor.members.map((member) => [member.personId, member.methods]));
 	const sites: SiteOption[] = place.sites.map(({ id, name }) => ({ id, name }));
 	const search = query.trim().toLocaleLowerCase();
 	const shown = data.members.filter(
@@ -145,6 +161,7 @@ function MembersPage() {
 											<TableHead className="ps-4">{t("members.columns.member")}</TableHead>
 											<TableHead>{t("members.columns.role")}</TableHead>
 											<TableHead>{t("members.columns.sites")}</TableHead>
+											<TableHead>{t("members.columns.twoFactor")}</TableHead>
 											<TableHead className="pe-4 text-end">
 												<span className="sr-only">{t("members.columns.actions")}</span>
 											</TableHead>
@@ -153,7 +170,7 @@ function MembersPage() {
 									<TableBody>
 										{shown.length === 0 ? (
 											<TableRow>
-												<TableCell colSpan={4} className="text-muted-foreground p-6 text-center">
+												<TableCell colSpan={5} className="text-muted-foreground p-6 text-center">
 													{t("members.noMatch")}
 												</TableCell>
 											</TableRow>
@@ -182,6 +199,9 @@ function MembersPage() {
 													<TableCell className="whitespace-normal">
 														<SiteAccessText access={member} />
 													</TableCell>
+													<TableCell>
+														<TwoFactorText methods={methodsOf.get(member.id) ?? []} />
+													</TableCell>
 													<TableCell className="pe-4 text-end">
 														{member.manageable ? (
 															<MemberActions
@@ -190,6 +210,9 @@ function MembersPage() {
 																offer={data.offer}
 																sites={sites}
 																isYou={member.id === person.id}
+																mayResetTwoFactor={
+																	canReset && member.id !== person.id && (methodsOf.get(member.id) ?? []).length > 0
+																}
 															/>
 														) : null}
 													</TableCell>
@@ -204,6 +227,11 @@ function MembersPage() {
 					<PendingInvites invites={data.invites} workspaceId={place.workspace.id} canInvite={canInvite} />
 				</div>
 				<div className="grid content-start gap-4">
+					<RequireTwoFactorCard
+						workspaceId={place.workspace.id}
+						required={data.twoFactor.required}
+						mayChange={place.permissions.includes("twoFactor.require")}
+					/>
 					<AgencyStaff staff={data.staff} workspace={place.workspace.name} />
 					<RolesCard />
 				</div>
@@ -238,17 +266,20 @@ function MemberActions({
 	offer,
 	sites,
 	isYou,
+	mayResetTwoFactor,
 }: {
 	member: Member;
 	workspace: { id: string; name: string };
 	offer: readonly AccessOffer[];
 	sites: readonly SiteOption[];
 	isYou: boolean;
+	mayResetTwoFactor: boolean;
 }) {
 	const t = useT();
 	const trigger = useRef<HTMLButtonElement>(null);
 	const [changing, setChanging] = useState(false);
 	const [removing, setRemoving] = useState(false);
+	const [resetting, setResetting] = useState(false);
 	return (
 		<>
 			<DropdownMenu>
@@ -263,12 +294,25 @@ function MemberActions({
 						<UserCogIcon aria-hidden="true" />
 						{t("members.changeAccess")}
 					</DropdownMenuItem>
+					{mayResetTwoFactor ? (
+						<DropdownMenuItem onClick={() => setResetting(true)}>
+							<ShieldOffIcon aria-hidden="true" />
+							{t("twoFactor.reset.menu")}
+						</DropdownMenuItem>
+					) : null}
 					<DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}>
 						<UserMinusIcon aria-hidden="true" />
 						{t("members.remove")}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
+			<ResetTwoFactorDialog
+				name={member.name}
+				open={resetting}
+				onOpenChange={setResetting}
+				finalFocus={trigger}
+				reset={async () => (await getApi()).members.resetTwoFactor({ workspaceId: workspace.id, personId: member.id })}
+			/>
 			<ChangeAccessSheet
 				workspaceId={workspace.id}
 				member={member}
@@ -287,6 +331,79 @@ function MemberActions({
 				isYou={isYou}
 			/>
 		</>
+	);
+}
+
+/** A Member's second factors, as the 2FA column shows them. */
+function TwoFactorText({ methods }: { methods: readonly ("authenticator" | "passkey")[] }) {
+	const t = useT();
+	if (methods.length === 0) {
+		return (
+			<span className="text-warning-foreground flex items-center gap-1.5">
+				<ShieldAlertIcon className="size-4" aria-hidden="true" />
+				{t("twoFactor.methods.none")}
+			</span>
+		);
+	}
+	return (
+		<span className="flex items-center gap-1.5">
+			<ShieldCheckIcon className="text-primary size-4" aria-hidden="true" />
+			{methods.map((method) => t(`twoFactor.methods.${method}`)).join(", ")}
+		</span>
+	);
+}
+
+/**
+ * Whether the Workspace's Members must use two-factor authentication: Owners and Staff switch it,
+ * everyone else sees it. Switching it is a Sensitive action and needs their own second factor.
+ */
+function RequireTwoFactorCard({
+	workspaceId,
+	required,
+	mayChange,
+}: {
+	workspaceId: string;
+	required: boolean;
+	mayChange: boolean;
+}) {
+	const t = useT();
+	const router = useRouter();
+	const runSensitive = useSensitiveAction();
+	const [busy, setBusy] = useState(false);
+
+	const toggle = async () => {
+		setBusy(true);
+		try {
+			const api = await getApi();
+			await runSensitive(() => api.members.requireTwoFactor({ workspaceId, required: !required }));
+			toast.success(required ? t("twoFactor.workspaceSwitch.turnedOff") : t("twoFactor.workspaceSwitch.turnedOn"));
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<Card size="sm">
+			<CardHeader>
+				<CardTitle className="flex flex-wrap items-center gap-2">
+					<h2>{t("twoFactor.workspaceSwitch.heading")}</h2>
+					<Badge variant={required ? "secondary" : "outline"}>
+						{required ? t("twoFactor.workspaceSwitch.required") : t("twoFactor.workspaceSwitch.optional")}
+					</Badge>
+				</CardTitle>
+				<CardDescription>{t("twoFactor.workspaceSwitch.body")}</CardDescription>
+			</CardHeader>
+			{mayChange ? (
+				<CardContent>
+					<Button variant="outline" size="sm" onClick={toggle} disabled={busy}>
+						{required ? t("twoFactor.workspaceSwitch.stopRequiring") : t("twoFactor.workspaceSwitch.require")}
+					</Button>
+				</CardContent>
+			) : null}
+		</Card>
 	);
 }
 

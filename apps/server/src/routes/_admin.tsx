@@ -13,6 +13,8 @@ export const Route = createFileRoute("/_admin")({
 		const { shell } = context;
 		if (shell.setup.stage === "claim") throw redirect({ to: "/setup" });
 		if (!shell.person) throw redirect({ to: "/sign-in", search: { redirect: location.href } });
+		// Someone who must use two-factor authentication sets it up before anything else.
+		if (shell.twoFactor?.mustSetUp) throw redirect({ to: "/two-factor", search: { redirect: location.href } });
 		const place: AdminPlace = { level: "install", permissions: shell.permissions };
 		return { person: shell.person, place };
 	},

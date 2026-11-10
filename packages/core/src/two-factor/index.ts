@@ -105,6 +105,8 @@ export type TwoFactor = {
 	setInstallRequirement(scope: InstallScope, required: boolean): Promise<{ required: boolean }>;
 	/** Requires it for a Workspace's Members. Open the Workspace with `twoFactor.require`. */
 	setWorkspaceRequirement(scope: WorkspaceScope, required: boolean): Promise<{ required: boolean }>;
+	/** Which second factors each of these people has (people with none answer `[]`), for the Staff screen. */
+	methodsOf(personIds: readonly string[]): Promise<Map<string, SecondFactorMethod[]>>;
 	/** The Members screen's column: open the Workspace with `member.manage`. */
 	workspaceStatus(scope: WorkspaceScope): Promise<WorkspaceTwoFactor>;
 	/** Resets a Member's two-factor authentication. Open the Workspace with `twoFactor.reset`. */
@@ -157,7 +159,7 @@ export function createTwoFactor({
 			related: { kind: "person", id: personId },
 		});
 
-	const methodsOf = (summary: SecondFactorSummary): SecondFactorMethod[] => [
+	const methodsInSummary = (summary: SecondFactorSummary): SecondFactorMethod[] => [
 		...(summary.authenticator ? (["authenticator"] as const) : []),
 		...(summary.passkeys.length > 0 ? (["passkey"] as const) : []),
 	];
@@ -174,7 +176,7 @@ export function createTwoFactor({
 				.where(and(eq(memberships.personId, personId), eq(workspaces.requireTwoFactor, true)))
 				.orderBy(asc(workspaces.name), asc(workspaces.id)),
 		]);
-		const methods = methodsOf(summary);
+		const methods = methodsInSummary(summary);
 		const install = settings?.required ?? false;
 		const required = install || requiring.length > 0;
 		const paused = person?.reminderUntil ? person.reminderUntil.getTime() > clock.now().getTime() : false;
@@ -200,6 +202,31 @@ export function createTwoFactor({
 			) as must
 		`);
 		return result.rows[0]?.must === true;
+	};
+
+	const methodsOf = async (personIds: readonly string[]) => {
+		const ids = [...new Set(personIds)];
+		const [apps, keys] =
+			ids.length === 0
+				? [[], []]
+				: await Promise.all([
+						db
+							.select({ personId: authenticators.personId })
+							.from(authenticators)
+							.where(inArray(authenticators.personId, ids)),
+						db.selectDistinct({ personId: passkeys.personId }).from(passkeys).where(inArray(passkeys.personId, ids)),
+					]);
+		const withApp = new Set(apps.map((row) => row.personId));
+		const withPasskey = new Set(keys.map((row) => row.personId));
+		return new Map(
+			ids.map((personId): [string, SecondFactorMethod[]] => [
+				personId,
+				[
+					...(withApp.has(personId) ? (["authenticator"] as const) : []),
+					...(withPasskey.has(personId) ? (["passkey"] as const) : []),
+				],
+			]),
+		);
 	};
 
 	/** Refuses to remove a person's last second factor while they must use one. */
@@ -345,34 +372,18 @@ export function createTwoFactor({
 			return { required };
 		},
 
+		methodsOf,
+
 		async workspaceStatus(scope) {
 			const [workspace] = await scope.db
 				.select({ required: workspaces.requireTwoFactor })
 				.from(workspaces)
 				.where(eq(workspaces.id, scope.workspace.id));
-			const members = await scope.select(memberships);
-			const ids = members.map((member) => member.personId);
-			const [apps, keys] =
-				ids.length === 0
-					? [[], []]
-					: await Promise.all([
-							db
-								.select({ personId: authenticators.personId })
-								.from(authenticators)
-								.where(inArray(authenticators.personId, ids)),
-							db.selectDistinct({ personId: passkeys.personId }).from(passkeys).where(inArray(passkeys.personId, ids)),
-						]);
-			const withApp = new Set(apps.map((row) => row.personId));
-			const withPasskey = new Set(keys.map((row) => row.personId));
+			const ids = (await scope.select(memberships)).map((member) => member.personId);
+			const methods = await methodsOf(ids);
 			return {
 				required: workspace?.required ?? false,
-				members: ids.map((personId) => ({
-					personId,
-					methods: [
-						...(withApp.has(personId) ? (["authenticator"] as const) : []),
-						...(withPasskey.has(personId) ? (["passkey"] as const) : []),
-					],
-				})),
+				members: ids.map((personId) => ({ personId, methods: methods.get(personId) ?? [] })),
 			};
 		},
 
