@@ -141,3 +141,52 @@ test("missing declarations leave Block translation pending until the Module retu
 		await install.close();
 	}
 });
+
+test("Markdown refuses an ambiguous Module/Site Component name instead of changing Block identity", async () => {
+	const install = await createTestInstall({ modules: [] });
+	try {
+		const admin = await install.superadmin();
+		const workspace = await install.createWorkspace("Before Module install");
+		const { id: siteId } = await install.createSite(workspace.id, { slug: "same-name" });
+		const { component } = await admin.api.components.create({ siteId, name: "Gallery" });
+		await admin.api.components.saveMarkup({ siteId, componentId: component.id, markup: "<aside>Site gallery</aside>" });
+		await admin.api.components.publish({ siteId, componentId: component.id });
+		await install.restart({ modules: [extraBlocks] });
+		await admin.api.modules.approve({ moduleId: "extra-blocks", version: "1.0.0" });
+		const { postType } = await admin.api.postTypes.create({
+			siteId,
+			name: "Stories",
+			urlPattern: "/stories/{slug}",
+			fields: [{ key: "body", label: "Body", type: "body", components: [component.id, "extra-blocks:Gallery"] }],
+		});
+		const { entry } = await admin.api.entries.create({
+			siteId,
+			postTypeId: postType.id,
+			title: "Names",
+			fields: { body: [{ id: "module", type: "component", component: "extra-blocks:Gallery", props: [] }] },
+		});
+		const markdown = (await admin.api.entries.get({ siteId, entryId: entry.id, bodyFormat: "markdown" })).entry.draft
+			.fields.body;
+		await expect(
+			admin.api.entries.saveDraft({ siteId, entryId: entry.id, bodyFormat: "markdown", fields: { body: markdown } }),
+		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect((await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.body).toEqual(
+			entry.draft.fields.body,
+		);
+		// The same refusal protects retained data after its Module disappears and Staff remove its allowance.
+		await install.restart({ modules: [] });
+		await admin.api.postTypes.update({
+			siteId,
+			postTypeId: postType.id,
+			fields: [{ key: "body", label: "Body", type: "body", components: [component.id] }],
+		});
+		await expect(
+			admin.api.entries.saveDraft({ siteId, entryId: entry.id, bodyFormat: "markdown", fields: { body: markdown } }),
+		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect((await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.body).toEqual(
+			entry.draft.fields.body,
+		);
+	} finally {
+		await install.close();
+	}
+});

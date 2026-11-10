@@ -9,7 +9,7 @@
  */
 
 import { components } from "@webcraft/db/schema";
-import { type ComponentFound, ELEMENT_TREE_VERSION, type PropInfo } from "@webcraft/renderer";
+import { type Block, type ComponentFound, ELEMENT_TREE_VERSION, type PropInfo } from "@webcraft/renderer";
 import { inArray } from "drizzle-orm";
 import { isUuid } from "../ids.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
@@ -97,10 +97,25 @@ function propInfo(prop: FieldDefinition): PropInfo {
 export async function bodyComponentFinder(
 	scope: Pick<SiteScope, "select" | "db" | "where" | "site" | "componentSources">,
 	field: BodyField,
+	previous: readonly Block[] = [],
 ): Promise<(name: string) => ComponentFound> {
 	const rows = await scope.select(components);
 	const allowed = new Map((await bodyComponents(scope, field)).map((component) => [component.name, component]));
+	// An older Site Component may share a Module's new tag. Include unavailable and retained
+	// Block identities too: Markdown must never silently retarget their data to another Component.
+	const known = new Map(
+		[...scope.componentSources.allModuleComponents(), ...rows].map((component) => [component.id, component.name]),
+	);
+	const relevant = new Set([
+		...field.components,
+		...previous.flatMap((block) => (block.type === "component" ? [block.component] : [])),
+	]);
+	for (const id of relevant) if (!known.has(id) && id.includes(":")) known.set(id, id.split(":")[1] ?? "");
 	return (name) => {
+		if ([...relevant].filter((id) => known.get(id) === name).length > 1)
+			return {
+				refused: `More than one Component is named ${name}. Use JSON Blocks to keep their identities, or rename the Site's Component.`,
+			};
 		const component = allowed.get(name);
 		if (component)
 			return {

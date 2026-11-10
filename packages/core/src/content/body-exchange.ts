@@ -58,7 +58,7 @@ export async function withBodyFromMarkdown(
 		return rest;
 	}
 	const { blocks, problems: found } = blocksFromMarkdown(input, {
-		component: await bodyComponentFinder(scope, field),
+		component: await bodyComponentFinder(scope, field, storedBlocks(previous)),
 		previous: storedBlocks(previous),
 	});
 	if (found.length > 0) {
