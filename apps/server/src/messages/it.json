@@ -2805,7 +2805,7 @@
 		},
 		"components": {
 			"allowed": "Componenti consentiti",
-			"allowedHelp": "I Membri possono inserire questi Componenti pubblicati dal menu / e compilare le loro Prop.",
+			"allowedHelp": "I Membri possono inserire questi Componenti pubblicati e tipi di Blocco dei Moduli dal menu / e compilare le loro Prop.",
 			"group": "Componenti",
 			"label": "{name} (Componente)",
 			"title": "{name}: Prop",

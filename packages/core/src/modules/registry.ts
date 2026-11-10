@@ -132,7 +132,13 @@ export const KEEP_MONTHS = { min: 1, max: 120 } as const;
  * declares, and whether it runs before visitors accept that category (holding back itself what
  * needs it).
  */
-export type ModuleSiteScriptFile = { code: string; name: string; category: ConsentCategory; beforeConsent: boolean };
+export type ModuleSiteScriptFile = {
+	code: string;
+	name: string;
+	category: ConsentCategory;
+	beforeConsent: boolean;
+	components?: readonly string[];
+};
 
 /** A Site route with its path split into fixed parts and parameters. */
 export type CompiledRoute = { route: SiteRoute; parts: readonly ({ fixed: string } | { param: string })[] };
@@ -164,7 +170,6 @@ const DEFINITION_KEYS = new Set([
 /** Extension points declared for later SDK versions: a Module can't use them yet. */
 const LATER = {
 	structurePresets: "Structure presets",
-	blockTypes: "Block types",
 };
 
 const WIDGET_KIND = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -448,6 +453,7 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		if (typeof receiver.receive !== "function") problem("Its formSubmissions has no receive function.");
 	}
 
+	const compiledComponents = compileComponents(definition, manifest);
 	let siteScript: ModuleSiteScriptFile | null = null;
 	if (definition.siteScript !== undefined) {
 		const { code } = definition.siteScript ?? {};
@@ -465,7 +471,21 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 			problem("Its Site script is Necessary: it runs before consent anyway, so beforeConsent says nothing.");
 		}
 		const name = `${createHash("sha256").update(code).digest("hex").slice(0, 16)}.js`;
-		siteScript = { code, name, category: manifest.siteScript, beforeConsent };
+		const whenUsed = definition.siteScript.whenUsed;
+		if (
+			whenUsed !== undefined &&
+			(!Array.isArray(whenUsed) ||
+				whenUsed.length === 0 ||
+				whenUsed.some((name) => typeof name !== "string" || !compiledComponents.some((c) => c.name === name)))
+		)
+			problem("Its Site script whenUsed must list declared Component or Block type names.");
+		siteScript = {
+			code,
+			name,
+			category: manifest.siteScript,
+			beforeConsent,
+			...(whenUsed ? { components: [...new Set(whenUsed)].map((name) => `${manifest.id}:${name}`) } : {}),
+		};
 	}
 
 	const partitions: CompiledPartitioning[] = [];
@@ -577,7 +597,7 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 		pages,
 		events,
 		jobs,
-		components: compileComponents(definition, manifest),
+		components: compiledComponents,
 		schedules,
 		receiver,
 		siteScript,
@@ -682,7 +702,7 @@ function isWhole(value: unknown, least: number, most: number): value is number {
  * markup that reads only its Props. Element ids are numbered, so every process reads the same tree.
  */
 function compileComponents(definition: ModuleDefinition, manifest: ModuleManifest): ModuleComponent[] {
-	const declared = definition.components ?? [];
+	const declared = [...(definition.components ?? []), ...(definition.blockTypes ?? [])];
 	if (declared.length > 0 && manifest.level !== "site") {
 		problem("Only Site-level Modules add Components: Components are placed on Sites.");
 	}
@@ -711,7 +731,26 @@ function compileComponents(definition: ModuleDefinition, manifest: ModuleManifes
 				...moduleComponentTreeRules(props),
 				newId: () => `n${++count}`,
 			});
-			compiled.push({ id: `${manifest.id}:${name}`, moduleId: manifest.id, name, props, tree });
+			compiled.push({
+				id: `${manifest.id}:${name}`,
+				moduleId: manifest.id,
+				name,
+				props,
+				tree,
+				blockType: (definition.blockTypes ?? []).includes(component),
+				label: component.label,
+				localizedProps: Object.fromEntries(
+					manifest.adminLanguages.map((language) => [
+						language,
+						parseFields(propInputs(component.props ?? [], manifest, name, language), [], {
+							postTypeKeys: new Set(),
+							owner: "moduleComponent",
+							reservedKeys: RESERVED_PROP_KEYS,
+							listName: "props",
+						}),
+					]),
+				),
+			});
 		} catch (error) {
 			if (!(error instanceof TemplateMarkupInvalidError)) throw error;
 			const where = error.problems
@@ -727,8 +766,13 @@ function compileComponents(definition: ModuleDefinition, manifest: ModuleManifes
  * A Module Component's Props as Fields are declared: labels and help text in the Module's first
  * language (each checked in all of them).
  */
-function propInputs(props: readonly ComponentProp[], manifest: ModuleManifest, component: string): FieldInput[] {
-	const first = (words: Label | undefined) => (words ? (words[manifest.adminLanguages[0] ?? ""] ?? "") : undefined);
+function propInputs(
+	props: readonly ComponentProp[],
+	manifest: ModuleManifest,
+	component: string,
+	language = manifest.adminLanguages[0] ?? "en",
+): FieldInput[] {
+	const first = (words: Label | undefined) => (words ? (words[language] ?? "") : undefined);
 	return props.map((prop) => {
 		for (const [what, words] of [
 			["label", prop.label],
@@ -743,7 +787,7 @@ function propInputs(props: readonly ComponentProp[], manifest: ModuleManifest, c
 			label: first(prop.label) ?? "",
 			help: first(prop.help),
 			options: prop.options ? [...prop.options] : undefined,
-			fields: prop.fields ? propInputs(prop.fields, manifest, component) : undefined,
+			fields: prop.fields ? propInputs(prop.fields, manifest, component, language) : undefined,
 		} as FieldInput;
 	});
 }

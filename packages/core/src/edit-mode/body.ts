@@ -64,7 +64,7 @@ export async function bodyEditing(scope: SiteScope, region: BodyRegion): Promise
 		language: field.translatable ? language : defaultLanguage,
 		blocks: storedBlocks(entry.draft.fields[field.key]),
 		blocksOff: field.blocksOff,
-		components: await bodyComponents(scope, field),
+		components: await bodyComponents(scope, field, language),
 		problems: entry.problems.filter((problem) => within(problem.at)),
 		checks: entry.checks.filter((check) => within(check.at)),
 	};

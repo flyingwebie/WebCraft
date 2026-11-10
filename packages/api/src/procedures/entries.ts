@@ -1,10 +1,10 @@
 import { ENTRY_BODY_FORMATS, ENTRY_TITLE_MAX_LENGTH, PASTE_MAX_LENGTH, publishPermission } from "@webcraft/core";
 import { z } from "zod";
-
 import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { fieldValues, language, seoFields } from "../fields.ts";
 import { id } from "../inputs.ts";
+import { languageOf } from "./modules.ts";
 
 /**
  * How the Body field's value is read or written: its JSON Blocks (the default), or Markdown with the
@@ -47,7 +47,13 @@ export const entries = {
 	 */
 	bodyComponents: signedIn.input(z.object({ siteId: id, postTypeId: id })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "site.view");
-		return { components: await context.services.entries.bodyComponents(site, input.postTypeId) };
+		return {
+			components: await context.services.entries.bodyComponents(
+				site,
+				input.postTypeId,
+				await languageOf(context.services, context.person),
+			),
+		};
 	}),
 
 	/**

@@ -1,3 +1,4 @@
+import extraBlocks from "@webcraft/module-extra-blocks";
 import forms from "@webcraft/module-forms";
 import redirects from "@webcraft/module-redirects";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
@@ -11,4 +12,10 @@ import wordpressImport from "@webcraft/module-wordpress-import";
  * export here (and the package to `@webcraft/core`'s dependencies). Web, worker and the `migrate`
  * step all load this list, so every process runs the same Modules.
  */
-export const FIRST_PARTY_MODULES: readonly ModuleDefinition[] = [forms, siteAnalytics, redirects, wordpressImport];
+export const FIRST_PARTY_MODULES: readonly ModuleDefinition[] = [
+	forms,
+	siteAnalytics,
+	redirects,
+	wordpressImport,
+	extraBlocks,
+];

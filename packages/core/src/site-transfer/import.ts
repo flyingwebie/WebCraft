@@ -29,6 +29,7 @@ import {
 	type SiteExportManifest,
 } from "./format.ts";
 import { createReferenceLookup } from "./lookup.ts";
+import { type ModuleComponentDeclaration, modulePropFields, retainModuleDeclarations } from "./module-declarations.ts";
 import { keyOpens, openSecrets, type SecretsBundle, secretsBundleSchema } from "./passphrase.ts";
 import { createRowRemapper } from "./references.ts";
 import { type IdMap, idMap, newMask } from "./remap.ts";
@@ -75,6 +76,7 @@ export type ImportReaderContext = {
 	storage: InstallStorage;
 	/** Each Module schema of this build's Modules: `m_forms` → `forms`. */
 	moduleSchemas: ReadonlyMap<string, string>;
+	moduleComponents: readonly ModuleComponentDeclaration[];
 	moduleStatus(moduleId: string): Promise<ModuleTransferStatus>;
 	/** Makes the monthly partitions a partitioned Module table needs for these months, in the transaction. */
 	preparePartitions(client: pg.ClientBase, moduleId: string, table: string, months: Date[]): Promise<void>;
@@ -146,6 +148,12 @@ export async function importSite(
 		) {
 			throw new ArchiveRefusedError("damaged", "The archive carries Submissions it declares excluded.");
 		}
+		// Layouts 1/2 did not carry Prop contracts. Only an explicitly matching source version is a fallback.
+		const moduleComponents =
+			manifest.moduleComponents ??
+			context.moduleComponents.filter((component) =>
+				manifest.modules.some((module) => module.id === component.moduleId && module.version === component.version),
+			);
 		const bundle = manifest.secrets.carried ? await reader.secrets(manifest) : null;
 		const people = await reader.people(manifest);
 
@@ -161,6 +169,7 @@ export async function importSite(
 		const siteId = ids.id(manifest.site.id);
 		const missingPeople = new Map(persons.unmatched.map((person) => [ids.id(person.id), plan.importer]));
 		await insertSite(client, manifest, plan, siteId, context.now());
+		await retainModuleDeclarations(client, { workspaceId: plan.workspaceId, id: siteId }, moduleComponents);
 		const target = new Map(
 			(await siteTables(client, context.moduleSchemas)).tables.map((table) => [table.name, table] as const),
 		);
@@ -187,6 +196,16 @@ export async function importSite(
 			]);
 		}
 		const keptAside = new Set<string>();
+		const currentDeclarations = new Map(context.moduleComponents.map((component) => [component.id, component]));
+		for (const component of moduleComponents) {
+			const current = currentDeclarations.get(component.id);
+			if (
+				!current ||
+				current.version !== component.version ||
+				JSON.stringify(current.props) !== JSON.stringify(component.props)
+			)
+				keptAside.add(component.moduleId);
+		}
 		for (const table of manifest.tables) {
 			const entry = await reader.next(table.file);
 			const rows = await stageRows(client, entry, table.sha256, steps, table.name);
@@ -197,7 +216,13 @@ export async function importSite(
 				);
 			}
 		}
-		const remap = createRowRemapper(createReferenceLookup(client), ids, missingPeople);
+		const remap = createRowRemapper(
+			createReferenceLookup(client),
+			ids,
+			missingPeople,
+			undefined,
+			modulePropFields(moduleComponents),
+		);
 		for (const [index, table] of manifest.tables.entries()) {
 			const here = target.get(table.name);
 			const columns = here?.uuidColumns ?? table.uuidColumns;

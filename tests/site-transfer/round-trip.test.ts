@@ -48,11 +48,12 @@ describe("a Site export", () => {
 		const manifest = manifestIn(archive);
 		expect(manifest).toMatchObject({
 			format: "webcraft-site-export",
-			formatVersion: 2,
+			formatVersion: 3,
 			site: { id: site.siteId, workspaceId: site.workspaceId, name: "Acme Bakery", slug: "bakery" },
 			secrets: { carried: false },
 		});
 		expect(manifest.modules.map((module: { id: string }) => module.id).sort()).toEqual([
+			"extra-blocks",
 			"forms",
 			"redirects",
 			"site-analytics",

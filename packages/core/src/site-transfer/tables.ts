@@ -57,6 +57,8 @@ export const LEFT_OUT_TABLES: Readonly<Record<string, LeftOutReason>> = {
 	// The durable inventory is not portable; its Module rows are exported under their own table names.
 	"public.site_retained_tables": "retained",
 	"public.site_retained_rows": "retained",
+	// Source Component declarations travel in the manifest, independently of the installed Module version.
+	"public.site_module_components": "retained",
 };
 
 /**

@@ -44,6 +44,8 @@ export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
 /** Options for rendering a tree. */
 export type RenderOptions = {
+	/** Components actually rendered, including Body Blocks and nested Placements. */
+	shownComponents?: Set<string>;
 	/** Site template only: an optional footer link, inserted once across its Components. */
 	footer?: () => string;
 	/** Internal, resolved markup used only by quality Checks. Never visitor output. */
@@ -462,7 +464,9 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 		editRegion: undefined,
 		codeSource: options.codeSource === undefined ? undefined : `${options.codeSource}/${node.id}`,
 	};
-	return renderNodes(shown.tree.nodes, inner, { ...state, depth: state.depth + 1 });
+	const html = renderNodes(shown.tree.nodes, inner, { ...state, depth: state.depth + 1 });
+	if (html.trim()) options.shownComponents?.add(node.component);
+	return html;
 }
 
 /**

@@ -5,6 +5,8 @@ import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import { type AuditDetails, type AuditVia, type RecordedAuditEntry, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
+import type { ComponentSources } from "../content/components.ts";
+import { NO_MODULE_COMPONENTS } from "../content/components.ts";
 import { isUuid } from "../ids.ts";
 import { noteLogPlace } from "../log.ts";
 import { type Actor, can, INSTALL, personIdOf, type Resource } from "../permissions/can.ts";
@@ -177,6 +179,7 @@ export type SiteScope = ScopeBase &
 		readonly level: "site";
 		readonly workspace: Workspace;
 		readonly site: Site;
+		readonly componentSources: ComponentSources;
 		readonly secrets: ScopedSecrets;
 		transaction<Result>(work: (scope: SiteScope) => Promise<Result>): Promise<Result>;
 	};
@@ -192,6 +195,7 @@ export type VisitorScope = Pick<
 	ScopeDatabase & {
 		readonly level: "visitor";
 		readonly site: Site;
+		readonly componentSources: ComponentSources;
 		/** The time, from the Install's clock. */
 		now(): Date;
 	};
@@ -205,6 +209,7 @@ export type BackgroundScope = ScopedQueries<SiteTable, "workspaceId" | "siteId">
 		readonly level: "background";
 		readonly workspace: Workspace;
 		readonly site: Site;
+		readonly componentSources: ComponentSources;
 		/** The time, from the Install's clock. */
 		now(): Date;
 		transaction<Result>(work: (scope: BackgroundScope) => Promise<Result>): Promise<Result>;
@@ -224,6 +229,7 @@ export type BackgroundWorkspaceScope = ScopedQueries<WorkspaceTable, "workspaceI
 	};
 
 type DataLayerOptions = {
+	componentSources?: () => ComponentSources;
 	database: Database;
 	clock: Clock;
 	secrets: Secrets;
@@ -238,7 +244,13 @@ type DataLayerOptions = {
 /** What runs once the transaction a scope works in commits. Null: the scope isn't in a transaction. */
 type AfterCommit = (() => Promise<void>)[] | null;
 
-export function createDataLayer({ database, clock, secrets, afterAudit }: DataLayerOptions): DataLayer {
+export function createDataLayer({
+	database,
+	clock,
+	secrets,
+	afterAudit,
+	componentSources = () => NO_MODULE_COMPONENTS,
+}: DataLayerOptions): DataLayer {
 	const { db } = database;
 
 	const audit =
@@ -322,6 +334,9 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			level: "site",
 			workspace,
 			site,
+			get componentSources() {
+				return componentSources();
+			},
 			secrets: scopedSecrets(secrets, { kind: "site", workspaceId: workspace.id, siteId: site.id }),
 			transaction: (work) =>
 				inTransaction(executor, afterCommit, (tx, pending) => work(siteScope(tx, access, workspace, site, pending))),
@@ -336,6 +351,9 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			level: "background",
 			workspace,
 			site,
+			get componentSources() {
+				return componentSources();
+			},
 			now: () => clock.now(),
 			transaction: (work) => inTransaction(executor, null, (tx) => work(backgroundScope(tx, workspace, site))),
 		};
@@ -374,7 +392,19 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 		const condition = (table: SiteTable) =>
 			and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id)) as SQL;
 		const { select, first, count, where } = scopedQueries(db, condition, {});
-		return { select, first, count, where, db, level: "visitor", site, now: () => clock.now() };
+		return {
+			select,
+			first,
+			count,
+			where,
+			db,
+			level: "visitor",
+			site,
+			get componentSources() {
+				return componentSources();
+			},
+			now: () => clock.now(),
+		};
 	};
 
 	return {
