@@ -434,7 +434,7 @@ export {
 	updatesCheck,
 	updatesCheckSchedule,
 } from "./updates.ts";
-export { WEBCRAFT_VERSION } from "./version.ts";
+export { VERSION_HEADER, WEBCRAFT_VERSION } from "./version.ts";
 export * from "./webhooks/index.ts";
 export {
 	createWorkers,

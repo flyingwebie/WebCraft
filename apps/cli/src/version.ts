@@ -1,3 +1,5 @@
+import { VERSION_HEADER } from "@webcraft/core/version";
+
 import webcraftPackage from "../../../package.json" with { type: "json" };
 
 /**
@@ -11,8 +13,13 @@ export function cliVersion(io: { version?: string }): string {
 	return io.version ?? CLI_VERSION;
 }
 
-/** The header every answer of `/api/v1` to a signed-in client carries: the Install's WebCraft version. */
-export const VERSION_HEADER = "webcraft-version";
+/**
+ * The header every answer of `/api/v1` to a signed-in client carries: the Install's WebCraft
+ * version. From `@webcraft/core`'s own tiny, dependency-free entry point, so the compiled CLI's
+ * remote side reads it without pulling in the rest of `@webcraft/core` (the server commands'
+ * code stays out: see `compiled.test.ts`).
+ */
+export { VERSION_HEADER };
 
 /**
  * Whether semantic version `a` is older than `b` (`0.1.0` < `0.2.0` < `1.0.0`; a pre-release sorts

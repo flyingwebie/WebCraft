@@ -1,4 +1,5 @@
 import { CliError, EXIT } from "../exit-codes.ts";
+import { readFlags } from "../flags.ts";
 import type { CliIo } from "../io.ts";
 import { connect, type RunContext, request } from "../remote/connection.ts";
 import { call } from "../remote/run.ts";
@@ -74,19 +75,14 @@ export async function runAccount(context: RunContext, command: string, args: str
 
 function options(args: string[], known: Record<string, "value" | "switch">): Record<string, string | true> {
 	const found: Record<string, string | true> = {};
-	for (let index = 0; index < args.length; index++) {
-		const arg = args[index] ?? "";
-		const equals = arg.indexOf("=");
-		const name = arg.startsWith("--") ? (equals === -1 ? arg.slice(2) : arg.slice(2, equals)) : "";
-		const kind = known[name];
-		if (!kind) throw new CliError(EXIT.usage, `Unexpected ${arg.startsWith("--") ? "option" : "argument"} "${arg}".`);
-		if (kind === "switch") found[name] = true;
-		else {
-			const value = equals === -1 ? args[++index] : arg.slice(equals + 1);
-			if (!value) throw new CliError(EXIT.usage, `--${name} needs a value.`);
-			found[name] = value;
-		}
+	const flags = readFlags(args);
+	for (let flag = flags.next(); flag; flag = flags.next()) {
+		const kind = !flag.short ? known[flag.name] : undefined;
+		if (!kind) throw new CliError(EXIT.usage, `Unexpected option "${flag.raw}".`);
+		if (kind === "switch") found[flag.name] = true;
+		else found[flag.name] = flags.value(flag, `--${flag.name} needs a value.`);
 	}
+	if (flags.rest.length > 0) throw new CliError(EXIT.usage, `Unexpected argument "${flags.rest[0]}".`);
 	return found;
 }
 
