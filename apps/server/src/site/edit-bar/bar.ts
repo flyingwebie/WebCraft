@@ -1224,17 +1224,28 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		}
 		if (s.canPublish) {
 			const publish = button({ class: "primary" }, icon("publish"), word("publishPage"));
-			publish.disabled = s.changes.length === 0;
+			// Only those who may change Structure publish a Loop's items: disabled when every change
+			// left is one of those (nothing else here for this person to publish).
+			const publishable = s.changes.filter((change) => !change.structure || s.canCode);
+			publish.disabled = publishable.length === 0;
 			publish.addEventListener("click", async () => {
 				publish.disabled = true;
 				publish.replaceChildren(word("publishing"));
 				const answer = await call("publish", { path });
 				if (answer.ok) {
-					state = { ...(answer.data as State), words };
+					const next = answer.data as State;
+					// Honest about what actually went live: a Loop item change that is still one of the
+					// page's changes afterwards waited for Staff, even though publishing was answered 200.
+					const stillWaiting = s.changes.some(
+						(change) =>
+							change.structure &&
+							next.changes.some((remaining) => remaining.item === change.item && remaining.key === change.key),
+					);
+					state = { ...next, words };
 					renderStatus();
 					renderPublish(panel);
 					panel.focus();
-					announce(word("published"));
+					announce(stillWaiting ? word("publishedWaiting") : word("published"));
 				} else {
 					publish.disabled = false;
 					publish.replaceChildren(icon("publish"), word("publishPage"));
