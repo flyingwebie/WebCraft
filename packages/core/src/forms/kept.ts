@@ -1,8 +1,10 @@
 import { emailLog, forms, webhookDeliveries, webhooks } from "@webcraft/db/schema";
 import {
 	AUTO_REPLY_WINDOW_HOURS,
+	isSubmissionFiles,
 	type KeptSubmission,
 	type SubmissionDelivery,
+	type SubmissionFile,
 	type SubmissionValue,
 } from "@webcraft/module-sdk";
 import {
@@ -21,6 +23,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Clock } from "../clock.ts";
 import { siteLanguages } from "../content/languages.ts";
 import type { Email, SiteMail, SiteMailRoute } from "../email/index.ts";
+import type { EmailAttachmentRef } from "../email/mailer.ts";
 import { mailAddress } from "../email/site-mail.ts";
 import { isUuid } from "../ids.ts";
 import type { Logger } from "../log.ts";
@@ -28,6 +31,7 @@ import type { BackgroundScope, DataLayer, Site } from "../tenancy/data-layer.ts"
 import type { Webhooks } from "../webhooks/index.ts";
 import { storedFormVersion } from "./definition.ts";
 import { storedFormEmails } from "./emails.ts";
+import { FORM_UPLOADS_PATH, UPLOAD_ATTACHMENT } from "./uploads.ts";
 
 /**
  * What a kept Submission sets off (spec story 99), once the Module keeping Submissions has stored it:
@@ -36,8 +40,11 @@ import { storedFormEmails } from "./emails.ts";
  * of the Spam folder later sets them off then (its Auto-reply only within a day of when it came).
  *
  * A Notification is written in the Site's Default language: the Form's subject and opening (or
- * WebCraft's words), then each value with its field's label, choices by their labels. Replies go to
- * the visitor, at the first email field they filled in. The Auto-reply goes to the visitor in the
+ * WebCraft's words), then each value with its field's label, choices by their labels, and a link to
+ * the Submission in the admin. Its Form uploads are attached while they come to the Form's limit in
+ * all (`attachmentsMaxBytes`, 10 MB unless changed), in the order they were sent; each one past it is
+ * a link to download it in the admin instead. Replies go to the visitor, at the first email field they
+ * filled in. The Auto-reply goes to the visitor in the
  * language they used, with the Form's words only, never what they typed: an Auto-reply that echoed a
  * visitor's text would let anyone send their words to any address from the Site.
  */
@@ -194,8 +201,36 @@ async function sendNotifications(
 	const words = formEmailWords(language);
 	const valueAt = (key: string) => submission.values.find((value) => value.key === key)?.value ?? null;
 	const visitor = visitorAddress(submission.values);
+	// The uploads attached, in the order they came, while they fit the Form's limit; the rest are links.
+	const attached = new Set<string>();
+	let total = 0;
+	for (const file of submission.values.flatMap((value) => (isSubmissionFiles(value.value) ? value.value : []))) {
+		if (!file.uploadId || total + file.size > emails.attachmentsMaxBytes) continue;
+		attached.add(file.uploadId);
+		total += file.size;
+	}
+	const download = (file: SubmissionFile) => ({
+		label: file.name,
+		path: `${FORM_UPLOADS_PATH}${scope.site.id}/${file.uploadId}`,
+	});
+	const attachments: EmailAttachmentRef[] = submission.values
+		.flatMap((value) => (isSubmissionFiles(value.value) ? value.value : []))
+		.filter((file) => file.uploadId !== null && attached.has(file.uploadId))
+		.map((file) => ({
+			kind: UPLOAD_ATTACHMENT,
+			id: file.uploadId ?? "",
+			workspaceId: scope.site.workspaceId,
+			siteId: scope.site.id,
+			filename: file.name,
+		}));
 	const rows = [
-		...submission.values.map((value) => ({ label: value.label, value: shown(value, version.fields, language, words) })),
+		...submission.values.map((value) => ({
+			label: value.label,
+			value: shown(value, version.fields, language, words),
+			links: isSubmissionFiles(value.value)
+				? value.value.filter((file) => file.uploadId !== null && !attached.has(file.uploadId)).map(download)
+				: [],
+		})),
 		{ label: words.form, value: submission.formName },
 		{ label: words.page, value: submission.page ?? words.empty },
 		{ label: words.language, value: submission.language },
@@ -221,6 +256,7 @@ async function sendNotifications(
 				},
 				note: visitor ? fillEmailWords(words.replyHint, { email: visitor }) : null,
 				related: { kind: RELATED_KIND, id: submission.id },
+				...(attachments.length > 0 ? { attachments } : {}),
 			};
 			await deps.email.siteMail.queue(scope.site, route, mail);
 		}
@@ -274,9 +310,16 @@ function shown(value: SubmissionValue, fields: readonly FormField[], language: s
 	const raw = value.value;
 	if (raw === null || raw === "" || (Array.isArray(raw) && raw.length === 0)) return words.empty;
 	if (typeof raw === "boolean") return raw ? words.yes : words.no;
+	if (isSubmissionFiles(raw)) return raw.map((file) => `${file.name} (${sizeOf(file.size)})`).join("\n");
 	if (Array.isArray(raw)) return raw.map(label).join(", ");
 	if (typeof raw === "number") return String(raw);
 	return field && field.options.length > 0 ? label(raw) : raw;
+}
+
+/** A file's size as people read it: `3 KB`, `2.4 MB`. */
+function sizeOf(bytes: number): string {
+	if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+	return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 /** A time as `2026-03-02 09:00 UTC`. */

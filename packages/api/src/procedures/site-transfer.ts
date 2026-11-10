@@ -28,11 +28,14 @@ export const siteExports = {
 	 * `SITE_EXPORT_RUNNING` (409) while another export of the Site is under way.
 	 */
 	start: signedIn
-		.input(z.object({ siteId: id, passphrase }))
+		.input(z.object({ siteId: id, passphrase, includeSubmissions: z.boolean().default(true) }))
 		.use(onSite("site.export"))
 		.use(sensitive("site.export"))
 		.handler(async ({ context, input }) => ({
-			export: await context.services.siteTransfer.startExport(context.site, { passphrase: input.passphrase }),
+			export: await context.services.siteTransfer.startExport(context.site, {
+				passphrase: input.passphrase,
+				includeSubmissions: input.includeSubmissions,
+			}),
 		})),
 
 	/** The Site's exports, newest first, with how far each got and, once written, its download link (24 hours). */

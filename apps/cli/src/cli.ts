@@ -29,7 +29,7 @@ The Install's own commands, one for each public procedure of its API:
 
 Server commands (on the server, with the Install's environment):
   admin <command>             webcraft admin --help lists them.
-  site export <site id> [--to <file or folder>] [--passphrase]
+  site export <site id> [--to <file or folder>] [--passphrase] [--without-submissions]
   site import <archive> --workspace <id> --slug <slug> [--name <name>] [--passphrase]
                               A Site export written or imported on the server (webcraft admin --help).
 

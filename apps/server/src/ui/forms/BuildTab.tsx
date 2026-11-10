@@ -16,10 +16,13 @@ import {
 	CopyIcon,
 	EllipsisIcon,
 	EyeOffIcon,
+	FootprintsIcon,
+	GroupIcon,
 	HashIcon,
 	LinkIcon,
 	ListChecksIcon,
 	type LucideIcon,
+	PaperclipIcon,
 	PhoneIcon,
 	SquareCheckIcon,
 	SquareChevronDownIcon,
@@ -55,12 +58,17 @@ export const FIELD_ICONS: Record<FormFieldType, LucideIcon> = {
 	checkboxes: ListChecksIcon,
 	consent: SquareCheckIcon,
 	hidden: EyeOffIcon,
+	file: PaperclipIcon,
+	section: GroupIcon,
+	step: FootprintsIcon,
 };
 
 /**
  * The Build tab: a palette of the field types (each button adds one at the end), the Form's fields
  * in order (each selected to change its settings, moved, copied or removed from its menu, so every
- * change works from the keyboard), and the selected field's settings beside them.
+ * change works from the keyboard), and the selected field's settings beside them. Sections and steps
+ * are items of the list too: each holds the items after it (a section up to the next section or step,
+ * a step up to the next step), which the list shows indented under it.
  */
 export function BuildTab({
 	version,
@@ -115,11 +123,12 @@ export function BuildTab({
 						{fields.map((field, index) => {
 							const Icon = FIELD_ICONS[field.type];
 							const broken = problems.some((problem) => fieldIndexOf(problem) === index);
+							const depth = depthOf(fields, index);
 							return (
 								<li
 									// biome-ignore lint/suspicious/noArrayIndexKey: fields are edited in place, and their keys can repeat while typing.
 									key={index}
-									className={`flex min-w-0 items-center gap-2 rounded-md border p-2 ${index === current ? "border-primary ring-primary/30 ring-2" : ""} ${broken ? "border-destructive" : ""}`}
+									className={`flex min-w-0 items-center gap-2 rounded-md border p-2 ${depth === 2 ? "ms-8" : depth === 1 ? "ms-4" : ""} ${field.type === "step" || field.type === "section" ? "bg-muted/50" : ""} ${index === current ? "border-primary ring-primary/30 ring-2" : ""} ${broken ? "border-destructive" : ""}`}
 								>
 									<button
 										type="button"
@@ -133,6 +142,7 @@ export function BuildTab({
 											{field.required ? <span aria-hidden="true"> *</span> : null}
 										</span>
 										<Badge variant="outline">{t(`forms.types.${field.type}`)}</Badge>
+										{field.condition ? <Badge variant="secondary">{t("forms.condition.badge")}</Badge> : null}
 										{field.required ? <span className="sr-only">{t("forms.field.required")}</span> : null}
 										{broken ? <span className="text-destructive text-xs">{t("forms.hasProblems")}</span> : null}
 									</button>
@@ -199,6 +209,7 @@ export function BuildTab({
 						onChange={(field) => setFields(fields.map((each, at) => (at === current ? field : each)))}
 						problems={problems.filter((problem) => fieldIndexOf(problem) === current)}
 						index={current}
+						before={fields.slice(0, current)}
 					/>
 				) : (
 					<p className="text-muted-foreground text-sm">{t("forms.selectField")}</p>
@@ -206,4 +217,21 @@ export function BuildTab({
 			</section>
 		</div>
 	);
+}
+
+/** How deep an item sits: inside a step (1), and inside a section of a step or of the Form (one more). */
+function depthOf(fields: readonly FormVersion["fields"][number][], index: number): number {
+	const item = fields[index];
+	if (!item) return 0;
+	let step = false;
+	let section = false;
+	for (const each of fields.slice(0, index)) {
+		if (each.type === "step") {
+			step = true;
+			section = false;
+		} else if (each.type === "section") section = true;
+	}
+	if (item.type === "step") return 0;
+	if (item.type === "section") return step ? 1 : 0;
+	return (step ? 1 : 0) + (section ? 1 : 0);
 }

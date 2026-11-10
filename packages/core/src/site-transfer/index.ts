@@ -85,6 +85,7 @@ export type SiteExportView = {
 	id: string;
 	status: "waiting" | "running" | "done" | "failed" | "expired";
 	withSecrets: boolean;
+	withSubmissions: boolean;
 	fileName: string;
 	sizeBytes: number | null;
 	progress: { step: string; done: number; total: number } | null;
@@ -143,7 +144,10 @@ export type SiteImportArchive = {
 
 export type SiteTransfer = {
 	/** Starts exporting the Site (open it with `site.export`; a Sensitive action): the worker writes it. */
-	startExport(scope: SiteScope, input: { passphrase: string | null }): Promise<SiteExportView>;
+	startExport(
+		scope: SiteScope,
+		input: { passphrase: string | null; includeSubmissions?: boolean },
+	): Promise<SiteExportView>;
 	/** The Site's exports, newest first. */
 	exports(scope: SiteScope): Promise<SiteExportView[]>;
 	export(scope: SiteScope, exportId: string): Promise<SiteExportView>;
@@ -184,6 +188,7 @@ export type SiteTransfer = {
 	exportByCommand(input: {
 		siteId: string;
 		passphrase: string | null;
+		includeSubmissions?: boolean;
 		write(name: string, bytes: AsyncIterable<Uint8Array>): Promise<number>;
 	}): Promise<{ name: string; sizeBytes: number; summary: SiteExportSummary }>;
 	/**
@@ -284,6 +289,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 			id: row.id,
 			status: (row.status === "done" && !live ? "expired" : row.status) as SiteExportView["status"],
 			withSecrets: row.withSecrets,
+			withSubmissions: row.withSubmissions,
 			fileName: row.fileName,
 			sizeBytes: row.sizeBytes,
 			progress: row.progress as SiteExportView["progress"],
@@ -410,13 +416,18 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 					status: "waiting",
 					requestedBy: actingPerson(tx.access.actor),
 					withSecrets: kdf !== null,
+					withSubmissions: input.includeSubmissions !== false,
 					kdf,
 					storage: target.kind,
 					key: `${siteFolder(scope.site)}/exports/${id}`,
 					fileName: `webcraft-site-${scope.site.slug}.tar`,
 					createdAt: now,
 				});
-				await tx.audit("site.export", { exportId: id, secrets: kdf !== null ? "carried" : "dropped" });
+				await tx.audit("site.export", {
+					exportId: id,
+					secrets: kdf !== null ? "carried" : "dropped",
+					submissions: input.includeSubmissions !== false,
+				});
 				return inserted;
 			});
 			await deps.jobs.send(siteExportsRun, { siteId: scope.site.id, exportId: id });
@@ -717,6 +728,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 					database: deps.database,
 					storage,
 					modules: moduleSchemas(),
+					includeSubmissions: input.includeSubmissions !== false,
 					batchRows,
 					now: () => clock.now(),
 					progress: async () => {},
@@ -734,7 +746,11 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 					workspaceId: site.workspaceId,
 					siteId: site.id,
 					action: "site.export",
-					details: { file: manifest.name, secrets: manifest.secrets.carried ? "carried" : "dropped" },
+					details: {
+						file: manifest.name,
+						secrets: manifest.secrets.carried ? "carried" : "dropped",
+						submissions: !manifest.leftOut.submissions,
+					},
 				});
 				return {
 					name: manifest.name,
@@ -873,6 +889,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 						database: deps.database,
 						storage,
 						modules: moduleSchemas(),
+						includeSubmissions: row.withSubmissions,
 						batchRows,
 						now: () => clock.now(),
 						progress: (step, done, total) => update({ progress: { step, done, total } }).then(() => {}),

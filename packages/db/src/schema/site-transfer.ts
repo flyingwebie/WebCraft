@@ -35,6 +35,8 @@ export const siteExports = pgTable(
 		requestedBy: uuid("requested_by").references(() => people.id, { onDelete: "set null" }),
 		/** Whether the Site's secrets go in, encrypted under the export passphrase (never stored). */
 		withSecrets: boolean("with_secrets").notNull(),
+		/** Submissions and their private uploads move together; included unless explicitly left out. */
+		withSubmissions: boolean("with_submissions").notNull().default(true),
 		/** The passphrase's key derivation: its salt and rounds (not secret; the archive carries them too). */
 		kdf: jsonb("kdf"),
 		/** Which storage holds the archive's parts (`disk`, `s3`), and their folder there. */

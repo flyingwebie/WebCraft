@@ -4,11 +4,14 @@ import {
 	emptyField,
 	FIELD_TYPE_SETTINGS,
 	FORM_AUTOCOMPLETE,
+	FORM_CONDITION_OPS,
 	FORM_FIELD_KEY,
 	FORM_FIELD_TYPES,
 	FORM_LIMITS,
 	FORM_OPTION_VALUE,
 	FORM_SPAM_DEFAULTS,
+	type FormCondition,
+	type FormConditionRule,
 	type FormField,
 	type FormFieldType,
 	type FormOption,
@@ -16,6 +19,8 @@ import {
 	type FormVersion,
 	formWords,
 	type HiddenSource,
+	isLayoutItem,
+	isUploadFormat,
 	QUERY_PARAMETER,
 } from "@webcraft/renderer";
 import type { ContentProblem } from "../content/errors.ts";
@@ -171,13 +176,16 @@ const SETTING_KEYS = new Set([
 	"minChoices",
 	"maxChoices",
 	"source",
+	"accept",
+	"maxFileBytes",
+	"maxFiles",
 ]);
-const COMMON_KEYS = new Set(["key", "type", "label", "hideLabel", "help", "message", "required"]);
+const COMMON_KEYS = new Set(["key", "type", "label", "hideLabel", "help", "message", "required", "condition"]);
 
 /** Whether a setting was left unset: absent, null, or the empty value of a list or a switch. */
 function isUnset(name: string, value: unknown): boolean {
 	if (value === undefined || value === null) return true;
-	if (name === "options") return Array.isArray(value) && value.length === 0;
+	if (name === "options" || name === "accept") return Array.isArray(value) && value.length === 0;
 	if (name === "integer") return value === false;
 	if (name === "placeholder" || name === "pattern" || name === "autocomplete") return value === "";
 	return false;
@@ -189,11 +197,16 @@ function readFields(input: unknown, report: Report): FormField[] {
 		return [];
 	}
 	if (input.length > FORM_LIMITS.fields) report("fields", `A Form has at most ${FORM_LIMITS.fields} fields.`);
+	const typeAt = (index: number) =>
+		isRecord(input[index]) ? (input[index] as Record<string, unknown>).type : undefined;
+	if (input.some((_, index) => typeAt(index) === "step") && typeAt(0) !== "step") {
+		report("fields[0]", "A Form with steps starts with one: every item belongs to a step.");
+	}
 	const keys = new Set<string>();
 	const fields: FormField[] = [];
 	input.forEach((raw: unknown, index) => {
 		const at = `fields[${index}]`;
-		const field = readField(raw, at, report);
+		const field = readField(raw, at, report, fields);
 		if (!field) return;
 		if (keys.has(field.key)) {
 			report(`${at}.key`, `Another field has the key ${field.key}: each field's key is its own.`);
@@ -205,7 +218,7 @@ function readFields(input: unknown, report: Report): FormField[] {
 	return fields;
 }
 
-function readField(raw: unknown, at: string, report: Report): FormField | undefined {
+function readField(raw: unknown, at: string, report: Report, before: readonly FormField[]): FormField | undefined {
 	if (!isRecord(raw)) {
 		report(at, "A field is an object with its key, type and label.");
 		return undefined;
@@ -251,8 +264,14 @@ function readField(raw: unknown, at: string, report: Report): FormField | undefi
 	field.placeholder = placeholder;
 	field.hideLabel = readBoolean(raw.hideLabel, "hideLabel", fail);
 	field.required = readBoolean(raw.required, "required", fail);
-	if (field.required && !canBeRequired(fieldType))
-		fail("required", "A hidden field's value isn't the visitor's to give, so it can't be required.");
+	if (field.required && !canBeRequired(fieldType)) {
+		fail(
+			"required",
+			fieldType === "hidden"
+				? "A hidden field's value isn't the visitor's to give, so it can't be required."
+				: `A ${fieldType} holds no value of its own, so it can't be required.`,
+		);
+	}
 
 	const uses = (name: string) => (FIELD_TYPE_SETTINGS[fieldType] as readonly string[]).includes(name);
 	if (uses("minLength") || uses("maxLength")) {
@@ -296,7 +315,95 @@ function readField(raw: unknown, at: string, report: Report): FormField | undefi
 		}
 	}
 	if (uses("source")) field.source = readSource(raw.source, fail);
+	if (uses("accept")) {
+		field.accept = readAccept(raw.accept, fail);
+		field.maxFileBytes = readInteger(raw.maxFileBytes, "maxFileBytes", fail, 1024, FORM_LIMITS.fileBytes);
+		field.maxFiles = readInteger(raw.maxFiles, "maxFiles", fail, 1, FORM_LIMITS.files);
+	}
+	if (raw.condition !== undefined && raw.condition !== null) {
+		field.condition = readCondition(raw.condition, `${at}.condition`, before, failAt);
+	}
 	return ok ? field : undefined;
+}
+
+function readAccept(value: unknown, fail: Report): FormField["accept"] {
+	if (!Array.isArray(value) || value.length === 0) {
+		fail("accept", "Choose at least one file format the field takes, such as pdf.");
+		return [];
+	}
+	const formats: FormField["accept"] = [];
+	for (const name of value) {
+		if (typeof name !== "string" || !isUploadFormat(name)) {
+			fail("accept", `${String(name)} isn't a format Forms take: SVG never is (it can hold scripts).`);
+			continue;
+		}
+		if (!formats.includes(name)) formats.push(name);
+	}
+	return formats;
+}
+
+/** The kinds of field a condition may read: those whose value the visitor gives on the page. */
+function canBeRead(field: FormField): boolean {
+	return !isLayoutItem(field) && field.type !== "hidden" && field.type !== "file";
+}
+
+/**
+ * Reads when an item shows: `{ match: "all" | "any", rules: [{ field, op, value }] }`, each rule
+ * about a field before the item whose value the visitor gives.
+ */
+function readCondition(input: unknown, at: string, before: readonly FormField[], fail: Report): FormCondition | null {
+	if (!isRecord(input)) {
+		fail(at, 'When the item shows: { match: "all" or "any", rules: [{ field, op, value }] }.');
+		return null;
+	}
+	for (const key of Object.keys(input)) {
+		if (key !== "match" && key !== "rules") fail(`${at}.${key}`, `A condition has no ${key}.`);
+	}
+	const match = input.match === "any" ? "any" : "all";
+	if (input.match !== "all" && input.match !== "any") fail(`${at}.match`, "all, or any.");
+	if (!Array.isArray(input.rules) || input.rules.length === 0) {
+		fail(`${at}.rules`, "Give at least one rule, about a field before this one.");
+		return null;
+	}
+	if (input.rules.length > FORM_LIMITS.conditionRules) {
+		fail(`${at}.rules`, `A condition has at most ${FORM_LIMITS.conditionRules} rules.`);
+	}
+	const rules: FormConditionRule[] = [];
+	input.rules.forEach((raw: unknown, index) => {
+		const here = `${at}.rules[${index}]`;
+		if (!isRecord(raw)) {
+			fail(here, "A rule is { field, op, value }.");
+			return;
+		}
+		const target = before.find((field) => field.key === raw.field);
+		if (!target || !canBeRead(target)) {
+			fail(
+				`${here}.field`,
+				"A rule reads a field before this one whose value the visitor gives: not a hidden field, a file, a section or a step.",
+			);
+			return;
+		}
+		if (typeof raw.op !== "string" || !(FORM_CONDITION_OPS as readonly string[]).includes(raw.op)) {
+			fail(`${here}.op`, `How the value is compared: one of ${FORM_CONDITION_OPS.join(", ")}.`);
+			return;
+		}
+		const op = raw.op as FormConditionRule["op"];
+		if (op === "isEmpty" || op === "isNotEmpty") {
+			rules.push({ field: target.key, op, value: null });
+			return;
+		}
+		const value = typeof raw.value === "number" ? String(raw.value) : raw.value;
+		if (typeof value !== "string" || value.trim() === "" || value.length > FORM_LIMITS.optionValueLength) {
+			fail(`${here}.value`, `The value to compare with, at most ${FORM_LIMITS.optionValueLength} characters.`);
+			return;
+		}
+		if ((op === "greaterThan" || op === "lessThan") && !Number.isFinite(Number(value.trim()))) {
+			fail(`${here}.value`, "A number to compare with.");
+			return;
+		}
+		rules.push({ field: target.key, op, value: value.trim() });
+	});
+	return { match, rules };
 }
 
 function readBoolean(value: unknown, name: string, fail: Report): boolean {

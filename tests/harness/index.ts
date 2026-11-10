@@ -654,7 +654,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			};
 			await asSuperadmin(admin, () => admin.api.members.invite({ workspaceId, email: account.email, role, sites }));
 			const token = new URL(inviteLinkIn(await lastEmailTo(account.email))).searchParams.get("token") ?? "";
-			const browser = createTestBrowser({ send, upgrade, adminOrigin: TEST_ADMIN_ORIGIN });
+			const browser = createTestBrowser({ send, upgrade, adminOrigin });
 			const { personId } = await browser.api.invites.accept({ token, ...account });
 			return { account, personId, browser };
 		},

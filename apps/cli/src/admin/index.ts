@@ -86,7 +86,7 @@ Server commands: run them on the server, with the Install's environment (the web
                      and set it up again. Recorded in the Audit log as done by the command.
 
 Site exports (ADR 0033), on the server too:
-  site export <site id> [--to <file or folder>] [--passphrase]
+  site export <site id> [--to <file or folder>] [--passphrase] [--without-submissions]
                      Export a Site as one file now (as Site › Export does), into the folder given
                      (here unless given) or as the file named. With --passphrase its secrets go in,
                      encrypted under a passphrase asked twice on a terminal (or read from the first

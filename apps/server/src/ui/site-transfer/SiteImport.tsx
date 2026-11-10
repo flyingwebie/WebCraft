@@ -527,6 +527,7 @@ function Report({
 							),
 						})}
 					</p>
+					{dropped.submissions ? <p>{t("siteExport.submissionsDropped")}</p> : null}
 					{dropped.stagingPassword ? <p>{t("siteImportReport.droppedStaging")}</p> : null}
 				</div>
 			),

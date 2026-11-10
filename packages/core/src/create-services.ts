@@ -109,7 +109,7 @@ import { reportingFailures } from "./error-log/capture.ts";
 import { createErrorLog } from "./error-log/service.ts";
 import { createErrorTracker } from "./error-log/tracker.ts";
 import { createFilters } from "./filters/index.ts";
-import { createForms, createFormTokens } from "./forms/index.ts";
+import { createForms, createFormTokens, createFormUploads, UPLOAD_ATTACHMENT } from "./forms/index.ts";
 import { createSubmissionActions } from "./forms/kept.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
 import { createInstallHealth } from "./health/service.ts";
@@ -229,13 +229,25 @@ export async function createInstallServices(
 	// Email reads the Install SMTP's password and a Site's own server's, each only for its send.
 	// A queued email may name a file to send with it (a Report's PDF), read when it is sent; Reports
 	// are built further down, on top of email.
+	const storage = createInstallStorage({
+		database,
+		secrets: installSecrets,
+		http: ports.http,
+		clock,
+		log,
+		directory: config.storageDir,
+	});
+	// Form uploads: private files of Submissions, in the same storage as Media but never served on Sites.
+	const formUploads = createFormUploads({ data, storage, clock, log, adminOrigin: config.adminOrigin });
+	// Form uploads a Notification attaches are read the same way, by their kind.
 	const attachments: { read: Reports["attachment"] | null } = { read: null };
 	const email = createEmail({
 		...ports,
 		secrets: store,
 		settings,
 		data,
-		attachment: (ref) => attachments.read?.(ref) ?? Promise.resolve(null),
+		attachment: (ref) =>
+			ref.kind === UPLOAD_ATTACHMENT ? formUploads.attachment(ref) : (attachments.read?.(ref) ?? Promise.resolve(null)),
 	});
 	const auth = createAuth({
 		database,
@@ -274,6 +286,7 @@ export async function createInstallServices(
 	});
 	const rateLimits = createRateLimits({ database, clock, log, keyHash: await rateLimitKey(masterKey) });
 	const modules = createModuleHost({
+		uploads: formUploads,
 		database,
 		data,
 		email,
@@ -335,14 +348,6 @@ export async function createInstallServices(
 	// Review emails go once what they are about is saved: a submission, a publish, a schedule, a send back.
 	const reviewEmails = createReviews({ database, data, email, log });
 	listeners.afterAudit.push(reviewEmails.afterAudit);
-	const storage = createInstallStorage({
-		database,
-		secrets: installSecrets,
-		http: ports.http,
-		clock,
-		log,
-		directory: config.storageDir,
-	});
 	const media = createMediaLibrary({
 		storage,
 		jobs: ports.jobs,
@@ -503,6 +508,7 @@ export async function createInstallServices(
 		},
 		forms: createForms({
 			data,
+			uploads: formUploads,
 			modules,
 			rateLimits,
 			tokens: formTokens,

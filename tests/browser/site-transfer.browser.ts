@@ -1,7 +1,7 @@
 // Site export and Site import in a browser, in light and dark: Site › Export with an export ready to
 // download, Workspace › Site imports with a file uploaded from the keyboard into the start form, a
 // Site import report with its tabs, and the Paused domains on Site › Domains.
-import { afterAll, beforeAll, describe, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -20,7 +20,7 @@ let archive: Uint8Array;
 beforeAll(async () => {
 	install = await startBrowserInstall();
 	// The web process runs on the real clock: the export's 24-hour link must hold by it.
-	install.install.clock.set(new Date());
+	await install.install.clock.set(new Date());
 	superadmin = await install.createSuperadmin();
 	const workspaceId = (await install.install.createWorkspace("Acme Ltd")).id;
 	otherWorkspaceId = (await install.install.createWorkspace("Beta Ltd")).id;
@@ -104,6 +104,25 @@ for (const theme of THEMES) {
 			const page = await open_(theme, `/sites/${importedSiteId}/domains`);
 			await page.getByRole("heading", { name: "Paused domains" }).waitFor();
 			await expectAccessibleScreen(page, `Domains with Paused domains (${theme})`);
+		});
+
+		test("Submissions excluded from an export using the keyboard", async () => {
+			const page = await open_(theme, `/sites/${siteId}/export`);
+			const include = page.getByRole("checkbox", { name: "Include Submissions and private Form uploads" });
+			await include.waitFor({ timeout: 5000 });
+			expect(await include.isChecked()).toBe(true);
+			await include.focus();
+			await page.keyboard.press("Space");
+			expect(await include.isChecked()).toBe(false);
+			await page.getByRole("button", { name: "Export Site", exact: true }).focus();
+			await page.keyboard.press("Enter");
+			await page.getByText("The export is being written. Its download link shows here when it is ready.").waitFor();
+			// The web process queues jobs by real time; bring the test worker up to it.
+			await install.install.clock.set(new Date());
+			expect((await install.install.drainJobs()).failed).toEqual([]);
+			await page.reload();
+			await page.getByText("Submissions and private Form uploads were left out.").first().waitFor();
+			await expectAccessibleScreen(page, `Site export without Submissions (${theme})`);
 		});
 	});
 }

@@ -48,6 +48,8 @@ export const LEFT_OUT_TABLES: Readonly<Record<string, LeftOutReason>> = {
 	"public.webhook_delivery_attempts": "sent",
 	"public.report_sends": "sent",
 	"public.module_log": "sent",
+	// Error groups are Install-wide; their Site links cannot move independently.
+	"public.error_group_places": "install",
 	// Transfer jobs, reports and temporary archives belong to their Install.
 	"public.site_exports": "working",
 	"public.site_imports": "working",
@@ -56,7 +58,7 @@ export const LEFT_OUT_TABLES: Readonly<Record<string, LeftOutReason>> = {
 /**
  * Why a table is left out: `credential` (tokens, keys, links: never moved), `secrets` (carried apart,
  * under the passphrase), `session`, `working` (state of work under way), `members` (by email),
- * `published` (made again by publishing), `scheduled` (dropped and listed), `billing`, `sent`.
+ * `published` (made again by publishing), `scheduled` (dropped and listed), `billing`, `sent`, `install`, `excluded` (an export option).
  */
 export type LeftOutReason =
 	| "credential"
@@ -67,11 +69,15 @@ export type LeftOutReason =
 	| "published"
 	| "scheduled"
 	| "billing"
+	| "excluded"
+	| "install"
 	| "sent";
 
 /** Rows of a table the export leaves out: Media variants (made again on import) and replaced files on their way out. */
 const ROW_FILTERS: Readonly<Record<string, string>> = {
 	"public.media_files": `t.role <> 'variant' AND t.retired_at IS NULL`,
+	// Unclaimed uploads and detached deletion retries belong only to their original Install.
+	"public.form_uploads": "t.submission_id IS NOT NULL",
 	// A Relationship's published links are made again by publishing; the Draft's stay.
 	"public.entry_links": `t.version = 'draft'`,
 };

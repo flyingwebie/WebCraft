@@ -39,7 +39,15 @@ export type SendOptions = {
 	body?: string;
 	/** More headers the browser sends, such as its cookies or `DNT`. */
 	headers?: Record<string, string>;
+	/**
+	 * Files chosen in file fields, by field name: the Form is then sent as `multipart/form-data`, as a
+	 * browser sends a Form with files (a file field left empty sends one empty part with no name).
+	 */
+	files?: Record<string, readonly TestFile[]>;
 };
+
+/** A file a visitor chooses: its name, the type their browser claims, and its bytes. */
+export type TestFile = { name: string; type?: string; bytes: Uint8Array | string };
 
 let visitors = 0;
 
@@ -63,7 +71,12 @@ export function formVisitor(install: TestInstall, address?: string): FormVisitor
 				for (const each of typeof value === "string" ? [value] : value) body.append(name, each);
 			}
 			const target = new URL(form.action, page.url);
-			const headers = new Headers({ "content-type": options.contentType ?? "application/x-www-form-urlencoded" });
+			const multipart = options.files !== undefined;
+			const headers = new Headers(
+				multipart && !options.contentType
+					? {}
+					: { "content-type": options.contentType ?? "application/x-www-form-urlencoded" },
+			);
 			const origin = options.origin === undefined ? target.origin : options.origin;
 			if (origin !== null) headers.set("origin", origin);
 			const fetchSite =
@@ -71,7 +84,25 @@ export function formVisitor(install: TestInstall, address?: string): FormVisitor
 			if (fetchSite !== null) headers.set("sec-fetch-site", fetchSite);
 			headers.set("referer", page.url);
 			for (const [name, value] of Object.entries(options.headers ?? {})) headers.set(name, value);
-			const request = new Request(target, { method: "POST", headers, body: options.body ?? body.toString() });
+			let sent: BodyInit = options.body ?? body.toString();
+			if (multipart && options.body === undefined) {
+				const data = new FormData();
+				for (const [name, value] of body) data.append(name, value);
+				for (const [name, files] of Object.entries(options.files ?? {})) {
+					if (files.length === 0) data.append(name, new File([], "", { type: "application/octet-stream" }));
+					for (const file of files) {
+						const bytes = typeof file.bytes === "string" ? new TextEncoder().encode(file.bytes) : file.bytes;
+						data.append(
+							name,
+							new File([bytes as Uint8Array<ArrayBuffer>], file.name, {
+								type: file.type ?? "application/octet-stream",
+							}),
+						);
+					}
+				}
+				sent = data;
+			}
+			const request = new Request(target, { method: "POST", headers, body: sent });
 			return install.request(fromAddress(request, own));
 		},
 	};

@@ -15,6 +15,7 @@ CREATE TABLE "site_exports" (
 	"status" text NOT NULL,
 	"requested_by" uuid,
 	"with_secrets" boolean NOT NULL,
+	"with_submissions" boolean DEFAULT true NOT NULL,
 	"kdf" jsonb,
 	"storage" text NOT NULL,
 	"key" text NOT NULL,

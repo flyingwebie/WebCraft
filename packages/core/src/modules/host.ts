@@ -9,6 +9,7 @@ import {
 	type ImportedRuleResult,
 	type ImportSource,
 	isModuleError,
+	isSubmissionFiles,
 	type KeptSubmission,
 	type Label,
 	MODULE_EVENTS,
@@ -44,7 +45,7 @@ import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { RateLimits } from "../rate-limits.ts";
 import type { NotedMiss, RedirectPaths } from "../site-pages/redirects.ts";
-import type { Access, InstallScope, Site } from "../tenancy/data-layer.ts";
+import type { Access, InstallScope, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "../tenancy/errors.ts";
 import {
 	type AdditionsView,
@@ -196,6 +197,12 @@ export type ModuleHost = {
 	 * there (`forms.submissions.view`): the admin shows what they allow, such as a Form's Submissions.
 	 */
 	permissionsAt(scope: PlaceScope): Promise<string[]>;
+	/**
+	 * Whether the scope's person may read the Site's Form Submissions: they hold the Permission the
+	 * Module keeping them names for it (`readPermission`), where it runs. Form uploads are downloaded
+	 * only then.
+	 */
+	maySeeSubmissions(scope: SiteScope): Promise<boolean>;
 	/** Runs one of a Module's procedures for a person, where the Module runs and they hold its Permission. */
 	callProcedure(call: ProcedureCall): Promise<unknown>;
 	/**
@@ -877,7 +884,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 
 		async removeData(scope, moduleId, confirmation) {
 			const module = atPlace(scope, moduleId);
-			return scope.transaction(async (tx) => {
+			const afterRemoval: (() => Promise<void>)[] = [];
+			const result = await scope.transaction<ModuleDataRemoval>(async (tx) => {
 				const tables = [...module.tables];
 				const rows = moduleData(module, tx);
 				const counts: { table: string; rows: number }[] = [];
@@ -897,6 +905,10 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 					};
 				}
 				await useConfirmation(tx, confirmation, request);
+				// Core's private uploads belong to the receiver's Submissions too.
+				if (module.receiver && tx.level === "site") {
+					await options.uploads?.removeSite(tx, tx.site, (work) => afterRemoval.push(work));
+				}
 				// Children before the tables they point at: a definition lists parents first.
 				for (const table of tables.reverse()) await rows.delete(table);
 				for (const name of secretNames) await tx.secrets.remove(name);
@@ -905,6 +917,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				await tx.audit("module.removeData", { moduleId: module.id, tables: counts, secrets: secretNames.length });
 				return { removed: true, tables: counts, secrets: secretNames.length };
 			});
+			for (const clean of afterRemoval) await clean();
+			return result;
 		},
 
 		async pages(scope, language) {
@@ -918,6 +932,13 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				}
 			}
 			return pages;
+		},
+
+		async maySeeSubmissions(scope) {
+			const module = receiving();
+			const permission = module?.receiver?.readPermission;
+			if (!module || !permission || !(await runsAt(scope, module))) return false;
+			return holds(scope, module, permission);
 		},
 
 		async permissionsAt(scope) {
@@ -1110,7 +1131,16 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const submission: FormSubmission = { ...received, sender: await formSenderOf(visitor, sender.request) };
 			let kept: { id: string };
 			try {
-				kept = await receiver.receive(submission, moduleContext(module, scope, options));
+				// The Submission and its upload ownership commit together. Workers can read attachments
+				// as soon as Notifications are queued, and a failed receiver leaves no claimed files.
+				kept = await scope.transaction(async (tx) => {
+					const result = await receiver.receive(submission, moduleContext(module, tx, options));
+					const uploadIds = submission.values.flatMap((value) =>
+						isSubmissionFiles(value.value) ? value.value.flatMap((file) => (file.uploadId ? [file.uploadId] : [])) : [],
+					);
+					await options.uploads?.attach(tx as SiteScope, uploadIds, result.id);
+					return result;
+				});
 			} catch (error) {
 				await writeLine(options, module, place, "error", "A Form Submission couldn't be kept.", {
 					formId: submission.formId,

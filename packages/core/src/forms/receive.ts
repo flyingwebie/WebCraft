@@ -1,6 +1,6 @@
 import { forms } from "@webcraft/db/schema";
 import type { FormSubmission, SpamReason } from "@webcraft/module-sdk";
-import { FORM_INPUTS, type FormState, type FormVersion, formWords } from "@webcraft/renderer";
+import { FORM_INPUTS, type FormState, type FormVersion, formTextIn, formWords } from "@webcraft/renderer";
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
@@ -17,7 +17,8 @@ import type { DataLayer } from "../tenancy/data-layer.ts";
 import { storedFormVersion } from "./definition.ts";
 import { siteCaptcha } from "./page-forms.ts";
 import type { FormTokens } from "./tokens.ts";
-import { checkValues, type SentFields, sentValues } from "./values.ts";
+import { cleanFileName, type FormUploads, uploadContentType, uploadFormat } from "./uploads.ts";
+import { checkValues, type SentFields, type SentFiles, sentValues } from "./values.ts";
 
 /**
  * What a visitor sends to a Form (`POST /_webcraft/forms/<id>` on the Site's domain), after the web
@@ -26,6 +27,8 @@ import { checkValues, type SentFields, sentValues } from "./values.ts";
  */
 export type FormPost = {
 	fields: SentFields | null;
+	/** The files sent with it (a post with files), by field name, each with its name and bytes. */
+	files?: ReadonlyMap<string, readonly { name: string; bytes: Uint8Array }[]>;
 	/** The client address it came from (`clientAddress`), for the per-address limits; null when unknown. */
 	clientAddress: string | null;
 	/** The address of the page the browser says it came from (`Referer`), for hidden fields. */
@@ -58,7 +61,12 @@ export type FormPostAnswer =
 			instance: number;
 			state: FormState;
 	  }
-	| { kind: "sent"; location: string };
+	| {
+			kind: "sent";
+			location: string;
+			/** The Form's message once sent, in the visitor's language; null when it sends them to a Page. */
+			message: string | null;
+	  };
 
 /** The largest post a Form takes, in bytes: anything larger is spam. */
 export const FORM_POST_MAX_BYTES = 512 * 1024;
@@ -68,6 +76,7 @@ export const CAPTCHA_SECRET = "forms.captcha.secret";
 
 export type ReceiveDeps = {
 	data: DataLayer;
+	uploads: Pick<FormUploads, "store" | "discard">;
 	modules: Pick<ModuleHost, "submissionsKeptBy" | "receiveSubmission">;
 	rateLimits: Pick<RateLimits, "count">;
 	tokens: FormTokens;
@@ -122,6 +131,8 @@ export async function receiveFormPost(
 	const language = await languageOnHost(scope, host, path);
 	const from = sentFrom(host, page, post.referer);
 	const sentLocation = await afterSending(deps, host, version, page, instance, language);
+	const sentMessage = version.success.kind === "message" ? formTextIn(version.success.message, language) : null;
+	const files = sentFilesOf(post.files);
 
 	let spam: SpamReason | null = null;
 	const issuedAt = await deps.tokens.issuedAt(host.site.id, sent.get(FORM_INPUTS.token)?.[0] ?? "");
@@ -129,7 +140,7 @@ export async function receiveFormPost(
 	else if (receivedAt.getTime() - issuedAt.getTime() < version.spam.minFillSeconds * 1000) spam = "too-fast";
 	else if ((sent.get(FORM_INPUTS.honeypot) ?? []).some((value) => value !== "")) spam = "honeypot";
 
-	const checked = checkValues(version, sent, language, from);
+	const checked = checkValues(version, sent, language, from, files);
 	const invalid = Object.keys(checked.errors).length > 0;
 	if (spam === null && invalid) {
 		return {
@@ -157,9 +168,52 @@ export async function receiveFormPost(
 		if (captcha === "unchecked") spam = "captcha";
 	}
 
-	const values = spam === null || !invalid ? checked.values : sentValues(version, sent, from);
-	await keep({ language, page, spam, values });
-	return { kind: "sent", location: sentLocation };
+	if (spam !== null) {
+		// Spam keeps what was sent, its files by name and size only: their bytes are never stored.
+		const values = invalid ? sentValues(version, sent, from, files) : checked.values;
+		await keep({ language, page, spam, values });
+		return { kind: "sent", location: sentLocation, message: sentMessage };
+	}
+	// The files are stored first, then belong to the Submission once it is kept (or go, if it isn't).
+	const uploads = [...checked.files].flatMap(([fieldKey, list]) =>
+		list.map((file) => ({
+			fieldKey,
+			name: file.name,
+			bytes: file.bytes,
+			contentType: file.contentType ?? "application/octet-stream",
+		})),
+	);
+	const stored = await deps.uploads.store(host.site, row.id, uploads);
+	const uploadIds = stored.flatMap((file) => (file.uploadId ? [file.uploadId] : []));
+	let at = 0;
+	const values = checked.values.map((value) =>
+		value.type === "file" && Array.isArray(value.value)
+			? { ...value, value: value.value.map(() => stored[at++] ?? null).filter((file) => file !== null) }
+			: value,
+	);
+	try {
+		await keep({ language, page, spam, values });
+	} catch (error) {
+		await deps.uploads.discard(host.site, uploadIds);
+		throw error;
+	}
+	return { kind: "sent", location: sentLocation, message: sentMessage };
+}
+
+/** The files sent, each with what its bytes are: a format Forms take, or null. */
+function sentFilesOf(files: FormPost["files"]): SentFiles {
+	const read = new Map<string, SentFiles extends ReadonlyMap<string, infer List> ? List : never>();
+	for (const [key, list] of files ?? []) {
+		read.set(
+			key,
+			list.map((file) => {
+				const name = cleanFileName(file.name);
+				const format = uploadFormat(file.bytes, name);
+				return { name, bytes: file.bytes, format, contentType: format ? uploadContentType(format) : null };
+			}),
+		);
+	}
+	return read;
 }
 
 /**

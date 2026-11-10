@@ -16,7 +16,7 @@ import {
 
 import { askSecret, firstLineOfStandardInput, interactive } from "./prompt.ts";
 
-export type SiteExportOptions = { siteId: string; to: string; passphrase: boolean };
+export type SiteExportOptions = { siteId: string; to: string; passphrase: boolean; includeSubmissions: boolean };
 export type SiteImportOptions = {
 	archive: string;
 	workspaceId: string;
@@ -30,15 +30,17 @@ export function parseSiteExportOptions(args: string[]): SiteExportOptions | null
 	let siteId: string | undefined;
 	let to = ".";
 	let passphrase = false;
+	let includeSubmissions = true;
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index] ?? "";
 		if (arg === "--to" && args[index + 1]) to = args[++index] ?? ".";
 		else if (arg.startsWith("--to=") && arg.length > 5) to = arg.slice(5);
 		else if (arg === "--passphrase") passphrase = true;
+		else if (arg === "--without-submissions") includeSubmissions = false;
 		else if (!arg.startsWith("-") && siteId === undefined) siteId = arg;
 		else return null;
 	}
-	return siteId ? { siteId, to, passphrase } : null;
+	return siteId ? { siteId, to, passphrase, includeSubmissions } : null;
 }
 
 /** Reads `<archive> --workspace <id> --slug <slug> [--name <name>] [--passphrase]`; null for anything else. */
@@ -84,7 +86,7 @@ function size(bytes: number): string {
 	return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-/** `webcraft site export <site id> [--to <file or folder>] [--passphrase]`. */
+/** `webcraft site export <site id> [--to <file or folder>] [--passphrase] [--without-submissions]`. */
 export async function siteExportCommand(env: Environment, options: SiteExportOptions): Promise<number> {
 	const passphrase = options.passphrase ? await readPassphrase(true) : null;
 	if (passphrase !== null && passphrase.length < PASSPHRASE_MIN_LENGTH) {
@@ -99,6 +101,7 @@ export async function siteExportCommand(env: Environment, options: SiteExportOpt
 		const written = await services.siteTransfer.exportByCommand({
 			siteId: options.siteId,
 			passphrase,
+			includeSubmissions: options.includeSubmissions,
 			write: (name, bytes) => {
 				location = target.location(name);
 				return target.write(name, bytes);
@@ -107,6 +110,7 @@ export async function siteExportCommand(env: Environment, options: SiteExportOpt
 		const { secrets, leftOut } = written.summary;
 		process.stdout.write(
 			`Exported the Site: ${location} (${size(written.sizeBytes)}).\n` +
+				(leftOut.submissions ? "Submissions and private Form uploads were left out.\n" : "") +
 				(secrets.carried
 					? `Its ${secrets.names.length} secrets are in it, encrypted under the passphrase: give the passphrase to whoever imports it, apart from the file.\n`
 					: `Its secrets were left out${secrets.names.length ? `: ${secrets.names.join(", ")}` : ""}.\n`) +

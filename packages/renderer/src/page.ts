@@ -11,6 +11,7 @@ import { CONSENT_SCRIPT } from "./consent/script.ts";
 import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import type { RenderTime } from "./expressions.ts";
 import { FILTER_SCRIPT } from "./filters/script.ts";
+import { FORM_SCRIPT } from "./forms/script.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree, safeUrl } from "./html.ts";
 import type { LoopRun, RegionPlace } from "./loops.ts";
 import { SEARCH_HIT_NAME, SEARCH_LOOP, SEARCH_QUERY_VALUE } from "./loops.ts";
@@ -295,6 +296,15 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	const loopItemsShown = { count: 0 };
 	// The regions of filtered Loops, numbered across both templates; the Filter script comes with a Filter.
 	const regions = new Map<string, number>();
+	// The forms script comes only with a Form to fill in.
+	let formsShown = 0;
+	const form = page.form
+		? (formId: string) => {
+				const html = page.form?.(formId) ?? "";
+				if (html.includes('class="wc-form"')) formsShown++;
+				return html;
+			}
+		: undefined;
 	let filtersShown = 0;
 	const filter = (node: FilterNode) => {
 		const html = page.filter?.(node) ?? "";
@@ -321,7 +331,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		media: page.media,
 		priorityImage: { given: false },
 		component: page.component,
-		form: page.form,
+		form,
 		search,
 		loop: page.loop,
 		filter,
@@ -347,7 +357,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		outlet: () => content,
 		extraAttributes: mainAttributes,
 		component: page.component,
-		form: page.form,
+		form,
 		search,
 		loop: page.loop,
 		filter,
@@ -405,6 +415,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		...(asks && consent ? consentHead(consent) : []),
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
 		...(filtersShown > 0 ? [`<script src="${FILTER_SCRIPT.href}" defer></script>`] : []),
+		...(formsShown > 0 ? [`<script src="${FORM_SCRIPT.href}" defer></script>`] : []),
 		...(page.libraries ?? []).map((library) => {
 			const tag = editMode ? ` data-wc-library="${escapeAttribute(library.name)}"` : "";
 			return `<script src="${escapeAttribute(library.src)}" integrity="${escapeAttribute(library.integrity)}" defer${tag}></script>`;

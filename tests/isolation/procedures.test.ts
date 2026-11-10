@@ -28,7 +28,7 @@ beforeAll(async () => {
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "forms", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });

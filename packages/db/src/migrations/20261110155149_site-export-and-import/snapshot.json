@@ -2,9 +2,9 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "c8199d25-49b3-4071-98c1-0337ccdbab37",
+  "id": "4054809e-1786-48c3-af54-ec6699a8143f",
   "prevIds": [
-    "147d571c-b28b-448a-b860-338bb5059ba5"
+    "571f1bd7-ab69-483b-bea5-766802bb075d"
   ],
   "footprints": [
     {
@@ -515,6 +515,22 @@
         "notNull": true,
         "dimensions": 0,
         "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "site_exports",
+        "name": "with_submissions",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "true",
         "generated": null,
         "identity": null,
         "entityType": "columns"

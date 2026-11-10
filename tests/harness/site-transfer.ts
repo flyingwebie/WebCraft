@@ -20,9 +20,13 @@ export async function exportSite(
 	install: TestInstall,
 	browser: TestBrowser,
 	siteId: string,
-	options: { passphrase?: string | null } = {},
+	options: { passphrase?: string | null; includeSubmissions?: boolean } = {},
 ): Promise<ExportView> {
-	const { export: started } = await browser.api.siteExports.start({ siteId, passphrase: options.passphrase ?? null });
+	const { export: started } = await browser.api.siteExports.start({
+		...options,
+		siteId,
+		passphrase: options.passphrase ?? null,
+	});
 	const drained = await install.drainJobs();
 	if (drained.failed.length > 0) throw new Error(`Jobs failed: ${JSON.stringify(drained.failed)}`);
 	return (await browser.api.siteExports.get({ siteId, exportId: started.id })).export;
@@ -39,7 +43,7 @@ export async function exportedArchive(
 	install: TestInstall,
 	browser: TestBrowser,
 	siteId: string,
-	options: { passphrase?: string | null } = {},
+	options: { passphrase?: string | null; includeSubmissions?: boolean } = {},
 ): Promise<Uint8Array> {
 	const view = await exportSite(install, browser, siteId, options);
 	const response = await downloadExport(install, browser, view);

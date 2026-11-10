@@ -1,4 +1,15 @@
-import { FIELD_TYPE_SETTINGS, FORM_AUTOCOMPLETE } from "@webcraft/renderer/forms";
+import {
+	canBeRequired,
+	FIELD_TYPE_SETTINGS,
+	FORM_AUTOCOMPLETE,
+	FORM_CONDITION_OPS,
+	FORM_LIMITS,
+	FORM_UPLOAD_FORMATS,
+	type FormCondition,
+	type FormConditionOp,
+	type FormUploadFormat,
+	isLayoutItem,
+} from "@webcraft/renderer/forms";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
@@ -13,19 +24,24 @@ import { type FormField, type FormProblem, numberOrNull, optionalText } from "./
 
 /**
  * The settings of one field: its label (which may be hidden, never left out), key, help, whether it
- * is required, its error message, and its type's own settings. Texts are written in the Site's
- * Default language here; the Translations tab gives their values in the other languages.
+ * is required, its error message, its type's own settings, and when it shows (a condition on the
+ * fields before it). A section or step has its title (the label), key, help and condition only.
+ * Texts are written in the Site's Default language here; the Translations tab gives their values in
+ * the other languages.
  */
 export function FieldPanel({
 	field,
 	onChange,
 	problems,
 	index,
+	before,
 }: {
 	field: FormField;
 	onChange: (field: FormField) => void;
 	problems: readonly FormProblem[];
 	index: number;
+	/** The items before it, whose values its condition may read. */
+	before: readonly FormField[];
 }) {
 	const t = useT();
 	const id = useId();
@@ -102,12 +118,14 @@ export function FieldPanel({
 					/>
 				)}
 			</Setting>
-			{field.type !== "hidden" ? check("required", "forms.field.required") : null}
+			{canBeRequired(field.type) ? check("required", "forms.field.required") : null}
 			{text("help", "forms.field.help")}
 			{uses("placeholder")
 				? text("placeholder", field.type === "select" ? "forms.field.choosePrompt" : "forms.field.placeholder")
 				: null}
-			{field.type !== "hidden" ? text("message", "forms.field.message", "forms.field.messageHelp") : null}
+			{field.type !== "hidden" && !isLayoutItem(field)
+				? text("message", "forms.field.message", "forms.field.messageHelp")
+				: null}
 			{uses("minLength") ? number("minLength", "forms.field.minLength") : null}
 			{uses("maxLength") ? number("maxLength", "forms.field.maxLength") : null}
 			{uses("pattern") ? (
@@ -178,7 +196,263 @@ export function FieldPanel({
 			{uses("minChoices") ? number("minChoices", "forms.field.minChoices") : null}
 			{uses("maxChoices") ? number("maxChoices", "forms.field.maxChoices") : null}
 			{uses("source") ? <Source field={field} onChange={onChange} problem={problemAt("source")} idPrefix={id} /> : null}
+			{uses("accept") ? <Accept field={field} onChange={onChange} problem={problemAt("accept")} idPrefix={id} /> : null}
+			{uses("maxFileBytes") ? (
+				<Setting
+					id={`${id}-maxFileBytes`}
+					label={t("forms.field.maxFileMb")}
+					help={t("forms.field.maxFileMbHelp", { max: FORM_LIMITS.fileBytes / (1024 * 1024) })}
+					problem={problemAt("maxFileBytes")}
+				>
+					{(props) => (
+						<Input
+							{...props}
+							type="number"
+							inputMode="decimal"
+							min={0.1}
+							step={0.1}
+							value={field.maxFileBytes === null ? "" : Math.round((field.maxFileBytes / (1024 * 1024)) * 10) / 10}
+							onChange={(event) => {
+								const megabytes = numberOrNull(event.target.value);
+								set("maxFileBytes", megabytes === null ? null : Math.round(megabytes * 1024 * 1024));
+							}}
+						/>
+					)}
+				</Setting>
+			) : null}
+			{uses("maxFiles") ? (
+				<Setting id={`${id}-maxFiles`} label={t("forms.field.maxFiles")} problem={problemAt("maxFiles")}>
+					{(props) => (
+						<Input
+							{...props}
+							type="number"
+							inputMode="numeric"
+							min={1}
+							max={FORM_LIMITS.files}
+							value={field.maxFiles ?? ""}
+							onChange={(event) => set("maxFiles", numberOrNull(event.target.value))}
+						/>
+					)}
+				</Setting>
+			) : null}
+			<Condition
+				field={field}
+				before={before}
+				onChange={(condition) => set("condition", condition)}
+				problems={problems.filter((problem) => problem.at.startsWith(`fields[${index}].condition`))}
+				idPrefix={id}
+			/>
 		</FieldGroup>
+	);
+}
+
+/** The groups the upload formats are offered in. */
+const FORMAT_GROUPS = ["image", "document", "media"] as const;
+
+/** The file formats a file field takes, offered by group; SVG is never among them. */
+function Accept({
+	field,
+	onChange,
+	problem,
+	idPrefix,
+}: {
+	field: FormField;
+	onChange: (field: FormField) => void;
+	problem?: string;
+	idPrefix: string;
+}) {
+	const t = useT();
+	const toggle = (format: FormUploadFormat, on: boolean) =>
+		onChange({
+			...field,
+			accept: on ? [...field.accept, format] : field.accept.filter((each) => each !== format),
+		});
+	return (
+		<fieldset className="grid gap-3" aria-describedby={problem ? `${idPrefix}-accept-error` : undefined}>
+			<legend className="mb-1 text-sm font-medium">{t("forms.field.accept")}</legend>
+			{FORMAT_GROUPS.map((group) => (
+				<div key={group} className="grid gap-1.5">
+					<p className="text-muted-foreground text-xs font-medium">{t(`forms.field.formatGroups.${group}`)}</p>
+					<div className="flex flex-wrap gap-x-5 gap-y-3">
+						{(Object.keys(FORM_UPLOAD_FORMATS) as FormUploadFormat[])
+							.filter((format) => FORM_UPLOAD_FORMATS[format].group === group)
+							.map((format) => (
+								<div key={format} className="flex items-center gap-1.5">
+									<Checkbox
+										id={`${idPrefix}-accept-${format}`}
+										checked={field.accept.includes(format)}
+										onCheckedChange={(value) => toggle(format, value === true)}
+									/>
+									<Label htmlFor={`${idPrefix}-accept-${format}`} className="font-mono text-xs">
+										.{FORM_UPLOAD_FORMATS[format].extensions[0]}
+									</Label>
+								</div>
+							))}
+					</div>
+				</div>
+			))}
+			<p className="text-muted-foreground text-sm">{t("forms.field.acceptHelp")}</p>
+			{problem ? <FieldError id={`${idPrefix}-accept-error`}>{problem}</FieldError> : null}
+		</fieldset>
+	);
+}
+
+/** The fields a condition may read: before the item, holding a value the visitor gives. */
+function readable(before: readonly FormField[]): FormField[] {
+	return before.filter((each) => !isLayoutItem(each) && each.type !== "hidden" && each.type !== "file");
+}
+
+/**
+ * When the item shows: always, or only when all (or any) of its rules hold. Each rule reads a field
+ * before it, compares its value, and is added and removed with a button.
+ */
+function Condition({
+	field,
+	before,
+	onChange,
+	problems,
+	idPrefix,
+}: {
+	field: FormField;
+	before: readonly FormField[];
+	onChange: (condition: FormCondition | null) => void;
+	problems: readonly FormProblem[];
+	idPrefix: string;
+}) {
+	const t = useT();
+	const fields = readable(before);
+	const condition = field.condition;
+	const rules = condition?.rules ?? [];
+	const setRules = (next: FormCondition["rules"]) =>
+		onChange(next.length === 0 ? null : { match: condition?.match ?? "all", rules: next });
+	const first = fields[0];
+	return (
+		<fieldset className="grid gap-3 border-t pt-4">
+			<legend className="mb-1 text-sm font-medium">{t("forms.condition.title")}</legend>
+			{rules.length === 0 ? (
+				<p className="text-muted-foreground text-sm">
+					{fields.length === 0 ? t("forms.condition.noFields") : t("forms.condition.always")}
+				</p>
+			) : (
+				<Field>
+					<FieldLabel htmlFor={`${idPrefix}-match`}>{t("forms.condition.match")}</FieldLabel>
+					<NativeSelect
+						id={`${idPrefix}-match`}
+						value={condition?.match ?? "all"}
+						onChange={(event) => onChange({ match: event.target.value === "any" ? "any" : "all", rules })}
+					>
+						<NativeSelectOption value="all">{t("forms.condition.all")}</NativeSelectOption>
+						<NativeSelectOption value="any">{t("forms.condition.any")}</NativeSelectOption>
+					</NativeSelect>
+				</Field>
+			)}
+			{rules.map((rule, index) => {
+				const target = fields.find((each) => each.key === rule.field);
+				const needsValue = rule.op !== "isEmpty" && rule.op !== "isNotEmpty";
+				const update = (change: Partial<FormCondition["rules"][number]>) =>
+					setRules(rules.map((each, at) => (at === index ? { ...each, ...change } : each)));
+				const problem = problems.find((each) => each.at.includes(`rules[${index}]`))?.message;
+				return (
+					<fieldset
+						// biome-ignore lint/suspicious/noArrayIndexKey: rules are edited in place.
+						key={index}
+						className="grid gap-2 rounded-md border p-3"
+					>
+						<legend className="text-muted-foreground px-1 text-xs font-medium">
+							{t("forms.condition.rule", { number: index + 1 })}
+						</legend>
+						<Field>
+							<FieldLabel htmlFor={`${idPrefix}-rule-${index}-field`}>{t("forms.condition.field")}</FieldLabel>
+							<NativeSelect
+								id={`${idPrefix}-rule-${index}-field`}
+								value={rule.field}
+								onChange={(event) => update({ field: event.target.value })}
+							>
+								{target ? null : <NativeSelectOption value={rule.field}>{rule.field}</NativeSelectOption>}
+								{fields.map((each) => (
+									<NativeSelectOption key={each.key} value={each.key}>
+										{each.label.text || each.key}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor={`${idPrefix}-rule-${index}-op`}>{t("forms.condition.op")}</FieldLabel>
+							<NativeSelect
+								id={`${idPrefix}-rule-${index}-op`}
+								value={rule.op}
+								onChange={(event) => {
+									const op = event.target.value as FormConditionOp;
+									update({ op, value: op === "isEmpty" || op === "isNotEmpty" ? null : (rule.value ?? "") });
+								}}
+							>
+								{FORM_CONDITION_OPS.map((op) => (
+									<NativeSelectOption key={op} value={op}>
+										{t(`forms.condition.ops.${op}`)}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+						{needsValue ? (
+							<Field>
+								<FieldLabel htmlFor={`${idPrefix}-rule-${index}-value`}>{t("forms.condition.value")}</FieldLabel>
+								{target && target.options.length > 0 ? (
+									<NativeSelect
+										id={`${idPrefix}-rule-${index}-value`}
+										value={rule.value ?? ""}
+										onChange={(event) => update({ value: event.target.value })}
+									>
+										<NativeSelectOption value="">{t("forms.condition.choose")}</NativeSelectOption>
+										{target.options.map((option) => (
+											<NativeSelectOption key={option.value} value={option.value}>
+												{option.label.text}
+											</NativeSelectOption>
+										))}
+									</NativeSelect>
+								) : (
+									<Input
+										id={`${idPrefix}-rule-${index}-value`}
+										value={rule.value ?? ""}
+										onChange={(event) => update({ value: event.target.value })}
+									/>
+								)}
+							</Field>
+						) : null}
+						{problem ? <FieldError>{problem}</FieldError> : null}
+						<Button
+							variant="ghost"
+							className="justify-self-start"
+							onClick={() => setRules(rules.filter((_, at) => at !== index))}
+						>
+							<TrashIcon data-icon="inline-start" />
+							{t("forms.condition.removeRule", { number: index + 1 })}
+						</Button>
+					</fieldset>
+				);
+			})}
+			{first ? (
+				<Button
+					variant="outline"
+					className="justify-self-start"
+					onClick={() =>
+						setRules([
+							...rules,
+							{
+								field: first.key,
+								op: first.options.length > 0 ? "is" : "isNotEmpty",
+								value: first.options[0]?.value ?? null,
+							},
+						])
+					}
+				>
+					<PlusIcon data-icon="inline-start" />
+					{t("forms.condition.addRule")}
+				</Button>
+			) : null}
+			{problems.find((problem) => !/rules\[\d+\]/.test(problem.at))?.message ? (
+				<FieldError>{problems.find((problem) => !/rules\[\d+\]/.test(problem.at))?.message}</FieldError>
+			) : null}
+		</fieldset>
 	);
 }
 

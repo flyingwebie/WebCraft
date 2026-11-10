@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createGunzip, createGzip } from "node:zlib";
-
+import { FORM_LIMITS } from "@webcraft/renderer";
 import type pg from "pg";
 import { from as copyFrom } from "pg-copy-streams";
 import { z } from "zod";
@@ -135,6 +135,14 @@ export async function importSite(
 	let open = false;
 	try {
 		const { manifest, steps } = await reader.manifest(context.upgrades ?? FORMAT_UPGRADES);
+		if (
+			manifest.leftOut.submissions &&
+			manifest.tables.some(
+				(table) => (table.name === "m_forms.submissions" || table.name === "public.form_uploads") && table.rows > 0,
+			)
+		) {
+			throw new ArchiveRefusedError("damaged", "The archive carries Submissions it declares excluded.");
+		}
 		const bundle = manifest.secrets.carried ? await reader.secrets(manifest) : null;
 		const people = await reader.people(manifest);
 
@@ -159,6 +167,11 @@ export async function importSite(
 		await client.query(
 			"CREATE TEMP TABLE site_import_people (id uuid PRIMARY KEY, name text, email text) ON COMMIT DROP",
 		);
+		await client.query(`CREATE TEMP TABLE site_import_upload_refs (
+   id uuid PRIMARY KEY, submission_id uuid NOT NULL, form_id uuid NOT NULL,
+   field_key text NOT NULL, name text NOT NULL, content_type text NOT NULL,
+   size bigint NOT NULL CHECK (size >= 0 AND size <= ${FORM_LIMITS.fileBytes})
+  ) ON COMMIT DROP`);
 		for (const person of persons.unmatched) {
 			await client.query("INSERT INTO site_import_people VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [
 				ids.id(person.id),
@@ -170,6 +183,14 @@ export async function importSite(
 		for (const [index, table] of manifest.tables.entries()) {
 			const entry = await reader.next(table.file);
 			const here = target.get(table.name);
+			const rows = await stageRows(client, entry, table.sha256, ids, steps, table.name, missingPeople);
+			if (rows !== table.rows) {
+				throw new ArchiveRefusedError(
+					"damaged",
+					`${table.file} holds ${rows} rows, not the ${table.rows} the manifest says.`,
+				);
+			}
+			if (table.name === "m_forms.submissions") await stageUploadReferences(client);
 			if (!here) {
 				if (table.module) {
 					// A Module this build lacks: its rows (ids replaced) are kept in the new Site's private
@@ -178,27 +199,12 @@ export async function importSite(
 					const folder = `${plan.workspaceId}/${siteId}/kept-aside/${table.name}`;
 					const backend = await context.storage.current();
 					let writtenParts = 0;
-					await writeParts(
-						backend,
-						folder,
-						remappedGzip(entry, table.sha256, ids, table.rows, missingPeople),
-						ARCHIVE_PART_BYTES,
-						async () => {
-							copied.push({ backend, key: partKeyIn(folder, writtenParts++) });
-						},
-					);
-				} else {
-					// A table a later WebCraft dropped: its data no longer means anything.
-					await reader.verify(entry, table.sha256);
+					await writeParts(backend, folder, stagedGzip(client), ARCHIVE_PART_BYTES, async () => {
+						copied.push({ backend, key: partKeyIn(folder, writtenParts++) });
+					});
 				}
+				await client.query("TRUNCATE site_import_rows");
 				continue;
-			}
-			const rows = await stageRows(client, entry, table.sha256, ids, steps, table.name, missingPeople);
-			if (rows !== table.rows) {
-				throw new ArchiveRefusedError(
-					"damaged",
-					`${table.file} holds ${rows} rows, not the ${table.rows} the manifest says.`,
-				);
 			}
 			if (here.partitionedBy && here.module) {
 				const months = await client.query<{ month: Date }>(
@@ -221,6 +227,7 @@ export async function importSite(
 
 		// The stored files: each copied under its new key, into the storage new files go to now.
 		const index = await reader.filesIndex(manifest);
+		await checkUploadReferences(client, siteId);
 		await checkFileReferences(client, manifest, index, ids, siteId);
 		const quota = await client.query<{ quota: string; used: string }>(
 			`SELECT q.quota_bytes::text AS quota, (SELECT coalesce(sum(f.size_bytes), 0)::text FROM
@@ -265,6 +272,11 @@ export async function importSite(
 
 		const published = await asDrafts(client, target, siteId);
 		await client.query("UPDATE public.media_files SET storage = $2 WHERE site_id = $1", [siteId, backend.kind]);
+		await client.query(
+			`UPDATE public.form_uploads SET storage = $2,
+   key = workspace_id::text || '/' || site_id::text || '/form-uploads/' || id::text WHERE site_id = $1`,
+			[siteId, backend.kind],
+		);
 		if (target.has("public.libraries")) {
 			await client.query("UPDATE public.libraries SET storage = $2 WHERE site_id = $1 AND storage IS NOT NULL", [
 				siteId,
@@ -358,6 +370,42 @@ export async function importSite(
 	}
 }
 
+/** Read file references even when the receiving Module is missing and its rows are kept aside. */
+async function stageUploadReferences(client: pg.ClientBase) {
+	try {
+		await client.query(`INSERT INTO site_import_upload_refs (id, submission_id, form_id, field_key, name, content_type, size)
+   SELECT (f->>'uploadId')::uuid, (r.line::jsonb->>'id')::uuid, (r.line::jsonb->>'form_id')::uuid,
+    field->>'key', f->>'name', f->>'contentType', (f->>'size')::bigint
+   FROM site_import_rows r, LATERAL jsonb_array_elements(r.line::jsonb->'values') field,
+    LATERAL jsonb_array_elements(CASE WHEN field->>'type' = 'file' AND jsonb_typeof(field->'value') = 'array'
+     THEN field->'value' ELSE '[]'::jsonb END) f
+   WHERE f->>'uploadId' IS NOT NULL`);
+	} catch (error) {
+		const code = (error as { code?: string }).code ?? "";
+		if (code.startsWith("22") || code.startsWith("23"))
+			throw new ArchiveRefusedError("damaged", "A Submission has invalid or repeated private-file references.");
+		throw error;
+	}
+}
+
+/** A private file has one matching claim and a canonical private key, never a public Media key. */
+async function checkUploadReferences(client: pg.ClientBase, siteId: string) {
+	const invalid = await client.query(
+		`SELECT 1 FROM
+   (SELECT * FROM public.form_uploads WHERE site_id = $1) u
+   FULL JOIN site_import_upload_refs r ON r.id = u.id
+   WHERE u.id IS NULL OR r.id IS NULL OR u.submission_id IS DISTINCT FROM r.submission_id
+    OR u.form_id IS DISTINCT FROM r.form_id OR u.field_key IS DISTINCT FROM r.field_key
+    OR u.size IS DISTINCT FROM r.size OR u.name IS DISTINCT FROM r.name
+    OR u.content_type IS DISTINCT FROM r.content_type
+    OR u.key IS DISTINCT FROM u.workspace_id::text || '/' || u.site_id::text || '/form-uploads/' || u.id::text
+   LIMIT 1`,
+		[siteId],
+	);
+	if (invalid.rowCount)
+		throw new ArchiveRefusedError("damaged", "Private Form uploads do not match their Submissions.");
+}
+
 /** Stored rows must name exactly the files supplied, inside this Site, with their actual sizes. */
 async function checkFileReferences(
 	client: pg.ClientBase,
@@ -380,7 +428,8 @@ async function checkFileReferences(
 	}
 	const { rows } = await client.query<{ key: string; size: string; media: boolean }>(
 		`SELECT key, size_bytes::text AS size, true AS media FROM public.media_files WHERE site_id = $1
-   UNION ALL SELECT storage_key AS key, size::text, false AS media FROM public.libraries WHERE site_id = $1`,
+   UNION ALL SELECT storage_key AS key, size::text, false AS media FROM public.libraries WHERE site_id = $1
+   UNION ALL SELECT key, size::text, false AS media FROM public.form_uploads WHERE site_id = $1`,
 		[siteId],
 	);
 	const seen = new Set<string>();
@@ -612,7 +661,7 @@ async function stageRows(
 			}
 			rows++;
 			// COPY's text format: backslashes doubled; a JSON line holds no raw tab or line break.
-			yield `${remappedRow(text, ids, missingPeople).replaceAll("\\", "\\\\")}\n`;
+			yield `${remappedRow(text, ids, missingPeople, table).replaceAll("\\", "\\\\")}\n`;
 		}
 	}
 	const copy = client.query(copyFrom("COPY site_import_rows (line) FROM STDIN"));
@@ -993,31 +1042,20 @@ async function placeMembers(
 	return { matched, invited };
 }
 
-/** A table's file with every id replaced: unzipped, rewritten line by line and zipped again, checked as it goes. */
-async function* remappedGzip(
-	entry: TarEntry,
-	sha256: string,
-	ids: IdMap,
-	expectedRows: number,
-	missingPeople: ReadonlyMap<string, string | null>,
-): AsyncGenerator<Uint8Array> {
-	const hash = createHash("sha256");
-	async function* hashed() {
-		for await (const chunk of entry.body) {
-			hash.update(chunk);
-			yield chunk;
-		}
-	}
+/** Keep already validated, remapped Module rows aside without buffering the table in memory. */
+async function* stagedGzip(client: pg.ClientBase): AsyncGenerator<Uint8Array> {
 	async function* lines() {
-		let rows = 0;
-		for await (const line of jsonLines(Readable.from(hashed()))) {
-			if (++rows > expectedRows) throw new ArchiveRefusedError("damaged", "Too many Module rows.");
-			const row = safeJson(line);
-			if (!row || typeof row !== "object" || Array.isArray(row))
-				throw new ArchiveRefusedError("damaged", "A Module row is not an object.");
-			yield `${remappedRow(line, ids, missingPeople)}\n`;
+		await client.query("DECLARE kept_rows NO SCROLL CURSOR FOR SELECT line FROM site_import_rows ORDER BY n");
+		try {
+			for (;;) {
+				// Each row is independently bounded; even a hostile table never fills a multi-row buffer.
+				const { rows } = await client.query<{ line: string }>("FETCH 1 FROM kept_rows");
+				if (!rows[0]) break;
+				yield `${rows[0].line}\n`;
+			}
+		} finally {
+			await client.query("CLOSE kept_rows");
 		}
-		if (rows !== expectedRows) throw new ArchiveRefusedError("damaged", "Missing Module rows.");
 	}
 	const gzip = createGzip();
 	const source = Readable.from(lines());
@@ -1029,16 +1067,30 @@ async function* remappedGzip(
 		source.destroy();
 		gzip.destroy();
 	}
-	if (hash.digest("hex") !== sha256) {
-		throw new ArchiveRefusedError("damaged", `${entry.path} doesn't have the checksum the manifest gives.`);
-	}
 }
 
 /** Person references inside JSON need the same reassignment as foreign-key columns. */
-function remappedRow(text: string, ids: IdMap, missingPeople: ReadonlyMap<string, string | null>): string {
+function remappedRow(
+	text: string,
+	ids: IdMap,
+	missingPeople: ReadonlyMap<string, string | null>,
+	table: string,
+): string {
 	const row = safeJson(ids.text(text));
 	if (!row || typeof row !== "object" || Array.isArray(row))
 		throw new ArchiveRefusedError("damaged", "A table row must be an object.");
+	if (table === "m_forms.submissions") {
+		const values = (row as Record<string, unknown>).values;
+		if (Array.isArray(values)) {
+			for (const field of values) {
+				if (!field || typeof field !== "object" || field.type !== "file" || !Array.isArray(field.value)) continue;
+				for (const file of field.value) {
+					// URLs are generated by the receiving Install when it serves the Submission, never stored.
+					if (file && typeof file === "object") delete file.url;
+				}
+			}
+		}
+	}
 	for (const [key, value] of Object.entries(row)) {
 		if (value && typeof value === "object") {
 			(row as Record<string, unknown>)[key] = JSON.parse(

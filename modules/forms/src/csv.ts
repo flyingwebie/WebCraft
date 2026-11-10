@@ -1,10 +1,11 @@
-import type { SubmissionValue } from "@webcraft/module-sdk";
+import { isSubmissionFiles, type SubmissionValue } from "@webcraft/module-sdk";
 
 /**
  * Submissions as a CSV file for spreadsheets: UTF-8 with a byte order mark (so spreadsheet programs
  * read accents right), every cell quoted, rows ended with CRLF. A cell that starts with `=`, `+`, `-`,
  * `@`, a tab or a carriage return would run as a formula when opened, so it gets a `'` in front and
- * stays text: a visitor's input can never become a formula in someone's spreadsheet.
+ * stays text: a visitor's input can never become a formula in someone's spreadsheet. Form uploads
+ * show by their names.
  */
 
 /** One Submission, as the file shows it. */
@@ -43,6 +44,8 @@ export function submissionsCsv(rows: readonly CsvSubmission[], words: CsvWords):
 	const text = (value: SubmissionValue["value"] | undefined): string => {
 		if (value === null || value === undefined) return "";
 		if (typeof value === "boolean") return value ? words.yes : words.no;
+		// A Form upload by its name: its bytes stay in the admin.
+		if (isSubmissionFiles(value)) return value.map((file) => file.name).join("; ");
 		if (Array.isArray(value)) return value.join("; ");
 		return String(value);
 	};

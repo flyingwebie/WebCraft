@@ -30,14 +30,38 @@ export type SpamReason =
 	/** The Site's CAPTCHA couldn't be checked when it came. */
 	| "captcha";
 
+/**
+ * A Form upload (GLOSSARY.md) a Submission holds (SDK 1.11): what the visitor sent, never its bytes.
+ * The file is private: WebCraft keeps it apart from the Media library, and people download it only
+ * through the admin (`context.submissions.uploadUrl`), when they may read the Submission. `uploadId`
+ * is null for a file WebCraft didn't keep (a Submission kept as spam keeps only its name and size).
+ */
+export type SubmissionFile = {
+	uploadId: string | null;
+	/** Its name as the visitor's computer gave it (cleaned: no folders, no control characters). */
+	name: string;
+	/** Its size in bytes. */
+	size: number;
+	/** What its bytes are (`application/pdf`): read from them, never from the name. */
+	contentType: string;
+};
+
 /** One value of a Submission, with the field's label (in the Site's Default language) and type when it came. */
 export type SubmissionValue = {
 	key: string;
 	label: string;
 	type: string;
-	/** Text; a list for checkboxes; a number; true or false for a consent; null when left empty. */
-	value: string | string[] | number | boolean | null;
+	/**
+	 * Text; a list for checkboxes; a number; true or false for a consent; the files of a file field
+	 * (SDK 1.11); null when left empty.
+	 */
+	value: string | string[] | number | boolean | SubmissionFile[] | null;
 };
+
+/** Whether a value holds a file field's uploads (SDK 1.11). */
+export function isSubmissionFiles(value: SubmissionValue["value"]): value is SubmissionFile[] {
+	return Array.isArray(value) && value.some((item) => typeof item === "object" && item !== null);
+}
 
 /** One Submission: a filled-in Form as WebCraft received it. Plain JSON, apart from the date. */
 export type FormSubmission = {
@@ -100,6 +124,18 @@ export type ModuleSubmissions = {
 	kept(submission: KeptSubmission): Promise<void>;
 	/** What WebCraft sent for a Submission: its emails and Webhook calls, oldest first. */
 	deliveries(submissionId: string): Promise<SubmissionDelivery[]>;
+	/**
+	 * Deletes the Form uploads of these Submissions (SDK 1.11): call it wherever Submissions are
+	 * deleted, in the same transaction, so a Submission's files never outlive it. Answers how many
+	 * files went.
+	 */
+	removeUploads(submissionIds: readonly string[]): Promise<number>;
+	/**
+	 * Where people download one of the Site's Form uploads (SDK 1.11): an address in the admin, which
+	 * answers only a signed-in person who may read the Site's Submissions, and records each download
+	 * in the Audit log. API clients get this link, never the bytes.
+	 */
+	uploadUrl(uploadId: string): string;
 };
 
 /** How long after a Submission came its Auto-reply still goes when it is taken out of spam, in hours. */
@@ -109,6 +145,11 @@ export const AUTO_REPLY_WINDOW_HOURS = 24;
 export type SubmissionReceiver = {
 	/** Stores one Submission at the context's Site and answers its id. */
 	receive(submission: FormSubmission, context: ModuleContext): Promise<{ id: string }>;
+	/**
+	 * The Module's Permission that lets people read the Submissions it keeps (SDK 1.11), such as
+	 * `submissions.view`: WebCraft lets only them download Form uploads. Without it, nobody does.
+	 */
+	readPermission?: string;
 };
 
 /** Declares a Module's Submission receiver. */

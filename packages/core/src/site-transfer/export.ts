@@ -54,6 +54,8 @@ export type ExportWriterContext = {
 	modules: ReadonlyMap<string, { id: string; version: string }>;
 	/** Rows fetched at a time from each table (the streaming threshold). */
 	batchRows: number;
+	/** Leave the Forms Module's Submissions and every private Form upload out together. */
+	includeSubmissions?: boolean;
 	now(): Date;
 	/** Says how far it got: a step and its count. */
 	progress(step: "tables" | "files" | "archive", done: number, total: number): Promise<void>;
@@ -211,7 +213,15 @@ async function readSnapshot(
 		const siteRow = siteRows.rows[0]?.row;
 		if (!siteRow) throw new Error("The Site was deleted before it could be exported.");
 		const schemaModules = new Map([...context.modules].map(([schema, module]) => [schema, module.id]));
-		const { tables, leftOut } = await siteTables(client, schemaModules);
+		const { tables: available, leftOut } = await siteTables(client, schemaModules);
+		const includeSubmissions = context.includeSubmissions !== false;
+		const tables = available.filter((table) => {
+			if (!includeSubmissions && (table.name === "m_forms.submissions" || table.name === "public.form_uploads")) {
+				leftOut.push({ name: table.name, reason: "excluded" });
+				return false;
+			}
+			return true;
+		});
 		const people = new Set(
 			(await client.query<{ id: string }>("SELECT id::text FROM public.people")).rows.map((row) => row.id),
 		);
@@ -264,7 +274,7 @@ async function readSnapshot(
 			peopleLines.map((person) => JSON.stringify(person)),
 		);
 		const lists = await leftOutLists(client, site);
-		const fileKeys = await storedFiles(client, site);
+		const fileKeys = await storedFiles(client, site, includeSubmissions);
 		await client.query("COMMIT");
 		const { id, workspace_id, name, slug, ...settings } = siteRow as {
 			id: string;
@@ -288,7 +298,12 @@ async function readSnapshot(
 				})),
 			tables: written,
 			people: { ...peopleFile, rows: peopleLines.length },
-			leftOut: { tables: leftOut, ...lists, stagingPassword: siteRow.staging_password_hash != null },
+			leftOut: {
+				tables: leftOut,
+				...lists,
+				stagingPassword: siteRow.staging_password_hash != null,
+				submissions: !includeSubmissions,
+			},
 			counts,
 			fileKeys,
 		};
@@ -357,7 +372,7 @@ async function exportedPeople(
 async function leftOutLists(
 	client: pg.ClientBase,
 	site: { id: string },
-): Promise<Omit<SiteExportManifest["leftOut"], "tables" | "stagingPassword">> {
+): Promise<Omit<SiteExportManifest["leftOut"], "tables" | "stagingPassword" | "submissions">> {
 	const contentKeys = await client.query<{ name: string }>(
 		"SELECT name FROM public.content_keys WHERE site_id = $1 AND revoked_at IS NULL ORDER BY name",
 		[site.id],
@@ -385,10 +400,11 @@ async function leftOutLists(
 	};
 }
 
-/** The stored files the Site's rows name: Media originals and uploads, and Libraries' files, each once. */
+/** Media originals, Libraries and claimed private Form uploads, each read from its recorded backend. */
 async function storedFiles(
 	client: pg.ClientBase,
 	site: { id: string },
+	includeSubmissions: boolean,
 ): Promise<{ storage: StorageKind; key: string; media: boolean }[]> {
 	const { rows } = await client.query<{ storage: string; key: string; media: boolean }>(
 		`SELECT DISTINCT ON (key) storage, key, media FROM (
@@ -397,8 +413,11 @@ async function storedFiles(
 			UNION ALL
 			SELECT l.storage, l.storage_key AS key, false AS media FROM public.libraries l
 				WHERE l.site_id = $1 AND l.storage_key IS NOT NULL AND l.storage IS NOT NULL
+			UNION ALL
+			SELECT u.storage, u.key, false AS media FROM public.form_uploads u
+				WHERE u.site_id = $1 AND u.submission_id IS NOT NULL AND $2
 		) files ORDER BY key`,
-		[site.id],
+		[site.id, includeSubmissions],
 	);
 	return rows.map((row) => ({ storage: row.storage === "s3" ? "s3" : "disk", key: row.key, media: row.media }));
 }
@@ -412,8 +431,8 @@ async function hashFiles(
 	for (const [index, file] of keys.entries()) {
 		const backend = await context.storage.holding(file.storage);
 		const stream = await backend.stream(file.key);
-		// A file deleted since (a Media item emptied from the Trash) is left out, as a Backup leaves it.
-		if (!stream) continue;
+		// Every file named by the snapshot must be present, or its rows could not round-trip.
+		if (!stream) throw new Error("A stored file required by the Site export is missing.");
 		const hash = createHash("sha256");
 		let size = 0;
 		for await (const chunk of stream as AsyncIterable<Uint8Array>) {

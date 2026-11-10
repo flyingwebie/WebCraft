@@ -21,13 +21,14 @@ import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, ConfirmationInvalidError, useConfirmation } from "../confirmations.ts";
 import type { Email, Recipient } from "../email/index.ts";
+import type { FormUploads } from "../forms/uploads.ts";
 import { type GuardedFetch, GuardedFetchError } from "../guarded-fetch.ts";
 import type { JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
 import type { ModuleActor } from "../permissions/can.ts";
 import { redactText, redactValue } from "../redaction.ts";
 import { SecretNotSetError } from "../secrets/store.ts";
-import type { Access, DataLayer, Site } from "../tenancy/data-layer.ts";
+import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { type EnsurePartition, moduleData, type PlaceScope } from "./data.ts";
 import { moduleJob, type QueuedPlace } from "./jobs.ts";
 import { type ModuleLogLevel, writeModuleLog } from "./module-log.ts";
@@ -52,6 +53,11 @@ export type RuntimeDeps = {
 		kept(site: Site, submission: KeptSubmission, sender: FormSender | null): Promise<void>;
 		deliveries(site: Site, submissionId: string): Promise<SubmissionDelivery[]>;
 	};
+	/**
+	 * Form uploads, for the Module keeping Submissions (`context.submissions.removeUploads` and
+	 * `uploadUrl`): their files go when it deletes Submissions.
+	 */
+	uploads?: Pick<FormUploads, "remove" | "url" | "attach" | "removeSite">;
 };
 
 /** A Module acting by itself (a job, an event, a Site route) at a place: as `can()` and the Audit log see it. */
@@ -255,6 +261,19 @@ export function moduleContext(
 				const site = keepingSite();
 				if (typeof submissionId !== "string") return [];
 				return (await deps.submissions?.deliveries(site, submissionId)) ?? [];
+			},
+			async removeUploads(submissionIds) {
+				const site = keepingSite();
+				if (!deps.uploads || !Array.isArray(submissionIds)) return 0;
+				const ids = submissionIds.filter((id): id is string => typeof id === "string");
+				// The rows go in the Module's transaction; the files once it commits (at once outside one).
+				const later = afterCommit ? (work: () => Promise<void>) => afterCommit.push(work) : undefined;
+				return deps.uploads.remove(scope as SiteScope, site, ids, later);
+			},
+			uploadUrl(uploadId) {
+				const site = keepingSite();
+				if (!deps.uploads || typeof uploadId !== "string") return "";
+				return deps.uploads.url(site, uploadId);
 			},
 		},
 		async transaction(work) {

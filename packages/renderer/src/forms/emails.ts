@@ -42,8 +42,16 @@ export type FormAutoReply = {
 	text: FormText;
 };
 
-/** A Form's emails, as its emails Draft and published version hold them. */
-export type FormEmails = { notifications: FormNotification[]; autoReply: FormAutoReply };
+/**
+ * A Form's emails, as its emails Draft and published version hold them. Notifications attach the
+ * Submission's Form uploads while they come to `attachmentsMaxBytes` in all (10 MB unless changed; 0
+ * attaches none); past it, each file is a link into the admin instead.
+ */
+export type FormEmails = { notifications: FormNotification[]; autoReply: FormAutoReply; attachmentsMaxBytes: number };
+
+/** How much of a Submission's Form uploads a Notification attaches unless the Form says, and at most. */
+export const FORM_ATTACHMENTS_DEFAULT_BYTES = 10 * 1024 * 1024;
+export const FORM_ATTACHMENTS_MAX_BYTES = 25 * 1024 * 1024;
 
 /** How much a Form's emails hold at most. */
 export const FORM_EMAIL_LIMITS = {
@@ -58,7 +66,11 @@ export const FORM_EMAIL_LIMITS = {
 
 /** A Form's emails before anyone set them: no Notification, the Auto-reply off. */
 export function noFormEmails(): FormEmails {
-	return { notifications: [], autoReply: { enabled: false, field: null, subject: { text: "" }, text: { text: "" } } };
+	return {
+		notifications: [],
+		autoReply: { enabled: false, field: null, subject: { text: "" }, text: { text: "" } },
+		attachmentsMaxBytes: FORM_ATTACHMENTS_DEFAULT_BYTES,
+	};
 }
 
 /** The kinds of field routing may read: one choice of a fixed list. */

@@ -11,7 +11,12 @@
 /** Text with a value per language: the text as written, and its own text in other languages. */
 export type FormText = { text: string; translations?: Record<string, string> };
 
-/** The kinds of field a Form has. File uploads come later. */
+/**
+ * The kinds of item a Form holds, in order: fields visitors fill in (`file` takes Form uploads), and
+ * two that only shape it, `section` (a group of the fields after it, shown as a `<fieldset>` named by
+ * its `<legend>`) and `step` (a page of a multi-step Form, holding the items after it up to the next
+ * step). A section runs to the next section or step; a Form with steps starts with one.
+ */
 export const FORM_FIELD_TYPES = [
 	"text",
 	"email",
@@ -25,9 +30,94 @@ export const FORM_FIELD_TYPES = [
 	"checkboxes",
 	"consent",
 	"hidden",
+	"file",
+	"section",
+	"step",
 ] as const;
 
 export type FormFieldType = (typeof FORM_FIELD_TYPES)[number];
+
+/** The items that only shape a Form: they hold no value, and are never sent, kept or shown in a Submission. */
+export const FORM_LAYOUT_TYPES = ["section", "step"] as const;
+
+/** Whether an item only shapes the Form (a section or a step) rather than holding a value. */
+export function isLayoutItem(field: Pick<FormField, "type">): boolean {
+	return field.type === "section" || field.type === "step";
+}
+
+/**
+ * The file formats a Form upload field may take, by name, each with the extensions a browser offers
+ * and the type it is stored and sent as. What a file is comes from its bytes, never its name; SVG is
+ * never among them (an image that can hold scripts).
+ */
+export const FORM_UPLOAD_FORMATS = {
+	jpeg: { extensions: ["jpg", "jpeg"], contentType: "image/jpeg", group: "image" },
+	png: { extensions: ["png"], contentType: "image/png", group: "image" },
+	webp: { extensions: ["webp"], contentType: "image/webp", group: "image" },
+	avif: { extensions: ["avif"], contentType: "image/avif", group: "image" },
+	heic: { extensions: ["heic", "heif"], contentType: "image/heic", group: "image" },
+	gif: { extensions: ["gif"], contentType: "image/gif", group: "image" },
+	pdf: { extensions: ["pdf"], contentType: "application/pdf", group: "document" },
+	docx: {
+		extensions: ["docx"],
+		contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		group: "document",
+	},
+	xlsx: {
+		extensions: ["xlsx"],
+		contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		group: "document",
+	},
+	pptx: {
+		extensions: ["pptx"],
+		contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		group: "document",
+	},
+	odt: { extensions: ["odt"], contentType: "application/vnd.oasis.opendocument.text", group: "document" },
+	ods: { extensions: ["ods"], contentType: "application/vnd.oasis.opendocument.spreadsheet", group: "document" },
+	txt: { extensions: ["txt"], contentType: "text/plain", group: "document" },
+	csv: { extensions: ["csv"], contentType: "text/csv", group: "document" },
+	mp3: { extensions: ["mp3"], contentType: "audio/mpeg", group: "media" },
+	m4a: { extensions: ["m4a"], contentType: "audio/mp4", group: "media" },
+	wav: { extensions: ["wav"], contentType: "audio/wav", group: "media" },
+	mp4: { extensions: ["mp4"], contentType: "video/mp4", group: "media" },
+	mov: { extensions: ["mov"], contentType: "video/quicktime", group: "media" },
+	webm: { extensions: ["webm"], contentType: "video/webm", group: "media" },
+} as const;
+
+export type FormUploadFormat = keyof typeof FORM_UPLOAD_FORMATS;
+
+/** Whether `name` is a file format Form uploads take. */
+export function isUploadFormat(name: string): name is FormUploadFormat {
+	return Object.hasOwn(FORM_UPLOAD_FORMATS, name);
+}
+
+/** The extensions (`.pdf`) of the formats a file field takes, as its `accept` attribute and the forms script read them. */
+export function uploadExtensions(accept: readonly string[]): string[] {
+	return accept.flatMap((name) =>
+		isUploadFormat(name) ? FORM_UPLOAD_FORMATS[name].extensions.map((ext) => `.${ext}`) : [],
+	);
+}
+
+/**
+ * When an item shows: its rules about the values of fields before it, all of them (`all`) or any
+ * (`any`). An item it hides is neither checked nor kept, on the server as in the browser; a section or
+ * step it hides hides everything in it. A field hidden by its own condition counts as empty in the
+ * conditions after it.
+ */
+export type FormCondition = { match: "all" | "any"; rules: FormConditionRule[] };
+
+/**
+ * One rule: a field (one before the item, holding a value the visitor gives: not hidden, not a file),
+ * how its value is compared, and with what. `is` and `isNot` compare text without regard to case (a
+ * choice by its option's value, consent by `yes`); `isEmpty` and `isNotEmpty` take no value;
+ * `greaterThan` and `lessThan` compare numbers.
+ */
+export type FormConditionRule = { field: string; op: FormConditionOp; value: string | null };
+
+export const FORM_CONDITION_OPS = ["is", "isNot", "isEmpty", "isNotEmpty", "greaterThan", "lessThan"] as const;
+
+export type FormConditionOp = (typeof FORM_CONDITION_OPS)[number];
 
 /** One choice of a select, radio or checkboxes field: the value stored, and the label shown. */
 export type FormOption = { value: string; label: FormText };
@@ -76,6 +166,12 @@ export type FormField = {
 	maxChoices: number | null;
 	/** Hidden fields: where the value comes from. */
 	source: HiddenSource | null;
+	/** File fields: the formats taken (`FORM_UPLOAD_FORMATS`), the largest file in bytes, and how many files at most. */
+	accept: FormUploadFormat[];
+	maxFileBytes: number | null;
+	maxFiles: number | null;
+	/** When the item shows; null: always. */
+	condition: FormCondition | null;
 };
 
 /** What a visitor sees once a Form is sent: a message in place of the Form, or another Page. */
@@ -109,7 +205,19 @@ export const FORM_LIMITS = {
 	minFillSeconds: 600,
 	perMinute: 1000,
 	perHour: 10_000,
+	/** The largest file a file field may take, the most files it may take, and what it takes unless set. */
+	fileBytes: 20 * 1024 * 1024,
+	files: 10,
+	defaultFileBytes: 10 * 1024 * 1024,
+	/** The most rules in one condition. */
+	conditionRules: 10,
 } as const;
+
+/**
+ * The largest post with files a Form takes, in bytes: anything larger is spam (its files never kept).
+ * Its fields besides the files still take no more than a post without files does.
+ */
+export const FORM_UPLOAD_POST_MAX_BYTES = 32 * 1024 * 1024;
 
 /** The spam limits a new Form starts with (5 a minute and 30 an hour from one address). */
 export const FORM_SPAM_DEFAULTS: FormSpam = { minFillSeconds: 3, perMinute: 5, perHour: 30 };
@@ -165,6 +273,9 @@ export const FIELD_TYPE_SETTINGS: Readonly<
 			| "minChoices"
 			| "maxChoices"
 			| "source"
+			| "accept"
+			| "maxFileBytes"
+			| "maxFiles"
 		)[]
 	>
 > = {
@@ -180,11 +291,17 @@ export const FIELD_TYPE_SETTINGS: Readonly<
 	checkboxes: ["options", "minChoices", "maxChoices"],
 	consent: [],
 	hidden: ["source"],
+	file: ["accept", "maxFileBytes", "maxFiles"],
+	section: [],
+	step: [],
 };
 
-/** Whether a type of field can be required (a hidden field's value isn't the visitor's to give). */
+/**
+ * Whether a type of item can be required: a hidden field's value isn't the visitor's to give, and a
+ * section or step holds none.
+ */
 export function canBeRequired(type: FormFieldType): boolean {
-	return type !== "hidden";
+	return type !== "hidden" && type !== "section" && type !== "step";
 }
 
 /** A field of `type` with every setting unset. */
@@ -211,6 +328,10 @@ export function emptyField(key: string, type: FormFieldType, label: FormText): F
 		minChoices: null,
 		maxChoices: null,
 		source: type === "hidden" ? { kind: "page" } : null,
+		accept: [],
+		maxFileBytes: null,
+		maxFiles: null,
+		condition: null,
 	};
 }
 

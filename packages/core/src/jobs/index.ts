@@ -14,6 +14,7 @@ import {
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
 import { errorLogPrune, errorLogPruneSchedule } from "../error-log/jobs.ts";
+import { formUploadsPurge, formUploadsPurgeSchedule } from "../forms/upload-jobs.ts";
 import { healthCheck, healthCheckSchedule } from "../health/jobs.ts";
 import { historyPrune, historyPruneSchedule } from "../history/prune.ts";
 import { impersonationEnd } from "../impersonation.ts";
@@ -73,6 +74,7 @@ export const coreJobs = [
 	mediaProcess,
 	mediaVariants,
 	mediaPurge,
+	formUploadsPurge,
 	importsRun,
 	importsSurvey,
 	importsPreview,
@@ -127,6 +129,7 @@ export const coreSchedules = [
 	visitorSaltsPurgeSchedule,
 	siteFilesPurgeSchedule,
 	mediaPurgeSchedule,
+	formUploadsPurgeSchedule,
 	importsPurgeSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,

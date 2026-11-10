@@ -4,13 +4,13 @@
 // makes a new Site with its Site import report, which the admin lists; both are in the Audit log as
 // done by the command.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { PASSPHRASE } from "../harness/site-transfer.ts";
+import { manifestIn, PASSPHRASE } from "../harness/site-transfer.ts";
 
 const CLI = join(new URL("../../", import.meta.url).pathname, "apps/cli/src/main.ts");
 const EMPTY_DIRECTORY = mkdtempSync(join(tmpdir(), "webcraft-cli-"));
@@ -87,6 +87,14 @@ describe("webcraft site export", () => {
 	test("refuses a passphrase given on the command line", async () => {
 		const { code } = await webcraft(install, ["site", "export", siteId, "--passphrase", PASSPHRASE]);
 		expect(code).toBe(1);
+	});
+
+	test("can explicitly leave Submissions and private Form uploads out", async () => {
+		const path = join(folder, "without-submissions.tar");
+		const result = await webcraft(install, ["site", "export", siteId, "--to", path, "--without-submissions"]);
+		expect({ code: result.code, error: result.code === 0 ? "" : result.stderr }).toEqual({ code: 0, error: "" });
+		expect(manifestIn(readFileSync(path)).leftOut.submissions).toBe(true);
+		expect(result.stdout).toContain("Submissions and private Form uploads were left out.");
 	});
 });
 

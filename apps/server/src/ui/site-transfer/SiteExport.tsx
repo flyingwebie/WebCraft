@@ -3,7 +3,8 @@ import { PASSPHRASE_MAX_LENGTH, PASSPHRASE_MIN_LENGTH } from "@webcraft/core/sit
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import {
 	Table,
 	TableBody,
@@ -40,10 +41,12 @@ export function SiteExportPage({ siteId, initial }: { siteId: string; initial: S
 	const t = useT();
 	const runSensitive = useSensitiveAction();
 	const [exports, setExports] = useState(initial);
+	const [includeSubmissions, setIncludeSubmissions] = useState(true);
 	const [passphrase, setPassphrase] = useState("");
 	const [repeat, setRepeat] = useState("");
 	const [problem, setProblem] = useState<{ key: MessageKey; values?: Record<string, number> } | null>(null);
 	const [busy, setBusy] = useState(false);
+	const submissionsId = useId();
 	const passphraseId = useId();
 	const repeatId = useId();
 	const problemId = useId();
@@ -79,7 +82,7 @@ export function SiteExportPage({ siteId, initial }: { siteId: string; initial: S
 		try {
 			const api = await getApi();
 			const { export: started } = await runSensitive(() =>
-				api.siteExports.start({ siteId, passphrase: passphrase === "" ? null : passphrase }),
+				api.siteExports.start({ siteId, includeSubmissions, passphrase: passphrase === "" ? null : passphrase }),
 			);
 			setExports((current) => [started, ...current]);
 			setPassphrase("");
@@ -117,6 +120,18 @@ export function SiteExportPage({ siteId, initial }: { siteId: string; initial: S
 						</CardHeader>
 						<CardContent>
 							<form className="grid gap-4" onSubmit={submit} noValidate>
+								<Field orientation="horizontal">
+									<Checkbox
+										id={submissionsId}
+										checked={includeSubmissions}
+										onCheckedChange={setIncludeSubmissions}
+										aria-describedby={`${submissionsId}-help`}
+									/>
+									<FieldContent>
+										<FieldLabel htmlFor={submissionsId}>{t("siteExport.includeSubmissions")}</FieldLabel>
+										<FieldDescription id={`${submissionsId}-help`}>{t("siteExport.submissionsHelp")}</FieldDescription>
+									</FieldContent>
+								</Field>
 								<Field>
 									<FieldLabel htmlFor={passphraseId}>{t("siteExport.passphrase")}</FieldLabel>
 									<PasswordInput
@@ -247,6 +262,9 @@ function ExportRow({ item }: { item: SiteExportView }) {
 						<span className="text-muted-foreground text-xs">
 							{formatBytes(item.sizeBytes ?? 0)} · {t("siteExport.until", { time: formatUtc(item.download.expiresAt) })}
 						</span>
+						{!item.withSubmissions ? (
+							<span className="text-muted-foreground text-xs">{t("siteExport.submissionsDropped")}</span>
+						) : null}
 						{item.summary ? (
 							<span className="text-muted-foreground text-xs">
 								{t("siteExport.leftOut", {

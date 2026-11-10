@@ -15,7 +15,7 @@ import { WEBCRAFT_VERSION } from "../version.ts";
  * 4. `data/<n>-<schema>.<table>.jsonl.gz`: one table's rows of the Site, one JSON object a line, in
  *    the order they load (a table after the tables its foreign keys point at);
  * 5. `files.jsonl.gz`, then `files/<storage key>`: the stored files the rows name (Media originals,
- *    Libraries), each once.
+ *    Libraries and claimed private Form uploads), each once.
  *
  * Nothing in it is encrypted under the Master key or names one; ids are the Site's own, and every one
  * is replaced on import.
@@ -76,6 +76,8 @@ const leftOutSchema = z.object({
 	),
 	/** Whether the Site had a staging password: a password never moves. */
 	stagingPassword: z.boolean(),
+	/** Explicitly excluded Submissions and private Form uploads. Older exports included them. */
+	submissions: z.boolean().default(false),
 });
 
 /**

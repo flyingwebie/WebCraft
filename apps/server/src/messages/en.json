@@ -3215,7 +3215,10 @@
 			"radio": "Radio buttons",
 			"checkboxes": "Checkboxes",
 			"consent": "Consent",
-			"hidden": "Hidden"
+			"hidden": "Hidden",
+			"file": "File upload",
+			"section": "Section",
+			"step": "Step"
 		},
 		"field": {
 			"option": "Option",
@@ -3255,7 +3258,17 @@
 			"sourceQuery": "A parameter of the page's address",
 			"sourceFixed": "Fixed text",
 			"sourceName": "Parameter name",
-			"sourceValue": "Text"
+			"sourceValue": "Text",
+			"accept": "File formats it takes",
+			"acceptHelp": "Files are checked by what they hold, not only their names. SVG files are never taken.",
+			"formatGroups": {
+				"image": "Images",
+				"document": "Documents",
+				"media": "Audio and video"
+			},
+			"maxFileMb": "Largest file (MB)",
+			"maxFileMbHelp": "Up to {max} MB; 10 MB when left empty.",
+			"maxFiles": "Most files"
 		},
 		"settings": {
 			"sendingTitle": "Sending",
@@ -3319,7 +3332,39 @@
 			"off": "The CAPTCHA is off.",
 			"switchOff": "Switch off"
 		},
-		"tabsLabel": "Parts of {name}"
+		"tabsLabel": "Parts of {name}",
+		"condition": {
+			"badge": "Conditional",
+			"title": "When it shows",
+			"always": "Always shown. Add a rule to show it only when fields before it have certain values.",
+			"noFields": "Always shown: there is no field before it to read.",
+			"match": "Show it when",
+			"all": "All rules hold",
+			"any": "Any rule holds",
+			"rule": "Rule {number}",
+			"field": "Field",
+			"op": "Comparison",
+			"value": "Value",
+			"choose": "Choose…",
+			"addRule": "Add a rule",
+			"removeRule": "Remove rule {number}",
+			"ops": {
+				"is": "is",
+				"isNot": "is not",
+				"isEmpty": "is empty",
+				"isNotEmpty": "is filled in",
+				"greaterThan": "is more than",
+				"lessThan": "is less than"
+			}
+		},
+		"uploadAttachments": {
+			"label": "Attach files to Notifications up to (MB)",
+			"help": "Files sent with a Submission are attached while they come to this much in all; the rest are links to download them in the admin. 0 attaches none."
+		},
+		"uploadFiles": {
+			"download": "Download {name}",
+			"notKept": "{name} (not kept)"
+		}
 	},
 	"workspaceStorage": {
 		"heading": "Media storage",
@@ -6422,6 +6467,9 @@
 			},
 			"pausedDomain": {
 				"discard": "Paused domain discarded"
+			},
+			"formUpload": {
+				"download": "Downloaded a Form upload"
 			}
 		}
 	},
@@ -7026,7 +7074,10 @@
 		"failure": {
 			"access": "The person who asked may no longer export this Site.",
 			"error": "Something went wrong writing it. Try again."
-		}
+		},
+		"includeSubmissions": "Include Submissions and private Form uploads",
+		"submissionsHelp": "Clear this to leave out what visitors sent. Forms and their settings are still included.",
+		"submissionsDropped": "Submissions and private Form uploads were left out."
 	},
 	"siteImports": {
 		"pageTitle": "Site imports",
