@@ -69,6 +69,7 @@ describe("defining the Globals", () => {
 			updatedAt: null,
 			publishedAt: null,
 			lastPublishedAt: null,
+			review: null,
 		});
 	});
 

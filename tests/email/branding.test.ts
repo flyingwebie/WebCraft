@@ -42,7 +42,13 @@ async function sendAndDrain(type: "api-token-created" | "review-submitted" = "ap
 		await install.sendSystemEmail({
 			type,
 			to: { personId: superadminId },
-			data: { authorName: "Ada", itemTitle: "Spring menu", siteName: "Acme Bakery", reviewPath: "/review/1" },
+			data: {
+				authorName: "Ada",
+				items: [{ kind: "entry", title: "Spring menu" }],
+				siteName: "Acme Bakery",
+				note: null,
+				reviewPath: "/review/1",
+			},
 		});
 	}
 	await install.drainJobs();

@@ -22,6 +22,11 @@ const adminPath = z
 const name = z.string().trim().min(1).max(200);
 const title = z.string().trim().min(1).max(300);
 const count = z.number().int().positive().max(1_000_000);
+/** An item a Review is of, as its emails name it: an Entry by its title; the Globals and the Consent banner's words by what they are. */
+const reviewedItem = z.object({
+	kind: z.enum(["entry", "globals", "consentBanner"]),
+	title: z.string().max(300).nullable(),
+});
 /** Words a Module wrote, by language. */
 const moduleWords = z.record(z.string().max(35), z.string().trim().min(1).max(5000));
 
@@ -85,18 +90,33 @@ export const SYSTEM_EMAIL_TYPES = {
 		data: z.object({ clientName: name }),
 	},
 	// Work: each can be turned off.
+	/**
+	 * Something was submitted for Review: to the people who may publish it. One submission (Edit mode's
+	 * page: its Entry and the Globals) is one email, naming every item.
+	 */
 	"review-submitted": {
 		category: "work",
-		data: z.object({ authorName: name, itemTitle: title, siteName: name, reviewPath: adminPath }),
+		data: z.object({
+			authorName: name,
+			items: z.array(reviewedItem).min(1).max(50),
+			siteName: name,
+			/** The Author's note, if they wrote one. */
+			note: z.string().max(2000).nullable(),
+			reviewPath: adminPath,
+		}),
 	},
+	/** What became of something its Author submitted for Review: to the Author. */
 	"review-result": {
 		category: "work",
 		data: z.object({
-			itemTitle: title,
+			item: reviewedItem,
 			siteName: name,
-			result: z.enum(["published", "sent-back"]),
+			result: z.enum(["published", "scheduled", "sent-back"]),
 			reviewerName: name,
+			/** Why it was sent back. */
 			comment: z.string().max(5000).nullable(),
+			/** When it will be published, as System emails show times (`2026-03-02 09:00 UTC`). */
+			scheduledFor: z.string().max(40).nullable(),
 			itemPath: adminPath,
 		}),
 	},

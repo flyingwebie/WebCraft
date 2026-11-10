@@ -5,6 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import type { InstallConfig } from "../config.ts";
 import { draftAddresses } from "../content/draft-paths.ts";
 import { getEntry, listEntries, undoDraftChanges } from "../content/entries.ts";
+import { ItemInReviewError, ReviewInvalidError } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { storedFields } from "../content/fields.ts";
 import { undoGlobalsChanges } from "../content/globals.ts";
@@ -14,8 +15,11 @@ import { isPagePostType } from "../content/pages.ts";
 import { getPostType, listPostTypes } from "../content/post-types.ts";
 import { siteDrafts } from "../content/publish-all.ts";
 import { publish } from "../content/publishing.ts";
+import { currentReviews, type ReviewItem } from "../content/review-items.ts";
+import { listReviews, submitForReview, withdrawReview } from "../content/reviews.ts";
 import { getEntryTemplate } from "../content/templates.ts";
 import { storedVersion } from "../content/values.ts";
+import { itemState } from "../history/items.ts";
 import { can } from "../permissions/can.ts";
 import type { PageContent, PageInLanguage, SiteHost } from "../site-pages/index.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
@@ -37,6 +41,24 @@ export type PageChange = {
 	by: { name: string; you: boolean } | null;
 };
 
+/** The Review of one of the page's items, as the editing bar shows it. */
+export type PageReview = {
+	/** `entry:<id>` or `globals`. */
+	item: string;
+	status: "inReview" | "sentBack";
+	/** Who submitted it (In review), or who sent it back; `you` when it was the person asking. */
+	by: { name: string; you: boolean } | null;
+	/** When it was submitted (In review), or sent back. */
+	at: Date;
+	note: string | null;
+	/** Why it was sent back. */
+	comment: string | null;
+	/** Whether the person may withdraw it: they submitted it, and it still waits. */
+	canWithdraw: boolean;
+	/** Its Draft changed since it was submitted. */
+	changedSinceSubmitted: boolean;
+};
+
 /** What the editing bar shows about a page in Edit mode, and what its Publish menu offers. */
 export type PageState = {
 	page: {
@@ -52,6 +74,12 @@ export type PageState = {
 	canCode: boolean;
 	/** The page's changes: its Entry's values, then the values of the Globals it shows. */
 	changes: PageChange[];
+	/**
+	 * The Reviews of the page's items (GLOSSARY.md › Review): each waiting (In review), or sent back
+	 * with its comment until it is submitted again or published. Authors submit the page's changes for
+	 * Review instead of publishing them.
+	 */
+	reviews: PageReview[];
 	/** Where Publish all is, in the admin, and how many of the Site's other Drafts it would hold. */
 	publishAll: { url: string; otherDrafts: number };
 	/** The Site's pages, for the page switcher: the home page first, then by path. */
@@ -106,6 +134,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 			siteId: scope.site.id,
 		}),
 		changes,
+		reviews: await pageReviews(scope, items, editing.personId),
 		publishAll: {
 			url: publishAllUrl(deps.config.adminOrigin, scope.site.id),
 			otherDrafts: await otherDrafts(scope, items),
@@ -174,6 +203,75 @@ export async function publishPage(deps: PageDeps, editing: Editing, host: SiteHo
 		for (const item of changed) await publish(tx, item);
 	});
 	return pageState(deps, editing, host, path);
+}
+
+/**
+ * Submits the page's changes for Review, with an optional note: its changed items (its Entry, then the
+ * Globals it shows) that aren't In review already, together, so the people who may publish them hear
+ * of the page once. Refuses a page with nothing changed (`ReviewInvalidError`, `nothingToReview`) and
+ * one whose changed items all wait already (`ItemInReviewError`).
+ */
+export async function submitPage(
+	deps: PageDeps,
+	editing: Editing,
+	host: SiteHost,
+	input: { path: string; note: string | null },
+): Promise<PageState> {
+	if (!isEditPath(input.path)) throw new EditPathInvalidError();
+	const changed = await changedItems(deps, editing, host, input.path);
+	if (changed.length === 0) throw new ReviewInvalidError("nothingToReview");
+	const waiting = await listReviews(editing.scope);
+	const open = changed.filter((item) => !waiting.some((review) => reviewName(review.item) === nameOf(item)));
+	if (open.length === 0) {
+		const first = waiting.find((review) => reviewName(review.item) === nameOf(changed[0] as EditItem));
+		throw new ItemInReviewError(first?.item ?? null, first?.id ?? "");
+	}
+	await submitForReview(editing.scope, open, input.note);
+	return pageState(deps, editing, host, input.path);
+}
+
+/** Withdraws the Reviews of the page's items that the person submitted and that still wait. */
+export async function withdrawPage(deps: PageDeps, editing: Editing, host: SiteHost, path: string): Promise<PageState> {
+	if (!isEditPath(path)) throw new EditPathInvalidError();
+	const { items } = await pageItems(deps, editing, host, path);
+	const names = new Set(items.map(nameOf));
+	for (const review of await listReviews(editing.scope)) {
+		if (review.canWithdraw && names.has(reviewName(review.item))) await withdrawReview(editing.scope, review.id);
+	}
+	return pageState(deps, editing, host, path);
+}
+
+/** A Review's item as the page's regions name it. */
+function reviewName(item: ReviewItem): string {
+	return item.kind === "entry" ? `entry:${item.id}` : item.kind;
+}
+
+/** The Reviews of the page's items, as the editing bar shows them. */
+async function pageReviews(scope: SiteScope, items: readonly EditItem[], you: string): Promise<PageReview[]> {
+	const states = await Promise.all(
+		items.map(async (item) => {
+			const state = await itemState(scope, item);
+			return { item, draft: state.draft, name: state.summary.name, postType: state.summary.postType };
+		}),
+	);
+	const found = await currentReviews(scope, states);
+	return items.flatMap((item) => {
+		const review = found.get(nameOf(item));
+		if (!review || (review.status !== "inReview" && review.status !== "sentBack")) return [];
+		const person = review.status === "inReview" ? review.submittedBy : review.decidedBy;
+		return [
+			{
+				item: nameOf(item),
+				status: review.status,
+				by: person ? { name: person.name, you: person.id === you } : null,
+				at: review.status === "inReview" ? review.submittedAt : (review.decidedAt ?? review.submittedAt),
+				note: review.note,
+				comment: review.comment,
+				canWithdraw: review.canWithdraw,
+				changedSinceSubmitted: review.changedSinceSubmitted,
+			},
+		];
+	});
 }
 
 /** The page's items that have changes, its Entry first. */

@@ -17,6 +17,7 @@ import { FieldValueList, type ValueContext } from "../content/FieldValues.tsx";
 import type { FieldDefinition, FieldValues, Json, Problem } from "../content/model.ts";
 import { errorCode, errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { ReviewStatus, SubmitForReview } from "../review/Review.tsx";
 
 /** A Site's Consent banner as `consentBanner.get` answers it. */
 export type ConsentBannerView = Awaited<ReturnType<ApiClient["consentBanner"]["get"]>>["banner"];
@@ -63,6 +64,13 @@ export function ConsentBannerWords({
 			setSaveError(errorMessage(error));
 		},
 	});
+
+	/** Reads the words again: their status and Review. */
+	const refresh = async () => {
+		const api = await getApi();
+		const { banner } = await api.consentBanner.get({ siteId, language: text.language });
+		setText(banner.text);
+	};
 
 	const publishing = useDraftPublish({
 		flush: autosave.flush,
@@ -160,6 +168,18 @@ export function ConsentBannerWords({
 					fields={fields}
 					idPrefix="consent"
 					headingId="consent-problems-heading"
+					submit={
+						<SubmitForReview
+							siteId={siteId}
+							items={[{ kind: "consentBanner" }]}
+							disabled={text.status === "published" || text.review?.status === "inReview"}
+							flush={autosave.flush}
+							onSubmitted={refresh}
+							onProblems={() => publishing.summary.current?.focus()}
+						/>
+					}
+					authorHelp={text.review?.status === "inReview" ? "review.inReviewHelp" : "review.authorHelp"}
+					review={<ReviewStatus siteId={siteId} review={text.review} onChanged={refresh} />}
 				/>
 			</div>
 		</section>
