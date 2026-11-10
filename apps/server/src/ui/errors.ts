@@ -135,6 +135,13 @@ export function errorMessage(error: unknown): MessageKey {
 		case "CLASS_IN_USE":
 		case "TOKEN_IN_USE":
 		case "CLASS_NOT_FOUND":
+		case "SITE_EXPORT_NOT_FOUND":
+		case "SITE_EXPORT_RUNNING":
+		case "SITE_IMPORT_NOT_FOUND":
+		case "SITE_IMPORT_UPLOAD_REFUSED":
+		case "SITE_IMPORT_REFUSED":
+		case "SITE_IMPORT_NOT_READY":
+		case "SITE_IMPORT_PASSPHRASE_WRONG":
 			return `errors.${code}`;
 		case "REVIEW_INVALID":
 			switch ((data as { reason?: unknown } | undefined)?.reason) {

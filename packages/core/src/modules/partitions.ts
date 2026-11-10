@@ -10,6 +10,7 @@ import type { Database } from "@webcraft/db";
 import { modulePartitionSettings } from "@webcraft/db/schema";
 import { type Label, wordsIn } from "@webcraft/module-sdk";
 import { and, eq, sql } from "drizzle-orm";
+import type pg from "pg";
 import { z } from "zod";
 
 import type { Clock } from "../clock.ts";
@@ -57,6 +58,25 @@ const MONTH_SUFFIX = /_(\d{4})_(\d{2})$/;
 
 function ident(name: string): string {
 	return `"${name.replaceAll('"', '""')}"`;
+}
+
+/**
+ * Makes a partitioned table's partitions for the months given (each `<table>_<yyyy>_<mm>`), on a plain
+ * connection in its open transaction: a Site import's, whose rows may be in months long past.
+ */
+export async function makeMonthPartitions(
+	client: pg.ClientBase,
+	schema: string,
+	table: string,
+	months: readonly Date[],
+): Promise<void> {
+	for (const at of months) {
+		const month = monthOf(at);
+		const name = partitionName(table, month);
+		await client.query(
+			`CREATE TABLE IF NOT EXISTS ${ident(schema)}.${ident(name)} PARTITION OF ${ident(schema)}.${ident(table)} FOR VALUES FROM ('${month.toISOString()}') TO ('${addMonths(month, 1).toISOString()}')`,
+		);
+	}
 }
 
 /** Postgres errors a partition another process just made answers with: it exists, or it would overlap. */

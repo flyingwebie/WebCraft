@@ -8,6 +8,7 @@ import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
+import { exportedArchive, uploadArchive } from "../harness/site-transfer.ts";
 import { addAuthenticator, signInWithAuthenticator } from "../harness/two-factor.ts";
 import { sample } from "../modules/sample/index.ts";
 
@@ -19,6 +20,8 @@ type Fixture = {
 	siteId: string;
 	/** A Dashboard of the Site, to make Share links to. */
 	dashboardId: string;
+	/** A Site export the Superadmin uploaded into the Workspace, ready to be imported. */
+	siteImportId: string;
 	/** A Member whose access is changed, and one who is removed. */
 	changedMemberId: string;
 	removedMemberId: string;
@@ -87,6 +90,15 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 	"aiClient.approve": (api, { workspaceId, authorization }) =>
 		api.oauth.approve({ parameters: authorization, workspaceId }),
+	"site.export": (api, { siteId }) => api.siteExports.start({ siteId, passphrase: null }),
+	"site.import": (api, { workspaceId, siteImportId, next }) =>
+		api.siteImports.start({
+			workspaceId,
+			importId: siteImportId,
+			name: "Imported",
+			slug: `imported-${next()}`,
+			passphrase: null,
+		}),
 };
 
 let install: TestInstall;
@@ -105,7 +117,9 @@ beforeAll(async () => {
 	const removed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const client = await registerClient(install);
 	const { challenge } = await pkcePair();
-	const { dashboard } = await (await install.superadmin()).api.dashboards.create({ siteId: site.id, name: "Overview" });
+	const admin = await install.superadmin();
+	const { dashboard } = await admin.api.dashboards.create({ siteId: site.id, name: "Overview" });
+	const uploaded = await uploadArchive(admin, workspace.id, await exportedArchive(install, admin, site.id));
 	let made = 0;
 	fixture = {
 		authorization: authorizationParameters(install, String(client.body.client_id), challenge),
@@ -114,6 +128,7 @@ beforeAll(async () => {
 		workspaceId: workspace.id,
 		siteId: site.id,
 		dashboardId: dashboard.id,
+		siteImportId: uploaded.id,
 		changedMemberId: changed.personId,
 		removedMemberId: removed.personId,
 		next: () => ++made,

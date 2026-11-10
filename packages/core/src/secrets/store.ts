@@ -91,7 +91,7 @@ export type SecretDescription = { set: false } | { set: true; lastFour: string |
 const SHORTEST_WITH_LAST_FOUR = 16;
 
 /** The longest value a secret may have, in characters. */
-const LONGEST_VALUE = 65_536;
+export const SECRET_MAX_LENGTH = 65_536;
 
 /** The secret has no value. */
 export class SecretNotSetError extends Error {
@@ -277,7 +277,7 @@ function checkValue(value: string): void {
 	if (value === "") {
 		throw new TypeError("A secret's value can't be empty; remove the secret instead.");
 	}
-	if (value.length > LONGEST_VALUE) {
-		throw new TypeError(`A secret's value can't be longer than ${LONGEST_VALUE} characters.`);
+	if (value.length > SECRET_MAX_LENGTH) {
+		throw new TypeError(`A secret's value can't be longer than ${SECRET_MAX_LENGTH} characters.`);
 	}
 }

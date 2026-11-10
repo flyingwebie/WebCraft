@@ -47,6 +47,12 @@ import {
 } from "../reports/jobs.ts";
 import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
+import {
+	siteExportsRun,
+	siteImportsRun,
+	siteTransfersPurge,
+	siteTransfersPurgeSchedule,
+} from "../site-transfer/index.ts";
 import { translationsResume, translationsResumeSchedule, translationsRun } from "../translation/service.ts";
 import { updatesCheck, updatesCheckSchedule } from "../updates.ts";
 import { webhooksDeliver, webhooksPurgeLog, webhooksPurgeLogSchedule } from "../webhooks/jobs.ts";
@@ -104,6 +110,9 @@ export const coreJobs = [
 	healthCheck,
 	impersonationEnd,
 	scheduledPublishesDue,
+	siteExportsRun,
+	siteImportsRun,
+	siteTransfersPurge,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -135,6 +144,7 @@ export const coreSchedules = [
 	errorLogPruneSchedule,
 	healthCheckSchedule,
 	scheduledPublishesDueSchedule,
+	siteTransfersPurgeSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {

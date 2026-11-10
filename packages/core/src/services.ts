@@ -103,6 +103,7 @@ import type { InstallSetup } from "./setup.ts";
 import type { DataSample } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
 import type { SiteScripts } from "./site-scripts/index.ts";
+import type { SiteTransfer } from "./site-transfer/index.ts";
 import type { Staging } from "./staging/index.ts";
 import type {
 	Access,
@@ -655,6 +656,11 @@ export type InstallServices = InstallPorts & {
 	 * Backup) and the keep rules. Restoring is `webcraft admin restore`.
 	 */
 	backups: Backups;
+	/**
+	 * Site export and Site import (ADR 0033): one Site as one archive, written and read by the worker,
+	 * downloaded through a signed link, imported into a Workspace as a new Site with its report.
+	 */
+	siteTransfer: SiteTransfer;
 	/** The update check: the newest WebCraft release the release feed lists, checked once a day. */
 	updates: Updates;
 	/** The workers working the job queue: their check-ins, and whether one runs now. */

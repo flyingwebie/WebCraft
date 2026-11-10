@@ -25,6 +25,7 @@ import {
 	type SiteDomain,
 	type SiteDomainList,
 } from "./domains.ts";
+import { discardPausedDomain, listPausedDomains, type PausedDomain, switchOnPausedDomain } from "./paused.ts";
 import {
 	claimDueVerifications,
 	type DueDomain,
@@ -63,6 +64,7 @@ export {
 	domainsVerifyDueSchedule,
 } from "./jobs.ts";
 export { displayName, domainName, isInstallName, partnerOf } from "./names.ts";
+export type { PausedDomain } from "./paused.ts";
 
 /**
  * A Site's domains (ADR 0015): Primary, Redirect and language domains, their verification and the
@@ -103,6 +105,12 @@ export type Domains = {
 	liveDomains(): Promise<DueDomain[]>;
 	/** For the worker: the Domain check of one verified domain. */
 	checkQueued(siteId: string, domainId: string): Promise<void>;
+	/** The Site's Paused domains: those a Site import brought, off until Staff switch each on. */
+	paused(scope: SiteScope): Promise<PausedDomain[]>;
+	/** Switches a Paused domain on: it is added (or set as its language's) and waits for DNS like any new domain. */
+	switchOnPaused(scope: SiteScope, pausedId: string): Promise<void>;
+	/** Forgets a Paused domain. */
+	discardPaused(scope: SiteScope, pausedId: string): Promise<void>;
 };
 
 export type DomainsOptions = {
@@ -169,6 +177,9 @@ export function createDomains(options: DomainsOptions): Domains {
 			await verifyOnce(ports, scope, row);
 		},
 		liveDomains: () => liveDomains(database),
+		paused: (scope) => listPausedDomains(scope),
+		switchOnPaused: (scope, pausedId) => switchOnPausedDomain(deps, scope, pausedId),
+		discardPaused: (scope, pausedId) => discardPausedDomain(scope, pausedId),
 		async checkQueued(siteId, domainId) {
 			const scope = await data.background(siteId);
 			const row = scope ? await findDomain(scope, domainId).catch(() => null) : null;

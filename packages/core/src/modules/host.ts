@@ -29,6 +29,7 @@ import {
 	wordsIn,
 } from "@webcraft/module-sdk";
 import { and, eq, getTableName, isNull } from "drizzle-orm";
+import type pg from "pg";
 
 import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
@@ -72,7 +73,7 @@ import {
 	type QueuedPlace,
 } from "./jobs.ts";
 import { listModuleLog, type ModuleLogLine } from "./module-log.ts";
-import { createPartitionKeeper, type PartitionView } from "./partitions.ts";
+import { createPartitionKeeper, makeMonthPartitions, type PartitionView } from "./partitions.ts";
 import {
 	type CompiledRoute,
 	type LoadedModule,
@@ -241,6 +242,17 @@ export type ModuleHost = {
 	setKeepMonths(scope: InstallScope, moduleId: string, table: string, months: number): Promise<void>;
 	/** Makes Modules' partitions ahead of time and drops the months past keeping (the daily job). */
 	maintainPartitions(): Promise<void>;
+	/**
+	 * How a Module stands on this Install, for a Site import that needs it: approved (it runs where
+	 * Staff switch it on), waiting for approval, waiting for an updated approval, unable to run, or
+	 * missing from this build.
+	 */
+	transferStatus(moduleId: string): Promise<"approved" | "waiting" | "update-waiting" | "cannot-run" | "missing">;
+	/**
+	 * Makes the monthly partitions of a Module's partitioned table for these months, in a Site import's
+	 * transaction (the months its rows are in, which may be long past).
+	 */
+	preparePartitions(client: pg.ClientBase, moduleId: string, table: string, months: readonly Date[]): Promise<void>;
 	/** Deletes the salts of visitors' ids of days that ended (the daily job). */
 	purgeSalts(): Promise<number>;
 	/**
@@ -755,6 +767,20 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		registry,
 		schemas: schemasOf(registry),
 		components,
+
+		async transferStatus(moduleId) {
+			const module = registry.get(moduleId);
+			if (!module) return "missing";
+			return statusOf(module, (await approvals(moduleId)).get(moduleId)?.granted);
+		},
+
+		async preparePartitions(client, moduleId, table, months) {
+			const module = registry.get(moduleId);
+			if (!module?.runnable) return;
+			const partitioning = module.partitions.find((each) => each.name === table);
+			if (!partitioning) return;
+			await makeMonthPartitions(client, module.schema, partitioning.name, months);
+		},
 
 		async list(_scope, language) {
 			const approved = await approvals();

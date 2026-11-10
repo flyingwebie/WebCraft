@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import type { DnsRecord, Edge, SiteDomain, SiteDomainList } from "@webcraft/core";
+import type { DnsRecord, Edge, PausedDomain, SiteDomain, SiteDomainList } from "@webcraft/core";
 import { CDN_KEYS, CDNS, type CdnKey } from "@webcraft/core/cdns";
 import { wwwPartnerOf } from "@webcraft/core/domain-partner";
 import { STAGING_PASSWORD_MAX_LENGTH, STAGING_PASSWORD_MIN_LENGTH } from "@webcraft/core/staging-rules";
@@ -80,9 +80,12 @@ export function DomainsPage({
 	languageNames,
 	stagingPassword,
 	canManageStaging,
+	paused = [],
 }: {
 	siteId: string;
 	data: DomainsData;
+	/** The Site's Paused domains (a Site import's), for Staff. */
+	paused?: readonly PausedDomain[];
 	canEdit: boolean;
 	languageNames: LanguageNames;
 	/** Whether the Site has a staging password. */
@@ -180,6 +183,9 @@ export function DomainsPage({
 							) : null}
 						</CardContent>
 					</Card>
+				) : null}
+				{canEdit && paused.length > 0 ? (
+					<PausedDomains siteId={siteId} paused={paused} languageNames={languageNames} />
 				) : null}
 				<StagingAddress
 					siteId={siteId}
@@ -1001,5 +1007,86 @@ function StagingPassword({
 				</form>
 			) : null}
 		</section>
+	);
+}
+
+/**
+ * The Site's Paused domains (a Site import brought them, ADR 0033): each is switched on (added, then
+ * verified like any new domain) once it is free on this Install, or discarded.
+ */
+function PausedDomains({
+	siteId,
+	paused,
+	languageNames,
+}: {
+	siteId: string;
+	paused: readonly PausedDomain[];
+	languageNames: LanguageNames;
+}) {
+	const t = useT();
+	const router = useRouter();
+	const [busy, setBusy] = useState<string | null>(null);
+	const act = async (domain: PausedDomain, action: "switchOn" | "discard") => {
+		setBusy(domain.id);
+		try {
+			const api = await getApi();
+			if (action === "switchOn") await api.domains.switchOnPaused({ siteId, pausedId: domain.id });
+			else await api.domains.discardPaused({ siteId, pausedId: domain.id });
+			toast.success(
+				t(action === "switchOn" ? "domains.switchedOn" : "domains.discarded", { name: domain.displayName }),
+			);
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setBusy(null);
+		}
+	};
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>
+					<h2>{t("domains.pausedTitle")}</h2>
+				</CardTitle>
+				<CardDescription>{t("domains.pausedIntro")}</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<ul className="grid grid-cols-1 gap-3">
+					{paused.map((domain) => (
+						<li key={domain.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+							<div className="grid gap-1">
+								<span className="font-medium">{domain.displayName}</span>
+								<span className="text-muted-foreground text-sm">
+									{domain.role === "language"
+										? t("domains.pausedRole.language", {
+												name: languageNames[domain.language ?? ""] ?? domain.language ?? "",
+											})
+										: t(`domains.pausedRole.${domain.role}`)}
+								</span>
+							</div>
+							<div className="flex gap-2">
+								<Button
+									size="sm"
+									disabled={busy !== null}
+									aria-label={t("domains.switchOnLabel", { name: domain.displayName })}
+									onClick={() => void act(domain, "switchOn")}
+								>
+									{t("domains.switchOn")}
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={busy !== null}
+									aria-label={t("domains.discardLabel", { name: domain.displayName })}
+									onClick={() => void act(domain, "discard")}
+								>
+									{t("domains.discard")}
+								</Button>
+							</div>
+						</li>
+					))}
+				</ul>
+			</CardContent>
+		</Card>
 	);
 }

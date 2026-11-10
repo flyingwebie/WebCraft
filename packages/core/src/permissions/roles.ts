@@ -34,6 +34,11 @@ export const PERMISSIONS = {
 	/** See a Workspace and open it in the admin. */
 	"workspace.view": ["workspace"],
 	"site.create": ["workspace"],
+	/**
+	 * Import a Site export into the Workspace as a new Site (ADR 0033): Staff (and the Superadmin). It
+	 * brings a Site's data, secrets and Members' invitations in, so it is a Sensitive action too.
+	 */
+	"site.import": ["workspace"],
 	/** Invite Members, and resend or revoke Member invites. Nobody grants more access than they hold. */
 	"member.invite": ["workspace"],
 	/** See the Workspace's Members, change their role and Sites, and remove them. */
@@ -66,6 +71,11 @@ export const PERMISSIONS = {
 	"protectedTerms.edit": ["workspace", "site"],
 	/** See a Site and open it in the admin, and on its Staging address. */
 	"site.view": ["site"],
+	/**
+	 * Export the Site as one archive and download it (ADR 0033): Staff (and the Superadmin). The file
+	 * holds every Content, Submission and log of the Site, so it is a Sensitive action too.
+	 */
+	"site.export": ["site"],
 	/** Set or remove the Site's staging password, which lets people without an account see its Staging address. */
 	"staging.manage": ["site"],
 	/** Change a Site's Structure: Post Types, Fields, Templates, Components, the Design system, settings. */
@@ -164,6 +174,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"audit.view",
 			"workspace.view",
 			"site.create",
+			"site.import",
 			"member.invite",
 			"member.manage",
 			"twoFactor.require",
@@ -175,6 +186,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"aiUsage.view",
 			"protectedTerms.edit",
 			"site.view",
+			"site.export",
 			"staging.manage",
 			"structure.edit",
 			"aiCrawlers.manage",

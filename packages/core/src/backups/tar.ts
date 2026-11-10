@@ -104,8 +104,10 @@ export async function* readTar(source: AsyncIterable<Uint8Array>): AsyncGenerato
 		if (!checksumHolds(block)) throw new TarFormatError("The archive isn't a tar file, or it is damaged.");
 		const type = String.fromCharCode(block[156] ?? 0);
 		const size = pax?.has("size") ? Number(pax.get("size")) : readOctal(block, 124, 12);
+		if (!Number.isSafeInteger(size) || size < 0) throw new TarFormatError("Invalid tar entry size.");
 		const path = pax?.get("path") ?? readPath(block);
 		if (type === "x" || type === "g") {
+			if (size > 64 * 1024) throw new TarFormatError("The tar extension header exceeds 64 KiB.");
 			const body = await reader.exactly(size);
 			if (!body) throw new TarFormatError("The archive ends part-way through a header.");
 			await reader.skip(padding(size).length);

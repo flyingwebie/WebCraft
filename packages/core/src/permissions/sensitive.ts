@@ -78,6 +78,13 @@ export const SENSITIVE_ACTIONS = {
 	"impersonation.start": "acts as another person",
 	/** How long the Audit log keeps entries: a shorter time removes older ones. */
 	"auditRetention.change": "removes Audit log entries",
+	/**
+	 * Exporting a Site (ADR 0033): the archive carries all of the Site's data out of the Install, and its
+	 * secrets under a passphrase.
+	 */
+	"site.export": "carries a Site's data out of the Install",
+	/** Importing a Site export: it brings a Site's data and secrets in, and invites its Members. */
+	"site.import": "brings a Site's data and secrets into the Workspace",
 	/** Creating an API token: a credential that acts as the person, outside the admin. */
 	"apiToken.create": "creates a credential",
 	/** Approving an AI client: its grant's tokens act as the person, outside the admin. */

@@ -27,6 +27,7 @@ const OAUTH_LABEL = "webcraft oauth codes and tokens hmac-sha256 key";
 const MCP_REQUEST_STATE_LABEL = "webcraft mcp request state hmac-sha256 key";
 const CONTENT_KEY_LABEL = "webcraft content keys hmac-sha256 key";
 const CONTENT_CURSOR_LABEL = "webcraft content api cursors hmac-sha256 key";
+const SITE_EXPORT_LINK_LABEL = "webcraft site export download links hmac-sha256 key";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -316,4 +317,18 @@ function stateOf(masterKey: MasterKey): Derived {
 	const state = derived.get(masterKey);
 	if (!state) throw new TypeError("Not a Master key: use parseMasterKey or loadMasterKey.");
 	return state;
+}
+
+/**
+ * The key a Site export's download link is signed with (HMAC-SHA256): the link names the export and
+ * when it stops working, and only this Install can make one that holds.
+ */
+export async function siteExportLinkKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(SITE_EXPORT_LINK_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
 }

@@ -42,6 +42,7 @@ import { setup } from "./procedures/setup.ts";
 import { shell } from "./procedures/shell.ts";
 import { csp, libraries, outsideScripts } from "./procedures/site-scripts.ts";
 import { siteSmtp } from "./procedures/site-smtp.ts";
+import { siteExports, siteImports } from "./procedures/site-transfer.ts";
 import { sites } from "./procedures/sites.ts";
 import { staff } from "./procedures/staff.ts";
 import { staging } from "./procedures/staging.ts";
@@ -113,6 +114,8 @@ export const apiRouter = {
 	shareLinks,
 	reportBranding,
 	servicesList: servicesListProcedures,
+	siteExports,
+	siteImports,
 };
 
 export type ApiRouter = typeof apiRouter;

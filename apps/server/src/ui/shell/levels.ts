@@ -3,6 +3,7 @@ import type { Permission } from "@webcraft/core";
 import {
 	ActivityIcon,
 	ArchiveIcon,
+	ArchiveRestoreIcon,
 	BotIcon,
 	BracesIcon,
 	BriefcaseIcon,
@@ -298,6 +299,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						requires: "aiKey.manage",
 					},
 					{
+						id: "workspace-site-imports",
+						label: "shell.nav.siteImports",
+						icon: ArchiveRestoreIcon,
+						to: "/workspaces/$workspaceId/site-imports",
+						requires: "site.import",
+					},
+					{
 						id: "workspace-audit-log",
 						label: "shell.nav.auditLog",
 						icon: FileClockIcon,
@@ -497,6 +505,13 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: PuzzleIcon,
 						to: "/sites/$siteId/modules",
 						requires: "module.manage",
+					},
+					{
+						id: "site-export",
+						label: "shell.nav.siteExport",
+						icon: PackageIcon,
+						to: "/sites/$siteId/export",
+						requires: "site.export",
 					},
 				],
 			},

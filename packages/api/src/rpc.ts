@@ -8,6 +8,7 @@ import {
 	ImportUploadRefusedError,
 	type InstallServices,
 	MediaTooLargeError,
+	SiteImportUploadRefusedError,
 } from "@webcraft/core";
 
 import type { ApiContext } from "./context.ts";
@@ -77,6 +78,14 @@ export type LimitedBody = { request: Request; overflowed(): boolean; tooLarge():
 const OWN_UPLOAD_LIMITS: Record<string, { maxFileBytes: number; refusal: () => Error }> = {
 	"imports.uploadCsv": { maxFileBytes: CSV_LIMITS.maxBytes, refusal: csvTooLarge },
 	// A Module source's file comes in parts of at most IMPORT_PART_BYTES each, never in one body.
+	// A Site export comes in parts of at most IMPORT_PART_BYTES too.
+	"siteImports.uploadPart": {
+		maxFileBytes: IMPORT_PART_BYTES,
+		refusal: () =>
+			new SiteImportUploadRefusedError("part", `A part has at most ${IMPORT_PART_BYTES} bytes.`, {
+				bytes: IMPORT_PART_BYTES,
+			}),
+	},
 	"imports.uploadPart": {
 		maxFileBytes: IMPORT_PART_BYTES,
 		refusal: () =>

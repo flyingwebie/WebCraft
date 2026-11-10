@@ -215,7 +215,14 @@
 		"TOKENS_FILE_INVALID": "This Design tokens file can't be imported.",
 		"CLASS_IN_USE": "This Class is in use, so it can't be deleted. Take it off these first:",
 		"TOKEN_IN_USE": "This token is in use, so it can't be removed. Stop using it here first:",
-		"CLASS_NOT_FOUND": "This Class isn't in the Design system any more. Reload the page."
+		"CLASS_NOT_FOUND": "This Class isn't in the Design system any more. Reload the page.",
+		"SITE_EXPORT_NOT_FOUND": "That export no longer exists, or its download link has expired.",
+		"SITE_EXPORT_RUNNING": "This Site is being exported already. Wait for that export to finish.",
+		"SITE_IMPORT_NOT_FOUND": "That Site import no longer exists.",
+		"SITE_IMPORT_UPLOAD_REFUSED": "The upload was refused: choose the file again.",
+		"SITE_IMPORT_REFUSED": "This file can't be imported.",
+		"SITE_IMPORT_NOT_READY": "This import can't be started now: it is still uploading, was refused, or has started already.",
+		"SITE_IMPORT_PASSPHRASE_WRONG": "That isn't the passphrase the Site was exported with."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -411,7 +418,9 @@
 			"contentApi": "Content API",
 			"installHealth": "Install health",
 			"errorLog": "Error log",
-			"designSystem": "Design system"
+			"designSystem": "Design system",
+			"siteExport": "Export",
+			"siteImports": "Site imports"
 		}
 	},
 	"masterKeyBanner": {
@@ -2321,7 +2330,20 @@
 		"stagingPasswordSave": "Save password",
 		"stagingPasswordRemove": "Remove password",
 		"stagingPasswordSaved": "Staging password saved. Anyone it let in before has to give the new one.",
-		"stagingPasswordRemoved": "Staging password removed: only people who sign in see the Staging address now."
+		"stagingPasswordRemoved": "Staging password removed: only people who sign in see the Staging address now.",
+		"pausedTitle": "Paused domains",
+		"pausedIntro": "These came with the Site when it was imported. They serve nothing until you switch them on; switch one on once its DNS points at this Install and no other Site here has it.",
+		"pausedRole": {
+			"primary": "Primary domain where it came from",
+			"redirect": "Redirect domain where it came from",
+			"language": "Domain of {name}"
+		},
+		"switchOn": "Switch on",
+		"switchOnLabel": "Switch on {name}",
+		"switchedOn": "{name} was added. It waits for DNS until it is verified.",
+		"discard": "Discard",
+		"discardLabel": "Discard {name}",
+		"discarded": "{name} was discarded."
 	},
 	"webhooks": {
 		"pageTitle": "Webhooks",
@@ -6307,7 +6329,9 @@
 			"site": {
 				"create": "Site created",
 				"publishAll": "Publish all",
-				"slugChanged": "Site slug moved on upgrade"
+				"slugChanged": "Site slug moved on upgrade",
+				"export": "Site exported",
+				"import": "Site imported"
 			},
 			"siteSmtp": {
 				"change": "Site email settings changed"
@@ -6392,6 +6416,12 @@
 			"job": {
 				"retry": "Failed jobs retried",
 				"discard": "Failed jobs discarded"
+			},
+			"siteExport": {
+				"download": "Site export downloaded"
+			},
+			"pausedDomain": {
+				"discard": "Paused domain discarded"
 			}
 		}
 	},
@@ -6947,6 +6977,205 @@
 			"darkOff": "Dark mode turns off",
 			"confirm": "Replace the Draft",
 			"done": "Design system imported into the Draft."
+		}
+	},
+	"siteExport": {
+		"pageTitle": "Export",
+		"heading": "Export the Site",
+		"intro": "One file with everything in this Site, to copy or move it into a Workspace on this or another Install. Importing it always makes a new Site.",
+		"whatTitle": "What goes in",
+		"what": "Structure, Content in every language, Media, Revisions and Checkpoints, Reviews, Form Submissions, analytics, the 404 log, the Site's Audit log entries, its Modules' data, and its Members by email.",
+		"neverTitle": "What never goes in",
+		"never": "Passwords, passkeys, two-factor settings, sessions, API tokens, AI clients, Content keys, Share links and the staging password. Scheduled publishes are left out too. The file lists each of them.",
+		"passphrase": "Export passphrase (optional)",
+		"passphraseHelp": "With one, the Site's secrets (its mail server's password, CDN token, Webhook and CAPTCHA secrets) go in, encrypted under it: give it to whoever imports the file, apart from the file. Without one they are left out. WebCraft never keeps it.",
+		"passphraseRepeat": "Passphrase again",
+		"passphraseShort": "Use at least {min} characters.",
+		"passphraseMismatch": "The two passphrases differ.",
+		"start": "Export Site",
+		"started": "The export is being written. Its download link shows here when it is ready.",
+		"listTitle": "Exports",
+		"listIntro": "Each download link works for 24 hours, only for people who may export this Site; the file is deleted then.",
+		"listEmpty": "No exports of this Site yet.",
+		"caption": "This Site's exports, newest first",
+		"columns": {
+			"created": "Asked for",
+			"by": "By",
+			"status": "Status",
+			"file": "File",
+			"secrets": "Secrets"
+		},
+		"status": {
+			"waiting": "Waiting",
+			"running": "Writing",
+			"done": "Ready",
+			"failed": "Failed",
+			"expired": "Expired"
+		},
+		"progress": {
+			"tables": "Reading table {done} of {total}",
+			"files": "Checking file {done} of {total}",
+			"archive": "Writing file {done} of {total}"
+		},
+		"secretsCarried": "{count, plural, =0 {None} one {# carried} other {# carried}}",
+		"secretsDropped": "{count, plural, =0 {None} one {# left out} other {# left out}}",
+		"download": "Download",
+		"downloadLabel": "Download {file}",
+		"until": "Until {time}",
+		"leftOut": "Left out: {count, plural, one {# Content key} other {# Content keys}}, {links, plural, one {# Share link} other {# Share links}}, {schedules, plural, one {# Scheduled publish} other {# Scheduled publishes}}.",
+		"failure": {
+			"access": "The person who asked may no longer export this Site.",
+			"error": "Something went wrong writing it. Try again."
+		}
+	},
+	"siteImports": {
+		"pageTitle": "Site imports",
+		"heading": "Site imports",
+		"intro": "Bring a Site export into this Workspace as a new Site. Its Content arrives as Drafts, its domains paused and its Members invited: nothing is published until someone publishes.",
+		"uploadTitle": "Import a Site",
+		"file": "Site export file",
+		"fileHelp": "A .tar file a Site export made, on this or another Install. Large files upload in parts, and an upload that stops goes on where it got to.",
+		"uploading": "Uploading: {percent}%",
+		"listTitle": "Imports",
+		"listEmpty": "No Site imports in this Workspace yet.",
+		"listIntro": "Each import's Site import report is kept for 90 days after it ends.",
+		"caption": "This Workspace's Site imports, newest first",
+		"columns": {
+			"file": "File",
+			"site": "Site",
+			"status": "Status",
+			"created": "Started",
+			"by": "By"
+		},
+		"status": {
+			"uploading": "Uploading",
+			"ready": "Ready to import",
+			"refused": "Refused",
+			"waiting": "Waiting",
+			"running": "Importing",
+			"done": "Imported",
+			"failed": "Failed"
+		},
+		"open": "Open",
+		"openLabel": "Open the import of {file}",
+		"refusal": {
+			"not-an-export": "This file isn't a WebCraft Site export.",
+			"newer-format": "This export is in a newer layout than this WebCraft reads. Update this Install first.",
+			"newer-version": "This export was written by a newer WebCraft ({version}). Update this Install first.",
+			"damaged": "This file is damaged: export the Site again."
+		},
+		"failure": {
+			"access": "The person who started it may no longer import into this Workspace.",
+			"slug": "Another Site took that slug meanwhile. Upload the file again and choose another.",
+			"passphrase": "The passphrase didn't open the export's secrets.",
+			"damaged": "The file is damaged: export the Site again.",
+			"not-an-export": "This file isn't a WebCraft Site export.",
+			"newer-format": "This export is in a newer layout than this WebCraft reads.",
+			"newer-version": "This export was written by a newer WebCraft.",
+			"error": "Something went wrong reading it in. Nothing was kept: try again.",
+			"quota": "The Workspace's Media quota changed or is full. Free space or increase it, then import again."
+		},
+		"backToList": "Back to Site imports",
+		"from": "{name} ({slug}), exported {time} by WebCraft {version}",
+		"readyTitle": "Import as a new Site",
+		"readyIntro": "The new Site gets its own name and slug; no other Site is touched.",
+		"name": "Site name",
+		"slug": "Slug",
+		"slugHelp": "Lower-case letters, digits and dashes. It names the Site's Staging address.",
+		"passphrase": "Export passphrase",
+		"passphraseHelp": "The passphrase the Site was exported with, to bring its secrets too. Without it they are left out, and listed.",
+		"noSecrets": "This export carries no secrets: they were left out when it was made, and the report will list them.",
+		"start": "Import Site",
+		"holds": "What it holds",
+		"counts": "{entries, plural, one {# Entry} other {# Entries}}, {media, plural, one {# Media file} other {# Media files}}, {members, plural, one {# Member} other {# Members}}, {submissions, plural, one {# Submission} other {# Submissions}}",
+		"size": "Media: {size}",
+		"modulesTitle": "Modules it needs",
+		"moduleStatus": {
+			"approved": "Approved here",
+			"waiting": "Waiting for approval: approve it in Install settings › Modules",
+			"update-waiting": "Its update waits for approval in Install settings › Modules",
+			"cannot-run": "Can't run on this Install",
+			"missing": "Not on this Install: its data is kept aside"
+		},
+		"progressTitle": "Importing",
+		"progress": {
+			"tables": "Reading table {done} of {total}",
+			"files": "Copying file {done} of {total}",
+			"people": "Matching people"
+		},
+		"progressIntro": "The worker reads it in; you may leave this page."
+	},
+	"siteImportReport": {
+		"heading": "Site import report",
+		"kept": "Kept until {time}",
+		"openSite": "Open the Site",
+		"stats": {
+			"drafts": "Drafts",
+			"draftsNote": "{count} were published",
+			"files": "Files",
+			"filesNote": "{size}",
+			"invited": "Invited",
+			"invitedNote": "{count} sent",
+			"paused": "Paused domains",
+			"pausedNote": "Switch on in Domains",
+			"reassigned": "Reassigned",
+			"reassignedNote": "No account here",
+			"secrets": "Secrets",
+			"secretsNote": "{count} left out"
+		},
+		"tabsLabel": "What the import did",
+		"tabs": {
+			"invited": "Invited",
+			"matched": "Members",
+			"reassigned": "Reassigned",
+			"paused": "Paused domains",
+			"secrets": "Secrets",
+			"dropped": "Left out",
+			"modules": "Modules"
+		},
+		"invitedIntro": "Pending invitations to the new Site, with the role each had. Nobody was emailed: send them when the Site is ready.",
+		"sendInvitations": "Send invitations",
+		"sent": "Invitations sent.",
+		"inviteSent": "Sent",
+		"inviteWaiting": "Not sent",
+		"matchedIntro": "Members of this Workspace who were Members of the Site: they keep their role here and reach the new Site.",
+		"reassignedIntro": "People the Site's history names who have no account here: what they did is attributed to the person who imported it. The Audit log keeps their names.",
+		"pausedIntro": "The Site's domains, paused: they serve nothing until switched on in Domains.",
+		"openDomains": "Open Domains",
+		"secretsSet": "Set on the new Site: {names}",
+		"secretsDropped": "Left out: {names}",
+		"secretsReason": {
+			"noPassphrase": "The export carried them, but no passphrase was given.",
+			"notCarried": "The export was made without a passphrase.",
+			"unreadable": "Some couldn't be opened with the passphrase."
+		},
+		"webhooksOff": "Webhooks switched off, since their signing secret was left out: {names}",
+		"reportsPaused": "Reports paused, so they don't email before the Site is ready: {names}",
+		"droppedIntro": "What never moves between Installs. Make them again on the new Site where needed.",
+		"droppedContentKeys": "Content keys: {names}",
+		"droppedShareLinks": "Share links: {names}",
+		"droppedSchedules": "Scheduled publishes: {names}",
+		"droppedStaging": "The staging password",
+		"none": "None.",
+		"modulesIntro": "The Modules the Site's data needs, and how each stands here.",
+		"columns": {
+			"email": "Email",
+			"name": "Name",
+			"role": "Role",
+			"sent": "Invitation",
+			"was": "Was",
+			"domain": "Domain",
+			"kind": "Role there",
+			"module": "Module",
+			"version": "Version",
+			"status": "Here"
+		},
+		"nextTitle": "Next steps",
+		"next": {
+			"staging": "Check the Drafts on the Staging address",
+			"publish": "Publish everything with Publish all",
+			"domains": "Switch the domains on in Domains",
+			"invite": "Send the invitations"
 		}
 	}
 }

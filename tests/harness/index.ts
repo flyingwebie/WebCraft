@@ -149,6 +149,11 @@ export type TestInstallOptions = {
 	maxImagePixels?: number;
 	/** How long Import from URL waits for a file: 30 seconds unless given (to test it without waiting). */
 	mediaImportTimeoutMs?: number;
+	/**
+	 * Site exports' streaming thresholds: rows read from each table at a time, and the size of an
+	 * archive's parts in storage (the real ones unless given: to test streaming with a small Site).
+	 */
+	siteTransfer?: { batchRows?: number; partBytes?: number };
 	/** `WEBCRAFT_UPDATE_FEED`: the project's own feed unless given; null for `off`. */
 	updateFeed?: string | null;
 	/**
@@ -501,6 +506,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			checkMasterKey: started === "migrated",
 			modules,
 			mediaImportTimeoutMs: options.mediaImportTimeoutMs,
+			siteTransfer: options.siteTransfer,
 		});
 		if (started === "migrated") await opened.setup.announce();
 		return opened;

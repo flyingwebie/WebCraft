@@ -143,6 +143,7 @@ import {
 	rateLimitKey,
 	sessionSigningSecret,
 	shareLinkPasswordKey,
+	siteExportLinkKey,
 	stagingPasswordKey,
 	visitorIdKey,
 } from "./secrets/master-key.ts";
@@ -153,6 +154,7 @@ import { createInstallSetup } from "./setup.ts";
 import { entryTemplateData, globalsData, loopData } from "./site-pages/data-samples.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createSiteScripts } from "./site-scripts/index.ts";
+import { createSiteTransfer } from "./site-transfer/index.ts";
 import { createStaging } from "./staging/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createInvites } from "./tenancy/invites.ts";
@@ -179,6 +181,8 @@ export type CreateServicesOptions = {
 	 * start (default). Only code that must not read the database yet turns this off.
 	 */
 	checkMasterKey?: boolean;
+	/** Lower Site export thresholds (rows fetched at a time, archive part size): the test harness's, to test streaming. */
+	siteTransfer?: { batchRows?: number; partBytes?: number };
 };
 
 /**
@@ -392,6 +396,30 @@ export async function createInstallServices(
 		},
 	});
 	attachments.read = reports.attachment;
+	const members = createMembers({ database, email });
+	const siteTransfer = createSiteTransfer({
+		database,
+		storage,
+		secrets: installSecrets,
+		data,
+		actors,
+		modules,
+		members,
+		jobs: ports.jobs,
+		clock,
+		log,
+		config,
+		linkKey: await siteExportLinkKey(masterKey),
+		tuning: options.siteTransfer,
+		// Only the server commands use these: no person (and so no Site scope) acts there.
+		commandSecrets: {
+			names: (site) => store.names({ kind: "site", workspaceId: site.workspaceId, siteId: site.id }, ""),
+			useWith: (site, name, use) =>
+				store.useWith({ owner: { kind: "site", workspaceId: site.workspaceId, siteId: site.id }, name }, use),
+			set: (site, name, value) =>
+				store.set({ owner: { kind: "site", workspaceId: site.workspaceId, siteId: site.id }, name }, value),
+		},
+	});
 	const backups = createBackups({
 		config,
 		database,
@@ -615,7 +643,7 @@ export async function createInstallServices(
 		codeMode: createCodeMode({ data, sources: componentSources, pages: sitePages }),
 		builder: createBuilder({ sources: componentSources }),
 		memberships,
-		members: createMembers({ database, email }),
+		members,
 		staff: createStaff({ email }),
 		invites: createInvites({ database, auth, settings, clock, memberships }),
 		audit: createAuditLog({ database, data, clock }),
@@ -642,6 +670,7 @@ export async function createInstallServices(
 			jobs: ports.jobs,
 			queueNames: coreJobs.map((job) => job.name),
 		}),
+		siteTransfer,
 		reports,
 		shareLinks: createShareLinks({
 			database,

@@ -125,6 +125,7 @@ import {
 	PageNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
+	PassphraseWrongError,
 	PathTakenError,
 	PermissionDeniedError,
 	PersonNotFoundError,
@@ -160,6 +161,12 @@ import {
 	ShareLinkInvalidError,
 	ShareLinkNotFoundError,
 	ShareLinksUnavailableError,
+	SiteExportNotFoundError,
+	SiteExportRunningError,
+	SiteImportNotFoundError,
+	SiteImportRefusedError,
+	SiteImportStateError,
+	SiteImportUploadRefusedError,
 	SiteNotFoundError,
 	SlugInvalidError,
 	SlugTakenError,
@@ -224,6 +231,42 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof SlugTakenError) {
 		return new ORPCError("SLUG_TAKEN", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof SiteExportNotFoundError) {
+		return new ORPCError("SITE_EXPORT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof SiteExportRunningError) {
+		return new ORPCError("SITE_EXPORT_RUNNING", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof SiteImportNotFoundError) {
+		return new ORPCError("SITE_IMPORT_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof SiteImportUploadRefusedError) {
+		return new ORPCError("SITE_IMPORT_UPLOAD_REFUSED", {
+			status: error.reason === "size" && "maxBytes" in error.details ? 413 : error.reason === "status" ? 409 : 400,
+			message: error.message,
+			data: { reason: error.reason, ...error.details },
+			cause: error,
+		});
+	}
+	if (error instanceof SiteImportRefusedError) {
+		return new ORPCError("SITE_IMPORT_REFUSED", {
+			status: 422,
+			message: error.message,
+			data: { reason: error.reason, ...error.details },
+			cause: error,
+		});
+	}
+	if (error instanceof SiteImportStateError) {
+		return new ORPCError("SITE_IMPORT_NOT_READY", {
+			status: 409,
+			message: error.message,
+			data: { status: error.status },
+			cause: error,
+		});
+	}
+	if (error instanceof PassphraseWrongError) {
+		return new ORPCError("SITE_IMPORT_PASSPHRASE_WRONG", { status: 400, message: error.message, cause: error });
 	}
 	if (error instanceof PostTypeNotFoundError) {
 		return new ORPCError("POST_TYPE_NOT_FOUND", { status: 404, message: error.message, cause: error });

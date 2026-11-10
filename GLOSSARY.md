@@ -318,6 +318,10 @@ _Avoid_: Main domain, live URL
 A domain attached to a Site that sends visitors to the same path on the Site's Primary domain, such as `www` or an old domain.
 _Avoid_: Alias, secondary domain, parked domain
 
+**Paused domain**:
+A domain a Site import brought with the Site, kept off its domains until Staff switch it on, when it is added and verified like any new domain: the Site it came from may still have it.
+_Avoid_: Disabled domain, inactive domain, parked domain
+
 **Webhook**:
 A call the Install makes to an outside address when something happens on a Site, such as a form being submitted or an Entry being published.
 _Avoid_: Callback, hook, integration
@@ -641,6 +645,14 @@ _Avoid_: Snapshot, dump, export (that is one Site)
 **Site export**:
 A file holding one Site, its Structure, Content, Media, history, Submissions and Members, used to copy it into a Workspace on the same or another Install. Importing always creates a new Site. It is not a Backup.
 _Avoid_: Clone, site template, migration, transfer
+
+**Site import**:
+Bringing a Site export into a Workspace as a new Site, never over an existing one: its Content arrives as Drafts, its domains as Paused domains, and its Members matched by email or invited. It is not an Import, which brings outside content into one Site.
+_Avoid_: Restore, Import (that is outside content), migration
+
+**Site import report**:
+The record of a Site import: what came in, and what was reassigned, invited, paused, set or left out, such as secrets without their passphrase, Content keys and Scheduled publishes. It is not an Import report.
+_Avoid_: Import report (that is an Import run's), import log
 
 **Install health**:
 The Superadmin's view of whether an Install is working: its web and worker processes, database, job queue, storage, Backups, email settings, Site domains and Error log, each shown as OK, Warning or Failing.

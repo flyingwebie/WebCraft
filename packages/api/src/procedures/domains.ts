@@ -86,4 +86,31 @@ export const domains = {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 			return await context.services.domains.remove(site, input.domainId, input.confirmation);
 		}),
+
+	/**
+	 * The Site's Paused domains: those a Site import brought (ADR 0033), which serve nothing until Staff
+	 * switch them on (Site settings, `structure.edit`).
+	 */
+	paused: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { paused: await context.services.domains.paused(site) };
+	}),
+
+	/**
+	 * Switches a Paused domain on: a language's becomes that language's domain again, any other is added
+	 * (the Primary domain when the Site has none); it then waits for DNS and is verified like any domain.
+	 * `DOMAIN_TAKEN` while another Site of the Install has it. Logged `domain.add`.
+	 */
+	switchOnPaused: signedIn.input(z.object({ siteId: id, pausedId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		await context.services.domains.switchOnPaused(site, input.pausedId);
+		return { ...(await context.services.domains.list(site)), paused: await context.services.domains.paused(site) };
+	}),
+
+	/** Forgets a Paused domain the Site won't use here. Logged `pausedDomain.discard`. */
+	discardPaused: signedIn.input(z.object({ siteId: id, pausedId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		await context.services.domains.discardPaused(site, input.pausedId);
+		return { paused: await context.services.domains.paused(site) };
+	}),
 };

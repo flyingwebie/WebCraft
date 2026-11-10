@@ -42,4 +42,4 @@ export {
 	type TakenBackup,
 	takeBackup,
 } from "./take.ts";
-export { type BackupTargetKind, BUCKET_FOLDER } from "./targets.ts";
+export { type BackupTargetKind, BUCKET_FOLDER, fileTarget } from "./targets.ts";

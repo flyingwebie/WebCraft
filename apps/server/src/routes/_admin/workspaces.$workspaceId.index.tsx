@@ -14,7 +14,7 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
-import { AppWindowIcon, GlobeIcon, PlusIcon } from "lucide-react";
+import { AppWindowIcon, ArchiveRestoreIcon, GlobeIcon, PlusIcon } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -43,11 +43,28 @@ function SitesPage() {
 	const t = useT();
 	const place = Route.useRouteContext().place as WorkspacePlace;
 	const canCreate = place.permissions.includes("site.create");
+	const canImport = place.permissions.includes("site.import");
 	const { storage } = Route.useLoaderData();
+	const actions =
+		canCreate || canImport ? (
+			<div className="flex flex-wrap gap-2">
+				{canImport ? (
+					<Button
+						variant="outline"
+						render={<Link to="/workspaces/$workspaceId/site-imports" params={{ workspaceId: place.workspace.id }} />}
+						nativeButton={false}
+					>
+						<ArchiveRestoreIcon aria-hidden="true" />
+						{t("siteImports.uploadTitle")}
+					</Button>
+				) : null}
+				{canCreate ? <NewSiteDialog place={place} /> : null}
+			</div>
+		) : undefined;
 
 	return (
 		<>
-			<PageHeader heading={t("sites.heading")} action={canCreate ? <NewSiteDialog place={place} /> : undefined}>
+			<PageHeader heading={t("sites.heading")} action={actions}>
 				{t("sites.intro")}
 			</PageHeader>
 			{place.sites.length === 0 ? (

@@ -94,6 +94,9 @@ export function s3Storage(options: S3ClientOptions): StorageBackend {
 			if (!response.ok) throw await refused(response, "store a file");
 			await response.body?.cancel();
 		},
+		async putStream(key, data, contentType) {
+			await writeStream({ send }, key, data, contentType);
+		},
 		async read(key) {
 			const response = await send("GET", key);
 			if (response.status === 404) {
@@ -137,4 +140,84 @@ function amzDate(date: Date): string {
 async function sha256Hex(data: Uint8Array): Promise<string> {
 	const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(data)));
 	return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Multipart upload: abort on any source, checksum or bucket failure. */
+async function writeStream(
+	client: Pick<S3Client, "send">,
+	key: string,
+	bytes: AsyncIterable<Uint8Array>,
+	contentType: string,
+): Promise<number> {
+	const started = await client.send("POST", key, {
+		query: { uploads: "" },
+		headers: { "content-type": contentType },
+	});
+	if (!started.ok) throw await refused(started, "start an upload");
+	const uploadId = /<UploadId>([^<]+)<\/UploadId>/.exec(await started.text())?.[1];
+	if (!uploadId) throw new StorageError("The bucket started an upload without saying its id.");
+	const parts: { number: number; etag: string }[] = [];
+	let size = 0;
+	try {
+		for await (const part of inParts(bytes, 5 * 1024 * 1024)) {
+			const number = parts.length + 1;
+			const response = await client.send("PUT", key, {
+				query: { partNumber: String(number), uploadId },
+				body: part,
+			});
+			if (!response.ok) throw await refused(response, "store part of a file");
+			await response.body?.cancel();
+			const etag = response.headers.get("etag");
+			if (!etag) throw new StorageError("The bucket stored part of a file without saying its ETag.");
+			parts.push({ number, etag });
+			size += part.length;
+		}
+		const list = parts
+			.map((part) => `<Part><PartNumber>${part.number}</PartNumber><ETag>${escapeXml(part.etag)}</ETag></Part>`)
+			.join("");
+		const done = await client.send("POST", key, {
+			query: { uploadId },
+			body: new TextEncoder().encode(`<CompleteMultipartUpload>${list}</CompleteMultipartUpload>`),
+			headers: { "content-type": "application/xml" },
+		});
+		// A bucket can answer 200 and still say the upload failed.
+		const answer = await done.text();
+		if (!done.ok || answer.includes("<Error>")) {
+			const code = /<Code>([^<]+)<\/Code>/.exec(answer)?.[1];
+			throw new StorageError(`The bucket refused to finish the upload: ${done.status}${code ? ` ${code}` : ""}.`);
+		}
+	} catch (error) {
+		await client
+			.send("DELETE", key, { query: { uploadId } })
+			.then((response) => response.body?.cancel())
+			.catch(() => {});
+		throw error;
+	}
+	return size;
+}
+/** Regroups chunks into parts of `size` bytes (the last one smaller); one empty part for no bytes. */
+async function* inParts(bytes: AsyncIterable<Uint8Array>, size: number): AsyncGenerator<Uint8Array> {
+	let part = new Uint8Array(size);
+	let filled = 0;
+	let sent = false;
+	for await (const chunk of bytes) {
+		let offset = 0;
+		while (offset < chunk.length) {
+			const taken = Math.min(size - filled, chunk.length - offset);
+			part.set(chunk.subarray(offset, offset + taken), filled);
+			filled += taken;
+			offset += taken;
+			if (filled === size) {
+				yield part;
+				sent = true;
+				part = new Uint8Array(size);
+				filled = 0;
+			}
+		}
+	}
+	if (filled > 0 || !sent) yield part.subarray(0, filled);
+}
+
+function escapeXml(text: string): string {
+	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }

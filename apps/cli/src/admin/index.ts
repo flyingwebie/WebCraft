@@ -8,8 +8,14 @@ import {
 	ConfigError,
 	KeyRotationError,
 	MasterKeyMismatchError,
+	PassphraseWrongError,
 	RestoreRefusedError,
 	SetupClosedError,
+	SiteImportRefusedError,
+	SiteNotFoundError,
+	SlugInvalidError,
+	SlugTakenError,
+	WorkspaceNotFoundError,
 } from "@webcraft/core";
 import { DatabaseNotReadyError, MigrationError, ModuleMigrationError } from "@webcraft/db";
 
@@ -19,6 +25,12 @@ import { doctorCommand, healthCommand, mediaMoveCommand, setupCommand } from "./
 import { createSuperadmin, parseCreateSuperadminOptions } from "./create-superadmin.ts";
 import { resetTwoFactor } from "./reset-two-factor.ts";
 import { parseRotateKeyOptions, rotateKey } from "./rotate-key.ts";
+import {
+	parseSiteExportOptions,
+	parseSiteImportOptions,
+	siteExportCommand,
+	siteImportCommand,
+} from "./site-transfer.ts";
 
 export const ADMIN_USAGE = `Usage: webcraft admin <command>
 
@@ -73,6 +85,19 @@ Server commands: run them on the server, with the Install's environment (the web
                      are signed out everywhere and emailed, and they sign in with their password
                      and set it up again. Recorded in the Audit log as done by the command.
 
+Site exports (ADR 0033), on the server too:
+  site export <site id> [--to <file or folder>] [--passphrase]
+                     Export a Site as one file now (as Site › Export does), into the folder given
+                     (here unless given) or as the file named. With --passphrase its secrets go in,
+                     encrypted under a passphrase asked twice on a terminal (or read from the first
+                     line of standard input); without, they are left out and listed.
+  site import <archive> --workspace <id> --slug <slug> [--name <name>] [--passphrase]
+                     Import a Site export into a Workspace as a new Site (never over another), as
+                     Workspace › Site imports does: Content as Drafts, domains paused, Members
+                     matched by email or invited (no email sent). With --passphrase (asked, or read
+                     from standard input) its secrets come too. The Site import report shows in the
+                     admin. Both are recorded in the Audit log as done by the command.
+
 Options:
   -h, --help         Show this help.
 `;
@@ -92,6 +117,12 @@ const EXPLAINED_ERRORS = [
 	PasswordRefusedError,
 	InvalidEmailError,
 	EmailInUseError,
+	PassphraseWrongError,
+	SiteImportRefusedError,
+	SiteNotFoundError,
+	WorkspaceNotFoundError,
+	SlugTakenError,
+	SlugInvalidError,
 ];
 
 /** Runs `webcraft admin <command> …` and answers its exit code. */
@@ -148,6 +179,14 @@ async function dispatch(args: string[], io: CliIo, help: boolean, json: boolean)
 	}
 	if (command === "reset-2fa" && rest.length === 1 && !rest[0]?.startsWith("-")) {
 		return resetTwoFactor(rest[0] ?? "");
+	}
+	if (command === "site" && rest[0] === "export") {
+		const options = parseSiteExportOptions(rest.slice(1));
+		if (options) return siteExportCommand(process.env, options);
+	}
+	if (command === "site" && rest[0] === "import") {
+		const options = parseSiteImportOptions(rest.slice(1));
+		if (options) return siteImportCommand(process.env, options);
 	}
 	if (command === "create-superadmin") {
 		const options = parseCreateSuperadminOptions(rest);

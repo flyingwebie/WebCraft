@@ -215,7 +215,14 @@
 		"TOKENS_FILE_INVALID": "Questo file di Design token non si può importare.",
 		"CLASS_IN_USE": "Questa Classe è in uso, quindi non si può eliminare. Prima toglila da qui:",
 		"TOKEN_IN_USE": "Questo token è in uso, quindi non si può rimuovere. Prima smetti di usarlo qui:",
-		"CLASS_NOT_FOUND": "Questa Classe non è più nel Design system. Ricarica la pagina."
+		"CLASS_NOT_FOUND": "Questa Classe non è più nel Design system. Ricarica la pagina.",
+		"SITE_EXPORT_NOT_FOUND": "Quell'esportazione non esiste più, o il suo link di download è scaduto.",
+		"SITE_EXPORT_RUNNING": "Questo Sito è già in esportazione. Attendi che finisca.",
+		"SITE_IMPORT_NOT_FOUND": "Quell'importazione di Sito non esiste più.",
+		"SITE_IMPORT_UPLOAD_REFUSED": "Il caricamento è stato rifiutato: scegli di nuovo il file.",
+		"SITE_IMPORT_REFUSED": "Questo file non si può importare.",
+		"SITE_IMPORT_NOT_READY": "Questa importazione non può partire ora: è ancora in caricamento, è stata rifiutata o è già partita.",
+		"SITE_IMPORT_PASSPHRASE_WRONG": "Non è la passphrase con cui il Sito è stato esportato."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -411,7 +418,9 @@
 			"contentApi": "Content API",
 			"installHealth": "Stato dell'installazione",
 			"errorLog": "Registro errori",
-			"designSystem": "Design system"
+			"designSystem": "Design system",
+			"siteExport": "Esporta",
+			"siteImports": "Importazioni di Siti"
 		}
 	},
 	"masterKeyBanner": {
@@ -2321,7 +2330,20 @@
 		"stagingPasswordSave": "Salva password",
 		"stagingPasswordRemove": "Rimuovi password",
 		"stagingPasswordSaved": "Password di staging salvata. Chi era entrato con la precedente deve inserire quella nuova.",
-		"stagingPasswordRemoved": "Password di staging rimossa: ora solo chi accede vede l'indirizzo di staging."
+		"stagingPasswordRemoved": "Password di staging rimossa: ora solo chi accede vede l'indirizzo di staging.",
+		"pausedTitle": "Domini in pausa",
+		"pausedIntro": "Sono arrivati con il Sito quando è stato importato. Non servono nulla finché non li attivi; attivane uno quando il suo DNS punta a questa Install e nessun altro Sito qui lo usa.",
+		"pausedRole": {
+			"primary": "Dominio principale dove si trovava",
+			"redirect": "Dominio di reindirizzamento dove si trovava",
+			"language": "Dominio di {name}"
+		},
+		"switchOn": "Attiva",
+		"switchOnLabel": "Attiva {name}",
+		"switchedOn": "{name} è stato aggiunto. Attende il DNS finché non viene verificato.",
+		"discard": "Scarta",
+		"discardLabel": "Scarta {name}",
+		"discarded": "{name} è stato scartato."
 	},
 	"webhooks": {
 		"pageTitle": "Webhook",
@@ -6307,7 +6329,9 @@
 			"site": {
 				"create": "Sito creato",
 				"publishAll": "Pubblica tutto",
-				"slugChanged": "Slug del sito spostato con l'aggiornamento"
+				"slugChanged": "Slug del sito spostato con l'aggiornamento",
+				"export": "Sito esportato",
+				"import": "Sito importato"
 			},
 			"siteSmtp": {
 				"change": "Impostazioni email del sito modificate"
@@ -6392,6 +6416,12 @@
 			"job": {
 				"retry": "Job non riusciti riprovati",
 				"discard": "Job non riusciti eliminati"
+			},
+			"siteExport": {
+				"download": "Esportazione del Sito scaricata"
+			},
+			"pausedDomain": {
+				"discard": "Dominio in pausa scartato"
 			}
 		}
 	},
@@ -6947,6 +6977,205 @@
 			"darkOff": "La modalità scura si disattiva",
 			"confirm": "Sostituisci la Bozza",
 			"done": "Design system importato nella Bozza."
+		}
+	},
+	"siteExport": {
+		"pageTitle": "Esporta",
+		"heading": "Esporta il Sito",
+		"intro": "Un file con tutto ciò che c'è in questo Sito, per copiarlo o spostarlo in un Workspace di questa o di un'altra Install. Importarlo crea sempre un nuovo Sito.",
+		"whatTitle": "Cosa contiene",
+		"what": "Struttura, Contenuti in ogni lingua, Media, Revisioni e Checkpoint, Revisioni editoriali, Invii dei moduli, analytics, il registro dei 404, le voci del registro di controllo del Sito, i dati dei suoi Moduli e i suoi Membri per email.",
+		"neverTitle": "Cosa non contiene mai",
+		"never": "Password, passkey, impostazioni della verifica in due passaggi, sessioni, token API, client AI, chiavi Content, link di condivisione e la password di staging. Anche le pubblicazioni programmate restano fuori. Il file le elenca tutte.",
+		"passphrase": "Passphrase di esportazione (facoltativa)",
+		"passphraseHelp": "Con una passphrase, i segreti del Sito (la password del suo server di posta, il token CDN, i segreti dei Webhook e del CAPTCHA) entrano nel file, cifrati con essa: dalla a chi importerà il file, separatamente. Senza, restano fuori. WebCraft non la conserva mai.",
+		"passphraseRepeat": "Ripeti la passphrase",
+		"passphraseShort": "Usa almeno {min} caratteri.",
+		"passphraseMismatch": "Le due passphrase sono diverse.",
+		"start": "Esporta il Sito",
+		"started": "L'esportazione è in scrittura. Il suo link di download comparirà qui quando sarà pronta.",
+		"listTitle": "Esportazioni",
+		"listIntro": "Ogni link di download funziona per 24 ore, solo per chi può esportare questo Sito; poi il file viene eliminato.",
+		"listEmpty": "Ancora nessuna esportazione di questo Sito.",
+		"caption": "Le esportazioni di questo Sito, dalla più recente",
+		"columns": {
+			"created": "Richiesta",
+			"by": "Da",
+			"status": "Stato",
+			"file": "File",
+			"secrets": "Segreti"
+		},
+		"status": {
+			"waiting": "In attesa",
+			"running": "In scrittura",
+			"done": "Pronta",
+			"failed": "Non riuscita",
+			"expired": "Scaduta"
+		},
+		"progress": {
+			"tables": "Lettura della tabella {done} di {total}",
+			"files": "Controllo del file {done} di {total}",
+			"archive": "Scrittura del file {done} di {total}"
+		},
+		"secretsCarried": "{count, plural, =0 {Nessuno} one {# incluso} other {# inclusi}}",
+		"secretsDropped": "{count, plural, =0 {Nessuno} one {# escluso} other {# esclusi}}",
+		"download": "Scarica",
+		"downloadLabel": "Scarica {file}",
+		"until": "Fino a {time}",
+		"leftOut": "Esclusi: {count, plural, one {# chiave Content} other {# chiavi Content}}, {links, plural, one {# link di condivisione} other {# link di condivisione}}, {schedules, plural, one {# pubblicazione programmata} other {# pubblicazioni programmate}}.",
+		"failure": {
+			"access": "La persona che l'ha richiesta non può più esportare questo Sito.",
+			"error": "Qualcosa è andato storto durante la scrittura. Riprova."
+		}
+	},
+	"siteImports": {
+		"pageTitle": "Importazioni di Siti",
+		"heading": "Importazioni di Siti",
+		"intro": "Porta un'esportazione di Sito in questo Workspace come nuovo Sito. I Contenuti arrivano come Bozze, i domini in pausa e i Membri invitati: nulla viene pubblicato finché qualcuno non pubblica.",
+		"uploadTitle": "Importa un Sito",
+		"file": "File di esportazione del Sito",
+		"fileHelp": "Un file .tar creato da un'esportazione di Sito, su questa o un'altra Install. I file grandi si caricano a parti, e un caricamento interrotto riprende da dove era arrivato.",
+		"uploading": "Caricamento: {percent}%",
+		"listTitle": "Importazioni",
+		"listEmpty": "Ancora nessuna importazione di Siti in questo Workspace.",
+		"listIntro": "Il report di ogni importazione di Sito è conservato per 90 giorni dopo la sua fine.",
+		"caption": "Le importazioni di Siti di questo Workspace, dalla più recente",
+		"columns": {
+			"file": "File",
+			"site": "Sito",
+			"status": "Stato",
+			"created": "Avviata",
+			"by": "Da"
+		},
+		"status": {
+			"uploading": "In caricamento",
+			"ready": "Pronta da importare",
+			"refused": "Rifiutata",
+			"waiting": "In attesa",
+			"running": "In importazione",
+			"done": "Importata",
+			"failed": "Non riuscita"
+		},
+		"open": "Apri",
+		"openLabel": "Apri l'importazione di {file}",
+		"refusal": {
+			"not-an-export": "Questo file non è un'esportazione di Sito di WebCraft.",
+			"newer-format": "Questa esportazione è in un formato più recente di quello che questa versione di WebCraft legge. Aggiorna prima questa Install.",
+			"newer-version": "Questa esportazione è stata scritta da una versione più recente di WebCraft ({version}). Aggiorna prima questa Install.",
+			"damaged": "Questo file è danneggiato: esporta di nuovo il Sito."
+		},
+		"failure": {
+			"access": "La persona che l'ha avviata non può più importare in questo Workspace.",
+			"slug": "Un altro Sito ha preso quello slug nel frattempo. Carica di nuovo il file e scegline un altro.",
+			"passphrase": "La passphrase non ha aperto i segreti dell'esportazione.",
+			"damaged": "Il file è danneggiato: esporta di nuovo il Sito.",
+			"not-an-export": "Questo file non è un'esportazione di Sito di WebCraft.",
+			"newer-format": "Questa esportazione è in un formato più recente di quello che questa versione di WebCraft legge.",
+			"newer-version": "Questa esportazione è stata scritta da una versione più recente di WebCraft.",
+			"error": "Qualcosa è andato storto durante la lettura. Non è stato tenuto nulla: riprova.",
+			"quota": "La quota Media dello Workspace è cambiata o è esaurita. Libera spazio o aumentala, poi ripeti l’importazione."
+		},
+		"backToList": "Torna alle importazioni di Siti",
+		"from": "{name} ({slug}), esportato il {time} da WebCraft {version}",
+		"readyTitle": "Importa come nuovo Sito",
+		"readyIntro": "Il nuovo Sito ha un nome e uno slug suoi; nessun altro Sito viene toccato.",
+		"name": "Nome del Sito",
+		"slug": "Slug",
+		"slugHelp": "Lettere minuscole, cifre e trattini. Dà il nome all'indirizzo di Staging del Sito.",
+		"passphrase": "Passphrase di esportazione",
+		"passphraseHelp": "La passphrase con cui il Sito è stato esportato, per portare anche i suoi segreti. Senza, restano fuori e vengono elencati.",
+		"noSecrets": "Questa esportazione non contiene segreti: sono stati esclusi quando è stata creata, e il report li elencherà.",
+		"start": "Importa il Sito",
+		"holds": "Cosa contiene",
+		"counts": "{entries, plural, one {# Voce} other {# Voci}}, {media, plural, one {# file Media} other {# file Media}}, {members, plural, one {# Membro} other {# Membri}}, {submissions, plural, one {# Invio} other {# Invii}}",
+		"size": "Media: {size}",
+		"modulesTitle": "Moduli di cui ha bisogno",
+		"moduleStatus": {
+			"approved": "Approvato qui",
+			"waiting": "In attesa di approvazione: approvalo in Impostazioni dell'Install › Moduli",
+			"update-waiting": "Il suo aggiornamento attende l'approvazione in Impostazioni dell'Install › Moduli",
+			"cannot-run": "Non può funzionare su questa Install",
+			"missing": "Non presente su questa Install: i suoi dati vengono messi da parte"
+		},
+		"progressTitle": "Importazione in corso",
+		"progress": {
+			"tables": "Lettura della tabella {done} di {total}",
+			"files": "Copia del file {done} di {total}",
+			"people": "Abbinamento delle persone"
+		},
+		"progressIntro": "Il worker la importa; puoi lasciare questa pagina."
+	},
+	"siteImportReport": {
+		"heading": "Report dell'importazione di Sito",
+		"kept": "Conservato fino al {time}",
+		"openSite": "Apri il Sito",
+		"stats": {
+			"drafts": "Bozze",
+			"draftsNote": "{count} erano pubblicati",
+			"files": "File",
+			"filesNote": "{size}",
+			"invited": "Invitati",
+			"invitedNote": "{count} inviati",
+			"paused": "Domini in pausa",
+			"pausedNote": "Attivali in Domini",
+			"reassigned": "Riassegnati",
+			"reassignedNote": "Senza account qui",
+			"secrets": "Segreti",
+			"secretsNote": "{count} esclusi"
+		},
+		"tabsLabel": "Cosa ha fatto l'importazione",
+		"tabs": {
+			"invited": "Invitati",
+			"matched": "Membri",
+			"reassigned": "Riassegnati",
+			"paused": "Domini in pausa",
+			"secrets": "Segreti",
+			"dropped": "Esclusi",
+			"modules": "Moduli"
+		},
+		"invitedIntro": "Inviti in sospeso al nuovo Sito, ciascuno con il ruolo che aveva. Nessuno ha ricevuto email: inviali quando il Sito è pronto.",
+		"sendInvitations": "Invia gli inviti",
+		"sent": "Inviti inviati.",
+		"inviteSent": "Inviato",
+		"inviteWaiting": "Non inviato",
+		"matchedIntro": "Membri di questo Workspace che erano Membri del Sito: mantengono qui il loro ruolo e raggiungono il nuovo Sito.",
+		"reassignedIntro": "Persone nominate nella cronologia del Sito che qui non hanno un account: ciò che hanno fatto è attribuito a chi ha importato il Sito. Il registro di controllo conserva i loro nomi.",
+		"pausedIntro": "I domini del Sito, in pausa: non servono nulla finché non vengono attivati in Domini.",
+		"openDomains": "Apri Domini",
+		"secretsSet": "Impostati sul nuovo Sito: {names}",
+		"secretsDropped": "Esclusi: {names}",
+		"secretsReason": {
+			"noPassphrase": "L'esportazione li conteneva, ma non è stata data la passphrase.",
+			"notCarried": "L'esportazione è stata creata senza passphrase.",
+			"unreadable": "Alcuni non si sono potuti aprire con la passphrase."
+		},
+		"webhooksOff": "Webhook disattivati, perché il loro segreto di firma è stato escluso: {names}",
+		"reportsPaused": "Report in pausa, perché non inviino email prima che il Sito sia pronto: {names}",
+		"droppedIntro": "Ciò che non passa mai tra un'Install e l'altra. Ricrealo sul nuovo Sito dove serve.",
+		"droppedContentKeys": "Chiavi Content: {names}",
+		"droppedShareLinks": "Link di condivisione: {names}",
+		"droppedSchedules": "Pubblicazioni programmate: {names}",
+		"droppedStaging": "La password di staging",
+		"none": "Nessuno.",
+		"modulesIntro": "I Moduli di cui i dati del Sito hanno bisogno, e come si trova ciascuno qui.",
+		"columns": {
+			"email": "Email",
+			"name": "Nome",
+			"role": "Ruolo",
+			"sent": "Invito",
+			"was": "Era",
+			"domain": "Dominio",
+			"kind": "Ruolo dove si trovava",
+			"module": "Modulo",
+			"version": "Versione",
+			"status": "Qui"
+		},
+		"nextTitle": "Prossimi passi",
+		"next": {
+			"staging": "Controlla le Bozze sull'indirizzo di Staging",
+			"publish": "Pubblica tutto con Pubblica tutto",
+			"domains": "Attiva i domini in Domini",
+			"invite": "Invia gli inviti"
 		}
 	}
 }

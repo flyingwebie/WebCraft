@@ -13,6 +13,7 @@ import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
 import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
 import { TEST_MODULES } from "../harness/modules.ts";
+import { exportedArchive, uploadArchive } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, outlet, text, tree, value } from "../harness/trees.ts";
 import { OLD_MILL, partsDigest, sendParts, WORDPRESS } from "../imports/wordpress.ts";
@@ -2168,6 +2169,142 @@ describe("Modules", () => {
 			return moduleOf<typeof sampleBoard>(api, "sample-board").pins.add({ workspaceId, text: "Ours" });
 		},
 		{ as: ["staff", "owner"] },
+	);
+});
+
+/** A Site export of a small Site with a domain, made once by the Superadmin in a Workspace of its own. */
+let siteArchive: Promise<Uint8Array> | undefined;
+function siteArchiveBytes(): Promise<Uint8Array> {
+	siteArchive ??= (async () => {
+		const admin = await install.superadmin();
+		const workspaceId = (await install.createWorkspace("Exported")).id;
+		const siteId = (await install.createSite(workspaceId, { name: "Exported", slug: newSlug() })).id;
+		const [domain] = (await admin.api.domains.add({ siteId, name: `${newSlug()}.example` })).domains;
+		const archive = await exportedArchive(install, admin, siteId);
+		// The domain is freed, so the Sites imported from the archive may switch theirs on.
+		const asked = await admin.api.domains.remove({ siteId, domainId: domain?.id ?? "" });
+		const confirmation = (asked as { confirmation?: { id: string } }).confirmation?.id;
+		await admin.api.domains.remove({ siteId, domainId: domain?.id ?? "", confirmation });
+		return archive;
+	})();
+	return siteArchive;
+}
+
+/** An export of the target's Site the caller asked for and the worker wrote; a made-up id where they may not. */
+async function siteExportIn(api: ApiClient, target: IsolationTarget): Promise<string> {
+	try {
+		const { export: started } = await api.siteExports.start({ siteId: target.siteId, passphrase: null });
+		await install.drainJobs();
+		return started.id;
+	} catch {
+		return crypto.randomUUID();
+	}
+}
+
+/** A Site export the caller uploaded into the target's Workspace, ready to start; a made-up id where they may not. */
+async function siteImportIn(api: ApiClient, target: IsolationTarget): Promise<string> {
+	try {
+		return (await uploadArchive({ api }, target.workspaceId, await siteArchiveBytes())).id;
+	} catch {
+		return crypto.randomUUID();
+	}
+}
+
+/** A Site import the caller ran into the target's Workspace (its Site has a Paused domain). */
+async function siteImportDoneIn(
+	api: ApiClient,
+	target: IsolationTarget,
+): Promise<{ importId: string; siteId: string }> {
+	const importId = await siteImportIn(api, target);
+	try {
+		await api.siteImports.start({
+			workspaceId: target.workspaceId,
+			importId,
+			name: "Imported",
+			slug: newSlug(),
+			passphrase: null,
+		});
+		await install.drainJobs();
+		const { import: done } = await api.siteImports.get({ workspaceId: target.workspaceId, importId });
+		return { importId, siteId: done.site?.id ?? target.siteId };
+	} catch {
+		return { importId, siteId: target.siteId };
+	}
+}
+
+/** A Paused domain of a Site the caller imported into the target's Workspace; a made-up one where they may not. */
+async function pausedIn(api: ApiClient, target: IsolationTarget): Promise<{ siteId: string; pausedId: string }> {
+	const { siteId } = await siteImportDoneIn(api, target);
+	try {
+		const { paused } = await api.domains.paused({ siteId });
+		return { siteId, pausedId: paused[0]?.id ?? crypto.randomUUID() };
+	} catch {
+		return { siteId, pausedId: crypto.randomUUID() };
+	}
+}
+
+describe("Site export and import", () => {
+	isolation.refuses("siteExports.start", async (api, { siteId }) => {
+		const started = await api.siteExports.start({ siteId, passphrase: null });
+		await install.drainJobs();
+		return started;
+	});
+	isolation.refuses("siteExports.list", (api, { siteId }) => api.siteExports.list({ siteId }));
+	isolation.refuses("siteExports.get", async (api, target) =>
+		api.siteExports.get({ siteId: target.siteId, exportId: await siteExportIn(api, target) }),
+	);
+	isolation.refuses("siteImports.startUpload", (api, { workspaceId }) =>
+		api.siteImports.startUpload({ workspaceId, fileName: "site.tar", size: 2048 }),
+	);
+	isolation.refuses("siteImports.uploadPart", async (api, { workspaceId }) => {
+		let importId: string = crypto.randomUUID();
+		try {
+			importId = (await api.siteImports.startUpload({ workspaceId, fileName: "site.tar", size: 4 })).import.id;
+		} catch {
+			// Another Workspace: refused before the upload is looked for.
+		}
+		const part = new Uint8Array([1, 2, 3, 4]);
+		const sha256 = new Bun.CryptoHasher("sha256").update(part).digest("hex");
+		return api.siteImports.uploadPart({ workspaceId, importId, offset: 0, sha256, part: new File([part], "part") });
+	});
+	isolation.refuses("siteImports.finishUpload", async (api, target) => {
+		const importId = await siteImportIn(api, target);
+		// Finished already in our Workspace: asking again says so, which is still an answer about our own upload.
+		return api.siteImports
+			.finishUpload({ workspaceId: target.workspaceId, importId, sha256: "0".repeat(64) })
+			.catch((error: { code?: string }) => {
+				if (error.code === "SITE_IMPORT_UPLOAD_REFUSED") return error;
+				throw error;
+			});
+	});
+	isolation.refuses("siteImports.start", async (api, target) => {
+		const importId = await siteImportIn(api, target);
+		const started = await api.siteImports.start({
+			workspaceId: target.workspaceId,
+			importId,
+			name: "Imported",
+			slug: newSlug(),
+			passphrase: null,
+		});
+		await install.drainJobs();
+		return started;
+	});
+	isolation.refuses("siteImports.list", (api, { workspaceId }) => api.siteImports.list({ workspaceId }));
+	isolation.refuses("siteImports.get", async (api, target) =>
+		api.siteImports.get({ workspaceId: target.workspaceId, importId: await siteImportIn(api, target) }),
+	);
+	isolation.refuses("siteImports.sendInvitations", async (api, target) =>
+		api.siteImports.sendInvitations({
+			workspaceId: target.workspaceId,
+			importId: (await siteImportDoneIn(api, target)).importId,
+		}),
+	);
+	isolation.refuses("domains.paused", (api, { siteId }) => api.domains.paused({ siteId }));
+	isolation.refuses("domains.switchOnPaused", async (api, target) =>
+		api.domains.switchOnPaused(await pausedIn(api, target)),
+	);
+	isolation.refuses("domains.discardPaused", async (api, target) =>
+		api.domains.discardPaused(await pausedIn(api, target)),
 	);
 });
 

@@ -4,6 +4,8 @@ import {
 	mediaPolicy,
 	normaliseHostname,
 	PermissionDeniedError,
+	SITE_EXPORT_DOWNLOAD_PREFIX,
+	SiteExportNotFoundError,
 	SiteNotFoundError,
 	type SiteScope,
 } from "@webcraft/core";
@@ -63,6 +65,11 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 		if (oauthAnswer) return oauthAnswer;
 		if ((pathname === APPROVAL_PAGE_PATH || pathname === DEVICE_PAGE_PATH) && adminApp) {
 			return neverFramed(await adminApp(request));
+		}
+		if (pathname.startsWith(SITE_EXPORT_DOWNLOAD_PREFIX)) {
+			return readOnly(request, () =>
+				siteExportDownload(services, request, pathname.slice(SITE_EXPORT_DOWNLOAD_PREFIX.length)),
+			);
 		}
 		if (pathname.startsWith(MEDIA_PREVIEW_PREFIX)) {
 			return readOnly(request, () => mediaPreview(services, request, pathname.slice(MEDIA_PREVIEW_PREFIX.length)));
@@ -134,5 +141,50 @@ function fromAdminPages(request: Request, adminHost: string): boolean {
 		return normaliseHostname(new URL(origin).hostname) === adminHost;
 	} catch {
 		return false;
+	}
+}
+
+/**
+ * A Site export's archive, through its signed download link (`siteExports.get` answers it): only while
+ * the link holds (24 hours), and only to a signed-in person who may export that Site. Anyone else gets
+ * the plain 404, so nobody learns which exports exist.
+ */
+async function siteExportDownload(services: InstallServices, request: Request, rest: string): Promise<Response> {
+	const [siteId = "", exportId = "", ...more] = rest.split("/");
+	if (more.length > 0) return notFound();
+	const { session } = await services.auth.session({
+		headers: request.headers,
+		clientAddress: clientAddress(request, services.config),
+	});
+	if (!session) return notFound();
+	const url = new URL(request.url);
+	try {
+		// As whoever the session acts as: someone impersonated may export only their own Sites.
+		const { access } = await services.impersonation.actingAs(session);
+		const file = await services.siteTransfer.download(access, {
+			siteId,
+			exportId,
+			expires: url.searchParams.get("expires") ?? "",
+			signature: url.searchParams.get("signature") ?? "",
+		});
+		return new Response(file.body, {
+			status: 200,
+			headers: {
+				"content-type": "application/x-tar",
+				"content-length": String(file.size),
+				"content-disposition": `attachment; filename="${file.fileName.replace(/[^A-Za-z0-9._-]/g, "_")}"`,
+				"cache-control": "private, no-store",
+				"x-content-type-options": "nosniff",
+			},
+		});
+	} catch (error) {
+		if (
+			error instanceof SiteExportNotFoundError ||
+			error instanceof SiteNotFoundError ||
+			error instanceof PermissionDeniedError
+		) {
+			return notFound();
+		}
+		throw error;
 	}
 }

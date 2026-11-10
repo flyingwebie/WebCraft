@@ -1,5 +1,8 @@
+import { createWriteStream } from "node:fs";
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 /**
  * Where an Install keeps files (ADR 0026): local disk or an S3-compatible bucket, behind one
@@ -16,6 +19,8 @@ export type StorageBackend = {
 	readonly kind: StorageKind;
 	/** Stores a file, replacing what the key held. */
 	put(key: string, data: Uint8Array, contentType: string): Promise<void>;
+	/** Stores a stream atomically, with bounded buffering. */
+	putStream(key: string, data: AsyncIterable<Uint8Array>, contentType: string): Promise<void>;
 	/** A whole file, or null when there is none. */
 	read(key: string): Promise<Uint8Array | null>;
 	/** A file (or the bytes in `range`) as a stream, or null when there is none. */
@@ -61,6 +66,18 @@ export function diskStorage(root: string): StorageBackend {
 			const partial = `${path}.${crypto.randomUUID()}.partial`;
 			try {
 				await writeFile(partial, data);
+				await rename(partial, path);
+			} catch (error) {
+				await rm(partial, { force: true });
+				throw error;
+			}
+		},
+		async putStream(key, data) {
+			const path = pathOf(key);
+			await mkdir(dirname(path), { recursive: true });
+			const partial = `${path}.${crypto.randomUUID()}.partial`;
+			try {
+				await pipeline(Readable.from(data), createWriteStream(partial));
 				await rename(partial, path);
 			} catch (error) {
 				await rm(partial, { force: true });

@@ -45,6 +45,7 @@ describe("the role table", () => {
 				"audit.view",
 				"workspace.view",
 				"site.create",
+				"site.import",
 				"member.invite",
 				"member.manage",
 				"twoFactor.require",
@@ -69,6 +70,7 @@ describe("the role table", () => {
 				"aiUsage.view",
 				"protectedTerms.edit",
 				"site.view",
+				"site.export",
 				"staging.manage",
 				"structure.edit",
 				"aiCrawlers.manage",
@@ -92,7 +94,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("staff: everything in their Workspaces, including Structure, new Sites, Modules, storage quotas, Reports, Share links and Members' two-factor resets; on the Install, only the Services list", async () => {
+	test("staff: everything in their Workspaces, including Structure, new Sites, Site exports and imports, Modules, storage quotas, Reports, Share links and Members' two-factor resets; on the Install, only the Services list", async () => {
 		const { browser } = await install.createStaff({ workspaces: [workspaceId] });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -101,6 +103,7 @@ describe("the role table", () => {
 				"audit.view",
 				"workspace.view",
 				"site.create",
+				"site.import",
 				"member.invite",
 				"member.manage",
 				"twoFactor.require",
@@ -125,6 +128,7 @@ describe("the role table", () => {
 				"aiUsage.view",
 				"protectedTerms.edit",
 				"site.view",
+				"site.export",
 				"staging.manage",
 				"structure.edit",
 				"aiCrawlers.manage",

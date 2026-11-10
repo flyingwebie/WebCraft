@@ -29,6 +29,9 @@ The Install's own commands, one for each public procedure of its API:
 
 Server commands (on the server, with the Install's environment):
   admin <command>             webcraft admin --help lists them.
+  site export <site id> [--to <file or folder>] [--passphrase]
+  site import <archive> --workspace <id> --slug <slug> [--name <name>] [--passphrase]
+                              A Site export written or imported on the server (webcraft admin --help).
 
 Options for every command:
   --install <name|address>    Which Install (a profile's name or address); WEBCRAFT_INSTALL does the same.
@@ -61,6 +64,8 @@ export async function runCli(args: readonly string[], io: CliIo): Promise<number
 			return EXIT.ok;
 		}
 		if (first === "admin") return await admin(rest.slice(1), io, options);
+		// Site exports read and write the Install's database and files: server commands too.
+		if (first === "site" && (second === "export" || second === "import")) return await admin(rest, io, options);
 		if (!first || first === "help" || (options.help && rest.length === 0)) {
 			return await help(context, first === "help" ? rest.slice(1) : []);
 		}

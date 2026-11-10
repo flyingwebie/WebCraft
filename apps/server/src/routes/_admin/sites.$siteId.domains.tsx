@@ -8,13 +8,16 @@ export const Route = createFileRoute("/_admin/sites/$siteId/domains")({
 	staticData: { crumb: "domains.pageTitle" },
 	loader: async ({ params }) => {
 		const api = await getApi();
-		const [domains, { settings }, staging] = await Promise.all([
+		const [domains, { settings }, staging, paused] = await Promise.all([
 			api.domains.list({ siteId: params.siteId }),
 			api.languages.list({ siteId: params.siteId }),
 			api.staging.get({ siteId: params.siteId }),
+			// Paused domains are Staff's to see (Structure); anyone else sees the domains alone.
+			api.domains.paused({ siteId: params.siteId }).catch(() => ({ paused: [] })),
 		]);
 		return {
 			domains,
+			paused: paused.paused,
 			languageNames: Object.fromEntries(settings.languages.map(({ code, name }) => [code, name])),
 			stagingPassword: staging.password,
 		};
@@ -31,7 +34,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId/domains")({
  * and Staff set the staging password here too.
  */
 function DomainsRoute() {
-	const { domains, languageNames, stagingPassword } = Route.useLoaderData();
+	const { domains, languageNames, stagingPassword, paused } = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
 	return (
@@ -42,6 +45,7 @@ function DomainsRoute() {
 			languageNames={languageNames}
 			stagingPassword={stagingPassword}
 			canManageStaging={place.permissions.includes("staging.manage")}
+			paused={paused}
 		/>
 	);
 }
