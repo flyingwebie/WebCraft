@@ -29,7 +29,9 @@ export type ImportSource = {
 	 */
 	permission: string;
 	/** The file it reads: its largest size and the file name endings the admin offers. */
-	file: { maxBytes: number; extensions: readonly string[] };
+	file?: { maxBytes: number; extensions: readonly string[] };
+	/** A live source uses only the source-bound, secret-backed GET port Core provides. */
+	live?: LiveImportSource;
 	/**
 	 * Reads the file into items, in the order they are to be written: a `type` before the first item
 	 * of that type, and an item another item points at (a parent Page, a term) before it where the
@@ -39,7 +41,7 @@ export type ImportSource = {
 	 * It must give the same items in the same order every time it reads the same file: a long run is
 	 * gone through by several jobs, each reading from the start and skipping what was written.
 	 */
-	read(file: SourceFile, context: ModuleContext): AsyncIterable<SourceItem>;
+	read?(file: SourceFile, context: ModuleContext): AsyncIterable<SourceItem>;
 };
 
 /** Declares an import source. */
@@ -138,3 +140,18 @@ export type SourceValue =
 	| { kind: "date"; date: string }
 	| { kind: "file"; file: SourceFileRef }
 	| { kind: "items"; sourceIds: readonly string[] };
+
+/** Live Import sources (SDK 1.13). No raw credentials, arbitrary URLs or request headers. */
+export type LiveConnection = {
+	readonly includeHidden: boolean;
+	/** A relative REST route under the chosen Site's wp-json/ root. GET only; redirects refused. */
+	http(path: string, options?: { anonymous?: boolean }): Promise<Response>;
+};
+export type LiveSurvey = {
+	roles: string[];
+	types: { key: string; label: string; route: string; holds: "entries" | "media"; taxonomy: boolean; count: number }[];
+};
+export type LiveImportSource = {
+	test(connection: LiveConnection): Promise<LiveSurvey>;
+	read(connection: LiveConnection, survey: LiveSurvey): AsyncIterable<SourceItem>;
+};

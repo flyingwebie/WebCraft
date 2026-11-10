@@ -19,7 +19,7 @@ import { childRaw, childText, exportRecords, type XmlElement, type XmlRecord } f
  */
 
 /** Post types WordPress keeps for its own workings, never content: left out. */
-const INTERNAL_POST_TYPES: ReadonlySet<string> = new Set([
+export const INTERNAL_POST_TYPES: ReadonlySet<string> = new Set([
 	"nav_menu_item",
 	"revision",
 	"custom_css",
@@ -36,7 +36,7 @@ const INTERNAL_POST_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /** Taxonomies WordPress keeps for its own workings: left out. */
-const INTERNAL_TAXONOMIES: ReadonlySet<string> = new Set([
+export const INTERNAL_TAXONOMIES: ReadonlySet<string> = new Set([
 	"nav_menu",
 	"link_category",
 	"post_format",

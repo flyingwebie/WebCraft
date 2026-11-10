@@ -7,6 +7,7 @@ import {
 	loadMasterKey,
 	logSettings,
 	moduleSchemas,
+	type OpenInstallOptions,
 	openInstall,
 } from "@webcraft/core";
 import { assertSchemaCurrent, openDatabase } from "@webcraft/db";
@@ -58,12 +59,15 @@ export async function checkWebSettings(env: Record<string, string | undefined>):
 
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
 	const log = createLogger({ fields: { process: "web" }, ...logSettings(env) });
+	// Like webModules, only the embedding program can supply these external adapters, never a request.
+	const ports = (globalThis as { webcraftWebPorts?: Pick<OpenInstallOptions, "http" | "dns"> }).webcraftWebPorts;
 	const { services } = await openInstall({
 		env,
 		processName: "web",
 		log,
 		modules: webModules(),
-		http: createBunHttp(),
+		http: ports?.http ?? createBunHttp(),
+		dns: ports?.dns,
 	});
 	// On an Install with no Superadmin, prints the setup token that unlocks the setup wizard.
 	await services.setup.announce();

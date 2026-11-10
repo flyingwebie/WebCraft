@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "d7544ef6-7aff-43c9-b112-a4a69f19a971",
+  "prevIds": [
+    "3a86ea7c-4d68-43f2-afd0-9a515baf4e04"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "imports",
+        "connection"
+      ],
+      "writes": [
+        "s|col|public.imports.connection",
+        "n|col|public.imports.connection",
+        "e|col|public.imports.connection"
+      ],
+      "reads": [
+        "n|tbl|public.imports",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "imports",
+        "name": "connection",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

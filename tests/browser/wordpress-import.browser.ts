@@ -2,13 +2,14 @@
 // in parts and read by the worker, the Map step (mapping variant B: the types, each key's card and the
 // live sample Entry) and the Preview (real Entries with their Blocks and Import leftovers), driven
 // from the keyboard; and a WordPress run's Import report with its leftovers and Redirect rules tabs.
-import { afterAll, beforeAll, describe, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 import { photo } from "../harness/images.ts";
 import type { TestAccount } from "../harness/index.ts";
 import { OLD_MILL, runImport, serveOldSite, surveyedExport } from "../imports/wordpress.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
+import { liveWordpressReply } from "./live-wordpress.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
@@ -20,7 +21,7 @@ beforeAll(async () => {
 	install = await startBrowserInstall();
 	await install.createSuperadmin();
 	const { api: admin } = await install.install.superadmin();
-	await admin.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });
+	await admin.modules.approve({ moduleId: "wordpress-import", version: "1.1.0" });
 	await admin.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	const workspaceId = (await install.install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.install.createSite(workspaceId, { name: "Old Mill", slug: "old-mill" })).id;
@@ -133,5 +134,45 @@ for (const theme of THEMES) {
 			await page.getByText("/2024/03/spring-opening-hours").first().waitFor();
 			await expectNoAxeViolations(page, `WordPress import report, Redirect rules (${theme})`);
 		});
+	});
+}
+
+for (const theme of THEMES) {
+	test(`Live connection, password and visibility controls from the keyboard, ${theme}`, async () => {
+		install.install.dns.answer("live-browser.example", ["93.184.216.80"]);
+		install.install.http.respond("GET", /^https:\/\/live-browser.example\//, (r) => liveWordpressReply(new URL(r.url)));
+		const page = await install.newPage(theme);
+		await open(page, staff, `/sites/${siteId}/imports/new?source=wordpress-import.live`);
+		await page.getByRole("heading", { name: "WordPress live site" }).waitFor();
+		await expectAccessibleScreen(page, `Live Source (${theme})`);
+		await page.getByLabel("Import name", { exact: true }).fill("Live browser import");
+		await page.getByLabel("Site address", { exact: true }).fill("https://live-browser.example");
+		await page.getByLabel("Username", { exact: true }).fill("login");
+		const password = page.getByLabel("Application password", { exact: true });
+		expect(await password.getAttribute("type")).toBe("password");
+		await password.fill("one-time-application-password");
+		const hidden = page.getByLabel("Include drafts and private posts", { exact: true });
+		expect(await hidden.isChecked()).toBe(false);
+		await hidden.focus();
+		await page.keyboard.press("Space");
+		expect(await hidden.isChecked()).toBe(true);
+		await page.keyboard.press("Space");
+		await press(page, "Test connection");
+		await page.getByText("Connected · Role: editor", { exact: true }).waitFor();
+		expect(await password.inputValue()).toBe("");
+		expect(await page.getByLabel("Username", { exact: true }).inputValue()).toBe("");
+		await drainUntil(page, "live-browser.example was read");
+		await expectAccessibleScreen(page, `Live Source connected (${theme})`);
+		await press(page, "Continue to mapping");
+		await page.getByRole("heading", { name: "Sample Entry" }).waitFor();
+		await expectAccessibleScreen(page, `Live Map (${theme})`);
+		await press(page, "Back");
+		expect(await page.getByLabel("Site address", { exact: true }).inputValue()).toBe("https://live-browser.example");
+		expect(await page.getByLabel("Site address", { exact: true }).isDisabled()).toBe(true);
+		await press(page, "Continue to mapping");
+		await press(page, "Preview");
+		await drainUntil(page, /Entries as Drafts/);
+		await expectAccessibleScreen(page, `Live Preview (${theme})`);
+		await page.close();
 	});
 }

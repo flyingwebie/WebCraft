@@ -1,6 +1,6 @@
 {
 	"name": "@webcraft/module-wordpress-import",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"private": true,
 	"license": "AGPL-3.0-or-later",
 	"description": "The WordPress import Module: reads a WordPress export file (WXR) as a stream into the items WebCraft's Import pipeline maps and writes as Drafts. It imports nothing from WebCraft but the Module SDK (ADR 0024).",

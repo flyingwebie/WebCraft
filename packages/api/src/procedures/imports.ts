@@ -8,7 +8,7 @@ import {
 } from "@webcraft/core";
 import { z } from "zod";
 
-import { signedIn } from "../context.ts";
+import { onSite, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 import { languageOf } from "./modules.ts";
 
@@ -25,6 +25,36 @@ const sha256 = z.string().regex(/^[0-9a-fA-F]{64}$/);
  * background, each run with its Import report. Staff, Owners and Editors (`import.run`).
  */
 export const imports = {
+	connect: signedIn
+		.input(
+			z.strictObject({
+				siteId: id,
+				source,
+				name: z.string().trim().min(1).max(200),
+				importId: id.optional(),
+				address: z.string().max(2000).optional(),
+				includeHidden: z.boolean().optional(),
+				username: z.string().min(1).max(200).optional(),
+				applicationPassword: z.string().min(1).max(1000).optional(),
+			}),
+		)
+		.use(onSite("structure.edit"))
+		.use(sensitive("import.connect"))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "import.run");
+			return context.services.imports.connect(site, input);
+		}),
+	refresh: signedIn.input(z.object({ siteId: id, importId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "import.run");
+		const { import: saved } = await context.services.imports.get(site, input.importId);
+		return context.services.imports.connect(site, { source: saved.source, name: saved.name, importId: input.importId });
+	}),
+	remove: signedIn
+		.input(z.object({ siteId: id, importId: id, confirmation: id.optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "import.run");
+			return context.services.imports.remove(site, input.importId, input.confirmation);
+		}),
 	/**
 	 * Uploads a CSV file for an Import: UTF-8 (with or without a byte order mark), separated by commas,
 	 * semicolons or tabs, at most 10 MB, 10,000 rows and 200 columns, its first row naming every

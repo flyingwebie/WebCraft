@@ -63,7 +63,7 @@ export function idMap(mask: string, fixed: ReadonlyMap<string, string>): IdMap {
 		},
 		secret: (name) =>
 			name.replace(
-				/^(webhook:)([0-9a-f-]{36})(:signing)$/,
+				/^((?:webhook|import):)([0-9a-f-]{36})(:(?:signing|credentials))$/,
 				(_match, before, value, after) => `${before}${id(value)}${after}`,
 			),
 		mask,

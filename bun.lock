@@ -124,7 +124,7 @@
     },
     "modules/wordpress-import": {
       "name": "@webcraft/module-wordpress-import",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "dependencies": {
         "@webcraft/module-sdk": "workspace:*",
         "saxes": "^6.0.0",
@@ -236,7 +236,7 @@
     },
     "packages/module-sdk": {
       "name": "@webcraft/module-sdk",
-      "version": "1.11.0",
+      "version": "1.13.0",
       "dependencies": {
         "drizzle-orm": "catalog:",
         "zod": "catalog:",
@@ -304,6 +304,7 @@
         "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
         "@webcraft/module-site-analytics": "workspace:*",
+        "@webcraft/module-wordpress-import": "workspace:*",
         "@webcraft/server": "workspace:*",
         "@webcraft/worker": "workspace:*",
         "pg": "catalog:",

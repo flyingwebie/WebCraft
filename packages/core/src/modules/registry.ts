@@ -535,14 +535,29 @@ function checkDefinition(definition: ModuleDefinition, manifest: ModuleManifest)
 			if (missing) problem(`The import source ${source.key}'s ${what}: ${missing}`);
 		}
 		checkPermission(source.permission, `The import source ${source.key}`);
-		const { maxBytes, extensions } = source.file ?? {};
-		if (!isWhole(maxBytes, 1, IMPORT_FILE_MAX_BYTES)) {
-			problem(`The import source ${source.key} takes files of 1 to ${IMPORT_FILE_MAX_BYTES} whole bytes.`);
+		if (source.live) {
+			if (
+				!manifest.uses.includes("importSourceHttp") ||
+				source.file ||
+				source.read ||
+				typeof source.live.test !== "function" ||
+				typeof source.live.read !== "function"
+			)
+				problem("A live source requires importSourceHttp and cannot also read uploads.");
+		} else {
+			const { maxBytes, extensions } = source.file ?? {};
+			if (!isWhole(maxBytes, 1, IMPORT_FILE_MAX_BYTES)) {
+				problem(`The import source ${source.key} takes files of 1 to ${IMPORT_FILE_MAX_BYTES} whole bytes.`);
+			}
+			if (
+				!Array.isArray(extensions) ||
+				extensions.length === 0 ||
+				!extensions.every((ext) => FILE_EXTENSION.test(ext))
+			) {
+				problem(`The import source ${source.key} names the file endings it takes, such as .xml.`);
+			}
+			if (typeof source.read !== "function") problem(`The import source ${source.key} has no read function.`);
 		}
-		if (!Array.isArray(extensions) || extensions.length === 0 || !extensions.every((ext) => FILE_EXTENSION.test(ext))) {
-			problem(`The import source ${source.key} names the file endings it takes, such as .xml.`);
-		}
-		if (typeof source.read !== "function") problem(`The import source ${source.key} has no read function.`);
 		importSources.set(source.key, source);
 	}
 

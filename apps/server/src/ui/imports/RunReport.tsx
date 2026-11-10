@@ -117,6 +117,11 @@ export function RunReportPage({ siteId, initial }: { siteId: string; initial: Ru
 					)}
 				</div>
 			</header>
+			{run.warnings.includes("restCustomFields") ? (
+				<p role="note" className="bg-muted rounded-lg p-4">
+					{t("imports.live.customFields")}
+				</p>
+			) : null}
 			{going ? (
 				<Progress run={run} />
 			) : (

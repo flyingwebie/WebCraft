@@ -31,7 +31,11 @@ beforeAll(async () => {
 	await admin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
 	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
-	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.1.0" });
+	install.dns.answer("isolated.example", ["93.184.216.34"]);
+	install.http.respond("GET", /^https:\/\/isolated.example\//, (request) => ({
+		body: new URL(request.url).pathname.endsWith("/users/me") ? '{"roles":["editor"]}' : "{}",
+	}));
 });
 
 afterAll(async () => {
@@ -1460,6 +1464,30 @@ async function exportIn(api: ApiClient, target: IsolationTarget) {
 }
 
 describe("Imports", () => {
+	isolation.refuses("imports.connect", (api, { siteId }) =>
+		api.imports.connect({
+			siteId,
+			source: "wordpress-import.live",
+			name: "Isolated",
+			address: "https://isolated.example",
+			username: "login",
+			applicationPassword: "application-password",
+		}),
+	);
+	isolation.refuses("imports.refresh", async (api, target) => {
+		const connected = await (await install.superadmin()).api.imports.connect({
+			siteId: target.siteId,
+			source: "wordpress-import.live",
+			name: "Refresh",
+			address: "https://isolated.example",
+			username: "login",
+			applicationPassword: "application-password",
+		});
+		return api.imports.refresh({ siteId: target.siteId, importId: connected.importId });
+	});
+	isolation.refuses("imports.remove", async (api, target) =>
+		api.imports.remove({ siteId: target.siteId, importId: (await importIn(target)).importId }),
+	);
 	isolation.refuses("imports.sources", (api, { siteId }) => api.imports.sources({ siteId }), {
 		as: ["staff", "editor"],
 	});

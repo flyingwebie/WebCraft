@@ -89,7 +89,8 @@ export async function writeSiteExport(
 	const folder = await mkdtemp(join(tmpdir(), "webcraft-site-export-"));
 	try {
 		const snapshot = await readSnapshot(context, site, folder);
-		const names = await secretNames();
+		// A replacement login being tested is operational state, not the Import's saved connection.
+		const names = (await secretNames()).filter((name) => !/^import:[a-f0-9-]+:credentials:test$/.test(name));
 		let bundle: SecretsBundle | null = null;
 		if (secrets) {
 			bundle = await secrets.withKey(async (key) => {

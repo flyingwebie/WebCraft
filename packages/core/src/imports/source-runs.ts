@@ -18,13 +18,11 @@
  * they are now, for the Map step's live sample Entry.
  */
 import { createHash } from "node:crypto";
-
 import { entries, importFiles, importRunChanges, importRuns, imports } from "@webcraft/db/schema";
 import type { ImportedRule, SourceEntry, SourceItem } from "@webcraft/module-sdk";
 import type { Block } from "@webcraft/renderer/body";
 import { eq, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
-
 import { PathTakenError, PostTypeInvalidError } from "../content/errors.ts";
 import type { FieldInput } from "../content/field-types.ts";
 import { sameJson } from "../content/json.ts";
@@ -37,6 +35,7 @@ import { defineJob, type JobContext } from "../jobs/define.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { ImportFileNotReadyError, ImportInvalidError } from "./errors.ts";
 import type { EntryItem, ItemProblem } from "./items.ts";
+import { readSource } from "./live.ts";
 import {
 	countOutcome,
 	type Decision,
@@ -58,7 +57,7 @@ import {
 	sourceMapping,
 	sourceSettingsSchema,
 } from "./source-settings.ts";
-import { type SourceFileDetails, type SourceSurvey, sourceFileOf } from "./survey.ts";
+import type { SourceFileDetails, SourceSurvey } from "./survey.ts";
 import { sourceFor } from "./uploads.ts";
 
 /** How many items one run job goes through before it hands the rest to the next one. */
@@ -108,6 +107,17 @@ export async function checkSourceRun(
 	file: FileRow,
 ): Promise<{ total: number; settings: SourceSettings; summary: SourceRunSummary }> {
 	await sourceFor(scope, context.modules, importRow.source);
+	if (
+		(file.details as SourceFileDetails).live?.importId !== undefined &&
+		(file.details as SourceFileDetails).live?.importId !== importRow.id
+	)
+		throw new ImportFileNotReadyError("source");
+	const captured = (file.details as SourceFileDetails).live;
+	if (
+		captured &&
+		captured.connection.revision !== (importRow.connection as import("./live.ts").ImportConnection | null)?.revision
+	)
+		throw new ImportFileNotReadyError("source");
 	const survey = surveyOf(file, importRow.source);
 	const settings = sourceSettingsSchema.parse(importRow.settings);
 	const mapping = await sourceMapping(scope, settings, survey);
@@ -202,7 +212,7 @@ export async function runSourceImport(
 	const ruled = new Set<string>();
 	let index = 0;
 	let gone = 0;
-	const items = source.read(sourceFileOf(context.storage, file));
+	const items = readSource(source, context.storage, file);
 	for await (const item of items) {
 		if (item.kind === "type") continue;
 		index++;
@@ -753,7 +763,7 @@ async function runPreview(
 		const shown = new Map<string, number>();
 		const byType = new Map(preview.types.map((type) => [type.type, type]));
 		let index = 0;
-		for await (const item of source.read(sourceFileOf(context.storage, file))) {
+		for await (const item of readSource(source, context.storage, file)) {
 			if (item.kind === "type") continue;
 			index++;
 			if (index % 500 === 0) {

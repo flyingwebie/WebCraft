@@ -41,6 +41,7 @@ describe("uploading an export file", () => {
 	test("Staff see the WordPress export file among the sources, and whether runs make Redirect rules", async () => {
 		const { sources, redirectsOn } = await staff.api.imports.sources({ siteId });
 		expect(sources).toEqual([
+			expect.objectContaining({ id: "wordpress-import.live", kind: "live", label: "WordPress live site" }),
 			expect.objectContaining({
 				id: WORDPRESS,
 				label: "WordPress export file",

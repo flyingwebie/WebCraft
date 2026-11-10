@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ApiClient } from "@webcraft/api";
 import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
-
+import wordpressImport from "@webcraft/module-wordpress-import";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
@@ -40,6 +40,15 @@ const AS_STAFF_WITH_SECOND_FACTOR: readonly SensitiveAction[] = ["impersonation.
 
 /** How the Superadmin takes each Sensitive action. */
 const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: Fixture) => Promise<unknown>> = {
+	"import.connect": (api, { siteId }) =>
+		api.imports.connect({
+			siteId,
+			source: "wordpress-import.live",
+			name: "Live",
+			address: "https://sensitive.example",
+			username: "login",
+			applicationPassword: "application-password",
+		}),
 	"installSmtp.change": (api) =>
 		api.install.smtp.update({
 			host: "smtp.agency.example",
@@ -106,7 +115,7 @@ let superadmin: TestAccount;
 let fixture: Fixture;
 
 beforeAll(async () => {
-	install = await createTestInstall({ modules: [sample] });
+	install = await createTestInstall({ modules: [sample, wordpressImport] });
 	superadmin = await install.createSuperadmin();
 	const workspace = await install.createWorkspace();
 	const site = await install.createSite(workspace.id);
@@ -118,6 +127,11 @@ beforeAll(async () => {
 	const client = await registerClient(install);
 	const { challenge } = await pkcePair();
 	const admin = await install.superadmin();
+	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.1.0" });
+	install.dns.answer("sensitive.example", ["93.184.216.80"]);
+	install.http.respond("GET", /^https:\/\/sensitive.example\//, (r) => ({
+		body: r.url.includes("/users/me") ? '{"roles":["administrator"]}' : "{}",
+	}));
 	const { dashboard } = await admin.api.dashboards.create({ siteId: site.id, name: "Overview" });
 	const uploaded = await uploadArchive(admin, workspace.id, await exportedArchive(install, admin, site.id));
 	let made = 0;
@@ -195,6 +209,7 @@ describe("each Sensitive action", () => {
 		}
 
 		const refused = [
+			"import.connect",
 			"member.invite",
 			"member.changeAccess",
 			"member.remove",

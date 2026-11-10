@@ -28,6 +28,8 @@ export const imports = pgTable(
 		source: text("source").notNull(),
 		/** The source's settings and mapping, as its kind reads them. */
 		settings: jsonb("settings").notNull(),
+		/** Live source address/options only. Credentials live in the secret service. */
+		connection: jsonb("connection"),
 		/** How many runs it has had: the next run's number is one more, even after reports are purged. */
 		runs: integer("runs").notNull().default(0),
 		createdBy: uuid("created_by").references(() => people.id, { onDelete: "set null" }),

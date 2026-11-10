@@ -31,7 +31,6 @@ import {
 } from "@webcraft/module-sdk";
 import { and, eq, getTableName, isNull } from "drizzle-orm";
 import type pg from "pg";
-
 import type { AuditDetails, RecordedAuditEntry } from "../audit.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import type { ComponentSources, ModuleComponent } from "../content/components.ts";
@@ -86,6 +85,7 @@ import {
 } from "./registry.ts";
 import {
 	describeError,
+	importSourceHttp,
 	isModuleAnswer,
 	moduleAccess,
 	moduleContext,
@@ -347,6 +347,7 @@ export type ModuleHost = {
 
 /** An import source of a Module running on a Site (SDK 1.7), as the Source step offers it. */
 export type ImportSourceView = {
+	kind: "file" | "live";
 	/** `<module id>.<key>`, such as `wordpress-import.export`: an Import's `source`. */
 	id: string;
 	moduleId: string;
@@ -360,6 +361,13 @@ export type ImportSourceView = {
 
 /** An import source of a Module running on a Site, ready to read a file. */
 export type RunningSource = ImportSourceView & {
+	live?(
+		scope: SiteScope,
+		config: { address: string; includeHidden: boolean; secretName: string },
+	): {
+		test(): Promise<import("@webcraft/module-sdk").LiveSurvey>;
+		read(survey: import("@webcraft/module-sdk").LiveSurvey): AsyncIterable<SourceItem>;
+	};
 	/** The Permission as `can()` takes it. */
 	needs: AddedPermission | Permission;
 	/**
@@ -507,8 +515,9 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		label: words(module, source.label, language),
 		description: words(module, source.description, language),
 		permission: source.permission,
-		maxBytes: source.file.maxBytes,
-		extensions: source.file.extensions,
+		kind: source.live ? "live" : "file",
+		maxBytes: source.file?.maxBytes ?? 0,
+		extensions: source.file?.extensions ?? [],
 	});
 
 	const find = (moduleId: string): LoadedModule => {
@@ -1319,10 +1328,23 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			return {
 				...sourceView(module, source, language),
 				needs: resolvePermission(module, source.permission),
+				live: source.live
+					? (scope, config) => {
+							const live = source.live;
+							if (!live) throw new ModuleNotFoundError();
+							const connection = {
+								includeHidden: config.includeHidden,
+								http: (path: string, request?: { anonymous?: boolean }) =>
+									importSourceHttp(module, scope, options, config, path, request?.anonymous),
+							};
+							return { test: () => live.test(connection), read: (survey) => live.read(connection, survey) };
+						}
+					: undefined,
 				async *read(file) {
 					const scope = await openForModule(module, place);
 					if (!scope) throw new ModuleNotFoundError();
 					try {
+						if (!source.read) throw new ModuleNotFoundError();
 						yield* source.read(file, moduleContext(module, scope, options));
 					} catch (error) {
 						if (!isModuleAnswer(error)) {

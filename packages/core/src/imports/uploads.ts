@@ -65,6 +65,7 @@ export async function startUpload(
 	input: { source: string; fileName: string; size: number; partBytes?: number },
 ): Promise<FileRow> {
 	const source = await sourceFor(scope, modules, input.source);
+	if (source.kind === "live") throw new ImportSourceNotFoundError();
 	if (!Number.isInteger(input.size) || input.size < 1 || input.size > source.maxBytes) {
 		throw new ImportUploadRefusedError("size", `This source takes files of at most ${source.maxBytes} bytes.`, {
 			maxBytes: source.maxBytes,

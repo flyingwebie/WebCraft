@@ -1476,7 +1476,8 @@
 			"partitions": "Conservare {label} in parti mensili, ognuna eliminata quando supera il tempo per cui questa Install le conserva (ora {months, plural, one {# mese} other {# mesi}})",
 			"redirectRules": "Conservare le regole di reindirizzamento dei Site, che rispondono ai visitatori prima delle pagine dei Site",
 			"notFoundLog": "Conservare il registro 404 dei Site: i percorsi richiesti dai visitatori che non hanno una pagina, senza query string né chi li ha richiesti",
-			"importSources": "Importare contenuti nei Site come Bozze da {sources}, creando Post Type, file Media e regole di reindirizzamento"
+			"importSources": "Importare contenuti nei Site come Bozze da {sources}, creando Post Type, file Media e regole di reindirizzamento",
+			"useImportSourceHttp": "Leggere origini di Importazione scelte dallo Staff, con credenziali limitate alla singola origine. Solo HTTPS pubblico; nessun reindirizzamento autenticato."
 		},
 		"roles": {
 			"staff": "lo Staff",
@@ -3916,6 +3917,23 @@
 				"typeTwice": "Un tipo è mappato due volte.",
 				"other": "La mappatura non va bene per il Site."
 			}
+		},
+		"live": {
+			"address": "Indirizzo del sito",
+			"username": "Nome utente",
+			"password": "Password applicazione",
+			"passwordHelp": "Crea una password applicazione nel profilo WordPress.",
+			"hidden": "Includi bozze e articoli privati",
+			"loginHelp": "Le credenziali sono cifrate, mai mostrate di nuovo; l’uso è registrato nel Registro di controllo. Vengono rimosse con l’Importazione o 30 giorni dopo l’ultima esecuzione. Lascia vuoti entrambi i campi per riutilizzarle.",
+			"failed": "Connessione non riuscita. Controlla indirizzo, credenziali e permessi del sito, poi riprova.",
+			"connected": "Collegato · Ruolo: {roles}",
+			"connecting": "Connessione…",
+			"test": "Verifica connessione",
+			"customFields": "Alcuni campi personalizzati potrebbero essere solo nel file di esportazione. REST espone solo i campi registrati da WordPress e dai suoi plugin.",
+			"intro": "Leggi articoli, pagine, tipi personalizzati, tassonomie e Media tramite l’API REST del sito.",
+			"remove": "Rimuovi Importazione e credenziali",
+			"removed": "Importazione rimossa",
+			"removeHelp": "I contenuti importati restano. Mappatura, rapporti, corrispondenze degli ID origine e credenziali vengono rimossi."
 		}
 	},
 	"seo": {
