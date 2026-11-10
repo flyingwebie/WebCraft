@@ -153,15 +153,6 @@ export function newControl(
 	}
 }
 
-/** The controls with the one at `from` moved to `to`. */
-export function moveControl(controls: readonly FilterControl[], from: number, to: number): FilterControl[] {
-	if (from === to || from < 0 || to < 0 || from >= controls.length || to >= controls.length) return [...controls];
-	const moved = [...controls];
-	const [control] = moved.splice(from, 1);
-	if (control) moved.splice(to, 0, control);
-	return moved;
-}
-
 /** Text with its value in `language` changed: the text as written in the Default language, else a translation. */
 export function withText(text: FilterText, language: string | null, value: string): FilterText {
 	if (language === null) return { ...text, text: value };

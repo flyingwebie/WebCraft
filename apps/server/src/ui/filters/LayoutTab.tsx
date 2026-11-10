@@ -131,7 +131,15 @@ export function placementName(t: ReturnType<typeof useT>, placement: FilterPlace
 	return t(`filters.placements.${placement.kind}`, { name: placement.name ?? "" });
 }
 
-/** The visual builder's address for where a Filter is placed: `archive-template/<Post Type>`. */
+/**
+ * The visual builder's address for where a Filter is placed: `archive-template/<Post Type>`. The
+ * server's own mapping of the same five kinds is `targetOf` in
+ * `packages/core/src/filters/preview.ts` (a `BuilderTarget` object instead of this URL); kept apart
+ * rather than behind one shared table because this is browser code, which may not import
+ * `@webcraft/core` itself (only types or its small no-import entry points, see
+ * docs/development.md), and the two outputs differ in shape, so a shared table would need its own
+ * translation at each call site anyway.
+ */
 export function builderPath(placement: FilterPlacement): string {
 	switch (placement.kind) {
 		case "siteTemplate":

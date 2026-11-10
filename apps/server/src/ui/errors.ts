@@ -114,7 +114,6 @@ export function errorMessage(error: unknown): MessageKey {
 		case "SHARE_LINK_NOT_FOUND":
 		case "SHARE_LINKS_UNAVAILABLE":
 		case "SERVICES_LIST_INVALID":
-		case "PDF_UNAVAILABLE":
 			return `errors.${code}`;
 		case "SCHEDULE_INVALID":
 			switch ((data as { reason?: unknown } | undefined)?.reason) {

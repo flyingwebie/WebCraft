@@ -20,6 +20,10 @@ export type FilterPlacement = {
 
 export type FilterUsage = { usedIn: FilterPlacement[] };
 
+// A Template row's own `kind` to a FilterPlacement's (Components need none: their placements are
+// always "component"). Related to, but not the same table as, the two switches on
+// `FilterPlacement["kind"]` itself (`targetOf` in `preview.ts`, `builderPath` in
+// `apps/server/src/ui/filters/LayoutTab.tsx`): see the comment on `targetOf` for why those two stay apart.
 const KINDS = {
 	site: "siteTemplate",
 	search: "searchTemplate",

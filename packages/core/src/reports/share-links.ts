@@ -15,7 +15,7 @@ import { resolveBrand } from "./branding.ts";
 import { ShareLinkInvalidError, ShareLinkNotFoundError, ShareLinksUnavailableError } from "./errors.ts";
 import { isReportLanguage, previousOf, rangeOf, SHARE_LINK_LABEL } from "./model.ts";
 import { type ReportExplore, reportPage } from "./page.ts";
-import { inPlace, openPlace, requireDashboard, scoped } from "./service.ts";
+import { inPlace, type OpenedDashboardPlace, openPlace, requireDashboard, scoped } from "./service.ts";
 
 /**
  * Share links (GLOSSARY.md, #104): someone without an account explores a Dashboard through a link, on
@@ -77,20 +77,21 @@ export type ShareLinkInput = {
 
 export type ShareLinks = {
 	list(access: Access, place: DashboardPlace, dashboardId: string): Promise<ShareLinkView[]>;
-	/** A new link: answered once with its address, never again. */
+	/**
+	 * A new link: answered once with its address, never again. Takes the place already opened for
+	 * `shareLink.manage` (the procedure opens it once, before the Sensitive action's gate, and keeps
+	 * it on the context), rather than opening it again here.
+	 */
 	create(
-		access: Access,
-		place: DashboardPlace,
+		opened: OpenedDashboardPlace,
 		dashboardId: string,
 		input: ShareLinkInput,
 	): Promise<{ link: ShareLinkView; url: string }>;
-	/** Changes a link's name, language, password (null removes it) or expiry (null: none). */
-	update(
-		access: Access,
-		place: DashboardPlace,
-		shareLinkId: string,
-		input: Partial<ShareLinkInput>,
-	): Promise<ShareLinkView>;
+	/**
+	 * Changes a link's name, language, password (null removes it) or expiry (null: none). Takes the
+	 * place already opened for `shareLink.manage`, as `create` does.
+	 */
+	update(opened: OpenedDashboardPlace, shareLinkId: string, input: Partial<ShareLinkInput>): Promise<ShareLinkView>;
 	revoke(access: Access, place: DashboardPlace, shareLinkId: string): Promise<ShareLinkView>;
 	/** The Share link address's hostname, or null when the Install has no sites domain. */
 	hostname(): string | null;
@@ -207,8 +208,7 @@ export function createShareLinks(deps: {
 			return rows.map(viewOf);
 		},
 
-		async create(access, place, dashboardId, input) {
-			const opened = await openPlace(data, access, place, "shareLink.manage");
+		async create(opened, dashboardId, input) {
 			await requireDashboard(opened, dashboardId);
 			if (!hostname()) throw new ShareLinksUnavailableError();
 			const column = opened.level === "site" ? shareLinks.dashboardId : shareLinks.workspaceDashboardId;
@@ -236,7 +236,7 @@ export function createShareLinks(deps: {
 					passwordChangedAt: passwordHash ? now : null,
 					expiresAt,
 					createdAt: now,
-					createdBy: personIdOf(access.actor),
+					createdBy: personIdOf(opened.scope.access.actor),
 				} as never);
 				await tx.audit("shareLink.create", {
 					shareLinkId: made.id,
@@ -250,8 +250,7 @@ export function createShareLinks(deps: {
 			return { link: viewOf(row), url: urlOf(token) };
 		},
 
-		async update(access, place, shareLinkId, input) {
-			const opened = await openPlace(data, access, place, "shareLink.manage");
+		async update(opened, shareLinkId, input) {
 			const current = await linkOf(opened, shareLinkId);
 			if (current.revokedAt) throw new ShareLinkNotFoundError();
 			const now = clock.now();

@@ -5,6 +5,7 @@ import {
 	installBranding,
 	MAX_RECIPIENTS,
 	MAX_SERVICES,
+	type OpenedDashboardPlace,
 	openPlace,
 	type Permission,
 	REPORT_LANGUAGES,
@@ -170,13 +171,21 @@ const password = z.string().max(SHARE_LINK_PASSWORD.max * 4);
 /**
  * Checks a Permission on the Dashboard's place (its Site, or its Workspace: every Site of it) before
  * what follows, such as a Sensitive action's check, so nobody confirms something they may not do.
+ * Keeps the opened place on `context.place` (as `onSite`/`onWorkspace` keep `context.site`/
+ * `context.workspace`), so a handler that needs it again (such as `shareLinks.create` and `.update`,
+ * a Sensitive action) passes it on instead of opening the same place with the same Permission twice.
  */
 function onPlace(permission: Permission) {
 	return os
 		.$context<ApiContext & { access: Access }>()
 		.middleware(async ({ context, next }, input: { siteId?: string; workspaceId?: string }) => {
-			await openPlace(context.services.data, context.access, placeOf(input), permission);
-			return next();
+			const place: OpenedDashboardPlace = await openPlace(
+				context.services.data,
+				context.access,
+				placeOf(input),
+				permission,
+			);
+			return next({ context: { place } });
 		});
 }
 
@@ -209,7 +218,7 @@ export const shareLinks = {
 		.use(sensitive("shareLink.change"))
 		.handler(async ({ context, input }) => {
 			const language = input.language ?? (await languageOf(context.services, context.person));
-			return await context.services.shareLinks.create(context.access, placeOf(input), input.dashboardId, {
+			return await context.services.shareLinks.create(context.place, input.dashboardId, {
 				name: input.name,
 				language,
 				password: input.password ?? null,
@@ -232,7 +241,7 @@ export const shareLinks = {
 		.use(onPlace("shareLink.manage"))
 		.use(sensitive("shareLink.change"))
 		.handler(async ({ context, input }) => ({
-			link: await context.services.shareLinks.update(context.access, placeOf(input), input.shareLinkId, {
+			link: await context.services.shareLinks.update(context.place, input.shareLinkId, {
 				name: input.name,
 				language: input.language,
 				password: input.password,

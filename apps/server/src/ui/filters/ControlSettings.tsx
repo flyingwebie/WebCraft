@@ -13,7 +13,7 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
-import { Announcer } from "../content/reorder.tsx";
+import { Announcer, moveItem } from "../content/reorder.tsx";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { type FilterProblem, type FilterSources, keyFrom, optionalText } from "./model.ts";
 import { Segmented } from "./Segmented.tsx";
@@ -528,11 +528,9 @@ function SortOptions({
 		onChange(options.map((option, at) => (at === index ? { ...option, ...part } : option)));
 	const move = (index: number, by: -1 | 1) => {
 		const target = index + by;
-		const moved = [...options];
-		const [option] = moved.splice(index, 1);
-		if (!option || target < 0 || target > options.length - 1) return;
-		moved.splice(target, 0, option);
-		onChange(moved);
+		const option = options[index];
+		if (!option || target < 0 || target >= options.length) return;
+		onChange(moveItem(options, index, target));
 		setSaid(t("filters.controls.movedSort", { label: option.label.text, place: target + 1, count: options.length }));
 	};
 	const add = () => {

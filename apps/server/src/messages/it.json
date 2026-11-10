@@ -179,7 +179,6 @@
 		"BRANDING_INVALID_ACCENT": "Un colore d'accento si scrive #rrggbb, come #c2410c.",
 		"BRANDING_INVALID_NAME": "Un nome ha al massimo 100 caratteri.",
 		"SERVICES_LIST_INVALID": "Ogni servizio ha bisogno di un nome; l'elenco ne contiene al massimo 30.",
-		"PDF_UNAVAILABLE": "Qui non è stato possibile creare il PDF.",
 		"HOME_PAGE_UNPUBLISH": "La home page non può essere ritirata: scegli prima un'altra home page.",
 		"ALREADY_SCHEDULED": "È già programmato. Cambia o annulla quella pubblicazione programmata.",
 		"SCHEDULED_PUBLISH_NOT_FOUND": "Questa pubblicazione programmata non c'è: potrebbe essere già avvenuta o essere stata annullata.",

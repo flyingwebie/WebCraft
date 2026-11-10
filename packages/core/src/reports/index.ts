@@ -58,6 +58,7 @@ export {
 export { PDF_LIMITS, type PdfProblem, PdfRenderError, type PdfRenderer, pdfOnlyInWorker } from "./pdf.ts";
 export {
 	createReports,
+	type OpenedDashboardPlace,
 	openPlace,
 	type ReportInput,
 	type ReportRecipientStatus,
