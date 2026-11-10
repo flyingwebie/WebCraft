@@ -1,7 +1,6 @@
-import { entries, forms, globals } from "@webcraft/db/schema";
+import { entries, forms, globals, popups } from "@webcraft/db/schema";
 import type { FormEmails, FormText } from "@webcraft/renderer";
 import { asc, eq } from "drizzle-orm";
-
 import { writeEntryTranslations } from "../content/entries.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import type { StoredValues } from "../content/field-values.ts";
@@ -11,7 +10,10 @@ import { getPostType, listPostTypes } from "../content/post-types.ts";
 import { readValue, storedVersion } from "../content/values.ts";
 import { hiddenLanguagesIn } from "../content/visibility.ts";
 import { type FormEmailsVersions, formEmailsVersions, writeFormEmailsTranslations } from "../forms/forms.ts";
+import { noteDraftChange } from "../history/checkpoints.ts";
+import { saveRevision } from "../history/copies.ts";
 import { isUuid } from "../ids.ts";
+import { lockPopup, POPUP_FIELDS } from "../popups/index.ts";
 import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
 import { entryFields, type StoredLeaf, textField, type Unit, unitsOf } from "./units.ts";
 
@@ -22,10 +24,14 @@ import { entryFields, type StoredLeaf, textField, type Unit, unitsOf } from "./u
  * treat them alike, and written back where it lives.
  */
 
-export type ItemKind = "entry" | "globals" | "formEmails";
+export type ItemKind = "entry" | "globals" | "formEmails" | "popupContent";
 
 /** An item: an Entry or a Form by id; the Site's Globals have none. */
-export type ItemRef = { kind: "entry"; id: string } | { kind: "globals" } | { kind: "formEmails"; id: string };
+export type ItemRef =
+	| { kind: "entry"; id: string }
+	| { kind: "globals" }
+	| { kind: "formEmails"; id: string }
+	| { kind: "popupContent"; id: string };
 
 /** An item as translations read it. */
 export type ItemSnapshot = {
@@ -117,6 +123,20 @@ export async function readItem(
 	ref: ItemRef,
 	defaultLanguage: string,
 ): Promise<ItemSnapshot | null> {
+	if (ref.kind === "popupContent") {
+		const row = await scope.first(popups, eq(popups.id, ref.id));
+		return row
+			? {
+					ref,
+					title: row.name,
+					postTypeId: null,
+					draft: storedVersion(row.contentDraft).values,
+					published: row.contentPublished ? storedVersion(row.contentPublished).values : null,
+					units: (values) => unitsOf(values, POPUP_FIELDS),
+					hiddenLanguages: [],
+				}
+			: null;
+	}
 	if (ref.kind === "entry") {
 		const row = isUuid(ref.id) ? await scope.first(entries, eq(entries.id, ref.id)) : undefined;
 		if (!row) return null;
@@ -157,6 +177,36 @@ export async function writeItem(
 	defaultLanguage: string,
 	change: (item: ItemSnapshot) => ItemWrite | Promise<ItemWrite>,
 ): Promise<boolean> {
+	if (ref.kind === "popupContent")
+		return scope.transaction(async (tx) => {
+			const row = await lockPopup(tx, ref.id);
+			const snapshot = await readItem(tx, ref, defaultLanguage);
+			if (!snapshot) return false;
+			const result = await change(snapshot);
+			if (!result) return false;
+			await tx.update(
+				popups,
+				{
+					...(result.draft ? { contentDraft: { values: result.draft }, contentUpdatedAt: tx.now() } : {}),
+					...(result.published && row.contentPublished ? { contentPublished: { values: result.published } } : {}),
+				},
+				eq(popups.id, row.id),
+			);
+			if (result.draft)
+				await noteDraftChange(
+					tx,
+					{ kind: "popupContent", id: row.id },
+					{
+						content: row.contentDraft,
+						changedAt: row.contentUpdatedAt,
+						changedBy: row.contentUpdatedBy,
+						since: row.createdAt,
+					},
+					{ values: result.draft },
+				);
+			if (result.published && row.contentPublished) await saveRevision(tx, { kind: "popupContent", id: row.id });
+			return true;
+		});
 	if (ref.kind === "entry") {
 		const { written } = await writeEntryTranslations(
 			scope,
@@ -245,6 +295,7 @@ export async function siteItems(scope: SiteScope | BackgroundScope): Promise<Ite
 		});
 		for (const row of rows) items.push({ kind: "entry", id: row.id });
 	}
+	for (const row of await scope.select(popups)) items.push({ kind: "popupContent", id: row.id });
 	if (await scope.first(globals)) items.push({ kind: "globals" });
 	for (const row of await scope.select(forms, undefined, { orderBy: [asc(forms.name)] })) {
 		if (row.emailsDraft !== null) items.push({ kind: "formEmails", id: row.id });

@@ -3895,6 +3895,19 @@
 														}
 													},
 													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "popupContent"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
 												}
 											]
 										}
@@ -3973,6 +3986,19 @@
 												"properties": {
 													"kind": {
 														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
 													},
 													"id": {
 														"type": "string",
@@ -4077,6 +4103,19 @@
 												"properties": {
 													"kind": {
 														"const": "formEmails"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
 													},
 													"id": {
 														"type": "string",
@@ -8714,6 +8753,436 @@
 				},
 				"x-webcraft-access": "write",
 				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-confirmation": true
+			}
+		},
+		"/popups/list": {
+			"post": {
+				"operationId": "popups.list",
+				"summary": "List the Site’s Popups.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/popups/get": {
+			"post": {
+				"operationId": "popups.get",
+				"summary": "Read a Popup’s Structure and Content in one language.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"popupId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string"
+									}
+								},
+								"required": ["siteId", "popupId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "structure"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/popups/create": {
+			"post": {
+				"operationId": "popups.create",
+				"summary": "Create a Popup and its element tree.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 120
+									},
+									"key": {
+										"type": "string",
+										"maxLength": 80
+									}
+								},
+								"required": ["siteId", "name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/popups/saveDraft": {
+			"post": {
+				"operationId": "popups.saveDraft",
+				"summary": "Save a Popup’s Structure Draft.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"popupId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"popup": {
+										"type": "object",
+										"properties": {
+											"animation": {},
+											"backdropClose": {},
+											"autoCloseSeconds": {},
+											"afterSubmitCloseSeconds": {},
+											"mainButton": {},
+											"additionalTriggers": {},
+											"layout": {},
+											"trigger": {},
+											"rules": {},
+											"frequency": {}
+										}
+									}
+								},
+								"required": ["siteId", "popupId", "popup"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/popups/saveContent": {
+			"post": {
+				"operationId": "popups.saveContent",
+				"summary": "Save a Popup’s Content Draft in one language.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"popupId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string"
+									},
+									"values": {
+										"type": "object",
+										"propertyNames": {
+											"type": "string"
+										},
+										"additionalProperties": {}
+									}
+								},
+								"required": ["siteId", "popupId", "values"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.edit"]
+			}
+		},
+		"/popups/publish": {
+			"post": {
+				"operationId": "popups.publish",
+				"summary": "Publish a Popup’s element tree and settings.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"popupId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "popupId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure", "publishing"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-publishes": true,
+				"x-webcraft-confirmation": true
+			}
+		},
+		"/popups/publishContent": {
+			"post": {
+				"operationId": "popups.publishContent",
+				"summary": "Publish a Popup’s Content.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"popupId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "popupId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content", "publishing"],
+				"x-webcraft-permissions": ["entry.publish"],
+				"x-webcraft-publishes": true,
+				"x-webcraft-confirmation": true
+			}
+		},
+		"/popups/delete": {
+			"post": {
+				"operationId": "popups.delete",
+				"summary": "Delete a Popup after confirmation; keep its Component.",
+				"tags": ["popups"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"popupId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "popupId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
 				"x-webcraft-permissions": ["structure.edit"],
 				"x-webcraft-confirmation": true
 			}
@@ -15750,6 +16219,32 @@
 													"type": "object",
 													"properties": {
 														"kind": {
+															"const": "popup"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "popupContent"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
 															"const": "formEmails"
 														},
 														"id": {
@@ -15936,6 +16431,32 @@
 												"type": "object",
 												"properties": {
 													"kind": {
+														"const": "popup"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
 														"const": "formEmails"
 													},
 													"id": {
@@ -16103,6 +16624,32 @@
 												"properties": {
 													"kind": {
 														"const": "form"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popup"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
 													},
 													"id": {
 														"type": "string",
@@ -16297,6 +16844,32 @@
 													"properties": {
 														"kind": {
 															"const": "form"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "popup"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "popupContent"
 														},
 														"id": {
 															"type": "string",
@@ -16637,6 +17210,19 @@
 												"type": "object",
 												"properties": {
 													"kind": {
+														"const": "popupContent"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
 														"const": "globals"
 													}
 												},
@@ -16756,6 +17342,19 @@
 													"properties": {
 														"kind": {
 															"const": "entry"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "popupContent"
 														},
 														"id": {
 															"type": "string",
@@ -17038,6 +17637,32 @@
 												"type": "object",
 												"properties": {
 													"kind": {
+														"const": "popup"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
 														"const": "formEmails"
 													},
 													"id": {
@@ -17214,6 +17839,32 @@
 												"properties": {
 													"kind": {
 														"const": "form"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popup"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
 													},
 													"id": {
 														"type": "string",
@@ -17424,6 +18075,32 @@
 												"type": "object",
 												"properties": {
 													"kind": {
+														"const": "popup"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
 														"const": "formEmails"
 													},
 													"id": {
@@ -17605,6 +18282,32 @@
 												"properties": {
 													"kind": {
 														"const": "form"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popup"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "popupContent"
 													},
 													"id": {
 														"type": "string",

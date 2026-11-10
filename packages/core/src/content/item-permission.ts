@@ -9,5 +9,7 @@ import type { Permission } from "../permissions/roles.ts";
  */
 export function itemPermission(kind: string, content: Permission): Permission {
 	if (kind === "formEmails") return "formEmails.edit";
-	return kind === "entry" || kind === "globals" || kind === "consentBanner" ? content : "structure.edit";
+	return kind === "entry" || kind === "globals" || kind === "consentBanner" || kind === "popupContent"
+		? content
+		: "structure.edit";
 }

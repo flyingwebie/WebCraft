@@ -1,4 +1,4 @@
-import { templates } from "@webcraft/db/schema";
+import { popups, templates } from "@webcraft/db/schema";
 import type { QualityCheck } from "@webcraft/renderer";
 import { renderPreview } from "../builder/preview.ts";
 import { type BuilderTarget, readSource } from "../builder/sources.ts";
@@ -10,6 +10,9 @@ import type { TemplateKind } from "../content/templates.ts";
 import { designSystemChecks } from "../design-system/contrast.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { can } from "../permissions/can.ts";
+import { popupAttachments } from "../popups/catalogue.ts";
+import { popupChecks } from "../popups/checks.ts";
+import type { PopupSettings } from "../popups/index.ts";
 import type { SitePages } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 
@@ -20,7 +23,7 @@ export type SiteCheck = {
 	componentId?: string;
 	params?: Readonly<Record<string, number>>;
 	item: {
-		kind: "entry" | "template" | "component" | "designSystem";
+		kind: "entry" | "template" | "component" | "designSystem" | "popup";
 		id: string;
 		name: string;
 		templateKind?: TemplateKind;
@@ -91,6 +94,15 @@ export function createChecks(pages: SitePages, sources: ComponentSources) {
 			)
 				return checks;
 			const targets: { target: BuilderTarget; item: SiteCheck["item"] }[] = [];
+			const attached = await popupAttachments(scope);
+			for (const row of await scope.select(popups))
+				for (const check of popupChecks(row.draft as PopupSettings, attached.has(row.id)))
+					checks.push({
+						...check,
+						item: { kind: "popup", id: row.id, name: row.name },
+						language: site.defaultLanguage,
+						href: `/sites/${scope.site.id}/popups?popup=${row.id}`,
+					});
 			for (const template of await scope.select(templates)) {
 				const kind = template.kind as TemplateKind;
 				const target: BuilderTarget =

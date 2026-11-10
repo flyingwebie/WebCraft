@@ -108,6 +108,22 @@ export type PageToRender = {
 	component?: PlacementRenderer;
 	/** What `{{@form <key>}}` shows, in both templates: the Form, rendered (`renderForm`). Nothing when absent. */
 	form?: (formId: string) => string;
+	popups?: {
+		siteId: string;
+		items: {
+			id: string;
+			title: string;
+			tree: ElementTree;
+			config: {
+				key: string;
+				layout: string;
+				animation: string;
+				trigger: { kind: string };
+				additionalTriggers: { kind: string }[];
+			};
+		}[];
+		reveal: boolean;
+	};
 	/**
 	 * Where the Search element (`{{@search}}`) sends visitors: the Site's search results page in the
 	 * page's language, and the query it shows in its box (on the results page). The Search element shows
@@ -325,6 +341,12 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		shown.settings++;
 		return consentSettingsHtml(consent.words);
 	};
+	const popup = (id: string) => {
+		const item = page.popups?.items.find((p) => p.id === id);
+		return item
+			? `<a href="#popup-${escapeAttribute(item.config.key)}" data-wc-popup-open="${id}">${escapeText(item.title)}</a>`
+			: "";
+	};
 	const content = renderTree(page.content, {
 		checkMarkup: page.checkMarkup,
 		values: page.values,
@@ -336,6 +358,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		priorityImage: { given: false },
 		component: page.component,
 		form,
+		popup,
 		search,
 		loop: page.loop,
 		filter,
@@ -371,6 +394,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		extraAttributes: mainAttributes,
 		component: page.component,
 		form,
+		popup,
 		search,
 		loop: page.loop,
 		filter,
@@ -388,6 +412,39 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		codeSource: editMode?.code || page.checkMarkup ? "site" : undefined,
 	});
 	if (page.footerLink && !linked) body += `<footer>${footer()}</footer>`;
+
+	const popupHtml = (page.popups?.items ?? [])
+		.map((item) => {
+			const inside = renderTree(item.tree, {
+				values: page.values,
+				language: site.language,
+				words,
+				shown,
+				className: page.className,
+				media: page.media,
+				component: page.component,
+				form,
+				popup,
+				search,
+				regions,
+				loopItemsShown,
+				themeToggle,
+				languageSwitcher,
+				consentSettings,
+				loop: page.loop,
+				filter,
+				filtered: page.filtered,
+				time: page.time,
+				held,
+			});
+			const heading = `<h2 id="wc-popup-title-${item.id}">${escapeText(item.title)}</h2>`;
+			const section = `<section id="popup-${escapeAttribute(item.config.key)}" aria-labelledby="wc-popup-title-${item.id}">${heading}${inside}</section>`;
+			if (page.popups?.reveal) return section;
+			const config = item.config as { layout: string; trigger: { kind: string } };
+			const close = escapeAttribute(words.popupClose);
+			return `<template data-site="${escapeAttribute(page.popups?.siteId ?? "")}" data-popup-id="${item.id}" data-wc-popup="${escapeAttribute(JSON.stringify(item.config))}"><dialog class="wc-popup" data-layout="${escapeAttribute(config.layout)}" data-animation="${escapeAttribute(item.config.animation)}" aria-labelledby="wc-popup-title-${item.id}"><button type="button" data-wc-popup-close aria-label="${close}">${close}</button>${heading}${inside}</dialog></template>${[item.config.trigger, ...item.config.additionalTriggers].some((t) => t.kind === "click") ? `<noscript>${section}</noscript>` : ""}`;
+		})
+		.join("");
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
 	const heldBack = (category: string) => consent !== undefined && category !== "necessary";
 	// The banner and its script come only to a page that asks something.
@@ -451,6 +508,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		`<a class="${PAGE_HOOKS.skipLinkClass}" href="#${PAGE_HOOKS.mainId}">${escapeText(pageWords(site.language).skipLink)}</a>`,
 		...(asks && consent && consent.mode !== "outside" ? [consentBannerHtml(consent)] : []),
 		body,
+		...(popupHtml ? [popupHtml] : []),
 		...outsideIn("bodyEnd"),
 		...(editMode && outside.length > 0 ? [outsidePlaceholders(outside, words)] : []),
 		"</body>",
@@ -574,6 +632,7 @@ function mainAttributes(element: ElementNode): readonly (readonly [string, strin
 
 /** The words WebCraft itself writes into Site pages, by language. */
 type PageWords = {
+	popupClose: string;
 	skipLink: string;
 	notFoundTitle: string;
 	notFoundText: string;
@@ -610,6 +669,7 @@ type PageWords = {
 
 const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 	en: {
+		popupClose: "Close",
 		skipLink: "Skip to main content",
 		notFoundTitle: "Page not found",
 		notFoundText: "There is no page at this address.",
@@ -633,6 +693,7 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		searchTitle: "Results for “{query}”",
 	},
 	it: {
+		popupClose: "Chiudi",
 		skipLink: "Vai al contenuto principale",
 		notFoundTitle: "Pagina non trovata",
 		notFoundText: "Non c'è nessuna pagina a questo indirizzo.",
@@ -656,6 +717,7 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		searchTitle: "Risultati per «{query}»",
 	},
 	fr: {
+		popupClose: "Fermer",
 		skipLink: "Aller au contenu principal",
 		notFoundTitle: "Page introuvable",
 		notFoundText: "Il n’y a aucune page à cette adresse.",
@@ -679,6 +741,7 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		searchTitle: "Résultats pour « {query} »",
 	},
 	de: {
+		popupClose: "Schließen",
 		skipLink: "Zum Hauptinhalt springen",
 		notFoundTitle: "Seite nicht gefunden",
 		notFoundText: "Unter dieser Adresse gibt es keine Seite.",
@@ -702,6 +765,7 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		searchTitle: "Ergebnisse für „{query}“",
 	},
 	es: {
+		popupClose: "Cerrar",
 		skipLink: "Ir al contenido principal",
 		notFoundTitle: "Página no encontrada",
 		notFoundText: "No hay ninguna página en esta dirección.",
@@ -725,6 +789,7 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		searchTitle: "Resultados para «{query}»",
 	},
 	pt: {
+		popupClose: "Fechar",
 		skipLink: "Ir para o conteúdo principal",
 		notFoundTitle: "Página não encontrada",
 		notFoundText: "Não há nenhuma página neste endereço.",
@@ -748,6 +813,7 @@ const PAGE_WORDS: Readonly<Record<string, PageWords>> = {
 		searchTitle: "Resultados para «{query}»",
 	},
 	nl: {
+		popupClose: "Sluiten",
 		skipLink: "Naar de hoofdinhoud",
 		notFoundTitle: "Pagina niet gevonden",
 		notFoundText: "Er is geen pagina op dit adres.",

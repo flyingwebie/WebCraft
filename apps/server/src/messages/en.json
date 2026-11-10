@@ -222,7 +222,9 @@
 		"SITE_IMPORT_UPLOAD_REFUSED": "The upload was refused: choose the file again.",
 		"SITE_IMPORT_REFUSED": "This file can't be imported.",
 		"SITE_IMPORT_NOT_READY": "This import can't be started now: it is still uploading, was refused, or has started already.",
-		"SITE_IMPORT_PASSPHRASE_WRONG": "That isn't the passphrase the Site was exported with."
+		"SITE_IMPORT_PASSPHRASE_WRONG": "That isn't the passphrase the Site was exported with.",
+		"POPUP_INVALID": "Check the Popup settings.",
+		"POPUP_NOT_FOUND": "Popup not found."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -421,7 +423,8 @@
 			"designSystem": "Design system",
 			"siteExport": "Export",
 			"siteImports": "Site imports",
-			"checks": "Checks"
+			"checks": "Checks",
+			"popups": "Popups"
 		}
 	},
 	"masterKeyBanner": {
@@ -4276,7 +4279,8 @@
 			"loop": "Loop",
 			"form": "Form",
 			"pagination": "Pagination",
-			"filter": "Filter"
+			"filter": "Filter",
+			"popup": "Popup"
 		},
 		"moves": {
 			"moved": "Moved {name}: {where}.",
@@ -4362,7 +4366,8 @@
 				"themeToggle": "Theme toggle",
 				"languageSwitcher": "Language switcher",
 				"consentSettings": "Cookie settings",
-				"filter": "Filter"
+				"filter": "Filter",
+				"popup": "Popup"
 			},
 			"componentHint": "Component",
 			"text": "Text",
@@ -4409,7 +4414,9 @@
 			"filterWhole": "The whole Filter (its form)",
 			"filterOne": "Only {name} ({id})",
 			"chooseFilter": "Choose a Filter.",
-			"filterHint": "Beside its Loop"
+			"filterHint": "Beside its Loop",
+			"popupChoice": "Popup",
+			"choosePopup": "Choose a Popup."
 		},
 		"inspector": {
 			"heading": "Settings",
@@ -4456,7 +4463,8 @@
 			"themeToggle": "Theme toggle",
 			"languageSwitcher": "Language switcher",
 			"consentSettings": "Cookie settings",
-			"filter": "Filter"
+			"filter": "Filter",
+			"popup": "Popup"
 		},
 		"commandHelp": {
 			"outlet": "Where each page's content goes. The Site template holds one, inside its main element.",
@@ -4464,7 +4472,8 @@
 			"themeToggle": "A button switching between light and dark, shown while Dark mode is on.",
 			"languageSwitcher": "Links to the page in each of the Site's languages.",
 			"consentSettings": "A button opening the Consent banner again.",
-			"filter": "Controls visitors use to narrow, search and sort a Loop of this Template."
+			"filter": "Controls visitors use to narrow, search and sort a Loop of this Template.",
+			"popup": "Popup"
 		},
 		"style": {
 			"classes": "Classes",
@@ -7348,7 +7357,8 @@
 			"archive": "Archive template",
 			"search": "Search results template",
 			"designSystem": "Design system"
-		}
+		},
+		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup."
 	},
 	"statement": {
 		"heading": "Accessibility statement",
@@ -7386,5 +7396,80 @@
 			"enforcementUrl": "Enforcement procedure link (HTTPS)"
 		},
 		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing."
+	},
+	"popups": {
+		"title": "Popups",
+		"new": "New Popup",
+		"name": "Name",
+		"save": "Save Draft",
+		"publish": "Publish",
+		"content": "Content",
+		"structure": "Structure",
+		"build": "Build layout",
+		"layout": "Layout",
+		"trigger": "Trigger",
+		"seconds": "Seconds",
+		"percent": "Scroll depth (%)",
+		"element": "Element anchor",
+		"paths": "Paths (one per line; * at the end includes children)",
+		"postTypes": "Post Types",
+		"entries": "Entries",
+		"languages": "Languages",
+		"devices": "Devices",
+		"visitors": "Visitors",
+		"frequency": "Frequency",
+		"saved": "Draft saved",
+		"published": "Published",
+		"warning": "On phones, wait at least 5 seconds before opening a Popup.",
+		"delete": "Delete Popup",
+		"fields": {
+			"title": "Title",
+			"text": "Text",
+			"image": "Image",
+			"enabled": "On",
+			"start": "Start",
+			"end": "End"
+		},
+		"options": {
+			"modal": "Modal",
+			"slide-in": "Slide-in",
+			"bar": "Bar",
+			"full-screen": "Full screen",
+			"load": "On load",
+			"delay": "After a delay",
+			"scroll": "Scroll depth",
+			"element": "Element in view",
+			"exit": "Exit intent",
+			"idle": "Idle",
+			"click": "Click",
+			"phone": "Phone",
+			"desktop": "Desktop",
+			"all": "All",
+			"new": "New",
+			"returning": "Returning",
+			"page": "Every page",
+			"interval": "Every N days",
+			"tablet": "Tablet",
+			"visit": "Once per visit",
+			"closed": "Never again after closing",
+			"submitted": "Never again after submitting or the main button",
+			"none": "None",
+			"fade": "Fade",
+			"slide": "Slide",
+			"zoom": "Zoom"
+		},
+		"confirm": "Confirm deletion",
+		"confirmDelete": "Delete this Popup? Its Component remains available.",
+		"days": "Days",
+		"addTrigger": "Add Trigger",
+		"removeTrigger": "Remove Trigger",
+		"animation": "Animation",
+		"backdropClose": "Close when clicking the backdrop",
+		"autoCloseSeconds": "Close after seconds (empty: never)",
+		"afterSubmitCloseSeconds": "Close after a successful submission, in seconds (empty: keep open)",
+		"mainButton": "Main button element (#id, optional)",
+		"excludePaths": "Exclude paths (one per line)",
+		"excludePostTypes": "Exclude Post Types",
+		"excludeEntries": "Exclude Entries"
 	}
 }

@@ -1,7 +1,6 @@
 import { entries, globals, media } from "@webcraft/db/schema";
 import { blockSpec, type ElementTree, printTemplateMarkup, storedBlocks, textFromHtml } from "@webcraft/renderer";
 import { inArray } from "drizzle-orm";
-
 import { CONSENT_TEXT_FIELDS } from "../consent/text.ts";
 import { type ComponentSources, NO_MODULE_COMPONENTS, siteComponents } from "../content/components.ts";
 import type { FieldDefinition, LeafField } from "../content/field-types.ts";
@@ -13,6 +12,7 @@ import { getPostType } from "../content/post-types.ts";
 import { readValue, storedVersion } from "../content/values.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import { POPUP_FIELDS } from "../popups/index.ts";
 import { SEO_GROUP } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type Attribution, attribution, peopleNames } from "./attribution.ts";
@@ -149,6 +149,8 @@ async function valueParts(scope: SiteScope, state: ItemState, versions: unknown[
 		);
 	} else if (kind === "globals") {
 		fields = storedFields((await scope.first(globals))?.fields);
+	} else if (kind === "popupContent") {
+		fields = POPUP_FIELDS;
 	} else if (kind === "consentBanner") {
 		fields = [...CONSENT_TEXT_FIELDS];
 	}
@@ -604,6 +606,7 @@ async function markupNames(scope: SiteScope, sources: ComponentSources) {
 		className: catalogue.nameOf,
 		componentName: components.nameOf,
 		formKey: components.forms.keyOf,
+		popupKey: components.popups.keyOf,
 		filterName: components.filters.nameOf,
 	};
 }

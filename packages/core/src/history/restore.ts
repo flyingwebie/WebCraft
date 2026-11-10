@@ -14,6 +14,7 @@ import { saveArchiveTemplate, saveEntryTemplate, saveSearchTemplate, saveSiteTem
 import { editable, saveDesignSystemDraft } from "../design-system/drafts.ts";
 import { saveFilterDraft } from "../filters/filters.ts";
 import { saveFormDraft, saveFormEmails } from "../forms/forms.ts";
+import { popupRow, restorePopupContent, savePopupDraft } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { saveCheckpoint } from "./checkpoints.ts";
 import { type CopyRef, getCopy, type HistoryCopy } from "./copies.ts";
@@ -72,6 +73,17 @@ export async function writeItemDraft(
 			return;
 		case "formEmails":
 			await saveFormEmails(scope, id, content as Record<string, unknown>);
+			return;
+		case "popup": {
+			const frozen = content as { settings: Parameters<typeof savePopupDraft>[2]; component: unknown };
+			const row = await popupRow(scope, id);
+			const component = storedComponentVersion(frozen.component);
+			await saveComponentDraft(scope, row.componentId, { props: component.props, tree: component.tree }, sources);
+			await savePopupDraft(scope, id, frozen.settings);
+			return;
+		}
+		case "popupContent":
+			await restorePopupContent(scope, id, content);
 			return;
 		case "form":
 			await saveFormDraft(scope, id, content as Record<string, unknown>);

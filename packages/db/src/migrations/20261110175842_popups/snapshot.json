@@ -1,0 +1,719 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "d1c2d68a-963c-43ef-83b7-ad38fd7df2e4",
+  "prevIds": [
+    "8f8bd3e3-e695-409a-adb0-1cd45289c070"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "popups"
+      ],
+      "writes": [
+        "s|tbl|public.popups",
+        "n|tbl|public.popups",
+        "e|tbl|public.popups",
+        "n|rel|public.popups",
+        "n|type|public.popups",
+        "n|rel|public.popups_pkey",
+        "n|rel|public.popups_site_key_unique",
+        "n|rel|public.popups_site_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "reviews",
+        "popup_id"
+      ],
+      "writes": [
+        "s|col|public.reviews.popup_id",
+        "n|col|public.reviews.popup_id",
+        "e|col|public.reviews.popup_id"
+      ],
+      "reads": [
+        "n|tbl|public.reviews",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "recreate_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "reviews",
+        "reviews_one_waiting"
+      ],
+      "writes": [
+        "s|idx|public.reviews_one_waiting",
+        "n|idx|public.reviews_one_waiting",
+        "e|idx|public.reviews_one_waiting",
+        "n|rel|public.reviews_one_waiting"
+      ],
+      "reads": [
+        "n|tbl|public.reviews",
+        "n|sch|public",
+        "n|col|public.reviews.site_id",
+        "n|col|public.reviews.item_kind"
+      ],
+      "sharedWrites": [],
+      "sqlHash": "e409130f9f1e6bf1"
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "popups"
+      ],
+      "writes": [
+        "s|fk|public.popups.popups_updated_by_people_id_fkey",
+        "n|fk|public.popups.popups_updated_by_people_id_fkey",
+        "e|fk|public.popups.popups_updated_by_people_id_fkey",
+        "n|con|public.popups.popups_updated_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.popups",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.popups.updated_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "popups"
+      ],
+      "writes": [
+        "s|fk|public.popups.popups_content_updated_by_people_id_fkey",
+        "n|fk|public.popups.popups_content_updated_by_people_id_fkey",
+        "e|fk|public.popups.popups_content_updated_by_people_id_fkey",
+        "n|con|public.popups.popups_content_updated_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.popups",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.popups.content_updated_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "popups"
+      ],
+      "writes": [
+        "s|fk|public.popups.popups_site_fkey",
+        "n|fk|public.popups.popups_site_fkey",
+        "e|fk|public.popups.popups_site_fkey",
+        "n|con|public.popups.popups_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.popups",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.popups.workspace_id",
+        "n|col|public.popups.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "popups"
+      ],
+      "writes": [
+        "s|fk|public.popups.popups_component_fkey",
+        "n|fk|public.popups.popups_component_fkey",
+        "e|fk|public.popups.popups_component_fkey",
+        "n|con|public.popups.popups_component_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.popups",
+        "n|sch|public",
+        "n|tbl|public.components",
+        "n|sch|public",
+        "n|col|public.popups.site_id",
+        "n|col|public.popups.component_id",
+        "n|col|public.components.site_id",
+        "n|col|public.components.id",
+        "e|uniqueness|public.components.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "reviews"
+      ],
+      "writes": [
+        "s|fk|public.reviews.reviews_popup_fkey",
+        "n|fk|public.reviews.reviews_popup_fkey",
+        "e|fk|public.reviews.reviews_popup_fkey",
+        "n|con|public.reviews.reviews_popup_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.reviews",
+        "n|sch|public",
+        "n|tbl|public.popups",
+        "n|sch|public",
+        "n|col|public.reviews.site_id",
+        "n|col|public.reviews.popup_id",
+        "n|col|public.popups.site_id",
+        "n|col|public.popups.id",
+        "e|uniqueness|public.popups.id.site_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "popups",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "component_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "draft",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "published",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "content_draft",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "content_published",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "updated_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "updated_via",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "content_updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "content_updated_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "last_published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "content_updated_via",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "content_published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "reviews",
+        "name": "popup_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "popups_updated_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "updated_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "popups_content_updated_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "content_updated_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "popups_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "popups_component_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "component_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "components",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "NO ACTION",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "reviews",
+        "name": "reviews_popup_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "popup_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "popups",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "popups_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "popups_site_key_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "key"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "popups",
+        "name": "popups_site_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "indexes\u0000[\"public\",\"reviews_one_waiting\"]",
+      "set": {
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "item_kind",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "coalesce(entry_id::text, popup_id::text, '')",
+            "isExpression": true,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { bigint, foreignKey, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-
 import { entries } from "./content.ts";
 import { people } from "./people.ts";
+import { popups } from "./popups.ts";
 import { scheduledPublishes } from "./scheduled-publishes.ts";
 import { sites } from "./tenancy.ts";
 
@@ -32,6 +32,7 @@ export const reviews = pgTable(
 		itemKind: text("item_kind").notNull(),
 		/** The Entry under review; null for the items a Site has one of. Deleting the Entry deletes its Reviews. */
 		entryId: uuid("entry_id"),
+		popupId: uuid("popup_id"),
 		status: text("status").notNull(),
 		/** Who submitted it; null once they are deleted. */
 		submittedBy: uuid("submitted_by").references(() => people.id, { onDelete: "set null" }),
@@ -71,9 +72,14 @@ export const reviews = pgTable(
 			columns: [table.scheduleId],
 			foreignColumns: [scheduledPublishes.id],
 		}).onDelete("set null"),
+		foreignKey({
+			name: "reviews_popup_fkey",
+			columns: [table.siteId, table.popupId],
+			foreignColumns: [popups.siteId, popups.id],
+		}).onDelete("cascade"),
 		// One waiting Review per item (the Globals and the Consent banner's words have no Entry).
 		uniqueIndex("reviews_one_waiting")
-			.on(table.siteId, table.itemKind, sql`coalesce(entry_id::text, '')`)
+			.on(table.siteId, table.itemKind, sql`coalesce(entry_id::text, popup_id::text, '')`)
 			.where(sql`status = 'inReview'`),
 		index("reviews_site_id_status_idx").on(table.siteId, table.status, table.serial),
 		index("reviews_site_id_item_idx").on(table.siteId, table.itemKind, table.entryId, table.serial),

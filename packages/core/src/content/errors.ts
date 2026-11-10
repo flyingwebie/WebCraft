@@ -293,7 +293,8 @@ export type ComponentUse =
 			versions: ("draft" | "published")[];
 	  }
 	| { kind: "component"; id: string; name: string; versions: ("draft" | "published")[] }
-	| { kind: "entry"; id: string; postTypeId: string; versions: ("draft" | "published")[] };
+	| { kind: "entry"; id: string; postTypeId: string; versions: ("draft" | "published")[] }
+	| { kind: "popup"; id: string; name: string; versions: ("draft" | "published")[] };
 
 /** A Component that is placed somewhere can't be deleted: `usedIn` says where. */
 export class ComponentInUseError extends Error {

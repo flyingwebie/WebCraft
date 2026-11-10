@@ -1,3 +1,5 @@
+import { popups } from "@webcraft/db/schema";
+import { sitePopups } from "../popups/catalogue.ts";
 /**
  * Components (GLOSSARY.md): reusable element trees with Props, built by Staff and placed in
  * Templates and other Components (later in Page layouts and Body fields). A Component is Structure
@@ -466,6 +468,24 @@ async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentV
 		{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 		draft,
 	);
+	for (const popup of await scope.select(popups, eq(popups.componentId, row.id))) {
+		await scope.update(
+			popups,
+			{ updatedAt: scope.now(), updatedBy: personIdOf(scope.access.actor), updatedVia: clientNameOf(scope.access.via) },
+			eq(popups.id, popup.id),
+		);
+		await noteDraftChange(
+			scope,
+			{ kind: "popup", id: popup.id },
+			{
+				content: { settings: popup.draft, component: row.draft },
+				changedAt: popup.updatedAt,
+				changedBy: popup.updatedBy,
+				since: popup.createdAt,
+			},
+			{ settings: popup.draft, component: draft },
+		);
+	}
 	return toComponent(updated);
 }
 
@@ -623,6 +643,7 @@ export function componentTreeRules(
 		refuseCommand: refuseSiteTemplateCommands,
 		components: catalogue,
 		forms: catalogue.forms,
+		popups: catalogue.popups,
 		filters: catalogue.filters,
 		loops: context.loops,
 		// A Component's tree is itself placed: what it places sits one level deeper.
@@ -668,6 +689,7 @@ function printMarkup(tree: ElementTree, classes: ClassCatalogue, names: SiteComp
 		className: classes.nameOf,
 		componentName: names.nameOf,
 		formKey: names.forms.keyOf,
+		popupKey: names.popups.keyOf,
 		filterName: names.filters.nameOf,
 	});
 }
@@ -685,6 +707,7 @@ export type SiteComponents = ComponentCatalogue & {
 	reaches(from: string, target: string): boolean;
 	/** The Site's Forms in the same version, which trees place with `{{@form <key>}}`. */
 	forms: SiteForms;
+	popups: Awaited<ReturnType<typeof sitePopups>>;
 	/** The Site's Filters in the same version, which trees place with `{{@filter <name> for="…"}}`. */
 	filters: SiteFilters;
 };
@@ -787,6 +810,7 @@ export async function siteComponents(
 		version: (id) => byId.get(id)?.version ?? undefined,
 		reaches,
 		forms: await siteForms(scope, which),
+		popups: await sitePopups(scope, which),
 		filters: await siteFilters(scope, which),
 	};
 }
@@ -938,7 +962,7 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 		while (stack.length > 0) {
 			const id = stack.pop() as string;
 			for (const holder of publishedPlacers.get(id) ?? []) {
-				if (holder.use.kind === "component") {
+				if (holder.use.kind === "component" || holder.use.kind === "popup") {
 					if (!seen.has(holder.use.id)) {
 						seen.add(holder.use.id);
 						stack.push(holder.use.id);
@@ -960,6 +984,16 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			individualPages.size
 		);
 	};
+	for (const row of await scope.select(popups)) {
+		const uses = directUses.get(row.componentId) ?? [];
+		uses.push({
+			kind: "popup",
+			id: row.id,
+			name: row.name,
+			versions: row.published ? ["draft", "published"] : ["draft"],
+		});
+		directUses.set(row.componentId, uses);
+	}
 	return (componentId) => ({ pages: pagesShowing(componentId), usedIn: directUses.get(componentId) ?? [] });
 }
 

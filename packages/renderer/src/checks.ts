@@ -13,7 +13,8 @@ export type QualityCheckKind =
 	| "multipleMain"
 	| "missingLanguage"
 	| "emptyButton"
-	| "vagueButton";
+	| "vagueButton"
+	| "popupPhoneEarly";
 export type QualityCheck = { check: QualityCheckKind; at: string; detail?: string; componentId?: string };
 const attr = (node: Element, name: string) => node.attrs.find((a) => a.name === name)?.value;
 const children = (node: Node): Node[] => ("childNodes" in node ? node.childNodes : []);

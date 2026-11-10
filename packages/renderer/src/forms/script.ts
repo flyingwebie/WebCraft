@@ -301,6 +301,7 @@ const SCRIPT = `(() => {
 			sending = false;
 			if (submit) submit.removeAttribute("aria-disabled");
 			if (answer && answer.sent) {
+    form.dispatchEvent(new CustomEvent("webcraft:form-submitted",{bubbles:true}));
 				if (answer.location) return location.assign(answer.location);
 				const sent = document.createElement("div");
 				sent.className = "wc-form-sent";
@@ -331,9 +332,11 @@ const SCRIPT = `(() => {
 		}
 	};
 
+	const started = new WeakSet();
 	const start = () => {
-		for (const form of document.querySelectorAll("form.wc-form[data-wc-rules]")) setUp(form);
+		for (const form of document.querySelectorAll("form.wc-form[data-wc-rules]")) {if(!started.has(form)){started.add(form);setUp(form);}}
 	};
+	document.addEventListener("webcraft:mounted",start);
 	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
 	else start();
 })();

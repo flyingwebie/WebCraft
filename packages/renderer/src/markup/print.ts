@@ -31,6 +31,7 @@ export type PrintMarkupOptions = {
 	componentName?: (componentId: string) => string | undefined;
 	/** The key of the Form with this id (`{{@form <key>}}`). */
 	formKey?: (formId: string) => string | undefined;
+	popupKey?: (id: string) => string | undefined;
 	/** The name of the Filter with this id (`{{@filter <name> for="…"}}`). */
 	filterName?: (filterId: string) => string | undefined;
 	/**
@@ -108,6 +109,7 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 	if (!command) return "";
 	const sections = command.toMarkup(node, {
 		formKey: (formId) => options.formKey?.(formId),
+		popupKey: (id) => options.popupKey?.(id),
 		filterName: (filterId) => options.filterName?.(filterId),
 	});
 	let markup = "";

@@ -1,3 +1,4 @@
+import { popups } from "@webcraft/db/schema";
 /**
  * The visual builder (ADRs 0002, 0009, 0017): Staff build Templates and Components on a canvas, as
  * the element trees they are stored as. The builder and Template markup are two views of one Draft:
@@ -74,6 +75,7 @@ export type BuilderCatalogue = {
 	loops: { name: string }[];
 	/** The Site's Forms. */
 	forms: { id: string; key: string; name: string }[];
+	popups: { id: string; key: string; name: string }[];
 	/**
 	 * The Site's Filters, each with the Loop it narrows and its controls in its Draft (each one can be
 	 * shown on its own with `control="<id>"`).
@@ -171,6 +173,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 				tree,
 				className: catalogue.nameOf,
 				formKey: source.components.forms.keyOf,
+				popupKey: source.components.popups.keyOf,
 				filterName: source.components.filters.nameOf,
 			});
 			const styles = await draftStyles(scope, {
@@ -192,6 +195,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 					className: catalogue.nameOf,
 					componentName: source.components.nameOf,
 					formKey: source.components.forms.keyOf,
+					popupKey: source.components.popups.keyOf,
 					filterName: source.components.filters.nameOf,
 					inlineStyle: (elementId) => styles.get(elementId),
 				}),
@@ -319,6 +323,7 @@ async function catalogueOf(
 		components,
 		loops: (await listLoops(scope)).map((loop) => ({ name: loop.name })),
 		forms: await siteFormList(scope),
+		popups: await popupList(scope),
 		filters: (await listFilters(scope)).map((filter) => ({
 			id: filter.id,
 			name: filter.name,
@@ -336,4 +341,8 @@ async function catalogueOf(
 function withoutSample<Value extends { sample?: string }>(value: Value): Omit<Value, "sample"> {
 	const { sample: _, ...rest } = value;
 	return rest;
+}
+
+async function popupList(scope: SiteScope) {
+	return (await scope.select(popups)).map(({ id, key, name }) => ({ id, key, name }));
 }

@@ -194,6 +194,7 @@ function rulesFor(target: TemplateTarget, components: SiteComponents, loops: Loo
 			...rules,
 			components,
 			forms: components.forms,
+			popups: components.popups,
 			filters: components.filters,
 			loops: withSearchLoop(loops, target.postTypes),
 		};
@@ -204,7 +205,14 @@ function rulesFor(target: TemplateTarget, components: SiteComponents, loops: Loo
 			: target.kind === "archive"
 				? archiveTemplateRules(target.globalFields)
 				: siteTemplateRules(target.globalFields);
-	return { ...rules, components, forms: components.forms, filters: components.filters, loops };
+	return {
+		...rules,
+		components,
+		forms: components.forms,
+		popups: components.popups,
+		filters: components.filters,
+		loops,
+	};
 }
 
 function whereFor(target: TemplateTarget): SQL {
@@ -577,6 +585,7 @@ function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: S
 		className: catalogue.nameOf,
 		componentName: components.nameOf,
 		formKey: components.forms.keyOf,
+		popupKey: components.popups.keyOf,
 		filterName: components.filters.nameOf,
 	});
 }

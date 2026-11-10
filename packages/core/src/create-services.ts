@@ -130,6 +130,7 @@ import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createOAuth } from "./oauth.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
+import { createPopups } from "./popups/index.ts";
 import { createRateLimits } from "./rate-limits.ts";
 import { createReports, createShareLinks, type Reports, reportsPrepare, reportsRender } from "./reports/index.ts";
 import { createSiteSearch } from "./search/service.ts";
@@ -518,6 +519,7 @@ export async function createInstallServices(
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
 			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
 		},
+		popups: createPopups(componentSources),
 		forms: createForms({
 			data,
 			uploads: formUploads,

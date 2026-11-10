@@ -101,6 +101,7 @@ export async function previewFilter(
 		tree,
 		className: catalogue.nameOf,
 		formKey: (formId) => components?.forms.keyOf(formId),
+		popupKey: (id) => components?.popups.keyOf(id),
 		filterName: (id) => components?.filters.nameOf(id) ?? (id === filter.id ? filter.name : undefined),
 		language,
 		filter: { id: filter.id, version, params: new URLSearchParams(query), path },

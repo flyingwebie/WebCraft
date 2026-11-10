@@ -67,6 +67,7 @@ export type RenderOptions = {
 	languageSwitcher?: () => string;
 	/** What `{{@form <key>}}` shows: the Form with this id, rendered. Nothing when absent. */
 	form?: (formId: string) => string;
+	popup?: (id: string) => string;
 	/** What `{{@search}}` shows: the Search element. Nothing when absent. */
 	search?: () => string;
 	/**
@@ -275,6 +276,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		themeToggle: () => options.themeToggle?.() ?? "",
 		languageSwitcher: () => options.languageSwitcher?.() ?? "",
 		form: (formId) => options.form?.(formId) ?? "",
+		popup: (id) => options.popup?.(id) ?? "",
 		search: () => options.search?.() ?? "",
 		loop: (loop) => filterRegion(`loop ${loop.source}`, loop.source, renderLoop(loop, options, state), options),
 		pagination: (name) =>

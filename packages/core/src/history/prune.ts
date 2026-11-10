@@ -31,6 +31,8 @@ const ITEM_TABLES = {
 	filter: "filters",
 	script: "scripts",
 	form: "forms",
+	popup: "popups",
+	popupContent: "popups",
 	formEmails: "forms",
 } as const;
 

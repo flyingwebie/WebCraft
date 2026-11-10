@@ -59,6 +59,8 @@ export function readItem(search: { item?: string; itemId?: string }): HistoryIte
 		case "loop":
 		case "filter":
 		case "script":
+		case "popup":
+		case "popupContent":
 		case "form":
 		case "formEmails":
 			return id ? { kind, id } : null;

@@ -57,6 +57,7 @@ export const CANVAS_SOURCE = "b";
 export type CanvasPlaceholder =
 	| "outlet"
 	| "form"
+	| "popup"
 	| "filter"
 	| "search"
 	| "themeToggle"
@@ -73,6 +74,7 @@ export type PreviewInput = {
 	className(classId: string): string | undefined;
 	/** The key of a Form of the Site, for its placeholder. */
 	formKey(formId: string): string | undefined;
+	popupKey?(id: string): string | undefined;
 	/** The name of a Filter of the Site, for its placeholder. */
 	filterName(filterId: string): string | undefined;
 	/** The language to show it in, one of the Site's (its Default language when absent). */
@@ -186,6 +188,7 @@ export async function renderPreview(
 		search: () => placeholder("search"),
 		consentSettings: () => placeholder("consentSettings"),
 		form: (formId) => placeholder("form", input.formKey(formId)),
+		popup: (id) => placeholder("popup", input.popupKey?.(id)),
 		filter: (node) =>
 			shownFilters && node.filter === input.filter?.id
 				? shownFilters.html(node)

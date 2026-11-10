@@ -13,6 +13,7 @@ import { publishFormDraft, publishFormEmails } from "../forms/forms.ts";
 import { saveRevision } from "../history/copies.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
+import { popupRow, publishPopup } from "../popups/index.ts";
 import { indexPublishedEntry } from "../search/indexing.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
@@ -78,6 +79,8 @@ export type PublishItem =
 	| { kind: "filter"; id: string }
 	| { kind: "script"; id: string }
 	| { kind: "form"; id: string }
+	| { kind: "popup"; id: string }
+	| { kind: "popupContent"; id: string }
 	/** A Form's emails (Content): its Notifications and Auto-reply. */
 	| { kind: "formEmails"; id: string }
 	| { kind: "globals" }
@@ -116,7 +119,7 @@ export function requirePublishPermissions(scope: SiteScope, items: readonly Pick
 
 /** Items whose publish can change the Site's stylesheet: what it is built from (element trees' Classes). */
 function changesStyles(item: PublishItem): boolean {
-	return item.kind === "template" || item.kind === "component" || item.kind === "designSystem";
+	return item.kind === "template" || item.kind === "component" || item.kind === "popup" || item.kind === "designSystem";
 }
 
 /**
@@ -179,7 +182,8 @@ export async function publishItems(
 		// Where Entries and Archive templates are depends on the patterns and the Page tree: held first.
 		if (items.some((item) => item.kind === "entry" || item.kind === "template")) await lockSitePaths(tx);
 		// Which Components are placed where is read under their lock.
-		if (items.some((item) => item.kind === "template" || item.kind === "component")) await lockComponents(tx);
+		if (items.some((item) => item.kind === "template" || item.kind === "component" || item.kind === "popup"))
+			await lockComponents(tx);
 		let stylesBefore: SiteStyles | undefined;
 		if (items.some(changesStyles)) {
 			// Publishes that change the stylesheet take turns, so each reads the stylesheet the one
@@ -238,6 +242,17 @@ async function publishItem(
 			const published = await publishScriptDraft(scope, item.id, version);
 			return { kind: "script", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
+		case "popup": {
+			const row = await popupRow(scope, item.id);
+			const frozen = version as { settings: unknown; component: unknown } | undefined;
+			await publishComponent(scope, row.componentId, sources, frozen?.component);
+			await saveRevision(scope, { kind: "component", id: row.componentId });
+			await announcePublished(scope, { kind: "component", id: row.componentId });
+			if (!frozen) await leaveScheduledPublishes(scope, [{ kind: "component", id: row.componentId }]);
+			return publishPopup(scope, item.id, false, frozen?.settings);
+		}
+		case "popupContent":
+			return publishPopup(scope, item.id, item.kind === "popupContent", version);
 		case "form": {
 			const published = await publishFormDraft(scope, item.id, version);
 			return { kind: "form", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };

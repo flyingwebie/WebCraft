@@ -518,6 +518,48 @@ describe("the visual builder", () => {
 	);
 });
 
+describe("Popups", () => {
+	let keys = 0;
+	/** One Popup and backing Component per Site, as with the shared Content fixtures above. */
+	const popupIds = new Map<string, Promise<string>>();
+	const popupIn = (target: IsolationTarget) => {
+		let made = popupIds.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				return (await api.popups.create({ siteId: target.siteId, name: `Popup ${++keys}` })).popup.id;
+			})();
+			popupIds.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses("popups.list", (api, { siteId }) => api.popups.list({ siteId }));
+	isolation.refuses("popups.get", async (api, target) =>
+		api.popups.get({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+	isolation.refuses("popups.create", (api, { siteId }) => api.popups.create({ siteId, name: `Ours ${++keys}` }));
+	isolation.refuses("popups.saveDraft", async (api, target) =>
+		api.popups.saveDraft({ siteId: target.siteId, popupId: await popupIn(target), popup: { layout: "bar" } }),
+	);
+	isolation.refuses(
+		"popups.saveContent",
+		async (api, target) =>
+			api.popups.saveContent({ siteId: target.siteId, popupId: await popupIn(target), values: { title: "Our offer" } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("popups.publish", async (api, target) =>
+		api.popups.publish({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+	isolation.refuses(
+		"popups.publishContent",
+		async (api, target) => api.popups.publishContent({ siteId: target.siteId, popupId: await popupIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses("popups.delete", async (api, target) =>
+		api.popups.delete({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+});
+
 describe("Forms", () => {
 	let keys = 0;
 	/** A new Form in a target's Site, made by the Superadmin. */

@@ -110,6 +110,9 @@ export type SearchNode = { type: "search" };
  */
 export type FormNode = { type: "form"; form: string };
 
+/** A Popup attached here by id (`{{@popup <key>}}`), rendered as its Click link. */
+export type PopupNode = { type: "popup"; popup: string };
+
 /**
  * A Filter placed here (`{{@filter <name> for="<loop>"}}`): the Site's Filter, by id, and the query
  * Loop it narrows, by name, which the same tree must show (`{{@loop <loop>}}`). It renders the
@@ -587,6 +590,7 @@ export type ParseTreeOptions = {
 	 * Component can't name a Site's Form).
 	 */
 	forms?: Pick<FormCatalogue, "byId">;
+	popups?: Pick<PopupCatalogue, "byId">;
 	/**
 	 * The Filters the tree may place (`{{@filter}}`), by id. Every Filter is refused when absent (a
 	 * Module's Component can't name a Site's Filter).
@@ -604,6 +608,10 @@ export type FormCatalogue = {
 	keyed(key: string): FormFound;
 	byId(id: string): FormFound;
 };
+
+/** Popup references use the same keyed command lookup protocol as Forms. */
+export type PopupFound = FormFound;
+export type PopupCatalogue = FormCatalogue;
 
 /**
  * A Filter found: its id, name, the Loop it narrows and its controls' ids, why it can't be placed
@@ -906,6 +914,18 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 					const found = options.forms?.byId(formId);
 					if (!found || "refused" in found) {
 						problem(here, found?.refused ?? `There is no Form with the id ${formId} on this Site.`);
+						return undefined;
+					}
+					return found.id;
+				},
+				popup: (popupId, here) => {
+					if (typeof popupId !== "string") {
+						problem(here, "A placed Popup names its Popup by id.");
+						return undefined;
+					}
+					const found = options.popups?.byId(popupId);
+					if (!found || "refused" in found) {
+						problem(here, found?.refused ?? `There is no Popup with the id ${popupId} on this Site.`);
 						return undefined;
 					}
 					return found.id;

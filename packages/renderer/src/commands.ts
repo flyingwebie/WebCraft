@@ -20,6 +20,7 @@ import type {
 	LoopNode,
 	OutletNode,
 	PaginationNode,
+	PopupNode,
 	SearchNode,
 	ThemeToggleNode,
 	TreeNode,
@@ -33,6 +34,7 @@ export type CommandNode =
 	| ThemeToggleNode
 	| LanguageSwitcherNode
 	| FormNode
+	| PopupNode
 	| LoopNode
 	| PaginationNode
 	| SearchNode
@@ -60,6 +62,7 @@ export type FromMarkupTools = {
 	expression(text: string, offset: number): Expression | undefined;
 	/** The id of the Site's Form with this key, written at `offset`; undefined after reporting a problem. */
 	form(key: string, offset: number): string | undefined;
+	popup(key: string, offset: number): string | undefined;
 	/**
 	 * The Site's Filter with this name, written at `offset` (its id, Loop and controls' ids); undefined
 	 * after reporting a problem.
@@ -83,6 +86,7 @@ export type CheckTools = {
 	scope: ValueScope;
 	/** Checks a stored Form id at `at`: one of the Site's Forms the tree may place. */
 	form(input: unknown, at: string): string | undefined;
+	popup(input: unknown, at: string): string | undefined;
 	/** Checks a stored Filter id at `at`: one of the Site's Filters the tree may place (its id, Loop and controls). */
 	filter(input: unknown, at: string): PlacedFilter | undefined;
 };
@@ -105,6 +109,7 @@ export type RenderTools = {
 	languageSwitcher(): string;
 	/** A Form, rendered: nothing where Forms don't run, or for a Form the page can't show. */
 	form(formId: string): string;
+	popup(popupId: string): string;
 	/** The Search element, rendered: nothing while the Site has no search results page in the page's language. */
 	search(): string;
 	/** The "Cookie settings" button, rendered: nothing where the page asks for no consent with a banner of WebCraft's. */
@@ -117,6 +122,7 @@ export type RenderTools = {
 export type ToMarkupTools = {
 	/** The key of the Form with this id, as `{{@form <key>}}` writes it. */
 	formKey(formId: string): string | undefined;
+	popupKey(popupId: string): string | undefined;
 	/** The name of the Filter with this id, as `{{@filter <name>}}` writes it. */
 	filterName(filterId: string): string | undefined;
 };
@@ -475,6 +481,62 @@ const formCommand: TemplateCommand<FormNode> = {
 		if (inside) return `{{@form}} is a form of its own: it can't go inside <${inside}>.`;
 		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
 			return "{{@form}} goes inside an <li>, not directly in a list.";
+		return undefined;
+	},
+};
+
+const popupCommand: TemplateCommand<PopupNode> = {
+	name: "popup",
+	nodeType: "popup",
+	block: false,
+	branches: [],
+	snippet: "{{@popup $0}}",
+
+	fromMarkup(sections, tools) {
+		const [section] = sections;
+		const key = section?.argument.trim() ?? "";
+		if (!section || key === "") {
+			tools.problem(
+				section?.offset ?? 0,
+				"{{@popup}} names the Popup to place by its key, such as {{@popup contact}}.",
+			);
+			return undefined;
+		}
+		if (tools.scope.aliases.length > 0) {
+			tools.problem(section.offset, "A Popup cannot be repeated in a Loop.");
+			return undefined;
+		}
+		const leading = section.argument.length - section.argument.trimStart().length;
+		const popupId = tools.popup(key, section.argumentOffset + leading);
+		return popupId === undefined ? undefined : { type: "popup", popup: popupId };
+	},
+
+	toMarkup(node, tools) {
+		return [{ keyword: "popup", argument: tools.popupKey(node.popup) ?? node.popup, children: [] }];
+	},
+
+	check(input, at, tools) {
+		if (tools.scope.aliases.length > 0) {
+			tools.problem(at, "A Popup cannot be repeated in a Loop.");
+			return undefined;
+		}
+		const popupId = tools.popup(input.popup, `${at}.popup`);
+		return popupId === undefined ? undefined : { type: "popup", popup: popupId };
+	},
+
+	children() {
+		return [];
+	},
+
+	render(node, tools) {
+		return tools.popup(node.popup);
+	},
+
+	placementProblem(ancestors) {
+		const inside = ancestors.findLast((tag) => INTERACTIVE.has(tag));
+		if (inside) return `{{@popup}} is a link: it can't go inside <${inside}>.`;
+		if (ancestors.at(-1) === "ul" || ancestors.at(-1) === "ol")
+			return "{{@popup}} goes inside an <li>, not directly in a list.";
 		return undefined;
 	},
 };
@@ -866,13 +928,14 @@ export const TEMPLATE_COMMANDS: readonly TemplateCommand[] = [
 	themeToggleCommand,
 	languageSwitcherCommand,
 	formCommand,
+	popupCommand,
 	searchCommand,
 	consentSettingsCommand,
 	filterCommand,
 ];
 
 /** Commands the spec names that later work brings; markup naming them is refused until then. */
-export const RESERVED_COMMANDS: ReadonlySet<string> = new Set(["popup"]);
+export const RESERVED_COMMANDS: ReadonlySet<string> = new Set([]);
 
 /** The command written `{{@name}}`, if there is one. */
 export function commandNamed(name: string): TemplateCommand | undefined {

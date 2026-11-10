@@ -50,6 +50,9 @@ function editorOf(siteId: string, page: HistoryPage): LinkProps | null {
 			return { to: "/sites/$siteId/globals", params: { siteId } };
 		case "consentBanner":
 			return { to: "/sites/$siteId/consent-banner", params: { siteId } };
+		case "popup":
+		case "popupContent":
+			return { to: "/sites/$siteId/popups", params: { siteId } };
 		case "form":
 		case "formEmails":
 			return item.id ? { to: "/sites/$siteId/forms/$formId", params: { siteId, formId: item.id } } : null;

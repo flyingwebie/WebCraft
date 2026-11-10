@@ -81,6 +81,8 @@ export const publishItem = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("filter"), id }),
 	z.object({ kind: z.literal("script"), id }),
 	z.object({ kind: z.literal("form"), id }),
+	z.object({ kind: z.literal("popup"), id }),
+	z.object({ kind: z.literal("popupContent"), id }),
 	z.object({ kind: z.literal("formEmails"), id }),
 	z.object({ kind: z.literal("globals") }),
 	z.object({ kind: z.literal("consentBanner") }),
@@ -93,6 +95,7 @@ export const publishItem = z.discriminatedUnion("kind", [
  */
 export const reviewItem = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("entry"), id }),
+	z.object({ kind: z.literal("popupContent"), id }),
 	z.object({ kind: z.literal("globals") }),
 	z.object({ kind: z.literal("consentBanner") }),
 ]);

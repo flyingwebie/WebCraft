@@ -32,6 +32,7 @@ import { members } from "./procedures/members.ts";
 import { modules } from "./procedures/modules.ts";
 import { aiClients, oauth } from "./procedures/oauth.ts";
 import { pages } from "./procedures/pages.ts";
+import { popups } from "./procedures/popups.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { publishing } from "./procedures/publishing.ts";
 import { reportBranding, reports, servicesListProcedures, shareLinks } from "./procedures/reports.ts";
@@ -86,6 +87,7 @@ export const apiRouter = {
 	components,
 	filters,
 	forms,
+	popups,
 	loops,
 	scripts,
 	libraries,

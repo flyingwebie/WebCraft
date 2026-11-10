@@ -1,6 +1,7 @@
 import {
 	entries,
 	globals,
+	popups,
 	publishedSlugs,
 	searchDocuments,
 	siteLanguages as siteLanguageRows,
@@ -9,13 +10,13 @@ import {
 } from "@webcraft/db/schema";
 import { directionOf } from "@webcraft/renderer";
 import { and, eq, isNotNull, max } from "drizzle-orm";
-
 import { mirrorDraftChange } from "../co-editing/store.ts";
 import type { InstallConfig } from "../config.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { setLanguageDomain } from "../domains/domains.ts";
 import { domainName, isInstallName } from "../domains/names.ts";
+import { POPUP_FIELDS } from "../popups/index.ts";
 import { markSearchIndexStale } from "../search/index-version.ts";
 import { SEO_GROUP } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -300,6 +301,18 @@ export async function setDefaultLanguage(
 				eq(globals.id, globalsRow.id),
 			);
 			await mirrorDraftChange(tx, { kind: "globals" }, globalsRow.draft, draft);
+		}
+		for (const row of await tx.db.select().from(popups).where(tx.where(popups)).for("update")) {
+			const contentDraft = move(row.contentDraft, POPUP_FIELDS);
+			await tx.update(
+				popups,
+				{
+					contentDraft,
+					contentPublished: row.contentPublished === null ? null : move(row.contentPublished, POPUP_FIELDS),
+				},
+				eq(popups.id, row.id),
+			);
+			await mirrorDraftChange(tx, { kind: "popupContent", id: row.id }, row.contentDraft, contentDraft);
 		}
 		await tx.db
 			.update(sites)

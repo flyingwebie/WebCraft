@@ -129,6 +129,8 @@ import {
 	PathTakenError,
 	PermissionDeniedError,
 	PersonNotFoundError,
+	PopupInvalidError,
+	PopupNotFoundError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
@@ -403,6 +405,10 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof ConsentRecordNotFoundError) {
 		return new ORPCError("CONSENT_RECORD_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
+	if (error instanceof PopupNotFoundError)
+		return new ORPCError("POPUP_NOT_FOUND", { status: 404, message: error.message });
+	if (error instanceof PopupInvalidError)
+		return new ORPCError("POPUP_INVALID", { status: 400, message: error.message, data: { problems: error.problems } });
 	if (error instanceof FormNotFoundError) {
 		return new ORPCError("FORM_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
