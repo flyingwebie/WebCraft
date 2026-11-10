@@ -59,11 +59,7 @@ export async function runCli(args: readonly string[], io: CliIo): Promise<number
 			io.stdout(`webcraft ${cliVersion(io)}\n`);
 			return EXIT.ok;
 		}
-		if (first === "admin") {
-			// Server commands load the Install's own code (the database, the migrations): only when asked.
-			const { runAdmin } = await import("./admin/index.ts");
-			return await runAdmin(rest.slice(1), io, { help: options.help, json: options.json });
-		}
+		if (first === "admin") return await admin(rest.slice(1), io, options);
 		if (!first || first === "help" || (options.help && rest.length === 0)) {
 			return await help(context, first === "help" ? rest.slice(1) : []);
 		}
@@ -90,12 +86,30 @@ export async function runCli(args: readonly string[], io: CliIo): Promise<number
 	}
 }
 
+/** What the compiled webcraft says about server commands, which only the Install's own webcraft runs. */
+const STANDALONE_ADMIN = `Server commands (webcraft admin …) run on the server, with the Install's environment and files:
+use the webcraft in the web image (docker compose run --rm migrate webcraft admin <command>, or
+docker compose exec web webcraft admin <command>), or bun apps/cli/src/main.ts admin <command> from a
+checkout of the Install's version. This webcraft runs the Install's remote commands.`;
+
 const STRUCTURE_HELP = `Usage:
   webcraft structure pull [--site-id <id>] [--dir <folder>] [--force]
   webcraft structure push [--dir <folder>] [--dry-run] [--force] [--yes]
 
 See webcraft structure pull --help and webcraft structure push --help.
 `;
+
+/**
+ * The server commands. They load the Install's own code (the database, the migrations), so only when
+ * asked; the compiled webcraft (built with `WEBCRAFT_BUILD=standalone`) leaves them out altogether.
+ */
+async function admin(args: string[], io: CliIo, options: GlobalOptions & { help: boolean }): Promise<number> {
+	if (process.env.WEBCRAFT_BUILD === "standalone") {
+		throw new CliError(EXIT.usage, STANDALONE_ADMIN);
+	}
+	const { runAdmin } = await import("./admin/index.ts");
+	return runAdmin(args, io, { help: options.help, json: options.json });
+}
 
 /** Takes the options every command has out of the arguments, wherever they are. */
 function globalOptions(args: readonly string[]): {
@@ -132,7 +146,7 @@ async function catalogueForHelp(context: RunContext): Promise<{ catalogue: Catal
 		const connection = await connect(context);
 		return { catalogue: await connection.catalogue(), fromInstall: true };
 	} catch {
-		return { catalogue: knownCatalogue(), fromInstall: false };
+		return { catalogue: await knownCatalogue(), fromInstall: false };
 	}
 }
 
@@ -197,7 +211,7 @@ async function remote(context: RunContext, rest: string[]): Promise<number> {
 				`webcraft ${commandWords.join(" ")} is a Sensitive action (${sensitive.action}): it needs a fresh identity check, so it is done in the admin, never with the CLI or an API token.`,
 			);
 		}
-		const known = knownCatalogue().find(commandWords);
+		const known = (await knownCatalogue()).find(commandWords);
 		if (known && known.rest.length === 0) {
 			throw new CliError(
 				EXIT.notOffered,
