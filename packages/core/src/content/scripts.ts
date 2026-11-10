@@ -160,20 +160,26 @@ export async function lockScript(scope: SiteScope, scriptId: string): Promise<Sc
 	return row;
 }
 
-/** Publishes a script's Draft (called by `publish`, which checks `structure.edit` and clears the page cache). */
+/**
+ * Publishes a script's Draft (called by `publish`, which checks `structure.edit` and clears the page
+ * cache), or `version` when given: a Scheduled publish's text, frozen when it was scheduled.
+ */
 export async function publishScriptDraft(
 	scope: SiteScope,
 	scriptId: string,
+	version?: unknown,
 ): Promise<{ id: string; publishedAt: Date }> {
 	const row = await lockScript(scope, scriptId);
+	const code = typeof version === "string" ? version : row.draft;
+	const hash = typeof version === "string" ? contentHash(version) : row.draftHash;
 	const now = scope.now();
 	// Pages loaded before this publish still ask for the file it replaces: it is served for 30 days.
-	if (row.published !== null && row.publishedHash && row.publishedHash !== row.draftHash) {
+	if (row.published !== null && row.publishedHash && row.publishedHash !== hash) {
 		await retireScriptFiles(scope, [{ hash: row.publishedHash, code: row.published }]);
 	}
 	await scope.update(
 		scripts,
-		{ published: row.draft, publishedHash: row.draftHash, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
+		{ published: code, publishedHash: hash, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
 		eq(scripts.id, row.id),
 	);
 	await scope.audit("script.publish", { scriptId: row.id, kind: row.kind, entryId: row.entryId });

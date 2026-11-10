@@ -29,22 +29,24 @@ export type PublishedDesignSystem = { id: string; publishedAt: Date };
 /**
  * Publishes the Design system's Draft (open the Site with `structure.edit`): in the publish's
  * transaction, which also clears the page cache. Refused when the Draft can't be used as it is
- * (`DesignSystemInvalidError`).
+ * (`DesignSystemInvalidError`). `version`, when given, is published instead of the Draft (a Scheduled
+ * publish's).
  */
-export async function publishDesignSystem(scope: SiteScope): Promise<PublishedDesignSystem> {
+export async function publishDesignSystem(scope: SiteScope, version?: unknown): Promise<PublishedDesignSystem> {
 	const locked = await lockDesignSystem(scope);
-	const problems = designSystemProblems(locked.draft);
+	const draft = version === undefined ? locked.draft : readDesignSystem(version);
+	const problems = designSystemProblems(draft);
 	if (problems.length > 0) throw new DesignSystemInvalidError(problems);
 	const now = scope.now();
 	await scope.update(
 		designSystems,
-		{ published: locked.draft, publishedAt: locked.row.publishedAt ?? now, lastPublishedAt: now },
+		{ published: draft, publishedAt: locked.row.publishedAt ?? now, lastPublishedAt: now },
 		eq(designSystems.id, locked.row.id),
 	);
 	await scope.audit("designSystem.publish", {
 		designSystemId: locked.row.id,
-		classes: locked.draft.classes.length,
-		darkMode: locked.draft.darkMode,
+		classes: draft.classes.length,
+		darkMode: draft.darkMode,
 	});
 	return { id: locked.row.id, publishedAt: now };
 }

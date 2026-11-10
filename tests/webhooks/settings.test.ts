@@ -165,7 +165,7 @@ describe("what a Webhook may be", () => {
 
 	test("it receives at least one event, from the list", async () => {
 		const siteId = await newSite();
-		expect((await staff.api.webhooks.list({ siteId })).events).toEqual(["publish", "formSubmitted"]);
+		expect((await staff.api.webhooks.list({ siteId })).events).toEqual(["publish", "unpublish", "formSubmitted"]);
 		await expect(
 			staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/a", events: [] }),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });

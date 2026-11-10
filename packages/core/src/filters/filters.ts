@@ -209,11 +209,12 @@ export async function saveFilterDraft(scope: SiteScope, filterId: string, change
 
 /**
  * Publishes a Filter's Draft, inside `publish`'s transaction: its Loop must be a published query Loop,
- * and every control must still fit the Loop's published Post Types (`FilterInvalidError`).
+ * and every control must still fit the Loop's published Post Types (`FilterInvalidError`). `version`,
+ * when given, is published instead of the Draft (a Scheduled publish's).
  */
-export async function publishFilter(scope: SiteScope, filterId: string): Promise<Published> {
+export async function publishFilter(scope: SiteScope, filterId: string, version?: unknown): Promise<Published> {
 	const row = await lockFilter(scope, filterId);
-	const draft = storedFilterVersion(row.draft);
+	const draft = storedFilterVersion(version ?? row.draft);
 	const problems: ContentProblem[] = [];
 	const context = await loopContext(scope, row.loop, "published", problems);
 	if (context) checkFilterVersion(draft, context, problems);
