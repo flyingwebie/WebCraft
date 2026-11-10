@@ -104,10 +104,9 @@ See webcraft structure pull --help and webcraft structure push --help.
  * asked; the compiled webcraft (built with `WEBCRAFT_BUILD=standalone`) leaves them out altogether.
  */
 async function admin(args: string[], io: CliIo, options: GlobalOptions & { help: boolean }): Promise<number> {
-	if (process.env.WEBCRAFT_BUILD === "standalone") {
-		throw new CliError(EXIT.usage, STANDALONE_ADMIN);
-	}
-	const { runAdmin } = await import("./admin/index.ts");
+	// One expression, so the build's constant leaves the import out of the compiled file altogether.
+	const runAdmin = process.env.WEBCRAFT_BUILD === "standalone" ? null : (await import("./admin/index.ts")).runAdmin;
+	if (!runAdmin) throw new CliError(EXIT.usage, STANDALONE_ADMIN);
 	return runAdmin(args, io, { help: options.help, json: options.json });
 }
 

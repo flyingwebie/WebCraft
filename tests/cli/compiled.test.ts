@@ -84,9 +84,14 @@ test("the compiled webcraft runs the Install's commands", async () => {
 	expect(JSON.parse(stdout)).toMatchObject({ sites: [{ name: "Sourdough Corner" }] });
 });
 
-test("the compiled webcraft points server commands to the Install's own webcraft", async () => {
+test("the compiled webcraft points server commands to the Install's own webcraft, and holds none of their code", async () => {
 	const { code, stderr } = await run(["admin", "migrate"]);
 
 	expect(code).toBe(2);
 	expect(stderr).toContain("use the webcraft in the web image");
+	const binary = Buffer.from(await Bun.file(BINARY).arrayBuffer());
+	expect(binary.includes("Commands under webcraft")).toBe(true);
+	// Words only the server commands print: their code (the database, the migrations) stayed out.
+	expect(binary.includes("Re-encrypted")).toBe(false);
+	expect(binary.includes("each in its own transaction")).toBe(false);
 });

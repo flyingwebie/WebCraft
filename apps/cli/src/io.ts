@@ -52,7 +52,11 @@ export function configDirectory(env: Readonly<Record<string, string | undefined>
 export function processIo(): CliIo {
 	const env = process.env;
 	const configDir = configDirectory(env);
-	mkdirSync(configDir, { recursive: true, mode: 0o700 });
+	try {
+		mkdirSync(configDir, { recursive: true, mode: 0o700 });
+	} catch {
+		// A read-only home (a server's container): commands that keep nothing still run.
+	}
 	return {
 		env,
 		stdout: (text) => process.stdout.write(text),
