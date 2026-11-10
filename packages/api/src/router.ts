@@ -31,6 +31,7 @@ import { pages } from "./procedures/pages.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { publishing } from "./procedures/publishing.ts";
 import { reportBranding, reports, servicesListProcedures, shareLinks } from "./procedures/reports.ts";
+import { reviews } from "./procedures/reviews.ts";
 import { scripts } from "./procedures/scripts.ts";
 import { seoSettings } from "./procedures/seo.ts";
 import { session } from "./procedures/session.ts";
@@ -92,6 +93,7 @@ export const apiRouter = {
 	editMode,
 	staging,
 	publishing,
+	reviews,
 	history,
 	members,
 	staff,

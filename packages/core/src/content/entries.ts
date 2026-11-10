@@ -50,6 +50,7 @@ import {
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, type LinkBack, linkingEntries, linksBack, saveLinks } from "./relationships.ts";
+import { entryReviews, type Review } from "./review-items.ts";
 import { type EntrySchedule, entrySchedules, NOT_SCHEDULED } from "./scheduled-items.ts";
 import { slugify } from "./slugs.ts";
 import { ENTRY_SLUG, ENTRY_SLUG_MAX_LENGTH } from "./url-patterns.ts";
@@ -63,7 +64,7 @@ export { siteLanguages };
 /**
  * Where an Entry stands: `draft` (not published: never, or unpublished since), `published` (visitors
  * see the Draft as it is) or `changed` (published, and the Draft has changed since). Its Scheduled
- * publishes are beside it (`Entry.scheduled`); Review adds its own.
+ * publishes are beside it (`Entry.scheduled`), and its Review (`Entry.review`).
  */
 export type EntryStatus = "draft" | "published" | "changed";
 
@@ -103,6 +104,11 @@ export type Entry = {
 	unpublishedAt: Date | null;
 	/** Its Scheduled publishes: the one publishing it and the one unpublishing it, null when none. */
 	scheduled: EntrySchedule;
+	/**
+	 * Its Review, while it waits (In review) or once it was sent back (with the comment, until it is
+	 * submitted again or published); null otherwise.
+	 */
+	review: Review | null;
 	/** The language the values are in. */
 	language: string;
 	draft: EntryValues;
@@ -747,6 +753,21 @@ async function entryViews(
 	// The SEO check, after the body's Checks; the Site's list of open Checks (#95) collects both.
 	const seo = await seoReports(scope, postType, drafts, languages);
 	const schedules = await entrySchedules(scope, rows);
+	const reviewsOf = await entryReviews(
+		scope,
+		rows.map((row) => ({
+			id: row.id,
+			draft: row.draft,
+			// Named as history and Publish all name it: its title in the Default language.
+			name:
+				readValue(storedVersion(row.draft), {
+					key: "title",
+					language: languages.defaultLanguage,
+					defaultLanguage: languages.defaultLanguage,
+				}) ?? "",
+			postType: { id: postType.id, name: postType.name },
+		})),
+	);
 	return rows.map((row, index) => {
 		const address = addresses.get(row.id);
 		const authorName = row.authorId ? authors.get(row.authorId) : undefined;
@@ -762,6 +783,7 @@ async function entryViews(
 			lastPublishedAt: row.lastPublishedAt,
 			unpublishedAt: row.unpublishedAt,
 			scheduled: schedules.get(row.id) ?? NOT_SCHEDULED,
+			review: reviewsOf.get(row.id) ?? null,
 			language: languages.language,
 			draft: drafts[index] ?? values(storedVersion(row.draft)),
 			// Visitors find it by the slug it was published with in this language, which never changes on its own.

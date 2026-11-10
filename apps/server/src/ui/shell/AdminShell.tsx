@@ -141,6 +141,11 @@ function AdminSidebar({ shell, person, place }: { shell: ShellContext; person: S
 												>
 													<item.icon aria-hidden="true" />
 													<span>{typeof item.label === "string" ? t(item.label) : item.label.text}</span>
+													{item.reviews && place.level === "site" && place.reviews > 0 ? (
+														<Badge variant="secondary" className="ms-auto">
+															{t("review.navBadge", { count: place.reviews })}
+														</Badge>
+													) : null}
 												</SidebarMenuButton>
 											</SidebarMenuItem>
 										);

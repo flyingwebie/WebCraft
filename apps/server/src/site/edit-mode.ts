@@ -11,6 +11,7 @@ import {
 	isAdminLanguage,
 	type PageEditing,
 	RateLimitedError,
+	REVIEW_LIMITS,
 	SCRIPT_MAX_LENGTH,
 	type SiteHost,
 	type SiteScope,
@@ -190,6 +191,12 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/** Publishes the page's changes. */
 	publish: async (services, session, body, _request, host) =>
 		json(200, await services.editMode.publish(session, host, parse(pagePath, body).path)),
+	/** Submits the page's changes for Review, with an optional note (GLOSSARY.md › Review). */
+	"review/submit": async (services, session, body, _request, host) =>
+		json(200, await services.editMode.submitForReview(session, host, parse(reviewSubmission, body))),
+	/** Withdraws the page's Reviews the person submitted. */
+	"review/withdraw": async (services, session, body, _request, host) =>
+		json(200, await services.editMode.withdrawReview(session, host, parse(pagePath, body).path)),
 	/** Ends Edit mode for this browser: the cookie is cleared and opens nothing any more. */
 	end: async (services, session, _body, request) => {
 		await services.editMode.end(session);
@@ -209,6 +216,16 @@ type EditAction = (
 ) => Promise<Response>;
 
 const pagePath = z.object({ path: z.string().max(2000) });
+
+/** The page submitted for Review, with an optional note. */
+const reviewSubmission = z.object({
+	path: z.string().max(2000),
+	note: z
+		.string()
+		.max(REVIEW_LIMITS.noteMax)
+		.nullish()
+		.transform((note) => note?.trim() || null),
+});
 
 /** A reference to what an element comes from, as pages in Code mode tag it (`data-wc-code`); null for the page's content. */
 const codeRef = z.string().max(1000).nullable();

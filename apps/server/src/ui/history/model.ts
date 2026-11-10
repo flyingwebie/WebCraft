@@ -87,6 +87,7 @@ export function copyKind(t: Translate, copy: Pick<HistoryCopy, "type" | "reason"
 	if (copy.type === "revision") return t("history.copy.revision");
 	if (copy.reason === "left") return t("history.copy.checkpointLeft");
 	if (copy.reason === "restore") return t("history.copy.checkpointRestore");
+	if (copy.reason === "review") return t("history.copy.checkpointReview");
 	return t("history.copy.checkpointActivity");
 }
 

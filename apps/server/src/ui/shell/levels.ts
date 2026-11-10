@@ -100,6 +100,8 @@ export type AdminPlace =
 			modulePermissions: readonly string[];
 			/** How many of the Site's Drafts the person may publish: Publish all in the top bar says it. */
 			drafts: number;
+			/** How many Reviews wait on the Site for the person to act on: the Overview item says it. */
+			reviews: number;
 			/** Whether the person sees any Dashboard here, or builds them: the sidebar offers Dashboards then. */
 			dashboards: boolean;
 	  };
@@ -119,6 +121,8 @@ export type NavItem = {
 	exact?: boolean;
 	/** Shown only where the person sees a Dashboard, or builds them (`place.dashboards`). */
 	dashboards?: boolean;
+	/** Says how many Reviews wait for the person to act on (`place.reviews`), when any do. */
+	reviews?: boolean;
 };
 
 export type NavGroup = {
@@ -315,6 +319,7 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: LayoutDashboardIcon,
 						to: "/sites/$siteId",
 						exact: true,
+						reviews: true,
 					},
 					{
 						id: "site-dashboards",

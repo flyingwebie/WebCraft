@@ -218,6 +218,14 @@ export function DraftStatusCard(props: {
 	fields: readonly FieldDefinition[];
 	idPrefix: string;
 	headingId: string;
+	/**
+	 * For those who may edit but not publish: "Submit for review" beside Save draft, and what they are
+	 * told instead of what publishing does (Review, GLOSSARY.md).
+	 */
+	submit?: ReactNode;
+	authorHelp?: MessageKey;
+	/** Where the Draft's Review stands (In review, sent back), under its status. */
+	review?: ReactNode;
 	children?: ReactNode;
 }) {
 	const t = useT();
@@ -238,6 +246,7 @@ export function DraftStatusCard(props: {
 						</span>
 					) : null}
 				</div>
+				{props.review}
 				<div className="flex flex-wrap gap-2">
 					<Button
 						type="button"
@@ -256,10 +265,12 @@ export function DraftStatusCard(props: {
 							<UploadIcon aria-hidden="true" />
 							{t("entries.editor.publish")}
 						</Button>
-					) : null}
+					) : (
+						props.submit
+					)}
 				</div>
 				<p className="text-muted-foreground text-sm">
-					{t(props.canPublish ? props.publishHelp : "entries.editor.authorHelp")}
+					{t(props.canPublish ? props.publishHelp : (props.authorHelp ?? "entries.editor.authorHelp"))}
 				</p>
 				{publishing.error ? (
 					<p role="alert" className="text-destructive flex items-start gap-2 text-sm">
