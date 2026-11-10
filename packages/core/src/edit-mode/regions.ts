@@ -26,8 +26,8 @@ export type RegionChange = {
 	item: string;
 	/** The binding's path within the item, as `data-wc-field` says: `title`, `intro`, `address.city`. */
 	field: string;
-	/** Plain text, or rich text's HTML (cleaned on save). */
-	value: string;
+	/** Plain text, rich text's HTML (cleaned on save), or a body's Blocks (`data-wc-type="body"`). */
+	value: string | unknown[] | null;
 	/** The language of the page the region is on: the value is saved in it (the Default language when absent). */
 	language?: string;
 };
@@ -77,7 +77,8 @@ export function readEditItem(item: string): EditItem {
  */
 export async function saveRegion(scope: SiteScope, change: RegionChange): Promise<SavedRegion> {
 	const loopItem = readLoopItem(change.item);
-	if (loopItem) {
+	if (loopItem && typeof change.value !== "string") throw new EditFieldInvalidError();
+	if (loopItem && typeof change.value === "string") {
 		await loopItemField(scope, loopItem, change.field, false, change.language);
 		const saved = await saveLoopItemValues(scope, loopItem, nested(change.field, change.value), change.language);
 		return {
@@ -89,6 +90,7 @@ export async function saveRegion(scope: SiteScope, change: RegionChange): Promis
 	const item = readEditItem(change.item);
 	const { language } = change;
 	if (item.kind === "globals") {
+		if (typeof change.value !== "string") throw new EditFieldInvalidError();
 		const globals = await getGlobals(scope, language);
 		if (!editableField(globals.fields, change.field)) throw new EditFieldInvalidError();
 		const saved = await saveGlobalsDraft(scope, { language, fields: nested(change.field, change.value) });
@@ -100,10 +102,24 @@ export async function saveRegion(scope: SiteScope, change: RegionChange): Promis
 	}
 	const entry = await getEntry(scope, item.id, language);
 	if (change.field === "title") {
+		if (typeof change.value !== "string") throw new EditFieldInvalidError();
 		const saved = await saveDraft(scope, item.id, { language, title: change.value });
 		return { status: saved.status, value: saved.draft.title, problems: problemsAt(saved.problems, "title") };
 	}
 	const postType = await getPostType(scope, entry.postTypeId);
+	const body = postType.fields.find((field) => field.type === "body" && field.key === change.field);
+	if (body) {
+		// A body's Blocks, as the block editor sends them: the same checks as the admin's.
+		if (typeof change.value === "string") throw new EditFieldInvalidError();
+		const saved = await saveDraft(scope, item.id, { language, fields: { [body.key]: change.value } });
+		const at = `fields.${body.key}`;
+		return {
+			status: saved.status,
+			value: saved.draft.fields[body.key] ?? [],
+			problems: saved.problems.filter((problem) => problem.at === at || problem.at.startsWith(`${at}[`)),
+		};
+	}
+	if (typeof change.value !== "string" && change.value !== null) throw new EditFieldInvalidError();
 	if (!editableField(postType.fields, change.field)) throw new EditFieldInvalidError();
 	const saved = await saveDraft(scope, item.id, { language, fields: nested(change.field, change.value) });
 	return {

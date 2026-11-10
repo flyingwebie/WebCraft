@@ -9,22 +9,26 @@ export {
 	BLOCK_TYPE_SPECS,
 	BLOCK_TYPES,
 	type Block,
+	type BlockProp,
 	type BlockSource,
 	type BlockText,
 	type BlockType,
 	type BlockTypeSpec,
 	BODY_LIMITS,
+	type BodyBlockType,
 	blockSpec,
 	CALLOUT_TONES,
 	type CalloutBlock,
 	type CalloutTone,
 	type CodeBlock,
+	type ComponentBlock,
 	type DividerBlock,
 	HEADING_LEVELS,
 	type HeadingBlock,
 	type HeadingLevel,
 	type ImageBlock,
 	isBlockType,
+	isBodyBlockType,
 	LIST_STYLES,
 	type ListBlock,
 	type ListItem,
@@ -64,6 +68,7 @@ export {
 	shortcodeIn,
 	textFromHtml,
 } from "./from-html.ts";
+export { blocksFromMarkdown, type MarkdownProblem, type MarkdownReadOptions } from "./from-markdown.ts";
 export {
 	canonicalInline,
 	hasText,
@@ -76,5 +81,6 @@ export {
 	type Run,
 	renderInline,
 } from "./inline.ts";
+export { type ListLine, listItemsFromLines } from "./lists.ts";
 export { bodyMarkdown, inlineMarkdown, type MarkdownContext } from "./markdown.ts";
 export { PLAYER_ORIGINS, VIDEO_PROVIDERS, type Video, type VideoProvider, videoAt } from "./video.ts";

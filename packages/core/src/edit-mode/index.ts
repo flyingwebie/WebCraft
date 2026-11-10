@@ -1,11 +1,13 @@
 import type { Auth } from "@webcraft/auth";
 import type { Database } from "@webcraft/db";
 import { editLinks, editSessions } from "@webcraft/db/schema";
+import type { Block } from "@webcraft/renderer";
 import { and, eq, gt, isNull, lte, type SQL } from "drizzle-orm";
 
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import type { Pasted } from "../content/body-paste.ts";
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { domainOrigin, verifiedDomains } from "../domains/addresses.ts";
@@ -16,6 +18,7 @@ import type { PageContent, SiteHost } from "../site-pages/index.ts";
 import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
+import { type BodyEditing, type BodyRegion, bodyEditing, pasteIntoBody } from "./body.ts";
 import { EditModeUnavailableError, EditPathInvalidError, LoopItemRestoreRefusedError } from "./errors.ts";
 import {
 	addLoopItem,
@@ -62,6 +65,7 @@ import {
 	saveRegion,
 } from "./regions.ts";
 
+export type { BodyEditing, BodyRegion } from "./body.ts";
 export {
 	EditFieldInvalidError,
 	EditModeUnavailableError,
@@ -148,6 +152,10 @@ export type EditMode = {
 	 * library out of the Trash.
 	 */
 	saveImage(session: EditSession, change: ImageChange): Promise<SavedImage>;
+	/** The block editor (#79): a body region's Blocks in the page's language, and what may be added to it. */
+	body(session: EditSession, region: BodyRegion): Promise<BodyEditing>;
+	/** What was pasted into a body region (HTML, Markdown or plain text), as Blocks; nothing is saved. */
+	pasteBody(session: EditSession, region: BodyRegion & Pasted): Promise<{ blocks: Block[] }>;
 	/** What the editing bar shows for the page at `path`: its changes, the Site's pages, who is editing. */
 	pageState(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
 	/** Undoes one of the page's changes (`key` of `item`), answering the page's state afterwards. */
@@ -396,6 +404,8 @@ export function createEditMode(options: {
 
 		save: (session, change) => saveRegion(session.scope, change),
 		saveImage: (session, change) => saveImage(session.scope, change),
+		body: (session, region) => bodyEditing(session.scope, region),
+		pasteBody: (session, region) => pasteIntoBody(session.scope, region),
 		pageState: (session, host, path) => pageState(deps, session, host, path),
 		undo: (session, host, input) => undoChange(deps, session, host, input),
 		discard: (session, host, path) => discardChanges(deps, session, host, path),

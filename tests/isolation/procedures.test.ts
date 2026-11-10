@@ -188,6 +188,22 @@ describe("Entries", () => {
 		{ as: ["staff", "owner"] },
 	);
 	isolation.refuses(
+		"entries.bodyComponents",
+		async (api, target) =>
+			api.entries.bodyComponents({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.pasteBody",
+		async (api, target) =>
+			api.entries.pasteBody({
+				siteId: target.siteId,
+				postTypeId: (await contentIn(target)).postTypeId,
+				text: "Private draft",
+			}),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
 		"entries.create",
 		async (api, target) =>
 			api.entries.create({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId, title: "Leaked" }),

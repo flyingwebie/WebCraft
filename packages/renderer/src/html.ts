@@ -1,7 +1,7 @@
 import type { HoldEmbed } from "./body/blocks.ts";
 import { renderBody, renderToc } from "./body/body.ts";
 import { commandForNode } from "./commands.ts";
-import { COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
+import { blockPlacement, COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, safeUrl, URL_ATTRIBUTES } from "./escape.ts";
 import type { RenderTime } from "./expressions.ts";
 import { applyFormat } from "./formatters.ts";
@@ -137,6 +137,11 @@ export type RenderOptions = {
 	 * Component it comes from. Absent for the pages visitors get, which carry no such attributes.
 	 */
 	codeSource?: string;
+	/**
+	 * Edit mode's body editor (#79): marks each Block of a body with HTML comments, so the editor finds
+	 * what each shows (`RenderBodyOptions.markBlocks`). Absent for the pages visitors get.
+	 */
+	markBodyBlocks?: boolean;
 };
 
 /** What pagination says, in the page's language. */
@@ -226,7 +231,7 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 		case "comment":
 			return "";
 		case "value":
-			return valueHtml(node, options.values(node.path), options);
+			return valueHtml(node, options.values(node.path), options, state);
 		case "element": {
 			if (node.tag === "img" && options.media) {
 				const image = mediaImage(node, options.media, options);
@@ -466,8 +471,8 @@ function editTags(node: ElementNode, options: RenderOptions): readonly (readonly
  * A value in a text position: escaped text, cleaned rich text, a body's Blocks or a table of contents
  * as HTML, or a list of them joined with commas. Through a formatter, each is its text.
  */
-function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions): string {
-	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options)));
+function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions, state?: RenderState): string {
+	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options, state)));
 	if (!node.format && isRichText(value)) return cleanRichText(value.html);
 	if (!node.format && isBody(value)) {
 		const editRegion = options.editRegion;
@@ -479,6 +484,9 @@ function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions
 			held: options.held,
 			// Edit mode: each image Block's image is a region of its own, named by the Block.
 			imageRegion: editRegion && ((block) => blockRegion(editRegion(node, { image: true, block }), block)),
+			// A Component in the body is a Placement, rendered as a Template's are.
+			component: state ? (block) => renderPlacement(blockPlacement(block), options, state) : undefined,
+			markBlocks: options.markBodyBlocks,
 		});
 	}
 	if (!node.format && isToc(value)) return renderToc(value.headings);

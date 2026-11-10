@@ -10,6 +10,7 @@
  * names, their Props and how fixed text is read as each Prop's value, and their trees. It reads
  * nothing itself.
  */
+import type { ComponentBlock } from "./body/blocks.ts";
 import { commandForNode } from "./commands.ts";
 import {
 	type AttributePart,
@@ -254,4 +255,52 @@ export function expansionProblem(
 				message: `With its Components shown, this comes to more than ${COMPONENT_LIMITS.expandedNodes.toLocaleString("en")} nodes: place fewer, or smaller, Components.`,
 			}
 		: undefined;
+}
+
+/**
+ * A Component Block of a body as the Placement it is (#79): the same node a Template places a
+ * Component with, its Prop values fixed text, so it renders through the same `PlacementRenderer`.
+ */
+export function blockPlacement(block: ComponentBlock): PlacementNode {
+	return {
+		type: "component",
+		id: block.id,
+		component: block.component,
+		props: block.props.map((prop) => ({ name: prop.name, value: [{ type: "text", text: prop.value }] })),
+	};
+}
+
+/**
+ * The Component Blocks inside values (an Entry's Fields, as the API gives them or as they are stored),
+ * as Placements: what a page showing those values has to load Components for.
+ */
+export function placementsInValues(values: unknown): PlacementNode[] {
+	const found: PlacementNode[] = [];
+	const walk = (value: unknown, depth: number) => {
+		if (depth > 12 || value === null || typeof value !== "object") return;
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				const block = item as Partial<ComponentBlock> | null;
+				if (
+					block &&
+					typeof block === "object" &&
+					block.type === "component" &&
+					typeof block.id === "string" &&
+					typeof block.component === "string" &&
+					Array.isArray(block.props)
+				) {
+					found.push(
+						blockPlacement({
+							...(block as ComponentBlock),
+							props: block.props.filter((prop) => typeof prop?.name === "string" && typeof prop.value === "string"),
+						}),
+					);
+				} else walk(item, depth + 1);
+			}
+			return;
+		}
+		for (const inner of Object.values(value)) walk(inner, depth + 1);
+	};
+	walk(values, 0);
+	return found;
 }

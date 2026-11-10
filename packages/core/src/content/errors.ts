@@ -14,6 +14,8 @@ export type ContentProblem = {
 	params?: Readonly<Record<string, string | number>>;
 	/** The language of the value it is about, when it isn't the Default language's (or a shared) value. */
 	language?: string;
+	/** For a body given as Markdown: the line of the Markdown the problem is on (from 1). */
+	line?: number;
 };
 
 /** There is no such Post Type on the Site. */

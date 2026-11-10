@@ -1,4 +1,4 @@
-import { canonicalInline, type InlineText, type Mark, type Run, renderInline } from "@webcraft/renderer/body";
+import { canonicalInline, type InlineText, type Mark, type Run, renderInline } from "@webcraft/renderer/body/editing";
 
 /**
  * Formatted text in the block editor: a Block's runs written into an editable element, and read back

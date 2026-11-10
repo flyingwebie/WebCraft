@@ -2,6 +2,7 @@ import type { Database } from "@webcraft/db";
 
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import type { ComponentSources } from "../content/components.ts";
 import type { SiteHost } from "../site-pages/index.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { createCursors } from "./cursor.ts";
@@ -87,6 +88,7 @@ export function createContentApi({
 	clock,
 	keyHash,
 	cursorKey,
+	components,
 }: {
 	database: Database;
 	data: DataLayer;
@@ -96,6 +98,7 @@ export function createContentApi({
 	keyHash: CryptoKey;
 	/** The key list cursors are signed with (`contentCursorKey`). */
 	cursorKey: CryptoKey;
+	components: ComponentSources;
 }): ContentApi {
 	const hash = contentKeyHasher(keyHash);
 	const cursors = createCursors(cursorKey);
@@ -115,7 +118,7 @@ export function createContentApi({
 				key: (secret) => findContentKey(scope, secret, hash),
 				allowsOrigin: (origin) => anyKeyAllows(scope, origin),
 				noteUse: (key) => noteContentKeyUse(database, host.site, key, clock.now()),
-				read: (segments, query) => readContent({ scope, host, settings, cursors }, segments, query),
+				read: (segments, query) => readContent({ scope, host, settings, cursors, components }, segments, query),
 			};
 		},
 	};

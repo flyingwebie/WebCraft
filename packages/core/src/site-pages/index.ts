@@ -5,6 +5,7 @@ import {
 	builtInNotFoundPage,
 	builtInSearchTemplate,
 	type EditModePage,
+	ELEMENT_TREE_VERSION,
 	type ElementTree,
 	FORM_TOKEN_MARK,
 	formWords,
@@ -18,6 +19,7 @@ import {
 	type PlacementRenderer,
 	pageWords,
 	placementsIn,
+	placementsInValues,
 	renderDocument,
 	SCRIPT_PATH,
 	SEARCH_QUERY_VALUE,
@@ -1499,6 +1501,11 @@ function editRegions(
 		}
 		// The title is a built-in value: the editing bar names it in the person's own language.
 		if (value.path === "title" && !place.image) return regionTags(`entry:${entry.id}`, "title", "text", null);
+		// The body: its element is the block editor's region (#79).
+		const body = place.image
+			? undefined
+			: entry.fields.find((field) => field.key === value.path && field.type === "body");
+		if (body) return regionTags(`entry:${entry.id}`, body.key, "body", body.label);
 		const editable = editableIn(entry.fields, value.path);
 		return editable && regionTags(`entry:${entry.id}`, value.path, editable.type, editable.label);
 	};
@@ -1860,10 +1867,22 @@ async function renderSitePage(
 			: previewed?.kind === "siteTemplate"
 				? previewed.tree
 				: await draftSiteTemplate(scope);
-	const placed = await pageComponents(scope, [page.content, siteTemplate], view.sources, site, languages, {
-		which: view.structure,
-		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
-	});
+	// Components placed in the bodies the page shows render as Placements too: load them with the rest.
+	const bodyPlacements: ElementTree = {
+		version: ELEMENT_TREE_VERSION,
+		nodes: placementsInValues(options.contentValues),
+	};
+	const placed = await pageComponents(
+		scope,
+		[page.content, siteTemplate, bodyPlacements],
+		view.sources,
+		site,
+		languages,
+		{
+			which: view.structure,
+			replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
+		},
+	);
 	const postTypes = await listPostTypes(scope);
 	const trees = [page.content, siteTemplate, ...placed.trees];
 	// The page's Filters: what the visitor chose in its address narrows their Loops. Site search's
@@ -2112,10 +2131,12 @@ export async function pageComponents(
 	site: Parts,
 	languages: { language: string; defaultLanguage: string },
 	shown: { which: "published" | "draft"; replace?: { id: string; version: ComponentVersion } },
+	/** The Content API limits Relationship Props to its exposed Post Types and Fields. */
+	exposedPostTypes?: readonly PostType[],
 ): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
 	const { catalogue, used } = await placedComponents(scope, trees, sources, shown.which, shown.replace);
 	const shownTrees = [...used.values()].map((version) => version.tree);
-	const related = await relatedOfProps(scope, [...trees, ...shownTrees], catalogue, languages);
+	const related = await relatedOfProps(scope, [...trees, ...shownTrees], catalogue, languages, exposedPostTypes);
 	return {
 		trees: shownTrees,
 		render: (componentId, props, outer) => {
@@ -2135,6 +2156,7 @@ async function relatedOfProps(
 	trees: readonly (ElementTree | undefined)[],
 	catalogue: SiteComponents,
 	languages: { language: string; defaultLanguage: string },
+	exposedPostTypes?: readonly PostType[],
 ): Promise<Map<string, RelatedEntry & { postTypeKey: string }>> {
 	const ids: string[] = [];
 	for (const tree of trees) {
@@ -2149,7 +2171,7 @@ async function relatedOfProps(
 		}
 	}
 	if (ids.length === 0) return new Map();
-	const postTypes = await listPostTypes(scope);
+	const postTypes = exposedPostTypes ?? (await listPostTypes(scope));
 	const keys = new Map(postTypes.map((postType) => [postType.id, postType.key]));
 	const related = new Map<string, RelatedEntry & { postTypeKey: string }>();
 	for (const [id, entry] of await relatedEntries(scope, postTypes, ids, languages)) {

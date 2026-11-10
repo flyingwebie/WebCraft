@@ -33,6 +33,13 @@ export const BLOCK_TYPES = [
 
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
+/**
+ * Every type a Block can have: core's Block types, and `component`, a Component Staff allow in the
+ * Body field, placed with its Prop values (#79). Components aren't switched off with `blocksOff`:
+ * each Body field lists the Components it allows (empty by default).
+ */
+export type BodyBlockType = BlockType | "component";
+
 /** Block types Staff can't switch off: a body always has paragraphs. */
 export const ALWAYS_ON_BLOCKS: readonly BlockType[] = ["paragraph"];
 
@@ -102,6 +109,18 @@ export type CodeBlock = BlockBase & { type: "code"; code: string; language: stri
 export type DividerBlock = BlockBase & { type: "divider" };
 /** Text shown and hidden by its summary (`<details>`). */
 export type ToggleBlock = BlockBase & { type: "toggle"; summary: InlineText; text: InlineText };
+/**
+ * One Prop's value in a Component placed in a body: fixed text, read through the Prop's Field type as
+ * a Placement's fixed text is (`media:<id>`, `true`, JSON for a Group). Members fill it; nothing in it
+ * is a binding.
+ */
+export type BlockProp = { name: string; value: string };
+/**
+ * A Component placed in a body (a Placement, GLOSSARY.md): the Component's id (a UUID, or
+ * `<module id>:<Name>` for a Module's) and its Prop values. It renders as the Component's published
+ * tree, as a Placement in a Template does; nothing inside it is edited in the body.
+ */
+export type ComponentBlock = BlockBase & { type: "component"; component: string; props: BlockProp[] };
 
 export type Block =
 	| ParagraphBlock
@@ -114,7 +133,8 @@ export type Block =
 	| CalloutBlock
 	| CodeBlock
 	| DividerBlock
-	| ToggleBlock;
+	| ToggleBlock
+	| ComponentBlock;
 
 /** What rendering a body needs from the page. */
 export type BodyRenderContext = {
@@ -139,6 +159,11 @@ export type BodyRenderContext = {
 	 * to show is still rendered then, as an empty region to choose one in.
 	 */
 	imageRegion?: (blockId: string) => readonly (readonly [string, string])[] | undefined;
+	/**
+	 * What a Component Block shows: its Component's published tree with its Prop values, rendered as
+	 * a Placement is (`PlacementRenderer`). Without it, Components in a body render nothing.
+	 */
+	component?: (block: ComponentBlock) => string;
 };
 
 /**
@@ -523,8 +548,67 @@ const toggle: BlockTypeSpec<ToggleBlock> = {
 		`<details><summary>${renderInline(block.summary)}</summary>${hasText(block.text) ? `<p>${renderInline(block.text)}</p>` : ""}</details>`,
 };
 
+/** A Component's id: a UUID, or `<module id>:<Name>` for a Module's. */
+const COMPONENT_ID =
+	/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z][a-z0-9-]{0,63}:[A-Z][A-Za-z0-9]{0,63})$/;
+
+/** A Prop's key, as Template markup writes it. */
+const PROP_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/;
+
+/** The most Prop values a Component Block holds. */
+const MAX_BLOCK_PROPS = 100;
+
+const component: BlockTypeSpec<ComponentBlock> = {
+	settings: ["component", "props"],
+	read(input, report) {
+		let id = "";
+		if (typeof input.component === "string" && COMPONENT_ID.test(input.component.trim())) {
+			id = input.component.trim();
+		} else {
+			report(".component", "A Component Block names its Component: its id, or <module id>:<Name> for a Module's.");
+		}
+		const props: BlockProp[] = [];
+		const given = input.props ?? [];
+		if (!Array.isArray(given)) {
+			report(".props", "A Component Block's Props are a list of { name, value }.");
+			return { component: id, props };
+		}
+		if (given.length > MAX_BLOCK_PROPS) report(".props", `A Component Block has at most ${MAX_BLOCK_PROPS} Props.`);
+		given.slice(0, MAX_BLOCK_PROPS).forEach((item: unknown, index) => {
+			const here = `.props[${index}]`;
+			const { name, value, ...rest } = (item && typeof item === "object" && !Array.isArray(item) ? item : {}) as Record<
+				string,
+				unknown
+			>;
+			for (const key of Object.keys(rest)) report(`${here}.${key}`, `A Prop's value has no ${key}.`);
+			if (typeof name !== "string" || !PROP_NAME.test(name)) {
+				report(`${here}.name`, "A Prop is named by its key.");
+				return;
+			}
+			if (props.some((prop) => prop.name === name)) {
+				report(`${here}.name`, `The Prop ${name} is given twice.`);
+				return;
+			}
+			const text = value === undefined || value === null ? "" : value;
+			if (typeof text !== "string") {
+				report(`${here}.value`, "A Prop's value is text, as Template markup writes it.");
+				return;
+			}
+			if (text.length > BODY_LIMITS.text)
+				report(`${here}.value`, `A Prop's value has at most ${BODY_LIMITS.text} characters.`);
+			props.push({ name, value: text });
+		});
+		return { component: id, props };
+	},
+	inlines: () => [],
+	texts: () => [],
+	...noText,
+	hasContent: () => true,
+	render: (block, context) => context.component?.(block) ?? "",
+};
+
 /** The registry: every Block type core has. */
-export const BLOCK_TYPE_SPECS: { readonly [Type in BlockType]: BlockTypeSpec<Extract<Block, { type: Type }>> } = {
+export const BLOCK_TYPE_SPECS: { readonly [Type in BodyBlockType]: BlockTypeSpec<Extract<Block, { type: Type }>> } = {
 	paragraph,
 	heading,
 	list,
@@ -536,6 +620,7 @@ export const BLOCK_TYPE_SPECS: { readonly [Type in BlockType]: BlockTypeSpec<Ext
 	code,
 	divider,
 	toggle,
+	component,
 };
 
 /** The spec of a Block's type. */
@@ -545,4 +630,9 @@ export function blockSpec<Kind extends Block>(block: Kind): BlockTypeSpec<Kind> 
 
 export function isBlockType(type: unknown): type is BlockType {
 	return typeof type === "string" && (BLOCK_TYPES as readonly string[]).includes(type);
+}
+
+/** Whether a type is one a Block can have: core's Block types, or `component`. */
+export function isBodyBlockType(type: unknown): type is BodyBlockType {
+	return type === "component" || isBlockType(type);
 }

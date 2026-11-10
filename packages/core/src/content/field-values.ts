@@ -230,6 +230,8 @@ function writeGroup(node: unknown, field: GroupField, input: unknown, context: W
 
 function writeLeafInput(node: unknown, field: LeafField, input: unknown, context: WriteContext, at: string): unknown {
 	const spec = leafSpec(field);
+	const language = field.translatable ? context.language : context.defaultLanguage;
+	const previous = (record(node) as StoredLeaf)[language]?.value as Json | undefined;
 	let refused = false;
 	const value =
 		input === null || input === ""
@@ -243,6 +245,7 @@ function writeLeafInput(node: unknown, field: LeafField, input: unknown, context
 						return null;
 					},
 					(reference) => context.references.push({ ...reference, at }),
+					previous,
 				);
 	return refused ? node : writeLeaf(node, field, value, context);
 }

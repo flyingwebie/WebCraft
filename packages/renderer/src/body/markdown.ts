@@ -1,21 +1,40 @@
 /**
- * A body as Markdown (ADR 0018: Markdown copies are worked out from the Blocks, never by parsing
- * HTML): each Block becomes its Markdown, in order, separated by a blank line. Text is escaped
- * (`escapeMarkdown`), so it reads as written and nothing passes through as HTML; marks become `**`,
- * `*`, `~~` and code spans, links Markdown links. Every address is absolute: the page decides how a
- * path or an `#anchor` is completed (`MarkdownContext.link`), and where a Media image is.
+ * A body as Markdown (ADR 0018: Markdown is worked out from the Blocks, never by parsing HTML): each
+ * Block becomes its Markdown, in order, separated by a blank line. It is the one dialect WebCraft
+ * writes, for Markdown copies, the Content API and what API clients read and write
+ * (`blocksFromMarkdown` reads it back, `from-markdown.ts`):
+ *
+ * - text escaped (`escapeMarkdown`), so it reads as written and nothing passes through as HTML; marks
+ *   as `**`, `*`, `~~` and code spans; links as Markdown links; line breaks as hard breaks;
+ * - headings as `##` to `####`, with a hand-written anchor as `{#anchor}`; lists nested; quotes as
+ *   `>`; tables as pipe tables; code fenced; dividers as `---`;
+ * - the extensions: `:::callout{tone="…"}` … `:::`, `:::toggle[Summary]` … `:::`,
+ *   `::video[Title]{url="…"}`, and Components as their tag with their Props, `<PricingTable plan="pro" />`.
+ *
+ * The page decides where a link and an image go (`MarkdownContext`): a Markdown copy makes every
+ * address absolute and shows images by their address with their caption; the exchange format keeps
+ * links as written and images as `media:<id>` (`::image` for one not chosen yet).
  */
 import { escapeMarkdown, escapeMarkdownLine, markdownUrl } from "../markdown.ts";
-import type { Block, ListItem } from "./blocks.ts";
+import type { Block, ComponentBlock, ListItem } from "./blocks.ts";
 import { hasText, type InlineText, MARKS, type Run } from "./inline.ts";
-import { videoAt } from "./video.ts";
 
 /** What converting a body needs from the page. */
 export type MarkdownContext = {
-	/** A link's address as it leaves the page: absolute (a Site path or an `#anchor` completed). */
+	/** A link's address as it leaves the page: absolute (a Site path or an `#anchor` completed), or as written. */
 	link(url: string): string;
-	/** An image Block's Media image: its absolute address, alt text and caption; undefined when it shows nothing. */
+	/**
+	 * An image Block's Media image: its address (`media:<id>` in the exchange format), alt text and
+	 * caption; undefined when it shows nothing.
+	 */
 	image(mediaId: string): { url: string; alt: string | null; caption: string | null } | undefined;
+	/**
+	 * The exchange format (API clients, the MCP server, the CLI): Blocks that show nothing yet but
+	 * hold a place (an image not chosen) are written too, so nothing is lost on the way back.
+	 */
+	exchange?: boolean;
+	/** A Component Block's Component, by its id: its name as Markdown writes its tag. Without it, Components are left out. */
+	component?(block: ComponentBlock): { name: string } | undefined;
 };
 
 /** A body as Markdown: its Blocks with something in them, each as Markdown, a blank line between. */
@@ -30,23 +49,31 @@ function blockMarkdown(block: Block, context: MarkdownContext): string {
 	switch (block.type) {
 		case "paragraph":
 			return inlineMarkdown(block.text, context);
-		case "heading":
-			return hasText(block.text) ? `${"#".repeat(block.level)} ${inlineMarkdown(block.text, context, true)}` : "";
+		case "heading": {
+			if (!hasText(block.text)) return "";
+			// A heading ending with braces would read as an anchor: its first brace is escaped.
+			const text = inlineMarkdown(block.text, context, true).replace(/\{([^{}]*)\}$/, "\\{$1}");
+			return `${"#".repeat(block.level)} ${text}${block.anchor ? ` {#${block.anchor}}` : ""}`;
+		}
 		case "list":
 			return listMarkdown(block.items, block.style === "numbered", context, "");
 		case "quote":
-		case "callout":
 			return hasText(block.text) ? quoted(inlineMarkdown(block.text, context)) : "";
+		case "callout": {
+			if (!hasText(block.text) && !context.exchange) return "";
+			return directive(`:::callout{tone="${block.tone}"}`, inlineMarkdown(block.text, context));
+		}
 		case "image": {
-			const image = block.media ? context.image(block.media) : undefined;
-			if (!image) return "";
-			const picture = `![${escapeMarkdownLine(image.alt ?? "")}](${markdownUrl(image.url)})`;
+			if (!block.media) return context.exchange ? "::image" : "";
+			const image = context.image(block.media);
+			if (!image) return context.exchange ? `![](media:${block.media})` : "";
+			const picture = `![${escapeMarkdownLine(image.alt ?? "")}](${destination(image.url, context)})`;
 			const caption = image.caption?.trim();
 			return caption ? `${picture}\n\n*${escapeMarkdownLine(caption)}*` : picture;
 		}
 		case "video": {
-			const video = videoAt(block.url);
-			return video ? `[${escapeMarkdownLine(block.title || video.watchUrl)}](${markdownUrl(video.watchUrl)})` : "";
+			if (block.url === "") return "";
+			return `::video[${escapeMarkdownLine(block.title)}]{url="${attributeValue(block.url)}"}`;
 		}
 		case "table":
 			return tableMarkdown(block.rows, block.headerRow, context);
@@ -56,10 +83,40 @@ function blockMarkdown(block: Block, context: MarkdownContext): string {
 			return "---";
 		case "toggle": {
 			if (!hasText(block.summary) && !hasText(block.text)) return "";
-			const summary = `**${inlineMarkdown(block.summary, context, true)}**`;
-			return hasText(block.text) ? `${summary}\n\n${inlineMarkdown(block.text, context)}` : summary;
+			return directive(
+				`:::toggle[${inlineMarkdown(block.summary, context, true)}]`,
+				inlineMarkdown(block.text, context),
+			);
+		}
+		case "component": {
+			const found = context.component?.(block);
+			if (!found) return "";
+			const props = block.props.map((prop) =>
+				prop.value === "" ? ` ${prop.name}` : ` ${prop.name}="${tagValue(prop.value)}"`,
+			);
+			return `<${found.name}${props.join("")} />`;
 		}
 	}
+}
+
+/** A container directive around its text: the opening line, the text, `:::`. */
+function directive(open: string, text: string): string {
+	return text === "" ? `${open}\n:::` : `${open}\n${text}\n:::`;
+}
+
+/** A directive's attribute value, in double quotes: `\` and `"` escaped. */
+function attributeValue(value: string): string {
+	return value.replace(/[\\"]/g, "\\$&");
+}
+
+/** A Component tag's attribute value, in double quotes, as HTML writes it. */
+function tagValue(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/"/g, "&quot;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/\n/g, "&#10;");
 }
 
 /**
@@ -67,7 +124,11 @@ function blockMarkdown(block: Block, context: MarkdownContext): string {
  * Markdown needs), neighbouring runs with the same link in one link. Line breaks are hard breaks
  * (`\` at the end of the line), or spaces with `oneLine`.
  */
-export function inlineMarkdown(inline: InlineText, context: Pick<MarkdownContext, "link">, oneLine = false): string {
+export function inlineMarkdown(
+	inline: InlineText,
+	context: Pick<MarkdownContext, "link" | "exchange">,
+	oneLine = false,
+): string {
 	let markdown = "";
 	let index = 0;
 	while (index < inline.length) {
@@ -77,9 +138,24 @@ export function inlineMarkdown(inline: InlineText, context: Pick<MarkdownContext
 			inner += runMarkdown(inline[index] as Run, oneLine);
 			index++;
 		}
-		markdown += link === undefined || inner.trim() === "" ? inner : `[${inner}](${markdownUrl(context.link(link))})`;
+		markdown +=
+			link === undefined || inner.trim() === "" ? inner : `[${inner}](${destination(context.link(link), context)})`;
 	}
 	return markdown;
+}
+
+/**
+ * A link's address as Markdown writes it: in the exchange format exactly as it is (the characters
+ * that would end it backslash-escaped), in a copy percent-encoded.
+ */
+function destination(url: string, context: Pick<MarkdownContext, "exchange">): string {
+	// An address can contain a literal entity such as &copy;: protect its ampersand from decoding.
+	return context.exchange
+		? url
+				.replace(/[\\()<>]/g, "\\$&")
+				.replace(/\s/g, "%20")
+				.replace(/&/g, "&amp;")
+		: markdownUrl(url);
 }
 
 const MARK_SYNTAX: Readonly<Record<Exclude<Run["marks"], undefined>[number], string>> = {
@@ -92,12 +168,13 @@ const MARK_SYNTAX: Readonly<Record<Exclude<Run["marks"], undefined>[number], str
 function runMarkdown(run: Run, oneLine: boolean): string {
 	const text = oneLine ? run.text.replace(/\n/g, " ") : run.text;
 	const [, before = "", core = "", after = ""] = /^(\s*)([\s\S]*?)(\s*)$/.exec(text) ?? [];
-	if (core === "") return text;
+	if (core === "") return text.includes("\n") && !oneLine ? text.replace(/\n/g, "\\\n") : text;
 	let markdown = run.marks?.includes("code") ? codeSpan(core) : escapeMarkdown(core).replace(/\n/g, "\\\n");
 	for (const mark of [...MARKS].reverse()) {
 		if (mark !== "code" && run.marks?.includes(mark)) markdown = `${MARK_SYNTAX[mark]}${markdown}${MARK_SYNTAX[mark]}`;
 	}
-	return `${before}${markdown}${after}`;
+	const breaks = (spaces: string) => (oneLine ? spaces : spaces.replace(/\n/g, "\\\n"));
+	return `${breaks(before)}${markdown}${breaks(after)}`;
 }
 
 /** Inline code: in as many backticks as it needs, padded where it starts or ends with one. */

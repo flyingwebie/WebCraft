@@ -2565,6 +2565,8 @@
 			"blocksOffList": "Scegli dall'elenco i blocchi da disattivare.",
 			"blockUnknown": "Non esiste un tipo di blocco {type}.",
 			"blockAlwaysOn": "Un Corpo del testo offre sempre i blocchi {type}.",
+			"componentsList": "Scegli dall'elenco i Componenti che il corpo del testo consente.",
+			"componentUnknown": "Questo Sito non ha questo Componente.",
 			"relationshipInGlobals": "I Globali non possono contenere relazioni.",
 			"relationshipInModuleComponent": "Il componente di un Modulo non può avere proprietà di tipo relazione: ogni sito ha i propri tipi di contenuto.",
 			"postTypesCount": "Una relazione punta a contenuti di 1-{max} tipi di contenuto.",
@@ -2664,6 +2666,7 @@
 		}
 	},
 	"body": {
+		"saveFailed": "Non salvato: riconnettiti o correggi questo Blocco e riprova.",
 		"block": "{type}, blocco {number}",
 		"actions": "{block}: azioni",
 		"turnInto": "Trasforma in",
@@ -2687,7 +2690,8 @@
 		"menu": {
 			"label": "Blocchi",
 			"placeholder": "Filtra i blocchi",
-			"none": "Nessun blocco corrisponde."
+			"none": "Nessun blocco corrisponde.",
+			"blocks": "Blocchi"
 		},
 		"choices": {
 			"paragraph": "Paragrafo",
@@ -2767,6 +2771,60 @@
 			"vagueLink": "Il testo del link “{detail}” non dice dove porta.",
 			"tableHeader": "Questa tabella non ha una riga di intestazione.",
 			"untitledVideo": "Questo video non ha un titolo per chi non può vederlo."
+		},
+		"addAfter": "Aggiungi un blocco dopo questo",
+		"cancel": "Annulla",
+		"done": "Fatto",
+		"drag": "Trascina per spostare {block}",
+		"dragHelp": "Trascina per spostare il blocco. Dal suo testo, Alt+Maiusc con le frecce lo sposta.",
+		"editCallout": "Tono del riquadro",
+		"editImage": "Cambia immagine",
+		"editTable": "Righe e colonne della tabella",
+		"editVideo": "Indirizzo e titolo del video",
+		"linkApply": "Aggiungi link",
+		"linkInvalid": "Un link porta a un indirizzo http, https, mailto o tel, a un percorso o a un #ancoraggio.",
+		"more": "Altro",
+		"moveUp": "Sposta su",
+		"moveDown": "Sposta giù",
+		"region": "Corpo del testo: {label}",
+		"tools": "{block}: strumenti",
+		"empty": {
+			"generic": "Ancora niente da mostrare.",
+			"video": "Video",
+			"noVideo": "Ancora nessun indirizzo del video.",
+			"component": "Qui questo Componente non mostra ancora niente."
+		},
+		"paste": {
+			"added": "{count} blocchi incollati.",
+			"failed": "Non è stato possibile aggiungere ciò che hai incollato.",
+			"uploading": "Caricamento delle immagini incollate…"
+		},
+		"components": {
+			"allowed": "Componenti consentiti",
+			"allowedHelp": "I Membri possono inserire questi Componenti pubblicati dal menu / e compilare le loro Prop.",
+			"group": "Componenti",
+			"label": "{name} (Componente)",
+			"title": "{name}: Prop",
+			"insert": "Inserisci",
+			"save": "Salva",
+			"edit": "{name}: Prop",
+			"required": "obbligatoria",
+			"chooseImage": "Scegli un'immagine",
+			"imageChosen": "Immagine scelta",
+			"noImage": "Nessuna immagine scelta",
+			"json": "Scritto in JSON.",
+			"missing": "{prop} è obbligatoria.",
+			"none": "Questo Componente non ha Prop da compilare.",
+			"unknown": "un Componente",
+			"help": "I Componenti consentiti dallo Staff sono nel menu /: i Membri ne compilano le Prop, mai il contenuto."
+		},
+		"problems": {
+			"blockType": "Questo Corpo del testo ha questi blocchi disattivati.",
+			"video": "Un video è su YouTube o Vimeo.",
+			"media": "L'immagine non è più nella libreria Media.",
+			"component": "Questo Corpo del testo non consente questo Componente, oppure non è pubblicato.",
+			"prop": "Il valore di una Prop manca o non è adatto.",
+			"invalid": "Controlla questo blocco."
 		}
 	},
 	"entries": {

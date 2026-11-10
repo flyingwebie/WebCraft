@@ -172,6 +172,8 @@ export const SETTING_RULES = [
 	"blocksOffList",
 	"blockUnknown",
 	"blockAlwaysOn",
+	"componentsList",
+	"componentUnknown",
 	"relationshipInGlobals",
 	"relationshipInLoop",
 	"relationshipInModuleComponent",

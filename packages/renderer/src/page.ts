@@ -345,6 +345,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		held,
 		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "content", place) : undefined,
 		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
+		markBodyBlocks: Boolean(editMode && !editMode.code),
 		codeSource: editMode?.code ? "content" : undefined,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
@@ -371,6 +372,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		held,
 		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "site", place) : undefined,
 		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
+		markBodyBlocks: Boolean(editMode && !editMode.code),
 		codeSource: editMode?.code ? "site" : undefined,
 	});
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];

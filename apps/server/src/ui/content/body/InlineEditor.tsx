@@ -1,7 +1,7 @@
 import type { InlineText } from "@webcraft/renderer/body";
 import { type KeyboardEvent, useRef, useState } from "react";
 
-import { runsFromElement, runsToHtml } from "./inline-dom.ts";
+import { runsFromElement, runsToHtml } from "../../../body-editor/inline-dom.ts";
 
 /**
  * One piece of formatted text in the block editor (a paragraph, a heading, a list item, a cell): an
