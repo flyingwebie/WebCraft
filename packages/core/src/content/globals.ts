@@ -244,12 +244,13 @@ export async function writeGlobalsTranslations(
 
 /**
  * Publishes the Globals' Draft, inside `publish`'s transaction: refuses broken rules
- * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`).
+ * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`). `version`, when
+ * given, is published instead of the Draft (a Scheduled publish's).
  */
-export async function publishGlobals(scope: SiteScope): Promise<Published> {
+export async function publishGlobals(scope: SiteScope, version?: unknown): Promise<Published> {
 	const row = await lockGlobals(scope);
 	const site = await siteLanguages(scope);
-	const draft = storedVersion(row.draft);
+	const draft = storedVersion(version ?? row.draft);
 	const fields = storedFields(row.fields);
 	const findings = findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
 		globalsFindings(draft, fields, languages),

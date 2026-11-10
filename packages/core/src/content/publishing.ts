@@ -1,4 +1,4 @@
-import { components, entries, publishedSlugs, templates } from "@webcraft/db/schema";
+import { components, entries, gonePaths, publishedSlugs, templates } from "@webcraft/db/schema";
 import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
 import { announcePublished } from "../co-editing/store.ts";
@@ -52,6 +52,7 @@ import {
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, saveLinks } from "./relationships.ts";
+import { leaveScheduledPublishes } from "./scheduled-items.ts";
 import { publishScriptDraft } from "./scripts.ts";
 import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
 import { pathFor } from "./url-patterns.ts";
@@ -125,6 +126,12 @@ export async function publish(
 }
 
 /**
+ * The version to publish of an item instead of its Draft, as the item's table stores its Draft (a
+ * Scheduled publish's, frozen when it was scheduled); undefined publishes the Draft as it is now.
+ */
+export type FrozenVersions = (item: PublishItem) => unknown;
+
+/**
  * Publishes several items together, in the order given, all or none (Publish all, ADR 0014): one
  * transaction, the locks every publish needs taken once, before any row lock and always in the same
  * order (the Site's paths, then the Components, then the Design system), so no two publishes ever wait
@@ -133,12 +140,18 @@ export async function publish(
  * (`publishPermission`). `refusal`, when given, turns the reason an item can't be published into the
  * error that stops them all (a failure of the database itself, such as two transactions at once, is
  * never turned).
+ *
+ * `frozen`, when given, names the version to publish of each item instead of its Draft: a Scheduled
+ * publish's, which the worker publishes at its time; every check runs on it as on a Draft. Without it
+ * (publishing now), each item published leaves the Scheduled publish it waited in, since a newer
+ * version is live already (`leaveScheduledPublishes`).
  */
 export async function publishItems(
 	scope: SiteScope,
 	items: readonly PublishItem[],
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 	refusal?: (item: PublishItem, error: unknown) => Error,
+	frozen?: FrozenVersions,
 ): Promise<Published[]> {
 	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 	for (const permission of new Set(items.map(publishPermission))) {
@@ -159,7 +172,7 @@ export async function publishItems(
 		const published: Published[] = [];
 		for (const item of items) {
 			try {
-				published.push(await publishItem(tx, item, sources));
+				published.push(await publishItem(tx, item, sources, frozen?.(item)));
 			} catch (error) {
 				throw refusal && !isDatabaseFailure(error) ? refusal(item, error) : error;
 			}
@@ -168,6 +181,7 @@ export async function publishItems(
 			// The people editing it live see who published it, once the publish commits.
 			await announcePublished(tx, item);
 		}
+		if (!frozen) await leaveScheduledPublishes(tx, items);
 		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);
 		return published;
@@ -175,7 +189,7 @@ export async function publishItems(
 }
 
 /** Whether Postgres itself refused (an SQLSTATE code on the error or its causes), rather than a publish's own check. */
-function isDatabaseFailure(error: unknown): boolean {
+export function isDatabaseFailure(error: unknown): boolean {
 	let current: unknown = error;
 	for (let depth = 0; current && depth < 5; depth++) {
 		const code = (current as { code?: unknown }).code;
@@ -185,49 +199,55 @@ function isDatabaseFailure(error: unknown): boolean {
 	return false;
 }
 
-async function publishItem(scope: SiteScope, item: PublishItem, sources: ComponentSources): Promise<Published> {
+/** Publishes one item: its Draft, or `version` when given (as its table stores its Draft). */
+async function publishItem(
+	scope: SiteScope,
+	item: PublishItem,
+	sources: ComponentSources,
+	version: unknown,
+): Promise<Published> {
 	switch (item.kind) {
 		case "entry":
-			return publishEntry(scope, item.id);
+			return publishEntry(scope, item.id, version);
 		case "template":
-			return publishTemplate(scope, item.id, sources);
+			return publishTemplate(scope, item.id, sources, version);
 		case "component":
-			return publishComponent(scope, item.id, sources);
+			return publishComponent(scope, item.id, sources, version);
 		case "loop":
-			return publishLoop(scope, item.id);
+			return publishLoop(scope, item.id, version);
 		case "filter":
-			return publishFilter(scope, item.id);
+			return publishFilter(scope, item.id, version);
 		case "globals":
-			return publishGlobals(scope);
+			return publishGlobals(scope, version);
 		case "consentBanner":
-			return publishConsentText(scope);
+			return publishConsentText(scope, version);
 		case "designSystem": {
-			const published = await publishDesignSystem(scope);
+			const published = await publishDesignSystem(scope, version);
 			return { kind: "designSystem", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 		case "script": {
-			const published = await publishScriptDraft(scope, item.id);
+			const published = await publishScriptDraft(scope, item.id, version);
 			return { kind: "script", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 		case "form": {
-			const published = await publishFormDraft(scope, item.id);
+			const published = await publishFormDraft(scope, item.id, version);
 			return { kind: "form", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 		case "formEmails": {
-			const published = await publishFormEmails(scope, item.id);
+			const published = await publishFormEmails(scope, item.id, version);
 			return { kind: "formEmails", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 	}
 }
 
-async function publishEntry(scope: SiteScope, entryId: string): Promise<Published> {
+async function publishEntry(scope: SiteScope, entryId: string, version: unknown): Promise<Published> {
 	// Where an Entry is published depends on the patterns and the Page tree: hold them first.
 	await lockSitePaths(scope);
 	const row = await lockEntry(scope, entryId);
 	const postType = await getPostType(scope, row.postTypeId);
 	const site = await siteLanguages(scope);
 	const { defaultLanguage } = site;
-	const draft = storedVersion(row.draft);
+	const draft = storedVersion(version ?? row.draft);
 	const findings = publishFindings(draft, postType.fields, site);
 	await checkReferences(scope, findings.references, "rule");
 	if (findings.problems.some((problem) => problem.rule !== "required")) throw new EntryInvalidError(findings.problems);
@@ -252,9 +272,11 @@ async function publishEntry(scope: SiteScope, entryId: string): Promise<Publishe
 	const now = scope.now();
 	await scope.update(
 		entries,
-		{ published: draft, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
+		{ published: draft, publishedAt: row.publishedAt ?? now, lastPublishedAt: now, unpublishedAt: null },
 		eq(entries.id, row.id),
 	);
+	// Published again: its old paths answer as pages again, not 410 Gone.
+	await scope.delete(gonePaths, eq(gonePaths.entryId, row.id));
 	await saveLinks(scope, row.id, "published", linksIn(draft.values, postType.fields));
 	await scope.delete(publishedSlugs, eq(publishedSlugs.entryId, row.id));
 	for (const { languages, slug } of slugs) {
@@ -399,14 +421,19 @@ async function pagePaths(
 }
 
 /** Publishes a Template; `publish` has taken the Components' lock, so what it may place holds still. */
-async function publishTemplate(scope: SiteScope, templateId: string, sources: ComponentSources): Promise<Published> {
+async function publishTemplate(
+	scope: SiteScope,
+	templateId: string,
+	sources: ComponentSources,
+	version: unknown,
+): Promise<Published> {
 	// An Archive template takes its address: hold the Site's paths before any row.
 	await lockSitePaths(scope);
 	const row = await lockTemplate(scope, templateId);
 	if (row.kind === "archive") await checkArchiveAddressFree(scope, await getPostType(scope, row.postTypeId ?? ""));
 	// What it renders through (the Post Type, the Globals, what Relationships point at, the Classes,
 	// the published Components it places) may have changed since the Draft was saved.
-	const tree = await checkTemplateForPublish(scope, row, sources);
+	const tree = await checkTemplateForPublish(scope, version === undefined ? row : { ...row, draft: version }, sources);
 	await publishGeneratedClasses(scope, tree);
 	const now = scope.now();
 	await scope.update(
@@ -424,9 +451,14 @@ async function publishTemplate(scope: SiteScope, templateId: string, sources: Co
  * (each must be published) and what it reads (the Globals, the Post Types, the Classes). `publish`
  * has taken the Components' lock.
  */
-async function publishComponent(scope: SiteScope, componentId: string, sources: ComponentSources): Promise<Published> {
+async function publishComponent(
+	scope: SiteScope,
+	componentId: string,
+	sources: ComponentSources,
+	version: unknown,
+): Promise<Published> {
 	const row = await lockComponent(scope, componentId, sources);
-	const draft = storedComponentVersion(row.draft);
+	const draft = storedComponentVersion(version ?? row.draft);
 	const catalogue = await siteComponents(scope, "published", sources, { self: row.id });
 	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	const tree = parseElementTree(draft.tree, {

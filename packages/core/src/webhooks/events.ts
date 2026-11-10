@@ -7,12 +7,15 @@ import type { AuditDetails } from "../audit.ts";
  *
  * - `publish`: something on the Site was published (an Entry, a Page, the Globals, a Template, a
  *   Component, a script, a Form, a Form's emails, a Loop or the Design system).
+ * - `unpublish`: an Entry stopped showing (a Scheduled publish unpublished it): its data is the Entry
+ *   (`kind`, `id`, `postTypeId`) and where it was (`paths`, each `{ language, path }`), which answer
+ *   410 Gone from then on. A Page unpublished with the one above it sends its own event.
  * - `formSubmitted`: a visitor sent a Form and its Submission was kept (never spam; also when it is
  *   taken out of the Spam folder). Its data is the Form (`id`, `key`, `name`) and the Submission
  *   (`id`, `language`, `page`, `receivedAt`, and its `values`, each `{ key, label, type, value }`):
  *   the spec sends a Submission's values (story 99), so other systems get the lead.
  */
-export const WEBHOOK_EVENTS = ["publish", "formSubmitted"] as const;
+export const WEBHOOK_EVENTS = ["publish", "unpublish", "formSubmitted"] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
@@ -76,4 +79,22 @@ export function publishedBy(
 	}
 	if (kind === "template") return { item: { kind, id, postTypeId: textOrNull(details.postTypeId) }, pathChanges: [] };
 	return { item: { kind, id }, pathChanges: [] };
+}
+
+/**
+ * What an Audit log action unpublished, or null when it isn't an unpublish (`entry.unpublish`): the
+ * Entry and where it was, each path within its language.
+ */
+export function unpublishedBy(
+	action: string,
+	details: AuditDetails,
+): { item: { kind: "entry"; id: string; postTypeId: string }; paths: { language: string; path: string }[] } | null {
+	if (action !== "entry.unpublish") return null;
+	const paths = Array.isArray(details.paths)
+		? (details.paths as unknown[]).flatMap((each) => {
+				const { language, path } = (each ?? {}) as Record<string, unknown>;
+				return typeof language === "string" && typeof path === "string" ? [{ language, path }] : [];
+			})
+		: [];
+	return { item: { kind: "entry", id: text(details.entryId), postTypeId: text(details.postTypeId) }, paths };
 }

@@ -290,11 +290,12 @@ async function noteLoopChange(scope: SiteScope, row: LoopRow, draft: unknown): P
 /**
  * Publishes a Loop's Draft, inside `publish`'s transaction: its query must still fit the Site's Post
  * Types (`LoopInvalidError`), a query Loop must list at least one Post Type, and its Loop items must
- * keep their Fields' rules in every language (`LoopInvalidError`, `LoopIncompleteError`).
+ * keep their Fields' rules in every language (`LoopInvalidError`, `LoopIncompleteError`). `version`,
+ * when given, is published instead of the Draft (a Scheduled publish's, as the table stores a Draft).
  */
-export async function publishLoop(scope: SiteScope, loopId: string): Promise<Published> {
+export async function publishLoop(scope: SiteScope, loopId: string, version?: unknown): Promise<Published> {
 	const row = await lockLoop(scope, loopId);
-	const draft = storedLoopVersion(row.draft);
+	const draft = storedLoopVersion(version ?? row.draft);
 	const problems: ContentProblem[] = [];
 	const postTypes = await listPostTypes(scope);
 	const query = parseQuery(draft.query, postTypes, problems);
@@ -312,7 +313,13 @@ export async function publishLoop(scope: SiteScope, loopId: string): Promise<Pub
 	const now = scope.now();
 	await scope.update(
 		loops,
-		{ draft: published, published, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
+		// The Draft takes the query as it is checked; a frozen version (a Scheduled publish's) leaves the Draft alone.
+		{
+			...(version === undefined ? { draft: published } : {}),
+			published,
+			publishedAt: row.publishedAt ?? now,
+			lastPublishedAt: now,
+		},
 		eq(loops.id, row.id),
 	);
 	await scope.audit("loop.publish", { loopId: row.id, name: row.name });

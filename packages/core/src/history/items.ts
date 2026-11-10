@@ -75,6 +75,9 @@ export type ItemState = {
 	postTypeId: string | null;
 };
 
+/** What reading an item needs: a Site scope, or the worker's background one. */
+type ItemReader = Pick<SiteScope, "first" | "db" | "site">;
+
 /** The Content kinds: Members edit them; the rest is Structure. */
 const CONTENT_KINDS: readonly HistoryItem["kind"][] = ["entry", "globals", "consentBanner", "formEmails"];
 
@@ -114,14 +117,14 @@ function summary(item: HistoryItem, name: string | null, more: Partial<HistoryIt
 }
 
 /** A Post Type's id and name; null when there is none. */
-async function postTypeNamed(scope: SiteScope, id: string | null): Promise<{ id: string; name: string } | null> {
+async function postTypeNamed(scope: ItemReader, id: string | null): Promise<{ id: string; name: string } | null> {
 	if (!id) return null;
 	const row = await scope.first(postTypes, eq(postTypes.id, id));
 	return row ? { id: row.id, name: row.name } : null;
 }
 
 /** An Entry's title in the Site's Default language, from its Draft. */
-async function entryTitle(scope: SiteScope, draft: unknown): Promise<string> {
+async function entryTitle(scope: ItemReader, draft: unknown): Promise<string> {
 	const { defaultLanguage } = await siteLanguages(scope);
 	return readValue(storedVersion(draft), { key: "title", language: defaultLanguage, defaultLanguage }) ?? "";
 }
@@ -131,7 +134,7 @@ async function entryTitle(scope: SiteScope, draft: unknown): Promise<string> {
  * error (`EntryNotFoundError`, `ComponentNotFoundError`, …). The Globals, the Consent banner's words and
  * the Design system always exist: before anyone changed them, as they start.
  */
-export async function itemState(scope: SiteScope, item: HistoryItem): Promise<ItemState> {
+export async function itemState(scope: ItemReader, item: HistoryItem): Promise<ItemState> {
 	const group: HistoryGroup = CONTENT_KINDS.includes(item.kind) ? "content" : "structure";
 	const id = itemIdOf(item);
 	const known = id !== null && isUuid(id) ? id : null;

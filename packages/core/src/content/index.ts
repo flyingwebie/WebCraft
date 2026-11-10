@@ -61,6 +61,7 @@ export {
 	EntrySlugTakenError,
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
+	HomePageUnpublishError,
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
@@ -181,6 +182,34 @@ export {
 	publishPermission,
 } from "./publishing.ts";
 export type { LinkBack } from "./relationships.ts";
+export type {
+	EntrySchedule,
+	ScheduleAction,
+	ScheduleKind,
+} from "./scheduled-items.ts";
+export { scheduledPublishesDue, scheduledPublishesDueSchedule } from "./scheduled-jobs.ts";
+export {
+	cancelScheduled,
+	getScheduled,
+	ItemAlreadyScheduledError,
+	listScheduled,
+	type RunOutcome,
+	reschedule,
+	runDueScheduledPublishes,
+	SCHEDULE_LIMITS,
+	type ScheduleAllDone,
+	type ScheduleAllPreview,
+	type ScheduledItem,
+	type ScheduledPublish,
+	ScheduledPublishNotFoundError,
+	type ScheduleFailure,
+	ScheduleInvalidError,
+	type ScheduleProblem,
+	scheduleAll,
+	scheduleItem,
+	scheduleUnpublish,
+	updateScheduled,
+} from "./scheduled-publishes.ts";
 export {
 	getScript,
 	SCRIPT_MAX_LENGTH,
@@ -237,5 +266,6 @@ export {
 	type TemplateMarkupTarget,
 	type TemplateStatus,
 } from "./templates.ts";
+export { isGonePath, type Unpublished, unpublishEntry } from "./unpublishing.ts";
 export type { LanguageValue, Writer } from "./values.ts";
 export { isVisibleIn, publishedVisibleIn } from "./visibility.ts";

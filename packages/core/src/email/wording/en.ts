@@ -137,14 +137,38 @@ export const en: EmailWording = {
 				action: { label: "Open it", path: itemPath },
 			};
 		},
-		"scheduled-publish-failed": ({ itemTitle, siteName, itemPath }) => ({
-			subject: `“${itemTitle}” wasn't published as scheduled`,
-			heading: "A scheduled publish didn't go through",
-			paragraphs: [
-				`The scheduled publish of “${itemTitle}” on ${siteName} didn't go through. Open it to see why and publish it again.`,
-			],
-			action: { label: "Open it", path: itemPath },
-		}),
+		"scheduled-publish-failed": ({ siteName, action, itemTitle, count, scheduledFor, reason, path }) => {
+			const named = itemTitle ? `“${itemTitle}”` : "an item";
+			const what =
+				action === "unpublish"
+					? `The Scheduled publish that was to unpublish ${named} on ${siteName} at ${scheduledFor} didn't go through: it is still published.`
+					: count > 1
+						? `The Scheduled publish of ${count} items on ${siteName} at ${scheduledFor} didn't go through, so none of them was published: they go live together or not at all.`
+						: `The Scheduled publish of ${named} on ${siteName} at ${scheduledFor} didn't go through, so it wasn't published.`;
+			const why: Record<typeof reason, string> = {
+				deleted: `${capital(named)} was deleted after it was scheduled.`,
+				invalid: `${capital(named)} has values that break a rule, or required values that are empty.`,
+				pathTaken: `The address of ${named} is taken by something published since.`,
+				parentUnpublished: `The parent Page of ${named} isn't published.`,
+				structureChanged: `${capital(named)} uses a Template, Component, Field or Class that changed or was deleted after it was scheduled.`,
+				access: "You may no longer publish on this Site.",
+				homePage: `${capital(named)} is the Site's home page, or a Page above it.`,
+				other: `${capital(named)} couldn't be published.`,
+			};
+			return {
+				subject:
+					action === "unpublish"
+						? `${capital(named)} wasn't unpublished as scheduled`
+						: `${count > 1 ? `${count} items weren't` : `${capital(named)} wasn't`} published as scheduled`,
+				heading: "A Scheduled publish didn't go through",
+				paragraphs: [
+					what,
+					why[reason],
+					"The Drafts are as they were. Open them to fix it, then publish or schedule again.",
+				],
+				action: { label: "Open it", path },
+			};
+		},
 		"ai-key-cap": ({ workspaceName, percent, usagePath }) =>
 			percent === 100
 				? {
@@ -223,3 +247,8 @@ export const en: EmailWording = {
 		preferences: "Choose which emails you get",
 	},
 };
+
+/** A sentence's first letter in capitals. */
+function capital(text: string): string {
+	return text.charAt(0).toUpperCase() + text.slice(1);
+}

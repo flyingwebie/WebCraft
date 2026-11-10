@@ -108,6 +108,10 @@ export function createSecondFactorStore({
 	};
 
 	/** Ends the person's sessions but `keep` (all of them without one), and answers how many. */
+	/** Takes the person's row, so their second factors change one at a time. */
+	const lockPerson = async (tx: Transaction, personId: string): Promise<void> => {
+		await tx.select({ id: people.id }).from(people).where(eq(people.id, personId)).for("update");
+	};
 	const endSessions = async (tx: Transaction, personId: string, keep: string | null) => {
 		const ended = await tx
 			.delete(sessions)
@@ -228,7 +232,7 @@ export function createSecondFactorStore({
 			);
 			const result = await db.transaction(async (tx) => {
 				// One change to a person's second factors at a time.
-				await tx.select({ id: people.id }).from(people).where(eq(people.id, personId)).for("update");
+				await lockPerson(tx, personId);
 				if (await hasAuthenticator(tx, personId)) throw new AuthenticatorExistsError();
 				const first = (await passkeyCount(tx, personId)) === 0;
 				await tx.insert(authenticators).values({ personId, lastUsedStep: step, createdAt: now });
@@ -251,7 +255,7 @@ export function createSecondFactorStore({
 			also?: AlsoInTransaction<FactorChange & { last: boolean }>,
 		): Promise<FactorChange & { last: boolean }> {
 			const result = await db.transaction(async (tx) => {
-				await tx.select({ id: people.id }).from(people).where(eq(people.id, personId)).for("update");
+				await lockPerson(tx, personId);
 				const removed = await tx
 					.delete(authenticators)
 					.where(eq(authenticators.personId, personId))
@@ -280,7 +284,7 @@ export function createSecondFactorStore({
 		): Promise<FactorChange & { passkey: PasskeySummary; backupCodes: string[] | null }> {
 			const now = clock.now();
 			return db.transaction(async (tx) => {
-				await tx.select({ id: people.id }).from(people).where(eq(people.id, personId)).for("update");
+				await lockPerson(tx, personId);
 				const first = !(await hasAuthenticator(tx, personId)) && (await passkeyCount(tx, personId)) === 0;
 				const [row] = await tx
 					.insert(passkeys)
@@ -320,7 +324,7 @@ export function createSecondFactorStore({
 			also?: AlsoInTransaction<FactorChange & { last: boolean; name: string }>,
 		): Promise<FactorChange & { last: boolean; name: string }> {
 			return db.transaction(async (tx) => {
-				await tx.select({ id: people.id }).from(people).where(eq(people.id, personId)).for("update");
+				await lockPerson(tx, personId);
 				const [removed] = await tx
 					.delete(passkeys)
 					.where(and(eq(passkeys.id, passkeyId), eq(passkeys.personId, personId)))
@@ -337,7 +341,7 @@ export function createSecondFactorStore({
 		/** Replaces the person's backup codes with 10 new ones. Only for people with a second factor. */
 		async regenerateBackupCodes(personId: string, also?: AlsoInTransaction<undefined>): Promise<string[]> {
 			return db.transaction(async (tx) => {
-				await tx.select({ id: people.id }).from(people).where(eq(people.id, personId)).for("update");
+				await lockPerson(tx, personId);
 				if (!(await hasAuthenticator(tx, personId)) && (await passkeyCount(tx, personId)) === 0) {
 					throw new TwoFactorOffError();
 				}
@@ -356,7 +360,7 @@ export function createSecondFactorStore({
 			also?: AlsoInTransaction<{ authenticator: boolean; passkeys: number; signedOutSessions: number }>,
 		) {
 			const result = await db.transaction(async (tx) => {
-				await tx.select({ id: people.id }).from(people).where(eq(people.id, personId)).for("update");
+				await lockPerson(tx, personId);
 				const app = await tx
 					.delete(authenticators)
 					.where(eq(authenticators.personId, personId))

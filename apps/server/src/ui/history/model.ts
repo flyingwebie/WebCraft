@@ -73,6 +73,7 @@ export function attributionText(t: Translate, by: Attribution | null): string {
 	const person = by.person?.name ?? t("history.by.gone");
 	if (by.via.kind === "module") return t("history.by.module", { module: by.via.name });
 	if (by.via.kind === "translation") return t("history.by.translation", { person });
+	if (by.via.kind === "scheduledPublish") return t("history.by.scheduledPublish", { person });
 	if (by.client) return t("history.by.via", { person, client: by.client });
 	return person;
 }

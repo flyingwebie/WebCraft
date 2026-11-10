@@ -1,6 +1,7 @@
 import { backupsScheduled, backupsScheduledSchedule } from "../backups/jobs.ts";
 import { cdnRefreshRanges, cdnRefreshRangesSchedule } from "../cdns/index.ts";
 import { consentRecordsPurge, consentRecordsPurgeSchedule } from "../consent/records.ts";
+import { scheduledPublishesDue, scheduledPublishesDueSchedule } from "../content/scheduled-jobs.ts";
 import {
 	domainsCheck,
 	domainsCheckAll,
@@ -94,6 +95,7 @@ export const coreJobs = [
 	reportsRender,
 	reportsPurge,
 	historyPrune,
+	scheduledPublishesDue,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
@@ -121,6 +123,7 @@ export const coreSchedules = [
 	reportsDueSchedule,
 	reportsPurgeSchedule,
 	historyPruneSchedule,
+	scheduledPublishesDueSchedule,
 ] as readonly JobSchedule<unknown>[];
 
 export {

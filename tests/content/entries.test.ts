@@ -59,6 +59,8 @@ describe("creating an Entry", () => {
 			updatedAt: install.clock.now(),
 			publishedAt: null,
 			lastPublishedAt: null,
+			unpublishedAt: null,
+			scheduled: { publish: null, unpublish: null },
 			language: "en",
 			draft: {
 				title: "Sourdough starter",

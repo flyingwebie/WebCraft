@@ -104,9 +104,32 @@ export const SYSTEM_EMAIL_TYPES = {
 		category: "work",
 		data: z.object({ reportName: title, placeName: name, reviewPath: adminPath }),
 	},
+	/**
+	 * A Scheduled publish (or an Entry's scheduled unpublish) didn't go through, so nothing of it was
+	 * published: to the person who scheduled it. `itemTitle` names the item that stopped it (or the only
+	 * one), `count` how many the Scheduled publish held, `reason` why, worded in each language.
+	 */
 	"scheduled-publish-failed": {
 		category: "work",
-		data: z.object({ itemTitle: title, siteName: name, itemPath: adminPath }),
+		data: z.object({
+			siteName: name,
+			action: z.enum(["publish", "unpublish"]),
+			itemTitle: title.nullable(),
+			count,
+			/** When it was scheduled for, as the admin shows times: `2026-03-02 09:00 UTC`. */
+			scheduledFor: z.string().max(40),
+			reason: z.enum([
+				"deleted",
+				"invalid",
+				"pathTaken",
+				"parentUnpublished",
+				"structureChanged",
+				"access",
+				"homePage",
+				"other",
+			]),
+			path: adminPath,
+		}),
 	},
 	"ai-key-cap": {
 		category: "work",

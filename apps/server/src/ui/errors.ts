@@ -7,6 +7,14 @@ import type { MessageKey } from "./i18n.tsx";
 export function errorMessage(error: unknown): MessageKey {
 	const { code, data } = (error ?? {}) as { code?: unknown; data?: { problem?: unknown } };
 	switch (code) {
+		case "TWO_FACTOR_CODE_INVALID":
+		case "SIGN_IN_EXPIRED":
+		case "AUTHENTICATOR_EXISTS":
+		case "TWO_FACTOR_NOT_FOUND":
+		case "TWO_FACTOR_OFF":
+		case "TWO_FACTOR_REQUIRED":
+		case "TWO_FACTOR_SETUP_REQUIRED":
+		case "PASSKEY_INVALID":
 		case "DASHBOARD_NOT_FOUND":
 		case "WIDGET_NOT_FOUND":
 		case "DASHBOARD_TEMPLATE_NOT_FOUND":
@@ -106,12 +114,26 @@ export function errorMessage(error: unknown): MessageKey {
 		case "STAGING_PASSWORD_INVALID":
 		case "PUBLISH_ALL_INVALID":
 		case "PUBLISH_ALL_REFUSED":
+		case "HOME_PAGE_UNPUBLISH":
+		case "ALREADY_SCHEDULED":
+		case "SCHEDULED_PUBLISH_NOT_FOUND":
 		case "REPORT_NOT_FOUND":
 		case "REPORT_SEND_NOT_FOUND":
 		case "SHARE_LINK_NOT_FOUND":
 		case "SHARE_LINKS_UNAVAILABLE":
 		case "SERVICES_LIST_INVALID":
 			return `errors.${code}`;
+		case "SCHEDULE_INVALID":
+			switch ((data as { reason?: unknown } | undefined)?.reason) {
+				case "tooFar":
+					return "errors.SCHEDULE_INVALID_TOO_FAR";
+				case "notAnEntry":
+					return "errors.SCHEDULE_INVALID_NOT_AN_ENTRY";
+				case "nothingToTake":
+					return "errors.SCHEDULE_INVALID_NOTHING_TO_TAKE";
+				default:
+					return "errors.SCHEDULE_INVALID_PAST";
+			}
 		case "REPORT_INVALID":
 			switch ((data as { field?: unknown } | undefined)?.field) {
 				case "name":

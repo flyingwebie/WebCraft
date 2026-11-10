@@ -13,7 +13,7 @@ import { personIdOf } from "../permissions/can.ts";
 import { SecretNotSetError, type Secrets, SecretUnreadableError } from "../secrets/store.ts";
 import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { WebhookDeliveryNotFoundError, WebhookRedeliveryRefusedError } from "./errors.ts";
-import { publishedBy, TEST_EVENT, type WebhookEvent } from "./events.ts";
+import { publishedBy, TEST_EVENT, unpublishedBy, type WebhookEvent } from "./events.ts";
 import type { Webhooks } from "./index.ts";
 import { webhooksDeliver } from "./jobs.ts";
 import { signatureHeader, signingSecretName, WEBHOOK_HEADERS } from "./signing.ts";
@@ -81,25 +81,29 @@ export type AttemptPayload = { siteId: string; deliveryId: string; attempt: numb
 type EventActor = { id: string; name: string } | null;
 
 /**
- * Queues the `publish` event when an Audit log entry is a publish (it is announced once its change is
- * saved). Never throws: a failure is logged, and the publish stands.
+ * Queues the `publish` event when an Audit log entry is a publish, and `unpublish` when it is an
+ * Entry's unpublish (each is announced once its change is saved). Never throws: a failure is logged,
+ * and the publish stands.
  */
 export async function publishEventOf(
 	ports: DeliveryPorts,
 	queue: Webhooks["queueEvent"],
 	entry: RecordedAuditEntry,
 ): Promise<void> {
-	const published = entry.siteId ? publishedBy(entry.action, entry.details) : null;
-	if (!published || !entry.siteId) return;
+	if (!entry.siteId) return;
+	const published = publishedBy(entry.action, entry.details);
+	const unpublished = published ? null : unpublishedBy(entry.action, entry.details);
+	const event = published ? "publish" : unpublished ? "unpublish" : null;
+	if (!event) return;
 	try {
 		await queue(
 			{ siteId: entry.siteId },
-			"publish",
-			{ ...published, by: await actorOf(ports.database, entry.personId), via: entry.via.kind },
+			event,
+			{ ...(published ?? unpublished), by: await actorOf(ports.database, entry.personId), via: entry.via.kind },
 			entry.at,
 		);
 	} catch (error) {
-		ports.log.error("A Webhook event couldn't be queued", { siteId: entry.siteId, event: "publish", error });
+		ports.log.error("A Webhook event couldn't be queued", { siteId: entry.siteId, event, error });
 	}
 }
 

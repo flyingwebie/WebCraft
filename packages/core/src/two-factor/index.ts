@@ -240,15 +240,26 @@ export function createTwoFactor({
 		if (required && !(await auth.hasSecondFactor(actingPerson(access.actor)))) throw new TwoFactorOffError();
 	};
 
+	/**
+	 * Resets a person's second factors, logged as `twoFactor.reset` by `by` (null: WebCraft, from a
+	 * server command) through `via`, in `workspaceId` (null: Install-level), and emails them.
+	 */
 	const reset = async (
 		personId: string,
-		record: (tx: Transaction, details: AuditDetails) => Promise<void>,
-		resetBy: string | null,
+		{ by, via, workspaceId }: { by: string | null; via: AuditVia; workspaceId: string | null },
 	) => {
 		const [person] = await db.select({ email: people.email }).from(people).where(eq(people.id, personId));
 		await auth.resetSecondFactors(personId, (tx, change) =>
-			record(tx, { personId, email: person?.email ?? null, ...change }),
+			recordAudit(tx, clock.now(), {
+				personId: by,
+				via,
+				workspaceId,
+				siteId: null,
+				action: "twoFactor.reset",
+				details: { personId, email: person?.email ?? null, ...change },
+			}),
 		);
+		const resetBy = by ? await nameOf(by) : null;
 		await email.send({
 			type: "two-factor-reset",
 			to: [{ personId }],
@@ -390,20 +401,11 @@ export function createTwoFactor({
 		async resetMember(scope, personId) {
 			const member = await scope.first(memberships, eq(memberships.personId, personId));
 			if (!member) throw new MemberNotFoundError();
-			const by = actingPerson(scope.access.actor);
-			await reset(
-				personId,
-				(tx, details) =>
-					recordAudit(tx, clock.now(), {
-						personId: by,
-						via: scope.access.via,
-						workspaceId: scope.workspace.id,
-						siteId: null,
-						action: "twoFactor.reset",
-						details,
-					}),
-				await nameOf(by),
-			);
+			await reset(personId, {
+				by: actingPerson(scope.access.actor),
+				via: scope.access.via,
+				workspaceId: scope.workspace.id,
+			});
 		},
 
 		async resetStaff(scope, personId) {
@@ -412,20 +414,7 @@ export function createTwoFactor({
 				.from(installRoles)
 				.where(and(eq(installRoles.personId, personId), eq(installRoles.role, STAFF_ROLE)));
 			if (!staff) throw new StaffNotFoundError();
-			const by = actingPerson(scope.access.actor);
-			await reset(
-				personId,
-				(tx, details) =>
-					recordAudit(tx, clock.now(), {
-						personId: by,
-						via: scope.access.via,
-						workspaceId: null,
-						siteId: null,
-						action: "twoFactor.reset",
-						details,
-					}),
-				await nameOf(by),
-			);
+			await reset(personId, { by: actingPerson(scope.access.actor), via: scope.access.via, workspaceId: null });
 		},
 
 		async resetByCommand(address) {
@@ -435,19 +424,7 @@ export function createTwoFactor({
 				.from(people)
 				.where(eq(people.email, normalised));
 			if (!person) return null;
-			await reset(
-				person.id,
-				(tx, details) =>
-					recordAudit(tx, clock.now(), {
-						personId: null,
-						via: { kind: "command", name: "reset-2fa" },
-						workspaceId: null,
-						siteId: null,
-						action: "twoFactor.reset",
-						details,
-					}),
-				null,
-			);
+			await reset(person.id, { by: null, via: { kind: "command", name: "reset-2fa" }, workspaceId: null });
 			return { personId: person.id, email: person.email };
 		},
 	};
