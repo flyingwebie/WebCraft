@@ -25,6 +25,7 @@ import { type GuardedFetch, GuardedFetchError } from "../guarded-fetch.ts";
 import type { JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
 import type { ModuleActor } from "../permissions/can.ts";
+import { redactText, redactValue } from "../redaction.ts";
 import { SecretNotSetError } from "../secrets/store.ts";
 import type { Access, DataLayer, Site } from "../tenancy/data-layer.ts";
 import { type EnsurePartition, moduleData, type PlaceScope } from "./data.ts";
@@ -90,10 +91,11 @@ export async function writeLine(
 	await writeModuleLog(deps.database.db, deps.clock.now(), {
 		moduleId: module.id,
 		level,
-		message: message.slice(0, 1000),
+		// The same redaction as the process's log lines: no secret or person's content is kept.
+		message: redactText(message.slice(0, 1000)),
 		workspaceId: place?.workspaceId ?? null,
 		siteId: place && "siteId" in place ? (place.siteId ?? null) : null,
-		details,
+		details: redactValue(details) as Record<string, unknown>,
 	});
 }
 

@@ -38,6 +38,7 @@ import { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 import { isWebCraftCookie, withoutWebCraftCookies } from "../cookies.ts";
 import type { Countries } from "../countries.ts";
 import type { SubmissionActions } from "../forms/kept.ts";
+import { withLogContext } from "../log.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { RateLimits } from "../rate-limits.ts";
@@ -59,6 +60,7 @@ import {
 	ModuleFailedError,
 	ModuleNotApprovedError,
 	ModuleNotFoundError,
+	markModuleFailure,
 } from "./errors.ts";
 import {
 	moduleEventJob,
@@ -673,12 +675,14 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		const scope = await openForModule(module, place);
 		if (!scope) return;
 		try {
-			await work(scope);
+			await withLogContext({ module: module.id }, () => work(scope));
 		} catch (error) {
 			const kind = "event" in what ? `event ${what.event}` : `job ${what.job}`;
 			await writeLine(options, module, place, "error", `The ${kind} failed.`, { ...what, error: describeError(error) });
 			log.warn("A Module's background work failed", { moduleId: module.id, ...what, error });
 			if (error instanceof ModuleRefusedError) return;
+			// The job fails for the queue to try it again; the Module log has it, the Error log doesn't.
+			markModuleFailure(error);
 			throw error;
 		}
 	};
@@ -915,7 +919,9 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			if (!canAt(scope, permission)) throw new PermissionDeniedError(keyOf(permission));
 			const context = procedureContext(module, scope, options, call.person, (name) => holds(scope, module, name));
 			try {
-				return await procedure.run(call.input as Record<string, unknown>, context);
+				return await withLogContext({ module: module.id }, () =>
+					procedure.run(call.input as Record<string, unknown>, context),
+				);
 			} catch (error) {
 				if (isModuleAnswer(error)) throw error;
 				await writeLine(options, module, placeOf(scope), "error", `The procedure ${call.procedure} failed.`, {
@@ -994,7 +1000,9 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const visitor = visitors.visitorOf(siteRoute, incoming);
 			let response: Response;
 			try {
-				response = await route.handle(forModule(incoming), routeContext(module, scope, options, match.params, visitor));
+				response = await withLogContext({ module: module.id }, () =>
+					route.handle(forModule(incoming), routeContext(module, scope, options, match.params, visitor)),
+				);
 				if (!(response instanceof Response))
 					throw new TypeError("The Site route answered something that isn't a Response.");
 			} catch (error) {

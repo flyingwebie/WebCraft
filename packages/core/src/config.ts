@@ -1,6 +1,7 @@
 import { isIP } from "node:net";
 import { isAbsolute, resolve } from "node:path";
 
+import { type ErrorDsn, loadErrorDsn } from "./error-log/tracker.ts";
 import { normaliseHostname } from "./hostnames.ts";
 import { ipRangeText, PRIVATE_RANGES, parseIpRange } from "./ip-ranges.ts";
 
@@ -63,6 +64,11 @@ export type InstallConfig = {
 	 * latest-release JSON on GitHub unless set; null when set to `off`, which turns the check off.
 	 */
 	updateFeed: string | null;
+	/**
+	 * An outside error tracker unexpected failures are also sent to (`WEBCRAFT_ERROR_DSN`, a DSN of the
+	 * widely used open error-tracking protocol); null when it isn't set. See `error-log/tracker.ts`.
+	 */
+	errorDsn: ErrorDsn | null;
 };
 
 /** The release feed the update check reads unless `WEBCRAFT_UPDATE_FEED` says otherwise. */
@@ -106,6 +112,7 @@ export function loadInstallConfig(env: Environment): InstallConfig {
 		countryFile: loadCountryFile(env),
 		backupDir: loadBackupDir(env),
 		updateFeed: loadUpdateFeed(env),
+		errorDsn: loadErrorDsn(env),
 	};
 }
 

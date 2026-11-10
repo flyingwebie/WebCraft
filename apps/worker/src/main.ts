@@ -7,6 +7,7 @@ import {
 	createLogger,
 	createNodeHttp,
 	ensureQueues,
+	logSettings,
 	type OpenedParts,
 	openInstall,
 	scheduleJobs,
@@ -20,7 +21,7 @@ import { createChromiumPdf } from "./pdf.ts";
 /** How long a stopping worker waits for running jobs to finish. */
 const STOP_TIMEOUT_MS = 30_000;
 
-const log = createLogger({ fields: { process: "worker" } });
+const log = createLogger({ fields: { process: "worker" }, ...logSettings(process.env) });
 
 /** What has been opened so far, so a stop signal at any moment closes exactly that. */
 const running: OpenedParts = {};

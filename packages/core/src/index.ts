@@ -112,6 +112,7 @@ export { type CreateServicesOptions, createInstallServices } from "./create-serv
 export * from "./dashboards/index.ts";
 export * from "./design-system/index.ts";
 export * from "./discovery/index.ts";
+export { type DiskRoom, type DiskSpace, systemDiskSpace } from "./disk.ts";
 export { type Dns, systemDns } from "./dns.ts";
 export * from "./domains/index.ts";
 export {
@@ -141,6 +142,17 @@ export {
 	type SavedRegion,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
+export {
+	ERROR_LOG_DAYS,
+	type ErrorGroup,
+	type ErrorGroupDetail,
+	ErrorGroupNotFoundError,
+	type ErrorLog,
+	type ErrorLogState,
+	type ErrorPlace,
+	type ErrorSource,
+} from "./error-log/service.ts";
+export { type ErrorDsn, loadErrorDsn, parseErrorDsn, TRACKER_EVERY_MS } from "./error-log/tracker.ts";
 export * from "./filters/index.ts";
 export { type FilterState, readFilterState, type StateKey, type StateReader } from "./filters/state.ts";
 export * from "./forms/index.ts";
@@ -153,6 +165,28 @@ export {
 	type GuardedFetchProblem,
 	isPublicAddress,
 } from "./guarded-fetch.ts";
+export { HEALTH_LIMITS, type HealthReason, type HealthRowView } from "./health/checks.ts";
+export {
+	FAILING_REASONS,
+	type FailingReason,
+	HEALTH_PARTS,
+	HEALTH_STATUSES,
+	type HealthPart,
+	type HealthStatus,
+	INSTALL_HEALTH_PATH,
+} from "./health/parts.ts";
+export {
+	ALERT_AFTER_MS,
+	type FailedJob,
+	type HealthCheckBy,
+	type HealthReport,
+	type InstallHealth,
+	JobQueueNotFoundError,
+	type JobTarget,
+	type QueueView,
+	RECOVERED_AFTER_MS,
+	STALE_CHECK_MS,
+} from "./health/service.ts";
 export * from "./history/index.ts";
 export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
@@ -201,7 +235,21 @@ export {
 	parseIpRange,
 } from "./ip-ranges.ts";
 export * from "./jobs/index.ts";
-export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
+export {
+	createLogger,
+	currentLogContext,
+	LOG_LEVELS,
+	type LogContext,
+	type LogEntry,
+	type LogFields,
+	type LogFormat,
+	type Logger,
+	type LogLevel,
+	LogSettingsError,
+	logSettings,
+	noteLogPlace,
+	withLogContext,
+} from "./log.ts";
 export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup.ts";
 export * from "./media/index.ts";
 export { type MigrateBackup, type MigrateStepReport, migrateStep } from "./migrate-step.ts";
@@ -289,6 +337,15 @@ export {
 	type RateLimits,
 	type RateLimitTally,
 } from "./rate-limits.ts";
+export {
+	CONTENT_NAMES,
+	isRedactedName,
+	printedOnPurpose,
+	REDACTED,
+	redactText,
+	redactValue,
+	SECRET_NAMES,
+} from "./redaction.ts";
 export * from "./reports/index.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";

@@ -1,5 +1,6 @@
 export type { AdditionsView, ConsentView } from "./consent.ts";
 export {
+	isModuleFailure,
 	ModuleCannotRunError,
 	ModuleChangedError,
 	ModuleFailedError,

@@ -13,6 +13,7 @@ import { designSystem } from "./procedures/design-system.ts";
 import { domains } from "./procedures/domains.ts";
 import { editMode } from "./procedures/edit-mode.ts";
 import { entries } from "./procedures/entries.ts";
+import { errorLog } from "./procedures/error-log.ts";
 import { filters } from "./procedures/filters.ts";
 import { forms } from "./procedures/forms.ts";
 import { globals } from "./procedures/globals.ts";
@@ -20,6 +21,7 @@ import { history } from "./procedures/history.ts";
 import { impersonation } from "./procedures/impersonation.ts";
 import { imports } from "./procedures/imports.ts";
 import { install } from "./procedures/install.ts";
+import { installHealth } from "./procedures/install-health.ts";
 import { invites } from "./procedures/invites.ts";
 import { languages } from "./procedures/languages.ts";
 import { loops } from "./procedures/loops.ts";
@@ -62,6 +64,7 @@ export const apiRouter = {
 	oauth,
 	aiClients,
 	install,
+	installHealth,
 	sharedAiKeys,
 	aiKeys,
 	workspaces,
@@ -101,6 +104,7 @@ export const apiRouter = {
 	staff,
 	invites,
 	audit,
+	errorLog,
 	impersonation,
 	modules,
 	dashboards,

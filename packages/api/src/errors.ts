@@ -57,6 +57,7 @@ import {
 	EntryLinkedError,
 	EntryNotFoundError,
 	EntrySlugTakenError,
+	ErrorGroupNotFoundError,
 	FilterInvalidError,
 	FilterNameTakenError,
 	FilterNotFoundError,
@@ -81,10 +82,13 @@ import {
 	ImportSourceNotFoundError,
 	ImportUndoRefusedError,
 	ImportUploadRefusedError,
+	type InstallServices,
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	ItemAlreadyScheduledError,
 	ItemInReviewError,
+	isModuleFailure,
+	JobQueueNotFoundError,
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
@@ -183,6 +187,18 @@ import {
 } from "@webcraft/core";
 import { isModuleError } from "@webcraft/module-sdk";
 import { DesignSystemInvalidError, ElementTreeInvalidError, TemplateMarkupInvalidError } from "@webcraft/renderer";
+
+/**
+ * Logs a Management API call that failed unexpectedly (an answer of 500 or more), naming the error
+ * behind the API's answer, which the Error log groups by cause. Refusals (under 500) are answers, not
+ * failures; a Module's own failure is in its Module log already.
+ */
+export function logUnexpectedFailure(services: InstallServices, error: unknown, path: readonly string[]): void {
+	if (error instanceof ORPCError && error.status < 500) return;
+	const failure = error instanceof ORPCError && error.cause instanceof Error ? error.cause : error;
+	if (isModuleFailure(failure)) return;
+	services.log.error("A Management API call failed unexpectedly", { error: failure, procedure: path.join(".") });
+}
 
 /**
  * Turns the errors WebCraft's modules throw into API errors with a stable code, which the admin
@@ -839,6 +855,12 @@ export function toApiError(error: unknown): unknown {
 			data: { key: error.key, resumesAt: error.resumesAt.toISOString() },
 			cause: error,
 		});
+	}
+	if (error instanceof JobQueueNotFoundError) {
+		return new ORPCError("JOB_QUEUE_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ErrorGroupNotFoundError) {
+		return new ORPCError("ERROR_GROUP_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof SharedAiKeyNotFoundError) {
 		return new ORPCError("SHARED_AI_KEY_NOT_FOUND", { status: 404, message: error.message, cause: error });

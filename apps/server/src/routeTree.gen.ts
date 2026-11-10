@@ -26,6 +26,8 @@ import { Route as AdminAccountIndexRouteImport } from './routes/_admin/account.i
 import { Route as AdminAccountActivityRouteImport } from './routes/_admin/account.activity'
 import { Route as AdminAccountAiClientsRouteImport } from './routes/_admin/account.ai-clients'
 import { Route as AdminAccountApiTokensRouteImport } from './routes/_admin/account.api-tokens'
+import { Route as AdminInstallErrorsRouteImport } from './routes/_admin/install.errors'
+import { Route as AdminInstallHealthRouteImport } from './routes/_admin/install.health'
 import { Route as AdminSettingsAiRouteImport } from './routes/_admin/settings.ai'
 import { Route as AdminSettingsBackupsRouteImport } from './routes/_admin/settings.backups'
 import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings.email'
@@ -179,6 +181,16 @@ const AdminAccountApiTokensRoute = AdminAccountApiTokensRouteImport.update({
   id: '/api-tokens',
   path: '/api-tokens',
   getParentRoute: () => AdminAccountRoute,
+} as any)
+const AdminInstallErrorsRoute = AdminInstallErrorsRouteImport.update({
+  id: '/install/errors',
+  path: '/install/errors',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminInstallHealthRoute = AdminInstallHealthRouteImport.update({
+  id: '/install/health',
+  path: '/install/health',
+  getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsAiRoute = AdminSettingsAiRouteImport.update({
   id: '/settings/ai',
@@ -588,6 +600,8 @@ export interface FileRoutesByFullPath {
   '/account/activity': typeof AdminAccountActivityRoute
   '/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
+  '/install/errors': typeof AdminInstallErrorsRoute
+  '/install/health': typeof AdminInstallHealthRoute
   '/settings/ai': typeof AdminSettingsAiRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
@@ -674,6 +688,8 @@ export interface FileRoutesByTo {
   '/account/activity': typeof AdminAccountActivityRoute
   '/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
+  '/install/errors': typeof AdminInstallErrorsRoute
+  '/install/health': typeof AdminInstallHealthRoute
   '/settings/ai': typeof AdminSettingsAiRoute
   '/settings/backups': typeof AdminSettingsBackupsRoute
   '/settings/email': typeof AdminSettingsEmailRoute
@@ -756,6 +772,8 @@ export interface FileRoutesById {
   '/_admin/account/activity': typeof AdminAccountActivityRoute
   '/_admin/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/_admin/account/api-tokens': typeof AdminAccountApiTokensRoute
+  '/_admin/install/errors': typeof AdminInstallErrorsRoute
+  '/_admin/install/health': typeof AdminInstallHealthRoute
   '/_admin/settings/ai': typeof AdminSettingsAiRoute
   '/_admin/settings/backups': typeof AdminSettingsBackupsRoute
   '/_admin/settings/email': typeof AdminSettingsEmailRoute
@@ -845,6 +863,8 @@ export interface FileRouteTypes {
     | '/account/activity'
     | '/account/ai-clients'
     | '/account/api-tokens'
+    | '/install/errors'
+    | '/install/health'
     | '/settings/ai'
     | '/settings/backups'
     | '/settings/email'
@@ -931,6 +951,8 @@ export interface FileRouteTypes {
     | '/account/activity'
     | '/account/ai-clients'
     | '/account/api-tokens'
+    | '/install/errors'
+    | '/install/health'
     | '/settings/ai'
     | '/settings/backups'
     | '/settings/email'
@@ -1012,6 +1034,8 @@ export interface FileRouteTypes {
     | '/_admin/account/activity'
     | '/_admin/account/ai-clients'
     | '/_admin/account/api-tokens'
+    | '/_admin/install/errors'
+    | '/_admin/install/health'
     | '/_admin/settings/ai'
     | '/_admin/settings/backups'
     | '/_admin/settings/email'
@@ -1215,6 +1239,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/account/api-tokens'
       preLoaderRoute: typeof AdminAccountApiTokensRouteImport
       parentRoute: typeof AdminAccountRoute
+    }
+    '/_admin/install/errors': {
+      id: '/_admin/install/errors'
+      path: '/install/errors'
+      fullPath: '/install/errors'
+      preLoaderRoute: typeof AdminInstallErrorsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/install/health': {
+      id: '/_admin/install/health'
+      path: '/install/health'
+      fullPath: '/install/health'
+      preLoaderRoute: typeof AdminInstallHealthRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/_admin/settings/ai': {
       id: '/_admin/settings/ai'
@@ -1937,6 +1975,8 @@ interface AdminRouteChildren {
   AdminServicesRoute: typeof AdminServicesRoute
   AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminInstallErrorsRoute: typeof AdminInstallErrorsRoute
+  AdminInstallHealthRoute: typeof AdminInstallHealthRoute
   AdminSettingsAiRoute: typeof AdminSettingsAiRoute
   AdminSettingsBackupsRoute: typeof AdminSettingsBackupsRoute
   AdminSettingsEmailRoute: typeof AdminSettingsEmailRoute
@@ -1959,6 +1999,8 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminServicesRoute: AdminServicesRoute,
   AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminInstallErrorsRoute: AdminInstallErrorsRoute,
+  AdminInstallHealthRoute: AdminInstallHealthRoute,
   AdminSettingsAiRoute: AdminSettingsAiRoute,
   AdminSettingsBackupsRoute: AdminSettingsBackupsRoute,
   AdminSettingsEmailRoute: AdminSettingsEmailRoute,

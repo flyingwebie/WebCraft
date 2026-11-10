@@ -1,4 +1,5 @@
 import { wordsIn } from "@webcraft/module-sdk";
+import type { FailingReason, HealthPart } from "../../health/parts.ts";
 import { formatSize } from "./sizes.ts";
 import type { EmailWording } from "./types.ts";
 
@@ -8,6 +9,35 @@ const minutes = (count: number) => (count === 1 ? "1 minute" : `${count} minutes
 const ROLES = { owner: "an Owner", editor: "an Editor", author: "an Author" } as const;
 
 const SECOND_FACTOR = { authenticator: "An authenticator app", passkey: "A passkey" } as const;
+
+/** Each part of Install health, as the screen names it. */
+const HEALTH_PART_NAMES: Record<HealthPart, string> = {
+	web: "The web process",
+	worker: "The worker",
+	database: "The database",
+	jobQueue: "The job queue",
+	storage: "Storage",
+	backups: "Backups",
+	smtp: "Email (SMTP)",
+	domains: "Domains",
+	errorLog: "The Error log",
+	moduleLog: "The Module log",
+};
+
+/** Why a part is Failing, in a sentence. */
+const FAILING_SAYS: Record<FailingReason, string> = {
+	stale: "no worker has checked in for over 2 minutes, so emails, images and Backups wait.",
+	never: "no worker has ever checked in, so emails, images and Backups wait.",
+	behind: "it is behind this version: run the migrate step.",
+	jobQueueNewer: "its job queue was made by a newer version of WebCraft.",
+	unreachable: "it can't be reached.",
+	stuck: "jobs have waited long past their time, or run far longer than they may.",
+	unwritable: "WebCraft can't write to it.",
+	full: "it has almost no space left.",
+	failed: "the last Backup failed.",
+	overdue: "no Backup has been taken for two days.",
+	failing: "its last 3 sends failed, so emails wait.",
+};
 
 /** A size as people read it: `850 KB`, `4.2 GB`. */
 const size = (bytes: number) => formatSize(bytes, ".");
@@ -251,6 +281,30 @@ export const en: EmailWording = {
 				...(action ? { action: { label: words(action.label), path: action.path } } : {}),
 			};
 		},
+		"health-failing": ({ parts, healthPath }, { installName }) => ({
+			subject:
+				parts.length === 1
+					? `${installName}: ${HEALTH_PART_NAMES[parts[0]?.part ?? "web"]} is failing`
+					: `${installName}: ${parts.length} parts are failing`,
+			heading: "Something on the Install is failing",
+			paragraphs: [
+				...parts.map(({ part, reason }) => `${HEALTH_PART_NAMES[part]}: ${FAILING_SAYS[reason]}`),
+				"You'll get one more email when it works again. Until then the admin shows a banner.",
+			],
+			action: { label: "Open Install health", path: healthPath },
+		}),
+		"health-recovered": ({ parts, healthPath }, { installName }) => ({
+			subject:
+				parts.length === 1
+					? `${installName}: ${HEALTH_PART_NAMES[parts[0]?.part ?? "web"]} works again`
+					: `${installName}: ${parts.length} parts work again`,
+			heading: "It works again",
+			paragraphs: parts.map(
+				({ part, failedMinutes }) =>
+					`${HEALTH_PART_NAMES[part]} works again, after failing for ${minutes(failedMinutes)}.`,
+			),
+			action: { label: "Open Install health", path: healthPath },
+		}),
 		"site-smtp-failing": ({ siteName, lastResponse, settingsPath }) => ({
 			subject: `The SMTP of ${siteName} is failing`,
 			heading: `The SMTP of ${siteName} is failing`,

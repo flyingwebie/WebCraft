@@ -1,4 +1,5 @@
 import { wordsIn } from "@webcraft/module-sdk";
+import type { FailingReason, HealthPart } from "../../health/parts.ts";
 import { formatSize } from "./sizes.ts";
 import type { EmailWording } from "./types.ts";
 
@@ -6,6 +7,35 @@ const days = (count: number) => (count === 1 ? "1 giorno" : `${count} giorni`);
 const minutes = (count: number) => (count === 1 ? "1 minuto" : `${count} minuti`);
 
 const ROLES = { owner: "Owner", editor: "Editor", author: "Author" } as const;
+
+/** Each part of Install health, as the screen names it. */
+const HEALTH_PART_NAMES: Record<HealthPart, string> = {
+	web: "Il processo web",
+	worker: "Il worker",
+	database: "Il database",
+	jobQueue: "La coda dei job",
+	storage: "L'archiviazione",
+	backups: "I backup",
+	smtp: "L'email (SMTP)",
+	domains: "I domini",
+	errorLog: "Il registro errori",
+	moduleLog: "Il registro dei moduli",
+};
+
+/** Why a part is Failing, in a sentence. */
+const FAILING_SAYS: Record<FailingReason, string> = {
+	stale: "nessun worker si è fatto vivo da oltre 2 minuti, quindi email, immagini e backup restano in attesa.",
+	never: "nessun worker si è mai fatto vivo, quindi email, immagini e backup restano in attesa.",
+	behind: "è indietro rispetto a questa versione: esegui il passaggio di migrazione.",
+	jobQueueNewer: "la sua coda dei job è stata creata da una versione più recente di WebCraft.",
+	unreachable: "non è raggiungibile.",
+	stuck: "ci sono job in attesa da molto oltre il loro orario, o in esecuzione da molto più del previsto.",
+	unwritable: "WebCraft non riesce a scriverci.",
+	full: "non ha quasi più spazio libero.",
+	failed: "l'ultimo backup non è riuscito.",
+	overdue: "non viene eseguito un backup da due giorni.",
+	failing: "gli ultimi 3 invii non sono riusciti, quindi le email restano in attesa.",
+};
 
 /** System emails in Italian. */
 export const it: EmailWording = {
@@ -255,6 +285,30 @@ export const it: EmailWording = {
 				...(action ? { action: { label: words(action.label), path: action.path } } : {}),
 			};
 		},
+		"health-failing": ({ parts, healthPath }, { installName }) => ({
+			subject:
+				parts.length === 1
+					? `${installName}: ${HEALTH_PART_NAMES[parts[0]?.part ?? "web"]} non funziona`
+					: `${installName}: ${parts.length} parti non funzionano`,
+			heading: "Qualcosa nell'installazione non funziona",
+			paragraphs: [
+				...parts.map(({ part, reason }) => `${HEALTH_PART_NAMES[part]}: ${FAILING_SAYS[reason]}`),
+				"Riceverai un'altra email quando tornerà a funzionare. Fino ad allora l'amministrazione mostra un avviso.",
+			],
+			action: { label: "Apri lo stato dell'installazione", path: healthPath },
+		}),
+		"health-recovered": ({ parts, healthPath }, { installName }) => ({
+			subject:
+				parts.length === 1
+					? `${installName}: ${HEALTH_PART_NAMES[parts[0]?.part ?? "web"]} funziona di nuovo`
+					: `${installName}: ${parts.length} parti funzionano di nuovo`,
+			heading: "Funziona di nuovo",
+			paragraphs: parts.map(
+				({ part, failedMinutes }) =>
+					`${HEALTH_PART_NAMES[part]} funziona di nuovo, dopo ${minutes(failedMinutes)} di malfunzionamento.`,
+			),
+			action: { label: "Apri lo stato dell'installazione", path: healthPath },
+		}),
 		"site-smtp-failing": ({ siteName, lastResponse, settingsPath }) => ({
 			subject: `L'SMTP di ${siteName} non funziona`,
 			heading: `L'SMTP di ${siteName} non funziona`,

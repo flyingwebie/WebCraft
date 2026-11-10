@@ -38,6 +38,11 @@ export type SystemEmail<Type extends SystemEmailType = SystemEmailType> = {
 	/** What it is about, linked from the Email log. */
 	related?: RelatedItem;
 	/**
+	 * Tried at once from this process as well as queued: Health alerts only, which can't wait for a
+	 * worker that may be what is failing.
+	 */
+	now?: boolean;
+	/**
 	 * The Site whose mail it is (a Site-level Module's email): it goes out as the Site's mail does,
 	 * through the Site's own server when it has one, else the Install SMTP, under the Site's sender name
 	 * and with its reply-to. Absent for the Install's own emails.
@@ -125,6 +130,7 @@ export function createSystemEmailSender(options: SenderOptions) {
 					smtp: site ? site.route.smtp : { kind: "install" },
 					related: email.related ?? null,
 					...(site ? { siteId: site.id, replyTo: site.route.replyTo } : {}),
+					...(email.now ? { now: true } : {}),
 				});
 				results.push({ recipient: addressee.email, status, emailId });
 			}

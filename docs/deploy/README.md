@@ -38,6 +38,9 @@ Every setting is an environment variable; web, worker and the migrate step get t
 | `WEBCRAFT_TRUSTED_PROXIES` | Optional: the proxies whose word on a visitor's address is believed (see "Visitors' addresses"). Each target's default is right unless you add a proxy of your own. |
 | `WEBCRAFT_BACKUP_DIR` | The Backups folder. The images set it to `/var/lib/webcraft/backups`; mount a volume there in the worker, the migrate step and the web container (see "Backups"). |
 | `WEBCRAFT_UPDATE_FEED` | Optional: where the update check reads the newest release (an `https` address), or `off`. Unset, the project's own feed (see "The update check"). |
+| `WEBCRAFT_LOG_LEVEL` | Optional: `debug`, `info` (the default), `warn` or `error`: the least important log lines written. |
+| `WEBCRAFT_LOG_FORMAT` | `json` (the default for web and worker): one JSON object per line. Each target's files set it, so the migrate step writes JSON lines too (by hand, it prints a readable report). |
+| `WEBCRAFT_ERROR_DSN` | Optional: an error tracker's DSN (`https://<public key>@<host>/<project id>`), which unexpected failures are also sent to, redacted. It must be on a public address. See "Logs and Install health". |
 
 Web and worker refuse to start when a setting is missing or malformed, when the database is behind (run the migrate step), or when `WEBCRAFT_SECRET_KEY` isn't the Install's Master key; the log says which and how to fix it.
 
@@ -134,3 +137,11 @@ WebCraft calls other servers directly. It has no outgoing proxy in v1: web and w
 ## Health checks
 
 `/healthz` (the web process is up) and `/readyz` (the database answers and has every migration this version expects; 503 otherwise) answer on the admin host only, so a check must send `Host: <admin host>`; the web image's own health check does. On Railway they also answer on the hostname Railway's checks use.
+
+`/readyz` says whether this web process can serve; it doesn't look at the worker, so a stopped worker never takes the admin and the Sites out of the load balancer. The worker's own check is `webcraft admin health --worker` (exit 1 when no worker checked in within 2 minutes), for the worker container's health check.
+
+## Logs and Install health
+
+Every process writes one JSON object per line: `time` (ISO, UTC), `level`, `msg`, the request id (`requestId`, answered in `X-Request-Id`; a trusted proxy's own `X-Request-Id` is kept), and where known the job, Workspace, Site and Module. Secrets, cookies, `Authorization` headers, form answers and the text of a Site's emails never reach a line. Collect them with your platform's log tools.
+
+The Superadmin sees **Install health** (Install › Install health: web, worker, database, job queue, storage, the last Backup, Failing SMTP, domains, the Error log and the Module log) and the **Error log** (unexpected failures grouped by cause, 30 days) in the admin, gets a Health alert email when a part has been Failing for 5 minutes and one when it has worked again for 15, and a banner meanwhile. With `WEBCRAFT_ERROR_DSN`, failures also go to an error tracker.

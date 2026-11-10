@@ -38,6 +38,8 @@ services:
       WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
       WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
       WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+      # JSON log lines from every process (docs/development.md, "Logs").
+      WEBCRAFT_LOG_FORMAT: json
     volumes:
       - storage:/var/lib/webcraft/storage
       - backups:/var/lib/webcraft/backups
@@ -61,7 +63,11 @@ services:
       WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
       WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
       WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+      # JSON log lines from every process (docs/development.md, "Logs").
+      WEBCRAFT_LOG_FORMAT: json
       WEBCRAFT_UPDATE_FEED: ${WEBCRAFT_UPDATE_FEED:-}
+      WEBCRAFT_LOG_LEVEL: ${WEBCRAFT_LOG_LEVEL:-info}
+      WEBCRAFT_ERROR_DSN: ${WEBCRAFT_ERROR_DSN:-}
       PORT: "3000"
     volumes:
       - storage:/var/lib/webcraft/storage
@@ -83,7 +89,11 @@ services:
       WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
       WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
       WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+      # JSON log lines from every process (docs/development.md, "Logs").
+      WEBCRAFT_LOG_FORMAT: json
       WEBCRAFT_UPDATE_FEED: ${WEBCRAFT_UPDATE_FEED:-}
+      WEBCRAFT_LOG_LEVEL: ${WEBCRAFT_LOG_LEVEL:-info}
+      WEBCRAFT_ERROR_DSN: ${WEBCRAFT_ERROR_DSN:-}
     volumes:
       - storage:/var/lib/webcraft/storage
       - backups:/var/lib/webcraft/backups

@@ -6,9 +6,11 @@ import { z } from "zod";
 import type { Clock } from "../clock.ts";
 import { defineJob, type JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
+import { printedOnPurpose } from "../redaction.ts";
 import type { SecretRef } from "../secrets/refs.ts";
 import { SecretNotSetError, type Secrets } from "../secrets/store.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
+import { isSystemEmailType } from "./catalogue.ts";
 import type { EmailLogSmtp, RelatedItem } from "./email-log.ts";
 import { FAILING_AFTER, INSTALL_SMTP, INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
 import {
@@ -61,6 +63,12 @@ export type OutboxEmail = {
 	replyTo?: string | null;
 	/** Files to send with it, named here and read when it is sent (a Report's PDF). */
 	attachments?: readonly EmailAttachmentRef[];
+	/**
+	 * Tried at once from this process too, besides being queued: for Health alerts, which can't wait
+	 * for the worker when the worker may be what is failing. The queued attempt then finds it done; a
+	 * failed attempt is retried by the worker as usual.
+	 */
+	now?: boolean;
 };
 
 export type OutboxPorts = {
@@ -128,12 +136,13 @@ export async function queueEmail(
 		writeToLog(ports.log, row.id, email);
 		return { emailId: row.id, status: "logged" };
 	}
-	await jobs.send(emailSend, {
-		emailId: row.id,
-		attempt: 1,
-		smtp: email.smtp,
-		message: messageOf(email),
-	});
+	const attempt: EmailAttempt = { emailId: row.id, attempt: 1, smtp: email.smtp, message: messageOf(email) };
+	await jobs.send(emailSend, attempt);
+	if (email.now) {
+		await attemptDelivery(ports, attempt).catch((error: unknown) => {
+			ports.log.warn("An email couldn't be sent at once; the worker will try it", { emailId: row.id, error });
+		});
+	}
 	return { emailId: row.id, status: "queued" };
 }
 
@@ -430,11 +439,19 @@ function messageOf(email: OutboxEmail): Message {
 	};
 }
 
+/**
+ * An email that can't be sent yet, written to the log instead (spec story 7). A System email is
+ * printed whole, on purpose: the person running the server reads it there (an invite, a reset link)
+ * while the Install has no SMTP. A Site's mail never is: it can carry a visitor's form answers (an
+ * Auto-reply goes to the address the visitor gave), so only its subject is written.
+ */
 function writeToLog(log: Logger, emailId: string, email: { type: string; to: string; subject: string; text: string }) {
 	log.warn("No SMTP is set, so this email was written to the log instead of being sent", {
 		emailId,
 		emailType: email.type,
-		email: { to: email.to, subject: email.subject, text: email.text },
+		email: isSystemEmailType(email.type)
+			? printedOnPurpose({ to: email.to, subject: email.subject, text: email.text })
+			: { subject: email.subject, text: "(A Site's mail: who it is for and its text are in the Email log only.)" },
 	});
 }
 

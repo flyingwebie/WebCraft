@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, test } from "bun:test";
-import { DEFAULT_UPDATE_FEED } from "@webcraft/core";
+import { DEFAULT_UPDATE_FEED, samplePing } from "@webcraft/core";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { inviteLinkIn, type TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen } from "./checks.ts";
@@ -106,6 +106,13 @@ beforeAll(async () => {
 		}),
 	});
 	await local.checkUpdate();
+	// A job that failed for good (tried three times, a minute apart), which the Error log noted too.
+	await local.jobs.send(samplePing, { url: "https://status.unreachable.example/" });
+	for (let attempt = 0; attempt < 3; attempt++) {
+		await local.drainJobs({ only: ["sample.ping"] });
+		await local.clock.advance(2 * 60_000);
+	}
+	await admin.api.errorLog.list({});
 	// The Site's languages: French, and Arabic, written right to left.
 	await admin.api.languages.add({ siteId: site.id, code: "fr" });
 	await admin.api.languages.add({ siteId: site.id, code: "ar" });

@@ -5,6 +5,7 @@ import {
 	type InstallServices,
 	loadInstallConfig,
 	loadMasterKey,
+	logSettings,
 	moduleSchemas,
 	openInstall,
 } from "@webcraft/core";
@@ -56,7 +57,7 @@ export async function checkWebSettings(env: Record<string, string | undefined>):
 }
 
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
-	const log = createLogger({ fields: { process: "web" } });
+	const log = createLogger({ fields: { process: "web" }, ...logSettings(env) });
 	const { services } = await openInstall({
 		env,
 		processName: "web",
@@ -73,8 +74,19 @@ async function openWebServices(env: Record<string, string | undefined>): Promise
 		});
 	}, MISS_HAND_OVER_MS);
 	handOver.unref();
+	// The worker works Install health out every minute; when its checks stop (it is down), the web
+	// process does, so the Health alert that the worker is failing still goes out.
+	const standIn = setInterval(() => {
+		services.health.checkIfStale().catch((error: unknown) => {
+			log.warn("Install health couldn't be worked out", { error });
+		});
+	}, HEALTH_STAND_IN_MS);
+	standIn.unref();
 	return services;
 }
+
+/** How often the web process looks whether the worker's Install health checks stopped. */
+const HEALTH_STAND_IN_MS = 60_000;
 
 /** How often the web process hands the misses it gathered for the 404 log to the job queue. */
 const MISS_HAND_OVER_MS = 5000;

@@ -10,6 +10,7 @@ import type { InstallConfig } from "./config.ts";
 import { readSettingsRow, writeSettingsRow } from "./install-settings.ts";
 import type { Logger } from "./log.ts";
 import { SUPERADMIN_ROLE } from "./permissions/roles.ts";
+import { printedOnPurpose } from "./redaction.ts";
 import { hashToken, newToken } from "./tokens.ts";
 
 /**
@@ -176,7 +177,8 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			if (!link) return;
 			log.warn(
 				"This Install has no Superadmin yet. Open the setup wizard and enter the setup token to claim it; it works once.",
-				{ setupToken: link.token, setupUrl: link.setupUrl },
+				// Printed as it is: the person with access to the server claims the Install with it (spec story 5).
+				{ setupToken: printedOnPurpose(link.token), setupUrl: printedOnPurpose(link.setupUrl) },
 			);
 		},
 

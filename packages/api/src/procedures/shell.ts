@@ -9,8 +9,8 @@ export const shell = {
 	 * The signed-in person (or null), their Permissions on the Install and the Workspaces they reach,
 	 * the Admin language and theme pages are shown in, the setup stage, the Install's name, and which
 	 * banners to show (all for people who manage the Install): the Master key one, the notice that the
-	 * Install SMTP is Failing, the notice that the last Backup failed, and "Update available" with the
-	 * newest release; where the person stands with two-factor authentication; and the impersonation
+	 * Install SMTP is Failing, the notice that the last Backup failed, "Update available" with the
+	 * newest release, and Install health's banner while parts of the Install are Failing; where the person stands with two-factor authentication; and the impersonation
 	 * going on in this session, if any (`person` is then the person impersonated).
 	 */
 	context: procedure.use(withPerson).handler(async ({ context }) => {
@@ -21,6 +21,8 @@ export const shell = {
 		const actor = acting?.access.actor.kind === "person" ? acting.access.actor : null;
 		const workspaces = actor && acting ? await services.workspaces.list(acting.access) : [];
 		const managesInstall = actor ? can(actor, "install.manage", INSTALL) : false;
+		// Install health's banner: for whoever sees Install health (the Superadmin), the parts Failing now.
+		const healthFailing = actor && can(actor, "installHealth.manage", INSTALL) ? await services.health.failing() : null;
 		// Two-factor authentication is about whoever signed in: never the person they impersonate.
 		const twoFactor = session ? await services.twoFactor.status(session.personId) : null;
 		const impersonation = acting?.impersonation ?? null;
@@ -49,7 +51,14 @@ export const shell = {
 			language: { code, dir: adminLanguageDirection(code) },
 			theme: person?.adminTheme ?? "system",
 			install: { name: settings.name, defaultAdminLanguage: settings.defaultAdminLanguage },
-			banners: { masterKey: masterKeyBanner, smtpFailing, backupFailing, update },
+			banners: {
+				masterKey: masterKeyBanner,
+				smtpFailing,
+				backupFailing,
+				update,
+				/** The parts of Install health Failing now, for the banner across the admin; null for people who don't see it. */
+				health: healthFailing ? { failing: healthFailing } : null,
+			},
 			/**
 			 * The person's two-factor authentication: `mustSetUp` sends them to add it before anything
 			 * else; `reminder` shows the reminder to add it.

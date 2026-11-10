@@ -25,6 +25,11 @@ x-webcraft-environment: &webcraft-environment
   WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
   # Optional: another release feed for the update check, or `off`.
   WEBCRAFT_UPDATE_FEED: ${WEBCRAFT_UPDATE_FEED:-}
+  # Logs: one JSON object per line from web, worker and the migrate step; the level, and optionally an
+  # error tracker's DSN (docs/development.md, "Logs" and "The Error log").
+  WEBCRAFT_LOG_FORMAT: json
+  WEBCRAFT_LOG_LEVEL: ${WEBCRAFT_LOG_LEVEL:-info}
+  WEBCRAFT_ERROR_DSN: ${WEBCRAFT_ERROR_DSN:-}
   PORT: "3000"
 
 services:

@@ -30,12 +30,12 @@ export type EmailPreferences = {
 	update(personId: string, turnedOff: readonly SystemEmailType[]): Promise<EmailSwitch[]>;
 };
 
-/** Security emails can't be turned off. */
+/** Security emails and Health alerts can't be turned off. */
 export class EmailAlwaysSentError extends Error {
 	override name = "EmailAlwaysSentError";
 	readonly types: readonly SystemEmailType[];
 	constructor(types: readonly SystemEmailType[]) {
-		super(`Security emails can't be turned off: ${types.join(", ")}.`);
+		super(`Security emails and Health alerts can't be turned off: ${types.join(", ")}.`);
 		this.types = types;
 	}
 }

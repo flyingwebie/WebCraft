@@ -54,6 +54,8 @@ for (const theme of THEMES) {
 			await page.getByText("Two-factor authentication is on for your account.").waitFor();
 			await expectAccessibleScreen(page, `two-factor step, set up (${theme})`);
 
+			// Its toast goes after a few seconds: wait, so it can't vanish between two later checks.
+			await page.getByText("Authenticator app added.").waitFor({ state: "hidden" });
 			await page.getByRole("button", { name: "Continue" }).click();
 			await page.getByRole("heading", { level: 1, name: "Set up the Install email" }).waitFor();
 			await page.locator("#smtp-host").waitFor();

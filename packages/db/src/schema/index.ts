@@ -15,6 +15,7 @@ export * from "./edit-mode.ts";
 export * from "./email.ts";
 export * from "./filters.ts";
 export * from "./forms.ts";
+export * from "./health.ts";
 export * from "./history.ts";
 export * from "./impersonation.ts";
 export * from "./imports.ts";

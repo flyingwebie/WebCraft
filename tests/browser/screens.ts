@@ -112,6 +112,8 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Install settings › Backups, with a failed one", path: "/settings/backups", as: "superadmin" },
 	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
 	{ name: "Install › Email log", path: "/email-log", as: "superadmin" },
+	{ name: "Install › Install health, with failed jobs", path: "/install/health", as: "superadmin" },
+	{ name: "Install › Error log", path: "/install/errors", as: "superadmin" },
 	{ name: "Your account", path: "/account", as: "superadmin" },
 	{ name: "Your account › API tokens (none yet)", path: "/account/api-tokens", as: "owner" },
 	{ name: "Accept an invite", path: ({ inviteToken }) => `/invite?token=${inviteToken}`, as: "signed-out" },

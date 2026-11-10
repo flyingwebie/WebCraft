@@ -25,6 +25,7 @@ import { Breadcrumbs } from "./Breadcrumbs.tsx";
 import { ContextSwitcher } from "./ContextSwitcher.tsx";
 import type { ShellContext, SignedInPerson } from "./context.ts";
 import { EditOnSiteButton } from "./EditOnSiteButton.tsx";
+import { HealthBanner } from "./HealthBanner.tsx";
 import { ImpersonationBanner } from "./ImpersonationBanner.tsx";
 import { type AdminPlace, navigationFor, placeParams } from "./levels.ts";
 import { MasterKeyBanner } from "./MasterKeyBanner.tsx";
@@ -84,9 +85,15 @@ export function AdminShell({
 					{shell.impersonation ? (
 						<ImpersonationBanner key={String(shell.impersonation.endsAt)} impersonation={shell.impersonation} />
 					) : null}
+					{shell.banners.health && shell.banners.health.failing.length > 0 ? (
+						<HealthBanner failing={shell.banners.health.failing} />
+					) : null}
 					{shell.banners.smtpFailing ? <SmtpFailingBanner /> : null}
 					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
-					{shell.banners.backupFailing ? <BackupFailingBanner /> : null}
+					{/* Install health's banner says it once the last Backup's failure makes that part Failing. */}
+					{shell.banners.backupFailing && !shell.banners.health?.failing.includes("backups") ? (
+						<BackupFailingBanner />
+					) : null}
 					{shell.twoFactor?.reminder ? <TwoFactorReminderBanner /> : null}
 					{shell.banners.update && place.level === "install" ? <UpdateBanner update={shell.banners.update} /> : null}
 					<div className={`mx-auto w-full flex-1 p-6 md:p-10 ${wide ? "max-w-screen-2xl" : "max-w-5xl"}`}>
