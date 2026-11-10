@@ -745,7 +745,10 @@ async function runOne(deps: ScheduledPublishingDeps, due: Due): Promise<RunOutco
 				if (!can(tx.access.actor, "entry.publish", siteResource(tx))) throw new PermissionDeniedError("entry.publish");
 				for (const each of items) {
 					blocked.item = itemOf(each);
-					if (each.itemId) await unpublishEntry(tx, each.itemId);
+					// An Entry deleted since has no page left to end: nothing to do.
+					if (each.itemId && (await tx.first(entries, eq(entries.id, each.itemId)))) {
+						await unpublishEntry(tx, each.itemId);
+					}
 				}
 			} else {
 				const versions = new Map(items.map((each) => [itemKey(itemOf(each)), each.content]));

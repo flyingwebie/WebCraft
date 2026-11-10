@@ -266,6 +266,31 @@ describe("unpublishing an Entry", () => {
 		]);
 	});
 
+	test("an Entry deleted before its unpublish has nothing left to unpublish: nobody is emailed", async () => {
+		const site = await newSite();
+		const { entry } = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Brief",
+		});
+		await site.editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
+		await site.editor.api.publishing.scheduleUnpublish({ siteId: site.siteId, entryId: entry.id, at: inMinutes(5) });
+		const deletion = await staff.api.entries.delete({ siteId: site.siteId, entryId: entry.id });
+		await staff.api.entries.delete({
+			siteId: site.siteId,
+			entryId: entry.id,
+			confirmation: (deletion as { confirmation: { id: string } }).confirmation.id,
+		});
+		const sentBefore = install.mail.sent.length;
+
+		await waitMinutes(5);
+		expect(install.mail.sent.length).toBe(sentBefore);
+		expect((await auditOf(site.siteId)).find((each) => each.action === "scheduledPublish.run")).toMatchObject({
+			details: { action: "unpublish" },
+		});
+		expect((await site.editor.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toEqual([]);
+	});
+
 	test("a Page takes the Pages under it along; the home page can't be unpublished", async () => {
 		const site = await newSite();
 		const page = async (title: string, parentId?: string) => {
