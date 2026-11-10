@@ -107,6 +107,8 @@ export function errorMessage(error: unknown): MessageKey {
 		case "IMPORT_UNDO_REFUSED":
 		case "AI_CAP_REACHED":
 		case "SHARED_AI_KEY_NOT_FOUND":
+		case "ERROR_GROUP_NOT_FOUND":
+		case "JOB_QUEUE_NOT_FOUND":
 		case "TRANSLATION_LANGUAGE_INVALID":
 		case "TRANSLATION_NOT_FOUND":
 		case "PROTECTED_TERM_INVALID":

@@ -207,7 +207,9 @@
 		"ALREADY_IN_REVIEW": "It's In review already.",
 		"REVIEW_NOT_FOUND": "That Review isn't there any more.",
 		"REVIEW_DECIDED": "Someone acted on it already: it isn't In review any more.",
-		"REVIEW_NOT_YOURS": "Only the person who submitted it can withdraw it."
+		"REVIEW_NOT_YOURS": "Only the person who submitted it can withdraw it.",
+		"ERROR_GROUP_NOT_FOUND": "There is no such failure in the Error log: it may have been deleted after 30 days.",
+		"JOB_QUEUE_NOT_FOUND": "There is no such job queue."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -400,7 +402,9 @@
 			"servicesList": "Services list",
 			"reportBranding": "Report branding",
 			"auditLog": "Audit log",
-			"contentApi": "Content API"
+			"contentApi": "Content API",
+			"installHealth": "Install health",
+			"errorLog": "Error log"
 		}
 	},
 	"masterKeyBanner": {
@@ -902,6 +906,14 @@
 		"form-auto-reply": {
 			"name": "Auto-reply",
 			"description": "To a visitor who sent a Form."
+		},
+		"health-failing": {
+			"name": "Install health failing",
+			"description": "When part of the Install has been Failing for 5 minutes. Always sent."
+		},
+		"health-recovered": {
+			"name": "Install health recovered",
+			"description": "When a part that was Failing has worked again for 15 minutes. Always sent."
 		}
 	},
 	"workspaces": {
@@ -6247,6 +6259,13 @@
 				"create": "Content key made",
 				"revoke": "Content key revoked",
 				"update": "Content key changed"
+			},
+			"errorLog": {
+				"resolve": "Error log cause marked resolved"
+			},
+			"job": {
+				"retry": "Failed jobs retried",
+				"discard": "Failed jobs discarded"
 			}
 		}
 	},
@@ -6390,5 +6409,187 @@
 		"searchNote": "A Post Type whose Searched fields include a hidden Field is left out of the API's search.",
 		"saveShown": "Save what it shows",
 		"shownSaved": "What the Content API shows was saved."
+	},
+	"healthBanner": {
+		"title": "Part of the Install is failing",
+		"body": "Failing now: {parts}. You get an email after 5 minutes, and another when it works again.",
+		"action": "Open Install health"
+	},
+	"installHealth": {
+		"pageTitle": "Install health",
+		"heading": "Install health",
+		"intro": "Whether each part of the Install works. The worker checks every minute; this screen checks when it opens.",
+		"checkedAt": "Checked at {time}.",
+		"checkNow": "Check now",
+		"checked": "Install health checked.",
+		"tableLabel": "Each part of the Install, its status and why",
+		"columns": {
+			"part": "Part",
+			"status": "Status",
+			"reason": "Why"
+		},
+		"status": {
+			"ok": "OK",
+			"warning": "Warning",
+			"failing": "Failing"
+		},
+		"failingSince": "Failing since {time}",
+		"unknown": "unknown",
+		"open": {
+			"jobQueue": "See the jobs",
+			"storage": "Storage settings",
+			"backups": "Backups",
+			"smtp": "Email settings",
+			"errorLog": "Open the Error log",
+			"moduleLog": "Modules"
+		},
+		"parts": {
+			"web": "Web process",
+			"worker": "Worker",
+			"database": "Database",
+			"jobQueue": "Job queue",
+			"storage": "Storage",
+			"backups": "Last Backup",
+			"smtp": "Email (SMTP)",
+			"domains": "Domains",
+			"errorLog": "Error log",
+			"moduleLog": "Module log"
+		},
+		"reasons": {
+			"web": {
+				"answering": "This web process answers, running WebCraft {version}."
+			},
+			"worker": {
+				"working": "{hostname} checked in at {time}.",
+				"otherVersion": "{hostname} runs WebCraft {version}, but this web process runs {webVersion}: finish the update.",
+				"stale": "No worker has checked in since {time} ({hostname}): emails, images and Backups wait.",
+				"never": "No worker has ever checked in: start the worker. Emails, images and Backups wait.",
+				"unchecked": "It couldn't be checked."
+			},
+			"database": {
+				"current": "It answers and has had every migration this version expects.",
+				"behind": "{pending, plural, one {# migration waits} other {# migrations wait}}: run the migrate step.",
+				"jobQueueNewer": "Its job queue was made by a newer version of WebCraft: restore the Backup taken before that update.",
+				"unreachable": "It doesn't answer.",
+				"unchecked": "It couldn't be checked."
+			},
+			"jobQueue": {
+				"clear": "No job failed in the last day, and none is stuck.",
+				"failed": "{failed, plural, one {# job} other {# jobs}} failed in the last day.",
+				"stuck": "{stuck, plural, one {# job has} other {# jobs have}} waited long past {stuck, plural, one {its} other {their}} time, or run far longer than allowed.",
+				"noWorker": "{waiting, plural, one {# job waits} other {# jobs wait}} for a worker.",
+				"unchecked": "It couldn't be checked."
+			},
+			"storage": {
+				"writable": "WebCraft writes to it, and there is room.",
+				"lowSpace": "Little room left: {free} free of {total}.",
+				"full": "Almost no room left: {free} free of {total}.",
+				"unwritable": "WebCraft can't write to it ({problem}).",
+				"unchecked": "It couldn't be checked."
+			},
+			"backups": {
+				"recent": "The last Backup was taken at {time}.",
+				"never": "No Backup has been taken yet. Scheduled Backups run every day at 01:11 UTC.",
+				"off": "Scheduled Backups are off. The last one was taken at {time}.",
+				"late": "The last Backup was taken at {time}: a scheduled one is late.",
+				"overdue": "No Backup since {time}: two scheduled ones were missed.",
+				"failed": "The last Backup failed at {time}.",
+				"unchecked": "It couldn't be checked."
+			},
+			"smtp": {
+				"working": "The Install SMTP sends.",
+				"notSet": "The Install SMTP isn't set: emails are written to the web process's log.",
+				"sitesFailing": "The SMTP of {sites} is Failing (their Owners and Staff were told).",
+				"failing": "The Install SMTP's last 3 sends failed: emails wait. Its last answer: {response}",
+				"unchecked": "It couldn't be checked."
+			},
+			"domains": {
+				"reachable": "Every live domain passes its Domain check.",
+				"elsewhere": "{count, plural, one {# domain is} other {# domains are}} Unreachable: {domains}.",
+				"unreachable": "{count, plural, one {# domain is} other {# domains are}} Unreachable, some because of the Install: {domains}.",
+				"unchecked": "It couldn't be checked."
+			},
+			"errorLog": {
+				"quiet": "No new failure in the last day.",
+				"newCauses": "{count, plural, one {# new cause} other {# new causes}} in the last day.",
+				"unchecked": "It couldn't be checked."
+			},
+			"moduleLog": {
+				"quiet": "No Module failed in the last day.",
+				"failures": "{count, plural, one {# Module failure} other {# Module failures}} in the last day ({modules}).",
+				"unchecked": "It couldn't be checked."
+			}
+		},
+		"jobs": {
+			"heading": "Failed and stuck jobs",
+			"intro": "Jobs the worker gave up on, kept for a while, and jobs stuck in their queue. Retry puts a job back in its queue; Discard deletes it for good. What a job carried is never shown: it can hold an email or a form's answers.",
+			"empty": "No job failed, and none is stuck.",
+			"queueSummary": "{failed, plural, one {# failed} other {# failed}} · {stuck, plural, one {# stuck} other {# stuck}}",
+			"tableLabel": "Failed jobs of {queue}",
+			"columns": {
+				"failedAt": "Failed at",
+				"attempts": "Attempts",
+				"error": "Error",
+				"actions": "Actions"
+			},
+			"retry": "Retry",
+			"retryOf": "Retry the job that failed at {time}",
+			"discard": "Discard",
+			"discardOf": "Discard the job that failed at {time}",
+			"retryAll": "Retry all of {queue}",
+			"discardAll": "Discard all of {queue}",
+			"retryAllTitle": "Retry every failed job of {queue}?",
+			"retryAllText": "{count, plural, one {# job goes} other {# jobs go}} back in the queue, and the worker runs {count, plural, one {it} other {them}} again.",
+			"discardTitle": "Discard this failed job?",
+			"discardText": "It is deleted for good: the work it was for won't be done.",
+			"discardAllTitle": "Discard every failed job of {queue}?",
+			"discardAllText": "{count, plural, one {# job is} other {# jobs are}} deleted for good: the work they were for won't be done.",
+			"cancel": "Cancel",
+			"retried": "{count, plural, one {# job is} other {# jobs are}} back in the queue.",
+			"discarded": "{count, plural, one {# job was} other {# jobs were}} discarded.",
+			"close": "Close"
+		}
+	},
+	"errorLog": {
+		"pageTitle": "Error log",
+		"heading": "Error log",
+		"intro": "Unexpected failures on the Install, grouped by cause, kept {days} days after they were last seen. Refusals, such as a wrong input, aren't failures; Modules' own failures are in the Module log.",
+		"filter": "Show",
+		"states": {
+			"open": "Not resolved",
+			"resolved": "Resolved",
+			"all": "All"
+		},
+		"emptyTitle": "No failures",
+		"emptyBody": "Nothing unexpected has gone wrong here.",
+		"tableLabel": "Failures, grouped by cause, most recently seen first",
+		"columns": {
+			"cause": "Cause",
+			"where": "Where",
+			"count": "Times",
+			"firstSeen": "First seen",
+			"lastSeen": "Last seen",
+			"places": "Workspaces and Sites",
+			"actions": "Actions"
+		},
+		"source": {
+			"request": "Request {name}",
+			"requestUnnamed": "A request",
+			"job": "Job {name}",
+			"process": "The process"
+		},
+		"noPlace": "None",
+		"morePlaces": "and {count} more",
+		"reopened": "Back since {time}",
+		"resolvedBy": "Resolved by {name} at {time}",
+		"details": "Details",
+		"hideDetails": "Hide details",
+		"stack": "Stack of the newest example",
+		"noStack": "It came without a stack.",
+		"requestId": "Request id of the newest example, to find its lines in the log: {id}",
+		"markResolved": "Mark resolved",
+		"resolved": "Marked resolved. It opens again if it happens again.",
+		"older": "Older causes",
+		"ofCause": " ({name})"
 	}
 }

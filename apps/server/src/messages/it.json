@@ -207,7 +207,9 @@
 		"ALREADY_IN_REVIEW": "È già in revisione.",
 		"REVIEW_NOT_FOUND": "Quella revisione non c'è più.",
 		"REVIEW_DECIDED": "Qualcuno ha già deciso: non è più in revisione.",
-		"REVIEW_NOT_YOURS": "Solo chi l'ha inviato può ritirarlo."
+		"REVIEW_NOT_YOURS": "Solo chi l'ha inviato può ritirarlo.",
+		"ERROR_GROUP_NOT_FOUND": "Questo errore non è nel registro errori: potrebbe essere stato eliminato dopo 30 giorni.",
+		"JOB_QUEUE_NOT_FOUND": "Questa coda dei job non esiste."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -400,7 +402,9 @@
 			"servicesList": "Elenco dei servizi",
 			"reportBranding": "Brand dei report",
 			"auditLog": "Audit log",
-			"contentApi": "Content API"
+			"contentApi": "Content API",
+			"installHealth": "Stato dell'installazione",
+			"errorLog": "Registro errori"
 		}
 	},
 	"masterKeyBanner": {
@@ -902,6 +906,14 @@
 		"form-auto-reply": {
 			"name": "Risposta automatica",
 			"description": "A un visitatore che ha inviato un Form."
+		},
+		"health-failing": {
+			"name": "Problema nello stato dell'installazione",
+			"description": "Quando una parte dell'installazione non funziona da 5 minuti. Inviata sempre."
+		},
+		"health-recovered": {
+			"name": "Stato dell'installazione ripristinato",
+			"description": "Quando una parte che non funzionava funziona di nuovo da 15 minuti. Inviata sempre."
 		}
 	},
 	"workspaces": {
@@ -6247,6 +6259,13 @@
 				"create": "Chiave Content creata",
 				"revoke": "Chiave Content revocata",
 				"update": "Chiave Content modificata"
+			},
+			"errorLog": {
+				"resolve": "Causa del registro errori segnata come risolta"
+			},
+			"job": {
+				"retry": "Job non riusciti riprovati",
+				"discard": "Job non riusciti eliminati"
 			}
 		}
 	},
@@ -6390,5 +6409,187 @@
 		"searchNote": "Un Post Type i cui campi di ricerca includono un Campo nascosto è escluso dalla ricerca dell'API.",
 		"saveShown": "Salva cosa mostra",
 		"shownSaved": "Quello che mostra la Content API è stato salvato."
+	},
+	"healthBanner": {
+		"title": "Una parte dell'installazione non funziona",
+		"body": "Non funziona ora: {parts}. Ricevi un'email dopo 5 minuti, e un'altra quando funziona di nuovo.",
+		"action": "Apri lo stato dell'installazione"
+	},
+	"installHealth": {
+		"pageTitle": "Stato dell'installazione",
+		"heading": "Stato dell'installazione",
+		"intro": "Se ogni parte dell'installazione funziona. Il worker controlla ogni minuto; questa schermata controlla quando si apre.",
+		"checkedAt": "Controllato alle {time}.",
+		"checkNow": "Controlla ora",
+		"checked": "Stato dell'installazione controllato.",
+		"tableLabel": "Ogni parte dell'installazione, il suo stato e il perché",
+		"columns": {
+			"part": "Parte",
+			"status": "Stato",
+			"reason": "Perché"
+		},
+		"status": {
+			"ok": "OK",
+			"warning": "Avviso",
+			"failing": "Non funziona"
+		},
+		"failingSince": "Non funziona dalle {time}",
+		"unknown": "sconosciuto",
+		"open": {
+			"jobQueue": "Vedi i job",
+			"storage": "Impostazioni di archiviazione",
+			"backups": "Backup",
+			"smtp": "Impostazioni email",
+			"errorLog": "Apri il registro errori",
+			"moduleLog": "Moduli"
+		},
+		"parts": {
+			"web": "Processo web",
+			"worker": "Worker",
+			"database": "Database",
+			"jobQueue": "Coda dei job",
+			"storage": "Archiviazione",
+			"backups": "Ultimo backup",
+			"smtp": "Email (SMTP)",
+			"domains": "Domini",
+			"errorLog": "Registro errori",
+			"moduleLog": "Registro dei moduli"
+		},
+		"reasons": {
+			"web": {
+				"answering": "Questo processo web risponde ed esegue WebCraft {version}."
+			},
+			"worker": {
+				"working": "{hostname} si è fatto vivo alle {time}.",
+				"otherVersion": "{hostname} esegue WebCraft {version}, ma questo processo web esegue {webVersion}: completa l'aggiornamento.",
+				"stale": "Nessun worker si fa vivo dalle {time} ({hostname}): email, immagini e backup restano in attesa.",
+				"never": "Nessun worker si è mai fatto vivo: avvia il worker. Email, immagini e backup restano in attesa.",
+				"unchecked": "Non è stato possibile controllarlo."
+			},
+			"database": {
+				"current": "Risponde e ha tutte le migrazioni che questa versione si aspetta.",
+				"behind": "{pending, plural, one {# migrazione in attesa} other {# migrazioni in attesa}}: esegui il passaggio di migrazione.",
+				"jobQueueNewer": "La sua coda dei job è stata creata da una versione più recente di WebCraft: ripristina il backup fatto prima di quell'aggiornamento.",
+				"unreachable": "Non risponde.",
+				"unchecked": "Non è stato possibile controllarlo."
+			},
+			"jobQueue": {
+				"clear": "Nessun job non riuscito nell'ultimo giorno, e nessuno è bloccato.",
+				"failed": "{failed, plural, one {# job non è riuscito} other {# job non sono riusciti}} nell'ultimo giorno.",
+				"stuck": "{stuck, plural, one {# job attende} other {# job attendono}} da molto oltre {stuck, plural, one {il suo orario, o è in esecuzione} other {il loro orario, o sono in esecuzione}} da molto più del previsto.",
+				"noWorker": "{waiting, plural, one {# job attende} other {# job attendono}} un worker.",
+				"unchecked": "Non è stato possibile controllarla."
+			},
+			"storage": {
+				"writable": "WebCraft ci scrive e c'è spazio.",
+				"lowSpace": "Poco spazio rimasto: {free} liberi su {total}.",
+				"full": "Quasi nessuno spazio rimasto: {free} liberi su {total}.",
+				"unwritable": "WebCraft non riesce a scriverci ({problem}).",
+				"unchecked": "Non è stato possibile controllarla."
+			},
+			"backups": {
+				"recent": "L'ultimo backup è stato fatto alle {time}.",
+				"never": "Non è ancora stato fatto nessun backup. I backup programmati partono ogni giorno alle 01:11 UTC.",
+				"off": "I backup programmati sono disattivati. L'ultimo è stato fatto alle {time}.",
+				"late": "L'ultimo backup è stato fatto alle {time}: uno programmato è in ritardo.",
+				"overdue": "Nessun backup dalle {time}: due programmati sono saltati.",
+				"failed": "L'ultimo backup non è riuscito alle {time}.",
+				"unchecked": "Non è stato possibile controllarli."
+			},
+			"smtp": {
+				"working": "L'SMTP dell'installazione invia.",
+				"notSet": "L'SMTP dell'installazione non è impostato: le email vengono scritte nel log del processo web.",
+				"sitesFailing": "L'SMTP di {sites} non funziona (i loro Owner e lo Staff sono stati avvisati).",
+				"failing": "Gli ultimi 3 invii dell'SMTP dell'installazione non sono riusciti: le email restano in attesa. L'ultima risposta: {response}",
+				"unchecked": "Non è stato possibile controllarlo."
+			},
+			"domains": {
+				"reachable": "Ogni dominio attivo supera il controllo del dominio.",
+				"elsewhere": "{count, plural, one {# dominio non è raggiungibile} other {# domini non sono raggiungibili}}: {domains}.",
+				"unreachable": "{count, plural, one {# dominio non è raggiungibile} other {# domini non sono raggiungibili}}, alcuni per colpa dell'installazione: {domains}.",
+				"unchecked": "Non è stato possibile controllarli."
+			},
+			"errorLog": {
+				"quiet": "Nessun nuovo errore nell'ultimo giorno.",
+				"newCauses": "{count, plural, one {# nuova causa} other {# nuove cause}} nell'ultimo giorno.",
+				"unchecked": "Non è stato possibile controllarlo."
+			},
+			"moduleLog": {
+				"quiet": "Nessun modulo ha avuto errori nell'ultimo giorno.",
+				"failures": "{count, plural, one {# errore dei moduli} other {# errori dei moduli}} nell'ultimo giorno ({modules}).",
+				"unchecked": "Non è stato possibile controllarlo."
+			}
+		},
+		"jobs": {
+			"heading": "Job non riusciti e bloccati",
+			"intro": "Job che il worker ha abbandonato, conservati per un po', e job bloccati nella loro coda. Riprova rimette un job in coda; Elimina lo cancella per sempre. Il contenuto di un job non viene mai mostrato: può contenere un'email o le risposte di un modulo.",
+			"empty": "Nessun job non riuscito, e nessuno è bloccato.",
+			"queueSummary": "{failed, plural, one {# non riuscito} other {# non riusciti}} · {stuck, plural, one {# bloccato} other {# bloccati}}",
+			"tableLabel": "Job non riusciti di {queue}",
+			"columns": {
+				"failedAt": "Non riuscito alle",
+				"attempts": "Tentativi",
+				"error": "Errore",
+				"actions": "Azioni"
+			},
+			"retry": "Riprova",
+			"retryOf": "Riprova il job non riuscito alle {time}",
+			"discard": "Elimina",
+			"discardOf": "Elimina il job non riuscito alle {time}",
+			"retryAll": "Riprova tutti quelli di {queue}",
+			"discardAll": "Elimina tutti quelli di {queue}",
+			"retryAllTitle": "Riprovare ogni job non riuscito di {queue}?",
+			"retryAllText": "{count, plural, one {# job torna} other {# job tornano}} in coda, e il worker {count, plural, one {lo esegue} other {li esegue}} di nuovo.",
+			"discardTitle": "Eliminare questo job non riuscito?",
+			"discardText": "Viene eliminato per sempre: il lavoro a cui serviva non verrà fatto.",
+			"discardAllTitle": "Eliminare ogni job non riuscito di {queue}?",
+			"discardAllText": "{count, plural, one {# job viene eliminato} other {# job vengono eliminati}} per sempre: il lavoro a cui servivano non verrà fatto.",
+			"cancel": "Annulla",
+			"retried": "{count, plural, one {# job è tornato} other {# job sono tornati}} in coda.",
+			"discarded": "{count, plural, one {# job è stato eliminato} other {# job sono stati eliminati}}.",
+			"close": "Chiudi"
+		}
+	},
+	"errorLog": {
+		"pageTitle": "Registro errori",
+		"heading": "Registro errori",
+		"intro": "Errori inattesi nell'installazione, raggruppati per causa, conservati {days} giorni dall'ultima volta. I rifiuti, come un dato sbagliato, non sono errori; quelli dei moduli sono nel registro dei moduli.",
+		"filter": "Mostra",
+		"states": {
+			"open": "Non risolti",
+			"resolved": "Risolti",
+			"all": "Tutti"
+		},
+		"emptyTitle": "Nessun errore",
+		"emptyBody": "Qui non è successo nulla di inatteso.",
+		"tableLabel": "Errori, raggruppati per causa, i più recenti per primi",
+		"columns": {
+			"cause": "Causa",
+			"where": "Dove",
+			"count": "Volte",
+			"firstSeen": "Prima volta",
+			"lastSeen": "Ultima volta",
+			"places": "Workspace e siti",
+			"actions": "Azioni"
+		},
+		"source": {
+			"request": "Richiesta {name}",
+			"requestUnnamed": "Una richiesta",
+			"job": "Job {name}",
+			"process": "Il processo"
+		},
+		"noPlace": "Nessuno",
+		"morePlaces": "e altri {count}",
+		"reopened": "Di nuovo dalle {time}",
+		"resolvedBy": "Risolto da {name} alle {time}",
+		"details": "Dettagli",
+		"hideDetails": "Nascondi dettagli",
+		"stack": "Stack dell'esempio più recente",
+		"noStack": "È arrivato senza stack.",
+		"requestId": "Id della richiesta dell'esempio più recente, per trovarne le righe nel log: {id}",
+		"markResolved": "Segna come risolto",
+		"resolved": "Segnato come risolto. Si riapre se succede di nuovo.",
+		"older": "Cause meno recenti",
+		"ofCause": " ({name})"
 	}
 }

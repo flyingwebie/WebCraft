@@ -1,10 +1,12 @@
 import type { LinkProps } from "@tanstack/react-router";
 import type { Permission } from "@webcraft/core";
 import {
+	ActivityIcon,
 	ArchiveIcon,
 	BotIcon,
 	BracesIcon,
 	BriefcaseIcon,
+	BugIcon,
 	Building2Icon,
 	ChartColumnIcon,
 	ClipboardListIcon,
@@ -165,6 +167,20 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: FileClockIcon,
 						to: "/audit-log",
 						requires: "audit.view",
+					},
+					{
+						id: "install-health",
+						label: "shell.nav.installHealth",
+						icon: ActivityIcon,
+						to: "/install/health",
+						requires: "installHealth.manage",
+					},
+					{
+						id: "error-log",
+						label: "shell.nav.errorLog",
+						icon: BugIcon,
+						to: "/install/errors",
+						requires: "installHealth.manage",
 					},
 					{
 						id: "services-list",
