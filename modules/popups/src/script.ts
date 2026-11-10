@@ -1,5 +1,5 @@
 /** Necessary local state; no tracking identifier and no network calls. */
-export const POPUP_SCRIPT = `(()=>{
+export const POPUP_SCRIPT = `(function mount(){
  const templates=[...document.querySelectorAll('template[data-wc-popup]')];
  if(!templates.length)return;
  const prefix='webcraft.popups.'+templates[0].dataset.site+'.',memory=new Map();
@@ -132,7 +132,10 @@ export const POPUP_SCRIPT = `(()=>{
  const observer=new MutationObserver(()=>{for(const slot of ['bar','promotion'])if(active[slot]&&!active[slot].isConnected)releases.get(active[slot])?.();});
  observer.observe(document.body,{childList:true,subtree:true});cleanups.push(()=>observer.disconnect());
  const stop=()=>{stopped=true;queue.length=0;for(const clean of cleanups)clean();for(const dialog of Object.values(active))if(dialog){dialog.close();releases.get(dialog)?.();}};
- listen(window,'pagehide',stop);
+ listen(window,'pagehide',event=>{
+  stop();
+  if(event.persisted)window.addEventListener('pageshow',mount,{once:true});
+ });
  listen(document,'webcraft:consent',event=>{answered=event.detail.answered;if(answered)start();});
  Promise.resolve(consent?consent.whenAnswered():undefined).then(start).catch(()=>{});
 })();`;

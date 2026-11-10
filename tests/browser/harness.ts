@@ -105,7 +105,7 @@ export type BrowserInstall = {
 };
 
 /** Starts an Install with no Superadmin, served by the production web process, and a browser. */
-export async function startBrowserInstall(): Promise<BrowserInstall> {
+export async function startBrowserInstall(options: { backForwardCache?: boolean } = {}): Promise<BrowserInstall> {
 	if (!existsSync(BUNDLE)) {
 		throw new Error("The browser tests run the production web process: run `bun run build` first.");
 	}
@@ -131,7 +131,10 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 	try {
 		web = startWeb(install, port, logs);
 		await waitUntilReady(origin, web, logs);
-		browser = await chromium.launch();
+		// Playwright disables the cache by default; real Back/Forward restoration needs full Chromium.
+		browser = await chromium.launch(
+			options.backForwardCache ? { channel: "chromium", ignoreDefaultArgs: ["--disable-back-forward-cache"] } : {},
+		);
 	} catch (error) {
 		await close();
 		throw error;
@@ -169,7 +172,10 @@ export async function startBrowserInstall(): Promise<BrowserInstall> {
 				// A page's own status (such as the 404 of "Page not found") is not an error of the page, and
 				// neither is a refusal from the Management API, which the page shows to the person.
 				const url = message.location().url;
-				if (url === page.url() || new URL(url, page.url()).pathname.startsWith("/api/rpc/")) return;
+				const path = new URL(url, page.url()).pathname;
+				if (url === page.url() || path.startsWith("/api/rpc/")) return;
+				// Full Chromium asks for this optional file even when the Site declares no icon.
+				if (path === "/favicon.ico" && message.text().includes("404 (Not Found)")) return;
 				errors.push(message.text());
 			});
 			PAGE_ERRORS.set(page, errors);
