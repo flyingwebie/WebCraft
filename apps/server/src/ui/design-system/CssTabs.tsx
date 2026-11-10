@@ -86,7 +86,7 @@ export function CustomCssTab({ editing }: { editing: Editing }) {
 				<FieldLabel htmlFor={`${id}-css`}>{t("designSystem.css.label")}</FieldLabel>
 				<Textarea
 					id={`${id}-css`}
-					defaultValue={editing.draft.customCss}
+					value={editing.draft.customCss}
 					onChange={(event) => editing.setSection("customCss", event.target.value)}
 					className="min-h-80 font-mono text-xs"
 					spellCheck={false}

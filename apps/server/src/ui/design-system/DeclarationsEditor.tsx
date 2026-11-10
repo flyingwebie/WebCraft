@@ -6,12 +6,19 @@ import { useId, useState } from "react";
 import { useT } from "../i18n.tsx";
 import { cssOf, type Declaration, declarationsOf, PROPERTIES } from "./declarations.ts";
 import { type Tokens, tokenValuesFor } from "./model.ts";
+import { useFollowsExternal } from "./useFollowsExternal.ts";
+
+/** The rows `css` reads as, with a blank one at the end ready to fill in. */
+function rowsOf(css: string): Declaration[] {
+	return [...declarationsOf(css), { property: "", value: "" }];
+}
 
 /**
  * CSS declarations edited as rows of a property and a value, token values first: each value offers
  * the Design tokens that fit its property (colours for `color`, spacing steps for `padding`, type
  * steps for `font-size`, …), and any other value can still be typed where CSS takes it. Every change
- * hands the declarations back as text; the server checks them when it saves.
+ * hands the declarations back as text; the server checks them when it saves. `css` is followed when
+ * it changes from outside (the Draft replaced by an import), without losing a row being typed.
  */
 export function DeclarationsEditor({
 	label,
@@ -29,13 +36,16 @@ export function DeclarationsEditor({
 }) {
 	const t = useT();
 	const id = useId();
-	const [rows, setRows] = useState<Declaration[]>(() => [...declarationsOf(css), { property: "", value: "" }]);
+	const [rows, setRows] = useState<Declaration[]>(() => rowsOf(css));
+	const stamp = useFollowsExternal(css, (next) => setRows(rowsOf(next)));
 
 	const update = (next: Declaration[]) => {
 		const last = next.at(-1);
 		const withBlank = !last || last.property || last.value ? [...next, { property: "", value: "" }] : next;
 		setRows(withBlank);
-		onChange(cssOf(withBlank));
+		const nextCss = cssOf(withBlank);
+		stamp(nextCss);
+		onChange(nextCss);
 	};
 
 	return (

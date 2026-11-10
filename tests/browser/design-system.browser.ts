@@ -219,3 +219,105 @@ describe("importing a file", () => {
 		await expectNoAxeViolations(page, "Design system, a refused file", ["region"], PREVIEWS);
 	});
 });
+
+describe("open editors follow an import", () => {
+	test("every open editor shows what's imported, and one more edit keeps the rest of it", async () => {
+		const page = await install.newPage("light");
+		await open(page, `/sites/${siteId}/design-system?tab=classes&class=${cardId}`);
+		await page.getByLabel("The Class's own CSS").waitFor();
+
+		// Open Base styles and Custom CSS too, so all three editors are mounted (and the Class panel's
+		// hidden, but not unmounted), once the Import dialog replaces the Draft under them.
+		await page.getByRole("tab", { name: "Base styles" }).click();
+		await page.getByLabel("Styles of body: property 1").waitFor();
+		await page.getByRole("tab", { name: "Custom CSS" }).click();
+		await page.getByLabel("The Site's custom CSS").waitFor();
+		await page.getByRole("tab", { name: "Classes" }).click();
+		await page.getByLabel("The Class's own CSS").waitFor();
+
+		const admin = await install.install.superadmin();
+		const { file } = await admin.api.designSystem.exportFile({ siteId });
+		const imported = {
+			...file,
+			customCss: ".imported { color: var(--primary-10); }",
+			baseStyles: { ...file.baseStyles, body: "font-size: var(--text-l);" },
+			classes: file.classes.map((each) =>
+				each.name === "card"
+					? {
+							...each,
+							styles: "margin: var(--space-s); padding: var(--space-m);",
+							breakpoints: { md: "padding: var(--space-2xl);" },
+							css: "& h2 { color: var(--primary-10); }",
+						}
+					: each,
+			),
+		};
+
+		await page.getByRole("button", { name: "Import" }).click();
+		const dialog = page.getByRole("dialog");
+		await dialog.getByLabel("Design system file (.json)").setInputFiles({
+			name: "design-system.json",
+			mimeType: "application/json",
+			buffer: Buffer.from(JSON.stringify(imported)),
+		});
+		await dialog.getByText("The custom CSS changes").waitFor();
+		await dialog.getByRole("button", { name: "Replace the Draft" }).click();
+		await dialog.waitFor({ state: "hidden" });
+
+		// The Class panel, the current tab, shows the imported own CSS right away, not what was there
+		// before the import.
+		expect(await page.getByLabel("The Class's own CSS").inputValue()).toBe("& h2 { color: var(--primary-10); }");
+
+		expect(await page.getByLabel("Styles for every width: property 1").inputValue()).toBe("margin");
+		expect(await page.getByLabel("Styles for every width: value 1").inputValue()).toBe("var(--space-s)");
+		expect(await page.getByLabel("From md (768 px) up: value 1").inputValue()).toBe("var(--space-2xl)");
+
+		// Edit each mounted editor after importing: none may send the pre-import values back.
+		await page.getByLabel("The Class's own CSS").press("End");
+		await page.getByLabel("The Class's own CSS").pressSequentially(" /* edited */");
+		await page.getByLabel("Styles for every width: value 1").fill("var(--space-l)");
+		await page.getByLabel("From md (768 px) up: property 2").pressSequentially("margin");
+		await page.getByLabel("From md (768 px) up: value 2").fill("var(--space-s)");
+
+		// Base styles and Custom CSS, open but not the current tab, followed the import too.
+		await page.getByRole("tab", { name: "Base styles" }).click();
+		expect(await page.getByLabel("Styles of body: property 1").inputValue()).toBe("font-size");
+		expect(await page.getByLabel("Styles of body: value 1").inputValue()).toBe("var(--text-l)");
+		await page.getByLabel("Styles of body: property 2").pressSequentially("margin");
+		await page.getByLabel("Styles of body: value 2").fill("var(--space-s)");
+		await page.getByRole("tab", { name: "Custom CSS" }).click();
+		expect(await page.getByLabel("The Site's custom CSS").inputValue()).toBe(".imported { color: var(--primary-10); }");
+		await page.getByLabel("The Site's custom CSS").press("End");
+		await page.getByLabel("The Site's custom CSS").pressSequentially(" /* edited */");
+		await page
+			.getByRole("status")
+			.getByText(/^Saved/)
+			.first()
+			.waitFor();
+
+		const { designSystem } = await admin.api.designSystem.get({ siteId });
+		expect(designSystem.draft.customCss).toBe(".imported { color: var(--primary-10); } /* edited */");
+		expect(designSystem.draft.baseStyles.body).toBe("font-size: var(--text-l); margin: var(--space-s);");
+		const card = designSystem.draft.classes.find((each) => each.id === cardId);
+		expect(card?.css).toBe("& h2 { color: var(--primary-10); } /* edited */");
+		expect(card?.styles).toBe("margin: var(--space-l); padding: var(--space-m);");
+		const md = designSystem.draft.tokens.breakpoints.find((each) => each.name === "md");
+		expect(card?.breakpoints[md?.id ?? ""]).toBe("padding: var(--space-2xl); margin: var(--space-s);");
+	});
+});
+
+describe("making a Class", () => {
+	test("a name starting with wc-, in any case, is refused on the screen itself", async () => {
+		const page = await install.newPage("light");
+		await open(page, `/sites/${siteId}/design-system?tab=classes`);
+		const name = page.getByLabel("New Class");
+		await name.waitFor();
+
+		await name.fill("WC-Header");
+		await page.getByRole("button", { name: "Create Class" }).click();
+		await page.getByText("A Class name starts with a letter").waitFor();
+
+		const list = page.getByRole("list", { name: "Classes" });
+		expect(await list.getByRole("button", { name: /wc-header/i }).count()).toBe(0);
+	});
+});

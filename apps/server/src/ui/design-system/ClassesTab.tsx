@@ -1,3 +1,4 @@
+import { CLASS_NAME, isReservedName } from "@webcraft/renderer/builder";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
@@ -23,9 +24,6 @@ import { DeclarationsEditor } from "./DeclarationsEditor.tsx";
 import type { Editing } from "./DesignSystemScreen.tsx";
 import { type EditableClass, html } from "./model.ts";
 import { StylePreview } from "./StylePreview.tsx";
-
-/** A Class name as the Design system takes one (`CLASS_NAME`); `wc-` names are WebCraft's own. */
-const CLASS_NAME = /^[A-Za-z][A-Za-z0-9_-]{0,99}$/;
 
 /**
  * The Classes tab: the Site's Classes, searched by name (generated ones hidden unless asked for), and
@@ -61,7 +59,7 @@ export function ClassesTab({
 	const create = async (event: FormEvent) => {
 		event.preventDefault();
 		const name = newName.trim().replace(/^\./, "");
-		if (!CLASS_NAME.test(name) || name.startsWith("wc-")) {
+		if (!CLASS_NAME.test(name) || isReservedName(name)) {
 			setNewProblem(t("designSystem.classes.nameInvalid"));
 			return;
 		}
@@ -172,7 +170,7 @@ function ClassPanel({ editing, found, onDeleted }: { editing: Editing; found: Ed
 	const t = useT();
 	const id = useId();
 	const [name, setName] = useState(found.name);
-	const nameValid = CLASS_NAME.test(name) && !name.startsWith("wc-");
+	const nameValid = CLASS_NAME.test(name) && !isReservedName(name);
 	const { tokens } = editing.draft;
 	const current = editing.draft.classes.find((each) => each.id === found.id) ?? found;
 
@@ -201,7 +199,7 @@ function ClassPanel({ editing, found, onDeleted }: { editing: Editing; found: Ed
 					onChange={(event) => {
 						setName(event.target.value);
 						const next = event.target.value;
-						if (CLASS_NAME.test(next) && !next.startsWith("wc-")) editing.changeClass(found.id, { name: next });
+						if (CLASS_NAME.test(next) && !isReservedName(next)) editing.changeClass(found.id, { name: next });
 					}}
 					className="max-w-sm font-mono"
 					spellCheck={false}
@@ -239,7 +237,7 @@ function ClassPanel({ editing, found, onDeleted }: { editing: Editing; found: Ed
 				<FieldLabel htmlFor={`${id}-css`}>{t("designSystem.classes.ownCss")}</FieldLabel>
 				<Textarea
 					id={`${id}-css`}
-					defaultValue={found.css}
+					value={found.css}
 					onChange={(event) => editing.changeClass(found.id, { css: event.target.value })}
 					className="min-h-28 font-mono text-xs"
 					spellCheck={false}

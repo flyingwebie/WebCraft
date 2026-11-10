@@ -6,6 +6,7 @@
  */
 export { commandForNode, commandNamed, TEMPLATE_COMMANDS } from "./commands.ts";
 export type { PlacementNode } from "./components.ts";
+export { CLASS_NAME, isReservedName } from "./design-system/document.ts";
 export { safeUrl, URL_ATTRIBUTES } from "./escape.ts";
 export { type Expression, readExpression, writeExpression } from "./expressions.ts";
 export { readFormat, type ValueFormat, writeFormat } from "./formatters.ts";
