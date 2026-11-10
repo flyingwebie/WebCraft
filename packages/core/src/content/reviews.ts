@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
-import { installRoles, membershipSites, memberships, reviews } from "@webcraft/db/schema";
-import { and, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { installRoles, reviews } from "@webcraft/db/schema";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import type { RecordedAuditEntry } from "../audit.ts";
 import { checkConsentTextReady } from "../consent/text.ts";
@@ -12,10 +12,10 @@ import { itemState } from "../history/items.ts";
 import { isUuid } from "../ids.ts";
 import type { Logger } from "../log.ts";
 import { personIdOf } from "../permissions/can.ts";
-import { roleDefinition, SUPERADMIN_ROLE } from "../permissions/roles.ts";
+import { SUPERADMIN_ROLE } from "../permissions/roles.ts";
 import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
-import { siteStaff } from "../tenancy/site-owners.ts";
+import { siteMembersHolding, siteStaff } from "../tenancy/site-owners.ts";
 import {
 	ItemInReviewError,
 	ReviewDecidedError,
@@ -31,10 +31,8 @@ import {
 	mayActOn,
 	type Review,
 	type ReviewItem,
-	reviewItemKey,
 	reviewItemOf,
 	reviewItemWhere,
-	reviewStatus,
 	reviewViews,
 } from "./review-items.ts";
 
@@ -270,32 +268,12 @@ export async function itemReviewHistory(scope: SiteScope, item: PublishItem): Pr
 // -------------------------------------------------------------------------------------------------
 // Who hears of a Review, and the emails
 
-/** The Members of the Site's Workspace who reach it and whose role publishes Content (Owners and Editors). */
-async function membersWhoPublish(scope: BackgroundScope): Promise<string[]> {
-	const rows = await scope.db
-		.selectDistinct({ personId: memberships.personId, role: memberships.role })
-		.from(memberships)
-		.leftJoin(
-			membershipSites,
-			and(eq(membershipSites.membershipId, memberships.id), eq(membershipSites.siteId, scope.site.id)),
-		)
-		.where(
-			and(
-				eq(memberships.workspaceId, scope.workspace.id),
-				or(eq(memberships.allSites, true), isNotNull(membershipSites.siteId)),
-			),
-		);
-	return rows
-		.filter((row) => roleDefinition(row.role)?.permissions.includes("entry.publish") ?? false)
-		.map((row) => row.personId);
-}
-
 /**
  * Who is emailed when something is submitted on a Site: its Members who may publish it; when there
  * are none, the Staff who reach it; when there are none either, the Superadmin.
  */
 export async function reviewersOf(scope: BackgroundScope): Promise<string[]> {
-	const members = await membersWhoPublish(scope);
+	const members = await siteMembersHolding(scope, "entry.publish");
 	if (members.length > 0) return members;
 	const staff = await siteStaff(scope);
 	if (staff.length > 0) return staff;
@@ -394,5 +372,3 @@ export function createReviews(deps: ReviewsDeps): Reviews {
 		},
 	};
 }
-
-export { reviewItemKey, reviewStatus };

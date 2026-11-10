@@ -72,7 +72,7 @@ export type Review = {
 
 type Row = typeof reviews.$inferSelect;
 
-export function reviewStatus(value: string): ReviewStatus {
+function reviewStatus(value: string): ReviewStatus {
 	return value === "withdrawn" || value === "sentBack" || value === "published" || value === "scheduled"
 		? value
 		: "inReview";
@@ -293,5 +293,3 @@ export async function reviewsOnSchedule(
 		await scope.audit("review.schedule", { ...(await auditItem(scope, row)), at: at.toISOString(), scheduleId });
 	}
 }
-
-export { itemKey as reviewItemKey };

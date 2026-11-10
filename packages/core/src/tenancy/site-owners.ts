@@ -1,7 +1,7 @@
 import { installRoles, membershipSites, memberships, staffWorkspaces } from "@webcraft/db/schema";
 import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 
-import { ASSIGNED_ROLES, roleDefinition } from "../permissions/roles.ts";
+import { ASSIGNED_ROLES, type Permission, roleDefinition } from "../permissions/roles.ts";
 import type { Executor, Site, Workspace } from "./data-layer.ts";
 
 /**
@@ -14,6 +14,18 @@ export async function siteOwners(scope: {
 	site: Pick<Site, "id">;
 	workspace: Pick<Workspace, "id">;
 }): Promise<string[]> {
+	return siteMembersHolding(scope, "member.manage");
+}
+
+/**
+ * The Members of the Site's Workspace who reach the Site and whose role holds `permission` (those who
+ * may publish its Content: `entry.publish`, Owners and Editors). Checked by Permission, never by role
+ * name (ADR 0028).
+ */
+export async function siteMembersHolding(
+	scope: { db: Executor; site: Pick<Site, "id">; workspace: Pick<Workspace, "id"> },
+	permission: Permission,
+): Promise<string[]> {
 	const rows = await scope.db
 		.selectDistinct({ personId: memberships.personId, role: memberships.role })
 		.from(memberships)
@@ -28,7 +40,7 @@ export async function siteOwners(scope: {
 			),
 		);
 	return rows
-		.filter((row) => roleDefinition(row.role)?.permissions.includes("member.manage") ?? false)
+		.filter((row) => roleDefinition(row.role)?.permissions.includes(permission) ?? false)
 		.map((row) => row.personId);
 }
 
