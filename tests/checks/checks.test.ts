@@ -383,3 +383,69 @@ test("the Site Check collection preserves a planned Social card instead of repor
 		"seoImageMissing",
 	);
 });
+
+test("Checks inspect a Component Block's root rich text without duplicating ordinary Body warnings", async () => {
+	const { expectSafePage } = await import("../harness/site-safety.ts");
+	const { goLive } = await import("../harness/staging.ts");
+	const workspace = await install.createWorkspace();
+	const localSite = (await install.createSite(workspace.id)).id;
+	const { api } = await install.superadmin();
+	const { component } = await api.components.create({
+		siteId: localSite,
+		name: "RichLink",
+		props: [{ key: "copy", label: "Copy", type: "richText" }],
+	});
+	await api.components.saveMarkup({ siteId: localSite, componentId: component.id, markup: "{{ props.copy }}" });
+	await api.components.publish({ siteId: localSite, componentId: component.id });
+	const { postType } = await api.postTypes.create({
+		siteId: localSite,
+		name: "Rich blocks",
+		urlPattern: "/rich/{slug}",
+		fields: [{ key: "body", label: "Body", type: "body", components: [component.id] }],
+	});
+	const { template } = await api.templates.saveEntryTemplateMarkup({
+		siteId: localSite,
+		postTypeId: postType.id,
+		markup: "<h1>{{ title }}</h1>{{ body }}",
+	});
+	const blocks = (label: string) => [
+		{
+			type: "component",
+			component: component.id,
+			props: [{ name: "copy", value: `<p><a href="/target">${label}</a></p>` }],
+		},
+		{ type: "paragraph", text: [{ text: "Read more", link: "/details" }] },
+	];
+	const { entry } = await api.entries.create({
+		siteId: localSite,
+		postTypeId: postType.id,
+		title: "Sample",
+		fields: { body: blocks("Click here") },
+	});
+	await api.templates.publish({ siteId: localSite, templateId: template.id });
+	await api.entries.publish({ siteId: localSite, entryId: entry.id });
+	const origin = await goLive(install, localSite);
+	const html = await expectSafePage(await install.request(`${origin}/rich/sample`));
+	expect(html).toContain('<p><a href="/target">Click here</a></p>');
+	expect(html).not.toContain("data-wc-check");
+	const entryChecks = (await api.checks.entry({ siteId: localSite, entryId: entry.id })).checks;
+	const siteChecks = (await api.checks.list({ siteId: localSite })).checks.filter((c) => c.item.id === entry.id);
+	for (const checks of [entryChecks, siteChecks]) {
+		expect(checks.filter((c) => c.check === "vagueLink")).toHaveLength(2);
+		expect(checks).toContainEqual(
+			expect.objectContaining({
+				check: "vagueLink",
+				detail: "Click here",
+				componentId: component.id,
+				href: `/builder/${localSite}/component/${component.id}`,
+			}),
+		);
+		expect(checks.filter((c) => c.check === "vagueLink" && c.at === "fields.body[1]")).toHaveLength(1);
+	}
+	await api.entries.saveDraft({ siteId: localSite, entryId: entry.id, fields: { body: blocks("Our products") } });
+	expect(
+		(await api.checks.entry({ siteId: localSite, entryId: entry.id })).checks.filter(
+			(c) => c.componentId === component.id,
+		),
+	).toEqual([]);
+});

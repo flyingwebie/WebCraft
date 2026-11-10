@@ -246,16 +246,9 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 			}
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
-			for (const attribute of node.attributes) {
-				if (node.decorative && ["alt", "aria-label", "aria-labelledby", "title", "role"].includes(attribute.name))
-					continue;
+			for (const attribute of elementAttributes(node, options)) {
 				attributes += renderAttribute(attribute, options);
 			}
-			if (node.decorative) attributes += ' alt=""';
-			if (options.checkMarkup && options.checkComponent)
-				attributes += ` data-wc-check-component="${escapeAttribute(options.checkComponent)}"`;
-			if (options.checkMarkup && node.decorative) attributes += ' data-wc-decorative="true"';
-			if (options.editRegion && node.decorative) attributes += ' data-wc-image-decorative="true"';
 			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
@@ -546,17 +539,28 @@ function mediaImage(node: ElementNode, media: MediaReader, options: RenderOption
 		return id === undefined ? undefined : "";
 	}
 	const own: [string, string][] = classNames.length > 0 ? [["class", classNames.join(" ")]] : [];
-	for (const attribute of node.attributes) {
-		if (node.decorative && ["alt", "aria-label", "aria-labelledby", "title", "role"].includes(attribute.name)) continue;
+	for (const attribute of elementAttributes(node, options)) {
 		own.push([attribute.name, attributeText(attribute, options)]);
 	}
-	if (node.decorative) own.push(["alt", ""]);
-	if (options.checkMarkup && options.checkComponent) own.push(["data-wc-check-component", options.checkComponent]);
-	if (options.checkMarkup && node.decorative) own.push(["data-wc-decorative", "true"]);
-	if (options.editRegion && node.decorative) own.push(["data-wc-image-decorative", "true"]);
 	if (options.codeSource !== undefined) own.push([CODE_ATTRIBUTE, `${options.codeSource}#${node.id}`]);
 	if (region) own.push(...region, ["data-wc-media", id ?? ""]);
 	return renderMediaImage(image, own, options.priorityImage);
+}
+
+/** Keeps Decorative and diagnostic attributes identical for ordinary and Media-backed elements. */
+function elementAttributes(node: ElementNode, options: RenderOptions): readonly Attribute[] {
+	if (!node.decorative && !(options.checkMarkup && options.checkComponent)) return node.attributes;
+	const attributes = node.decorative
+		? node.attributes.filter(
+				(attribute) => !["alt", "aria-label", "aria-labelledby", "title", "role"].includes(attribute.name),
+			)
+		: [...node.attributes];
+	const add = (name: string, text: string) => attributes.push({ name, value: [{ type: "text", text }] });
+	if (node.decorative) add("alt", "");
+	if (options.checkMarkup && options.checkComponent) add("data-wc-check-component", options.checkComponent);
+	if (options.checkMarkup && node.decorative) add("data-wc-decorative", "true");
+	if (options.editRegion && node.decorative) add("data-wc-image-decorative", "true");
+	return attributes;
 }
 
 /**

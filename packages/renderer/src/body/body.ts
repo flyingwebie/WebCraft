@@ -268,11 +268,15 @@ export function renderBody(blocks: readonly Block[], options: RenderBodyOptions)
 		const regionOnly = block.type === "image" && options.imageRegion !== undefined;
 		if (block.type !== "divider" && !spec.hasContent(block) && !regionOnly) continue;
 		let shown = spec.render(block, context);
-		if (options.checkPath && block.type !== "component")
-			shown = shown.replace(
-				/^<([a-z][a-z0-9]*)/,
-				`<$1 data-wc-check-at="${escapeAttribute(options.checkPath)}[${blocks.indexOf(block)}]"`,
-			);
+		if (options.checkPath) {
+			const at = `${escapeAttribute(options.checkPath)}[${blocks.indexOf(block)}]`;
+			// A Component can output a bare rich-text value, with no element of its own to mark.
+			// Keep its boundary in diagnostic markup so Body-only checks do not hide its warnings.
+			shown =
+				block.type === "component"
+					? `<div data-wc-check-at="${at}" data-wc-check-component="${escapeAttribute(block.component)}">${shown}</div>`
+					: shown.replace(/^<([a-z][a-z0-9]*)/, `<$1 data-wc-check-at="${at}"`);
+		}
 		html += options.markBlocks ? `<!--wc-block ${block.id}-->${shown}<!--/wc-block-->` : shown;
 	}
 	return html;

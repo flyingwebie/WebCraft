@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -38,10 +39,12 @@ test("Staff generate an editable, translated Draft Page; its footer follows publ
 	expect(JSON.stringify(made.page.draft.fields[made.settings.fieldKey])).toContain("aims for WCAG 2.2 AA");
 	expect(JSON.stringify(made.page.draft.fields[made.settings.fieldKey])).not.toContain("is fully compliant");
 	const path = `https://statement.live.test/${made.page.draft.slug}`;
-	expect((await install.request(path)).status).toBe(404);
+	const unpublished = await install.request(path);
+	expect(unpublished.status).toBe(404);
+	await expectSafePage(unpublished);
 	await staff.api.components.publish({ siteId, componentId: made.settings.componentId });
 	await staff.api.entries.publish({ siteId, entryId: made.page.id });
-	let html = await (await install.request(path)).text();
+	let html = await expectSafePage(await install.request(path));
 	expect(html).toContain("Some older PDFs");
 	expect(html).toMatch(/<footer[^>]*>[\s\S]*Accessibility statement[\s\S]*<\/footer>/);
 	const changed = await staff.api.accessibilityStatement.generate({
@@ -50,7 +53,7 @@ test("Staff generate an editable, translated Draft Page; its footer follows publ
 		limitations: "The PDF issue is fixed; testing continues.",
 	});
 	expect(changed.page.id).toBe(made.page.id);
-	expect(await (await install.request(path)).text()).toContain("Some older PDFs");
+	expect(await expectSafePage(await install.request(path))).toContain("Some older PDFs");
 	await staff.api.languages.add({ siteId, code: "it" });
 	await staff.api.entries.saveDraft({
 		siteId,
@@ -61,12 +64,12 @@ test("Staff generate an editable, translated Draft Page; its footer follows publ
 		fields: { [made.settings.fieldKey]: { feedback: "<p>Contattaci per assistenza.</p>" } },
 	});
 	await staff.api.entries.publish({ siteId, entryId: made.page.id });
-	html = await (await install.request("https://statement.live.test/it/accessibilita")).text();
+	html = await expectSafePage(await install.request("https://statement.live.test/it/accessibilita"));
 	expect(html).toContain("Contattaci per assistenza.");
 	expect(html).toContain('href="/it/accessibilita"');
 	expect(html).toContain("Dichiarazione di accessibilità");
 	await staff.api.accessibilityStatement.setEnabled({ siteId, enabled: false });
-	html = await (await install.request(path)).text();
+	html = await expectSafePage(await install.request(path));
 	expect(html).toContain("The PDF issue is fixed");
 	expect(html).not.toContain("<footer");
 });
@@ -87,14 +90,14 @@ test("the statement participates in ordinary translation jobs, protects its Comp
 	).rejects.toMatchObject({ code: "COMPONENT_IN_USE" });
 	// A Page alone cannot expose a footer link to a not-yet-published Component.
 	await site.owner.api.entries.publish({ siteId: site.siteId, entryId: generated.page.id });
-	expect(await (await install.request(`${site.origin}/missing`)).text()).not.toContain("<footer");
+	expect(await expectSafePage(await install.request(`${site.origin}/missing`))).not.toContain("<footer");
 	await site.staff.api.components.publish({ siteId: site.siteId, componentId: generated.settings.componentId });
 	await install.drainJobs();
 	const translated = (
 		await site.owner.api.entries.get({ siteId: site.siteId, entryId: generated.page.id, language: "de" })
 	).entry;
 	expect(JSON.stringify(translated.published?.fields)).toContain("[de] Feedback and contact information");
-	const html = await (await install.request(`${site.origin}/de/accessibility-statement`)).text();
+	const html = await expectSafePage(await install.request(`${site.origin}/de/accessibility-statement`));
 	expect(html).toContain("[de] Accessibility statement");
 	expect(html).toContain('href="/de/accessibility-statement"');
 	expect(html).not.toContain("<script>alert(1)</script>");
@@ -103,14 +106,14 @@ test("the statement participates in ordinary translation jobs, protects its Comp
 		markup: "<main>{{@outlet}}</main><footer><p>Existing footer</p></footer>",
 	});
 	await site.staff.api.templates.publish({ siteId: site.siteId, templateId: siteTemplate.template.id });
-	const withFooter = await (await install.request(`${site.origin}/missing`)).text();
+	const withFooter = await expectSafePage(await install.request(`${site.origin}/missing`));
 	expect(withFooter.match(/<footer>/g)).toHaveLength(1);
 	expect(withFooter).toMatch(
 		/<footer><p>Existing footer<\/p><a href="\/accessibility-statement">Accessibility statement<\/a><\/footer>/,
 	);
 	await site.owner.api.entries.saveDraft({ siteId: site.siteId, entryId: generated.page.id, hiddenLanguages: ["de"] });
 	await site.owner.api.entries.publish({ siteId: site.siteId, entryId: generated.page.id });
-	expect(await (await install.request(`${site.origin}/de/missing`)).text()).not.toContain(
+	expect(await expectSafePage(await install.request(`${site.origin}/de/missing`))).not.toContain(
 		'href="/de/accessibility-statement"',
 	);
 });
@@ -120,6 +123,21 @@ test("Site export/import remaps the statement references and retains Decorative 
 	const { photo, upload } = await import("../harness/images.ts");
 	const { publishEverything } = await import("../site-transfer/support.ts");
 	const source = await install.superadmin();
+	const workspace = await install.createWorkspace();
+	const siteId = (await install.createSite(workspace.id, { slug: "statement-transfer" })).id;
+	const generated = await source.api.accessibilityStatement.generate({ siteId, ...input });
+	await source.api.languages.add({ siteId, code: "it" });
+	await source.api.entries.saveDraft({
+		siteId,
+		entryId: generated.page.id,
+		language: "it",
+		title: "Dichiarazione di accessibilità",
+		slug: "accessibilita",
+		fields: { [generated.settings.fieldKey]: { feedback: "<p>Contattaci per assistenza.</p>" } },
+	});
+	await source.api.components.publish({ siteId, componentId: generated.settings.componentId });
+	await source.api.entries.publish({ siteId, entryId: generated.page.id });
+	await source.api.accessibilityStatement.setEnabled({ siteId, enabled: false });
 	const original = (await source.api.accessibilityStatement.get({ siteId })).settings;
 	if (!original) throw new Error("The statement fixture is missing.");
 	const markup = (await source.api.components.getMarkup({ siteId, componentId: original.componentId })).markup.draft;
@@ -184,7 +202,7 @@ test("Site export/import remaps the statement references and retains Decorative 
 		await admin.api.accessibilityStatement.setEnabled({ siteId: copiedSite, enabled: true });
 		await publishEverything(admin, copiedSite);
 		const origin = await goLive(target, copiedSite);
-		const html = await (await target.request(`${origin}/it/accessibilita`)).text();
+		const html = await expectSafePage(await target.request(`${origin}/it/accessibilita`));
 		expect(html).toContain("Contattaci per assistenza.");
 		expect(html).toContain('href="/it/accessibilita"');
 		expect(html).toContain('alt=""');

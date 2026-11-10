@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -60,7 +61,7 @@ test("Decorative belongs to each Body image, survives JSON and Markdown, and nev
 	expect(saved.entry.draft.fields.body).toMatchObject([{ decorative: true }, {}]);
 	await staff.api.media.update({ siteId, mediaId, alt: "A green leaf" });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });
-	const html = await (await install.request("https://checks.live.test/stories/leaves")).text();
+	const html = await expectSafePage(await install.request("https://checks.live.test/stories/leaves"));
 	expect(html.match(/alt=""/g)?.length).toBe(1);
 	expect(html).toContain('alt="A green leaf"');
 	expect((await staff.api.media.get({ siteId, mediaId })).media.alt).toBe("A green leaf");

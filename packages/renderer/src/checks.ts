@@ -90,7 +90,8 @@ export function renderedCheckReport(
 			return;
 		const code = attr(node, "data-wc-code");
 		const at = attr(node, "data-wc-check-at") ?? code ?? path;
-		const componentId = attr(node, "data-wc-check-component") ?? component;
+		const componentBoundary = attr(node, "data-wc-check-component");
+		const componentId = componentBoundary ?? component;
 		const raise = (check: QualityCheckKind, detail?: string) =>
 			checks.push({ check, at, ...(componentId ? { componentId } : {}), ...(detail === undefined ? {} : { detail }) });
 		const hint = attr(node, "data-wc-check");
@@ -101,7 +102,7 @@ export function renderedCheckReport(
 		if (node.tagName === "template") return;
 		const bodyPath = attr(node, "data-wc-body");
 		if (bodyPath) bodies.add(bodyPath);
-		const inBody = bodyPath !== undefined || (body && !code);
+		const inBody = bodyPath !== undefined || (body && !code && componentBoundary === undefined);
 		const level = /^h([1-6])$/.exec(node.tagName)?.[1];
 		if (level) {
 			const n = Number(level);
