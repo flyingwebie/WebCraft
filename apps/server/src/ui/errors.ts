@@ -117,12 +117,25 @@ export function errorMessage(error: unknown): MessageKey {
 		case "HOME_PAGE_UNPUBLISH":
 		case "ALREADY_SCHEDULED":
 		case "SCHEDULED_PUBLISH_NOT_FOUND":
+		case "ALREADY_IN_REVIEW":
+		case "REVIEW_NOT_FOUND":
+		case "REVIEW_DECIDED":
+		case "REVIEW_NOT_YOURS":
 		case "REPORT_NOT_FOUND":
 		case "REPORT_SEND_NOT_FOUND":
 		case "SHARE_LINK_NOT_FOUND":
 		case "SHARE_LINKS_UNAVAILABLE":
 		case "SERVICES_LIST_INVALID":
 			return `errors.${code}`;
+		case "REVIEW_INVALID":
+			switch ((data as { reason?: unknown } | undefined)?.reason) {
+				case "notReviewable":
+					return "errors.REVIEW_INVALID_NOT_REVIEWABLE";
+				case "commentRequired":
+					return "errors.REVIEW_INVALID_COMMENT";
+				default:
+					return "errors.REVIEW_INVALID_NOTHING";
+			}
 		case "SCHEDULE_INVALID":
 			switch ((data as { reason?: unknown } | undefined)?.reason) {
 				case "tooFar":

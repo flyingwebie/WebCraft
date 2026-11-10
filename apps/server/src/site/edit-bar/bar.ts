@@ -28,11 +28,23 @@ export function editingBar(config: EditingBarConfig): void {
 		type: string;
 		by: { name: string; you: boolean } | null;
 	};
+	/** The Review of one of the page's items (GLOSSARY.md › Review): In review, or sent back with a comment. */
+	type PageReview = {
+		item: string;
+		status: "inReview" | "sentBack";
+		by: { name: string; you: boolean } | null;
+		at: string;
+		note: string | null;
+		comment: string | null;
+		canWithdraw: boolean;
+		changedSinceSubmitted: boolean;
+	};
 	type State = {
 		page: { title: string; path: string; item: string | null };
 		canPublish: boolean;
 		canCode: boolean;
 		changes: Change[];
+		reviews: PageReview[];
 		publishAll: { url: string; otherDrafts: number };
 		pages: { title: string; path: string }[];
 		person: { name: string };
@@ -146,6 +158,12 @@ export function editingBar(config: EditingBarConfig): void {
 		admin: ["M15 3h6v6", "M10 14 21 3", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"],
 		end: ["M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", "m16 17 5-5-5-5", "M21 12H9"],
 		saved: ["M20 6 9 17l-5-5"],
+		review: [
+			"M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2",
+			"M9 3h6v4H9z",
+			"m9 14 2 2 4-4",
+		],
+		sentBack: ["M9 14 4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 0 11H11"],
 		alert: ["m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3", "M12 9v4", "M12 17h.01"],
 		close: ["M18 6 6 18", "m6 6 12 12"],
 		shield: [
@@ -737,14 +755,17 @@ export function editingBar(config: EditingBarConfig): void {
 		pageButton.querySelector(".page-title")?.replaceChildren(s.page.title || s.page.path);
 		pageButton.setAttribute("aria-label", word("pageSwitcher", { title: s.page.title || s.page.path }));
 		const count = s.changes.length;
-		chip.className = count > 0 ? "chip draft" : "chip";
+		const inReview = s.reviews.some((review) => review.status === "inReview");
+		chip.className = inReview ? "chip review" : count > 0 ? "chip draft" : "chip";
 		chip.textContent = ended
 			? word("ended")
-			: count === 0
-				? word("noChanges")
-				: count === 1
-					? word("draftOne")
-					: word("draftOther", { count });
+			: inReview
+				? word("inReview")
+				: count === 0
+					? word("noChanges")
+					: count === 1
+						? word("draftOne")
+						: word("draftOther", { count });
 		publishButton.replaceChildren(
 			icon(s.canPublish ? "publish" : "saved"),
 			s.canPublish ? word("publish") : word("changes"),
@@ -845,7 +866,7 @@ export function editingBar(config: EditingBarConfig): void {
 			});
 			actions.append(publish);
 		} else {
-			actions.append(el("p", { class: "draft-note" }, icon("saved"), word("savedToDraft")));
+			renderSubmit(panel, actions, error);
 		}
 		const others = s.publishAll.otherDrafts;
 		panel.replaceChildren(
@@ -855,6 +876,7 @@ export function editingBar(config: EditingBarConfig): void {
 				s.canPublish ? word("publishTitle", { title: s.page.title }) : word("changesTitle", { title: s.page.title }),
 			),
 			el("p", { class: "intro" }, s.canPublish ? word("publishIntro") : word("authorIntro")),
+			...reviewBlocks(s),
 			list,
 			error,
 			actions,
@@ -875,6 +897,104 @@ export function editingBar(config: EditingBarConfig): void {
 				),
 			),
 		);
+	}
+
+	/** A time as the admin shows it: `2026-03-02 09:00 UTC`. */
+	function utcTime(at: string): string {
+		return `${at.slice(0, 10)} ${at.slice(11, 16)} UTC`;
+	}
+
+	/**
+	 * Where the page's Reviews stand (GLOSSARY.md › Review): each item In review (who submitted it,
+	 * when, their note) and each sent back, with its comment, until it is submitted again.
+	 */
+	function reviewBlocks(s: State): HTMLElement[] {
+		const itemName = (review: PageReview) => (review.item === "globals" ? word("globals") : s.page.title);
+		return s.reviews.map((review) => {
+			const who = review.by ? (review.by.you ? word("reviewYou") : review.by.name) : word("someone");
+			if (review.status === "sentBack") {
+				return el(
+					"div",
+					{ class: "review sent-back" },
+					el(
+						"p",
+						{ class: "review-head" },
+						icon("sentBack"),
+						word("sentBackBy", { item: itemName(review), name: who, time: utcTime(review.at) }),
+					),
+					el("blockquote", {}, review.comment ?? ""),
+					el("p", { class: "review-help" }, word("sentBackHelp")),
+				);
+			}
+			return el(
+				"div",
+				{ class: "review" },
+				el(
+					"p",
+					{ class: "review-head" },
+					icon("review"),
+					word("inReviewBy", { item: itemName(review), name: who, time: utcTime(review.at) }),
+				),
+				...(review.note ? [el("blockquote", {}, review.note)] : []),
+				...(review.changedSinceSubmitted ? [el("p", { class: "review-help" }, word("changedSinceSubmitted"))] : []),
+			);
+		});
+	}
+
+	/**
+	 * What Authors get instead of Publish: "Submit for review" with an optional note for the page's
+	 * changes, or, once they wait, "Withdraw from review".
+	 */
+	function renderSubmit(panel: HTMLElement, actions: HTMLElement, error: HTMLElement): void {
+		const s = state as State;
+		const waiting = s.reviews.filter((review) => review.status === "inReview");
+		const settle = (answer: Answer, done: string) => {
+			if (!answer.ok) return false;
+			state = { ...(answer.data as State), words };
+			renderStatus();
+			renderPublish(panel);
+			panel.focus();
+			announce(done);
+			return true;
+		};
+		const open = s.changes.filter((change) => !waiting.some((review) => review.item === change.item));
+		if (open.length > 0) {
+			const noteId = "wc-review-note";
+			const note = el("textarea", { id: noteId, class: "review-note", rows: "2", maxlength: "2000" });
+			const submit = button({ class: "primary" }, icon("review"), word("submitForReview"));
+			submit.addEventListener("click", async () => {
+				submit.disabled = true;
+				submit.replaceChildren(word("submitting"));
+				const answer = await call("review/submit", { path, note: note.value });
+				if (settle(answer, word("submittedForReview"))) return;
+				submit.disabled = false;
+				submit.replaceChildren(icon("review"), word("submitForReview"));
+				error.textContent = errorText(answer.ok ? "generic" : answer.code);
+			});
+			actions.append(
+				el(
+					"div",
+					{ class: "review-submit" },
+					el("label", { for: noteId }, word("reviewNoteLabel")),
+					note,
+					el("div", { class: "review-actions" }, submit),
+				),
+			);
+			return;
+		}
+		if (waiting.some((review) => review.canWithdraw)) {
+			const withdraw = button({ class: "secondary" }, word("withdrawReview"));
+			withdraw.addEventListener("click", async () => {
+				withdraw.disabled = true;
+				const answer = await call("review/withdraw", { path });
+				if (settle(answer, word("withdrawnFromReview"))) return;
+				withdraw.disabled = false;
+				error.textContent = errorText(answer.ok ? "generic" : answer.code);
+			});
+			actions.append(withdraw);
+			return;
+		}
+		actions.append(el("p", { class: "draft-note" }, icon("saved"), word("savedToDraft")));
 	}
 
 	function errorText(code: string): string {

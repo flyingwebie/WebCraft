@@ -17,6 +17,7 @@ import { HistoryCard } from "../history/HistoryCard.tsx";
 import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
+import { ReviewStatus, SubmitForReview } from "../review/Review.tsx";
 import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
 import type { FieldValues, GlobalsView, Json, Problem } from "./model.ts";
@@ -83,6 +84,13 @@ export function GlobalsEditor({
 		media,
 		onMediaChosen: (item) => setMedia((before) => ({ ...before, [item.id]: item })),
 		markShared: true,
+	};
+
+	/** Reads the Globals again: their status and Review. */
+	const refresh = async () => {
+		const api = await getApi();
+		const { globals: fresh } = await api.globals.get({ siteId, language: globals.language });
+		setGlobals(fresh);
 	};
 
 	const publishing = useDraftPublish({
@@ -177,6 +185,23 @@ export function GlobalsEditor({
 					fields={globals.fields}
 					idPrefix="globals"
 					headingId="globals-problems-heading"
+					submit={
+						<SubmitForReview
+							siteId={siteId}
+							items={[{ kind: "globals" }]}
+							disabled={
+								locked ||
+								globals.fields.length === 0 ||
+								globals.status === "published" ||
+								globals.review?.status === "inReview"
+							}
+							flush={autosave.flush}
+							onSubmitted={refresh}
+							onProblems={() => publishing.summary.current?.focus()}
+						/>
+					}
+					authorHelp={globals.review?.status === "inReview" ? "review.inReviewHelp" : "review.authorHelp"}
+					review={<ReviewStatus siteId={siteId} review={globals.review} onChanged={refresh} />}
 				/>
 				<HistoryCard siteId={siteId} item={{ kind: "globals" }} history={history} />
 			</div>

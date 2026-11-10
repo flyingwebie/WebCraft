@@ -17,6 +17,7 @@ import {
 	CalendarClockIcon,
 	CalendarOffIcon,
 	CircleAlertIcon,
+	ClipboardCheckIcon,
 	CodeIcon,
 	FileTextIcon,
 	FilterIcon,
@@ -38,6 +39,7 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { ReviewBadge } from "../review/Review.tsx";
 import { useOpenStaging } from "../shell/StagingButton.tsx";
 import { CancelScheduleDialog, ScheduleDialog, ScheduledTime } from "./schedule.tsx";
 
@@ -109,6 +111,7 @@ function PublishAllDialog({
 	const id = useId();
 	const [drafts, setDrafts] = useState<SiteDraft[] | null>(null);
 	const [scheduled, setScheduled] = useState<Scheduled[]>([]);
+	const [inReview, setInReview] = useState<ReadonlySet<string>>(new Set());
 	const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
 	const [busy, setBusy] = useState(false);
 	const [problem, setProblem] = useState<string | null>(null);
@@ -118,12 +121,14 @@ function PublishAllDialog({
 	// The Drafts and the Scheduled publishes, read again after each change made here.
 	const load = useCallback(async () => {
 		const api = await getApi();
-		const [{ drafts: listed }, { scheduled: waiting }] = await Promise.all([
+		const [{ drafts: listed }, { scheduled: waiting }, { reviews }] = await Promise.all([
 			api.publishing.drafts({ siteId }),
 			api.publishing.scheduled({ siteId }),
+			api.reviews.list({ siteId }),
 		]);
 		setDrafts(listed);
 		setScheduled(waiting);
+		setInReview(new Set(reviews.map((review) => keyOf(review.item))));
 	}, [siteId]);
 	const reload = useCallback(() => {
 		load().catch((failure: unknown) => setProblem(t(errorMessage(failure))));
@@ -211,6 +216,12 @@ function PublishAllDialog({
 						{scheduled.length > 0 ? (
 							<ScheduledSection siteId={siteId} scheduled={scheduled} onChanged={reload} />
 						) : null}
+						{inReview.size > 0 ? (
+							<p className="flex items-center gap-2 text-sm">
+								<ClipboardCheckIcon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+								{t("publishAll.inReview", { count: inReview.size })}
+							</p>
+						) : null}
 						{drafts && drafts.length > 0 ? (
 							<div className="flex items-center gap-3">
 								<Checkbox
@@ -250,6 +261,7 @@ function PublishAllDialog({
 												siteId={siteId}
 												draft={draft}
 												waiting={waiting.get(keyOf(draft.item)) ?? null}
+												inReview={inReview.has(keyOf(draft.item))}
 												ticked={draft.canPublish && !unticked.has(keyOf(draft.item))}
 												onToggle={(on) => toggle(draft, on)}
 											/>
@@ -485,6 +497,7 @@ function DraftRow({
 	siteId,
 	draft,
 	waiting,
+	inReview,
 	ticked,
 	onToggle,
 }: {
@@ -493,6 +506,8 @@ function DraftRow({
 	draft: SiteDraft;
 	/** The Scheduled publish it waits in, if any: when, and whether its Draft changed since. */
 	waiting: { at: Date | string; changedSinceScheduled: boolean } | null;
+	/** Its Author submitted it for Review, and it waits: publishing it ends the Review. */
+	inReview: boolean;
 	ticked: boolean;
 	onToggle: (on: boolean) => void;
 }) {
@@ -537,6 +552,7 @@ function DraftRow({
 					<span className="sr-only"> {formatUtc(waiting.at)}</span>
 				</Badge>
 			) : null}
+			{inReview ? <ReviewBadge status="inReview" /> : null}
 			<Badge variant={draft.status === "new" ? "secondary" : "outline"}>
 				{t(draft.status === "new" ? "publishAll.new" : "publishAll.changed")}
 			</Badge>

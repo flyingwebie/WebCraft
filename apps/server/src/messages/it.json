@@ -194,7 +194,14 @@
 		"TWO_FACTOR_REQUIRED": "L'autenticazione a due fattori è obbligatoria per il tuo account: aggiungi un altro metodo prima di rimuovere questo.",
 		"TWO_FACTOR_SETUP_REQUIRED": "Configura l'autenticazione a due fattori per continuare.",
 		"PASSKEY_INVALID": "Non è stato possibile usare la passkey. Riprova oppure usa un altro metodo.",
-		"PASSKEY_CANCELLED": "Nessuna passkey è stata usata. Riprova quando vuoi."
+		"PASSKEY_CANCELLED": "Nessuna passkey è stata usata. Riprova quando vuoi.",
+		"REVIEW_INVALID_NOTHING": "La sua bozza è già ciò che vedono i visitatori: non c'è niente da rivedere.",
+		"REVIEW_INVALID_NOT_REVIEWABLE": "Si rivedono solo le Entry, i Globali e i testi del Banner del consenso.",
+		"REVIEW_INVALID_COMMENT": "Di' perché lo rimandi.",
+		"ALREADY_IN_REVIEW": "È già in revisione.",
+		"REVIEW_NOT_FOUND": "Quella revisione non c'è più.",
+		"REVIEW_DECIDED": "Qualcuno ha già deciso: non è più in revisione.",
+		"REVIEW_NOT_YOURS": "Solo chi l'ha inviato può ritirarlo."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -1149,7 +1156,8 @@
 			"darkMode": "Modalità scura",
 			"notifications": "Notifiche",
 			"autoReply": "Risposta automatica"
-		}
+		},
+		"inReview": "{count, plural, one {# bozza attende} other {# bozze attendono}} una revisione. Pubblicarla chiude la revisione e lo dice a chi l'ha inviata."
 	},
 	"staging": {
 		"button": "Staging",
@@ -1530,7 +1538,7 @@
 		"publishTitle": "Pubblica {title}",
 		"changesTitle": "Modifiche a {title}",
 		"publishIntro": "I visitatori vedranno queste modifiche dopo la pubblicazione.",
-		"authorIntro": "Le tue modifiche sono salvate nella bozza. Le pubblica un Editor o un Owner.",
+		"authorIntro": "Le tue modifiche sono salvate nella bozza. Inviale in revisione quando sono pronte: le pubblica un Editor o un Owner.",
 		"nothingToPublish": "Non ci sono modifiche in questa pagina.",
 		"undo": "Annulla",
 		"undoChange": "Annulla {label}",
@@ -1626,7 +1634,11 @@
 			"ENTRY_SLUG_TAKEN": "Un'altra pagina ha già questo indirizzo.",
 			"PATH_TAKEN": "Un'altra pagina ha già questo indirizzo.",
 			"PAGE_PARENT_UNPUBLISHED": "Pubblica prima la pagina superiore.",
-			"TOO_MANY_REQUESTS": "Troppi tentativi. Aspetta un momento, poi riprova."
+			"TOO_MANY_REQUESTS": "Troppi tentativi. Aspetta un momento, poi riprova.",
+			"REVIEW_INVALID": "Su questa pagina non ci sono modifiche da inviare.",
+			"ALREADY_IN_REVIEW": "Questa pagina è già in revisione.",
+			"REVIEW_DECIDED": "Qualcuno ha già deciso.",
+			"REVIEW_NOT_YOURS": "Solo chi l'ha inviata può ritirarla."
 		},
 		"codeMode": {
 			"label": "Modalità codice",
@@ -1763,7 +1775,19 @@
 				"EDIT_MODE_ENDED": "La modalità di modifica è terminata. Riaprila dall'admin."
 			}
 		},
-		"alsoEditing": "Stanno modificando anche questa pagina"
+		"alsoEditing": "Stanno modificando anche questa pagina",
+		"inReview": "In revisione",
+		"inReviewBy": "{item} · In revisione · inviato da {name} · {time}",
+		"sentBackBy": "{item} · Rimandato da {name} · {time}",
+		"sentBackHelp": "Modifica la pagina, poi inviala di nuovo in revisione.",
+		"changedSinceSubmitted": "Cambiata dopo l'invio: pubblicarla pubblica la pagina com'è adesso.",
+		"reviewYou": "te",
+		"reviewNoteLabel": "Nota per chi rivede (facoltativa)",
+		"submitForReview": "Invia in revisione",
+		"submitting": "Invio…",
+		"submittedForReview": "Inviata in revisione. La controlla un Editor o un Owner.",
+		"withdrawReview": "Ritira dalla revisione",
+		"withdrawnFromReview": "Ritirata dalla revisione."
 	},
 	"siteLanguages": {
 		"pageTitle": "Lingue",
@@ -2612,8 +2636,8 @@
 			"liveSince": "Online dal {date}",
 			"saveDraft": "Salva bozza",
 			"publish": "Pubblica",
-			"publishHelp": "Pubblicare mette subito online questa bozza. Gli autori possono solo salvare bozze; pubblica un editor o un proprietario.",
-			"authorHelp": "Le tue modifiche sono salvate come bozza. Le pubblica un editor o un proprietario.",
+			"publishHelp": "Pubblicare mette subito online questa bozza. Gli Author inviano le loro bozze in revisione; le pubblica un Editor o un Owner.",
+			"authorHelp": "Le tue modifiche sono salvate come bozza. Inviale in revisione quando sono pronte: le pubblica un Editor o un Owner.",
 			"published": "{title} è online.",
 			"saveFirst": "Le ultime modifiche non sono ancora salvate, quindi non è stato pubblicato nulla.",
 			"fixFirst": "Non pubblicato: correggi prima ciò che è segnalato.",
@@ -4939,7 +4963,8 @@
 			"revision": "Revisione",
 			"checkpointActivity": "Checkpoint",
 			"checkpointLeft": "Checkpoint all'uscita",
-			"checkpointRestore": "Checkpoint prima di un ripristino"
+			"checkpointRestore": "Checkpoint prima di un ripristino",
+			"checkpointReview": "Inviato in revisione"
 		},
 		"item": {
 			"siteTemplate": "Il template del sito",
@@ -5747,5 +5772,50 @@
 			"close": "Chiudi",
 			"done": "L'autenticazione a due fattori di {name} è stata reimpostata."
 		}
+	},
+	"review": {
+		"submit": "Invia in revisione",
+		"submitTitle": "Invia in revisione",
+		"submitBody": "Un Editor o un Owner di questo Site lo controlla, poi lo pubblica, lo programma o te lo rimanda con un commento. Puoi continuare a modificarlo mentre attende.",
+		"noteLabel": "Nota per chi rivede (facoltativa)",
+		"noteHelp": "Di' cosa è cambiato, o cosa guardare.",
+		"submitConfirm": "Invia in revisione",
+		"submitted": "Inviato in revisione.",
+		"fixFirst": "Non inviato: prima correggi ciò che è segnato.",
+		"cancel": "Annulla",
+		"close": "Chiudi",
+		"badge": "In revisione",
+		"sentBackBadge": "Rimandato",
+		"submittedBy": "Inviato da {name} · {time}",
+		"noteHeading": "La sua nota",
+		"changedSince": "Cambiato dopo l'invio",
+		"changedSinceHelp": "La bozza è cambiata dopo l'invio. Pubblicarla pubblica la bozza com'è adesso.",
+		"actHelp": "Pubblicalo o programmalo con i pulsanti qui sopra, oppure rimandalo con un commento.",
+		"sendBack": "Rimanda…",
+		"sendBackTitle": "Rimanda indietro",
+		"sendBackBody": "Torna a essere una bozza e chi l'ha inviato riceve il tuo commento per email. Lo vede qui finché non lo invia di nuovo.",
+		"commentLabel": "Commento",
+		"commentRequired": "Di' perché lo rimandi.",
+		"sendBackConfirm": "Rimanda indietro",
+		"sentBackDone": "Rimandato a chi l'ha inviato.",
+		"withdraw": "Ritira",
+		"withdrawn": "Ritirato dalla revisione.",
+		"sentBackHeading": "Rimandato indietro",
+		"sentBackBy": "Rimandato da {name} · {time}",
+		"sentBackHelp": "Modificalo, poi invialo di nuovo in revisione.",
+		"you": "te",
+		"someone": "qualcuno",
+		"via": "{name} tramite {client}",
+		"waitingHeading": "In attesa di revisione",
+		"waitingNone": "Niente attende una revisione.",
+		"waitingCount": "{count, plural, one {# elemento attende} other {# elementi attendono}} una revisione.",
+		"waitingToAct": "{count, plural, one {# elemento attende che tu lo pubblichi, lo programmi o lo rimandi.} other {# elementi attendono che tu li pubblichi, li programmi o li rimandi.}}",
+		"items": {
+			"globals": "Globali",
+			"consentBanner": "Testi del Banner del consenso"
+		},
+		"authorHelp": "Le tue modifiche sono salvate come bozza. Inviale in revisione quando sono pronte: le pubblica un Editor o un Owner.",
+		"inReviewHelp": "È in revisione. Puoi continuare a modificarlo; chi lo rivede vede cosa è cambiato dopo l'invio.",
+		"navBadge": "{count} da rivedere"
 	}
 }
