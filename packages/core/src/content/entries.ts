@@ -13,6 +13,7 @@ import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ItemTranslation, itemTranslation } from "../translation/status.ts";
 import { entryFields, unitsOf } from "../translation/units.ts";
 import { bodyChecksOf, type EntryCheck } from "./body-checks.ts";
+import { type BodyFormat, bodiesAsMarkdown, bodyFieldOf, withBodyFromMarkdown } from "./body-exchange.ts";
 import { publishedAddresses } from "./entry-paths.ts";
 import {
 	type ContentProblem,
@@ -169,7 +170,12 @@ export type DraftChange = {
 	 * null or "" clears one. noindex is one value for every language.
 	 */
 	seo?: EntrySeoChange;
+	/** How the Body field's value is given: its Blocks (the default) or Markdown text (`body-exchange.ts`). */
+	bodyFormat?: BodyFormat;
 };
+
+/** How Entries are read: their Body field as Blocks (the default) or as Markdown. */
+export type EntryReading = { bodyFormat?: BodyFormat };
 
 export type NewEntry = DraftChange & { postTypeId: string; title: string };
 
@@ -236,21 +242,35 @@ export async function saveDraft(scope: SiteScope, entryId: string, change: Draft
 }
 
 /** One Entry of the scope's Site, in a language (the Default language unless given). */
-export async function getEntry(scope: SiteScope, entryId: string, language?: string): Promise<Entry> {
+export async function getEntry(
+	scope: SiteScope,
+	entryId: string,
+	language?: string,
+	reading: EntryReading = {},
+): Promise<Entry> {
 	const row = isUuid(entryId) ? await scope.first(entries, eq(entries.id, entryId)) : undefined;
 	if (!row) throw new EntryNotFoundError();
 	const postType = await getPostType(scope, row.postTypeId);
-	return toEntry(scope, row, postType, await entryLanguages(scope, language));
+	const entry = await toEntry(scope, row, postType, await entryLanguages(scope, language));
+	return reading.bodyFormat === "markdown"
+		? ((await bodiesAsMarkdown(scope, postType.fields, [entry]))[0] ?? entry)
+		: entry;
 }
 
 /** The Entries of a Post Type, newest first, in a language (the Default language unless given). */
-export async function listEntries(scope: SiteScope, postTypeId: string, language?: string): Promise<Entry[]> {
+export async function listEntries(
+	scope: SiteScope,
+	postTypeId: string,
+	language?: string,
+	reading: EntryReading = {},
+): Promise<Entry[]> {
 	const postType = await getPostType(scope, postTypeId);
 	const languages = await entryLanguages(scope, language);
 	const rows = await scope.select(entries, eq(entries.postTypeId, postType.id), {
 		orderBy: [desc(entries.createdAt), asc(entries.id)],
 	});
-	return entryViews(scope, rows, postType, languages);
+	const views = await entryViews(scope, rows, postType, languages);
+	return reading.bodyFormat === "markdown" ? bodiesAsMarkdown(scope, postType.fields, views) : views;
 }
 
 /**
@@ -553,8 +573,17 @@ async function changeDraft(
 		}
 		if (change.fields !== undefined) {
 			const context: WriteContext = { ...languages, by, problems, references: [], newRowId: randomRowId };
+			let given = change.fields;
+			if (change.bodyFormat === "markdown") {
+				const body = bodyFieldOf(postType.fields);
+				const bodyLanguage = body?.translatable === false ? defaultLanguage : language;
+				const stored = body
+					? (version.values[body.key] as Record<string, { value?: Json } | undefined> | undefined)
+					: undefined;
+				given = await withBodyFromMarkdown(scope, postType.fields, given, stored?.[bodyLanguage]?.value, problems);
+			}
 			version = {
-				values: writeFields(version.values, postType.fields, change.fields, context, "fields.", postType.name),
+				values: writeFields(version.values, postType.fields, given, context, "fields.", postType.name),
 			};
 			await checkReferences(
 				scope,

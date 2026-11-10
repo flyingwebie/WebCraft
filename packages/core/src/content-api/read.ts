@@ -1,6 +1,7 @@
 import { entries, globals, gonePaths, publishedSlugs } from "@webcraft/db/schema";
 import { and, asc, eq, inArray, isNotNull, type SQL, sql } from "drizzle-orm";
 
+import type { ComponentSources } from "../content/components.ts";
 import { homePageId } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { storedFields } from "../content/fields.ts";
@@ -40,6 +41,7 @@ export type ReadContext = {
 	host: SiteHost;
 	settings: ContentApiSettings;
 	cursors: Cursors;
+	components: ComponentSources;
 };
 
 /** An answer of the Content API: its JSON, and whether the page cache may keep it (searches are never kept). */
@@ -300,7 +302,14 @@ function presentingOf(
 	params: QueryParams,
 	addresses: SiteAddresses,
 ): Presenting {
-	return { scope: context.scope, exposure, reading, body: bodyFormatOf(params), addresses };
+	return {
+		scope: context.scope,
+		exposure,
+		reading,
+		body: bodyFormatOf(params),
+		addresses,
+		components: context.components,
+	};
 }
 
 /** An exposed Post Type by key, or `POST_TYPE_NOT_FOUND` (a hidden one is answered as if it didn't exist). */

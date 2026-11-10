@@ -47,6 +47,7 @@ import { Announcer, DragHandle, moveItem, useDragOrder } from "./reorder.tsx";
 /** What every value's control needs to know about where it is. */
 export type ValueContext = {
 	siteId: string;
+	postTypeId?: string;
 	/** Makes control ids unique on the page (`entry`, `globals`, `default`). */
 	idPrefix: string;
 	/** The language being written; shared Fields are written in the Default language whatever the tab. */
@@ -384,6 +385,7 @@ function LeafValue({
 			return (
 				<LeafFrame field={field} control={control} context={context} labelAs="span">
 					<BodyEditor
+						postTypeId={context.postTypeId}
 						siteId={context.siteId}
 						id={control.id}
 						labelledBy={control.labelId}

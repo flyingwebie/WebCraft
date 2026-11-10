@@ -11,6 +11,7 @@ import {
 	isAdminLanguage,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
+	PASTE_MAX_LENGTH,
 	type PageEditing,
 	RateLimitedError,
 	REVIEW_LIMITS,
@@ -18,6 +19,7 @@ import {
 	type SiteHost,
 	type SiteScope,
 } from "@webcraft/core";
+import { BODY_LIMITS } from "@webcraft/renderer";
 import { z } from "zod";
 
 import { clientAddress } from "../client-address.ts";
@@ -78,6 +80,8 @@ const barWordsOf = (messages: typeof en) => ({
 	viaTranslation: messages.coEditing.viaTranslation,
 	someone: messages.coEditing.someone,
 	publishedBy: messages.coEditing.publishedBy,
+	// The block editor's words, shared with the admin's (#79).
+	body: messages.body,
 });
 const BAR_WORDS: Record<AdminLanguageCode, ReturnType<typeof barWordsOf>> = { en: barWordsOf(en), it: barWordsOf(it) };
 
@@ -172,8 +176,14 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "", 0));
 		return response;
 	},
-	/** Saves a value typed in place to the Draft. */
+	/** Saves a value typed in place to the Draft (a body's Blocks too, when the shared Draft isn't open). */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
+	/** The block editor: a body's Blocks in the page's language, and the Blocks and Components it may add. */
+	"body/get": async (services, session, body) =>
+		json(200, await services.editMode.body(session, parse(bodyRegion, body))),
+	/** What was pasted into a body, converted to Blocks (HTML, Markdown or plain text); nothing is saved. */
+	"body/paste": async (services, session, body) =>
+		json(200, await services.editMode.pasteBody(session, parse(bodyPaste, body))),
 	/** Page details: the page's Entry's values that don't show on the page, with their fallbacks. */
 	details: async (services, session, body) =>
 		json(200, await services.editMode.details(session, parse(detailsItem, body))),
@@ -337,8 +347,20 @@ const pageChange = z.object({ path: z.string().max(2000), item: z.string().max(1
 const regionChange = z.object({
 	item: z.string().max(100),
 	field: z.string().max(200),
-	value: z.string().max(200_000),
+	/** Text, rich text's HTML, or a body's Blocks (the block editor's region). */
+	value: z.union([z.string().max(200_000), z.array(z.unknown()).max(BODY_LIMITS.blocks), z.null()]),
 	language: z.string().max(35).optional(),
+});
+
+const bodyRegion = z.object({
+	item: z.string().max(100),
+	field: z.string().max(200),
+	language: z.string().max(35).optional(),
+});
+
+const bodyPaste = bodyRegion.extend({
+	html: z.string().max(PASTE_MAX_LENGTH).optional(),
+	text: z.string().max(PASTE_MAX_LENGTH).optional(),
 });
 
 const imageChange = z.object({

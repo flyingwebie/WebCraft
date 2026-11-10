@@ -449,3 +449,91 @@ describe("the Body field", () => {
 		]);
 	});
 });
+
+test("Body formats keep published Components and their Props", async () => {
+	const siteId = site.siteId;
+	const { component } = await site.staff.api.components.create({
+		siteId,
+		name: "Note",
+		props: [{ key: "text", label: "Text", type: "text" }],
+	});
+	await site.staff.api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		markup: "<aside>{{ props.text }}</aside>",
+	});
+	await site.staff.api.components.publish({ siteId, componentId: component.id });
+	const { postTypes } = await site.staff.api.postTypes.list({ siteId });
+	const postType = postTypes.find((each) => each.key === "recipes");
+	if (!postType) throw new Error("Recipes missing");
+	await site.staff.api.postTypes.update({
+		siteId,
+		postTypeId: postType.id,
+		fields: postType.fields.map((field) => (field.type === "body" ? { ...field, components: [component.id] } : field)),
+	});
+	const { entry } = await site.staff.api.entries.create({
+		siteId,
+		postTypeId: postType.id,
+		title: "Note",
+		fields: { body: [{ type: "component", component: component.id, props: [{ name: "text", value: "Fresh bread" }] }] },
+	});
+	await site.staff.api.entries.publish({ siteId, entryId: entry.id });
+	const { response, body } = await site.frontend().json<{ entry: Item }>(`/entries/recipes/${entry.id}?body=markdown`);
+	expect(response.status).toBe(200);
+	expect(body.entry.fields.body).toBe('<Note text="Fresh bread" />');
+	await site.staff.api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		markup: "<p>Unpublished Component change</p>",
+	});
+	const html = await site.frontend().json<{ entry: Item }>(`/entries/recipes/${entry.id}?body=html`);
+	expect(html.response.status).toBe(200);
+	expect(html.body.entry.fields.body).toBe("<aside>Fresh bread</aside>");
+});
+
+test("Component Blocks respect hidden Globals and Relationship Fields in HTML", async () => {
+	const siteId = site.siteId;
+	const api = site.staff.api;
+	await api.globals.setFields({
+		siteId,
+		fields: [{ key: "wifi", label: "Wi-Fi", type: "text" }],
+	});
+	await api.globals.saveDraft({ siteId, fields: { wifi: "Secret password" } });
+	await api.globals.publish({ siteId });
+	const categoryId = await site.publish(site.categoriesId, "Pastries", { fields: { colour: "Gold" } });
+	const { component } = await api.components.create({
+		siteId,
+		name: "CategoryNote",
+		props: [{ key: "category", label: "Category", type: "relationship", postTypes: ["categories"] }],
+	});
+	await api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		markup: "<aside>{{ props.category.title }}|{{ props.category.colour }}|{{ site.wifi }}</aside>",
+	});
+	await api.components.publish({ siteId, componentId: component.id });
+	const { postTypes } = await api.postTypes.list({ siteId });
+	const postType = postTypes.find((each) => each.id === site.recipesId);
+	if (!postType) throw new Error("Recipes missing");
+	await api.postTypes.update({
+		siteId,
+		postTypeId: postType.id,
+		fields: postType.fields.map((field) =>
+			field.type === "body" ? { ...field, components: [...field.components, component.id] } : field,
+		),
+	});
+	const entryId = await site.publish(site.recipesId, "Pastry note", {
+		fields: {
+			body: [{ type: "component", component: component.id, props: [{ name: "category", value: categoryId }] }],
+		},
+	});
+	const read = () => site.frontend().json<{ entry: Item }>(`/entries/recipes/${entryId}?body=html`);
+	expect((await read()).body.entry.fields.body).toBe("<aside>Pastries|Gold|Secret password</aside>");
+	await api.contentApi.update({
+		siteId,
+		hidden: { fields: { [site.categoriesId]: ["colour"] }, globals: ["wifi"] },
+	});
+	expect((await read()).body.entry.fields.body).toBe("<aside>Pastries||</aside>");
+	await api.contentApi.update({ siteId, hidden: { postTypes: [site.categoriesId], globals: ["wifi"] } });
+	expect((await read()).body.entry.fields.body).toBe("<aside>||</aside>");
+});

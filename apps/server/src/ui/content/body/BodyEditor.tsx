@@ -7,7 +7,7 @@ import {
 	type CalloutTone,
 	type InlineText,
 	isSafeLink,
-	type ListItem,
+	newBlockId,
 	storedBlocks,
 	videoAt,
 } from "@webcraft/renderer/body";
@@ -43,8 +43,19 @@ import {
 	Trash2Icon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-
+import { type ClipboardEvent, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+	caretOffset,
+	caretOnEdgeLine,
+	joinRuns,
+	placeCaret,
+	runsLength,
+	runsToHtml,
+	splitRuns,
+} from "../../../body-editor/inline-dom.ts";
+import { type BodyComponentChoice, newComponentBlock } from "../../../body-editor/model.ts";
+import { getApi } from "../../api.ts";
+import { errorMessage } from "../../errors.ts";
 import { type MessageKey, useT } from "../../i18n.tsx";
 import { MediaPicker } from "../../media/MediaPicker.tsx";
 import type { MediaItem } from "../../media/preview.ts";
@@ -53,55 +64,27 @@ import { problemsWithin } from "../model.ts";
 import { LinkDialog } from "../RichTextEditor.tsx";
 import { Announcer, DragHandle, moveItem, useDragOrder } from "../reorder.tsx";
 import { BlockMenu } from "./BlockMenu.tsx";
-import { BLOCK_CHOICES, type BlockChoice, choiceOf, isTextBlock, newBlock, turnInto } from "./choices.ts";
+import { ComponentProps } from "./ComponentProps.tsx";
+import {
+	BLOCK_CHOICES,
+	type BlockChoice,
+	choiceOf,
+	isTextBlock,
+	itemsOf,
+	type Line,
+	linesOf,
+	newBlock,
+	SHORTCUTS,
+	turnInto,
+	WHOLE_SHORTCUTS,
+} from "./choices.ts";
 import { InlineEditor } from "./InlineEditor.tsx";
-import { caretOffset, caretOnEdgeLine, joinRuns, placeCaret, runsLength, splitRuns } from "./inline-dom.ts";
 
 /** A button of the toolbar. */
 type ToolbarButton = { id: string; label: MessageKey; icon: LucideIcon; run(): void };
 
 /** Where the caret goes once the editor has drawn a change: an editable part of a Block, at a position. */
 type FocusRequest = { key: string; offset: number | "start" | "end" };
-
-/** One line of a list as the editor shows it: its depth (0 at the top) and its text. */
-type Line = { depth: number; text: InlineText };
-
-function linesOf(items: readonly ListItem[], depth = 0): Line[] {
-	return items.flatMap((item) => [{ depth, text: item.text }, ...linesOf(item.items ?? [], depth + 1)]);
-}
-
-/** A list's items from its lines: each line under the closest line before it that is less deep. */
-function itemsOf(lines: readonly Line[]): ListItem[] {
-	const root: ListItem[] = [];
-	const stack: { depth: number; items: ListItem[] }[] = [{ depth: -1, items: root }];
-	for (const line of lines) {
-		while ((stack.at(-1)?.depth ?? -1) >= line.depth) stack.pop();
-		const parent = stack.at(-1) ?? { depth: -1, items: root };
-		const item: ListItem = { text: line.text };
-		parent.items.push(item);
-		item.items = [];
-		stack.push({ depth: Math.min(line.depth, parent.depth + 1), items: item.items });
-	}
-	const tidy = (items: ListItem[]): ListItem[] =>
-		items.map((item) =>
-			item.items && item.items.length > 0 ? { text: item.text, items: tidy(item.items) } : { text: item.text },
-		);
-	return tidy(root);
-}
-
-/** The Markdown a paragraph can start with, and the Block it turns into (`## ` gives a heading). */
-const SHORTCUTS: Readonly<Record<string, string>> = {
-	"##": "heading2",
-	"###": "heading3",
-	"####": "heading4",
-	"-": "bulleted",
-	"*": "bulleted",
-	"1.": "numbered",
-	">": "quote",
-};
-
-/** The Markdown that turns a paragraph into a Block as soon as it is the whole paragraph. */
-const WHOLE_SHORTCUTS: Readonly<Record<string, string>> = { "```": "code", "---": "divider" };
 
 const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -115,6 +98,7 @@ const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(n
  */
 export function BodyEditor({
 	siteId,
+	postTypeId,
 	id,
 	labelledBy,
 	describedBy,
@@ -129,6 +113,7 @@ export function BodyEditor({
 	onChange,
 }: {
 	siteId: string;
+	postTypeId?: string;
 	id: string;
 	labelledBy: string;
 	describedBy?: string;
@@ -148,6 +133,8 @@ export function BodyEditor({
 		const stored = storedBlocks(value);
 		return stored.length > 0 ? stored : [newBlock(BLOCK_CHOICES[0] as BlockChoice)];
 	});
+	const latestBlocks = useRef(blocks);
+	latestBlocks.current = blocks;
 	// A Block whose text the editor changed itself starts its editable parts again.
 	const [versions, setVersions] = useState<Record<string, number>>({});
 	const [menu, setMenu] = useState<{ after: string | null; slash: boolean } | null>(null);
@@ -160,6 +147,70 @@ export function BodyEditor({
 	const linkButton = useRef<HTMLButtonElement>(null);
 	const allowed = BLOCK_CHOICES.filter((choice) => !blocksOff.includes(choice.type));
 	const language = lang ?? "en";
+	const [components, setComponents] = useState<BodyComponentChoice[]>([]);
+	const [componentForm, setComponentForm] = useState<{
+		component: BodyComponentChoice;
+		block?: Extract<Block, { type: "component" }>;
+		after: string | null;
+		slash: boolean;
+	} | null>(null);
+	useEffect(() => {
+		if (!postTypeId) return;
+		let active = true;
+		void getApi()
+			.then((api) => api.entries.bodyComponents({ siteId, postTypeId }))
+			.then((result) => {
+				if (active) setComponents(result.components);
+			})
+			.catch((error) => {
+				if (active) setAnnouncement(t(errorMessage(error)));
+			});
+		return () => {
+			active = false;
+		};
+	}, [siteId, postTypeId, t]);
+	const chooseComponent = (component: BodyComponentChoice) => {
+		setComponentForm({ component, after: menu?.after ?? null, slash: menu?.slash ?? false });
+		setMenu(null);
+	};
+
+	// Shared Draft updates are also visible in the admin. Only changed Blocks remount: a server echo
+	// adding translation metadata must not reset an editor's selection while they type.
+	useEffect(() => {
+		const incoming = storedBlocks(value);
+		const next = incoming.length > 0 ? incoming : [newBlock(BLOCK_CHOICES[0] as BlockChoice)];
+		const currentBlocks = latestBlocks.current;
+		const content = (block: Block) => {
+			const { source: _, ...rest } = block;
+			return JSON.stringify(rest);
+		};
+		if (
+			incoming.length === 0 &&
+			currentBlocks.length === 1 &&
+			currentBlocks[0]?.type === "paragraph" &&
+			runsLength(currentBlocks[0].text) === 0
+		)
+			return;
+		if (
+			next.length === currentBlocks.length &&
+			next.every((block, index) => content(block) === content(currentBlocks[index] as Block))
+		)
+			return;
+		const changed = next.filter((block) => {
+			const before = currentBlocks.find((each) => each.id === block.id);
+			return before && content(before) !== content(block);
+		});
+		const focused = [...editables.current].find(([, element]) => element === document.activeElement);
+		if (focused && changed.some((block) => focused[0].startsWith(`${block.id}:`)))
+			pending.current = { key: focused[0], offset: caretOffset(focused[1]) ?? "end" };
+		latestBlocks.current = next;
+		setBlocks(next);
+		setVersions((before) => {
+			const after = { ...before };
+			for (const block of changed) after[block.id] = (after[block.id] ?? 0) + 1;
+			return after;
+		});
+	}, [value]);
 
 	const checks = useMemo(
 		() =>
@@ -197,6 +248,7 @@ export function BodyEditor({
 	});
 
 	const commit = (next: Block[], remount: readonly string[] = [], focus?: FocusRequest) => {
+		latestBlocks.current = next;
 		setBlocks(next);
 		if (remount.length > 0) {
 			setVersions((before) => {
@@ -239,6 +291,59 @@ export function BodyEditor({
 	const insertAfter = (afterId: string | null, inserted: Block[], focus?: FocusRequest) => {
 		const index = afterId === null ? blocks.length : blocks.findIndex((block) => block.id === afterId) + 1;
 		commit([...blocks.slice(0, index), ...inserted, ...blocks.slice(index)], [], focus);
+	};
+
+	const paste = async (event: ClipboardEvent<HTMLDivElement>) => {
+		if (!postTypeId || !(event.target instanceof HTMLElement)) return;
+		const element = event.target.closest<HTMLElement>('[contenteditable="true"]');
+		const key = [...editables.current].find(([, each]) => each === element)?.[0];
+		if (!element || !key) return;
+		const blockId = key.split(":")[0];
+		if (!blockId) return;
+		event.preventDefault();
+		event.stopPropagation();
+		const files = [...event.clipboardData.files].filter((file) => file.type.startsWith("image/"));
+		const html = event.clipboardData.getData("text/html");
+		const text = event.clipboardData.getData("text/plain");
+		const selection = window.getSelection();
+		const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+		try {
+			const api = await getApi();
+			let added: Block[];
+			if (files.length > 0) {
+				if (blocksOff.includes("image")) return;
+				setAnnouncement(t("body.paste.uploading"));
+				added = [];
+				for (const file of files) {
+					const { media: item } = await api.media.upload({ siteId, file });
+					onMediaChosen(item);
+					added.push({ id: newBlockId(), type: "image", media: item.id });
+				}
+			} else added = (await api.entries.pasteBody({ siteId, postTypeId, html, text })).blocks;
+			if (!element.isConnected || added.length === 0) return;
+			const [only] = added;
+			if (added.length === 1 && only?.type === "paragraph" && range && element.contains(range.startContainer)) {
+				element.focus();
+				selection?.removeAllRanges();
+				selection?.addRange(range);
+				document.execCommand("insertHTML", false, runsToHtml(only.text));
+				return;
+			}
+			const current = latestBlocks.current;
+			const index = current.findIndex((block) => block.id === blockId);
+			const anchor = current[index];
+			if (!anchor) return;
+			const empty = anchor.type === "paragraph" && runsLength(anchor.text) === 0;
+			if (empty && added[0]) added[0] = { ...added[0], id: blockId };
+			const offset = empty ? index : index + 1;
+			commit([...current.slice(0, offset), ...added, ...current.slice(index + 1)], empty ? [blockId] : [], {
+				key: firstKey(added.at(-1) as Block),
+				offset: "end",
+			});
+			setAnnouncement(t("body.paste.added", { count: added.length }));
+		} catch (error) {
+			setAnnouncement(t(errorMessage(error)));
+		}
 	};
 
 	const remove = (blockId: string) => {
@@ -635,7 +740,13 @@ export function BodyEditor({
 	};
 
 	const blockLabel = (block: Block, index: number) =>
-		t("body.block", { type: t(choiceOf(block).label), number: index + 1 });
+		t("body.block", {
+			type:
+				block.type === "component"
+					? (components.find((each) => each.id === block.component)?.name ?? t("body.components.unknown"))
+					: t(choiceOf(block).label),
+			number: index + 1,
+		});
 
 	const offers = (id: string) => allowed.some((choice) => choice.id === id);
 	const choice = (id: string) => BLOCK_CHOICES.find((each) => each.id === id) as BlockChoice;
@@ -678,6 +789,7 @@ export function BodyEditor({
 		<div
 			className="data-[invalid=true]:border-destructive dark:bg-input/30 grid rounded-md border"
 			data-invalid={invalid ? true : undefined}
+			onPasteCapture={(event) => void paste(event)}
 		>
 			<div
 				ref={toolbar}
@@ -730,7 +842,15 @@ export function BodyEditor({
 						<PlusIcon aria-hidden="true" />
 						{t("body.toolbar.add")}
 					</Button>
-					{menu !== null && !menu.slash ? <BlockMenu choices={allowed} onChoose={choose} onClose={closeMenu} /> : null}
+					{menu !== null && !menu.slash ? (
+						<BlockMenu
+							components={components}
+							onComponent={chooseComponent}
+							choices={allowed}
+							onChoose={choose}
+							onClose={closeMenu}
+						/>
+					) : null}
 				</div>
 			</div>
 			<ol
@@ -770,29 +890,58 @@ export function BodyEditor({
 							notes={hasNotes ? <BlockNotes id={notesId} problems={within} checks={blockChecks} /> : null}
 							menu={
 								menu?.slash && menu.after === block.id ? (
-									<BlockMenu choices={allowed} onChoose={choose} onClose={closeMenu} />
+									<BlockMenu
+										components={components}
+										onComponent={chooseComponent}
+										choices={allowed}
+										onChoose={choose}
+										onClose={closeMenu}
+									/>
 								) : null
 							}
 						>
-							<BlockContent
-								key={`${block.id}-${versions[block.id] ?? 0}`}
-								siteId={siteId}
-								block={block}
-								label={blockLabel(block, index)}
-								describedBy={hasNotes ? notesId : undefined}
-								invalid={within.length > 0}
-								media={media}
-								onMediaChosen={onMediaChosen}
-								register={(part) => register(`${block.id}:${part}`)}
-								onFocusText={(part) => remember(block.id, `${block.id}:${part}`)}
-								onChange={(next) => change(block.id, () => next)}
-								onTyped={(text) => typed(block, text)}
-								textKeys={"text" in block && block.type !== "toggle" ? textKeys(block, index) : undefined}
-								lineKeys={block.type === "list" ? (lines, line) => lineKeys(block, index, lines, line) : undefined}
-								sharedKeys={(part) => (event, element) => {
-									sharedKeys(event, element, index, `${block.id}:${part}`);
-								}}
-							/>
+							{block.type === "component" ? (
+								<div className="grid gap-2 p-2">
+									<p className="font-medium">
+										{components.find((each) => each.id === block.component)?.name ?? t("body.components.unknown")}
+									</p>
+									<Button
+										type="button"
+										variant="outline"
+										ref={register(`${block.id}:control`)}
+										disabled={!components.some((each) => each.id === block.component)}
+										onClick={() => {
+											const component = components.find((each) => each.id === block.component);
+											if (component) setComponentForm({ component, block, after: null, slash: false });
+										}}
+									>
+										{t("body.components.edit", {
+											name:
+												components.find((each) => each.id === block.component)?.name ?? t("body.components.unknown"),
+										})}
+									</Button>
+								</div>
+							) : (
+								<BlockContent
+									key={`${block.id}-${versions[block.id] ?? 0}`}
+									siteId={siteId}
+									block={block}
+									label={blockLabel(block, index)}
+									describedBy={hasNotes ? notesId : undefined}
+									invalid={within.length > 0}
+									media={media}
+									onMediaChosen={onMediaChosen}
+									register={(part) => register(`${block.id}:${part}`)}
+									onFocusText={(part) => remember(block.id, `${block.id}:${part}`)}
+									onChange={(next) => change(block.id, () => next)}
+									onTyped={(text) => typed(block, text)}
+									textKeys={"text" in block && block.type !== "toggle" ? textKeys(block, index) : undefined}
+									lineKeys={block.type === "list" ? (lines, line) => lineKeys(block, index, lines, line) : undefined}
+									sharedKeys={(part) => (event, element) => {
+										sharedKeys(event, element, index, `${block.id}:${part}`);
+									}}
+								/>
+							)}
 						</BlockRow>
 					);
 				})}
@@ -800,6 +949,40 @@ export function BodyEditor({
 			<p id={`${id}-tips`} className="text-muted-foreground border-t px-3 py-2 text-xs">
 				{t("body.help")}
 			</p>
+			{componentForm ? (
+				<ComponentProps
+					siteId={siteId}
+					component={componentForm.component}
+					block={componentForm.block}
+					media={media}
+					onMediaChosen={onMediaChosen}
+					onClose={() => {
+						const target = componentForm.block?.id ?? componentForm.after;
+						setComponentForm(null);
+						if (target) {
+							const block = blocks.find((each) => each.id === target);
+							if (block) editables.current.get(firstKey(block))?.focus();
+						}
+					}}
+					onSave={(props) => {
+						const { component, block, after, slash } = componentForm;
+						setComponentForm(null);
+						if (block) {
+							change(block.id, () => ({ ...block, props }));
+							return;
+						}
+						const added = newComponentBlock(component.id, props);
+						const anchor = blocks.find((each) => each.id === after);
+						if (anchor?.type === "paragraph" && (slash || runsLength(anchor.text) === 0)) {
+							commit(
+								blocks.map((each) => (each.id === anchor.id ? { ...added, id: anchor.id } : each)),
+								[],
+								{ key: `${anchor.id}:control`, offset: "start" },
+							);
+						} else insertAfter(after, [added], { key: firstKey(added), offset: "start" });
+					}}
+				/>
+			) : null}
 			<LinkDialog open={linking} onOpenChange={setLinking} finalFocus={linkButton} onAdd={addLink} />
 			<Announcer message={announcement} />
 		</div>

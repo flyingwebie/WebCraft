@@ -4,6 +4,13 @@
 
 export { archiveParts } from "./archives.ts";
 export {
+	type BodyComponent,
+	bodyComponents,
+	entryBodyComponents,
+} from "./body-components.ts";
+export { type BodyFormat, ENTRY_BODY_FORMATS, exchangeMarkdown } from "./body-exchange.ts";
+export { PASTE_MAX_LENGTH, type Pasted, pasteBody, pastedBlocks } from "./body-paste.ts";
+export {
 	type Component,
 	type ComponentDeletion,
 	type ComponentDraftChange,
@@ -35,6 +42,7 @@ export {
 	ENTRY_TITLE_MAX_LENGTH,
 	type Entry,
 	type EntryDeletion,
+	type EntryReading,
 	type EntryStatus,
 	type EntryValues,
 	getEntry,

@@ -31,6 +31,8 @@ export type EditBarAssets = {
 	 * Drafts live (`@webcraft/core/draft-document`, built with Yjs into one file).
 	 */
 	drafts: EditAsset;
+	/** The block editor's body part (#79): the module the bar loads on pages showing a body (`body-editor/`). */
+	body: EditAsset;
 	/** Every file by its name. */
 	byName: ReadonlyMap<string, EditAsset>;
 };
@@ -50,7 +52,8 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const barStyles = await asset("bar", "css", BAR_STYLES, "text/css; charset=utf-8");
 	const pageStyles = await asset("page", "css", PAGE_STYLES, "text/css; charset=utf-8");
 	const drafts = await asset("drafts", "js", await draftsModule(), "text/javascript; charset=utf-8");
-	const config: EditingBarConfig = { styles: barStyles.path, drafts: drafts.path };
+	const body = await asset("body", "js", await bodyModule(), "text/javascript; charset=utf-8");
+	const config: EditingBarConfig = { styles: barStyles.path, drafts: drafts.path, body: body.path };
 	// The bar and its parts, each a self-contained function, in one file: the parts are made by the bar.
 	const parts = `{ images: ${imageTools.toString()}, loops: ${loopTools.toString()}, details: ${pageDetailsPanel.toString()} }`;
 	const source = `(${editingBar.toString()})(${JSON.stringify(config)}, ${parts});\n`;
@@ -66,7 +69,10 @@ async function makeAssets(): Promise<EditBarAssets> {
 		codeScript,
 		codeStyles,
 		drafts,
-		byName: new Map([script, pageStyles, barStyles, codeScript, codeStyles, drafts].map((file) => [file.name, file])),
+		body,
+		byName: new Map(
+			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body].map((file) => [file.name, file]),
+		),
 	};
 }
 
@@ -80,6 +86,21 @@ async function draftsModule(): Promise<string> {
 	const built = await Bun.build({ entrypoints: [entry], target: "browser", format: "esm", minify: true });
 	const [output] = built.outputs;
 	if (!built.success || !output) throw new Error(`The shared-Draft module couldn't be built: ${built.logs.join("; ")}`);
+	return output.text();
+}
+
+/**
+ * The block editor's body part as one ES module (`body-editor/edit-mode.ts`, with the editor model it
+ * shares with the admin), bundled by Bun from the sources the web process runs from. Loaded, it hands
+ * the part to the editing bar in an event.
+ */
+async function bodyModule(): Promise<string> {
+	// Resolved through the server package's own name, so it is found from the built bundle too.
+	const entry = Bun.resolveSync("@webcraft/server/body-editor/edit-mode", dirname(fileURLToPath(import.meta.url)));
+	const built = await Bun.build({ entrypoints: [entry], target: "browser", format: "esm", minify: true });
+	const [output] = built.outputs;
+	if (!built.success || !output)
+		throw new Error(`The block editor's module couldn't be built: ${built.logs.join("; ")}`);
 	return output.text();
 }
 

@@ -134,6 +134,8 @@ export const PROCEDURES = {
 	),
 	"entries.list": read("Lists the Entries of a Post Type, with their Draft and published values."),
 	"entries.get": read("One Entry: its built-in Fields, its Draft and its published version."),
+	"entries.pasteBody": internal(),
+	"entries.bodyComponents": read("The Components a Post Type's Body field allows, with their Props."),
 	"entries.create": write("Creates an Entry of a Post Type, its values in the Draft."),
 	"entries.saveDraft": write("Saves changes to an Entry's Draft."),
 	"entries.delete": write("Deletes an Entry, after a preview of the links it removes and a confirmation."),

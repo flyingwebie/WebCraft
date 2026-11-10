@@ -1,6 +1,7 @@
 import {
 	ALWAYS_ON_BLOCKS,
 	BLOCK_TYPES,
+	type BlockProp,
 	type BlockType,
 	bodyHasContent,
 	cleanRichText,
@@ -92,6 +93,12 @@ export type RichTextField = Common<"richText", string | null> & {
 export type BodyField = Common<"body", null> & {
 	/** The Block types Staff switched off: people can't add them, and those already there keep it from publishing. */
 	blocksOff: BlockType[];
+	/**
+	 * The Site's Components Members may place in the body (by id, in the order the `/` menu offers
+	 * them); none by default. A Block placing one no longer allowed stays, and keeps the Entry from
+	 * being published.
+	 */
+	components: string[];
 };
 export type NumberField = Common<"number", number | null> & {
 	min: number | null;
@@ -173,6 +180,8 @@ export type FieldInput = {
 	postTypes?: string[];
 	twoWay?: boolean;
 	blocksOff?: string[];
+	/** A Body field's allowed Components, by id. */
+	components?: string[];
 	fields?: FieldInput[];
 };
 
@@ -187,6 +196,8 @@ export type DefineContext = {
 	 * hold neither a Body field nor Relationships.
 	 */
 	owner: "postType" | "page" | "globals" | "component" | "moduleComponent" | "loop";
+	/** The ids of the Site's own Components, which a Body field may allow. */
+	componentIds?: ReadonlySet<string>;
 };
 
 /** Reports a problem with a setting, at a path below the Field (`maxLength`, `options[1].value`). */
@@ -205,7 +216,11 @@ export type BrokenRule = { rule: string; message: string; within?: string };
  */
 export type Reference =
 	| { kind: "entries"; ids: string[]; postTypes: readonly string[] }
-	| { kind: "media"; ids: string[] };
+	| { kind: "media"; ids: string[] }
+	| { kind: "components"; ids: string[]; placements: BodyPlacement[] };
+
+/** A Component placed in a body, as its Block holds it, and where the Block is in the value (`[2]`). */
+export type BodyPlacement = { within: string; component: string; props: BlockProp[] };
 
 /**
  * A value written as plain text (a cell of a CSV file), as a Field type reads it:
@@ -234,6 +249,8 @@ export type ValueSpec<Field extends LeafField> = {
 		field: Field,
 		fail: (message: string, within?: string) => null,
 		refer: (reference: Reference) => void,
+		/** The value it replaces in the same language, if any: a body keeps Components placed before. */
+		previous?: Json,
 	): Json;
 	/** Reads a stored value; null when it isn't one this Field holds (its settings changed since). */
 	read(stored: unknown, field: Field): Json;
@@ -388,14 +405,49 @@ const body: FieldTypeSpec<BodyField> = {
 				});
 			}
 		}
-		return { blocksOff: BLOCK_TYPES.filter((type) => blocksOff.includes(type)) };
+		const components: string[] = [];
+		if (input.components !== undefined && input.components !== null) {
+			if (!Array.isArray(input.components)) {
+				report("components", "componentsList", "The Components a body allows are a list of Component ids.");
+			} else {
+				input.components.forEach((id, index) => {
+					if (typeof id !== "string" || !context.componentIds?.has(id)) {
+						report(`components[${index}]`, "componentUnknown", `The Site has no Component ${String(id)}.`);
+					} else if (!components.includes(id)) {
+						components.push(id);
+					}
+				});
+			}
+		}
+		return { blocksOff: BLOCK_TYPES.filter((type) => blocksOff.includes(type)), components };
 	},
 	value: {
 		empty: () => [],
-		parse(input, _field, fail) {
+		parse(input, field, fail, refer, previous) {
 			const { blocks, problems } = readBody(input);
 			for (const problem of problems) fail(problem.message, problem.at);
 			if (problems.length > 0) return null;
+			// A Component goes in only where the Field allows it. One placed before keeps its place (Staff
+			// may have stopped allowing it since): it is listed in `problems` instead, so nothing else is lost.
+			const placedBefore = new Set(
+				storedBlocks(previous).flatMap((block) =>
+					block.type === "component" ? [`${block.id} ${block.component}`] : [],
+				),
+			);
+			let refused = false;
+			const placements: BodyPlacement[] = [];
+			blocks.forEach((block, index) => {
+				if (block.type !== "component") return;
+				if (!field.components.includes(block.component) && !placedBefore.has(`${block.id} ${block.component}`)) {
+					refused = true;
+					fail("This Body field doesn't allow that Component.", `[${index}].component`);
+				}
+				placements.push({ within: `[${index}]`, component: block.component, props: block.props });
+			});
+			if (refused) return null;
+			if (placements.length > 0) {
+				refer({ kind: "components", ids: [...new Set(placements.map((each) => each.component))], placements });
+			}
 			return blocks.length === 0 ? null : (blocks as unknown as Json);
 		},
 		read: (stored) => (Array.isArray(stored) ? stored : null),
@@ -413,7 +465,7 @@ const body: FieldTypeSpec<BodyField> = {
 		rules(value, field) {
 			const broken: BrokenRule[] = [];
 			storedBlocks(value).forEach((block, index) => {
-				if (field.blocksOff.includes(block.type)) {
+				if (block.type !== "component" && field.blocksOff.includes(block.type)) {
 					broken.push({
 						rule: "blockType",
 						within: `[${index}]`,
@@ -423,16 +475,40 @@ const body: FieldTypeSpec<BodyField> = {
 				if (block.type === "video" && block.url !== "" && !videoAt(block.url)) {
 					broken.push({ rule: "video", within: `[${index}].url`, message: "A video is on YouTube or Vimeo." });
 				}
+				if (block.type === "component" && !field.components.includes(block.component)) {
+					broken.push({
+						rule: "component",
+						within: `[${index}].component`,
+						message: "This Body field doesn't allow that Component any more.",
+					});
+				}
 			});
 			return broken;
 		},
 		isEmpty: (value) => !bodyHasContent(storedBlocks(value)),
-		references: (value) =>
-			storedBlocks(value).flatMap((block, index) =>
-				block.type === "image" && block.media
-					? [{ kind: "media" as const, ids: [block.media], within: `[${index}].media` }]
-					: [],
-			),
+		references: (value) => {
+			const blocks = storedBlocks(value);
+			const placements: BodyPlacement[] = blocks.flatMap((block, index) =>
+				block.type === "component" ? [{ within: `[${index}]`, component: block.component, props: block.props }] : [],
+			);
+			return [
+				...blocks.flatMap((block, index) =>
+					block.type === "image" && block.media
+						? [{ kind: "media" as const, ids: [block.media], within: `[${index}].media` }]
+						: [],
+				),
+				...(placements.length > 0
+					? [
+							{
+								kind: "components" as const,
+								ids: [...new Set(placements.map((each) => each.component))],
+								placements,
+								within: "",
+							},
+						]
+					: []),
+			];
+		},
 	},
 };
 

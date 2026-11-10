@@ -14,9 +14,10 @@ import {
 	type BlockSource,
 	BODY_LIMITS,
 	blockSpec,
+	type ComponentBlock,
 	type HeadingBlock,
 	type HoldEmbed,
-	isBlockType,
+	isBodyBlockType,
 } from "./blocks.ts";
 import { inlineText, type Report, renderInline } from "./inline.ts";
 
@@ -54,8 +55,8 @@ export function readBody(input: unknown): { blocks: Block[]; problems: BodyProbl
 			return;
 		}
 		const { id: givenId, type, source, ...settings } = item as Record<string, unknown>;
-		if (!isBlockType(type)) {
-			report(`${here}.type`, `A Block's type is one of ${BLOCK_TYPES.join(", ")}.`);
+		if (!isBodyBlockType(type)) {
+			report(`${here}.type`, `A Block's type is one of ${BLOCK_TYPES.join(", ")}, or component.`);
 			return;
 		}
 		if (givenId !== undefined && (typeof givenId !== "string" || !BLOCK_ID.test(givenId))) {
@@ -241,6 +242,14 @@ export type RenderBodyOptions = {
 	held?: HoldEmbed;
 	/** Edit mode's tags for an image Block's image, by the Block's id (see `BodyRenderContext.imageRegion`). */
 	imageRegion?: (blockId: string) => readonly (readonly [string, string])[] | undefined;
+	/** What a Component Block shows (see `BodyRenderContext.component`). */
+	component?: (block: ComponentBlock) => string;
+	/**
+	 * Edit mode: marks each Block with HTML comments (`<!--wc-block <id>-->` … `<!--/wc-block-->`), so
+	 * the block editor finds what each one shows (a Component's elements included) without changing
+	 * the page's layout. Absent for the pages visitors get.
+	 */
+	markBlocks?: boolean;
 };
 
 /**
@@ -256,7 +265,8 @@ export function renderBody(blocks: readonly Block[], options: RenderBodyOptions)
 		// In Edit mode an image Block with no image yet is still there, to choose one in.
 		const regionOnly = block.type === "image" && options.imageRegion !== undefined;
 		if (block.type !== "divider" && !spec.hasContent(block) && !regionOnly) continue;
-		html += spec.render(block, context);
+		const shown = spec.render(block, context);
+		html += options.markBlocks ? `<!--wc-block ${block.id}-->${shown}<!--/wc-block-->` : shown;
 	}
 	return html;
 }

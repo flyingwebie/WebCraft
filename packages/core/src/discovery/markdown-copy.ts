@@ -9,6 +9,7 @@ import {
 	storedBlocks,
 } from "@webcraft/renderer";
 
+import { componentNames } from "../content/body-components.ts";
 import { entryValues } from "../content/entries.ts";
 import type { FieldDefinition, Json } from "../content/field-types.ts";
 import type { Languages } from "../content/field-values.ts";
@@ -85,7 +86,17 @@ export async function markdownCopy(list: Listing, pathname: string): Promise<Mar
 	if (fields) lines.push("", fields);
 	const body = postType.fields.find((field) => field.type === "body");
 	const blocks = body ? storedBlocks(values.fields[body.key]) : [];
-	const text = bodyMarkdown(blocks, { link: resolve.link, image: resolve.image });
+	const names = blocks.some((block) => block.type === "component")
+		? await componentNames(list.scope)
+		: new Map<string, string>();
+	const text = bodyMarkdown(blocks, {
+		link: resolve.link,
+		image: resolve.image,
+		component: (block) => {
+			const name = names.get(block.component);
+			return name ? { name } : undefined;
+		},
+	});
 	if (text) lines.push("", text);
 	return { text: `${lines.join("\n")}\n`, canonical };
 }

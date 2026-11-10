@@ -32,6 +32,7 @@ export const TOOL_PLACES = {
 	"postTypes.data": place(["structure"], "structure.edit"),
 	"entries.list": place(["content"], "site.view"),
 	"entries.get": place(["content"], "site.view"),
+	"entries.bodyComponents": place(["content"], "site.view"),
 	"entries.create": place(["content"], "entry.edit"),
 	"entries.saveDraft": place(["content"], "entry.edit"),
 	"entries.delete": place(["content"], "entry.delete"),

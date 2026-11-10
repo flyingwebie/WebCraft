@@ -364,7 +364,7 @@ describe("what Templates read from a body", () => {
 });
 
 describe("in Edit mode", () => {
-	test("the body shows its Draft and isn't an editable region (Blocks are edited in the admin for now)", async () => {
+	test("the body shows its Draft, as the block editor's region with each Block marked", async () => {
 		await template("<article><h1>{{ title }}</h1><div>{{ body }}</div></article>");
 		const slug = `article-${++articles}`;
 		const { entry } = await editor.api.entries.create({
@@ -383,9 +383,10 @@ describe("in Edit mode", () => {
 
 		const editing = await openEditMode(install, editor, siteId, `/articles/${slug}`);
 		const main = mainOf(await (await editing.page(`/articles/${slug}`)).text());
-		expect(main).toContain('<div><aside class="wc-callout" data-tone="info"><p>Draft text.</p></aside></div>');
+		expect(main).toMatch(
+			/<div data-wc-item="entry:[^"]+" data-wc-field="body" data-wc-type="body" data-wc-label="Body" data-wc-id="[^"]+"><!--wc-block [^ ]+--><aside class="wc-callout" data-tone="info"><p>Draft text.<\/p><\/aside><!--\/wc-block--><\/div>/,
+		);
 		expect(main).toContain(`data-wc-item="entry:${entry.id}" data-wc-field="title"`);
-		expect(main).not.toContain('data-wc-field="body"');
 
 		// Visitors still see what is published.
 		expect(mainOf(await (await install.request(onSite(`/articles/${slug}`))).text())).toContain(

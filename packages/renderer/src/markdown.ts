@@ -17,7 +17,7 @@ export function escapeMarkdown(text: string): string {
 	return text
 		.replace(INLINE_SPECIAL, (character) => `\\${character}`)
 		.split("\n")
-		.map((line) => line.replace(/^(\s*)([#+\-=])/, "$1\\$2").replace(/^(\s*\d+)([.)])/, "$1\\$2"))
+		.map((line) => line.replace(/^(\s*)([#+\-=:])/, "$1\\$2").replace(/^(\s*\d+)([.)])/, "$1\\$2"))
 		.join("\n");
 }
 

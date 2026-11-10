@@ -71,6 +71,7 @@ describe("defining a Body field", () => {
 			translatable: true,
 			default: null,
 			blocksOff: [],
+			components: [],
 		});
 
 		const { postType: changed } = await staff.api.postTypes.update({

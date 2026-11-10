@@ -129,6 +129,25 @@ export type BarKit = {
 	pickImage(options: { title: string; current: string | null; from: HTMLElement | null }): Promise<MediaChoice | null>;
 	/** Opens the image popover for an image region (a part's own image regions open it too). */
 	openImage?(region: HTMLElement): void;
+	/** One of the page's shared Drafts (`entry:<id>`, `globals`), once it is open; null before or without it. */
+	shared(item: string): SharedDraft | null;
+};
+
+/**
+ * One of the page's shared Drafts (Co-editing, ADR 0025), as a part changes it: what its copy holds
+ * (the Draft as its document does: values by key and language), a change made at once and sent with
+ * the next batch, and others' changes as they come.
+ */
+export type SharedDraft = {
+	/** Whether it has the server's document yet (nothing can be changed before). */
+	ready(): boolean;
+	draft(): unknown;
+	/** Changes the Draft to what `next` makes of it; false while it can't be changed (read-only, not ready). */
+	change(next: (current: unknown) => unknown): boolean;
+	/** Hears changes others make; answers what stops hearing them. */
+	listen(listener: (draft: unknown) => void): () => void;
+	/** Sends what is waiting and waits (a few seconds at most) until the server saved it; false if it didn't. */
+	saved(): Promise<boolean>;
 };
 
 /** What `kit.panel` takes: everything the mechanic needs but what the caller's own panel differs in. */
@@ -199,4 +218,16 @@ export type DetailsPanel = {
 	open(from: HTMLElement | null): void;
 	close(returnFocus: boolean): void;
 	isOpen(): boolean;
+};
+
+/** What the body part (the block editor in Edit mode, #79) gives the bar back. */
+export type BodyTools = {
+	/** Makes the body regions inside `scope` editable Block by Block (again after a part of the page changed). */
+	setUp(scope: ParentNode): void;
+	/** Edit turned on or off (Preview, Edit mode ended): the bodies stop or start being edited. */
+	mode(on: boolean): void;
+	/** The bodies others may be in. */
+	targets(): PresenceTarget[];
+	/** Closes what is open (Escape outside, another panel opening). */
+	close(): void;
 };

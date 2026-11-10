@@ -934,6 +934,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -1089,6 +1097,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
@@ -1413,6 +1429,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -1568,6 +1592,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
@@ -1788,6 +1820,10 @@
 										"type": "string",
 										"minLength": 2,
 										"maxLength": 35
+									},
+									"bodyFormat": {
+										"enum": ["blocks", "markdown"],
+										"type": "string"
 									}
 								},
 								"required": ["siteId", "postTypeId"]
@@ -1841,9 +1877,61 @@
 										"type": "string",
 										"minLength": 2,
 										"maxLength": 35
+									},
+									"bodyFormat": {
+										"enum": ["blocks", "markdown"],
+										"type": "string"
 									}
 								},
 								"required": ["siteId", "entryId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/entries/bodyComponents": {
+			"post": {
+				"operationId": "entries.bodyComponents",
+				"summary": "The Components a Post Type's Body field allows, with their Props.",
+				"tags": ["entries"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"postTypeId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "postTypeId"]
 							}
 						}
 					}
@@ -1990,6 +2078,10 @@
 												]
 											}
 										}
+									},
+									"bodyFormat": {
+										"enum": ["blocks", "markdown"],
+										"type": "string"
 									}
 								},
 								"required": ["siteId", "postTypeId", "title"]
@@ -2138,6 +2230,10 @@
 												]
 											}
 										}
+									},
+									"bodyFormat": {
+										"enum": ["blocks", "markdown"],
+										"type": "string"
 									}
 								},
 								"required": ["siteId", "entryId"]
@@ -2496,6 +2592,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -2651,6 +2755,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
@@ -5979,6 +6091,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -6134,6 +6254,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
@@ -6362,6 +6490,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -6517,6 +6653,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
@@ -6806,6 +6950,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -6961,6 +7113,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
@@ -8525,6 +8685,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -8680,6 +8848,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
@@ -8943,6 +9119,14 @@
 														"maxLength": 100
 													}
 												},
+												"components": {
+													"type": "array",
+													"maxItems": 100,
+													"items": {
+														"type": "string",
+														"maxLength": 200
+													}
+												},
 												"fields": {
 													"type": "array",
 													"maxItems": 200,
@@ -9098,6 +9282,14 @@
 																"items": {
 																	"type": "string",
 																	"maxLength": 100
+																}
+															},
+															"components": {
+																"type": "array",
+																"maxItems": 100,
+																"items": {
+																	"type": "string",
+																	"maxLength": 200
 																}
 															},
 															"fields": {
