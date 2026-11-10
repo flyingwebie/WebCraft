@@ -1,7 +1,8 @@
 // Install health and the Error log in the admin, in light and dark: the confirmation dialogs for
 // Discard and Retry all from the keyboard, a cause's details opened from the keyboard (its stack
-// scrolls), and the banner across the admin while part of the Install is Failing. Behaviour is
-// tested at seam 1 (tests/health, tests/errors); the screens themselves are lines of screens.ts.
+// scrolls), and the banner across the admin while part of the Install is Failing, shown once even
+// while the older Backup and SMTP banners would otherwise say the same thing. Behaviour is tested
+// at seam 1 (tests/health, tests/errors); the screens themselves are lines of screens.ts.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { samplePing } from "@webcraft/core";
 
@@ -24,9 +25,35 @@ beforeAll(async () => {
 		await local.clock.advance(2 * 60_000);
 	}
 	const admin = await local.superadmin();
+	const superadminId = (await admin.api.session.current()).person?.id ?? "";
 	await admin.api.errorLog.list({});
 	// A Backup that failed: Install health's last check says the Backups part is Failing.
 	await local.backup({ to: "/dev/null/backups/never.tar" }).catch(() => {});
+	// The Install SMTP Failing too, so the page should show Install health's banner for it once,
+	// not Install health's banner together with the older SmtpFailingBanner (review of #86).
+	await admin.api.install.smtp.update({
+		host: "smtp.agency.example",
+		port: 587,
+		security: "starttls",
+		username: "mailer@agency.example",
+		fromAddress: "noreply@agency.example",
+		replyTo: null,
+		password: "a long smtp password abcd",
+	});
+	local.mail.fail("421 4.7.0 Try again later");
+	await local.sendSystemEmail({
+		type: "api-token-created",
+		to: { personId: superadminId },
+		data: { tokenName: "first" },
+	});
+	await local.sendSystemEmail({
+		type: "api-token-created",
+		to: { personId: superadminId },
+		data: { tokenName: "second" },
+	});
+	await local.drainJobs();
+	await local.clock.advance(60_000);
+	await local.drainJobs();
 	await admin.api.installHealth.get({ refresh: true });
 });
 
@@ -44,7 +71,11 @@ for (const theme of THEMES) {
 
 			const banner = page.getByText("Part of the Install is failing");
 			await banner.waitFor({ state: "visible" });
-			expect(await page.getByText(/Failing now: .*Last Backup/).count()).toBeGreaterThan(0);
+			expect(await page.getByText(/Failing now: .*Last Backup.*Email \(SMTP\)/).count()).toBeGreaterThan(0);
+			// Backups and the Install SMTP are both Failing too, but Install health's banner says each
+			// once: the older, per-part banners don't also show (review of #86).
+			expect(await page.getByText("The last Backup failed").count()).toBe(0);
+			expect(await page.getByText("The Install SMTP is failing").count()).toBe(0);
 			await expectAccessibleScreen(page, `the health banner (${theme})`);
 			await page.getByRole("link", { name: "Open Install health" }).click();
 			await page.waitForURL(/\/install\/health$/);
