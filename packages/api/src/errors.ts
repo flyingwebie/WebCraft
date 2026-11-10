@@ -36,6 +36,8 @@ import {
 	ConfirmationInvalidError,
 	ConsentBannerInvalidError,
 	ConsentRecordNotFoundError,
+	ContentApiInvalidError,
+	ContentKeyNotFoundError,
 	CsvRefusedError,
 	DashboardInvalidError,
 	DashboardNotFoundError,
@@ -323,6 +325,17 @@ export function toApiError(error: unknown): unknown {
 			data: { problems: error.problems },
 			cause: error,
 		});
+	}
+	if (error instanceof ContentApiInvalidError) {
+		return new ORPCError("CONTENT_API_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof ContentKeyNotFoundError) {
+		return new ORPCError("CONTENT_KEY_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof ConsentRecordNotFoundError) {
 		return new ORPCError("CONSENT_RECORD_NOT_FOUND", { status: 404, message: error.message, cause: error });

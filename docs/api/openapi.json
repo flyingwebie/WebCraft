@@ -10697,6 +10697,297 @@
 				"x-webcraft-permissions": ["aiCrawlers.manage"]
 			}
 		},
+		"/contentApi/get": {
+			"post": {
+				"operationId": "contentApi.get",
+				"summary": "The Site's Content API: whether it is on, what it hides, its Content keys and where it answers.",
+				"tags": ["contentApi"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/contentApi/update": {
+			"post": {
+				"operationId": "contentApi.update",
+				"summary": "Switches the Site's Content API on or off and changes what it hides.",
+				"tags": ["contentApi"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"enabled": {
+										"type": "boolean"
+									},
+									"hidden": {
+										"type": "object",
+										"properties": {
+											"postTypes": {
+												"type": "array",
+												"maxItems": 1000,
+												"items": {
+													"type": "string",
+													"format": "uuid"
+												}
+											},
+											"fields": {
+												"type": "object",
+												"propertyNames": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"additionalProperties": {
+													"type": "array",
+													"maxItems": 1000,
+													"items": {
+														"type": "string",
+														"maxLength": 300
+													}
+												}
+											},
+											"globals": {
+												"type": "array",
+												"maxItems": 1000,
+												"items": {
+													"type": "string",
+													"maxLength": 300
+												}
+											}
+										}
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/contentApi/keys/create": {
+			"post": {
+				"operationId": "contentApi.keys.create",
+				"summary": "Makes a Content key for the Site's Content API; the key is answered once.",
+				"tags": ["contentApi"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"origins": {
+										"type": "array",
+										"maxItems": 40,
+										"items": {
+											"type": "string",
+											"maxLength": 300
+										}
+									}
+								},
+								"required": ["siteId", "name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/contentApi/keys/update": {
+			"post": {
+				"operationId": "contentApi.keys.update",
+				"summary": "Renames a Content key or changes its origins.",
+				"tags": ["contentApi"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"keyId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"origins": {
+										"type": "array",
+										"maxItems": 40,
+										"items": {
+											"type": "string",
+											"maxLength": 300
+										}
+									}
+								},
+								"required": ["siteId", "keyId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/contentApi/keys/revoke": {
+			"post": {
+				"operationId": "contentApi.keys.revoke",
+				"summary": "Revokes a Content key at once.",
+				"tags": ["contentApi"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"keyId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "keyId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
 		"/designSystem/get": {
 			"post": {
 				"operationId": "designSystem.get",

@@ -6,6 +6,7 @@ import { audit } from "./procedures/audit.ts";
 import { builder } from "./procedures/builder.ts";
 import { components } from "./procedures/components.ts";
 import { consentBanner } from "./procedures/consent.ts";
+import { contentApi } from "./procedures/content-api.ts";
 import { dashboards, dashboardTemplates } from "./procedures/dashboards.ts";
 import { designSystem } from "./procedures/design-system.ts";
 import { domains } from "./procedures/domains.ts";
@@ -83,6 +84,7 @@ export const apiRouter = {
 	csp,
 	consentBanner,
 	seoSettings,
+	contentApi,
 	designSystem,
 	builder,
 	media,

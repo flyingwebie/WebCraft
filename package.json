@@ -40,6 +40,7 @@
 		"test:browser": "bun test --timeout 120000 ./tests/browser/*.browser.ts",
 		"test:deploy": "bun scripts/test-deploy.ts",
 		"api:document": "WEBCRAFT_UPDATE_OPENAPI=1 bun test --timeout 30000 tests/api/openapi.test.ts && biome format --write docs/api/openapi.json",
+		"content-api:document": "WEBCRAFT_UPDATE_OPENAPI=1 bun test --timeout 30000 tests/content-api/openapi.test.ts && biome format --write docs/api/content-api.openapi.json",
 		"lint": "biome ci .",
 		"format": "biome check --write .",
 		"typecheck": "turbo run typecheck && tsc -p tsconfig.json",

@@ -25,6 +25,8 @@ const SHARE_LINK_PASSWORD_LABEL = "webcraft share link password v1";
 const API_TOKEN_LABEL = "webcraft api tokens hmac-sha256 key";
 const OAUTH_LABEL = "webcraft oauth codes and tokens hmac-sha256 key";
 const MCP_REQUEST_STATE_LABEL = "webcraft mcp request state hmac-sha256 key";
+const CONTENT_KEY_LABEL = "webcraft content keys hmac-sha256 key";
+const CONTENT_CURSOR_LABEL = "webcraft content api cursors hmac-sha256 key";
 const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
 
 type Derived = {
@@ -237,6 +239,36 @@ export async function apiTokenKey(masterKey: MasterKey): Promise<CryptoKey> {
 		{ name: "HMAC", hash: "SHA-256", length: 256 },
 		false,
 		["sign"],
+	);
+}
+
+/**
+ * The key Content keys are kept under (HMAC-SHA256): only a keyed hash of each key is stored, and a
+ * Content API request finds its key by hashing what it carries. Derived from the Master key, so a new
+ * Master key ends every Content key, as it ends every API token.
+ */
+export async function contentKeyKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(CONTENT_KEY_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key the Content API signs its cursors with (HMAC-SHA256): a cursor carries where a list stopped
+ * and which query it belongs to, and the signature keeps frontends from changing either. Every web
+ * process signs and checks the same, without storing anything.
+ */
+export async function contentCursorKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(CONTENT_CURSOR_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
 	);
 }
 
