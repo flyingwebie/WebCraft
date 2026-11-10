@@ -70,9 +70,9 @@ export async function markdownCopy(list: Listing, pathname: string): Promise<Mar
 	const seo = readEntrySeo(version.values, languages);
 	if (seo.noindex) return null;
 	const sitePath = await sitePathOf(list, page);
-	if ((await list.redirected([sitePath])).has(sitePath)) return null;
 	const there = placeOf(list.host.addresses, languages, sitePath);
 	const address = `${there.origin}${there.path}`;
+	if ((await list.redirected([{ sitePath, language: languages.language, loc: address }])).has(sitePath)) return null;
 	const canonical = seo.canonical
 		? canonicalOf({ addresses: list.host.addresses, languages: list.site }, seo.canonical)
 		: address;

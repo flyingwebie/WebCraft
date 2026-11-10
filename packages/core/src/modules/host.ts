@@ -254,6 +254,15 @@ export type ModuleHost = {
 		request: RedirectRequest,
 		paths: RedirectPaths,
 	): Promise<Pick<RedirectTarget, "to" | "status"> | null>;
+	/**
+	 * Which of many Site paths a rule (not one made to step aside where a page answers) would send
+	 * elsewhere, first hop only, for lists of a Site's pages (its sitemaps): the Module's `findMany`
+	 * (SDK 1.10) in one go, else its `find` for each path. Follow each with `redirectFor` for the
+	 * whole answer (chains, circles, targets that no longer exist). Never throws: a Module that fails
+	 * or takes longer than `FIND_MANY_TIMEOUT_MS` answers "no rule" for every path, said in the
+	 * Module log.
+	 */
+	pathsWithRules(site: Site, requests: readonly RedirectRequest[]): Promise<Set<string>>;
 	/** Whether this build has a Module keeping the 404 log (SDK 1.5). */
 	readonly keepsNotFoundLog: boolean;
 	/**
@@ -363,6 +372,9 @@ export const MAX_REDIRECT_HOPS = 5;
 
 /** How long the Site pipeline waits for a Module's `find`, in milliseconds. */
 export const FIND_TIMEOUT_MS = 500;
+
+/** How long a list of a Site's pages waits for a Module's rules for a batch of paths, in milliseconds. */
+export const FIND_MANY_TIMEOUT_MS = 5_000;
 
 /** How many distinct misses a web process gathers before it hands them over at once. */
 export const MISS_BATCH_SIZE = 500;
@@ -1083,6 +1095,57 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				await submissionKept(site, { ...submission, id: kept.id }, submission.sender, dailyId);
 			}
 			return { id: kept.id };
+		},
+
+		async pathsWithRules(site, requests) {
+			const found = new Set<string>();
+			const module = redirecting;
+			const rules = module?.redirects;
+			if (requests.length === 0 || !module || !rules || !(await runsOnSite(site, module))) return found;
+			const place: QueuedPlace = { level: "site", workspaceId: site.workspaceId, siteId: site.id };
+			const scope = await openForModule(module, place);
+			if (!scope) return found;
+			const context = moduleContext(module, scope, options);
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				const late = new Promise<"late">((resolve) => {
+					timer = setTimeout(() => resolve("late"), FIND_MANY_TIMEOUT_MS);
+				});
+				const asked = rules.findMany
+					? rules.findMany(requests, context)
+					: (async () => {
+							const answers: (RedirectTarget | null)[] = [];
+							for (const request of requests) answers.push(await rules.find(request, context));
+							return answers;
+						})();
+				const answers = await Promise.race([asked, late]);
+				if (answers === "late") {
+					await writeLine(
+						options,
+						module,
+						place,
+						"warn",
+						"Its Redirect rules took too long to answer for a list of pages.",
+						{
+							paths: requests.length,
+						},
+					).catch(() => {});
+					return found;
+				}
+				requests.forEach((request, index) => {
+					const target = answers[index];
+					if (target && !target.whereNoPage) found.add(request.path);
+				});
+				return found;
+			} catch (error) {
+				await writeLine(options, module, place, "warn", "Its Redirect rules failed for a list of pages.", {
+					error: describeError(error),
+				}).catch(() => {});
+				log.warn("A Module's Redirect rules failed", { moduleId: module.id, error });
+				return found;
+			} finally {
+				clearTimeout(timer);
+			}
 		},
 
 		async redirectFor(site, request, paths) {

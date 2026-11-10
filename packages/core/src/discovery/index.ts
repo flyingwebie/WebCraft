@@ -16,10 +16,11 @@
  * search engines.
  */
 
+import { canonicalPath, pathSegments } from "../content/url-patterns.ts";
 import { siteSeoSettings } from "../seo/site-settings.ts";
 import type { SiteHost } from "../site-pages/index.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
-import { type Listing, listing } from "./listed.ts";
+import { type Listing, listing, type RedirectedPage } from "./listed.ts";
 import { llmsAt, llmsText } from "./llms.ts";
 import { type MarkdownAnswer, markdownCopy } from "./markdown-copy.ts";
 import { robotsText } from "./robots.ts";
@@ -60,11 +61,20 @@ export type Discovery = {
 	markdown(host: SiteHost, pathname: string): Promise<MarkdownAnswer>;
 };
 
-export function createDiscovery(options: { data: DataLayer }): Discovery {
+/** Which of a domain's pages a Site's Redirect rules send elsewhere, by their Site paths. */
+export type RedirectedPages = (host: SiteHost, pages: readonly RedirectedPage[]) => Promise<Set<string>>;
+
+export function createDiscovery(options: { data: DataLayer; redirected?: RedirectedPages }): Discovery {
 	const { data } = options;
+	const redirected = options.redirected ?? (async () => new Set<string>());
 	const starts = createPartStarts();
 	const listingOf = (host: SiteHost): Promise<Listing> =>
-		listing(data.visitors(host.site), host, async () => new Set());
+		listing(data.visitors(host.site), host, async (pages) => {
+			// Rules name canonical Site paths (each segment encoded as in a URL).
+			const asked = pages.map((page) => ({ ...page, sitePath: canonicalPath(pathSegments(page.sitePath) ?? []) }));
+			const sent = await redirected(host, asked);
+			return new Set(pages.filter((_, index) => sent.has(asked[index]?.sitePath ?? "")).map((page) => page.sitePath));
+		});
 	return {
 		async robots(host) {
 			const settings = await siteSeoSettings(data.visitors(host.site));

@@ -56,11 +56,14 @@ export type Listing = {
 	/** Each language's published Page tree, read once when Pages are listed. */
 	trees: Map<string, Promise<PageTree>>;
 	/**
-	 * The Site paths among these a Redirect rule sends elsewhere ahead of its pages (by the Site path,
-	 * every language but the Default one under its prefix), so they aren't listed.
+	 * Which of these pages a Redirect rule sends elsewhere ahead of them, so they aren't listed: their
+	 * Site paths (every language but the Default one under its prefix).
 	 */
-	redirected(paths: readonly string[]): Promise<Set<string>>;
+	redirected(pages: readonly RedirectedPage[]): Promise<Set<string>>;
 };
+
+/** A page a Redirect rule may send elsewhere: its Site path, language and absolute address on the domain. */
+export type RedirectedPage = { sitePath: string; language: string; loc: string };
 
 /** An address a domain lists: its page in one language, when it last changed and its alternates. */
 export type ListedUrl = {
@@ -211,7 +214,7 @@ async function listBatch(
 		}
 		candidates.push({ id: row.id, postType, values: version, urls });
 	}
-	const redirected = await list.redirected(candidates.flatMap((entry) => entry.urls.map((url) => url.sitePath)));
+	const redirected = await list.redirected(candidates.flatMap((entry) => entry.urls));
 	for (const entry of candidates) {
 		const urls = entry.urls.filter((url) => !redirected.has(url.sitePath));
 		if (urls.length > 0) found.push({ ...entry, urls });
@@ -289,7 +292,7 @@ async function archiveEntry(list: Listing, postType: PostType): Promise<ListedEn
 	const urls = shown
 		.filter((place) => list.here.some((language) => language.code === place.language))
 		.map((place) => ({ loc: place.href, sitePath: place.path, language: place.language, lastmod, alternates }));
-	const redirected = await list.redirected(urls.map((url) => url.sitePath));
+	const redirected = await list.redirected(urls);
 	const kept = urls.filter((url) => !redirected.has(url.sitePath));
 	return kept.length > 0 ? { id: "", postType, values: null, urls: kept } : undefined;
 }

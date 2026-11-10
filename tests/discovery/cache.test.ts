@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
 import { readSitemap } from "../harness/xml.ts";
+import { freshBread, translatedSite } from "../translation/support.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -96,6 +97,21 @@ describe("cleared", () => {
 		await editor.api.publishing.publishAll({ siteId: site.siteId, items, confirmation });
 
 		expect(await blogSitemap(site.origin)).toEqual({ cache: "MISS", locs: ["/blog/fresh-bread", "/blog/rye-loaves"] });
+	});
+
+	test("by AI translation publishing a language's values", async () => {
+		const site = await translatedSite(install, { de: "automatic" });
+		const entryId = await freshBread(site);
+		await site.owner.api.entries.publish({ siteId: site.siteId, entryId });
+		const before = await install.request(`${site.origin}/de/llms.txt`);
+		expect(await before.text()).toContain("[Fresh bread]");
+		expect((await install.request(`${site.origin}/de/llms.txt`)).headers.get("x-cache")).toBe("HIT");
+
+		expect((await install.drainJobs()).failed).toEqual([]);
+
+		const after = await install.request(`${site.origin}/de/llms.txt`);
+		expect(after.headers.get("x-cache")).toBe("MISS");
+		expect(await after.text()).toContain("[\\[de\\] Fresh bread]");
 	});
 
 	test("by a change to a Post Type, which applies at once", async () => {
