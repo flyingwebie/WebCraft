@@ -21,6 +21,7 @@ import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
 import { Route as AdminServicesRouteImport } from './routes/_admin/services'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
 import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
+import { Route as OauthDeviceRouteImport } from './routes/oauth.device'
 import { Route as AdminAccountIndexRouteImport } from './routes/_admin/account.index'
 import { Route as AdminAccountActivityRouteImport } from './routes/_admin/account.activity'
 import { Route as AdminAccountAiClientsRouteImport } from './routes/_admin/account.ai-clients'
@@ -151,6 +152,11 @@ const AdminStaffRoute = AdminStaffRouteImport.update({
 const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
   id: '/oauth/authorize',
   path: '/oauth/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthDeviceRoute = OauthDeviceRouteImport.update({
+  id: '/oauth/device',
+  path: '/oauth/device',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminAccountIndexRoute = AdminAccountIndexRouteImport.update({
@@ -571,6 +577,7 @@ export interface FileRoutesByFullPath {
   '/services': typeof AdminServicesRoute
   '/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/device': typeof OauthDeviceRoute
   '/account/activity': typeof AdminAccountActivityRoute
   '/account/ai-clients': typeof AdminAccountAiClientsRoute
   '/account/api-tokens': typeof AdminAccountApiTokensRoute
@@ -654,6 +661,7 @@ export interface FileRoutesByTo {
   '/services': typeof AdminServicesRoute
   '/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/device': typeof OauthDeviceRoute
   '/': typeof AdminIndexRoute
   '/account/activity': typeof AdminAccountActivityRoute
   '/account/ai-clients': typeof AdminAccountAiClientsRoute
@@ -734,6 +742,7 @@ export interface FileRoutesById {
   '/_admin/services': typeof AdminServicesRoute
   '/_admin/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/device': typeof OauthDeviceRoute
   '/_admin/': typeof AdminIndexRoute
   '/_admin/account/activity': typeof AdminAccountActivityRoute
   '/_admin/account/ai-clients': typeof AdminAccountAiClientsRoute
@@ -822,6 +831,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/staff'
     | '/oauth/authorize'
+    | '/oauth/device'
     | '/account/activity'
     | '/account/ai-clients'
     | '/account/api-tokens'
@@ -905,6 +915,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/staff'
     | '/oauth/authorize'
+    | '/oauth/device'
     | '/'
     | '/account/activity'
     | '/account/ai-clients'
@@ -984,6 +995,7 @@ export interface FileRouteTypes {
     | '/_admin/services'
     | '/_admin/staff'
     | '/oauth/authorize'
+    | '/oauth/device'
     | '/_admin/'
     | '/_admin/account/activity'
     | '/_admin/account/ai-clients'
@@ -1066,6 +1078,7 @@ export interface RootRouteChildren {
   SignInRoute: typeof SignInRoute
   TwoFactorRoute: typeof TwoFactorRoute
   OauthAuthorizeRoute: typeof OauthAuthorizeRoute
+  OauthDeviceRoute: typeof OauthDeviceRoute
   BuilderSiteIdSplatRoute: typeof BuilderSiteIdSplatRoute
 }
 
@@ -1153,6 +1166,13 @@ declare module '@tanstack/react-router' {
       path: '/oauth/authorize'
       fullPath: '/oauth/authorize'
       preLoaderRoute: typeof OauthAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/device': {
+      id: '/oauth/device'
+      path: '/oauth/device'
+      fullPath: '/oauth/device'
+      preLoaderRoute: typeof OauthDeviceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_admin/account/': {
@@ -1941,6 +1961,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignInRoute: SignInRoute,
   TwoFactorRoute: TwoFactorRoute,
   OauthAuthorizeRoute: OauthAuthorizeRoute,
+  OauthDeviceRoute: OauthDeviceRoute,
   BuilderSiteIdSplatRoute: BuilderSiteIdSplatRoute,
 }
 export const routeTree = rootRouteImport

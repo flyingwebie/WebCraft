@@ -1,4 +1,4 @@
-import { type InstallServices, MCP_PATH, OAuthRequestError } from "@webcraft/core";
+import { DEVICE_CODE_GRANT, type InstallServices, MCP_PATH, OAuthRequestError } from "@webcraft/core";
 
 import { corsHeaders, preflight } from "./cors.ts";
 
@@ -11,7 +11,9 @@ import { corsHeaders, preflight } from "./cors.ts";
  * - `POST /oauth/register`: Dynamic Client Registration (RFC 7591);
  * - `GET /oauth/authorize`: the admin's approval page (`routes/oauth.authorize.tsx`), where a
  *   signed-in person approves the client;
- * - `POST /oauth/token`: codes (with PKCE) and refresh tokens for tokens;
+ * - `POST /oauth/device_authorization`: a device code and a user code (RFC 8628) for a client on a
+ *   device without a browser (`webcraft login`), approved at `/oauth/device`;
+ * - `POST /oauth/token`: codes (with PKCE), device codes and refresh tokens for tokens;
  * - `POST /oauth/revoke`: a client ends its grant (RFC 7009).
  *
  * Answers null for every other path.
@@ -96,9 +98,10 @@ const ENDPOINTS: Record<string, Endpoint> = {
 					token_endpoint: `${issuer}/oauth/token`,
 					registration_endpoint: `${issuer}/oauth/register`,
 					revocation_endpoint: `${issuer}/oauth/revoke`,
+					device_authorization_endpoint: `${issuer}/oauth/device_authorization`,
 					response_types_supported: ["code"],
 					response_modes_supported: ["query"],
-					grant_types_supported: ["authorization_code", "refresh_token"],
+					grant_types_supported: ["authorization_code", DEVICE_CODE_GRANT, "refresh_token"],
 					token_endpoint_auth_methods_supported: authMethods,
 					revocation_endpoint_auth_methods_supported: authMethods,
 					code_challenge_methods_supported: ["S256"],
@@ -119,6 +122,18 @@ const ENDPOINTS: Record<string, Endpoint> = {
 				throw new OAuthRequestError("invalid_client_metadata", "Send the client's metadata as JSON.");
 			}
 			return answer(request, 201, await services.oauth.register(metadata, clientAddress));
+		},
+	},
+	"/oauth/device_authorization": {
+		method: "POST",
+		async handle(services, request, clientAddress) {
+			const form = new URLSearchParams(await bodyText(request));
+			const answered = await services.oauth.deviceAuthorization(
+				form,
+				request.headers.get("authorization"),
+				clientAddress,
+			);
+			return answer(request, 200, answered);
 		},
 	},
 	"/oauth/token": {

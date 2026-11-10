@@ -2,6 +2,7 @@ import type { Database } from "@webcraft/db";
 import {
 	oauthClients,
 	oauthCodes,
+	oauthDeviceCodes,
 	oauthGrantSites,
 	oauthGrants,
 	oauthTokens,
@@ -25,7 +26,7 @@ import { isUuid } from "./ids.ts";
 import type { People } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { can, type GrantActor, type Reach } from "./permissions/can.ts";
-import type { RateLimitRule, RateLimits, RateLimitTally } from "./rate-limits.ts";
+import { RateLimitedError, type RateLimitRule, type RateLimits, type RateLimitTally } from "./rate-limits.ts";
 import type { Access, Executor, WorkspaceScope } from "./tenancy/data-layer.ts";
 import { SiteNotFoundError } from "./tenancy/errors.ts";
 import { newToken } from "./tokens.ts";
@@ -45,6 +46,11 @@ import { chosenToolsets, type ToolsetKey } from "./toolsets.ts";
  *    token (1 hour) and a refresh token (30 days, replaced each time it is used). A code or refresh
  *    token that comes back after it was used ends the grant: someone else may hold it.
  *
+ * A client on a device without a browser of its own (`webcraft login`) uses the device authorization
+ * grant (RFC 8628) instead: it asks for a device code and a short user code, shows the person the
+ * code and an address, and polls the token endpoint while they approve it on the same approval page
+ * (`/oauth/device`), choosing the same things. Its tokens are for the public Management API.
+ *
  * Codes, tokens and client secrets are never kept, only keyed hashes of them. A grant acts as its
  * person now (`GrantActor`, read fresh on every request), never beyond its Workspace and Sites, and
  * WebCraft revokes it once its person no longer reaches them, as it does API tokens.
@@ -53,6 +59,8 @@ import { chosenToolsets, type ToolsetKey } from "./toolsets.ts";
 /** How long codes and tokens last. */
 export const OAUTH_LIFETIMES = {
 	codeMs: 60_000,
+	/** A device code and its user code: the person has this long to approve it. */
+	deviceMs: 10 * 60_000,
 	accessMs: 60 * 60 * 1000,
 	refreshMs: 30 * 24 * 60 * 60 * 1000,
 } as const;
@@ -63,7 +71,30 @@ export const OAUTH_PREFIXES = {
 	access: "webcraft-at_",
 	refresh: "webcraft-rt_",
 	clientSecret: "webcraft-cs_",
+	deviceCode: "webcraft-dc_",
 } as const;
+
+/** The device authorization grant's type (RFC 8628 §3.4). */
+export const DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+
+/** How long a device client waits between polls at first (seconds); each poll too soon adds 5 (`slow_down`). */
+export const DEVICE_POLL_INTERVAL_SECONDS = 5;
+
+/** At most this many device codes an hour from one client address. */
+export const OAUTH_DEVICE_LIMIT: RateLimitRule = { limit: 30, windowMs: 60 * 60 * 1000 };
+
+/**
+ * At most this many user codes one person looks up in 15 minutes: a code has 20^8 possible values,
+ * and this keeps guessing one hopeless.
+ */
+export const OAUTH_USER_CODE_LIMIT: RateLimitRule = { limit: 20, windowMs: 15 * 60 * 1000 };
+
+/** The letters user codes are made of: consonants only, so no word is spelt by chance, none confusable. */
+const USER_CODE_LETTERS = "BCDFGHJKLMNPQRSTVWXZ";
+const USER_CODE_LENGTH = 8;
+
+/** Where the public Management API answers, on the admin host: the resource the CLI's tokens are for. */
+export const PUBLIC_API_PATH = "/api/v1";
 
 /** At most this many client registrations an hour from one client address. */
 export const OAUTH_REGISTRATION_LIMIT: RateLimitRule = { limit: 20, windowMs: 60 * 60 * 1000 };
@@ -99,6 +130,7 @@ export type RegisteredClient = {
 	client_id: string;
 	client_id_issued_at: number;
 	client_name: string;
+	/** Empty for a client that only uses device codes. */
 	redirect_uris: string[];
 	grant_types: string[];
 	response_types: string[];
@@ -148,7 +180,8 @@ export type GrantChoice = {
 /** A grant as its person sees it in Your account › AI clients. */
 export type OAuthGrantView = {
 	id: string;
-	client: { name: string; redirectHost: string };
+	/** `redirectHost` is null for a client approved with a device code: it sends nobody anywhere. */
+	client: { name: string; redirectHost: string | null };
 	workspace: { id: string; name: string };
 	sites: "all" | { id: string; name: string }[];
 	readOnly: boolean;
@@ -177,6 +210,40 @@ export type TokenAnswer = {
 	refresh_token: string;
 };
 
+/** What a device sign-in answers its client (RFC 8628 §3.2). */
+export type DeviceAuthorizationAnswer = {
+	device_code: string;
+	user_code: string;
+	verification_uri: string;
+	verification_uri_complete: string;
+	expires_in: number;
+	interval: number;
+};
+
+/**
+ * A user code as the approval page shows it: the request to show (`ask`), or why it can't be
+ * approved: no such code (`unknown`), too late (`expired`), or already approved or denied (`decided`).
+ */
+export type DeviceCheck =
+	| { kind: "ask"; request: { client: { id: string; name: string }; userCode: string } }
+	| { kind: "refused"; problem: "unknown" | "expired" | "decided" };
+
+/** A user code that can't be approved or denied (any more): see `DeviceCheck`'s problems. */
+export class DeviceCodeInvalidError extends Error {
+	override name = "DeviceCodeInvalidError";
+	readonly problem: "unknown" | "expired" | "decided";
+	constructor(problem: "unknown" | "expired" | "decided") {
+		super(
+			problem === "expired"
+				? "This code has expired. Start signing in again to get a new one."
+				: problem === "decided"
+					? "This code was already used."
+					: "There is no such code. Check the code your terminal shows.",
+		);
+		this.problem = problem;
+	}
+}
+
 /** The grant isn't one of the person's own. */
 export class OAuthGrantNotFoundError extends Error {
 	override name = "OAuthGrantNotFoundError";
@@ -188,8 +255,10 @@ export class OAuthGrantNotFoundError extends Error {
 export type OAuth = {
 	/** The authorization server's identifier (RFC 8414): the admin's origin. */
 	readonly issuer: string;
-	/** The MCP server's address, the resource every access token is for (RFC 8707). */
+	/** The MCP server's address, the resource an AI client's access tokens are for (RFC 8707). */
 	readonly resource: string;
+	/** The public Management API's address (`/api/v1`): what device sign-ins are for unless they ask for the MCP server. */
+	readonly apiResource: string;
 	/** Registers a client (RFC 7591), from `clientAddress`, rate-limited per address. */
 	register(metadata: unknown, clientAddress: string | null): Promise<RegisteredClient>;
 	/** Checks an authorization request before the person is shown it. */
@@ -206,15 +275,41 @@ export type OAuth = {
 	): Promise<{ redirectTo: string; grantId: string }>;
 	/** The person said no: where to send them back to, with `access_denied`. */
 	deny(parameters: AuthorizationParameters): Promise<{ redirectTo: string }>;
-	/** The token endpoint: an authorization code or refresh token for new tokens. */
+	/** The token endpoint: an authorization code, a device code or a refresh token for new tokens. */
 	token(form: URLSearchParams, authorization: string | null): Promise<TokenAnswer>;
+	/**
+	 * The device authorization endpoint (RFC 8628 §3.1): a device code and a user code for a client
+	 * registered for the device grant, from `clientAddress`, rate-limited per address.
+	 */
+	deviceAuthorization(
+		form: URLSearchParams,
+		authorization: string | null,
+		clientAddress: string | null,
+	): Promise<DeviceAuthorizationAnswer>;
+	/**
+	 * Looks up a user code the person typed on the approval page, at most `OAUTH_USER_CODE_LIMIT`
+	 * times per person (`RateLimitedError` past it).
+	 */
+	checkDevice(userCode: string, personId: string): Promise<DeviceCheck>;
+	/**
+	 * Approves a user code as the person acting in `workspace`: makes the grant, which the client's
+	 * next poll exchanges for tokens. Logged as `aiClient.approve`. Throws `DeviceCodeInvalidError`.
+	 */
+	approveDevice(
+		workspace: WorkspaceScope,
+		userCode: string,
+		choice: GrantChoice,
+	): Promise<{ grantId: string; client: string }>;
+	/** The person said no: the client's next poll is told `access_denied`. Throws `DeviceCodeInvalidError`. */
+	denyDevice(userCode: string): Promise<void>;
 	/** The revocation endpoint (RFC 7009): a client ends its grant with one of its tokens. */
 	revokeToken(form: URLSearchParams, authorization: string | null): Promise<void>;
 	/**
 	 * The grant a request's access token stands for, checked: throws `ApiTokenInvalidError` unless it
-	 * works now, revoking the grant first when its person no longer reaches what it was made for.
+	 * works now, for `resource` (the MCP server unless given), revoking the grant first when its person
+	 * no longer reaches what it was made for.
 	 */
-	use(secret: string | null): Promise<ApiClientUse>;
+	use(secret: string | null, resource?: string): Promise<ApiClientUse>;
 	/** Counts one request of a grant against its limits, as API tokens' are counted. */
 	count(grantId: string, access: ApiAccess): Promise<{ requests: RateLimitTally; writes: RateLimitTally | null }>;
 	/** The person's grants, newest first: active, expired and revoked. */
@@ -247,6 +342,7 @@ export function createOAuth({
 }): OAuth {
 	const { db } = database;
 	const resource = `${issuer}${MCP_PATH}`;
+	const apiResource = `${issuer}${PUBLIC_API_PATH}`;
 
 	const hashed = async (secret: string) => {
 		const signature = await crypto.subtle.sign("HMAC", keyHash, new TextEncoder().encode(secret));
@@ -322,6 +418,29 @@ export function createOAuth({
 		return { kind: "ok", client, redirectUri, challenge };
 	};
 
+	/** Whether a client registered for a grant type (clients registered before grant types were kept: the code and refresh grants). */
+	const allows = (client: typeof oauthClients.$inferSelect, grantType: string) =>
+		(client.grantTypes ?? ["authorization_code", "refresh_token"]).includes(grantType);
+
+	/** A user code's letters, upper case, without the dash or spaces people type. */
+	const normalUserCode = (typed: string) => typed.toUpperCase().replace(/[^A-Z]/g, "");
+
+	/** The device code a user code stands for, locked for the transaction, or why it can't be decided. */
+	const deviceByUserCode = async (executor: Executor, typed: string, now: Date) => {
+		const letters = normalUserCode(typed);
+		if (letters.length !== USER_CODE_LENGTH) return { ok: false as const, problem: "unknown" as const };
+		const [found] = await executor
+			.select({ device: oauthDeviceCodes, client: oauthClients })
+			.from(oauthDeviceCodes)
+			.innerJoin(oauthClients, eq(oauthClients.id, oauthDeviceCodes.clientId))
+			.where(eq(oauthDeviceCodes.userCodeHash, await hashed(`user:${letters}`)))
+			.for("update");
+		if (!found) return { ok: false as const, problem: "unknown" as const };
+		if (found.device.status !== "pending") return { ok: false as const, problem: "decided" as const };
+		if (found.device.expiresAt.getTime() <= now.getTime()) return { ok: false as const, problem: "expired" as const };
+		return { ok: true as const, found, letters };
+	};
+
 	const issueTokens = async (executor: Executor, grantId: string, now: Date): Promise<TokenAnswer> => {
 		const access = `${OAUTH_PREFIXES.access}${newToken()}`;
 		const refresh = `${OAUTH_PREFIXES.refresh}${newToken()}`;
@@ -384,7 +503,7 @@ export function createOAuth({
 			const reason = grant.revokedReason;
 			return {
 				id: grant.id,
-				client: { name: grant.clientName, redirectHost: hostOf(grant.redirectUri) },
+				client: { name: grant.clientName, redirectHost: grant.redirectUri ? hostOf(grant.redirectUri) : null },
 				workspace: { id: grant.workspaceId, name: workspaceName },
 				sites: grant.allSites ? "all" : (listed.get(grant.id) ?? []),
 				readOnly: grant.readOnly,
@@ -409,6 +528,7 @@ export function createOAuth({
 	return {
 		issuer,
 		resource,
+		apiResource,
 
 		async register(metadata, clientAddress) {
 			if (!(await rateLimits.count(`oauth-register:${clientAddress ?? "unknown"}`, OAUTH_REGISTRATION_LIMIT))) {
@@ -421,36 +541,51 @@ export function createOAuth({
 			const given = isRecord(metadata) ? metadata : null;
 			if (!given)
 				throw new OAuthRequestError("invalid_client_metadata", "Send the client's metadata as a JSON object.");
-			const redirectUris = given.redirect_uris;
+			const grantTypes = given.grant_types ?? ["authorization_code"];
+			if (
+				!Array.isArray(grantTypes) ||
+				!grantTypes.every(
+					(type) => type === "authorization_code" || type === "refresh_token" || type === DEVICE_CODE_GRANT,
+				) ||
+				!(grantTypes.includes("authorization_code") || grantTypes.includes(DEVICE_CODE_GRANT))
+			) {
+				throw new OAuthRequestError(
+					"invalid_client_metadata",
+					`Only the authorization_code, ${DEVICE_CODE_GRANT} and refresh_token grant types are offered.`,
+				);
+			}
+			// A client using device codes only sends nobody anywhere: it has no redirect addresses.
+			const sendsBack = grantTypes.includes("authorization_code");
+			const redirectUris = given.redirect_uris ?? (sendsBack ? undefined : []);
 			if (
 				!Array.isArray(redirectUris) ||
-				redirectUris.length === 0 ||
+				(sendsBack && redirectUris.length === 0) ||
+				(!sendsBack && redirectUris.length > 0) ||
 				redirectUris.length > MAX_REDIRECT_URIS ||
 				!redirectUris.every((uri) => typeof uri === "string")
 			) {
 				throw new OAuthRequestError(
 					"invalid_redirect_uri",
-					`List 1 to ${MAX_REDIRECT_URIS} redirect_uris, the exact addresses to send people back to.`,
+					sendsBack
+						? `List 1 to ${MAX_REDIRECT_URIS} redirect_uris, the exact addresses to send people back to.`
+						: "A client using device codes only has no redirect_uris.",
 				);
 			}
 			for (const uri of redirectUris as string[]) {
 				const problem = redirectUriProblem(uri);
 				if (problem) throw new OAuthRequestError("invalid_redirect_uri", `${uri}: ${problem}`);
 			}
-			const grantTypes = given.grant_types ?? ["authorization_code"];
+			const responseTypes = given.response_types ?? (sendsBack ? ["code"] : []);
 			if (
-				!Array.isArray(grantTypes) ||
-				!grantTypes.every((type) => type === "authorization_code" || type === "refresh_token") ||
-				!grantTypes.includes("authorization_code")
+				!Array.isArray(responseTypes) ||
+				(sendsBack ? responseTypes.length !== 1 || responseTypes[0] !== "code" : responseTypes.length > 0)
 			) {
 				throw new OAuthRequestError(
 					"invalid_client_metadata",
-					"Only the authorization_code and refresh_token grant types are offered.",
+					sendsBack
+						? "Only the code response type is offered."
+						: "A client using device codes only has no response_types.",
 				);
-			}
-			const responseTypes = given.response_types ?? ["code"];
-			if (!Array.isArray(responseTypes) || responseTypes.length !== 1 || responseTypes[0] !== "code") {
-				throw new OAuthRequestError("invalid_client_metadata", "Only the code response type is offered.");
 			}
 			const authMethod = given.token_endpoint_auth_method ?? "client_secret_basic";
 			if (authMethod !== "none" && authMethod !== "client_secret_basic" && authMethod !== "client_secret_post") {
@@ -464,7 +599,7 @@ export function createOAuth({
 				throw new OAuthRequestError("invalid_client_metadata", "application_type is web or native.");
 			}
 			const rawName = typeof given.client_name === "string" ? given.client_name : "";
-			const name = cleanName(rawName) || hostOf((redirectUris as string[])[0] ?? "");
+			const name = cleanName(rawName) || hostOf((redirectUris as string[])[0] ?? "") || "Device client";
 			const secret = authMethod === "none" ? null : `${OAUTH_PREFIXES.clientSecret}${newToken()}`;
 			const now = clock.now();
 			const [row] = await db
@@ -475,6 +610,7 @@ export function createOAuth({
 					applicationType,
 					authMethod,
 					secretHash: secret ? await hashed(secret) : null,
+					grantTypes: grantTypes as string[],
 					createdAt: now,
 				})
 				.returning();
@@ -485,7 +621,7 @@ export function createOAuth({
 				client_name: row.name,
 				redirect_uris: row.redirectUris,
 				grant_types: grantTypes as string[],
-				response_types: ["code"],
+				response_types: sendsBack ? ["code"] : [],
 				token_endpoint_auth_method: authMethod,
 				application_type: applicationType,
 				...(secret ? { client_secret: secret, client_secret_expires_at: 0 } : {}),
@@ -542,6 +678,7 @@ export function createOAuth({
 					personId: actor.personId,
 					clientName: found.client.name,
 					redirectUri: found.redirectUri,
+					resource,
 					allSites: listed === null,
 					readOnly: choice.readOnly,
 					mayPublish: choice.readOnly ? false : choice.mayPublish,
@@ -629,6 +766,61 @@ export function createOAuth({
 				if (typeof outcome === "string") throw new OAuthRequestError("invalid_grant", outcome);
 				return outcome;
 			}
+			if (grantType === DEVICE_CODE_GRANT) {
+				if (!allows(client, DEVICE_CODE_GRANT)) {
+					throw new OAuthRequestError("unauthorized_client", "This client didn't register for device codes.");
+				}
+				const deviceCode = form.get("device_code") ?? "";
+				const outcome = await db.transaction(async (tx) => {
+					const [found] = await tx
+						.select()
+						.from(oauthDeviceCodes)
+						.where(eq(oauthDeviceCodes.deviceCodeHash, await hashed(deviceCode)))
+						.for("update");
+					if (!found || found.clientId !== client.id)
+						return { error: "invalid_grant", text: "This device code isn't valid." };
+					if (found.status === "used") {
+						// It gave its tokens once already: someone else may hold it.
+						const [grant] = found.grantId
+							? await tx.select().from(oauthGrants).where(eq(oauthGrants.id, found.grantId))
+							: [];
+						if (grant) await revokeGrant(tx, grant, now, "reuse");
+						return { error: "invalid_grant", text: "This device code was used already: the grant it made is revoked." };
+					}
+					if (found.expiresAt.getTime() <= now.getTime()) {
+						return { error: "expired_token", text: "This device code has expired: ask for a new one." };
+					}
+					// RFC 8628 §3.5: a client polling faster than its interval waits 5 seconds longer from now on.
+					const tooSoon =
+						found.lastPolledAt !== null && now.getTime() - found.lastPolledAt.getTime() < found.intervalSeconds * 1000;
+					await tx
+						.update(oauthDeviceCodes)
+						.set({
+							lastPolledAt: now,
+							...(tooSoon ? { intervalSeconds: found.intervalSeconds + DEVICE_POLL_INTERVAL_SECONDS } : {}),
+						})
+						.where(eq(oauthDeviceCodes.deviceCodeHash, found.deviceCodeHash));
+					if (tooSoon)
+						return {
+							error: "slow_down",
+							text: `Poll at most every ${found.intervalSeconds + DEVICE_POLL_INTERVAL_SECONDS} seconds.`,
+						};
+					if (found.status === "denied")
+						return { error: "access_denied", text: "The person didn't approve this sign-in." };
+					if (found.status !== "approved" || !found.grantId) {
+						return { error: "authorization_pending", text: "The person hasn't approved this sign-in yet." };
+					}
+					const [grant] = await tx.select().from(oauthGrants).where(eq(oauthGrants.id, found.grantId));
+					if (!grant || grant.revokedAt) return { error: "access_denied", text: "This grant was revoked." };
+					await tx
+						.update(oauthDeviceCodes)
+						.set({ status: "used" })
+						.where(eq(oauthDeviceCodes.deviceCodeHash, found.deviceCodeHash));
+					return issueTokens(tx, grant.id, now);
+				});
+				if ("error" in outcome) throw new OAuthRequestError(outcome.error, outcome.text);
+				return outcome;
+			}
 			if (grantType === "refresh_token") {
 				const refresh = form.get("refresh_token") ?? "";
 				const outcome = await db.transaction(async (tx) => {
@@ -663,7 +855,150 @@ export function createOAuth({
 				if (typeof outcome === "string") throw new OAuthRequestError("invalid_grant", outcome);
 				return outcome;
 			}
-			throw new OAuthRequestError("unsupported_grant_type", "grant_type is authorization_code or refresh_token.");
+			throw new OAuthRequestError(
+				"unsupported_grant_type",
+				`grant_type is authorization_code, ${DEVICE_CODE_GRANT} or refresh_token.`,
+			);
+		},
+
+		async deviceAuthorization(form, authorization, clientAddress) {
+			if (!(await rateLimits.count(`oauth-device:${clientAddress ?? "unknown"}`, OAUTH_DEVICE_LIMIT))) {
+				throw new OAuthRequestError(
+					"slow_down",
+					"Too many sign-ins were started from this address. Try again later.",
+					429,
+				);
+			}
+			const client = await authenticate(form, authorization);
+			if (!allows(client, DEVICE_CODE_GRANT)) {
+				throw new OAuthRequestError("unauthorized_client", "This client didn't register for device codes.");
+			}
+			const asked = form.get("resource");
+			const target =
+				asked === null || isOurResource(asked, apiResource)
+					? apiResource
+					: isOurResource(asked, resource)
+						? resource
+						: null;
+			if (!target) throw new OAuthRequestError("invalid_target", `Tokens here are for ${apiResource} or ${resource}.`);
+			const now = clock.now();
+			const deviceCode = `${OAUTH_PREFIXES.deviceCode}${newToken()}`;
+			for (let attempt = 0; ; attempt++) {
+				const letters = Array.from(
+					crypto.getRandomValues(new Uint32Array(USER_CODE_LENGTH)),
+					(value) => USER_CODE_LETTERS[value % USER_CODE_LETTERS.length],
+				).join("");
+				const inserted = await db
+					.insert(oauthDeviceCodes)
+					.values({
+						deviceCodeHash: await hashed(deviceCode),
+						userCodeHash: await hashed(`user:${letters}`),
+						clientId: client.id,
+						resource: target,
+						createdAt: now,
+						expiresAt: new Date(now.getTime() + OAUTH_LIFETIMES.deviceMs),
+						intervalSeconds: DEVICE_POLL_INTERVAL_SECONDS,
+						status: "pending",
+					})
+					.onConflictDoNothing()
+					.returning({ hash: oauthDeviceCodes.deviceCodeHash });
+				if (inserted.length === 0) {
+					if (attempt < 5) continue;
+					throw new OAuthRequestError("temporarily_unavailable", "No free user code was found. Try again.", 503);
+				}
+				const userCode = `${letters.slice(0, 4)}-${letters.slice(4)}`;
+				const page = `${issuer}/oauth/device`;
+				return {
+					device_code: deviceCode,
+					user_code: userCode,
+					verification_uri: page,
+					verification_uri_complete: `${page}?user_code=${userCode}`,
+					expires_in: Math.floor(OAUTH_LIFETIMES.deviceMs / 1000),
+					interval: DEVICE_POLL_INTERVAL_SECONDS,
+				};
+			}
+		},
+
+		async checkDevice(userCode, personId) {
+			const tally = await rateLimits.tally(`oauth-user-code:${personId}`, OAUTH_USER_CODE_LIMIT);
+			if (!tally.within) {
+				throw new RateLimitedError(Math.max(1, Math.ceil((tally.resetsAt.getTime() - clock.now().getTime()) / 1000)));
+			}
+			const looked = await deviceByUserCode(db, userCode, clock.now());
+			if (!looked.ok) return { kind: "refused", problem: looked.problem };
+			const { found, letters } = looked;
+			return {
+				kind: "ask",
+				request: {
+					client: { id: found.client.id, name: found.client.name },
+					userCode: `${letters.slice(0, 4)}-${letters.slice(4)}`,
+				},
+			};
+		},
+
+		async approveDevice(scope, userCode, choice) {
+			const { actor } = scope.access;
+			if (actor.kind !== "person") throw new TypeError("Only a person approves an AI client.");
+			const listed = choice.sites === "all" ? null : [...new Set(choice.sites)];
+			if (listed !== null) {
+				if (listed.length === 0) throw new SiteNotFoundError();
+				for (const siteId of listed) {
+					const seen =
+						isUuid(siteId) &&
+						can(actor, "site.view", { level: "site", workspaceId: scope.workspace.id, siteId }) &&
+						(await db
+							.select({ id: sites.id })
+							.from(sites)
+							.where(and(eq(sites.id, siteId), eq(sites.workspaceId, scope.workspace.id)))
+							.then((rows) => rows.length > 0));
+					if (!seen) throw new SiteNotFoundError();
+				}
+			}
+			const chosen = chosenToolsets(choice.toolsets, toolsets());
+			const now = scope.now();
+			return scope.transaction(async (tx) => {
+				const looked = await deviceByUserCode(tx.db, userCode, now);
+				if (!looked.ok) throw new DeviceCodeInvalidError(looked.problem);
+				const { found } = looked;
+				const grant = await tx.insert(oauthGrants, {
+					clientId: found.client.id,
+					personId: actor.personId,
+					clientName: found.client.name,
+					redirectUri: "",
+					resource: found.device.resource,
+					allSites: listed === null,
+					readOnly: choice.readOnly,
+					mayPublish: choice.readOnly ? false : choice.mayPublish,
+					toolsets: chosen,
+					createdAt: now,
+				});
+				for (const siteId of listed ?? []) await tx.insert(oauthGrantSites, { grantId: grant.id, siteId });
+				await tx.db
+					.update(oauthDeviceCodes)
+					.set({ status: "approved", grantId: grant.id })
+					.where(eq(oauthDeviceCodes.deviceCodeHash, found.device.deviceCodeHash));
+				await tx.audit("aiClient.approve", {
+					grantId: grant.id,
+					client: found.client.name,
+					device: true,
+					sites: listed ?? "all",
+					readOnly: choice.readOnly,
+					mayPublish: choice.readOnly ? false : choice.mayPublish,
+					toolsets: chosen,
+				});
+				return { grantId: grant.id, client: found.client.name };
+			});
+		},
+
+		async denyDevice(userCode) {
+			await db.transaction(async (tx) => {
+				const looked = await deviceByUserCode(tx, userCode, clock.now());
+				if (!looked.ok) throw new DeviceCodeInvalidError(looked.problem);
+				await tx
+					.update(oauthDeviceCodes)
+					.set({ status: "denied" })
+					.where(eq(oauthDeviceCodes.deviceCodeHash, looked.found.device.deviceCodeHash));
+			});
 		},
 
 		async revokeToken(form, authorization) {
@@ -684,7 +1019,7 @@ export function createOAuth({
 			});
 		},
 
-		async use(secret) {
+		async use(secret, wanted = resource) {
 			if (!secret) throw new ApiTokenInvalidError("missing");
 			if (!secret.startsWith(OAUTH_PREFIXES.access) || secret.length > 200) throw new ApiTokenInvalidError("unknown");
 			const [found] = await db
@@ -695,6 +1030,8 @@ export function createOAuth({
 				.where(and(eq(oauthTokens.tokenHash, await hashed(secret)), eq(oauthTokens.kind, "access")));
 			if (!found) throw new ApiTokenInvalidError("unknown");
 			const { token, grant, lockedUntil } = found;
+			// A grant's tokens are for one resource: the CLI's for the API, an AI client's for the MCP server.
+			if ((grant.resource ?? resource) !== wanted) throw new ApiTokenInvalidError("unknown");
 			const now = clock.now();
 			if (grant.revokedAt || token.usedAt) throw new ApiTokenInvalidError("revoked");
 			if (token.expiresAt.getTime() <= now.getTime()) throw new ApiTokenInvalidError("expired");
@@ -773,6 +1110,7 @@ export function createOAuth({
 			let removed = 0;
 			removed += (await db.delete(oauthCodes).where(lt(oauthCodes.expiresAt, now)).returning()).length;
 			removed += (await db.delete(oauthTokens).where(lt(oauthTokens.expiresAt, now)).returning()).length;
+			removed += (await db.delete(oauthDeviceCodes).where(lt(oauthDeviceCodes.expiresAt, now)).returning()).length;
 			const unapproved = await db
 				.delete(oauthClients)
 				.where(

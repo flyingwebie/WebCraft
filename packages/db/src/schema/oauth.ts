@@ -1,4 +1,15 @@
-import { boolean, foreignKey, index, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	foreignKey,
+	index,
+	integer,
+	pgTable,
+	primaryKey,
+	text,
+	timestamp,
+	unique,
+	uuid,
+} from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
 import { sites, workspaces } from "./tenancy.ts";
@@ -31,6 +42,12 @@ export const oauthClients = pgTable("oauth_clients", {
 	authMethod: text("auth_method").notNull(),
 	/** The keyed hash of its secret, for the two methods that have one. */
 	secretHash: text("secret_hash"),
+	/**
+	 * The grant types it registered for: `authorization_code`, `refresh_token`, and the device
+	 * authorization grant (`urn:ietf:params:oauth:grant-type:device_code`, RFC 8628), which needs no
+	 * redirect address. Null for clients registered before it: the authorization code and refresh grants.
+	 */
+	grantTypes: text("grant_types").array(),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
 
@@ -50,8 +67,16 @@ export const oauthGrants = pgTable(
 			.references(() => workspaces.id, { onDelete: "cascade" }),
 		/** The client's name when the person approved it: changes it makes show as "<person> via <name>". */
 		clientName: text("client_name").notNull(),
-		/** Where the person was sent back to after approving: the address's host is shown with the grant. */
+		/**
+		 * Where the person was sent back to after approving: the address's host is shown with the grant.
+		 * Empty for a grant approved with a device code (`webcraft login`), which sends nobody anywhere.
+		 */
 		redirectUri: text("redirect_uri").notNull(),
+		/**
+		 * What its tokens are for (RFC 8707): the public Management API (`<admin origin>/api/v1`, the
+		 * CLI's) or the MCP server. Null for grants made before it: the MCP server.
+		 */
+		resource: text("resource"),
 		allSites: boolean("all_sites").notNull().default(true),
 		readOnly: boolean("read_only").notNull().default(false),
 		mayPublish: boolean("may_publish").notNull().default(false),
@@ -135,5 +160,38 @@ export const oauthTokens = pgTable(
 	(table) => [
 		index("oauth_tokens_grant_id_idx").on(table.grantId),
 		index("oauth_tokens_expires_at_idx").on(table.expiresAt),
+	],
+);
+
+/**
+ * A device sign-in (the OAuth 2.0 device authorization grant, RFC 8628): `webcraft login` asks for
+ * one, shows the person its user code and polls the token endpoint while they approve it in the
+ * admin. Both codes are kept as keyed hashes only; it lasts 10 minutes and gives tokens once.
+ */
+export const oauthDeviceCodes = pgTable(
+	"oauth_device_codes",
+	{
+		/** The keyed hash of the device code the client polls with. */
+		deviceCodeHash: text("device_code_hash").primaryKey(),
+		/** The keyed hash of the user code the person types (its letters only, upper case). */
+		userCodeHash: text("user_code_hash").notNull().unique(),
+		clientId: uuid("client_id")
+			.notNull()
+			.references(() => oauthClients.id, { onDelete: "cascade" }),
+		/** The resource its tokens will be for (RFC 8707). */
+		resource: text("resource").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+		/** How many seconds the client waits between polls: 5, and 5 more each time it polls too fast. */
+		intervalSeconds: integer("interval_seconds").notNull(),
+		lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+		/** `pending`, `approved` (its grant waits for the client's next poll), `denied` or `used`. */
+		status: text("status").notNull(),
+		/** The grant made when the person approved it. */
+		grantId: uuid("grant_id").references(() => oauthGrants.id, { onDelete: "cascade" }),
+	},
+	(table) => [
+		index("oauth_device_codes_expires_at_idx").on(table.expiresAt),
+		index("oauth_device_codes_client_id_idx").on(table.clientId),
 	],
 );

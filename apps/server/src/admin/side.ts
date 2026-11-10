@@ -22,7 +22,7 @@ import { healthz, readyz } from "./health.ts";
  * and at `/api/v1` for API tokens, the MCP server at `/mcp`, the OAuth endpoints its AI clients use
  * (`/.well-known/…`, `/oauth/register`, `/oauth/token`, `/oauth/revoke`), Media previews at
  * `/api/media/…`, the builder's canvas at `/api/builder/canvas`); the admin app renders the rest,
- * the approval page at `/oauth/authorize` included.
+ * the approval pages at `/oauth/authorize` and `/oauth/device` included.
  */
 export function createAdminSide(services: InstallServices, adminApp?: Handler): Handler {
 	const adminApi = createAdminApi(services);
@@ -61,7 +61,9 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 		}
 		const oauthAnswer = await oauth(request, { clientAddress: clientAddress(request, services.config) });
 		if (oauthAnswer) return oauthAnswer;
-		if (pathname === APPROVAL_PAGE_PATH && adminApp) return neverFramed(await adminApp(request));
+		if ((pathname === APPROVAL_PAGE_PATH || pathname === DEVICE_PAGE_PATH) && adminApp) {
+			return neverFramed(await adminApp(request));
+		}
 		if (pathname.startsWith(MEDIA_PREVIEW_PREFIX)) {
 			return readOnly(request, () => mediaPreview(services, request, pathname.slice(MEDIA_PREVIEW_PREFIX.length)));
 		}
@@ -71,6 +73,9 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 
 /** The approval page an AI client sends the person to (`routes/oauth.authorize.tsx`). */
 const APPROVAL_PAGE_PATH = "/oauth/authorize";
+
+/** Where a device sign-in's code is approved (`routes/oauth.device.tsx`): `webcraft login` names it. */
+const DEVICE_PAGE_PATH = "/oauth/device";
 
 /** The approval page never shows inside another site's frame, where a click could be stolen. */
 function neverFramed(response: Response): Response {

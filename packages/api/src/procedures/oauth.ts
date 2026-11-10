@@ -17,6 +17,9 @@ const parameters = z
 	.record(z.string().max(100), z.string().max(4000))
 	.refine((given) => Object.keys(given).length <= 30, "Too many parameters.");
 
+/** A device sign-in's user code as typed: `BCDF-GHJK`, any case, with or without the dash. */
+const userCode = z.string().trim().min(1).max(20);
+
 /**
  * The admin's side of approving an AI client (`/oauth/authorize`): the page checks the request,
  * shows the person the client's name and where it sends them back, and approves or denies it.
@@ -69,6 +72,57 @@ export const oauth = {
 		.use(notWhileImpersonating("aiClients"))
 		.input(z.object({ parameters }))
 		.handler(async ({ context, input }) => context.services.oauth.deny(input.parameters)),
+
+	/**
+	 * Looks up the user code a device sign-in shows (`webcraft login`), as the person typed it on
+	 * `/oauth/device`: the client to approve (`ask`) or why it can't be (`refused`: `unknown`,
+	 * `expired`, `decided`), with the Workspaces and Toolsets on offer. At most 20 look-ups per person
+	 * in 15 minutes (`TOO_MANY_REQUESTS`), so codes can't be guessed.
+	 */
+	checkDevice: inAdminSession.input(z.object({ userCode })).handler(async ({ context, input }) => {
+		const { services } = context;
+		const actor = await actorOf(context);
+		const check = await services.oauth.checkDevice(input.userCode, context.person.id);
+		return { check, workspaces: await services.apiTokens.offer(actor), toolsets: toolsetOffer(services) };
+	}),
+
+	/**
+	 * Approves a device sign-in for one Workspace, as `approve` does an AI client's request: the
+	 * client's next poll gets its tokens. A Sensitive action. `DEVICE_CODE_INVALID` when the code is
+	 * unknown, expired or already decided.
+	 */
+	approveDevice: inAdminSession
+		.use(notWhileImpersonating("aiClients"))
+		.input(
+			z.object({
+				userCode,
+				workspaceId: id,
+				sites: memberSites.default("all"),
+				readOnly: z.boolean().default(false),
+				mayPublish: z.boolean().default(false),
+				toolsets: toolsetsInput.optional(),
+			}),
+		)
+		.use(onWorkspace("workspace.view"))
+		.use(sensitive("aiClient.approve"))
+		.handler(async ({ context, input }) => {
+			const approved = await context.services.oauth.approveDevice(context.workspace, input.userCode, {
+				sites: input.sites,
+				readOnly: input.readOnly,
+				mayPublish: input.mayPublish,
+				toolsets: input.toolsets ?? defaultToolsets(context.services.apiTokens.toolsets()),
+			});
+			return { client: approved.client };
+		}),
+
+	/** The person said no to a device sign-in: its client is told `access_denied`. */
+	denyDevice: inAdminSession
+		.use(notWhileImpersonating("aiClients"))
+		.input(z.object({ userCode }))
+		.handler(async ({ context, input }) => {
+			await context.services.oauth.denyDevice(input.userCode);
+			return { denied: true };
+		}),
 };
 
 /** Your account › AI clients: the AI clients the person approved, and revoking them. */

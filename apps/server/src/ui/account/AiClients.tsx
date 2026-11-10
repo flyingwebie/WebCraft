@@ -99,7 +99,9 @@ function GrantRow({ grant }: { grant: GrantView }) {
 				<span className="flex flex-col">
 					<span className="font-medium">{grant.client.name}</span>
 					<span className="text-muted-foreground text-xs">
-						{t("account.aiClients.sendsBackTo", { host: grant.client.redirectHost })}
+						{grant.client.redirectHost === null
+							? t("account.aiClients.onDevice")
+							: t("account.aiClients.sendsBackTo", { host: grant.client.redirectHost })}
 					</span>
 					<span className="text-muted-foreground text-xs">
 						{t("account.aiClients.approvedAt", { date: formatUtc(grant.createdAt) })}

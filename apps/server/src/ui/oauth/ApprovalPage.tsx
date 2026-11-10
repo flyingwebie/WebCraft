@@ -12,7 +12,7 @@ import {
 } from "@webcraft/ui/components/field.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { BotIcon, TriangleAlertIcon } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 
 import { ToolsetChoice } from "../account/ToolsetChoice.tsx";
 import { getApi } from "../api.ts";
@@ -62,8 +62,77 @@ type Request = Extract<ApprovalData["check"], { kind: "ask" }>["request"];
 
 function ApprovalForm({ data, request, person }: { data: ApprovalData; request: Request; person: { name: string } }) {
 	const t = useT();
+	const client = request.client;
+	return (
+		<ApprovalChoices
+			clientName={client.name}
+			workspaces={data.workspaces}
+			toolsets={data.toolsets}
+			heading={t("oauth.heading", { client: client.name })}
+			intro={t("oauth.intro", { client: client.name, person: person.name })}
+			details={
+				<>
+					<dt className="text-muted-foreground">{t("oauth.client")}</dt>
+					<dd className="font-medium break-all">{client.name}</dd>
+					<dt className="text-muted-foreground">{t("oauth.sendsBackTo")}</dt>
+					<dd className="font-mono break-all">{client.redirectHost}</dd>
+				</>
+			}
+			warning={client.onThisDevice ? t("oauth.onThisDevice", { client: client.name }) : null}
+			onApprove={async (choice) => {
+				const api = await getApi();
+				const { redirectTo } = await api.oauth.approve({ parameters: data.parameters, ...choice });
+				window.location.assign(redirectTo);
+			}}
+			onDeny={async () => {
+				const api = await getApi();
+				const { redirectTo } = await api.oauth.deny({ parameters: data.parameters });
+				window.location.assign(redirectTo);
+			}}
+		/>
+	);
+}
+
+/** What the person chose: the Workspace, its Sites, the Toolsets, read-only and May publish. */
+export type ApprovalChoice = {
+	workspaceId: string;
+	sites: "all" | string[];
+	readOnly: boolean;
+	mayPublish: boolean;
+	toolsets: string[];
+};
+
+/**
+ * The choices an approval offers, shared by AI clients' requests and device sign-ins: the Workspace,
+ * its Sites, the Toolsets, read-only or not, and May publish, then Approve (a Sensitive action, run
+ * through "Confirm it's you") or Deny. `onApprove` and `onDeny` go on from there; their failures
+ * show above the buttons.
+ */
+export function ApprovalChoices({
+	clientName,
+	workspaces,
+	toolsets: offered,
+	heading,
+	intro,
+	details,
+	warning,
+	onApprove,
+	onDeny,
+}: {
+	clientName: string;
+	workspaces: ApprovalData["workspaces"];
+	toolsets: ApprovalData["toolsets"];
+	heading: string;
+	intro: string;
+	details: ReactNode;
+	warning: string | null;
+	onApprove(choice: ApprovalChoice): Promise<void>;
+	onDeny(): Promise<void>;
+}) {
+	const t = useT();
 	const id = useId();
 	const runSensitive = useSensitiveAction();
+	const data = { workspaces, toolsets: offered };
 	const [workspaceId, setWorkspaceId] = useState(data.workspaces[0]?.id ?? "");
 	const [reach, setReach] = useState<"all" | "chosen">("all");
 	const [chosenSites, setChosenSites] = useState<Set<string>>(() => new Set());
@@ -75,7 +144,6 @@ function ApprovalForm({ data, request, person }: { data: ApprovalData; request: 
 	const [problem, setProblem] = useState<{ field: "sites" | "toolsets" | null; message: MessageKey } | null>(null);
 	const [busy, setBusy] = useState(false);
 	const workspace = data.workspaces.find((each) => each.id === workspaceId);
-	const client = request.client;
 
 	const approve = async (event: FormEvent) => {
 		event.preventDefault();
@@ -90,10 +158,8 @@ function ApprovalForm({ data, request, person }: { data: ApprovalData; request: 
 		setBusy(true);
 		setProblem(null);
 		try {
-			const api = await getApi();
-			const { redirectTo } = await runSensitive(() =>
-				api.oauth.approve({
-					parameters: data.parameters,
+			await runSensitive(() =>
+				onApprove({
 					workspaceId,
 					sites: reach === "all" ? "all" : [...chosenSites],
 					readOnly,
@@ -101,7 +167,6 @@ function ApprovalForm({ data, request, person }: { data: ApprovalData; request: 
 					toolsets: [...toolsets],
 				}),
 			);
-			window.location.assign(redirectTo);
 		} catch (failure) {
 			setProblem({ field: null, message: errorMessage(failure) });
 			setBusy(false);
@@ -111,9 +176,7 @@ function ApprovalForm({ data, request, person }: { data: ApprovalData; request: 
 	const deny = async () => {
 		setBusy(true);
 		try {
-			const api = await getApi();
-			const { redirectTo } = await api.oauth.deny({ parameters: data.parameters });
-			window.location.assign(redirectTo);
+			await onDeny();
 		} catch (failure) {
 			setProblem({ field: null, message: errorMessage(failure) });
 			setBusy(false);
@@ -123,7 +186,7 @@ function ApprovalForm({ data, request, person }: { data: ApprovalData; request: 
 	if (data.workspaces.length === 0) {
 		return (
 			<>
-				<h1 className="mb-3 text-2xl font-semibold tracking-tight">{t("oauth.heading", { client: client.name })}</h1>
+				<h1 className="mb-3 text-2xl font-semibold tracking-tight">{heading}</h1>
 				<p className="text-muted-foreground mb-6 text-sm">{t("oauth.noWorkspaces")}</p>
 				<Button variant="outline" onClick={deny} disabled={busy}>
 					{t("oauth.deny")}
@@ -137,22 +200,17 @@ function ApprovalForm({ data, request, person }: { data: ApprovalData; request: 
 			<div className="mb-6 flex items-start gap-3">
 				<BotIcon aria-hidden="true" className="text-muted-foreground mt-1 size-6 shrink-0" />
 				<div className="grid gap-1">
-					<h1 className="text-2xl font-semibold tracking-tight">{t("oauth.heading", { client: client.name })}</h1>
-					<p className="text-muted-foreground text-sm">
-						{t("oauth.intro", { client: client.name, person: person.name })}
-					</p>
+					<h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
+					<p className="text-muted-foreground text-sm">{intro}</p>
 				</div>
 			</div>
 			<dl className="bg-muted/50 mb-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg border p-3 text-sm">
-				<dt className="text-muted-foreground">{t("oauth.client")}</dt>
-				<dd className="font-medium break-all">{client.name}</dd>
-				<dt className="text-muted-foreground">{t("oauth.sendsBackTo")}</dt>
-				<dd className="font-mono break-all">{client.redirectHost}</dd>
+				{details}
 			</dl>
-			{client.onThisDevice ? (
+			{warning ? (
 				<p className="border-destructive/40 bg-destructive/5 mb-6 flex gap-2 rounded-md border p-3 text-sm">
 					<TriangleAlertIcon aria-hidden="true" className="text-destructive size-5 shrink-0" />
-					{t("oauth.onThisDevice", { client: client.name })}
+					{warning}
 				</p>
 			) : null}
 			<FieldGroup className="gap-6">
@@ -278,7 +336,7 @@ function ApprovalForm({ data, request, person }: { data: ApprovalData; request: 
 						{t("oauth.deny")}
 					</Button>
 					<Button type="submit" disabled={busy}>
-						{t("oauth.approve", { client: client.name })}
+						{t("oauth.approve", { client: clientName })}
 					</Button>
 				</div>
 			</FieldGroup>

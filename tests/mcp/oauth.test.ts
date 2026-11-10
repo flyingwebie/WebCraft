@@ -68,7 +68,7 @@ describe("finding the authorization server", () => {
 		});
 	});
 
-	test("the authorization server's metadata offers the code flow with PKCE (S256), registration and revocation", async () => {
+	test("the authorization server's metadata offers the code flow with PKCE (S256), device codes, registration and revocation", async () => {
 		const issuer = install.adminUrl("").replace(/\/$/, "");
 		const response = await install.request(install.adminUrl("/.well-known/oauth-authorization-server"));
 		expect(response.status).toBe(200);
@@ -78,8 +78,9 @@ describe("finding the authorization server", () => {
 			token_endpoint: `${issuer}/oauth/token`,
 			registration_endpoint: `${issuer}/oauth/register`,
 			revocation_endpoint: `${issuer}/oauth/revoke`,
+			device_authorization_endpoint: `${issuer}/oauth/device_authorization`,
 			response_types_supported: ["code"],
-			grant_types_supported: ["authorization_code", "refresh_token"],
+			grant_types_supported: ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
 			code_challenge_methods_supported: ["S256"],
 			authorization_response_iss_parameter_supported: true,
 		});
