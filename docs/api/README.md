@@ -75,3 +75,12 @@ AI clients work through WebCraft's MCP server at `https://<admin host>/mcp` (Str
 ## Versions
 
 `/api/v1` changes only by adding: new procedures, new optional inputs, new fields in answers. A breaking change comes as `/api/v2`, served next to `/api/v1` for at least 12 months, during which `/api/v1` answers carry a `Deprecation` header (ADR 0029).
+
+## The Content API
+
+Frontends built elsewhere read a Site's published content through its Content API instead: a separate, read-only API at `/_content/v1/` on the Site's own domains and its Staging address, opened with a Content key (never an API token) that Staff make under Site settings › Content API. Its own OpenAPI document is `content-api.openapi.json` in this folder; a Site with the API on serves it at `https://<site domain>/_content/v1/openapi.json`.
+
+```sh
+curl -H "Authorization: Bearer $WEBCRAFT_CONTENT_KEY" \
+  "https://bakery.example/_content/v1/entries/recipes?lang=fr&filter.kind=bread&sort=-publishedAt&limit=10"
+```
