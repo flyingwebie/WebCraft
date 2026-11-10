@@ -184,8 +184,16 @@ export type ReportsDeps = {
 	queue: { prepare(ref: ReportSendRef): Promise<void>; render(ref: ReportSendRef, startAfter?: Date): Promise<void> };
 };
 
-/** A place opened for a person. */
-type Opened = { level: "site"; scope: SiteScope } | { level: "workspace"; scope: WorkspaceScope };
+/**
+ * A Dashboard's place (its Site, or its Workspace: every Site of it), opened for a person with the
+ * Permission it needs. A procedure that must check the Permission before a Sensitive action's gate
+ * (`onPlace` in `packages/api/src/procedures/reports.ts`) opens it once and keeps it on the context,
+ * the way `onSite`/`onWorkspace` keep `context.site`/`context.workspace`, instead of a service
+ * opening the same place with the same Permission again.
+ */
+export type OpenedDashboardPlace = { level: "site"; scope: SiteScope } | { level: "workspace"; scope: WorkspaceScope };
+
+type Opened = OpenedDashboardPlace;
 
 /**
  * The opened place's queries, typed once for the tables Reports use: each names its Site (null in a

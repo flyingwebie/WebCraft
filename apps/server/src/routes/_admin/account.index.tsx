@@ -26,12 +26,17 @@ import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 import { PasswordInput } from "../../ui/PasswordInput.tsx";
 import { roleLabel, type SignedInPerson } from "../../ui/shell/context.ts";
+import { TwoFactorCard } from "../../ui/two-factor/TwoFactorCard.tsx";
 
 export const Route = createFileRoute("/_admin/account/")({
 	loader: async () => {
 		const api = await getApi();
-		const [{ emails }, { sessions }] = await Promise.all([api.me.emails.get(), api.me.sessions.list()]);
-		return { emails, sessions };
+		const [{ emails }, { sessions }, twoFactor] = await Promise.all([
+			api.me.emails.get(),
+			api.me.sessions.list(),
+			api.me.twoFactor.get(),
+		]);
+		return { emails, sessions, twoFactor };
 	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "account.pageTitle") }] }),
 	component: AccountPage,
@@ -52,6 +57,7 @@ const THEMES: { value: Theme; label: MessageKey }[] = [
 function AccountPage() {
 	const t = useT();
 	const { person } = Route.useRouteContext();
+	const { twoFactor } = Route.useLoaderData();
 	const role = t(roleLabel(person.installRole));
 	return (
 		<>
@@ -76,6 +82,7 @@ function AccountPage() {
 				</Card>
 				<PreferencesCard person={person} />
 				<PasswordCard />
+				<TwoFactorCard state={twoFactor} account={person.email} />
 				<SessionsCard />
 				<Card id="api-tokens" tabIndex={-1} className="outline-none">
 					<CardHeader>
@@ -104,15 +111,6 @@ function AccountPage() {
 					</CardContent>
 				</Card>
 				<EmailsCard />
-				<Card id="two-factor" tabIndex={-1} className="outline-none">
-					<CardHeader>
-						<CardTitle className="flex items-center gap-3">
-							<h2>{t("account.twoFactor.heading")}</h2>
-							<Badge variant="outline">{t("account.twoFactor.status")}</Badge>
-						</CardTitle>
-						<CardDescription>{t("account.twoFactor.body")}</CardDescription>
-					</CardHeader>
-				</Card>
 			</div>
 		</>
 	);

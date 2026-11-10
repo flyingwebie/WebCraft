@@ -134,6 +134,8 @@ import { createStaff } from "./tenancy/staff.ts";
 import { createWorkspace, listWorkspaces } from "./tenancy/workspaces.ts";
 import { offeredToolsets } from "./toolsets.ts";
 import { createTranslations } from "./translation/service.ts";
+import { createTwoFactor } from "./two-factor/index.ts";
+import { createSecondFactorKeys } from "./two-factor/keys.ts";
 import { createUpdates } from "./updates.ts";
 import { createWebhooks } from "./webhooks/index.ts";
 
@@ -190,6 +192,7 @@ export async function createInstallServices(
 		database,
 		clock,
 		adminOrigin: config.adminOrigin,
+		secondFactorKeys: createSecondFactorKeys({ database, secrets: store }),
 		secret: await sessionSigningSecret(masterKey),
 		log,
 		passwordChecks: [
@@ -200,6 +203,13 @@ export async function createInstallServices(
 			}),
 		],
 		onAccountLocked: reportAccountLock({ database, clock, email }),
+	});
+	const twoFactor = createTwoFactor({
+		database,
+		auth,
+		clock,
+		email,
+		issuer: async () => (await settings.read()).name ?? "WebCraft",
 	});
 	const guardedFetch = createGuardedFetch({ http: ports.http, dns: ports.dns });
 	const webhooks = createWebhooks({
@@ -332,6 +342,7 @@ export async function createInstallServices(
 		secrets: installSecrets,
 		auth,
 		account: createAccount({ database, auth, clock }),
+		twoFactor,
 		rateLimits,
 		people,
 		aiKeys,
@@ -491,6 +502,7 @@ export async function createInstallServices(
 			data,
 			actors,
 			signingKey: await editModeSigningKey(masterKey),
+			mustSetUpTwoFactor: twoFactor.mustSetUp,
 			pageContent: (host, pathname) => sitePages.pageContent(host, pathname),
 		}),
 		staging: createStaging({
@@ -501,6 +513,7 @@ export async function createInstallServices(
 			data,
 			actors,
 			passwordKey: await stagingPasswordKey(masterKey),
+			mustSetUpTwoFactor: twoFactor.mustSetUp,
 		}),
 		codeMode: createCodeMode({ data, sources: componentSources, pages: sitePages }),
 		builder: createBuilder({ sources: componentSources }),

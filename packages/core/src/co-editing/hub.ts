@@ -7,6 +7,7 @@ import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { ComponentSources } from "../content/components.ts";
 import { sameJson } from "../content/json.ts";
+import { isSerializationFailure } from "../db-errors.ts";
 import type { HistoryService } from "../history/index.ts";
 import { type HistoryItem, itemIdOf, itemState } from "../history/items.ts";
 import type { Logger } from "../log.ts";
@@ -301,11 +302,9 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			for (const [id, client] of live.clients) if (client.until < now) expired = live.clients.delete(id) || expired;
 			if (expired) sendPresence(live);
 			if (live.connections.size > 0) await announce(live).catch(() => {});
-			for (const connection of [...live.connections]) {
-				const access = await connection.recheck().catch(() => null);
-				if (!access) end(connection, "SESSION_ENDED");
-				else if (!can(access.actor, readPermission(live.item), resourceOf(live))) end(connection, "ACCESS_LOST");
-			}
+			// Also the only moment a connection sitting idle (no change, no presence update) learns that
+			// access moved: `stillReading` ends it, or keeps `editable` fresh and tells it if it changed.
+			for (const connection of [...live.connections]) await stillReading(connection);
 		}
 	};
 
@@ -440,6 +439,13 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 		void announce(live).catch((error: unknown) => log.warn("Announcing presence failed", { error }));
 	};
 
+	/** Keeps a connection's `editable` fresh and tells its editor the moment it moves either way. */
+	const setEditable = (connection: Connection, editable: boolean) => {
+		if (connection.closed || connection.editable === editable) return;
+		connection.editable = editable;
+		send(connection, { type: "editable", editable });
+	};
+
 	const end = (connection: Connection, code: Extract<ServerMessage, { type: "ended" }>["code"]) => {
 		if (connection.closed) return;
 		send(connection, { type: "ended", code });
@@ -519,7 +525,13 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 		void enqueue(live, () => drain(live));
 	};
 
-	/** The person's session still holds and they may still read the item; ends the connection otherwise. */
+	/**
+	 * The person's session still holds and they may still read the item; ends the connection otherwise.
+	 * Also keeps `connection.editable` fresh and tells the editor the moment it moves (`setEditable`):
+	 * every call here re-reads access, so a batch of changes, a presence update (an editor sends one
+	 * whenever the person's place in the Draft changes, never held back by read-only) and the 30-second
+	 * beat all notice access granted or taken away without waiting for a reconnect.
+	 */
 	const stillReading = async (connection: Connection): Promise<Access | null> => {
 		const access = await connection.recheck().catch(() => null);
 		if (!access) {
@@ -531,6 +543,7 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			return null;
 		}
 		connection.access = access;
+		setEditable(connection, can(access.actor, editPermission(connection.live.item), resourceOf(connection.live)));
 		return access;
 	};
 
@@ -557,40 +570,54 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 	 * Checks one editor's change and saves it, in one transaction: the item and its document held, the
 	 * changes other processes made brought in first, the change tried on a copy and saved through the
 	 * item's own save as the person, then kept. Only then do the other editors get it.
+	 *
+	 * Whether the person may edit is read fresh here, every batch (not kept from `open()`'s welcome):
+	 * access granted since reaches them without a reconnect, and access taken away refuses them and
+	 * tells them, rather than waiting for the next heartbeat (`setEditable`, also run there).
 	 */
 	const applyChange = async (connection: Connection, seq: number, update: Uint8Array) => {
 		const { live } = connection;
 		const access = await stillReading(connection);
 		if (!access) return;
-		if (!connection.editable || !can(access.actor, editPermission(live.item), resourceOf(live))) {
+		if (!connection.editable) {
 			return refuse(connection, seq, { code: "FORBIDDEN", message: "You may only read this Draft." });
 		}
 		let changeId = 0;
 		try {
 			const scope = await deps.data.site(access, live.siteId, editPermission(live.item));
-			await scope.transaction(async (tx) => {
-				await lockItem(tx, live.item);
-				const row = await lockDocument(tx, live.item);
-				if (!row || row.id !== live.id) throw new DocumentReplacedError();
-				await catchUpIn(tx, live);
-				const trial = copyDocument(live.doc);
+			// A deadlock or a serialization failure means only that this ran into another transaction,
+			// never that the change itself was wrong: safe, and worth trying again once before dropping it.
+			for (let attempt = 1; ; attempt++) {
 				try {
-					Y.applyUpdate(trial, update);
-					if (trial.store.pendingStructs || trial.store.pendingDs) throw new MissingChangesError();
-					const before = readDocument(live.doc);
-					const after = readDocument(trial);
-					if (!sameValue(before, after)) {
-						await writingFromDocument(() => saveLiveChange(tx, live.item, before, after, deps.components));
-					}
-				} finally {
-					trial.destroy();
+					await scope.transaction(async (tx) => {
+						await lockItem(tx, live.item);
+						const row = await lockDocument(tx, live.item);
+						if (!row || row.id !== live.id) throw new DocumentReplacedError();
+						await catchUpIn(tx, live);
+						const trial = copyDocument(live.doc);
+						try {
+							Y.applyUpdate(trial, update);
+							if (trial.store.pendingStructs || trial.store.pendingDs) throw new MissingChangesError();
+							const before = readDocument(live.doc);
+							const after = readDocument(trial);
+							if (!sameValue(before, after)) {
+								await writingFromDocument(() => saveLiveChange(tx, live.item, before, after, deps.components));
+							}
+						} finally {
+							trial.destroy();
+						}
+						const stored = (await itemState(tx, live.item)).draft;
+						changeId = await recordChange(tx, row, update, stored, {
+							personId: personIdOf(access.actor),
+							via: access.via,
+						});
+					});
+					break;
+				} catch (error) {
+					if (isSerializationFailure(error) && attempt < 2) continue;
+					throw error;
 				}
-				const stored = (await itemState(tx, live.item)).draft;
-				changeId = await recordChange(tx, row, update, stored, {
-					personId: personIdOf(access.actor),
-					via: access.via,
-				});
-			});
+			}
 		} catch (error) {
 			if (error instanceof PermissionDeniedError || error instanceof SiteNotFoundError) {
 				return end(connection, "ACCESS_LOST");

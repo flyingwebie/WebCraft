@@ -13,6 +13,7 @@ import { Route as AdminRouteImport } from './routes/_admin'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
 import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
@@ -107,6 +108,11 @@ const SetupRoute = SetupRouteImport.update({
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TwoFactorRoute = TwoFactorRouteImport.update({
+  id: '/two-factor',
+  path: '/two-factor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -539,6 +545,7 @@ export interface FileRoutesByFullPath {
   '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
+  '/two-factor': typeof TwoFactorRoute
   '/account': typeof AdminAccountRouteWithChildren
   '/email-log': typeof AdminEmailLogRoute
   '/services': typeof AdminServicesRoute
@@ -619,6 +626,7 @@ export interface FileRoutesByTo {
   '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
+  '/two-factor': typeof TwoFactorRoute
   '/email-log': typeof AdminEmailLogRoute
   '/services': typeof AdminServicesRoute
   '/staff': typeof AdminStaffRoute
@@ -694,6 +702,7 @@ export interface FileRoutesById {
   '/invite': typeof InviteRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
+  '/two-factor': typeof TwoFactorRoute
   '/_admin/account': typeof AdminAccountRouteWithChildren
   '/_admin/email-log': typeof AdminEmailLogRoute
   '/_admin/services': typeof AdminServicesRoute
@@ -778,6 +787,7 @@ export interface FileRouteTypes {
     | '/invite'
     | '/setup'
     | '/sign-in'
+    | '/two-factor'
     | '/account'
     | '/email-log'
     | '/services'
@@ -858,6 +868,7 @@ export interface FileRouteTypes {
     | '/invite'
     | '/setup'
     | '/sign-in'
+    | '/two-factor'
     | '/email-log'
     | '/services'
     | '/staff'
@@ -932,6 +943,7 @@ export interface FileRouteTypes {
     | '/invite'
     | '/setup'
     | '/sign-in'
+    | '/two-factor'
     | '/_admin/account'
     | '/_admin/email-log'
     | '/_admin/services'
@@ -1015,6 +1027,7 @@ export interface RootRouteChildren {
   InviteRoute: typeof InviteRoute
   SetupRoute: typeof SetupRoute
   SignInRoute: typeof SignInRoute
+  TwoFactorRoute: typeof TwoFactorRoute
   OauthAuthorizeRoute: typeof OauthAuthorizeRoute
   BuilderSiteIdSplatRoute: typeof BuilderSiteIdSplatRoute
 }
@@ -1047,6 +1060,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/two-factor': {
+      id: '/two-factor'
+      path: '/two-factor'
+      fullPath: '/two-factor'
+      preLoaderRoute: typeof TwoFactorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_admin/': {
@@ -1854,6 +1874,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteRoute: InviteRoute,
   SetupRoute: SetupRoute,
   SignInRoute: SignInRoute,
+  TwoFactorRoute: TwoFactorRoute,
   OauthAuthorizeRoute: OauthAuthorizeRoute,
   BuilderSiteIdSplatRoute: BuilderSiteIdSplatRoute,
 }

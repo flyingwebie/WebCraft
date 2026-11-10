@@ -33,6 +33,13 @@ export const PERMISSIONS = {
 	"member.invite": ["workspace"],
 	/** See the Workspace's Members, change their role and Sites, and remove them. */
 	"member.manage": ["workspace"],
+	/** Require two-factor authentication for the Workspace's Members, or stop requiring it (Staff and Owners). */
+	"twoFactor.require": ["workspace"],
+	/**
+	 * Reset a Member's two-factor authentication when they lost it (Staff). Never other Staff or the
+	 * Superadmin: only the Superadmin resets Staff, from the Staff screen.
+	 */
+	"twoFactor.reset": ["workspace"],
 	/**
 	 * Switch Modules on and off, and remove their data: Workspace-level Modules on a Workspace,
 	 * Site-level Modules on a Site.
@@ -148,6 +155,8 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"site.create",
 			"member.invite",
 			"member.manage",
+			"twoFactor.require",
+			"twoFactor.reset",
 			"module.manage",
 			"quota.manage",
 			"aiKey.manage",
@@ -183,6 +192,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"workspace.view",
 			"member.invite",
 			"member.manage",
+			"twoFactor.require",
 			"aiKey.manage",
 			"aiUsage.view",
 			"protectedTerms.edit",

@@ -21,7 +21,10 @@ const SLUG_SHAPE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**
  * Slugs the Install keeps for itself: their Staging addresses could be mistaken for its own, and
- * `share` is the Share link address (`share.<sites domain>`, see `reports/share-links.ts`).
+ * `share` is the Share link address (`share.<sites domain>`, see `reports/share-links.ts`). This
+ * only stops a slug being chosen from here on (by `checkSlug`, below): a Site that already had
+ * `share` from before it was reserved is moved to `share-<n>` by the migration
+ * `move-existing-share-slug`, once, on upgrade.
  */
 export const RESERVED_SITE_SLUGS: readonly string[] = ["admin", "www", "share"];
 

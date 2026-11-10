@@ -69,13 +69,8 @@ export function GlobalsEditor({
 			setGlobals(fresh);
 		},
 	});
-	const { shared, values } = coEdited;
-	const autosave = {
-		status: shared.status === "saved" ? "saved" : shared.status === "saving" ? "saving" : "waiting",
-		flush: shared.flush,
-	} as const;
+	const { shared, values, autosave, locked } = coEdited;
 	const tracking = usePlaceTracking(shared.place);
-	const locked = shared.status === "readOnly" || shared.status === "ended" || !shared.editable;
 
 	const problems = [...globals.problems, ...refused];
 	const context: ValueContext = {

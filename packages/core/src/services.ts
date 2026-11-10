@@ -101,6 +101,7 @@ import type { StaffService } from "./tenancy/staff.ts";
 import type { WorkspaceSummary } from "./tenancy/workspaces.ts";
 import type { TlsProbe } from "./tls.ts";
 import type { Translations } from "./translation/service.ts";
+import type { TwoFactor } from "./two-factor/index.ts";
 import type { Updates } from "./updates.ts";
 import type { Webhooks } from "./webhooks/index.ts";
 
@@ -151,6 +152,11 @@ export type InstallServices = InstallPorts & {
 	auth: Auth;
 	/** A person's own account: their sessions and their password, recorded in the Audit log. */
 	account: Account;
+	/**
+	 * Two-factor authentication: a person's own second factors (recorded in the Audit log and
+	 * emailed to them), whether it is required of them, the switches that require it, and resets.
+	 */
+	twoFactor: TwoFactor;
 	/** Rate limits, counted in Postgres so every web process shares them (`RATE_LIMITS`). */
 	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */

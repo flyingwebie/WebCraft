@@ -143,4 +143,21 @@ describe("the live preview", () => {
 			code: "FORBIDDEN",
 		});
 	});
+
+	test("a Filter still placed in a Template's published tree, but removed from its Draft, previews beside its Loop's items", async () => {
+		// Staff redesigned the Products page and haven't republished: the Archive template's Draft no
+		// longer places the Filter, though it still does in the published tree the preview must not use.
+		await shop.staff.api.templates.saveArchiveTemplateMarkup({
+			siteId: shop.siteId,
+			postTypeId: shop.productsId,
+			markup:
+				"<ul>{{@loop products as p}}<li>{{ p.title }}</li>{{@empty}}<li>None</li>{{/loop}}</ul>{{@pagination products}}",
+		});
+
+		const preview = await shop.staff.api.filters.preview({ siteId: shop.siteId, filterId: shop.filterId });
+
+		expect(preview.html).toContain('<form class="wc-filter" id="wc-filter-shop"');
+		expect(preview.url).toBe("/");
+		expect(preview.count).toBe("7 products");
+	});
 });

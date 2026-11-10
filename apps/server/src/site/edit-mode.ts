@@ -63,8 +63,20 @@ export async function editModeEndpoint(
 	return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
 }
 
-/** The editing bar's words, by Admin language: the `editBar` part of the admin's message files. */
-const BAR_WORDS: Record<AdminLanguageCode, (typeof en)["editBar"]> = { en: en.editBar, it: it.editBar };
+/**
+ * The editing bar's words, by Admin language: the `editBar` part of the admin's message files, with
+ * the presence wording it shares with Co-editing's own screens (who else is here, via a client or AI
+ * translation, who published) read from `coEditing.*` instead of a second copy under `editBar.*`.
+ */
+const barWordsOf = (messages: typeof en) => ({
+	...messages.editBar,
+	isHere: messages.coEditing.isHere,
+	via: messages.coEditing.via,
+	viaTranslation: messages.coEditing.viaTranslation,
+	someone: messages.coEditing.someone,
+	publishedBy: messages.coEditing.publishedBy,
+});
+const BAR_WORDS: Record<AdminLanguageCode, ReturnType<typeof barWordsOf>> = { en: barWordsOf(en), it: barWordsOf(it) };
 
 /** Where the editing bar sends edit requests, under `/_webcraft/edit/`: `api/<action>`. */
 const EDIT_API_PREFIX = "api/";

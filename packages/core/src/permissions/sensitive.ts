@@ -26,6 +26,15 @@ export const SENSITIVE_ACTIONS = {
 	"masterKey.confirmStored": "vouches for the Master key backup",
 	/** A person's own password. */
 	"password.change": "changes how a person signs in",
+	/**
+	 * A person's own second factors: adding or removing an authenticator app or a passkey, and making
+	 * new backup codes. Each also ends the person's other sessions.
+	 */
+	"twoFactor.change": "changes how a person signs in",
+	/** Resetting someone else's two-factor authentication (the Superadmin, or Staff for their Workspaces' Members). */
+	"twoFactor.reset": "changes how a person signs in",
+	/** Requiring two-factor authentication, or no longer requiring it: on the Install, or for a Workspace's Members. */
+	"twoFactorRequirement.change": "changes how people sign in",
 	/** The leaked-password check on new passwords, Install-wide. */
 	"leakedPasswordCheck.change": "changes how passwords are checked",
 	/** Where the Install stores Media: an S3-compatible bucket's secret key is a secret. */

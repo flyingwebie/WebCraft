@@ -5,8 +5,12 @@ import { email, id, reach } from "../inputs.ts";
 
 /** Staff: the agency's people, reaching the Workspaces they are assigned to. Only the Superadmin manages them. */
 export const staff = {
-	/** Staff with the Workspaces they reach, and pending Staff invites. */
-	list: onInstall("staff.manage").handler(({ context }) => context.services.staff.list(context.install)),
+	/** Staff with the Workspaces they reach and their second factors, and pending Staff invites. */
+	list: onInstall("staff.manage").handler(async ({ context }) => {
+		const { staff, invites } = await context.services.staff.list(context.install);
+		const methods = await context.services.twoFactor.methodsOf(staff.map((person) => person.id));
+		return { staff: staff.map((person) => ({ ...person, twoFactor: methods.get(person.id) ?? [] })), invites };
+	}),
 
 	/**
 	 * Invites a person as Staff, reaching some Workspaces or all of them: they get an email with a link
@@ -33,6 +37,18 @@ export const staff = {
 		.input(z.object({ personId: id, workspaces: reach }))
 		.handler(async ({ context, input }) => {
 			await context.services.staff.setWorkspaces(context.install, input.personId, input.workspaces);
+			return { ok: true as const };
+		}),
+
+	/**
+	 * Resets a Staff member's two-factor authentication when they lost it: their authenticator app,
+	 * passkeys and backup codes go, every session of theirs ends, and they are emailed.
+	 */
+	resetTwoFactor: onInstall("staff.manage")
+		.use(sensitive("twoFactor.reset"))
+		.input(z.object({ personId: id }))
+		.handler(async ({ context, input }) => {
+			await context.services.twoFactor.resetStaff(context.install, input.personId);
 			return { ok: true as const };
 		}),
 };

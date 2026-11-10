@@ -45,6 +45,7 @@ for (const theme of THEMES) {
 			await page.getByText("Nothing was changed: confirm it's you to continue.").waitFor();
 			expect(await install.install.superadmin().then((admin) => admin.api.install.security.get())).toEqual({
 				leakedPasswordCheck: true,
+				requireTwoFactor: false,
 			});
 		});
 

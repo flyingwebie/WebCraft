@@ -8,7 +8,8 @@ import { DRAFT_LIMITS, DRAFTS_PROTOCOL, encodeFrame } from "@webcraft/core";
 
 import { openDraft, upgradeDraft, upgradeDraftInEditMode } from "../harness/co-editing.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
-import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, TEST_PASSWORD, type TestInstall } from "../harness/index.ts";
+import { addAuthenticator, confirmIfAsked } from "../harness/two-factor.ts";
 import { coEditingSite, valueIn, withValue } from "./support.ts";
 
 let install: TestInstall;
@@ -85,6 +86,25 @@ describe("opening a Draft from the admin", () => {
 		editor.change((draft) => withValue(draft, "summary", "After signing out"));
 		await editor.until(() => editor.status() === "ended", "the editor to end");
 		expect(editor.messages.at(-1)).toEqual({ type: "ended", code: "SESSION_ENDED" });
+		const { entry } = await site.staff.api.entries.get({ siteId: site.siteId, entryId: site.entryId });
+		expect(entry.draft.fields.summary).toBe("Bake it today.");
+	});
+});
+
+describe("two-factor authentication required", () => {
+	test("a person who must set it up first opens no Draft, and an open one ends at their next change", async () => {
+		const site = await coEditingSite(install);
+		const item = { kind: "entry", id: site.entryId } as const;
+		const editor = await openDraft(install, site.editor, site.siteId, item);
+		await addAuthenticator(install, site.staff);
+
+		await confirmIfAsked(site.staff, TEST_PASSWORD, () =>
+			site.staff.api.members.requireTwoFactor({ workspaceId: site.workspaceId, required: true }),
+		);
+
+		expect(await refusedWith(upgradeDraft(install, site.editor, site.siteId, item))).toBe(403);
+		editor.change((draft) => withValue(draft, "summary", "Without two-factor authentication"));
+		await editor.until(() => editor.status() === "ended", "the editor to end");
 		const { entry } = await site.staff.api.entries.get({ siteId: site.siteId, entryId: site.entryId });
 		expect(entry.draft.fields.summary).toBe("Bake it today.");
 	});
