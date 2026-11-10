@@ -64,6 +64,12 @@ export const SENSITIVE_ACTIONS = {
 	 * Drafts on its Staging address.
 	 */
 	"stagingPassword.change": "changes a secret",
+	/**
+	 * Making a Share link, or changing its password or expiry: the link opens a Dashboard to anyone who
+	 * holds it (and its password, when it has one), outside the admin. Never for an API token or AI
+	 * client, which could otherwise hand a client's figures to anyone. Revoking one isn't Sensitive.
+	 */
+	"shareLink.change": "sends a Dashboard to anyone holding a link",
 	/** Creating an API token: a credential that acts as the person, outside the admin. */
 	"apiToken.create": "creates a credential",
 	/** Approving an AI client: its grant's tokens act as the person, outside the admin. */

@@ -117,6 +117,14 @@ export const it: EmailWording = {
 			paragraphs: [`${authorName} ha inviato “${itemTitle}” su ${siteName} in revisione.`],
 			action: { label: "Rivedilo", path: reviewPath },
 		}),
+		"report-review": ({ reportName, placeName, reviewPath }) => ({
+			subject: `“${reportName}” attende la revisione`,
+			heading: "Un report attende la revisione",
+			paragraphs: [
+				`Il report “${reportName}” per ${placeName} è pronto, con un testo dell'IA da verificare. Parte quando qualcuno lo approva.`,
+			],
+			action: { label: "Rivedilo", path: reviewPath },
+		}),
 		"review-result": ({ itemTitle, siteName, result, reviewerName, comment, itemPath }) => {
 			const published = result === "published";
 			return {
@@ -173,6 +181,15 @@ export const it: EmailWording = {
 				"Elimina i file che non servono più (svuotare il Cestino libera subito il loro spazio), oppure chiedi una quota più grande.",
 			],
 			action: { label: "Vedi lo spazio", path: workspacePath },
+		}),
+		"report-failed": ({ reportName, placeName, reportsPath }) => ({
+			subject: `Non è stato possibile inviare “${reportName}”`,
+			heading: "Non è stato possibile inviare un report",
+			paragraphs: [
+				`Il PDF del report “${reportName}” per ${placeName} non è stato creato dopo tre tentativi, quindi non è stato inviato a nessuno.`,
+				"La sua cronologia spiega perché. Inviatelo di nuovo da lì quando il problema è risolto.",
+			],
+			action: { label: "Apri la cronologia", path: reportsPath },
 		}),
 		"webhook-switched-off": ({ webhookName, host, siteName, failures, webhooksPath }) => ({
 			subject: `Un Webhook di ${siteName} è stato disattivato`,

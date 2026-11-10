@@ -20,7 +20,7 @@ import {
 	PlusIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import { Fragment, type ReactNode, useRef, useState } from "react";
 
 import { useT } from "../i18n.tsx";
 import { MediaPicker } from "../media/MediaPicker.tsx";
@@ -70,25 +70,31 @@ export function FieldValueList({
 	onChange,
 	context,
 	at = "fields.",
+	wrap,
 }: {
 	fields: readonly FieldDefinition[];
 	values: FieldValues;
 	onChange(key: string, value: Json): void;
 	context: ValueContext;
 	at?: string;
+	/** Wraps each Field's control, such as with who else is in it (Co-editing). */
+	wrap?(field: FieldDefinition, control: ReactNode): ReactNode;
 }) {
 	return (
 		<div className="grid gap-6">
-			{fields.map((field) => (
-				<FieldValue
-					key={field.key}
-					field={field}
-					value={values[field.key] ?? null}
-					onChange={(value) => onChange(field.key, value)}
-					path={`${at}${field.key}`}
-					context={context}
-				/>
-			))}
+			{fields.map((field) => {
+				const control = (
+					<FieldValue
+						key={field.key}
+						field={field}
+						value={values[field.key] ?? null}
+						onChange={(value) => onChange(field.key, value)}
+						path={`${at}${field.key}`}
+						context={context}
+					/>
+				);
+				return wrap ? <Fragment key={field.key}>{wrap(field, control)}</Fragment> : control;
+			})}
 		</div>
 	);
 }

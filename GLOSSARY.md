@@ -306,6 +306,10 @@ _Avoid_: Approval workflow, moderation
 Several people, AI clients or AI translation changing the same Draft at the same time, each seeing the others' changes as they happen. Drafts are never locked.
 _Avoid_: Collaboration mode, multiplayer, edit lock
 
+**Presence**:
+Who else has a Draft open while it is co-edited, and which value or element each person is in, shown by name. An API client, an AI client or AI translation shows as "<person> via <client>" for a moment after it changes the Draft.
+_Avoid_: Cursors, live users, collaborators
+
 **Primary domain**:
 The one domain a Site is served on. Its other domains redirect to it.
 _Avoid_: Main domain, live URL
@@ -667,6 +671,10 @@ _Avoid_: Public link, client portal, guest access
 **Services list**:
 The services an agency offers, written by Staff for the whole Install, that the suggestions in Reports may point to.
 _Avoid_: Offerings, products, upsells
+
+**Report branding**:
+How Reports and Share links show the agency brand (the Superadmin's for the Install, or a Workspace's own), the client brand (the Site's or Workspace's name and logo) and "Made with WebCraft", each switched on or off. Kept apart from Install branding, which is for System emails.
+_Avoid_: White label, theme, agency branding (that means Install branding)
 
 **Consent banner**:
 The notice on a Site that asks visitors which categories of tracking and outside content they accept. WebCraft's built-in banner can be replaced by an outside consent service or turned off.

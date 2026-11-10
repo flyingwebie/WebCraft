@@ -100,6 +100,10 @@ export const SYSTEM_EMAIL_TYPES = {
 			itemPath: adminPath,
 		}),
 	},
+	"report-review": {
+		category: "work",
+		data: z.object({ reportName: title, placeName: name, reviewPath: adminPath }),
+	},
 	"scheduled-publish-failed": {
 		category: "work",
 		data: z.object({ itemTitle: title, siteName: name, itemPath: adminPath }),
@@ -142,6 +146,10 @@ export const SYSTEM_EMAIL_TYPES = {
 			quotaBytes: z.number().int().positive(),
 			workspacePath: adminPath,
 		}),
+	},
+	"report-failed": {
+		category: "alert",
+		data: z.object({ reportName: title, placeName: name, reportsPath: adminPath }),
 	},
 	"webhook-switched-off": {
 		category: "alert",

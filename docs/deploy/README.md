@@ -31,7 +31,7 @@ Every setting is an environment variable; web, worker and the migrate step get t
 | --- | --- |
 | `DATABASE_URL` | The Postgres connection string. Each target's files fill it in. |
 | `WEBCRAFT_ADMIN_HOST` | The admin's hostname, such as `admin.agency.example`: no scheme, port or path. Choose it before the first start: passkeys and the links in emails already sent are tied to it. |
-| `WEBCRAFT_SITES_DOMAIN` | Optional: the domain Staging addresses sit under (`sites.agency.example` gives `bakery.sites.agency.example`), with a wildcard DNS record pointing at the Install. |
+| `WEBCRAFT_SITES_DOMAIN` | Optional: the domain Staging addresses sit under (`sites.agency.example` gives `bakery.sites.agency.example`), with a wildcard DNS record pointing at the Install. Share links are served under it too (`share.sites.agency.example`); without it there are none. |
 | `WEBCRAFT_SECRET_KEY` | The Master key (see below). |
 | `WEBCRAFT_EDGE` | `caddy`, `coolify` or `railway`. Each target's files set it. |
 | `WEBCRAFT_PUBLIC_ADDRESSES` | Optional: the Install's public IP addresses, separated by commas. Site domains point their A and AAAA records at them; without it, the Domains screen offers only a CNAME record to the admin host. |

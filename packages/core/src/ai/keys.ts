@@ -46,7 +46,7 @@ import {
  */
 
 /** What a call is for: AI translation, Suggest alt text, or a key's Test. */
-export type AiPurpose = "translation" | "altText" | "test";
+export type AiPurpose = "translation" | "altText" | "report" | "test";
 
 /** Which of a Workspace's keys: its own, or the shared key assigned to it. */
 export type AiKeyKind = "own" | "shared";

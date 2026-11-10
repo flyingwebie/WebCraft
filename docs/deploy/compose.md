@@ -5,7 +5,7 @@ One server of your own (2 vCPUs and 2 GB of memory to start) runs the whole Inst
 ## What you need
 
 - A server with Docker and the Compose plugin, ports 80 and 443 open to the internet (443 over UDP too, for HTTP/3), and nothing else listening on them.
-- DNS records pointing at the server: the admin host (`admin.agency.example`), and, for Staging addresses, a wildcard under the sites domain (`*.sites.agency.example`).
+- DNS records pointing at the server: the admin host (`admin.agency.example`), and, for Staging addresses and Share links (`share.sites.agency.example`), a wildcard under the sites domain (`*.sites.agency.example`).
 
 ## Install
 
@@ -25,6 +25,7 @@ One server of your own (2 vCPUs and 2 GB of memory to start) runs the whole Inst
 - **Caddy** publishes ports 80 and 443 and passes every request to the web process, which tells the admin and every Site apart by hostname. Before it issues a certificate it asks `http://<admin host>:3000/caddy/ask?domain=<name>`: the web process says yes for the admin host, the Staging address of an existing Site and every verified Site domain. Every other hostname gets no certificate. Inside the Compose file the admin host is a network alias of the web service, on a network only Caddy and the web process share, so the ask reaches it with the admin host as its `Host`.
 - **Plain HTTP** goes on to HTTPS, except `/_webcraft/verify/…`: a new domain's verification request comes over plain HTTP, since the domain has no certificate until it is verified.
 - **The web process** publishes no port of its own: Caddy is its only way in, which is why the private ranges are its trusted proxies (`WEBCRAFT_TRUSTED_PROXIES` unset). If you put a load balancer of your own in front, add its addresses (see the overview).
+- **The worker** prints Reports' PDFs with the headless Chromium its image carries (one at a time, stopped after a minute each); it needs no port and no outside access for that.
 - **Web and worker** share the `storage` volume (Media on local disk) and the `backups` volume (the Backups folder), and reach Postgres over the Compose network; Postgres publishes no port. The migrate step mounts both too: it takes a Backup before it changes anything.
 
 To use other host ports for Caddy (another proxy on the server has 80 and 443), set `WEBCRAFT_HTTP_PORT` and `WEBCRAFT_HTTPS_PORT`; certificates on demand then need that proxy to pass ports 80 and 443 through to Caddy unchanged.
@@ -77,4 +78,4 @@ On a new server, start only Postgres first (`docker compose up -d postgres`), th
 
 ## Testing the files
 
-`bun run test:deploy` (in a checkout of the repository, with Docker running) builds both images, starts this Compose file under a project of its own on free local ports, and checks that the migrate step finishes, `/readyz` answers through Caddy over HTTPS with a certificate issued on demand (from Caddy's own local authority, since there is no public DNS), plain HTTP goes on to HTTPS except domain verification, an unknown hostname gets no certificate, the admin renders, the setup link is logged, the worker works, the `webcraft` command runs, `webcraft admin backup` writes into the shared Backups volume, and `webcraft admin restore --force` puts that Backup back with web and worker stopped, after which the Install is ready again. It removes its own project when it ends (`--keep` leaves it running). CI runs it on every pull request.
+`bun run test:deploy` (in a checkout of the repository, with Docker running) builds both images, starts this Compose file under a project of its own on free local ports, and checks that the migrate step finishes, `/readyz` answers through Caddy over HTTPS with a certificate issued on demand (from Caddy's own local authority, since there is no public DNS), plain HTTP goes on to HTTPS except domain verification, an unknown hostname gets no certificate, the admin renders, the setup link is logged, the worker works and its Chromium prints a PDF, the `webcraft` command runs, `webcraft admin backup` writes into the shared Backups volume, and `webcraft admin restore --force` puts that Backup back with web and worker stopped, after which the Install is ready again. It removes its own project when it ends (`--keep` leaves it running). CI runs it on every pull request.

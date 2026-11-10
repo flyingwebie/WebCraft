@@ -38,6 +38,15 @@ export function createSmtpMailer(): Mailer {
 					html: email.html,
 					headers: email.headers,
 					...(email.messageId ? { messageId: email.messageId } : {}),
+					...(email.attachments?.length
+						? {
+								attachments: email.attachments.map((attachment) => ({
+									filename: attachment.filename,
+									contentType: attachment.contentType,
+									content: Buffer.from(attachment.content),
+								})),
+							}
+						: {}),
 				});
 				return { response: info.response };
 			} catch (error) {

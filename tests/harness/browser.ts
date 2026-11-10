@@ -1,6 +1,7 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ApiClient } from "@webcraft/api";
+import type { UpgradeAnswer } from "@webcraft/server/handler";
 
 /**
  * One person's browser on the admin: it keeps the cookies answers set and sends them back, and
@@ -19,6 +20,20 @@ export type TestBrowser = {
 	request(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 	/** The cookies this browser holds, by name. */
 	readonly cookies: ReadonlyMap<string, string>;
+	/**
+	 * Asks to open a WebSocket (Co-editing's Drafts), as a page does: a `GET` upgrade with this
+	 * browser's cookies and its page's origin, through the handler's upgrade. `origin` null leaves the
+	 * header out; `protocols` are the subprotocols it asks for.
+	 */
+	openSocket(
+		url: string | URL,
+		options?: {
+			protocols?: readonly string[];
+			origin?: string | null;
+			/** Another web process to send the upgrade to (`install.webProcess()`), instead of this Install's. */
+			through?: (request: Request) => Promise<UpgradeAnswer>;
+		},
+	): Promise<UpgradeAnswer>;
 };
 
 /** Where the admin calls the Management API. */
@@ -58,6 +73,7 @@ export function fromAddress(request: Request, address: string | null): Request {
 export function createTestBrowser(
 	options: TestBrowserOptions & {
 		send: (request: Request) => Promise<Response>;
+		upgrade: (request: Request) => Promise<UpgradeAnswer>;
 		adminOrigin: string;
 	},
 ): TestBrowser {
@@ -83,10 +99,37 @@ export function createTestBrowser(
 	const api: ApiClient = createORPCClient(
 		new RPCLink({ url: new URL(API_PATH, options.adminOrigin).toString(), fetch: (outgoing) => request(outgoing) }),
 	);
+	const openSocket = (
+		url: string | URL,
+		socket: {
+			protocols?: readonly string[];
+			origin?: string | null;
+			through?: (request: Request) => Promise<UpgradeAnswer>;
+		} = {},
+	) => {
+		const headers = new Headers({
+			connection: "Upgrade",
+			upgrade: "websocket",
+			"sec-websocket-version": "13",
+			"sec-websocket-key": btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
+		});
+		for (const [name, value] of Object.entries(options.headers ?? {})) headers.set(name, value);
+		if (socket.protocols && socket.protocols.length > 0)
+			headers.set("sec-websocket-protocol", socket.protocols.join(", "));
+		if (cookies.size > 0) {
+			headers.set("cookie", Array.from(cookies, ([name, value]) => `${name}=${value}`).join("; "));
+		}
+		// Browsers send the page's origin with every WebSocket upgrade.
+		const from = socket.origin === undefined ? origin : socket.origin;
+		if (from !== null) headers.set("origin", from);
+		if (options.userAgent !== undefined) headers.set("user-agent", options.userAgent);
+		return (socket.through ?? options.upgrade)(fromAddress(new Request(String(url), { headers }), browser.address));
+	};
 	const browser: TestBrowser = {
 		api,
 		request,
 		cookies,
+		openSocket,
 		address: options.address === undefined ? nextAddress() : options.address,
 	};
 	return browser;

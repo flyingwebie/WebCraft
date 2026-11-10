@@ -1,13 +1,13 @@
 import type { Database } from "@webcraft/db";
 import { siteDomains, sites } from "@webcraft/db/schema";
 import { and, eq, isNotNull } from "drizzle-orm";
-
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
 import type { Dns } from "../dns.ts";
 import type { Email } from "../email/index.ts";
 import type { OutgoingHttp } from "../http.ts";
 import type { Logger } from "../log.ts";
+import { SHARE_LINK_LABEL } from "../reports/model.ts";
 import { slugOfStagingHostname } from "../site-pages/addresses.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import type { TlsProbe } from "../tls.ts";
@@ -149,6 +149,8 @@ export function createDomains(options: DomainsOptions): Domains {
 		async approvesCertificate(hostname) {
 			if (hostname === config.adminHost) return true;
 			const slug = slugOfStagingHostname(config, hostname);
+			// The Share link address (`share.<sites domain>`) answers whether any Share link exists.
+			if (slug === SHARE_LINK_LABEL) return true;
 			if (slug) {
 				const [site] = await database.db.select({ id: sites.id }).from(sites).where(eq(sites.slug, slug));
 				return site !== undefined;

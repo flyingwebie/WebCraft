@@ -43,6 +43,7 @@ describe("email switches", () => {
 		expect(emails.filter((email) => email.category === "work").map((email) => email.type)).toEqual([
 			"review-submitted",
 			"review-result",
+			"report-review",
 			"scheduled-publish-failed",
 			"ai-key-cap",
 			"module-message",
@@ -51,6 +52,7 @@ describe("email switches", () => {
 			"domain-unreachable",
 			"site-smtp-failing",
 			"media-quota-warning",
+			"report-failed",
 			"webhook-switched-off",
 		]);
 		expect(emails.find((email) => email.type === "password-reset")).toEqual({

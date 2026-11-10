@@ -1731,6 +1731,171 @@ describe("Dashboards", () => {
 	});
 });
 
+describe("Reports, Share links and their branding", () => {
+	type Place = { siteId: string } | { workspaceId: string };
+	type Made = { dashboardId: string; reportId: string; sendId: string; shareLinkId: string };
+	/**
+	 * In each place of a target, once, made by the Superadmin: a Dashboard (one the Dashboards' lines
+	 * left there, else a new one), a Report, a test sent of it, and a Share link. `fresh` makes a new
+	 * Report and Share link on the same Dashboard, for calls that remove them.
+	 */
+	const made = new Map<string, Promise<Made>>();
+	const madeIn = (place: Place, fresh = false): Promise<Made> => {
+		const key = JSON.stringify(place);
+		const cached = made.get(key);
+		if (cached && !fresh) return cached;
+		const making = (async () => {
+			const { api } = await install.superadmin();
+			const dashboardId =
+				(cached ? (await cached).dashboardId : undefined) ??
+				(await api.dashboards.list(place)).dashboards[0]?.id ??
+				(await api.dashboards.create({ ...place, name: "Board" })).dashboard.id;
+			const { report } = await api.reports.create({
+				...place,
+				dashboardId,
+				name: "Weekly",
+				schedule: "weekly",
+				language: "en",
+				recipients: ["client@client.example"],
+				review: false,
+				active: true,
+			});
+			const { send } = await api.reports.sendTest({ ...place, reportId: report.id });
+			const { link } = await api.shareLinks.create({ ...place, dashboardId, name: "Link" });
+			return { dashboardId, reportId: report.id, sendId: send.id, shareLinkId: link.id };
+		})();
+		if (!fresh) made.set(key, making);
+		return making;
+	};
+	const reportsIn = async (target: IsolationTarget, fresh: boolean) => ({
+		site: await madeIn({ siteId: target.siteId }, fresh),
+		workspace: await madeIn({ workspaceId: target.workspaceId }, fresh),
+	});
+	/** Calls `call` on a Site Dashboard's and a Workspace Dashboard's: both answer on ours, both are refused on theirs. */
+	const both =
+		(call: (api: ApiClient, place: Place, made: Made) => Promise<unknown>, fresh = false) =>
+		async (api: ApiClient, target: IsolationTarget) => {
+			const made = await reportsIn(target, fresh);
+			const results = await Promise.allSettled([
+				call(api, { siteId: target.siteId }, made.site),
+				call(api, { workspaceId: target.workspaceId }, made.workspace),
+			]);
+			const refused = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+			if (refused.length === 1) throw new Error("Only one of a Site's and a Workspace's Dashboards was refused.");
+			if (refused[0]) throw refused[0].reason;
+		};
+	/**
+	 * A call on a history entry that may be refused for the entry's state (a test still being made has
+	 * no PDF, isn't waiting for review): that refusal (409) means it reached the entry, as on our
+	 * Workspace; access refusals (403, 404) go on.
+	 */
+	const reached = (call: Promise<unknown>) =>
+		call.catch((error: { code?: string }) => {
+			if (error.code !== "REPORT_SEND_REFUSED") throw error;
+		});
+
+	isolation.refuses(
+		"reports.list",
+		both((api, place, made) => api.reports.list({ ...place, dashboardId: made.dashboardId })),
+	);
+	isolation.refuses(
+		"reports.create",
+		both((api, place, made) =>
+			api.reports.create({
+				...place,
+				dashboardId: made.dashboardId,
+				name: "Ours",
+				schedule: "monthly",
+				language: "it",
+				recipients: [],
+				review: true,
+				active: false,
+			}),
+		),
+	);
+	isolation.refuses(
+		"reports.update",
+		both((api, place, made) => api.reports.update({ ...place, reportId: made.reportId, name: "Renamed" })),
+	);
+	isolation.refuses(
+		"reports.setRecipients",
+		both((api, place, made) => api.reports.setRecipients({ ...place, reportId: made.reportId, recipients: [] })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"reports.delete",
+		both((api, place, made) => api.reports.delete({ ...place, reportId: made.reportId }), true),
+	);
+	isolation.refuses(
+		"reports.sendTest",
+		both((api, place, made) => api.reports.sendTest({ ...place, reportId: made.reportId })),
+	);
+	isolation.refuses(
+		"reports.history",
+		both((api, place, made) => api.reports.history({ ...place, reportId: made.reportId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"reports.sends.get",
+		both((api, place, made) => api.reports.sends.get({ ...place, sendId: made.sendId })),
+	);
+	isolation.refuses(
+		"reports.sends.pdf",
+		both((api, place, made) => reached(api.reports.sends.pdf({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"reports.sends.editText",
+		both((api, place, made) =>
+			reached(
+				api.reports.sends.editText({
+					...place,
+					sendId: made.sendId,
+					text: { widgets: {}, whatHappened: "Ours.", suggestions: [] },
+				}),
+			),
+		),
+	);
+	isolation.refuses(
+		"reports.sends.approve",
+		both((api, place, made) => reached(api.reports.sends.approve({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"reports.sends.discard",
+		both((api, place, made) => reached(api.reports.sends.discard({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"reports.sends.resend",
+		both((api, place, made) => reached(api.reports.sends.resend({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"shareLinks.list",
+		both((api, place, made) => api.shareLinks.list({ ...place, dashboardId: made.dashboardId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"shareLinks.create",
+		both((api, place, made) => api.shareLinks.create({ ...place, dashboardId: made.dashboardId, name: "Ours" })),
+	);
+	isolation.refuses(
+		"shareLinks.update",
+		both((api, place, made) => api.shareLinks.update({ ...place, shareLinkId: made.shareLinkId, name: "Renamed" })),
+	);
+	isolation.refuses(
+		"shareLinks.revoke",
+		both((api, place, made) => api.shareLinks.revoke({ ...place, shareLinkId: made.shareLinkId }), true),
+	);
+	isolation.refuses("reportBranding.workspace.get", (api, { workspaceId }) =>
+		api.reportBranding.workspace.get({ workspaceId }),
+	);
+	isolation.refuses("reportBranding.workspace.update", (api, { workspaceId }) =>
+		api.reportBranding.workspace.update({ workspaceId, client: { name: "Ours" }, madeWith: false }),
+	);
+	isolation.refuses("reportBranding.site.get", (api, { siteId }) => api.reportBranding.site.get({ siteId }));
+	isolation.refuses("reportBranding.site.update", (api, { siteId }) =>
+		api.reportBranding.site.update({ siteId, client: { name: "Ours" } }),
+	);
+});
+
 /** A Module's procedures, from the person's Management API (`m.<module id>`). */
 function moduleOf<
 	Definition extends typeof sample | typeof sampleBoard | typeof forms | typeof siteAnalytics | typeof redirects,

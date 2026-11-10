@@ -1,5 +1,8 @@
-/** What the editing bar's script is given when it is made: the address of its own stylesheet. */
-export type EditingBarConfig = { styles: string };
+/**
+ * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
+ * the module that opens the page's Drafts live (Co-editing).
+ */
+export type EditingBarConfig = { styles: string; drafts: string };
 
 /**
  * The editing bar: WebCraft's own script on a page in Edit mode (ADR 0022). It is served as a file
@@ -35,6 +38,7 @@ export function editingBar(config: EditingBarConfig): void {
 		person: { name: string };
 		site: { name: string };
 		language: { code: string; name: string };
+		defaultLanguage: string;
 		languages: { code: string; name: string; path: string; current: boolean }[];
 		words?: Words;
 	};
@@ -43,6 +47,32 @@ export function editingBar(config: EditingBarConfig): void {
 	type Popup = { trigger: HTMLButtonElement; panel: HTMLElement; focus(): void; render?(): void };
 	/** One of the Site's own scripts that threw, or didn't load (`line` null). */
 	type Failure = { kind: "site" | "page" | "library"; name: string; message: string; line: number | null };
+	/** Someone else in one of the page's shared Drafts (Co-editing, ADR 0025), as the server says. */
+	type Participant = {
+		id: string;
+		personId: string | null;
+		name: string;
+		via: string | null;
+		translation?: boolean;
+		colour: number;
+		at: string | null;
+		self?: boolean;
+	};
+	type DraftEnds = { receive(data: string | Uint8Array): void; closed(): void };
+	type DraftClient = {
+		place(at: string | null): void;
+		connect(transport: { send(data: string | Uint8Array): void; close(): void }): DraftEnds;
+	};
+	/** The shared-Draft module (`@webcraft/core/draft-document`), as it hands itself to the bar. */
+	type DraftsModule = {
+		DRAFTS_PROTOCOL: string;
+		EDIT_TOKEN_PROTOCOL_PREFIX: string;
+		createDraftClient(options: {
+			onChange(draft: unknown, from: "local" | "remote"): void;
+			onPresence(participants: Participant[]): void;
+			onPublished(by: { name: string; via: string | null } | null): void;
+		}): DraftClient;
+	};
 
 	const win = window;
 	const doc = document;
@@ -52,6 +82,8 @@ export function editingBar(config: EditingBarConfig): void {
 	const later = win.setTimeout.bind(win);
 	const cancel = win.clearTimeout.bind(win);
 	const every = win.setInterval.bind(win);
+	const Socket = win.WebSocket;
+	const Parser = win.DOMParser;
 	const token = doc.querySelector('meta[name="webcraft-edit-token"]')?.getAttribute("content") ?? "";
 	const path = win.location.pathname;
 	const SVG = "http://www.w3.org/2000/svg";
@@ -144,6 +176,12 @@ export function editingBar(config: EditingBarConfig): void {
 	let savedTimer = 0;
 
 	const regions: HTMLElement[] = [];
+	/** The page's shared Drafts, by item (`entry:<id>`, `globals`), and who else is in each. */
+	const drafts = new Map<string, { client: DraftClient; participants: Participant[] }>();
+	/** The names shown beside regions someone else is in. */
+	const presenceTags = new Map<HTMLElement, HTMLElement>();
+	let othersList: HTMLElement;
+	let presenceLayer: HTMLElement;
 	/** How each region is made editable: `plaintext-only` for plain text where the browser has it. */
 	const editableAs = new Map<HTMLElement, string>();
 	const lastSaved = new Map<HTMLElement, string>();
@@ -214,6 +252,7 @@ export function editingBar(config: EditingBarConfig): void {
 		words = state.words ?? {};
 		build();
 		setUpRegions();
+		openDrafts();
 		every(() => void refresh(), 60_000);
 		doc.addEventListener("visibilitychange", () => {
 			if (doc.visibilityState === "visible") void refresh();
@@ -507,6 +546,8 @@ export function editingBar(config: EditingBarConfig): void {
 		popupTrigger(accountPopup);
 		accountMenu.addEventListener("keydown", (event) => menuKeys(event, accountMenu));
 
+		othersList = el("ul", { class: "others", "aria-label": word("alsoEditing") });
+		presenceLayer = el("div", { class: "presence-layer", "aria-hidden": "true" });
 		tag = el("div", { class: "tag", "aria-hidden": "true", hidden: "" });
 		problem = el("div", { class: "problem", "aria-hidden": "true", hidden: "" });
 		toolbar = buildToolbar();
@@ -527,7 +568,17 @@ export function editingBar(config: EditingBarConfig): void {
 				savedNote,
 			),
 			el("div", { class: "middle" }, modes, devices),
-			el("div", { class: "end" }, language, languageMenu, publishButton, publishPanel, account, accountMenu),
+			el(
+				"div",
+				{ class: "end" },
+				othersList,
+				language,
+				languageMenu,
+				publishButton,
+				publishPanel,
+				account,
+				accountMenu,
+			),
 		);
 		// A Site script that failed while the page loaded is shown at once; later ones as they come.
 		const notice = el("div", { class: "notice", role: "alert", hidden: "" });
@@ -538,6 +589,7 @@ export function editingBar(config: EditingBarConfig): void {
 			bar,
 			notice,
 			live,
+			presenceLayer,
 			tag,
 			problem,
 			toolbar,
@@ -957,6 +1009,7 @@ export function editingBar(config: EditingBarConfig): void {
 				showTag(current);
 				if (!toolbar.hidden) showToolbar(current);
 			}
+			positionPresence();
 		};
 		win.addEventListener("scroll", reposition, { passive: true, capture: true });
 		win.addEventListener("resize", reposition, { passive: true });
@@ -988,6 +1041,7 @@ export function editingBar(config: EditingBarConfig): void {
 	function focusRegion(region: HTMLElement): void {
 		if (!editing || ended) return;
 		current = region;
+		placeIn(region);
 		showTag(region);
 		showProblem(region);
 		if (region.dataset.wcType === "richText" && !toolbarDismissed) showToolbar(region);
@@ -1000,6 +1054,7 @@ export function editingBar(config: EditingBarConfig): void {
 			if (doc.activeElement === region || (root.activeElement && toolbar.contains(root.activeElement))) return;
 			if (current !== region) return;
 			current = null;
+			placeIn(null);
 			hideTag();
 			hideToolbar();
 			problem.hidden = true;
@@ -1073,6 +1128,213 @@ export function editingBar(config: EditingBarConfig): void {
 		})();
 		saving.set(region, run);
 		await run;
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// Co-editing (ADR 0025): the page's Drafts are shared with everyone editing them, in the admin or
+	// on the Site. Their changes show in the regions as they are saved; who else is here shows in the
+	// bar, and the region each is in has an outline in their colour with their name. What is typed here
+	// saves through `save`, which goes through the same shared Drafts.
+
+	/** The colours people get (as the admin's), each with white text that reads on it. */
+	const PRESENCE_COLOURS = ["#0369a1", "#6d28d9", "#047857", "#b45309", "#be123c", "#0e7490", "#a21caf", "#4d7c0f"];
+
+	/** Loads the shared-Draft module (it hands itself over in an event), then opens each item the page edits. */
+	function openDrafts(): void {
+		const items = [...new Set(regions.map((region) => region.dataset.wcItem ?? ""))].filter(Boolean);
+		if (items.length === 0) return;
+		doc.addEventListener(
+			"webcraft:drafts",
+			(event) => {
+				const module = (event as CustomEvent<DraftsModule>).detail;
+				for (const item of items) openDraft(module, item);
+			},
+			{ once: true },
+		);
+		const script = doc.createElement("script");
+		script.type = "module";
+		script.src = config.drafts;
+		doc.head.append(script);
+	}
+
+	function openDraft(module: DraftsModule, item: string): void {
+		const [kind = "", id = ""] = item.split(":");
+		const link = {
+			participants: [] as Participant[],
+			client: module.createDraftClient({
+				onChange: (draft, from) => {
+					if (from === "remote") showRemote(item, draft);
+				},
+				onPresence: (participants) => {
+					link.participants = participants;
+					renderPresence();
+				},
+				onPublished: (by) => {
+					if (!by || by.name === state?.person.name) return;
+					announce(word("publishedBy", { name: by.via ? word("via", { name: by.name, client: by.via }) : by.name }));
+					void refresh();
+				},
+			}),
+		};
+		drafts.set(item, link);
+		let attempt = 0;
+		const connect = () => {
+			if (ended) return;
+			const scheme = win.location.protocol === "https:" ? "wss:" : "ws:";
+			const socket = new Socket(`${scheme}//${win.location.host}/_webcraft/edit/drafts/${kind}${id ? `/${id}` : ""}`, [
+				module.DRAFTS_PROTOCOL,
+				`${module.EDIT_TOKEN_PROTOCOL_PREFIX}${token}`,
+			]);
+			socket.binaryType = "arraybuffer";
+			let ends: DraftEnds | null = null;
+			socket.addEventListener("open", () => {
+				attempt = 0;
+				ends = link.client.connect({
+					send: (data) => socket.send(typeof data === "string" ? data : new Uint8Array(data)),
+					close: () => socket.close(),
+				});
+			});
+			socket.addEventListener("message", (event) => {
+				ends?.receive(typeof event.data === "string" ? event.data : new Uint8Array(event.data as ArrayBuffer));
+			});
+			socket.addEventListener("close", (event) => {
+				ends?.closed();
+				// The session ended or access went: nothing to come back to.
+				if (ended || event.code === 4401 || event.code === 4403) return;
+				later(connect, [1000, 2000, 4000, 8000, 15_000][Math.min(attempt++, 4)] ?? 15_000);
+			});
+		};
+		connect();
+	}
+
+	/** Says which value of its Draft the person is in (a region's key), or nowhere. */
+	function placeIn(region: HTMLElement | null): void {
+		for (const [item, link] of drafts) {
+			const here = region && region.dataset.wcItem === item ? (region.dataset.wcField ?? "").split(".")[0] : null;
+			link.client.place(here || null);
+		}
+	}
+
+	/** Someone else's change: regions nobody is typing in here show the new value. */
+	function showRemote(item: string, draft: unknown): void {
+		for (const region of regions) {
+			if (region.dataset.wcItem !== item || region === current || timers.has(region)) continue;
+			const value = valueAt(draft, region.dataset.wcField ?? "");
+			if (typeof value !== "string" || value === textIn(region)) continue;
+			if (region.dataset.wcType === "richText") region.replaceChildren(...cleanHtml(value));
+			else region.textContent = value;
+			lastSaved.set(region, textIn(region));
+		}
+	}
+
+	/** A region's value in the page's language (else the Default language's) from a Draft as its document holds it. */
+	function valueAt(draft: unknown, field: string): unknown {
+		const record = (value: unknown) =>
+			value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+		let node: unknown = record(draft).values;
+		const parts = field.split(".");
+		parts.forEach((part, index) => {
+			node = record(node)[part];
+			if (index < parts.length - 1) node = record(node).values;
+		});
+		const kept = record(node);
+		return kept[state?.language.code ?? ""] ?? kept[state?.defaultLanguage ?? ""];
+	}
+
+	/**
+	 * Rich text someone else typed, before it shows in the page: only formatting, lists and links to
+	 * addresses a page may link to are kept (the server cleans it the same way as it saves it).
+	 */
+	function cleanHtml(html: string): Node[] {
+		const kept = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "S", "CODE", "SUB", "SUP", "A", "UL", "OL", "LI"]);
+		const parsed = new Parser().parseFromString(html, "text/html");
+		const copy = (node: Node): Node[] => {
+			if (node.nodeType === 3) return [doc.createTextNode(node.textContent ?? "")];
+			if (node.nodeType !== 1) return [];
+			const children = [...node.childNodes].flatMap(copy);
+			const element = node as Element;
+			if (!kept.has(element.tagName)) return children;
+			const made = doc.createElement(element.tagName.toLowerCase());
+			const href = element.getAttribute("href");
+			if (element.tagName === "A" && href && /^(https?:|mailto:|tel:|\/|#)/i.test(href.trim())) {
+				made.setAttribute("href", href.trim());
+			}
+			made.append(...children);
+			return [made];
+		};
+		return [...parsed.body.childNodes].flatMap(copy);
+	}
+
+	/** A participant's name as people read it: the person, and the client they came through. */
+	function displayName(participant: Participant): string {
+		const name = participant.name || word("someone");
+		if (participant.translation) return word("viaTranslation", { name });
+		return participant.via ? word("via", { name, client: participant.via }) : name;
+	}
+
+	/** Who else is in the page's Drafts: avatars in the bar, and an outline and name on each region they are in. */
+	function renderPresence(): void {
+		const others = new Map<string, Participant & { item: string }>();
+		for (const [item, link] of drafts) {
+			for (const participant of link.participants) {
+				if (!participant.self) others.set(participant.id, { ...participant, item });
+			}
+		}
+		const colourOf = (participant: Participant) =>
+			PRESENCE_COLOURS[participant.colour % PRESENCE_COLOURS.length] ?? "#0369a1";
+		const seen = new Set<string>();
+		othersList.replaceChildren(
+			...[...others.values()]
+				.filter((participant) => {
+					const key = `${participant.personId}:${participant.via ?? ""}:${participant.translation ?? false}`;
+					if (seen.has(key)) return false;
+					seen.add(key);
+					return true;
+				})
+				.map((participant) => {
+					const avatar = el(
+						"li",
+						{ class: "other", title: displayName(participant) },
+						el("span", { "aria-hidden": "true" }, initials(participant.name || "?")),
+						el("span", { class: "sr-only" }, displayName(participant)),
+					);
+					avatar.style.background = colourOf(participant);
+					return avatar;
+				}),
+		);
+		for (const region of regions) {
+			const key = (region.dataset.wcField ?? "").split(".")[0];
+			const here = [...others.values()].filter(
+				(participant) => participant.item === region.dataset.wcItem && participant.at === key,
+			);
+			const first = here[0];
+			let tagged = presenceTags.get(region);
+			if (!first) {
+				region.style.outline = "";
+				region.style.outlineOffset = "";
+				tagged?.remove();
+				presenceTags.delete(region);
+				continue;
+			}
+			region.style.outline = `2px solid ${colourOf(first)}`;
+			region.style.outlineOffset = "3px";
+			if (!tagged) {
+				tagged = el("div", { class: "presence-tag" });
+				presenceLayer.append(tagged);
+				presenceTags.set(region, tagged);
+			}
+			tagged.textContent = word("isHere", { name: here.map(displayName).join(", ") });
+			tagged.style.background = colourOf(first);
+		}
+		positionPresence();
+	}
+
+	function positionPresence(): void {
+		for (const [region, tagged] of presenceTags) {
+			const rect = region.getBoundingClientRect();
+			tagged.style.top = `${Math.round(rect.bottom + 4)}px`;
+			tagged.style.left = `${Math.round(Math.max(8, rect.left))}px`;
+		}
 	}
 
 	function problemText(found: Problem): string {

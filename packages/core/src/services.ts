@@ -75,6 +75,7 @@ import type { OAuth } from "./oauth.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { RateLimits } from "./rate-limits.ts";
+import type { PdfRenderer, Reports, ShareLinks } from "./reports/index.ts";
 import type { SiteSearch } from "./search/service.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { SeoService } from "./seo/index.ts";
@@ -128,6 +129,11 @@ export type InstallPorts = {
 	 * one; the web process and server commands get `imagesOnlyInWorker` (ADR 0027).
 	 */
 	images: ImageProcessor;
+	/**
+	 * Turning a Report's page into a PDF (headless Chromium): only the worker (and the test harness,
+	 * with a fake) has a real one; the web process and server commands get `pdfOnlyInWorker`.
+	 */
+	pdf: PdfRenderer;
 };
 
 /**
@@ -547,4 +553,11 @@ export type InstallServices = InstallPorts & {
 	backups: Backups;
 	/** The update check: the newest WebCraft release the release feed lists, checked once a day. */
 	updates: Updates;
+	/**
+	 * Reports (#104): a Dashboard sent as a PDF on a schedule, with AI text, its history and review;
+	 * the worker's steps of making and sending one.
+	 */
+	reports: Reports;
+	/** Share links (#104): a Dashboard opened by anyone holding a link, on the Share link address. */
+	shareLinks: ShareLinks;
 };

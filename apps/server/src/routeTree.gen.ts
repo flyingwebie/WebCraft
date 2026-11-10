@@ -17,6 +17,7 @@ import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as AdminIndexRouteImport } from './routes/_admin/index'
 import { Route as AdminAccountRouteImport } from './routes/_admin/account'
 import { Route as AdminEmailLogRouteImport } from './routes/_admin/email-log'
+import { Route as AdminServicesRouteImport } from './routes/_admin/services'
 import { Route as AdminStaffRouteImport } from './routes/_admin/staff'
 import { Route as OauthAuthorizeRouteImport } from './routes/oauth.authorize'
 import { Route as AdminAccountIndexRouteImport } from './routes/_admin/account.index'
@@ -28,6 +29,7 @@ import { Route as AdminSettingsEmailRouteImport } from './routes/_admin/settings
 import { Route as AdminSettingsGeneralRouteImport } from './routes/_admin/settings.general'
 import { Route as AdminSettingsHistoryRouteImport } from './routes/_admin/settings.history'
 import { Route as AdminSettingsModulesRouteImport } from './routes/_admin/settings.modules'
+import { Route as AdminSettingsReportsRouteImport } from './routes/_admin/settings.reports'
 import { Route as AdminSettingsSecurityRouteImport } from './routes/_admin/settings.security'
 import { Route as AdminSettingsStorageRouteImport } from './routes/_admin/settings.storage'
 import { Route as AdminSitesSiteIdRouteImport } from './routes/_admin/sites.$siteId'
@@ -51,6 +53,7 @@ import { Route as AdminSitesSiteIdMediaRouteImport } from './routes/_admin/sites
 import { Route as AdminSitesSiteIdModulesRouteImport } from './routes/_admin/sites.$siteId.modules'
 import { Route as AdminSitesSiteIdOutsideScriptsRouteImport } from './routes/_admin/sites.$siteId.outside-scripts'
 import { Route as AdminSitesSiteIdPostTypesRouteImport } from './routes/_admin/sites.$siteId.post-types'
+import { Route as AdminSitesSiteIdReportBrandingRouteImport } from './routes/_admin/sites.$siteId.report-branding'
 import { Route as AdminSitesSiteIdSeoRouteImport } from './routes/_admin/sites.$siteId.seo'
 import { Route as AdminSitesSiteIdTemplatesRouteImport } from './routes/_admin/sites.$siteId.templates'
 import { Route as AdminSitesSiteIdTranslationsRouteImport } from './routes/_admin/sites.$siteId.translations'
@@ -60,6 +63,7 @@ import { Route as AdminWorkspacesWorkspaceIdAiKeysRouteImport } from './routes/_
 import { Route as AdminWorkspacesWorkspaceIdMembersRouteImport } from './routes/_admin/workspaces.$workspaceId.members'
 import { Route as AdminWorkspacesWorkspaceIdModulesRouteImport } from './routes/_admin/workspaces.$workspaceId.modules'
 import { Route as AdminWorkspacesWorkspaceIdProtectedTermsRouteImport } from './routes/_admin/workspaces.$workspaceId.protected-terms'
+import { Route as AdminWorkspacesWorkspaceIdReportBrandingRouteImport } from './routes/_admin/workspaces.$workspaceId.report-branding'
 import { Route as AdminSitesSiteIdDashboardsIndexRouteImport } from './routes/_admin/sites.$siteId.dashboards.index'
 import { Route as AdminSitesSiteIdDashboardsDashboardIdRouteImport } from './routes/_admin/sites.$siteId.dashboards.$dashboardId'
 import { Route as AdminSitesSiteIdEntriesPostTypeIdRouteImport } from './routes/_admin/sites.$siteId.entries.$postTypeId'
@@ -77,10 +81,12 @@ import { Route as AdminSitesSiteIdPostTypesPostTypeIdRouteImport } from './route
 import { Route as AdminSitesSiteIdPostTypesGlobalsRouteImport } from './routes/_admin/sites.$siteId.post-types.globals'
 import { Route as AdminWorkspacesWorkspaceIdDashboardsIndexRouteImport } from './routes/_admin/workspaces.$workspaceId.dashboards.index'
 import { Route as AdminWorkspacesWorkspaceIdDashboardsDashboardIdRouteImport } from './routes/_admin/workspaces.$workspaceId.dashboards.$dashboardId'
+import { Route as AdminSitesSiteIdDashboardsDashboardIdReportsRouteImport } from './routes/_admin/sites.$siteId.dashboards.$dashboardId_.reports'
 import { Route as AdminSitesSiteIdEntriesPostTypeIdIndexRouteImport } from './routes/_admin/sites.$siteId.entries.$postTypeId.index'
 import { Route as AdminSitesSiteIdEntriesPostTypeIdEntryIdRouteImport } from './routes/_admin/sites.$siteId.entries.$postTypeId.$entryId'
 import { Route as AdminSitesSiteIdImportsImportIdIndexRouteImport } from './routes/_admin/sites.$siteId.imports.$importId.index'
 import { Route as AdminSitesSiteIdMModuleIdSplatRouteImport } from './routes/_admin/sites.$siteId.m.$moduleId.$'
+import { Route as AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRouteImport } from './routes/_admin/workspaces.$workspaceId.dashboards.$dashboardId_.reports'
 import { Route as AdminWorkspacesWorkspaceIdMModuleIdSplatRouteImport } from './routes/_admin/workspaces.$workspaceId.m.$moduleId.$'
 import { Route as AdminSitesSiteIdImportsImportIdRunsRunIdRouteImport } from './routes/_admin/sites.$siteId.imports.$importId.runs.$runId'
 
@@ -121,6 +127,11 @@ const AdminAccountRoute = AdminAccountRouteImport.update({
 const AdminEmailLogRoute = AdminEmailLogRouteImport.update({
   id: '/email-log',
   path: '/email-log',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminServicesRoute = AdminServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminStaffRoute = AdminStaffRouteImport.update({
@@ -176,6 +187,11 @@ const AdminSettingsHistoryRoute = AdminSettingsHistoryRouteImport.update({
 const AdminSettingsModulesRoute = AdminSettingsModulesRouteImport.update({
   id: '/settings/modules',
   path: '/settings/modules',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSettingsReportsRoute = AdminSettingsReportsRouteImport.update({
+  id: '/settings/reports',
+  path: '/settings/reports',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsSecurityRoute = AdminSettingsSecurityRouteImport.update({
@@ -301,6 +317,12 @@ const AdminSitesSiteIdPostTypesRoute =
     path: '/post-types',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminSitesSiteIdReportBrandingRoute =
+  AdminSitesSiteIdReportBrandingRouteImport.update({
+    id: '/report-branding',
+    path: '/report-branding',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
 const AdminSitesSiteIdSeoRoute = AdminSitesSiteIdSeoRouteImport.update({
   id: '/seo',
   path: '/seo',
@@ -352,6 +374,12 @@ const AdminWorkspacesWorkspaceIdProtectedTermsRoute =
   AdminWorkspacesWorkspaceIdProtectedTermsRouteImport.update({
     id: '/protected-terms',
     path: '/protected-terms',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
+const AdminWorkspacesWorkspaceIdReportBrandingRoute =
+  AdminWorkspacesWorkspaceIdReportBrandingRouteImport.update({
+    id: '/report-branding',
+    path: '/report-branding',
     getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
   } as any)
 const AdminSitesSiteIdDashboardsIndexRoute =
@@ -456,6 +484,12 @@ const AdminWorkspacesWorkspaceIdDashboardsDashboardIdRoute =
     path: '/dashboards/$dashboardId',
     getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
   } as any)
+const AdminSitesSiteIdDashboardsDashboardIdReportsRoute =
+  AdminSitesSiteIdDashboardsDashboardIdReportsRouteImport.update({
+    id: '/dashboards/$dashboardId_/reports',
+    path: '/dashboards/$dashboardId/reports',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
 const AdminSitesSiteIdEntriesPostTypeIdIndexRoute =
   AdminSitesSiteIdEntriesPostTypeIdIndexRouteImport.update({
     id: '/',
@@ -480,6 +514,12 @@ const AdminSitesSiteIdMModuleIdSplatRoute =
     path: '/m/$moduleId/$',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute =
+  AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRouteImport.update({
+    id: '/dashboards/$dashboardId_/reports',
+    path: '/dashboards/$dashboardId/reports',
+    getParentRoute: () => AdminWorkspacesWorkspaceIdRoute,
+  } as any)
 const AdminWorkspacesWorkspaceIdMModuleIdSplatRoute =
   AdminWorkspacesWorkspaceIdMModuleIdSplatRouteImport.update({
     id: '/m/$moduleId/$',
@@ -501,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/two-factor': typeof TwoFactorRoute
   '/account': typeof AdminAccountRouteWithChildren
   '/email-log': typeof AdminEmailLogRoute
+  '/services': typeof AdminServicesRoute
   '/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
   '/account/ai-clients': typeof AdminAccountAiClientsRoute
@@ -511,6 +552,7 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof AdminSettingsGeneralRoute
   '/settings/history': typeof AdminSettingsHistoryRoute
   '/settings/modules': typeof AdminSettingsModulesRoute
+  '/settings/reports': typeof AdminSettingsReportsRoute
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
   '/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
@@ -534,6 +576,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
+  '/sites/$siteId/report-branding': typeof AdminSitesSiteIdReportBrandingRoute
   '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
   '/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
@@ -542,6 +585,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
+  '/workspaces/$workspaceId/report-branding': typeof AdminWorkspacesWorkspaceIdReportBrandingRoute
   '/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/sites/$siteId/dashboards/$dashboardId': typeof AdminSitesSiteIdDashboardsDashboardIdRoute
@@ -561,8 +605,10 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/loops/': typeof AdminSitesSiteIdLoopsIndexRoute
   '/sites/$siteId/post-types/': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/workspaces/$workspaceId/dashboards/': typeof AdminWorkspacesWorkspaceIdDashboardsIndexRoute
+  '/sites/$siteId/dashboards/$dashboardId/reports': typeof AdminSitesSiteIdDashboardsDashboardIdReportsRoute
   '/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
+  '/workspaces/$workspaceId/dashboards/$dashboardId/reports': typeof AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute
   '/workspaces/$workspaceId/m/$moduleId/$': typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
   '/sites/$siteId/entries/$postTypeId/': typeof AdminSitesSiteIdEntriesPostTypeIdIndexRoute
   '/sites/$siteId/imports/$importId/': typeof AdminSitesSiteIdImportsImportIdIndexRoute
@@ -574,6 +620,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
   '/email-log': typeof AdminEmailLogRoute
+  '/services': typeof AdminServicesRoute
   '/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
   '/': typeof AdminIndexRoute
@@ -585,6 +632,7 @@ export interface FileRoutesByTo {
   '/settings/general': typeof AdminSettingsGeneralRoute
   '/settings/history': typeof AdminSettingsHistoryRoute
   '/settings/modules': typeof AdminSettingsModulesRoute
+  '/settings/reports': typeof AdminSettingsReportsRoute
   '/settings/security': typeof AdminSettingsSecurityRoute
   '/settings/storage': typeof AdminSettingsStorageRoute
   '/staging/$siteId': typeof AdminStagingSiteIdRoute
@@ -603,6 +651,7 @@ export interface FileRoutesByTo {
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
+  '/sites/$siteId/report-branding': typeof AdminSitesSiteIdReportBrandingRoute
   '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
   '/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
@@ -611,6 +660,7 @@ export interface FileRoutesByTo {
   '/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
+  '/workspaces/$workspaceId/report-branding': typeof AdminWorkspacesWorkspaceIdReportBrandingRoute
   '/sites/$siteId': typeof AdminSitesSiteIdIndexRoute
   '/workspaces/$workspaceId': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/sites/$siteId/dashboards/$dashboardId': typeof AdminSitesSiteIdDashboardsDashboardIdRoute
@@ -628,8 +678,10 @@ export interface FileRoutesByTo {
   '/sites/$siteId/loops': typeof AdminSitesSiteIdLoopsIndexRoute
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/workspaces/$workspaceId/dashboards': typeof AdminWorkspacesWorkspaceIdDashboardsIndexRoute
+  '/sites/$siteId/dashboards/$dashboardId/reports': typeof AdminSitesSiteIdDashboardsDashboardIdReportsRoute
   '/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
+  '/workspaces/$workspaceId/dashboards/$dashboardId/reports': typeof AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute
   '/workspaces/$workspaceId/m/$moduleId/$': typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
   '/sites/$siteId/entries/$postTypeId': typeof AdminSitesSiteIdEntriesPostTypeIdIndexRoute
   '/sites/$siteId/imports/$importId': typeof AdminSitesSiteIdImportsImportIdIndexRoute
@@ -644,6 +696,7 @@ export interface FileRoutesById {
   '/two-factor': typeof TwoFactorRoute
   '/_admin/account': typeof AdminAccountRouteWithChildren
   '/_admin/email-log': typeof AdminEmailLogRoute
+  '/_admin/services': typeof AdminServicesRoute
   '/_admin/staff': typeof AdminStaffRoute
   '/oauth/authorize': typeof OauthAuthorizeRoute
   '/_admin/': typeof AdminIndexRoute
@@ -655,6 +708,7 @@ export interface FileRoutesById {
   '/_admin/settings/general': typeof AdminSettingsGeneralRoute
   '/_admin/settings/history': typeof AdminSettingsHistoryRoute
   '/_admin/settings/modules': typeof AdminSettingsModulesRoute
+  '/_admin/settings/reports': typeof AdminSettingsReportsRoute
   '/_admin/settings/security': typeof AdminSettingsSecurityRoute
   '/_admin/settings/storage': typeof AdminSettingsStorageRoute
   '/_admin/sites/$siteId': typeof AdminSitesSiteIdRouteWithChildren
@@ -678,6 +732,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/_admin/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
   '/_admin/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
+  '/_admin/sites/$siteId/report-branding': typeof AdminSitesSiteIdReportBrandingRoute
   '/_admin/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/_admin/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
   '/_admin/sites/$siteId/translations': typeof AdminSitesSiteIdTranslationsRoute
@@ -686,6 +741,7 @@ export interface FileRoutesById {
   '/_admin/workspaces/$workspaceId/members': typeof AdminWorkspacesWorkspaceIdMembersRoute
   '/_admin/workspaces/$workspaceId/modules': typeof AdminWorkspacesWorkspaceIdModulesRoute
   '/_admin/workspaces/$workspaceId/protected-terms': typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
+  '/_admin/workspaces/$workspaceId/report-branding': typeof AdminWorkspacesWorkspaceIdReportBrandingRoute
   '/_admin/sites/$siteId/': typeof AdminSitesSiteIdIndexRoute
   '/_admin/workspaces/$workspaceId/': typeof AdminWorkspacesWorkspaceIdIndexRoute
   '/_admin/sites/$siteId/dashboards/$dashboardId': typeof AdminSitesSiteIdDashboardsDashboardIdRoute
@@ -705,8 +761,10 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/loops/': typeof AdminSitesSiteIdLoopsIndexRoute
   '/_admin/sites/$siteId/post-types/': typeof AdminSitesSiteIdPostTypesIndexRoute
   '/_admin/workspaces/$workspaceId/dashboards/': typeof AdminWorkspacesWorkspaceIdDashboardsIndexRoute
+  '/_admin/sites/$siteId/dashboards/$dashboardId_/reports': typeof AdminSitesSiteIdDashboardsDashboardIdReportsRoute
   '/_admin/sites/$siteId/entries/$postTypeId/$entryId': typeof AdminSitesSiteIdEntriesPostTypeIdEntryIdRoute
   '/_admin/sites/$siteId/m/$moduleId/$': typeof AdminSitesSiteIdMModuleIdSplatRoute
+  '/_admin/workspaces/$workspaceId/dashboards/$dashboardId_/reports': typeof AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute
   '/_admin/workspaces/$workspaceId/m/$moduleId/$': typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
   '/_admin/sites/$siteId/entries/$postTypeId/': typeof AdminSitesSiteIdEntriesPostTypeIdIndexRoute
   '/_admin/sites/$siteId/imports/$importId/': typeof AdminSitesSiteIdImportsImportIdIndexRoute
@@ -722,6 +780,7 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/account'
     | '/email-log'
+    | '/services'
     | '/staff'
     | '/oauth/authorize'
     | '/account/ai-clients'
@@ -732,6 +791,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/history'
     | '/settings/modules'
+    | '/settings/reports'
     | '/settings/security'
     | '/settings/storage'
     | '/sites/$siteId'
@@ -755,6 +815,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/modules'
     | '/sites/$siteId/outside-scripts'
     | '/sites/$siteId/post-types'
+    | '/sites/$siteId/report-branding'
     | '/sites/$siteId/seo'
     | '/sites/$siteId/templates'
     | '/sites/$siteId/translations'
@@ -763,6 +824,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceId/members'
     | '/workspaces/$workspaceId/modules'
     | '/workspaces/$workspaceId/protected-terms'
+    | '/workspaces/$workspaceId/report-branding'
     | '/sites/$siteId/'
     | '/workspaces/$workspaceId/'
     | '/sites/$siteId/dashboards/$dashboardId'
@@ -782,8 +844,10 @@ export interface FileRouteTypes {
     | '/sites/$siteId/loops/'
     | '/sites/$siteId/post-types/'
     | '/workspaces/$workspaceId/dashboards/'
+    | '/sites/$siteId/dashboards/$dashboardId/reports'
     | '/sites/$siteId/entries/$postTypeId/$entryId'
     | '/sites/$siteId/m/$moduleId/$'
+    | '/workspaces/$workspaceId/dashboards/$dashboardId/reports'
     | '/workspaces/$workspaceId/m/$moduleId/$'
     | '/sites/$siteId/entries/$postTypeId/'
     | '/sites/$siteId/imports/$importId/'
@@ -795,6 +859,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/two-factor'
     | '/email-log'
+    | '/services'
     | '/staff'
     | '/oauth/authorize'
     | '/'
@@ -806,6 +871,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/history'
     | '/settings/modules'
+    | '/settings/reports'
     | '/settings/security'
     | '/settings/storage'
     | '/staging/$siteId'
@@ -824,6 +890,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/media'
     | '/sites/$siteId/modules'
     | '/sites/$siteId/outside-scripts'
+    | '/sites/$siteId/report-branding'
     | '/sites/$siteId/seo'
     | '/sites/$siteId/templates'
     | '/sites/$siteId/translations'
@@ -832,6 +899,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceId/members'
     | '/workspaces/$workspaceId/modules'
     | '/workspaces/$workspaceId/protected-terms'
+    | '/workspaces/$workspaceId/report-branding'
     | '/sites/$siteId'
     | '/workspaces/$workspaceId'
     | '/sites/$siteId/dashboards/$dashboardId'
@@ -849,8 +917,10 @@ export interface FileRouteTypes {
     | '/sites/$siteId/loops'
     | '/sites/$siteId/post-types'
     | '/workspaces/$workspaceId/dashboards'
+    | '/sites/$siteId/dashboards/$dashboardId/reports'
     | '/sites/$siteId/entries/$postTypeId/$entryId'
     | '/sites/$siteId/m/$moduleId/$'
+    | '/workspaces/$workspaceId/dashboards/$dashboardId/reports'
     | '/workspaces/$workspaceId/m/$moduleId/$'
     | '/sites/$siteId/entries/$postTypeId'
     | '/sites/$siteId/imports/$importId'
@@ -864,6 +934,7 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/_admin/account'
     | '/_admin/email-log'
+    | '/_admin/services'
     | '/_admin/staff'
     | '/oauth/authorize'
     | '/_admin/'
@@ -875,6 +946,7 @@ export interface FileRouteTypes {
     | '/_admin/settings/general'
     | '/_admin/settings/history'
     | '/_admin/settings/modules'
+    | '/_admin/settings/reports'
     | '/_admin/settings/security'
     | '/_admin/settings/storage'
     | '/_admin/sites/$siteId'
@@ -898,6 +970,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/modules'
     | '/_admin/sites/$siteId/outside-scripts'
     | '/_admin/sites/$siteId/post-types'
+    | '/_admin/sites/$siteId/report-branding'
     | '/_admin/sites/$siteId/seo'
     | '/_admin/sites/$siteId/templates'
     | '/_admin/sites/$siteId/translations'
@@ -906,6 +979,7 @@ export interface FileRouteTypes {
     | '/_admin/workspaces/$workspaceId/members'
     | '/_admin/workspaces/$workspaceId/modules'
     | '/_admin/workspaces/$workspaceId/protected-terms'
+    | '/_admin/workspaces/$workspaceId/report-branding'
     | '/_admin/sites/$siteId/'
     | '/_admin/workspaces/$workspaceId/'
     | '/_admin/sites/$siteId/dashboards/$dashboardId'
@@ -925,8 +999,10 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/loops/'
     | '/_admin/sites/$siteId/post-types/'
     | '/_admin/workspaces/$workspaceId/dashboards/'
+    | '/_admin/sites/$siteId/dashboards/$dashboardId_/reports'
     | '/_admin/sites/$siteId/entries/$postTypeId/$entryId'
     | '/_admin/sites/$siteId/m/$moduleId/$'
+    | '/_admin/workspaces/$workspaceId/dashboards/$dashboardId_/reports'
     | '/_admin/workspaces/$workspaceId/m/$moduleId/$'
     | '/_admin/sites/$siteId/entries/$postTypeId/'
     | '/_admin/sites/$siteId/imports/$importId/'
@@ -999,6 +1075,13 @@ declare module '@tanstack/react-router' {
       path: '/email-log'
       fullPath: '/email-log'
       preLoaderRoute: typeof AdminEmailLogRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/services': {
+      id: '/_admin/services'
+      path: '/services'
+      fullPath: '/services'
+      preLoaderRoute: typeof AdminServicesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_admin/staff': {
@@ -1076,6 +1159,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/modules'
       fullPath: '/settings/modules'
       preLoaderRoute: typeof AdminSettingsModulesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/_admin/settings/reports': {
+      id: '/_admin/settings/reports'
+      path: '/settings/reports'
+      fullPath: '/settings/reports'
+      preLoaderRoute: typeof AdminSettingsReportsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/_admin/settings/security': {
@@ -1239,6 +1329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdPostTypesRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/report-branding': {
+      id: '/_admin/sites/$siteId/report-branding'
+      path: '/report-branding'
+      fullPath: '/sites/$siteId/report-branding'
+      preLoaderRoute: typeof AdminSitesSiteIdReportBrandingRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/sites/$siteId/seo': {
       id: '/_admin/sites/$siteId/seo'
       path: '/seo'
@@ -1300,6 +1397,13 @@ declare module '@tanstack/react-router' {
       path: '/protected-terms'
       fullPath: '/workspaces/$workspaceId/protected-terms'
       preLoaderRoute: typeof AdminWorkspacesWorkspaceIdProtectedTermsRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
+    }
+    '/_admin/workspaces/$workspaceId/report-branding': {
+      id: '/_admin/workspaces/$workspaceId/report-branding'
+      path: '/report-branding'
+      fullPath: '/workspaces/$workspaceId/report-branding'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdReportBrandingRouteImport
       parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
     '/_admin/sites/$siteId/dashboards/': {
@@ -1421,6 +1525,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWorkspacesWorkspaceIdDashboardsDashboardIdRouteImport
       parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
+    '/_admin/sites/$siteId/dashboards/$dashboardId_/reports': {
+      id: '/_admin/sites/$siteId/dashboards/$dashboardId_/reports'
+      path: '/dashboards/$dashboardId/reports'
+      fullPath: '/sites/$siteId/dashboards/$dashboardId/reports'
+      preLoaderRoute: typeof AdminSitesSiteIdDashboardsDashboardIdReportsRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/sites/$siteId/entries/$postTypeId/': {
       id: '/_admin/sites/$siteId/entries/$postTypeId/'
       path: '/'
@@ -1448,6 +1559,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sites/$siteId/m/$moduleId/$'
       preLoaderRoute: typeof AdminSitesSiteIdMModuleIdSplatRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/workspaces/$workspaceId/dashboards/$dashboardId_/reports': {
+      id: '/_admin/workspaces/$workspaceId/dashboards/$dashboardId_/reports'
+      path: '/dashboards/$dashboardId/reports'
+      fullPath: '/workspaces/$workspaceId/dashboards/$dashboardId/reports'
+      preLoaderRoute: typeof AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRouteImport
+      parentRoute: typeof AdminWorkspacesWorkspaceIdRoute
     }
     '/_admin/workspaces/$workspaceId/m/$moduleId/$': {
       id: '/_admin/workspaces/$workspaceId/m/$moduleId/$'
@@ -1588,6 +1706,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdModulesRoute: typeof AdminSitesSiteIdModulesRoute
   AdminSitesSiteIdOutsideScriptsRoute: typeof AdminSitesSiteIdOutsideScriptsRoute
   AdminSitesSiteIdPostTypesRoute: typeof AdminSitesSiteIdPostTypesRouteWithChildren
+  AdminSitesSiteIdReportBrandingRoute: typeof AdminSitesSiteIdReportBrandingRoute
   AdminSitesSiteIdSeoRoute: typeof AdminSitesSiteIdSeoRoute
   AdminSitesSiteIdTemplatesRoute: typeof AdminSitesSiteIdTemplatesRoute
   AdminSitesSiteIdTranslationsRoute: typeof AdminSitesSiteIdTranslationsRoute
@@ -1600,6 +1719,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdDashboardsIndexRoute: typeof AdminSitesSiteIdDashboardsIndexRoute
   AdminSitesSiteIdFiltersIndexRoute: typeof AdminSitesSiteIdFiltersIndexRoute
   AdminSitesSiteIdFormsIndexRoute: typeof AdminSitesSiteIdFormsIndexRoute
+  AdminSitesSiteIdDashboardsDashboardIdReportsRoute: typeof AdminSitesSiteIdDashboardsDashboardIdReportsRoute
   AdminSitesSiteIdMModuleIdSplatRoute: typeof AdminSitesSiteIdMModuleIdSplatRoute
 }
 
@@ -1619,6 +1739,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdModulesRoute: AdminSitesSiteIdModulesRoute,
   AdminSitesSiteIdOutsideScriptsRoute: AdminSitesSiteIdOutsideScriptsRoute,
   AdminSitesSiteIdPostTypesRoute: AdminSitesSiteIdPostTypesRouteWithChildren,
+  AdminSitesSiteIdReportBrandingRoute: AdminSitesSiteIdReportBrandingRoute,
   AdminSitesSiteIdSeoRoute: AdminSitesSiteIdSeoRoute,
   AdminSitesSiteIdTemplatesRoute: AdminSitesSiteIdTemplatesRoute,
   AdminSitesSiteIdTranslationsRoute: AdminSitesSiteIdTranslationsRoute,
@@ -1633,6 +1754,8 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdDashboardsIndexRoute: AdminSitesSiteIdDashboardsIndexRoute,
   AdminSitesSiteIdFiltersIndexRoute: AdminSitesSiteIdFiltersIndexRoute,
   AdminSitesSiteIdFormsIndexRoute: AdminSitesSiteIdFormsIndexRoute,
+  AdminSitesSiteIdDashboardsDashboardIdReportsRoute:
+    AdminSitesSiteIdDashboardsDashboardIdReportsRoute,
   AdminSitesSiteIdMModuleIdSplatRoute: AdminSitesSiteIdMModuleIdSplatRoute,
 }
 
@@ -1644,9 +1767,11 @@ interface AdminWorkspacesWorkspaceIdRouteChildren {
   AdminWorkspacesWorkspaceIdMembersRoute: typeof AdminWorkspacesWorkspaceIdMembersRoute
   AdminWorkspacesWorkspaceIdModulesRoute: typeof AdminWorkspacesWorkspaceIdModulesRoute
   AdminWorkspacesWorkspaceIdProtectedTermsRoute: typeof AdminWorkspacesWorkspaceIdProtectedTermsRoute
+  AdminWorkspacesWorkspaceIdReportBrandingRoute: typeof AdminWorkspacesWorkspaceIdReportBrandingRoute
   AdminWorkspacesWorkspaceIdIndexRoute: typeof AdminWorkspacesWorkspaceIdIndexRoute
   AdminWorkspacesWorkspaceIdDashboardsDashboardIdRoute: typeof AdminWorkspacesWorkspaceIdDashboardsDashboardIdRoute
   AdminWorkspacesWorkspaceIdDashboardsIndexRoute: typeof AdminWorkspacesWorkspaceIdDashboardsIndexRoute
+  AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute: typeof AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute
   AdminWorkspacesWorkspaceIdMModuleIdSplatRoute: typeof AdminWorkspacesWorkspaceIdMModuleIdSplatRoute
 }
 
@@ -1660,11 +1785,15 @@ const AdminWorkspacesWorkspaceIdRouteChildren: AdminWorkspacesWorkspaceIdRouteCh
       AdminWorkspacesWorkspaceIdModulesRoute,
     AdminWorkspacesWorkspaceIdProtectedTermsRoute:
       AdminWorkspacesWorkspaceIdProtectedTermsRoute,
+    AdminWorkspacesWorkspaceIdReportBrandingRoute:
+      AdminWorkspacesWorkspaceIdReportBrandingRoute,
     AdminWorkspacesWorkspaceIdIndexRoute: AdminWorkspacesWorkspaceIdIndexRoute,
     AdminWorkspacesWorkspaceIdDashboardsDashboardIdRoute:
       AdminWorkspacesWorkspaceIdDashboardsDashboardIdRoute,
     AdminWorkspacesWorkspaceIdDashboardsIndexRoute:
       AdminWorkspacesWorkspaceIdDashboardsIndexRoute,
+    AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute:
+      AdminWorkspacesWorkspaceIdDashboardsDashboardIdReportsRoute,
     AdminWorkspacesWorkspaceIdMModuleIdSplatRoute:
       AdminWorkspacesWorkspaceIdMModuleIdSplatRoute,
   }
@@ -1677,6 +1806,7 @@ const AdminWorkspacesWorkspaceIdRouteWithChildren =
 interface AdminRouteChildren {
   AdminAccountRoute: typeof AdminAccountRouteWithChildren
   AdminEmailLogRoute: typeof AdminEmailLogRoute
+  AdminServicesRoute: typeof AdminServicesRoute
   AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminSettingsAiRoute: typeof AdminSettingsAiRoute
@@ -1685,6 +1815,7 @@ interface AdminRouteChildren {
   AdminSettingsGeneralRoute: typeof AdminSettingsGeneralRoute
   AdminSettingsHistoryRoute: typeof AdminSettingsHistoryRoute
   AdminSettingsModulesRoute: typeof AdminSettingsModulesRoute
+  AdminSettingsReportsRoute: typeof AdminSettingsReportsRoute
   AdminSettingsSecurityRoute: typeof AdminSettingsSecurityRoute
   AdminSettingsStorageRoute: typeof AdminSettingsStorageRoute
   AdminSitesSiteIdRoute: typeof AdminSitesSiteIdRouteWithChildren
@@ -1696,6 +1827,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAccountRoute: AdminAccountRouteWithChildren,
   AdminEmailLogRoute: AdminEmailLogRoute,
+  AdminServicesRoute: AdminServicesRoute,
   AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminSettingsAiRoute: AdminSettingsAiRoute,
@@ -1704,6 +1836,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminSettingsGeneralRoute: AdminSettingsGeneralRoute,
   AdminSettingsHistoryRoute: AdminSettingsHistoryRoute,
   AdminSettingsModulesRoute: AdminSettingsModulesRoute,
+  AdminSettingsReportsRoute: AdminSettingsReportsRoute,
   AdminSettingsSecurityRoute: AdminSettingsSecurityRoute,
   AdminSettingsStorageRoute: AdminSettingsStorageRoute,
   AdminSitesSiteIdRoute: AdminSitesSiteIdRouteWithChildren,

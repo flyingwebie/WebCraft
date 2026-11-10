@@ -4,7 +4,8 @@
 // would see on a new server: the migrate step finishes, Caddy gets a certificate for the admin host on
 // demand (from Caddy's own local authority, as there is no public DNS here) and `/readyz` answers
 // through it; plain HTTP goes on to HTTPS except domain verification; an unknown hostname gets no
-// certificate; the admin renders; the web log prints the setup link; the worker works; the `webcraft`
+// certificate; the admin renders; the web log prints the setup link; the worker works and its Chromium
+// prints a Report's PDF; the `webcraft`
 // command runs in the web container; `webcraft admin backup` writes into the Backups volume, which the
 // worker shares; and, with web and worker stopped, `webcraft admin restore` puts that Backup back and
 // the Install comes up again. It removes its project (and only its project) when it ends.
@@ -221,6 +222,30 @@ try {
 		workerLog.includes("The worker is working the job queue"),
 		"the worker works the job queue",
 		workerLog.slice(-2000),
+	);
+
+	// Reports' PDFs: the worker's own Chromium prints a page, with its own renderer.
+	const printed = await run(
+		[
+			...compose,
+			"exec",
+			"-T",
+			"worker",
+			"node",
+			"--input-type=module",
+			"-e",
+			[
+				'const { createChromiumPdf } = await import("/app/apps/worker/src/pdf.ts");',
+				'const pdf = await createChromiumPdf().render("<!doctype html><html><head><title>Smoke</title></head><body><p>Smoke test</p></body></html>");',
+				'console.log(Buffer.from(pdf.subarray(0, 5)).toString("latin1"), pdf.byteLength);',
+			].join(" "),
+		],
+		{ quiet: true },
+	);
+	expect(
+		printed.code === 0 && printed.stdout.startsWith("%PDF-"),
+		"the worker's Chromium prints a Report's PDF",
+		`${printed.stdout}${printed.stderr}`.slice(-2000),
 	);
 
 	const cli = await run([...compose, "exec", "-T", "web", "webcraft", "admin", "migrate"]);
