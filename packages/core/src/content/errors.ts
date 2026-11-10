@@ -415,14 +415,6 @@ export class HomePageUnpublishError extends Error {
 	}
 }
 
-/** Only Entries (Pages included) can be unpublished. */
-export class UnpublishNotAllowedError extends Error {
-	override name = "UnpublishNotAllowedError";
-	constructor() {
-		super("Only Entries and Pages can be scheduled to unpublish.");
-	}
-}
-
 /**
  * Why something can't be submitted for Review, or a Review can't be decided that way:
  * - `notReviewable`: only Content Authors can't publish is reviewed (Entries, the Globals, the Consent

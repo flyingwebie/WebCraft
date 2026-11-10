@@ -18,7 +18,6 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { CONSENT_TEXT_FIELDS } from "../consent/text.ts";
 import { can } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import { type ComponentSources, NO_MODULE_COMPONENTS } from "./components.ts";
 import { draftAddresses } from "./draft-paths.ts";
@@ -28,7 +27,13 @@ import { draftVersion, sameJson } from "./json.ts";
 import { siteLanguages } from "./languages.ts";
 import { isPagePostType, parentIn } from "./pages.ts";
 import { listPostTypes } from "./post-types.ts";
-import { type Published, type PublishItem, publishItems, publishPermission } from "./publishing.ts";
+import {
+	type Published,
+	type PublishItem,
+	publishItems,
+	publishPermission,
+	requirePublishPermissions,
+} from "./publishing.ts";
 import { readValue, storedVersion } from "./values.ts";
 
 /**
@@ -403,11 +408,7 @@ export async function publishAll(
 	confirmation: string | undefined,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<PublishAllPreview | PublishAllDone> {
-	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
-	const permissions = [...new Set(items.map(publishPermission))];
-	for (const permission of permissions) {
-		if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
-	}
+	requirePublishPermissions(scope, items);
 	const ordered = async (reader: SiteScope) => {
 		const drafts = await siteDrafts(reader);
 		const keyOf = (item: PublishItem) => `${item.kind}:${"id" in item ? item.id : ""}`;
