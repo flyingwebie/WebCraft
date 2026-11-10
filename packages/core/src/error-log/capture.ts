@@ -25,12 +25,17 @@ export function reportingFailures(log: Logger, errorLog: ErrorLog): Logger {
 	};
 }
 
-/** The failure an error-level line is about, unwrapped from the API's answer; null when it isn't one to note. */
+/**
+ * The failure an error-level line's `error` field is about; null when it isn't one to note (a
+ * Module's own failure is in its Module log already). Whoever logs it unwraps it first: the
+ * Management API's `logUnexpectedFailure` (`packages/api/src/errors.ts`) hands over an `ORPCError`'s
+ * cause, not the `ORPCError` itself, so this is the one place that unwraps, not two guessing at the
+ * same shape (core has no `@orpc/server` to check `instanceof ORPCError` against, and a class name
+ * string is fragile).
+ */
 function unexpectedFailure(value: unknown): Error | null {
 	if (!(value instanceof Error)) return null;
-	// An API's answer to an error carries it as its cause.
-	const failure = value.constructor.name === "ORPCError" && value.cause instanceof Error ? value.cause : value;
-	return isModuleFailure(failure) ? null : failure;
+	return isModuleFailure(value) ? null : value;
 }
 
 /** Where a failure happened: the job it ran in, else the request (its procedure, or method and path). */
