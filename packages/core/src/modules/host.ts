@@ -570,16 +570,17 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	/** The Components Modules add: placed on Sites where their Module runs. */
 	const components: ComponentSources = {
 		allModuleComponents: () => registry.all().flatMap((module) => (module.runnable ? module.components : [])),
-		async retainedModuleComponentsAt(site) {
-			const rows = await db
+		async retainedModuleComponentsAt(scope) {
+			const rows = await scope.db
 				.select({ id: siteModuleComponents.componentId, props: siteModuleComponents.props })
 				.from(siteModuleComponents)
-				.where(and(eq(siteModuleComponents.workspaceId, site.workspaceId), eq(siteModuleComponents.siteId, site.id)));
+				.where(scope.where(siteModuleComponents));
 			return rows.map((row) => ({ id: row.id, props: row.props as FieldDefinition[] }));
 		},
-		async moduleComponentsAt(site) {
+		async moduleComponentsAt(scope) {
+			const { site } = scope;
 			const retained = new Map(
-				(await components.retainedModuleComponentsAt(site)).map((component) => [component.id, component.props]),
+				(await components.retainedModuleComponentsAt(scope)).map((component) => [component.id, component.props]),
 			);
 			const found: ModuleComponent[] = [];
 			for (const module of registry.all()) {

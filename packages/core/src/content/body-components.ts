@@ -4,7 +4,7 @@
  * places the published version of a Component, as visitors see it, so only published Components can
  * go in and their published Props are what a Block's values are checked against.
  *
- * Module Block types and Components use the same catalog, allowances and stored Placement shape.
+ * Module Block types and Components use the same catalogue, allowances and stored Placement shape.
  * Unavailable Module data stays intact; only new or changed unavailable Placements are refused.
  */
 
@@ -36,7 +36,7 @@ async function publishedComponents(
 	ids: readonly string[],
 ): Promise<Map<string, PublishedComponent>> {
 	const own = [...new Set(ids)].filter(isUuid);
-	const fromModules = await scope.componentSources.moduleComponentsAt(scope.site);
+	const fromModules = await scope.componentSources.moduleComponentsAt(scope);
 	const rows =
 		own.length === 0
 			? []
@@ -102,7 +102,7 @@ export async function bodyComponentFinder(
 	const rows = await scope.select(components);
 	const allowed = new Map((await bodyComponents(scope, field)).map((component) => [component.name, component]));
 	const placed = new Set(previous.flatMap((block) => (block.type === "component" ? [block.component] : [])));
-	for (const component of await scope.componentSources.retainedModuleComponentsAt(scope.site)) {
+	for (const component of await scope.componentSources.retainedModuleComponentsAt(scope)) {
 		if (!placed.has(component.id)) continue;
 		const name = component.id.slice(component.id.indexOf(":") + 1);
 		// The source schema reads an unchanged Block even if the installed Module changed. The

@@ -50,7 +50,7 @@ async function modulePropsForTranslation(scope: SiteScope): Promise<readonly Mod
 	const declarations = new Map(
 		scope.componentSources.allModuleComponents().map(({ id, props }) => [id, { id, props }]),
 	);
-	for (const component of await scope.componentSources.retainedModuleComponentsAt(scope.site))
+	for (const component of await scope.componentSources.retainedModuleComponentsAt(scope))
 		declarations.set(component.id, component);
 	return [...declarations.values()];
 }

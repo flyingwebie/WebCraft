@@ -12,11 +12,9 @@ export async function checkRetainedModulePlacements(
 	next: ElementTree,
 	previous: ElementTree | undefined,
 ): Promise<void> {
-	const retained = await scope.componentSources.retainedModuleComponentsAt(scope.site);
+	const retained = await scope.componentSources.retainedModuleComponentsAt(scope);
 	if (retained.length === 0) return;
-	const active = new Set(
-		(await scope.componentSources.moduleComponentsAt(scope.site)).map((component) => component.id),
-	);
+	const active = new Set((await scope.componentSources.moduleComponentsAt(scope)).map((component) => component.id));
 	const blocked = new Set(retained.filter((component) => !active.has(component.id)).map((component) => component.id));
 	if (blocked.size === 0) return;
 	const before = new Map([...placementsIn(previous?.nodes ?? [])].map((placement) => [placement.id, placement]));

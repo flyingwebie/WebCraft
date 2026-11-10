@@ -2,7 +2,7 @@
 
 The first-party `extra-blocks` Module uses only `@webcraft/module-sdk`. SDK 1.12 opens `blockTypes` with `blockType({ name, label, props, markup })`, using the same existing Field definitions and Template markup compiler as Module Components. There are no new Field types, Template commands or built-in gallery Blocks.
 
-After the Superadmin approves the Module, Staff choose its types in a Post Type's Body field's **Allowed Components**. The list is empty by default. The Entry editor, slash/add menu and Edit mode share the permitted catalog. Each type is also a reusable Component for Templates and Page layouts; it does not need a separate declaration. Labels and Prop labels ship in English and Italian.
+After the Superadmin approves the Module, Staff choose its types in a Post Type's Body field's **Allowed Components**. The list is empty by default. The Entry editor, slash/add menu and Edit mode share the permitted catalogue. Each type is also a reusable Component for Templates and Page layouts; it does not need a separate declaration. Labels and Prop labels ship in English and Italian.
 
 | Type | Existing Fields | Output without JavaScript |
 | --- | --- | --- |
@@ -11,11 +11,11 @@ After the Superadmin approves the Module, Staff choose its types in a Post Type'
 | Tabs | Text `label`, the same `items` Repeater | Named section containing all panels, each headed by an H2. |
 | MapEmbed | Text `label`, non-translatable text `url` | A named link to an OpenStreetMap embed URL. |
 
-Repeaters hold at most 50 items and use the existing Props JSON editor. Tabs enhance to independent ARIA tabsets with arrow/Home/End keys, roving focus and labelled panels. Native disclosure behavior is retained. There are no animations, including with reduced motion.
+Repeaters hold at most 50 items and use the existing Props JSON editor. Tabs enhance to independent ARIA tabsets with arrow/Home/End keys, roving focus and labelled panels. Native disclosure behaviour is retained. There are no animations, including with reduced motion.
 
 ## Scripts and Consent
 
-`siteScript: { code, whenUsed: ["Tabs", "MapEmbed"] }` requests the existing hashed, same-origin script route. The host checks the declaration; the renderer includes it only if one of those declared Components or Block types actually rendered, including Body Blocks and nested Placements. Gallery and Accordion require no script. Existing Modules without `whenUsed` keep their behavior.
+`siteScript: { code, whenUsed: ["Tabs", "MapEmbed"] }` requests the existing hashed, same-origin script route. The host checks the declaration; the renderer includes it only if one of those declared Components or Block types actually rendered, including Body Blocks and nested Placements. Gallery and Accordion require no script. Existing Modules without `whenUsed` keep their behaviour.
 
 Extra blocks declares **Media** consent for its optional enhancement script. Tabs stay as visible sections until consent; maps make no outside request before it. The map script checks the URL's HTTPS origin, credentials, port and `/export/embed.html` path before making a sandboxed, named iframe. The manifest declares `www.openstreetmap.org`; the existing host approval and Site CSP cover it. No raw iframe markup or general embed hook is added. The script never loads in Edit, Code or Safe mode, or while the Module is off. With no JavaScript the map remains a usable link.
 

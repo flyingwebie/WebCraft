@@ -181,7 +181,7 @@ for (const theme of THEMES) {
 }
 
 for (const theme of THEMES) {
-	test(`Edit and Safe modes use the permitted Block catalog without enhancement (${theme})`, async () => {
+	test(`Edit and Safe modes use the permitted Block catalogue without enhancement (${theme})`, async () => {
 		const page = await install.newPage(theme);
 		const requests: string[] = [];
 		page.on("request", (request) => requests.push(request.url()));
