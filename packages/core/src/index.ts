@@ -151,6 +151,21 @@ export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
 export { createNodeHttp } from "./http-node.ts";
 export { pinnedTarget } from "./http-pinned.ts";
 export { isUuid } from "./ids.ts";
+export {
+	type ActingAs,
+	assertNotImpersonating,
+	IMPERSONATION_MAX_MS,
+	IMPERSONATION_REASON_MAX_LENGTH,
+	type Impersonation,
+	type ImpersonationEnd,
+	ImpersonationNeedsSecondFactorError,
+	type ImpersonationRefusal,
+	ImpersonationRefusedError,
+	type ImpersonationView,
+	type NotWhileImpersonating,
+	NotWhileImpersonatingError,
+	PersonNotFoundError,
+} from "./impersonation.ts";
 export * from "./imports/index.ts";
 export {
 	type InstallProcess,

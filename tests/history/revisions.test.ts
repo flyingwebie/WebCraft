@@ -180,6 +180,7 @@ describe("every publishable item", () => {
 				person: { id: staffId, name: "Ada Staff" },
 				via: { kind: "token", name: "Nightly sync" },
 				client: "Nightly sync",
+				impersonator: null,
 			},
 		]);
 	});

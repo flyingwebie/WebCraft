@@ -66,9 +66,13 @@ export type AuditLog = {
 	list(access: Access, query: AuditQuery): Promise<AuditPage>;
 	/**
 	 * What a person did, anywhere on the Install, newest first: as themselves, what the Superadmin
-	 * or Staff did as them while impersonating them, and what they did as someone else.
+	 * or Staff did as them while impersonating them, and what they did as someone else. `workspaceIds`
+	 * limits it to those Workspaces (and the Install's own entries): what an impersonation reaches.
 	 */
-	activity(personId: string, query: { after?: string; limit: number }): Promise<AuditPage>;
+	activity(
+		personId: string,
+		query: { after?: string; limit: number; workspaceIds?: readonly string[] | null },
+	): Promise<AuditPage>;
 	/** The entries `list` would read, as a CSV file (UTF-8 with a BOM, formulas made text): the newest `AUDIT_EXPORT_LIMIT`. */
 	export(
 		access: Access,
@@ -135,7 +139,13 @@ export function createAuditLog({
 		},
 
 		activity(personId, query) {
-			return page(or(eq(auditLog.personId, personId), eq(auditLog.impersonatorId, personId)), query.after, query.limit);
+			const theirs = or(eq(auditLog.personId, personId), eq(auditLog.impersonatorId, personId));
+			const reach = query.workspaceIds
+				? query.workspaceIds.length > 0
+					? or(isNull(auditLog.workspaceId), inArray(auditLog.workspaceId, [...query.workspaceIds]))
+					: isNull(auditLog.workspaceId)
+				: undefined;
+			return page(and(theirs, reach), query.after, query.limit);
 		},
 
 		async export(access, query) {

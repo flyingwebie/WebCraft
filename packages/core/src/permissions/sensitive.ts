@@ -1,3 +1,4 @@
+import { assertNotImpersonating } from "../impersonation.ts";
 import type { Access } from "../tenancy/data-layer.ts";
 
 /**
@@ -70,6 +71,11 @@ export const SENSITIVE_ACTIONS = {
 	 * client, which could otherwise hand a client's figures to anyone. Revoking one isn't Sensitive.
 	 */
 	"shareLink.change": "sends a Dashboard to anyone holding a link",
+	/**
+	 * Impersonating a person (ADR 0008): the admin acts as them for up to an hour. It also needs the
+	 * impersonator's own second factor.
+	 */
+	"impersonation.start": "acts as another person",
 	/** How long the Audit log keeps entries: a shorter time removes older ones. */
 	"auditRetention.change": "removes Audit log entries",
 	/** Creating an API token: a credential that acts as the person, outside the admin. */
@@ -113,6 +119,8 @@ export class SensitiveActionRefusedError extends Error {
  */
 export function assertSensitiveActionAllowed(access: Access, action: SensitiveAction, now: Date): void {
 	const { actor, via, identityCheckedAt } = access;
+	// The identity check would be the impersonator's, never the person's.
+	assertNotImpersonating(access, "sensitiveAction");
 	if (actor.kind !== "person" || via.kind !== "admin" || identityCheckedAt === undefined) {
 		throw new SensitiveActionRefusedError(action);
 	}

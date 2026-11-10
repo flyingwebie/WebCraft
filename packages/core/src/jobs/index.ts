@@ -13,6 +13,7 @@ import {
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
 import { historyPrune, historyPruneSchedule } from "../history/prune.ts";
+import { impersonationEnd } from "../impersonation.ts";
 import { importsPurge, importsPurgeSchedule } from "../imports/purge.ts";
 import { importsRun } from "../imports/runs.ts";
 import { importsPreview } from "../imports/source-runs.ts";
@@ -96,6 +97,7 @@ export const coreJobs = [
 	reportsPurge,
 	historyPrune,
 	auditPrune,
+	impersonationEnd,
 ] as readonly JobDefinition<unknown>[];
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */

@@ -88,6 +88,7 @@ import { createForms, createFormTokens } from "./forms/index.ts";
 import { createSubmissionActions } from "./forms/kept.ts";
 import { createGuardedFetch } from "./guarded-fetch.ts";
 import { createHistory } from "./history/index.ts";
+import { createImpersonation } from "./impersonation.ts";
 import { createImports } from "./imports/index.ts";
 import { createInstallSettings, MEDIA_MAX_FILE_BYTES } from "./install-settings.ts";
 import { createMasterKeyBackup } from "./master-key-backup.ts";
@@ -242,6 +243,13 @@ export async function createInstallServices(
 	// The Components of Modules: placed on Sites where their Module runs.
 	const componentSources = modules.components;
 	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };
+	const impersonation = createImpersonation({
+		database,
+		clock,
+		jobs: ports.jobs,
+		actors,
+		hasSecondFactor: (personId) => auth.hasSecondFactor(personId),
+	});
 	const people = createPeople({ database, clock });
 	const toolsets = () => offeredToolsets(modules.registry);
 	const apiTokens = createApiTokens({
@@ -342,6 +350,7 @@ export async function createInstallServices(
 		auth,
 		account: createAccount({ database, auth, clock }),
 		twoFactor,
+		impersonation,
 		rateLimits,
 		people,
 		aiKeys,

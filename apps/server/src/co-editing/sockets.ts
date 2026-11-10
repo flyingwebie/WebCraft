@@ -110,23 +110,19 @@ export function createDraftSockets(services: InstallServices): DraftSockets {
 					message: "Add two-factor authentication to your account to continue.",
 				});
 			}
-			const via = { kind: "admin" } as const;
-			const access: Access = {
-				actor: await services.actors.person(session.personId),
-				via,
-				identityCheckedAt: session.identityCheckedAt,
-			};
-			// Before every change: the session still signed in, the person's access as it is now.
+			// The session's own person, or the person it impersonates: then their changes are recorded
+			// as "<Staff> as <Member>".
+			const acting = await services.impersonation.actingAs(session);
+			const impersonating = acting.impersonation?.id ?? null;
+			// Before every change: the session still signed in, the person's access as it is now, and the
+			// same impersonation (or none) as when it opened: a Draft opened as someone else ends with it.
 			const recheck = async (): Promise<Access | null> => {
 				const current = await services.auth.activeSession(session.id);
 				if (!current || (await services.twoFactor.mustSetUp(current.personId))) return null;
-				return {
-					actor: await services.actors.person(current.personId),
-					via,
-					identityCheckedAt: current.identityCheckedAt,
-				};
+				const now = await services.impersonation.actingAs(current);
+				return (now.impersonation?.id ?? null) === impersonating ? now.access : null;
 			};
-			return accept(siteId, item, access, recheck);
+			return accept(siteId, item, acting.access, recheck);
 		},
 
 		async site(request, host) {

@@ -3,7 +3,7 @@ import { draftDocuments, people } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 
-import type { AuditVia } from "../audit.ts";
+import { type AuditVia, impersonatorNameOf } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { ComponentSources } from "../content/components.ts";
 import { sameJson } from "../content/json.ts";
@@ -239,7 +239,15 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			const live = byItem.get(keyOf(notice.s, { kind: notice.k, id: notice.i ?? "" } as HistoryItem));
 			const same = live && (itemIdOf(live.item) ?? null) === notice.i ? live : undefined;
 			if (!same) return;
-			const by = notice.p ? { personId: notice.p, name: await nameOf(notice.p), via: clientOf(notice.v) } : null;
+			const impersonator = notice.v ? impersonatorNameOf(notice.v) : null;
+			const by = notice.p
+				? {
+						personId: notice.p,
+						name: await nameOf(notice.p),
+						via: clientOf(notice.v),
+						...(impersonator ? { impersonator } : {}),
+					}
+				: null;
 			for (const connection of same.connections) send(connection, { type: "published", by });
 		}
 	};
@@ -673,13 +681,22 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			const editable = can(access.actor, editPermission(item), resource);
 			const name = personId ? await nameOf(personId) : "";
 			const via = clientOf(access.via);
+			const impersonator = impersonatorNameOf(access.via);
 			return {
 				attach(peer) {
 					const connection: Connection = {
 						id: crypto.randomUUID(),
 						live,
 						peer,
-						participant: { id: "", personId, name, via, colour: colourOf(personId), at: null },
+						participant: {
+							id: "",
+							personId,
+							name,
+							via,
+							...(impersonator ? { impersonator } : {}),
+							colour: colourOf(personId),
+							at: null,
+						},
 						access,
 						recheck: request.recheck,
 						editable,

@@ -64,6 +64,7 @@ import type { Filters } from "./filters/index.ts";
 import type { Forms } from "./forms/index.ts";
 import type { HistoryService } from "./history/index.ts";
 import type { OutgoingHttp } from "./http.ts";
+import type { Impersonation } from "./impersonation.ts";
 import type { Imports } from "./imports/index.ts";
 import type { InstallSettings } from "./install-settings.ts";
 import type { JobQueue } from "./jobs/define.ts";
@@ -156,6 +157,11 @@ export type InstallServices = InstallPorts & {
 	 * emailed to them), whether it is required of them, the switches that require it, and resets.
 	 */
 	twoFactor: TwoFactor;
+	/**
+	 * Impersonation (ADR 0008): who an admin session acts as, and starting and ending it. Every
+	 * action while it goes on is recorded as "<Staff> as <Member>".
+	 */
+	impersonation: Impersonation;
 	/** Rate limits, counted in Postgres so every web process shares them (`RATE_LIMITS`). */
 	rateLimits: RateLimits;
 	/** People with an account, and their admin preferences. */

@@ -1127,6 +1127,15 @@ describe("history", () => {
 	);
 });
 
+describe("the Audit log", () => {
+	isolation.refuses("audit.list", (api, { workspaceId }) => api.audit.list({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses("audit.export", (api, { workspaceId }) => api.audit.export({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+});
+
 describe("Members", () => {
 	isolation.refuses("members.list", (api, { workspaceId }) => api.members.list({ workspaceId }), {
 		as: ["staff", "owner"],
