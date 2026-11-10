@@ -335,6 +335,12 @@ describe("a Loop's items in place", () => {
 		);
 		expect(await page.locator("li h3").allTextContents()).toEqual(["Cardamom bun", "Country sourdough", "Seeded rye"]);
 		await page.getByRole("button", { name: "Publish", exact: true }).click();
+		// An Editor's Publish menu says the Loop's items wait for Staff.
+		await page.getByRole("dialog").getByText("our-bakes").waitFor();
+		await page
+			.getByRole("dialog")
+			.getByText(/Staff publish Loop items/)
+			.waitFor();
 		await page.getByRole("button", { name: "Discard changes" }).click();
 		await page.getByRole("button", { name: "Discard", exact: true }).click();
 		expect(await eventually(names, (list) => list[0] === "Country sourdough")).toEqual([
@@ -411,6 +417,21 @@ describe("on a phone", () => {
 		await sheet.getByRole("button", { name: /^Publish page/ }).click();
 		await page.getByRole("dialog", { name: "Publish Sourdough" }).waitFor();
 		await expectNoAxeViolations(page, "Edit mode on a phone › Publish sheet", ["region"]);
+	});
+
+	test("an image's popover is a bottom sheet; Escape closes it and focus goes back to the image", async () => {
+		const page = await editModePage("dark", { phone: true });
+		const image = page.locator('img[data-wc-item^="entry:"][data-wc-field="photo"]');
+
+		await image.focus();
+		await page.keyboard.press("Enter");
+		const sheet = page.getByRole("dialog", { name: "Photo" });
+		await sheet.getByRole("textbox", { name: "Alt text · English" }).waitFor();
+		await expectNoAxeViolations(page, "Edit mode on a phone › image sheet", ["region"]);
+
+		await page.keyboard.press("Escape");
+		await sheet.waitFor({ state: "hidden" });
+		expect(await image.evaluate((element) => element === document.activeElement)).toBe(true);
 	});
 
 	test("every control people tap is at least 44 pixels tall", async () => {

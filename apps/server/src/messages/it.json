@@ -1915,7 +1915,8 @@
 		"canonical": "URL canonico",
 		"canonicalHelp": "Lascialo vuoto per l'indirizzo della pagina stessa.",
 		"noindex": "Nascondi ai motori di ricerca",
-		"noindexHelp": "Per ogni lingua della pagina."
+		"noindexHelp": "Per ogni lingua della pagina.",
+		"staffPublish": "Gli elementi dei Loop li pubblica lo Staff"
 	},
 	"siteLanguages": {
 		"pageTitle": "Lingue",

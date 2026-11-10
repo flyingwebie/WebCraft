@@ -779,6 +779,11 @@ export function loopTools(kit: BarKit): LoopTools {
 			status,
 		);
 		if (kit.phone()) {
+			// The sheet is the dialog, with its own title and close button.
+			panel.removeAttribute("role");
+			panel.removeAttribute("aria-labelledby");
+			panel.className = "sheet-body";
+			panel.querySelector(".panel-head")?.remove();
 			sheet = kit.sheet({
 				title: itemLabel(loop, item),
 				from: elementsOf(item)[0] ?? null,

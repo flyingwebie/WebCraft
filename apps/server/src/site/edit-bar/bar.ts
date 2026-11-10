@@ -39,6 +39,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		label: string | null;
 		type: string;
 		by: { name: string; you: boolean } | null;
+		/** A change to Structure's Draft (a Loop's items): only those who may change Structure publish it. */
+		structure?: boolean;
 	};
 	/** The Review of one of the page's items (GLOSSARY.md › Review): In review, or sent back with a comment. */
 	type PageReview = {
@@ -895,8 +897,16 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		const closeButton = button({ class: "icon-button", "aria-label": word("close") }, icon("close"));
 		let closed = false;
 		closeButton.addEventListener("click", () => dialog.close());
+		// A tap outside the sheet (on its backdrop) closes it; one on the sheet's own padding doesn't.
 		dialog.addEventListener("click", (event) => {
-			if (event.target === dialog) dialog.close();
+			if (event.target !== dialog) return;
+			const box = dialog.getBoundingClientRect();
+			const inside =
+				event.clientX >= box.left &&
+				event.clientX <= box.right &&
+				event.clientY >= box.top &&
+				event.clientY <= box.bottom;
+			if (!inside) dialog.close();
 		});
 		dialog.addEventListener("close", () => {
 			if (closed) return;
@@ -1155,12 +1165,28 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 							return el(
 								"li",
 								{},
-								icon(change.type === "text" || change.type === "richText" ? "text" : "page"),
+								icon(
+									change.type === "text" || change.type === "richText"
+										? "text"
+										: change.type === "loopItems"
+											? "loop"
+											: change.type === "media"
+												? "image"
+												: "page",
+								),
 								el(
 									"span",
 									{ class: "change" },
 									el("span", { class: "change-label" }, label),
-									el("span", { class: "change-sub" }, change.item === "globals" ? `${by} · ${word("globals")}` : by),
+									el(
+										"span",
+										{ class: "change-sub" },
+										change.item === "globals"
+											? `${by} · ${word("globals")}`
+											: change.structure && !s.canCode
+												? `${by} · ${word("staffPublish")}`
+												: by,
+									),
 								),
 								undo,
 							);

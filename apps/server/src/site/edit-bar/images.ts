@@ -347,6 +347,11 @@ export function imageTools(kit: BarKit): ImageTools {
 		});
 
 		if (kit.phone()) {
+			// The sheet is the dialog, with its own title and close button.
+			panel.removeAttribute("role");
+			panel.removeAttribute("aria-labelledby");
+			panel.className = "sheet-body";
+			panel.querySelector(".panel-head")?.remove();
 			sheet = kit.sheet({
 				title: labelOf(region),
 				from: region,

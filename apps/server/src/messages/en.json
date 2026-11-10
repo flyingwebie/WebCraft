@@ -1915,7 +1915,8 @@
 		"canonical": "Canonical URL",
 		"canonicalHelp": "Leave it empty for the page's own address.",
 		"noindex": "Hide from search engines",
-		"noindexHelp": "For every language of the page."
+		"noindexHelp": "For every language of the page.",
+		"staffPublish": "Staff publish Loop items"
 	},
 	"siteLanguages": {
 		"pageTitle": "Languages",
