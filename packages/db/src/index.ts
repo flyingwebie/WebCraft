@@ -1,4 +1,4 @@
-export { type Database, type DatabaseOptions, openDatabase, type Transaction } from "./client.ts";
+export { type Database, type DatabaseOptions, databaseOn, openDatabase, type Transaction } from "./client.ts";
 export {
 	createBoss,
 	JOB_QUEUE_SCHEMA,

@@ -412,7 +412,11 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const backupDir = mkdtempSync(join(tmpdir(), "webcraft-backups-"));
 	const logs: LogEntry[] = [];
 	const log = createLogger({ clock, write: (entry) => logs.push(entry) });
-	const database = openDatabase(databaseUrl, { maxConnections: 4, applicationName: "webcraft-tests" });
+	// Transactional job sends use the application's pool rather than pg-boss's own pool. Both
+	// must opt into TestClock; real CLI processes keep the unmodified URL and their real clock.
+	const queriesUrl = new URL(databaseUrl);
+	queriesUrl.searchParams.set("options", "-c pgboss.test_clock=on");
+	const database = openDatabase(queriesUrl.toString(), { maxConnections: 4, applicationName: "webcraft-tests" });
 
 	let boss: PgBoss | undefined;
 	let started = mode;

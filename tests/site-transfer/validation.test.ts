@@ -161,3 +161,46 @@ function required<T>(value: T | undefined): T {
 	if (value === undefined) throw new Error("The fixture is missing an expected file.");
 	return value;
 }
+
+test("invalid UUID versions and variants are refused in manifest identities before persistence", async () => {
+	const workspaceId = (await install.createWorkspace("Invalid identities")).id;
+	for (const id of [
+		"00000000-0000-0000-0000-000000000001",
+		"123e4567-e89b-42d3-0456-426614174000",
+		"00000000-0000-0000-0000-000000000000",
+	]) {
+		await expect(
+			uploadArchive(
+				admin,
+				workspaceId,
+				rewritten(archive, {
+					manifest: (m) => {
+						m.site.id = id;
+					},
+				}),
+			),
+		).rejects.toMatchObject({ code: "SITE_IMPORT_REFUSED" });
+	}
+	expect((await admin.api.sites.list({ workspaceId })).sites).toEqual([]);
+});
+
+test("UUID-typed row identifiers are validated even when no later job names them", async () => {
+	await refused(
+		rewritten(archive, {
+			rows: (table, rows) =>
+				table === "public.post_types"
+					? rows.map((row) => ({ ...row, id: "00000000-0000-0000-0000-000000000001" }))
+					: rows,
+		}),
+	);
+});
+
+test("excessively nested JSON is refused before reference traversal or persistence", async () => {
+	let value: unknown = "still a literal";
+	for (let depth = 0; depth < 150; depth++) value = { next: value };
+	await refused(
+		rewritten(archive, {
+			rows: (table, rows) => (table === "public.post_types" ? rows.map((row) => ({ ...row, extra: value })) : rows),
+		}),
+	);
+});

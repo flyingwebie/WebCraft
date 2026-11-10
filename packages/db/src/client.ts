@@ -12,7 +12,7 @@ export type DatabaseOptions = {
 
 /** A connection pool to the Install's database, with the Drizzle query builder on top. */
 export type Database = {
-	db: ReturnType<typeof createDrizzle>;
+	db: ReturnType<typeof databaseOn>;
 	pool: pg.Pool;
 	close(): Promise<void>;
 };
@@ -32,12 +32,13 @@ export function openDatabase(databaseUrl: string, options: DatabaseOptions = {})
 	// without a listener that error would crash the process. The next query opens a new connection.
 	pool.on("error", () => {});
 	return {
-		db: createDrizzle(pool),
+		db: databaseOn(pool),
 		pool,
 		close: () => pool.end(),
 	};
 }
 
-function createDrizzle(pool: pg.Pool) {
+/** Binds queries to a pool or an already open transaction; never starts or commits one. */
+export function databaseOn(pool: pg.Pool | pg.PoolClient) {
 	return drizzle({ client: pool, relations });
 }

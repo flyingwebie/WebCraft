@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { createGunzip, createGzip } from "node:zlib";
+import { createGunzip } from "node:zlib";
 import { FORM_LIMITS } from "@webcraft/renderer";
 import type pg from "pg";
 import { from as copyFrom } from "pg-copy-streams";
@@ -28,8 +28,8 @@ import {
 	SECRETS_MAX_BYTES,
 	type SiteExportManifest,
 } from "./format.ts";
-import { ARCHIVE_PART_BYTES, partKeyIn, writeParts } from "./parts.ts";
 import { keyOpens, openSecrets, type SecretsBundle, secretsBundleSchema } from "./passphrase.ts";
+import { createRowRemapper } from "./references.ts";
 import { type IdMap, idMap, newMask } from "./remap.ts";
 import { ident, literal, quoted, type SiteTable, siteTables } from "./tables.ts";
 
@@ -80,6 +80,8 @@ export type ImportReaderContext = {
 	now(): Date;
 	progress(step: "tables" | "files" | "people", done: number, total: number): Promise<void>;
 	upgrades?: readonly FormatUpgrade[];
+	/** Finalizes secrets, jobs, Audit and the durable report on this same transaction. */
+	finish(client: pg.PoolClient, imported: ImportedSite): Promise<void>;
 };
 
 /** What the person importing chose. */
@@ -96,7 +98,7 @@ export type ImportPlan = {
 export type ImportedSite = {
 	siteId: string;
 	report: SiteImportReport;
-	/** The secrets to set on the new Site once it exists (outside the transaction that made it). */
+	/** The secrets to set on the new Site before its transaction commits. */
 	secrets: { name: string; value: string }[];
 	/** Media to process and to make variants of, as a restore queues them. */
 	media: { process: string[]; variants: string[] };
@@ -165,6 +167,10 @@ export async function importSite(
 			"CREATE TEMP TABLE site_import_rows (n bigserial PRIMARY KEY, line text NOT NULL) ON COMMIT DROP",
 		);
 		await client.query(
+			"CREATE TEMP TABLE site_import_source_rows (n bigserial PRIMARY KEY, table_name text NOT NULL, line text NOT NULL) ON COMMIT DROP",
+		);
+		await client.query("CREATE INDEX ON site_import_source_rows (table_name, ((line::jsonb)->>'id'))");
+		await client.query(
 			"CREATE TEMP TABLE site_import_people (id uuid PRIMARY KEY, name text, email text) ON COMMIT DROP",
 		);
 		await client.query(`CREATE TEMP TABLE site_import_upload_refs (
@@ -180,28 +186,89 @@ export async function importSite(
 			]);
 		}
 		const keptAside = new Set<string>();
-		for (const [index, table] of manifest.tables.entries()) {
+		for (const table of manifest.tables) {
 			const entry = await reader.next(table.file);
-			const here = target.get(table.name);
-			const rows = await stageRows(client, entry, table.sha256, ids, steps, table.name, missingPeople);
+			const rows = await stageRows(client, entry, table.sha256, steps, table.name);
 			if (rows !== table.rows) {
 				throw new ArchiveRefusedError(
 					"damaged",
 					`${table.file} holds ${rows} rows, not the ${table.rows} the manifest says.`,
 				);
 			}
+		}
+		const remap = createRowRemapper(
+			async (table, id, path) => {
+				const result = await client.query<{ value: unknown }>(
+					"SELECT line::jsonb #> $3::text[] AS value FROM site_import_source_rows WHERE table_name = $1 AND ($2::text IS NULL OR line::jsonb->>'id' = $2) ORDER BY n LIMIT 1",
+					[table, id, path],
+				);
+				return result.rows[0]?.value;
+			},
+			ids,
+			missingPeople,
+		);
+		for (const [index, table] of manifest.tables.entries()) {
+			const here = target.get(table.name);
+			const columns = here?.uuidColumns ?? table.uuidColumns;
+			if (!columns && table.module)
+				throw new ArchiveRefusedError(
+					"damaged",
+					"An unavailable Module's legacy table has no reference types. Export it again with current WebCraft.",
+				);
+			await client.query(
+				`DECLARE original_rows NO SCROLL CURSOR FOR SELECT line FROM site_import_source_rows WHERE table_name = ${literal(table.name)} ORDER BY n`,
+			);
+			try {
+				for (;;) {
+					// One bounded row at a time, with original Structure in Postgres for reference resolution.
+					const result = await client.query<{ line: string }>("FETCH 1 FROM original_rows");
+					if (!result.rows[0]) break;
+					const row = safeJson(result.rows[0].line);
+					if (!row || typeof row !== "object" || Array.isArray(row))
+						throw new ArchiveRefusedError("damaged", "A table row must be an object.");
+					const mapped = await remap(
+						row as Record<string, unknown>,
+						table.name,
+						columns ?? [],
+						here?.personColumns ?? table.personColumns ?? [],
+					);
+					await client.query("INSERT INTO site_import_rows (line) VALUES ($1)", [JSON.stringify(mapped)]);
+				}
+			} finally {
+				await client.query("CLOSE original_rows");
+			}
 			if (table.name === "m_forms.submissions") await stageUploadReferences(client);
 			if (!here) {
 				if (table.module) {
-					// A Module this build lacks: its rows (ids replaced) are kept in the new Site's private
-					// storage folder, for when the Install has the Module.
+					// Missing Module rows remain durable, scoped and streamable independently of the report.
 					keptAside.add(table.module);
-					const folder = `${plan.workspaceId}/${siteId}/kept-aside/${table.name}`;
-					const backend = await context.storage.current();
-					let writtenParts = 0;
-					await writeParts(backend, folder, stagedGzip(client), ARCHIVE_PART_BYTES, async () => {
-						copied.push({ backend, key: partKeyIn(folder, writtenParts++) });
-					});
+					const definition = {
+						position: index,
+						columns: [...new Set([...table.columns, "workspace_id", "site_id"])],
+						uuidColumns: [
+							...(columns ?? []).filter((column) => !["workspace_id", "site_id"].includes(column.name)),
+							{ name: "workspace_id", array: false },
+							{ name: "site_id", array: false },
+						],
+						primaryColumns: table.primaryColumns ?? [],
+						personColumns: table.personColumns ?? [],
+					};
+					await client.query(
+						"INSERT INTO public.site_retained_tables (workspace_id, site_id, table_name, module_id, module_version, definition) VALUES ($1,$2,$3,$4,$5,$6)",
+						[
+							plan.workspaceId,
+							siteId,
+							table.name,
+							table.module,
+							manifest.modules.find((module) => module.id === table.module)?.version,
+							JSON.stringify(definition),
+						],
+					);
+					await client.query(
+						`INSERT INTO public.site_retained_rows (workspace_id, site_id, table_name, position, value)
+						SELECT $1::uuid,$2::uuid,$3,n,line::jsonb || jsonb_build_object('workspace_id',$1::text,'site_id',$2::text) FROM site_import_rows ORDER BY n`,
+						[plan.workspaceId, siteId, table.name],
+					);
 				}
 				await client.query("TRUNCATE site_import_rows");
 				continue;
@@ -256,7 +323,7 @@ export async function importSite(
 			seen.add(key);
 			if (entry.size !== known.size) throw new ArchiveRefusedError("damaged", "A stored file has the wrong size.");
 			const data = reader.verifiedBytes(entry, known.sha256);
-			const newKey = ids.text(key);
+			const newKey = ids.key(key);
 			await backend.putStream(newKey, data, "application/octet-stream");
 			copied.push({ backend, key: newKey });
 			files++;
@@ -294,24 +361,24 @@ export async function importSite(
 		if (!manifest.secrets.carried || !bundle) {
 			secretsReport = {
 				set: [],
-				dropped: manifest.secrets.names.map((name) => ids.text(name)),
+				dropped: manifest.secrets.names.map((name) => ids.secret(name)),
 				reason: manifest.secrets.names.length ? "notCarried" : null,
 			};
 		} else if (!plan.secretsKey) {
 			secretsReport = {
 				set: [],
-				dropped: manifest.secrets.names.map((name) => ids.text(name)),
+				dropped: manifest.secrets.names.map((name) => ids.secret(name)),
 				reason: "noPassphrase",
 			};
 		} else {
 			if (!(await keyOpens(plan.secretsKey, bundle.check))) throw new PassphraseWrongError();
 			const { opened } = await openSecrets(plan.secretsKey, bundle);
-			secrets = opened.map((secret) => ({ name: ids.text(secret.name), value: secret.value }));
+			secrets = opened.map((secret) => ({ name: ids.secret(secret.name), value: secret.value }));
 			const set = new Set(opened.map((secret) => secret.name));
 			const dropped = manifest.secrets.names.filter((name) => !set.has(name));
 			secretsReport = {
 				set: secrets.map((secret) => secret.name),
-				dropped: dropped.map((name) => ids.text(name)),
+				dropped: dropped.map((name) => ids.secret(name)),
 				reason: dropped.length ? "unreadable" : null,
 			};
 		}
@@ -357,9 +424,11 @@ export async function importSite(
 			dropped: manifest.leftOut,
 			modules,
 		};
+		const imported = { siteId, report, secrets, media };
+		await context.finish(client, imported);
 		await client.query("COMMIT");
 		open = false;
-		return { siteId, report, secrets, media };
+		return imported;
 	} catch (error) {
 		if (open) await client.query("ROLLBACK").catch(() => {});
 		for (const file of copied) await file.backend.delete(file.key).catch(() => {});
@@ -424,7 +493,7 @@ async function checkFileReferences(
 		if (!key.startsWith(`${manifest.site.workspaceId}/${manifest.site.id}/`)) {
 			throw new ArchiveRefusedError("damaged", "A stored file belongs to another Site.");
 		}
-		supplied.set(ids.text(key), file.size);
+		supplied.set(ids.key(key), file.size);
 	}
 	const { rows } = await client.query<{ key: string; size: string; media: boolean }>(
 		`SELECT key, size_bytes::text AS size, true AS media FROM public.media_files WHERE site_id = $1
@@ -636,10 +705,8 @@ async function stageRows(
 	client: pg.ClientBase,
 	entry: TarEntry,
 	sha256: string,
-	ids: IdMap,
 	steps: readonly FormatUpgrade[],
 	table: string,
-	missingPeople: ReadonlyMap<string, string | null>,
 ): Promise<number> {
 	const hash = createHash("sha256");
 	async function* hashed() {
@@ -653,18 +720,19 @@ async function stageRows(
 	async function* copied() {
 		for await (const line of jsonLines(Readable.from(hashed()))) {
 			if (line === "") continue;
-			let text = line;
+			let row = safeJson(line);
+			if (!row || typeof row !== "object" || Array.isArray(row))
+				throw new ArchiveRefusedError("damaged", "A table row must be an object.");
 			if (rowSteps.length > 0) {
-				let row = safeJson(text) as Record<string, unknown>;
-				for (const step of rowSteps) row = step.row?.(table, row) ?? row;
-				text = JSON.stringify(row);
+				for (const step of rowSteps) row = step.row?.(table, row as Record<string, unknown>) ?? row;
 			}
+			const text = JSON.stringify(row);
 			rows++;
 			// COPY's text format: backslashes doubled; a JSON line holds no raw tab or line break.
-			yield `${remappedRow(text, ids, missingPeople, table).replaceAll("\\", "\\\\")}\n`;
+			yield `${table}\t${text.replaceAll("\\", "\\\\")}\n`;
 		}
 	}
-	const copy = client.query(copyFrom("COPY site_import_rows (line) FROM STDIN"));
+	const copy = client.query(copyFrom("COPY site_import_source_rows (table_name, line) FROM STDIN"));
 	try {
 		await pipeline(Readable.from(copied()), copy);
 	} catch (error) {
@@ -1043,69 +1111,6 @@ async function placeMembers(
 	return { matched, invited };
 }
 
-/** Keep already validated, remapped Module rows aside without buffering the table in memory. */
-async function* stagedGzip(client: pg.ClientBase): AsyncGenerator<Uint8Array> {
-	async function* lines() {
-		await client.query("DECLARE kept_rows NO SCROLL CURSOR FOR SELECT line FROM site_import_rows ORDER BY n");
-		try {
-			for (;;) {
-				// Each row is independently bounded; even a hostile table never fills a multi-row buffer.
-				const { rows } = await client.query<{ line: string }>("FETCH 1 FROM kept_rows");
-				if (!rows[0]) break;
-				yield `${rows[0].line}\n`;
-			}
-		} finally {
-			await client.query("CLOSE kept_rows");
-		}
-	}
-	const gzip = createGzip();
-	const source = Readable.from(lines());
-	source.on("error", (error) => gzip.destroy(error));
-	const zipped = source.pipe(gzip);
-	try {
-		for await (const chunk of zipped as AsyncIterable<Buffer>) yield new Uint8Array(chunk);
-	} finally {
-		source.destroy();
-		gzip.destroy();
-	}
-}
-
-/** Person references inside JSON need the same reassignment as foreign-key columns. */
-function remappedRow(
-	text: string,
-	ids: IdMap,
-	missingPeople: ReadonlyMap<string, string | null>,
-	table: string,
-): string {
-	const row = safeJson(ids.text(text));
-	if (!row || typeof row !== "object" || Array.isArray(row))
-		throw new ArchiveRefusedError("damaged", "A table row must be an object.");
-	if (table === "m_forms.submissions") {
-		const values = (row as Record<string, unknown>).values;
-		if (Array.isArray(values)) {
-			for (const field of values) {
-				if (!field || typeof field !== "object" || field.type !== "file" || !Array.isArray(field.value)) continue;
-				for (const file of field.value) {
-					// URLs are generated by the receiving Install when it serves the Submission, never stored.
-					if (file && typeof file === "object") delete file.url;
-				}
-			}
-		}
-	}
-	for (const [key, value] of Object.entries(row)) {
-		if (value && typeof value === "object") {
-			(row as Record<string, unknown>)[key] = JSON.parse(
-				JSON.stringify(value, (_key, part: unknown) =>
-					typeof part === "string" && missingPeople.has(part.toLowerCase())
-						? missingPeople.get(part.toLowerCase())
-						: part,
-				),
-			);
-		}
-	}
-	return JSON.stringify(row);
-}
-
 /** An error zlib raised reading compressed bytes (`Z_DATA_ERROR`, `Z_BUF_ERROR`, …). */
 function isZlibError(error: unknown): boolean {
 	return typeof (error as { code?: unknown })?.code === "string" && (error as { code: string }).code.startsWith("Z_");
@@ -1166,6 +1171,20 @@ async function collect(body: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
 }
 
 function safeJson(text: string): unknown {
+	// Bound nesting before JSON.parse and recursive contract traversal, without interpreting strings.
+	let depth = 0;
+	let quoted = false;
+	let escaped = false;
+	for (const character of text) {
+		if (quoted) {
+			if (escaped) escaped = false;
+			else if (character === "\\") escaped = true;
+			else if (character === '"') quoted = false;
+		} else if (character === '"') quoted = true;
+		else if (character === "{" || character === "[") {
+			if (++depth > 128) throw new ArchiveRefusedError("damaged", "A JSON row exceeds 128 nesting levels.");
+		} else if (character === "}" || character === "]") depth--;
+	}
 	try {
 		return JSON.parse(text);
 	} catch {
