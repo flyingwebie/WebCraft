@@ -4,6 +4,8 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 
+import { ADMIN_DRAFTS_PREFIX, EDIT_DRAFTS_PREFIX } from "./src/co-editing/paths.ts";
+
 // `vite dev` is the web process in development: TanStack Start sends every request Vite doesn't
 // serve itself to src/server.ts, which routes it by hostname. `vite build` bundles the same entry
 // for production (see src/serve.ts).
@@ -58,7 +60,7 @@ function draftSockets(): Plugin {
 		configureServer(server) {
 			server.httpServer?.on("upgrade", (request, socket, head: Buffer) => {
 				const path = request.url ?? "";
-				if (!path.startsWith("/api/drafts/") && !path.startsWith("/_webcraft/edit/drafts/")) return;
+				if (!path.startsWith(ADMIN_DRAFTS_PREFIX) && !path.startsWith(EDIT_DRAFTS_PREFIX)) return;
 				internal ??= start(server);
 				internal.then(
 					(port) => {
