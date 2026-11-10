@@ -17,7 +17,9 @@ import {
 	SCRIPT_PATH,
 	SEARCH_RATE_LIMIT,
 	SITE_SECURITY_HEADERS,
+	SITEMAP_LIMITS,
 	type SiteHost,
+	type SitemapLimits,
 	type SiteScope,
 	STYLESHEET_PATH,
 	searchQueryIn,
@@ -33,6 +35,7 @@ import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
 import { contentApiAnswer, isContentApiPath } from "./content-api.ts";
+import { discoveryFile, stagingRobots } from "./discovery.ts";
 import {
 	clearEditCookie,
 	codeModeOf,
@@ -56,6 +59,8 @@ const MODULE_ROUTES = "/_wc/m";
 export type SitePipelineOptions = {
 	/** The page cache; a new one holding the default amount unless given. */
 	pageCache?: PageCache;
+	/** How much one sitemap file holds: the protocol's limits unless given (a test of splitting needs fewer). */
+	sitemapLimits?: Partial<SitemapLimits>;
 };
 
 /**
@@ -83,11 +88,13 @@ export type SitePipelineOptions = {
  * The Content API (`/_content/v1/…`, ADR 0029) answers before the Staging address's checks: it shows
  * published content only, to frontends holding one of the Site's Content keys.
  *
- * Steps still to come, in their places: each reserved path's feature (`sitemap.xml`, `robots.txt`,
- * `llms.txt`, Markdown copies).
+ * The discovery files (robots.txt, sitemaps, `llms.txt`, Markdown copies) answer at the reserved-path
+ * step, kept in the page cache like pages (`discovery.ts`); the Staging address's robots.txt answers
+ * before its access check.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();
+	const limits = { ...SITEMAP_LIMITS, ...options.sitemapLimits };
 	return async (request) => {
 		const url = new URL(request.url);
 		const hostname = normaliseHostname(url.hostname);
@@ -103,7 +110,7 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		if (!host) return notFound();
 		// From here on the client address is the visitor's, as the Site's CDN gives it when it has one.
 		await recordVisitorAddress(request, services, host);
-		return withSecurityHeaders(await siteAnswer(services, cache, request, host));
+		return withSecurityHeaders(await siteAnswer(services, cache, request, host, limits));
 	};
 }
 
@@ -113,6 +120,7 @@ async function siteAnswer(
 	cache: PageCache,
 	request: Request,
 	host: SiteHost,
+	limits: SitemapLimits,
 ): Promise<Response> {
 	const url = new URL(request.url);
 	// A Redirect domain sends every request on to the same path on the Primary domain (ADR 0015).
@@ -125,6 +133,9 @@ async function siteAnswer(
 	// asking everyone else to sign in, whatever they asked for.
 	const staging = await stagingEndpoint(services, request, host);
 	if (staging) return staging;
+	// Its robots.txt keeps every crawler out, and crawlers must be able to read that.
+	const robots = await stagingRobots(request, host);
+	if (robots) return robots;
 	const refused = await stagingRefusal(services, request, host);
 	if (refused) return refused;
 	// Redirect rules come next, before anything the Site answers itself (the Install's own `/_…`
@@ -175,7 +186,7 @@ async function siteAnswer(
 		if (url.pathname === FILTER_FRAGMENTS_PATH || url.pathname.startsWith(`${FILTER_FRAGMENTS_PATH}/`)) {
 			return filterFragments(services, cache, request, host);
 		}
-		return pageAnswer(services, cache, request, host);
+		return pageAnswer(services, cache, request, host, false, limits);
 	});
 }
 
@@ -190,11 +201,16 @@ async function pageAnswer(
 	request: Request,
 	host: SiteHost,
 	fragment = false,
+	limits: SitemapLimits = SITEMAP_LIMITS,
 ): Promise<Response> {
 	const url = new URL(request.url);
 	const segments = pathSegments(url.pathname);
-	// Paths the Install keeps: each feature answers its own; until then, a plain 404.
-	if (segments && isReservedPath(segments)) return plainText(404, "Not Found", addressHeaders(host));
+	// Paths the Install keeps: each feature answers its own (the discovery files here), else a plain 404.
+	if (segments && isReservedPath(segments)) {
+		if (fragment) return plainText(404, "Not Found", addressHeaders(host));
+		const file = await discoveryFile(services, cache, request, host, limits);
+		return file ?? plainText(404, "Not Found", addressHeaders(host));
+	}
 	const edit = await editSessionOf(services, request, host);
 	// Which page of a paginated Loop: `?page=2`; anything else that isn't a page number is no page.
 	// (`?page=1` goes on to the page itself, keeping its search and Filters' choices: see `render`.)

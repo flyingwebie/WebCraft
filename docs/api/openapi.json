@@ -1156,7 +1156,21 @@
 											}
 										}
 									},
+									"summaryField": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 300
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
 									"revisions": {
+										"type": "boolean"
+									},
+									"sitemap": {
 										"type": "boolean"
 									}
 								},
@@ -1621,7 +1635,21 @@
 											}
 										}
 									},
+									"summaryField": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 300
+											},
+											{
+												"type": "null"
+											}
+										]
+									},
 									"revisions": {
+										"type": "boolean"
+									},
+									"sitemap": {
 										"type": "boolean"
 									}
 								},
@@ -10588,6 +10616,10 @@
 												]
 											}
 										}
+									},
+									"robotsLines": {
+										"type": "string",
+										"maxLength": 10000
 									}
 								},
 								"required": ["siteId"]
@@ -10615,6 +10647,54 @@
 				"x-webcraft-access": "write",
 				"x-webcraft-toolsets": ["siteSettings"],
 				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/seoSettings/setAiCrawlers": {
+			"post": {
+				"operationId": "seoSettings.setAiCrawlers",
+				"summary": "Chooses what the Site's robots.txt says to AI crawlers.",
+				"tags": ["seoSettings"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"aiCrawlers": {
+										"enum": ["allowAll", "allowSearch", "blockAll"],
+										"type": "string"
+									}
+								},
+								"required": ["siteId", "aiCrawlers"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["aiCrawlers.manage"]
 			}
 		},
 		"/contentApi/get": {

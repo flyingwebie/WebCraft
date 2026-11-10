@@ -245,6 +245,7 @@ export const PROCEDURES = {
 	"consentBanner.record": read("One of the Site's Consent records, by its id."),
 	"seoSettings.get": read("The Site's SEO settings."),
 	"seoSettings.update": write("Changes the Site's SEO settings."),
+	"seoSettings.setAiCrawlers": write("Chooses what the Site's robots.txt says to AI crawlers."),
 	"contentApi.get": read(
 		"The Site's Content API: whether it is on, what it hides, its Content keys and where it answers.",
 	),

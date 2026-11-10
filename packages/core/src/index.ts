@@ -111,6 +111,7 @@ export { type Countries, countriesFromFile, unknownCountries } from "./countries
 export { type CreateServicesOptions, createInstallServices } from "./create-services.ts";
 export * from "./dashboards/index.ts";
 export * from "./design-system/index.ts";
+export * from "./discovery/index.ts";
 export { type Dns, systemDns } from "./dns.ts";
 export * from "./domains/index.ts";
 export {

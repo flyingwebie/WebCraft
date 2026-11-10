@@ -293,6 +293,11 @@ describe("SEO", () => {
 		as: ["staff", "author"],
 	});
 	isolation.refuses("seoSettings.update", (api, { siteId }) => api.seoSettings.update({ siteId, separator: "|" }));
+	isolation.refuses(
+		"seoSettings.setAiCrawlers",
+		(api, { siteId }) => api.seoSettings.setAiCrawlers({ siteId, aiCrawlers: "allowSearch" }),
+		{ as: ["staff", "owner"] },
+	);
 });
 
 /** A Content key of a target's Site, made by the Superadmin. */

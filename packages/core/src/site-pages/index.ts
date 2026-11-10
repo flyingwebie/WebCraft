@@ -894,6 +894,33 @@ export async function pageLocation(
 	return there.origin === host.origin ? there.path : `${there.origin}${there.path}`;
 }
 
+/**
+ * The published Entry a path finds on a hostname, as visitors find it (`locate`): for what is worked
+ * out from a page without rendering it, such as its Markdown copy. A path that moved answers where
+ * it went (another of the Site's domains, the home page's root); null where no Entry is.
+ */
+export async function publishedEntryAt(
+	scope: ReadScope,
+	host: SiteHost,
+	pathname: string,
+): Promise<
+	| {
+			kind: "found";
+			entry: typeof entries.$inferSelect;
+			postType: PostType;
+			postTypes: readonly PostType[];
+			languages: Languages;
+	  }
+	| { kind: "redirect"; location: string }
+	| null
+> {
+	const located = await locate(scope, host, pathname, false, "published");
+	if (!located) return null;
+	if (located.kind === "redirect") return { kind: "redirect", location: located.location };
+	const { entry, postType, postTypes } = located.found;
+	return { kind: "found", entry, postType, postTypes, languages: located.languages };
+}
+
 /** Where a page is: its language among the Site's, with the Default language values fall back to. */
 type Place = { site: SiteLanguages; language: SiteLanguage; languages: Languages };
 

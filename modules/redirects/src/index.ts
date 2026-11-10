@@ -13,6 +13,7 @@ import {
 	addImportedRules,
 	addRule,
 	findTarget,
+	findTargets,
 	followPathChanges,
 	removeImportedRules,
 	removeRule,
@@ -36,7 +37,7 @@ export const redirects = defineModule({
 			it: "Porta i visitatori dai vecchi percorsi ai nuovi con regole di reindirizzamento, aggiunte dagli Editor o in automatico quando cambia un percorso pubblicato, ed elenca i percorsi richiesti che non hanno una pagina.",
 		},
 		version: "1.1.0",
-		sdk: "^1.9.0",
+		sdk: "^1.10.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -57,6 +58,11 @@ export const redirects = defineModule({
 	redirectRules: redirectRules({
 		tables: [rules],
 		find: (request, context) => findTarget(context, request.path),
+		findMany: (requests, context) =>
+			findTargets(
+				context,
+				requests.map((request) => request.path),
+			),
 		add: (asked, context) => addImportedRules(context, asked),
 		remove: (added, context) => removeImportedRules(context, added),
 	}),

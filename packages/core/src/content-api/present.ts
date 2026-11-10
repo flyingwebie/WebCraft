@@ -1,5 +1,5 @@
 import { entries, media, mediaFiles } from "@webcraft/db/schema";
-import { type Block, type PageMedia, pageWords, renderBody } from "@webcraft/renderer";
+import { type Block, bodyMarkdown, type PageMedia, pageWords, renderBody } from "@webcraft/renderer";
 import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import { publishedAddresses } from "../content/entry-paths.ts";
@@ -274,7 +274,7 @@ export async function presentEntries(
 		eachLeaf(item.values, item.fields, (field, value) => {
 			if (field.type === "relationship") for (const id of idsIn(value)) targetIds.add(id);
 			if (field.type === "media" && typeof value === "string") mediaIds.add(value);
-			if (field.type === "body" && presenting.body === "html") for (const id of bodyImages(value)) mediaIds.add(id);
+			if (field.type === "body" && presenting.body !== "blocks") for (const id of bodyImages(value)) mediaIds.add(id);
 		});
 		if (typeof item.seo.image === "string") mediaIds.add(item.seo.image);
 	}
@@ -309,6 +309,17 @@ export async function presentEntries(
 			},
 		});
 
+	// The Markdown copies' converter (ADR 0018: worked out from the Blocks). Links stay as written, as
+	// in the HTML; Media images are at their absolute addresses on the Site's domain.
+	const markdown = (blocks: readonly Block[]) =>
+		bodyMarkdown(blocks, {
+			link: (url) => url,
+			image: (id) => {
+				const item = found.get(id);
+				return item ? { url: item.url, alt: item.alt, caption: item.caption } : undefined;
+			},
+		});
+
 	const present = (value: Json, field: FieldDefinition): unknown => {
 		switch (field.type) {
 			case "media":
@@ -324,7 +335,7 @@ export async function presentEntries(
 			case "body": {
 				const blocks = (Array.isArray(value) ? value : []) as unknown as Block[];
 				if (presenting.body === "blocks") return blocks.map(({ source: _, ...block }) => block);
-				// Markdown joins with the Markdown copies' converter (#92); until then the Blocks' HTML.
+				if (presenting.body === "markdown") return markdown(blocks);
 				return html(blocks);
 			}
 			default:

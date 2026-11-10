@@ -44,6 +44,7 @@ import { Route as AdminSitesSiteIdAiTranslationRouteImport } from './routes/_adm
 import { Route as AdminSitesSiteIdComponentsRouteImport } from './routes/_admin/sites.$siteId.components'
 import { Route as AdminSitesSiteIdConsentBannerRouteImport } from './routes/_admin/sites.$siteId.consent-banner'
 import { Route as AdminSitesSiteIdContentApiRouteImport } from './routes/_admin/sites.$siteId.content-api'
+import { Route as AdminSitesSiteIdCrawlersRouteImport } from './routes/_admin/sites.$siteId.crawlers'
 import { Route as AdminSitesSiteIdDomainsRouteImport } from './routes/_admin/sites.$siteId.domains'
 import { Route as AdminSitesSiteIdEmailRouteImport } from './routes/_admin/sites.$siteId.email'
 import { Route as AdminSitesSiteIdGlobalsRouteImport } from './routes/_admin/sites.$siteId.globals'
@@ -271,6 +272,12 @@ const AdminSitesSiteIdContentApiRoute =
   AdminSitesSiteIdContentApiRouteImport.update({
     id: '/content-api',
     path: '/content-api',
+    getParentRoute: () => AdminSitesSiteIdRoute,
+  } as any)
+const AdminSitesSiteIdCrawlersRoute =
+  AdminSitesSiteIdCrawlersRouteImport.update({
+    id: '/crawlers',
+    path: '/crawlers',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
 const AdminSitesSiteIdDomainsRoute = AdminSitesSiteIdDomainsRouteImport.update({
@@ -593,6 +600,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/sites/$siteId/content-api': typeof AdminSitesSiteIdContentApiRoute
+  '/sites/$siteId/crawlers': typeof AdminSitesSiteIdCrawlersRoute
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/sites/$siteId/email': typeof AdminSitesSiteIdEmailRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
@@ -675,6 +683,7 @@ export interface FileRoutesByTo {
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/sites/$siteId/content-api': typeof AdminSitesSiteIdContentApiRoute
+  '/sites/$siteId/crawlers': typeof AdminSitesSiteIdCrawlersRoute
   '/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/sites/$siteId/email': typeof AdminSitesSiteIdEmailRoute
   '/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
@@ -757,6 +766,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/_admin/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
   '/_admin/sites/$siteId/content-api': typeof AdminSitesSiteIdContentApiRoute
+  '/_admin/sites/$siteId/crawlers': typeof AdminSitesSiteIdCrawlersRoute
   '/_admin/sites/$siteId/domains': typeof AdminSitesSiteIdDomainsRoute
   '/_admin/sites/$siteId/email': typeof AdminSitesSiteIdEmailRoute
   '/_admin/sites/$siteId/globals': typeof AdminSitesSiteIdGlobalsRoute
@@ -844,6 +854,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
     | '/sites/$siteId/content-api'
+    | '/sites/$siteId/crawlers'
     | '/sites/$siteId/domains'
     | '/sites/$siteId/email'
     | '/sites/$siteId/globals'
@@ -926,6 +937,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
     | '/sites/$siteId/content-api'
+    | '/sites/$siteId/crawlers'
     | '/sites/$siteId/domains'
     | '/sites/$siteId/email'
     | '/sites/$siteId/globals'
@@ -1007,6 +1019,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/components'
     | '/_admin/sites/$siteId/consent-banner'
     | '/_admin/sites/$siteId/content-api'
+    | '/_admin/sites/$siteId/crawlers'
     | '/_admin/sites/$siteId/domains'
     | '/_admin/sites/$siteId/email'
     | '/_admin/sites/$siteId/globals'
@@ -1314,6 +1327,13 @@ declare module '@tanstack/react-router' {
       path: '/content-api'
       fullPath: '/sites/$siteId/content-api'
       preLoaderRoute: typeof AdminSitesSiteIdContentApiRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/sites/$siteId/crawlers': {
+      id: '/_admin/sites/$siteId/crawlers'
+      path: '/crawlers'
+      fullPath: '/sites/$siteId/crawlers'
+      preLoaderRoute: typeof AdminSitesSiteIdCrawlersRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
     '/_admin/sites/$siteId/domains': {
@@ -1775,6 +1795,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdComponentsRoute: typeof AdminSitesSiteIdComponentsRoute
   AdminSitesSiteIdConsentBannerRoute: typeof AdminSitesSiteIdConsentBannerRoute
   AdminSitesSiteIdContentApiRoute: typeof AdminSitesSiteIdContentApiRoute
+  AdminSitesSiteIdCrawlersRoute: typeof AdminSitesSiteIdCrawlersRoute
   AdminSitesSiteIdDomainsRoute: typeof AdminSitesSiteIdDomainsRoute
   AdminSitesSiteIdEmailRoute: typeof AdminSitesSiteIdEmailRoute
   AdminSitesSiteIdGlobalsRoute: typeof AdminSitesSiteIdGlobalsRoute
@@ -1809,6 +1830,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdComponentsRoute: AdminSitesSiteIdComponentsRoute,
   AdminSitesSiteIdConsentBannerRoute: AdminSitesSiteIdConsentBannerRoute,
   AdminSitesSiteIdContentApiRoute: AdminSitesSiteIdContentApiRoute,
+  AdminSitesSiteIdCrawlersRoute: AdminSitesSiteIdCrawlersRoute,
   AdminSitesSiteIdDomainsRoute: AdminSitesSiteIdDomainsRoute,
   AdminSitesSiteIdEmailRoute: AdminSitesSiteIdEmailRoute,
   AdminSitesSiteIdGlobalsRoute: AdminSitesSiteIdGlobalsRoute,

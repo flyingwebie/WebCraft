@@ -61,6 +61,7 @@ import type { ContentApi } from "./content-api/index.ts";
 import type { Countries } from "./countries.ts";
 import type { Dashboards } from "./dashboards/index.ts";
 import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
+import type { Discovery } from "./discovery/index.ts";
 import type { Dns } from "./dns.ts";
 import type { Domains } from "./domains/index.ts";
 import type { EditMode } from "./edit-mode/index.ts";
@@ -540,6 +541,11 @@ export type InstallServices = InstallPorts & {
 	 * settings, Staff only), and the read-only API frontends built elsewhere call on the Site's domains.
 	 */
 	contentApi: ContentApi;
+	/**
+	 * Discovery files (spec stories 117, 118, 119): each domain's robots.txt, sitemaps and llms.txt, and
+	 * Entries' Markdown copies, built on request from what is published.
+	 */
+	discovery: Discovery;
 	/**
 	 * Site script safety (ADRs 0022, 0023): each Site's Content Security Policy and allowed hosts, its
 	 * outside scripts and its Libraries. Open the Site with `structure.edit`.

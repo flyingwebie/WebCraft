@@ -436,9 +436,9 @@ describe("the Body field", () => {
 	});
 
 	test("body=markdown gives Markdown worked out from the Blocks, text escaped so it reads as written", async () => {
-		const { body } = await site.frontend().json<{ entry: Item }>(
-			`/entries/recipes/${site.ids.Sourdough}?fields=body&body=markdown`,
-		);
+		const { body } = await site
+			.frontend()
+			.json<{ entry: Item }>(`/entries/recipes/${site.ids.Sourdough}?fields=body&body=markdown`);
 
 		expect(body.entry.fields.body).toBe("## Method\n\nFold \\& wait.");
 	});

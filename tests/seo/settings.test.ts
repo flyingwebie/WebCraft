@@ -170,6 +170,8 @@ describe("a Site's SEO settings", () => {
 				email: null,
 				address: null,
 			},
+			aiCrawlers: "allowAll",
+			robotsLines: "",
 		});
 	});
 
