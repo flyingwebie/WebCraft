@@ -36,7 +36,9 @@ beforeAll(async () => {
 		tokens: {
 			...designSystem.draft.tokens,
 			colours: designSystem.draft.tokens.colours.map((colour) =>
-				colour.name === "secondary" ? { ...colour, light: { base: colour.light.base, steps: { "70": "#0f766e" } } } : colour,
+				colour.name === "secondary"
+					? { ...colour, light: { base: colour.light.base, steps: { "70": "#0f766e" } } }
+					: colour,
 			),
 		},
 	});
@@ -66,9 +68,9 @@ async function open(page: Page, path: string): Promise<void> {
 function previewTheme(page: Page, title: string) {
 	return page.evaluate(
 		(name) =>
-			(document.querySelector(`iframe[title="${name}"]`) as HTMLIFrameElement | null)?.contentDocument?.documentElement.getAttribute(
-				"data-wc-theme",
-			),
+			(
+				document.querySelector(`iframe[title="${name}"]`) as HTMLIFrameElement | null
+			)?.contentDocument?.documentElement.getAttribute("data-wc-theme"),
 		title,
 	);
 }
@@ -104,8 +106,9 @@ for (const theme of THEMES) {
 			expect(primary10).toMatch(/^primary 10: #[0-3][0-9a-f]/);
 			await page.waitForFunction(
 				() =>
-					(document.querySelector('iframe[title="Preview of the colours, Dark values"]') as HTMLIFrameElement | null)
-						?.contentDocument?.documentElement.getAttribute("data-wc-theme") === "dark",
+					(
+						document.querySelector('iframe[title="Preview of the colours, Dark values"]') as HTMLIFrameElement | null
+					)?.contentDocument?.documentElement.getAttribute("data-wc-theme") === "dark",
 			);
 
 			// A swatch opens its editor, in the mode shown.
@@ -138,7 +141,11 @@ for (const theme of THEMES) {
 			expect(offered.every((each) => each.startsWith("var(--space-"))).toBe(true);
 
 			await value.fill("var(--space-l)");
-			await page.getByRole("status").getByText(/^Saved/).first().waitFor();
+			await page
+				.getByRole("status")
+				.getByText(/^Saved/)
+				.first()
+				.waitFor();
 			await expectAccessibleScreen(page, `Design system, Classes (${theme})`, PREVIEWS);
 		});
 
@@ -157,8 +164,20 @@ for (const theme of THEMES) {
 		test("the Import dialog and the Export menu", async () => {
 			const page = await install.newPage(theme);
 			await open(page, `/sites/${siteId}/design-system`);
-			await expectOverlayUsable(page, page.getByRole("button", { name: "Import" }), "dialog", `Import (${theme})`, PREVIEWS);
-			await expectOverlayUsable(page, page.getByRole("button", { name: "Export" }), "menu", `Export (${theme})`, PREVIEWS);
+			await expectOverlayUsable(
+				page,
+				page.getByRole("button", { name: "Import" }),
+				"dialog",
+				`Import (${theme})`,
+				PREVIEWS,
+			);
+			await expectOverlayUsable(
+				page,
+				page.getByRole("button", { name: "Export" }),
+				"menu",
+				`Export (${theme})`,
+				PREVIEWS,
+			);
 		});
 	});
 }

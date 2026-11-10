@@ -861,7 +861,10 @@ function FontsCard({ editing }: { editing: Editing }) {
 		>
 			<ul className="grid gap-2">
 				{tokens.fonts.map((font) => (
-					<li key={font.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
+					<li
+						key={font.id}
+						className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1"
+					>
 						<NameInput
 							label={t("designSystem.fonts.name", { name: font.name })}
 							value={font.name}
@@ -963,7 +966,10 @@ function DimensionsCard({ editing, kind }: { editing: Editing; kind: "radius" | 
 		>
 			<ul className="grid gap-2">
 				{list.map((each) => (
-					<li key={each.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
+					<li
+						key={each.id}
+						className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1"
+					>
 						<NameInput
 							label={t("designSystem.tokenName", { name: each.name })}
 							value={each.name}
@@ -1054,7 +1060,10 @@ function ShadowsCard({ editing }: { editing: Editing }) {
 		<Section group="shadows" description={t("designSystem.shadows.intro")}>
 			<ul className="grid gap-2">
 				{tokens.shadows.map((each) => (
-					<li key={each.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
+					<li
+						key={each.id}
+						className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1"
+					>
 						<NameInput
 							label={t("designSystem.tokenName", { name: each.name })}
 							value={each.name}
@@ -1105,7 +1114,10 @@ function BreakpointsCard({ editing }: { editing: Editing }) {
 		>
 			<ul className="grid gap-2">
 				{tokens.breakpoints.map((each) => (
-					<li key={each.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
+					<li
+						key={each.id}
+						className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1"
+					>
 						<NameInput
 							label={t("designSystem.tokenName", { name: each.name })}
 							value={each.name}
