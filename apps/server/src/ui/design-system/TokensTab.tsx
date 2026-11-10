@@ -530,12 +530,13 @@ function ContrastRow({ result }: { result: ContrastResult }) {
 				: t(`designSystem.contrast.source.${source?.role ?? "textOnTint"}`);
 	return (
 		<li className="flex flex-wrap items-center gap-3 rounded-md border p-2 text-sm">
+			{/* The pair as two colours, without text: it shows the pair, it isn't text to read. */}
 			<span
 				aria-hidden="true"
-				style={{ color: result.foreground.value, backgroundColor: result.background.value }}
-				className="flex h-8 w-12 items-center justify-center rounded border font-semibold"
+				style={{ backgroundColor: result.background.value }}
+				className="flex h-8 w-12 items-center justify-center rounded border"
 			>
-				Aa
+				<span style={{ backgroundColor: result.foreground.value }} className="size-4 rounded-full" />
 			</span>
 			<span className="grid">
 				<span className="font-medium">
@@ -860,7 +861,7 @@ function FontsCard({ editing }: { editing: Editing }) {
 		>
 			<ul className="grid gap-2">
 				{tokens.fonts.map((font) => (
-					<li key={font.id} className="grid grid-cols-[10rem_minmax(0,1fr)_auto_auto] items-center gap-2">
+					<li key={font.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
 						<NameInput
 							label={t("designSystem.fonts.name", { name: font.name })}
 							value={font.name}
@@ -907,7 +908,7 @@ function FamilyInput({
 					.filter(Boolean);
 				if (names.length > 0) onChange(names);
 			}}
-			className="text-xs"
+			className="min-w-48 flex-[2] text-xs"
 			spellCheck={false}
 			autoComplete="off"
 		/>
@@ -962,7 +963,7 @@ function DimensionsCard({ editing, kind }: { editing: Editing; kind: "radius" | 
 		>
 			<ul className="grid gap-2">
 				{list.map((each) => (
-					<li key={each.id} className="grid grid-cols-[minmax(0,1fr)_6rem_5rem_auto_auto] items-center gap-2">
+					<li key={each.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
 						<NameInput
 							label={t("designSystem.tokenName", { name: each.name })}
 							value={each.name}
@@ -1029,7 +1030,7 @@ function NumberInput({ label, value, onChange }: { label: string; value: number;
 				const next = Number(event.target.value);
 				if (event.target.value.trim() !== "" && Number.isFinite(next) && next >= 0) onChange(next);
 			}}
-			className="text-xs"
+			className="w-24 text-xs"
 		/>
 	);
 }
@@ -1053,7 +1054,7 @@ function ShadowsCard({ editing }: { editing: Editing }) {
 		<Section group="shadows" description={t("designSystem.shadows.intro")}>
 			<ul className="grid gap-2">
 				{tokens.shadows.map((each) => (
-					<li key={each.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+					<li key={each.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
 						<NameInput
 							label={t("designSystem.tokenName", { name: each.name })}
 							value={each.name}
@@ -1104,7 +1105,7 @@ function BreakpointsCard({ editing }: { editing: Editing }) {
 		>
 			<ul className="grid gap-2">
 				{tokens.breakpoints.map((each) => (
-					<li key={each.id} className="grid grid-cols-[minmax(0,1fr)_6rem_auto_auto_auto] items-center gap-2">
+					<li key={each.id} className="flex flex-wrap items-center gap-2 [&>*:first-child]:min-w-32 [&>*:first-child]:flex-1">
 						<NameInput
 							label={t("designSystem.tokenName", { name: each.name })}
 							value={each.name}
