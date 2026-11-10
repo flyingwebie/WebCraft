@@ -72,7 +72,6 @@ beforeAll(async () => {
 			componentId: popup.componentId,
 			markup: "<p>{{ props.text }}</p>{{@form enquiry}}",
 		});
-		await api.components.publish({ siteId, componentId: popup.componentId });
 		await api.popups.saveDraft({
 			siteId,
 			popupId: popup.id,

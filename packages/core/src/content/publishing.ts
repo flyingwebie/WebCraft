@@ -1,4 +1,4 @@
-import { components, entries, gonePaths, publishedSlugs, templates } from "@webcraft/db/schema";
+import { components, entries, gonePaths, popups, publishedSlugs, templates } from "@webcraft/db/schema";
 import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
 import { announcePublished } from "../co-editing/store.ts";
@@ -11,9 +11,10 @@ import { keepReplacedStylesheet, type SiteStyles, siteStyles } from "../design-s
 import { publishFilter } from "../filters/filters.ts";
 import { publishFormDraft, publishFormEmails } from "../forms/forms.ts";
 import { saveRevision } from "../history/copies.ts";
+import { isUuid } from "../ids.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
-import { popupRow, publishPopup } from "../popups/index.ts";
+import { PopupPublishRequiredError, popupRow, publishPopup } from "../popups/index.ts";
 import { indexPublishedEntry } from "../search/indexing.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
@@ -224,8 +225,11 @@ async function publishItem(
 			return publishEntry(scope, item.id, version);
 		case "template":
 			return publishTemplate(scope, item.id, sources, version);
-		case "component":
+		case "component": {
+			const popup = isUuid(item.id) ? await scope.first(popups, eq(popups.componentId, item.id)) : undefined;
+			if (popup) throw new PopupPublishRequiredError(popup.id);
 			return publishComponent(scope, item.id, sources, version);
+		}
 		case "loop":
 			return publishLoop(scope, item.id, version);
 		case "filter":

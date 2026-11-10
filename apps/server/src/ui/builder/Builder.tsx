@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { FieldInput } from "@webcraft/core";
 import { type ElementTree, hasText, type TreeNode } from "@webcraft/renderer/builder";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
@@ -107,6 +107,7 @@ export function Builder({
 	select?: { filter: string } | { element: string };
 }) {
 	const t = useT();
+	const navigate = useNavigate();
 	const [opened, setOpened] = useState(initial);
 	const [doc, setDoc] = useState<BuilderDoc>(() => docOf(initial));
 	const [saved, setSaved] = useState(() => JSON.stringify(docOf(initial)));
@@ -620,6 +621,10 @@ export function Builder({
 		}
 		setBusy("publish");
 		try {
+			if (current.popup) {
+				await navigate({ to: "/sites/$siteId/popups", params: { siteId }, search: { popup: current.popup.id } });
+				return;
+			}
 			const api = await getApi();
 			await publishDraft(api, siteId, target, current.template?.id ?? null);
 			setOpened(await api.builder.open({ siteId, target }));
@@ -834,7 +839,11 @@ export function Builder({
 					</Button>
 					<Button type="button" size="sm" disabled={busy !== null} onClick={() => void publish()}>
 						<UploadIcon aria-hidden="true" />
-						{busy === "publish" ? t("builder.publishing") : t("builder.publish")}
+						{opened.popup
+							? t("popups.reviewPublish")
+							: busy === "publish"
+								? t("builder.publishing")
+								: t("builder.publish")}
 					</Button>
 				</div>
 			</header>

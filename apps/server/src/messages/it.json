@@ -224,7 +224,8 @@
 		"SITE_IMPORT_NOT_READY": "Questa importazione non può partire ora: è ancora in caricamento, è stata rifiutata o è già partita.",
 		"SITE_IMPORT_PASSPHRASE_WRONG": "Non è la passphrase con cui il Sito è stato esportato.",
 		"POPUP_INVALID": "Controlla le impostazioni del Popup.",
-		"POPUP_NOT_FOUND": "Popup non trovato."
+		"POPUP_NOT_FOUND": "Popup non trovato.",
+		"POPUP_PUBLISH_REQUIRED": "Pubblica questo layout dal suo Popup, così la struttura e le impostazioni vengono pubblicate insieme."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -7456,7 +7457,11 @@
 			"none": "Nessuna",
 			"fade": "Dissolvenza",
 			"slide": "Scorrimento",
-			"zoom": "Zoom"
+			"zoom": "Zoom",
+			"top": "In alto",
+			"bottom": "In basso",
+			"push": "Riserva spazio per la barra",
+			"overlay": "Sovrapponi alla pagina"
 		},
 		"confirm": "Conferma eliminazione",
 		"confirmDelete": "Eliminare questo Popup? Il suo Componente rimane disponibile.",
@@ -7470,6 +7475,9 @@
 		"mainButton": "Elemento del pulsante principale (#id, facoltativo)",
 		"excludePaths": "Escludi percorsi (uno per riga)",
 		"excludePostTypes": "Escludi Tipi di post",
-		"excludeEntries": "Escludi Voci"
+		"excludeEntries": "Escludi Voci",
+		"barPosition": "Posizione della barra",
+		"barBehavior": "Flusso della pagina",
+		"reviewPublish": "Rivedi e pubblica il Popup"
 	}
 }

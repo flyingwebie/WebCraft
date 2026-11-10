@@ -29,6 +29,7 @@ import {
 	TEMPLATE_ELEMENTS,
 	type TreeProblem,
 } from "@webcraft/renderer";
+import { eq } from "drizzle-orm";
 
 import { valuesOf } from "../code-mode/sources.ts";
 import { type Component, type ComponentSources, getComponent, listComponents } from "../content/components.ts";
@@ -91,6 +92,8 @@ export type BuilderOpened = {
 	template: Template | null;
 	/** The Component; null for a Template. */
 	component: Component | null;
+	/** A backing Component's Popup: its tree and settings are reviewed and published together. */
+	popup: { id: string; name: string } | null;
 	/** The Post Type of an Entry or Archive template. */
 	postType: PostType | null;
 	/** A Component's Props, as its Draft has them. */
@@ -142,12 +145,16 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 	return {
 		async open(scope, target) {
 			const source = await readSource(scope, target, sources);
+			const popup = source.component
+				? await scope.first(popups, eq(popups.componentId, source.component.id))
+				: undefined;
 			const designSystem = await draftDesignSystem(scope);
 			const site = await siteLanguages(scope);
 			const language = site.languages.find((each) => each.code === site.defaultLanguage);
 			return {
 				template: source.template,
 				component: source.component,
+				popup: popup ? { id: popup.id, name: popup.name } : null,
 				postType: source.postType,
 				props: source.props,
 				tree: source.draft,

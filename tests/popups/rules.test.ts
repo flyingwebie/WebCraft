@@ -34,7 +34,6 @@ beforeAll(async () => {
 	const { popup } = await staff.api.popups.create({ siteId, name: "Sale", key: "sale" });
 	id = popup.id;
 	await staff.api.components.saveMarkup({ siteId, componentId: popup.componentId, markup: "<p>{{ props.text }}</p>" });
-	await staff.api.components.publish({ siteId, componentId: popup.componentId });
 	await staff.api.popups.saveContent({
 		siteId,
 		popupId: id,

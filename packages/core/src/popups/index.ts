@@ -36,6 +36,14 @@ export class PopupInvalidError extends Error {
 		this.problems = problems;
 	}
 }
+export class PopupPublishRequiredError extends Error {
+	override name = "PopupPublishRequiredError";
+	readonly popupId: string;
+	constructor(popupId: string) {
+		super("Publish this layout from its Popup so the tree and settings go live together.");
+		this.popupId = popupId;
+	}
+}
 const selector = z.string().regex(/^#[a-zA-Z][\w-]*$/);
 const trigger = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("load") }),
@@ -57,6 +65,8 @@ const paths = z
 const ids = z.array(z.uuid()).max(100);
 export const popupSettings = z.object({
 	layout: z.enum(["modal", "slide-in", "bar", "full-screen"]),
+	barPosition: z.enum(["top", "bottom"]).default("bottom"),
+	barBehavior: z.enum(["push", "overlay"]).default("overlay"),
 	trigger,
 	additionalTriggers: z.array(trigger).max(6).default([]),
 	animation: z.enum(["none", "fade", "slide", "zoom"]).default("fade"),
@@ -122,8 +132,8 @@ const status = (draft: unknown, published: unknown) =>
 export function popupView(row: Row, versions?: { draft: unknown; published: unknown }, attached = false) {
 	return {
 		...row,
-		draft: row.draft as PopupSettings,
-		published: row.published as PopupSettings | null,
+		draft: popupSettings.parse(row.draft),
+		published: row.published === null ? null : popupSettings.parse(row.published),
 		status: status(versions?.draft ?? row.draft, versions?.published ?? row.published),
 		checks: popupChecks(row.draft as PopupSettings, attached),
 	};
@@ -400,10 +410,10 @@ export async function checkPopupContentReady(scope: SiteScope, id: string, versi
 export async function popupStructureState(scope: Pick<SiteScope, "first">, row: Row) {
 	const component = await scope.first(components, eq(components.id, row.componentId));
 	return {
-		draft: { settings: row.draft as PopupSettings, component: storedComponentVersion(component?.draft) },
+		draft: { settings: popupSettings.parse(row.draft), component: storedComponentVersion(component?.draft) },
 		published:
 			row.published === null
 				? null
-				: { settings: row.published as PopupSettings, component: storedComponentVersion(component?.published) },
+				: { settings: popupSettings.parse(row.published), component: storedComponentVersion(component?.published) },
 	};
 }

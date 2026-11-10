@@ -4,7 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { type Languages, readFields } from "../content/field-values.ts";
 import { storedVersion } from "../content/values.ts";
 import type { VisitorScope } from "../tenancy/data-layer.ts";
-import { POPUP_FIELDS, type PopupSettings } from "./index.ts";
+import { POPUP_FIELDS, type PopupSettings, popupSettings } from "./index.ts";
 export async function pagePopups(
 	scope: Pick<VisitorScope, "select" | "first" | "now">,
 	options: {
@@ -35,9 +35,10 @@ export async function pagePopups(
 	if (!options.on) return { items: found, changesAt };
 	const entry = options.entryId ? await scope.first(entries, eq(entries.id, options.entryId)) : undefined;
 	for (const row of await scope.select(popups, undefined, { orderBy: [asc(popups.createdAt), asc(popups.id)] })) {
-		const settings = (options.which === "draft" ? row.draft : row.published) as PopupSettings | null;
+		const stored = options.which === "draft" ? row.draft : row.published;
 		const content = options.which === "draft" ? row.contentDraft : row.contentPublished;
-		if (!settings || !content) continue;
+		if (!stored || !content) continue;
+		const settings = popupSettings.parse(stored);
 		const values = readFields(storedVersion(content).values, POPUP_FIELDS, options.languages);
 		if (!values.enabled) continue;
 		const r = settings.rules;

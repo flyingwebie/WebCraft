@@ -48,6 +48,8 @@ export const popups = {
 					mainButton: z.unknown().optional(),
 					additionalTriggers: z.unknown().optional(),
 					layout: z.unknown().optional(),
+					barPosition: z.unknown().optional(),
+					barBehavior: z.unknown().optional(),
 					trigger: z.unknown().optional(),
 					rules: z.unknown().optional(),
 					frequency: z.unknown().optional(),

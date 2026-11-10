@@ -38,7 +38,6 @@ beforeAll(async () => {
 		componentId: popup.componentId,
 		markup: "<p>{{ props.text }}</p>{{@form contact}}",
 	});
-	await staff.api.components.publish({ siteId, componentId: popup.componentId });
 	await staff.api.popups.saveContent({
 		siteId,
 		popupId,
@@ -115,7 +114,7 @@ test("a Popup's image uses normal Media rendering and appears in Used in", async
 		componentId: current.popup.componentId,
 		markup: '<p>{{ props.text }}</p><img src="{{ props.image }}">{{@form contact}}',
 	});
-	await staff.api.components.publish({ siteId, componentId: current.popup.componentId });
+	await staff.api.popups.publish({ siteId, popupId });
 	await staff.api.popups.saveContent({ siteId, popupId, values: { image: media.id } });
 	await staff.api.popups.publishContent({ siteId, popupId });
 	const html = await expectSafePage(await install.request(PAGE));

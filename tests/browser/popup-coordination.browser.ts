@@ -25,7 +25,7 @@ afterAll(async () => {
 });
 async function scene(
 	configs: Record<string, unknown>[],
-	options: { banner?: boolean; links?: boolean; tall?: boolean } = {},
+	options: { banner?: boolean; links?: boolean; tall?: boolean; navigation?: boolean } = {},
 ) {
 	const { api } = await install.install.superadmin();
 	const slug = `popup-${++count}`;
@@ -40,7 +40,6 @@ async function scene(
 			componentId: popup.componentId,
 			markup: `<p>{{ props.text }}</p><a id="${typeof config.mainButton === "string" ? config.mainButton.slice(1) : `accept-${index + 1}`}" href="#result">Continue</a>`,
 		});
-		await api.components.publish({ siteId, componentId: popup.componentId });
 		await api.popups.saveDraft({ siteId, popupId: popup.id, popup: { trigger: { kind: "load" }, rules, ...config } });
 		await api.popups.saveContent({
 			siteId,
@@ -59,7 +58,7 @@ async function scene(
 	const saved = await api.templates.saveEntryTemplateMarkup({
 		siteId,
 		postTypeId: postType.id,
-		markup: `<h1>{{ title }}</h1>${commands}${options.banner ? "{{@consentSettings}}" : ""}${options.tall ? "<p>Further down this page.</p>".repeat(120) : ""}<p id="target">Reached the offer.</p><p id="result">Continue reading.</p>`,
+		markup: `<h1>{{ title }}</h1>${options.navigation ? '<a href="#target">Read details</a>' : ""}${commands}${options.banner ? "{{@consentSettings}}" : ""}${options.tall ? "<p>Further down this page.</p>".repeat(120) : ""}<p id="target">Reached the offer.</p><p id="result">Continue reading.</p>`,
 	});
 	await api.templates.publish({ siteId, templateId: saved.template.id });
 	const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Offers", slug: "offers" });
@@ -107,11 +106,33 @@ test("simultaneous Triggers use one promotion slot and one Bar, including unmoun
 	await page.keyboard.press("Escape");
 	await second.waitFor({ state: "detached" });
 	expect(await page.locator("dialog.wc-popup[open]").count()).toBe(1);
-	await page.evaluate(() => {
-		history.pushState({}, "", `${location.pathname}#navigation`);
-		history.back();
+	await page.goto("about:blank");
+	expect(await page.getByRole("dialog").count()).toBe(0);
+	expect(pageErrors(page)).toEqual([]);
+	await page.close();
+});
+
+test("fragment navigation preserves Click and pending automatic Triggers", async () => {
+	const url = await scene([{ trigger: { kind: "click" } }, { trigger: { kind: "delay", seconds: 5 } }], {
+		links: true,
+		navigation: true,
 	});
-	await page.locator("dialog.wc-popup[open]").waitFor({ state: "detached" });
+	const page = await install.newPage("dark");
+	await page.clock.install();
+	await page.goto(url);
+	await page.getByRole("link", { name: "Read details", exact: true }).click();
+	await page.waitForURL(/#target$/);
+	await page.getByRole("link", { name: "Promotion 1", exact: true }).click();
+	const first = await shown(page);
+	await page.keyboard.press("Escape");
+	await first.waitFor({ state: "detached" });
+	await page.goBack();
+	await page.waitForURL(url);
+	await page.clock.fastForward(5000);
+	const second = await shown(page, "Promotion 2");
+	await expectNoAxeViolations(page, "promotion after same-document navigation");
+	await page.keyboard.press("Escape");
+	await second.waitFor({ state: "detached" });
 	expect(pageErrors(page)).toEqual([]);
 	await page.close();
 });

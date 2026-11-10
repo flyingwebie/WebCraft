@@ -74,6 +74,9 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 		siteId,
 		popupId: popup.id,
 		popup: {
+			layout: "bar",
+			barPosition: "top",
+			barBehavior: "push",
 			rules: {
 				paths: ["/offers/*"],
 				postTypeIds: [postType.id],
@@ -121,6 +124,7 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	expect(copied).toBeDefined();
 	if (!copied) throw new Error("No imported Popup");
 	expect(copied.published).toBeNull();
+	expect(copied.draft).toMatchObject({ layout: "bar", barPosition: "top", barBehavior: "push" });
 	const content = await targetStaff.api.popups.get({ siteId: targetId, popupId: copied.id, language: "it" });
 	expect(content.content.published).toBeNull();
 	expect(content.content.draft.values.title).toBe("Offerta");
@@ -165,6 +169,7 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	expect(restored.content.draft.values.image).toBe(copiedMediaId);
 	expect(restored.content.draft.values.text).toContain(literal);
 	expect(restored.popup.draft.rules).toEqual(copied.draft.rules);
+	expect(restored.popup.draft).toMatchObject({ layout: "bar", barPosition: "top", barBehavior: "push" });
 	const restoredTree = await targetStaff.api.components.getMarkup({
 		siteId: targetId,
 		componentId: copied.componentId,

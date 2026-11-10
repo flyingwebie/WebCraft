@@ -8935,6 +8935,8 @@
 											"mainButton": {},
 											"additionalTriggers": {},
 											"layout": {},
+											"barPosition": {},
+											"barBehavior": {},
 											"trigger": {},
 											"rules": {},
 											"frequency": {}

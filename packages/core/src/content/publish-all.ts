@@ -496,7 +496,7 @@ async function publishOrder<Chosen extends { item: PublishItem }>(
 		loop: 1,
 		filter: 2,
 		form: 3,
-		popup: 5.5,
+		popup: 5,
 		popupContent: 9,
 		formEmails: 4,
 		component: 5,
@@ -507,20 +507,31 @@ async function publishOrder<Chosen extends { item: PublishItem }>(
 		entry: 10,
 	};
 	const byKind = [...chosen].sort((a, b) => rank[a.item.kind] - rank[b.item.kind]);
+	const popupIds = chosen.flatMap((draft) => (draft.item.kind === "popup" ? [draft.item.id] : []));
+	const popupComponents = new Map(
+		(popupIds.length ? await scope.select(popups, inArray(popups.id, popupIds)) : []).map((row) => [
+			row.id,
+			row.componentId,
+		]),
+	);
+	// A Popup takes its backing Component's place in the same dependency order, as one item.
+	const componentId = (item: PublishItem) =>
+		item.kind === "component" ? item.id : item.kind === "popup" ? popupComponents.get(item.id) : undefined;
 	const componentOrder = await componentsInOrder(
 		scope,
-		chosen.flatMap((draft) => (draft.item.kind === "component" ? [draft.item.id] : [])),
+		chosen.flatMap((draft) => {
+			const id = componentId(draft.item);
+			return id ? [id] : [];
+		}),
 	);
 	const entryOrder = await entriesInOrder(
 		scope,
 		chosen.flatMap((draft) => (draft.item.kind === "entry" ? [draft.item.id] : [])),
 	);
-	const within = (draft: Chosen) =>
-		draft.item.kind === "component"
-			? componentOrder.indexOf(draft.item.id)
-			: draft.item.kind === "entry"
-				? entryOrder.indexOf(draft.item.id)
-				: 0;
+	const within = (draft: Chosen) => {
+		const id = componentId(draft.item);
+		return id ? componentOrder.indexOf(id) : draft.item.kind === "entry" ? entryOrder.indexOf(draft.item.id) : 0;
+	};
 	return byKind.sort((a, b) => rank[a.item.kind] - rank[b.item.kind] || within(a) - within(b));
 }
 

@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import { FilterNotFoundError } from "../filters/errors.ts";
 import { FormNotFoundError } from "../forms/errors.ts";
 import { isUuid } from "../ids.ts";
-import { PopupNotFoundError, popupStructureState } from "../popups/index.ts";
+import { PopupNotFoundError, PopupPublishRequiredError, popupStructureState } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	ComponentNotFoundError,
@@ -79,6 +79,8 @@ export async function publishPreview(scope: SiteScope, item: PublishItem): Promi
 				isUuid(item.id) ? await scope.first(components, eq(components.id, item.id)) : undefined,
 				() => new ComponentNotFoundError(),
 			);
+			const popup = await scope.first(popups, eq(popups.componentId, row.id));
+			if (popup) throw new PopupPublishRequiredError(popup.id);
 			return versions(row.draft, row.published, row.name);
 		}
 		case "loop": {

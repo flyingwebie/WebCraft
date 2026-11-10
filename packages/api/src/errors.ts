@@ -131,6 +131,7 @@ import {
 	PersonNotFoundError,
 	PopupInvalidError,
 	PopupNotFoundError,
+	PopupPublishRequiredError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
@@ -409,6 +410,12 @@ export function toApiError(error: unknown): unknown {
 		return new ORPCError("POPUP_NOT_FOUND", { status: 404, message: error.message });
 	if (error instanceof PopupInvalidError)
 		return new ORPCError("POPUP_INVALID", { status: 400, message: error.message, data: { problems: error.problems } });
+	if (error instanceof PopupPublishRequiredError)
+		return new ORPCError("POPUP_PUBLISH_REQUIRED", {
+			status: 409,
+			message: error.message,
+			data: { item: { kind: "popup", id: error.popupId } },
+		});
 	if (error instanceof FormNotFoundError) {
 		return new ORPCError("FORM_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}

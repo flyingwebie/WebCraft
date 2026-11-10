@@ -117,6 +117,8 @@ export type PageToRender = {
 			config: {
 				key: string;
 				layout: string;
+				barPosition: string;
+				barBehavior: string;
 				animation: string;
 				trigger: { kind: string };
 				additionalTriggers: { kind: string }[];
@@ -450,9 +452,9 @@ export function renderDocument(page: PageToRender): RenderedPage {
 			const heading = `<h2 id="wc-popup-title-${item.id}">${escapeText(item.title)}</h2>`;
 			const section = `<section id="popup-${escapeAttribute(item.config.key)}" aria-labelledby="wc-popup-title-${item.id}">${heading}${inside}</section>`;
 			if (page.popups?.reveal) return section;
-			const config = item.config as { layout: string; trigger: { kind: string } };
+			const config = item.config;
 			const close = escapeAttribute(words.popupClose);
-			return `<template data-site="${escapeAttribute(page.popups?.siteId ?? "")}" data-popup-id="${item.id}" data-wc-popup="${escapeAttribute(JSON.stringify(item.config))}"><dialog class="wc-popup" data-layout="${escapeAttribute(config.layout)}" data-animation="${escapeAttribute(item.config.animation)}" aria-labelledby="wc-popup-title-${item.id}"><button type="button" data-wc-popup-close aria-label="${close}">${close}</button>${heading}${inside}</dialog></template>${[item.config.trigger, ...item.config.additionalTriggers].some((t) => t.kind === "click") ? `<noscript>${section}</noscript>` : ""}`;
+			return `<template data-site="${escapeAttribute(page.popups?.siteId ?? "")}" data-popup-id="${item.id}" data-wc-popup="${escapeAttribute(JSON.stringify(item.config))}"><dialog class="wc-popup" data-layout="${escapeAttribute(config.layout)}" data-bar-position="${escapeAttribute(config.barPosition)}" data-bar-behavior="${escapeAttribute(config.barBehavior)}" data-animation="${escapeAttribute(item.config.animation)}" aria-labelledby="wc-popup-title-${item.id}"><button type="button" data-wc-popup-close aria-label="${close}">${close}</button>${heading}${inside}</dialog></template>${[item.config.trigger, ...item.config.additionalTriggers].some((t) => t.kind === "click") ? `<noscript>${section}</noscript>` : ""}`;
 		})
 		.join("");
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];

@@ -28,9 +28,22 @@ export const POPUP_SCRIPT = `(()=>{
    default:return true;
   }
  };
- const track=(item,action)=>{try{window.webcraft?.analytics?.track('popup-'+action+':'+item.config.key)}catch{}};
  const listen=(target,name,fn,options)=>{target.addEventListener(name,fn,options);cleanups.push(()=>target.removeEventListener(name,fn,options));};
  const timer=(fn,ms)=>{const id=setTimeout(fn,ms);cleanups.push(()=>clearTimeout(id));return id;};
+ const analyticsScript=document.querySelector('script[data-wc-module="site-analytics"]'),tracking=[];
+ let analyticsPending=!!analyticsScript;
+ const canTrack=()=>answered&&(!consent||consent.has('analytics'));
+ const send=name=>{try{window.webcraft.analytics.track(name)}catch{}};
+ const track=(item,action)=>{
+  if(!analyticsScript||!canTrack())return;
+  const name='popup-'+action+':'+item.config.key;
+  if(window.webcraft?.analytics?.track)send(name);else if(analyticsPending)tracking.push(name);
+ };
+ if(analyticsScript){
+  listen(analyticsScript,'load',()=>{analyticsPending=false;const pending=tracking.splice(0);if(canTrack())for(const name of pending)send(name);},{once:true});
+  listen(analyticsScript,'error',()=>{analyticsPending=false;tracking.length=0;},{once:true});
+  cleanups.push(()=>{tracking.length=0;});
+ }
  const group=item=>item.config.layout==='bar'?'bar':'promotion';
  const drain=()=>{
   if(stopped||!answered||consent&&!consent.answered)return;
@@ -40,18 +53,18 @@ export const POPUP_SCRIPT = `(()=>{
    if(active[slot]){i++;continue;}
    queue.splice(i,1);
    if(!eligible(item)||!item.template.isConnected)continue;
-   let dialog;
+   let dialog,space,stopSizing=()=>{};
    try{
     const fragment=item.template.content.cloneNode(true);dialog=fragment.querySelector('dialog');if(!dialog)continue;
     const previous=document.activeElement,modal=['modal','full-screen'].includes(item.config.layout);
     active[slot]=dialog;
     const release=()=>{
      if(active[slot]!==dialog)return;
-     active[slot]=null;releases.delete(dialog);closers.delete(dialog);dialog.remove();
+     active[slot]=null;releases.delete(dialog);closers.delete(dialog);stopSizing();space?.remove();dialog.remove();
      if(!stopped&&previous instanceof HTMLElement&&previous.isConnected)previous.focus({preventScroll:true});
      queueMicrotask(drain);
     };
-    const close=()=>{record(item,{closed:true});track(item,'closed');dialog.close();};
+    const close=()=>{if(!dialog.open)return;record(item,{closed:true});track(item,'closed');dialog.close();release();};
     const submitted=()=>{record(item,{submitted:true});const seconds=item.config.afterSubmitCloseSeconds;if(seconds!==null)timer(()=>{if(dialog.isConnected)close()},seconds*1000);};
     releases.set(dialog,release);closers.set(dialog,close);dialog.addEventListener('close',release,{once:true});
     dialog.querySelector('[data-wc-popup-close]').addEventListener('click',close);
@@ -64,11 +77,18 @@ export const POPUP_SCRIPT = `(()=>{
      if(c.mainButton&&event.target.closest?.(c.mainButton)){record(item,{submitted:true});track(item,'clicked');}
     });
     document.body.append(fragment);if(modal)dialog.showModal();else dialog.show();
+    if(slot==='bar'&&item.config.barBehavior==='push'){
+     space=document.createElement('div');space.className='wc-popup-space';space.setAttribute('aria-hidden','true');
+     if(item.config.barPosition==='top')document.body.prepend(space);else document.body.append(space);
+     const size=()=>{space.style.height=dialog.offsetHeight+'px';};size();
+     if(typeof ResizeObserver==='function'){const observer=new ResizeObserver(size);observer.observe(dialog);stopSizing=()=>observer.disconnect();}
+     else{window.addEventListener('resize',size);stopSizing=()=>window.removeEventListener('resize',size);}
+    }
     record(item,{shownAt:Date.now()});track(item,'shown');
     dialog.dispatchEvent(new CustomEvent('webcraft:mounted',{bubbles:true}));
     if(modal)dialog.querySelector('[data-wc-popup-close]').focus();
     if(item.config.autoCloseSeconds!==null)timer(()=>{if(dialog.isConnected)close()},item.config.autoCloseSeconds*1000);
-   }catch{if(dialog){releases.delete(dialog);closers.delete(dialog);dialog.remove();}active[slot]=null;}
+   }catch{if(dialog){releases.delete(dialog);closers.delete(dialog);dialog.remove();}stopSizing();space?.remove();active[slot]=null;}
   }
  };
  const request=item=>{if(stopped||attempted.has(item.id))return;attempted.add(item.id);queue.push(item);drain();};
@@ -111,8 +131,8 @@ export const POPUP_SCRIPT = `(()=>{
  for(const name of ['pointerdown','pointermove','keydown','scroll'])listen(document,name,touch,{passive:true});
  const observer=new MutationObserver(()=>{for(const slot of ['bar','promotion'])if(active[slot]&&!active[slot].isConnected)releases.get(active[slot])?.();});
  observer.observe(document.body,{childList:true,subtree:true});cleanups.push(()=>observer.disconnect());
- const stop=()=>{stopped=true;queue.length=0;for(const clean of cleanups)clean();for(const dialog of Object.values(active))if(dialog){dialog.close();dialog.remove();}};
- listen(window,'pagehide',stop);listen(window,'popstate',stop);
+ const stop=()=>{stopped=true;queue.length=0;for(const clean of cleanups)clean();for(const dialog of Object.values(active))if(dialog){dialog.close();releases.get(dialog)?.();}};
+ listen(window,'pagehide',stop);
  listen(document,'webcraft:consent',event=>{answered=event.detail.answered;if(answered)start();});
  Promise.resolve(consent?consent.whenAnswered():undefined).then(start).catch(()=>{});
 })();`;

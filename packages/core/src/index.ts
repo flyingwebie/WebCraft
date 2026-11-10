@@ -331,7 +331,7 @@ export {
 	type SensitiveAction,
 	SensitiveActionRefusedError,
 } from "./permissions/sensitive.ts";
-export { PopupInvalidError, PopupNotFoundError } from "./popups/index.ts";
+export { PopupInvalidError, PopupNotFoundError, PopupPublishRequiredError } from "./popups/index.ts";
 export {
 	RATE_LIMITS,
 	RateLimitedError,

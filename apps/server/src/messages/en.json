@@ -224,7 +224,8 @@
 		"SITE_IMPORT_NOT_READY": "This import can't be started now: it is still uploading, was refused, or has started already.",
 		"SITE_IMPORT_PASSPHRASE_WRONG": "That isn't the passphrase the Site was exported with.",
 		"POPUP_INVALID": "Check the Popup settings.",
-		"POPUP_NOT_FOUND": "Popup not found."
+		"POPUP_NOT_FOUND": "Popup not found.",
+		"POPUP_PUBLISH_REQUIRED": "Publish this layout from its Popup so the tree and settings go live together."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -7456,7 +7457,11 @@
 			"none": "None",
 			"fade": "Fade",
 			"slide": "Slide",
-			"zoom": "Zoom"
+			"zoom": "Zoom",
+			"top": "Top",
+			"bottom": "Bottom",
+			"push": "Reserve space for the Bar",
+			"overlay": "Overlay the page"
 		},
 		"confirm": "Confirm deletion",
 		"confirmDelete": "Delete this Popup? Its Component remains available.",
@@ -7470,6 +7475,9 @@
 		"mainButton": "Main button element (#id, optional)",
 		"excludePaths": "Exclude paths (one per line)",
 		"excludePostTypes": "Exclude Post Types",
-		"excludeEntries": "Exclude Entries"
+		"excludeEntries": "Exclude Entries",
+		"barPosition": "Bar position",
+		"barBehavior": "Page flow",
+		"reviewPublish": "Review and publish Popup"
 	}
 }

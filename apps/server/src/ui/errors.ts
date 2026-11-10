@@ -91,6 +91,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "FILTER_NAME_TAKEN":
 		case "POPUP_NOT_FOUND":
 		case "POPUP_INVALID":
+		case "POPUP_PUBLISH_REQUIRED":
 		case "FORM_NOT_FOUND":
 		case "FORM_INVALID":
 		case "FORM_KEY_TAKEN":

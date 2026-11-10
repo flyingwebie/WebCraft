@@ -184,7 +184,7 @@ function PopupEditor({
 	};
 	const option = (value: string) => t(`popups.options.${value as "modal"}`);
 	const select = (
-		label: "layout" | "trigger" | "visitors" | "frequency" | "animation",
+		label: "layout" | "trigger" | "visitors" | "frequency" | "animation" | "barPosition" | "barBehavior",
 		value: string,
 		choices: string[],
 		change: (value: string) => void,
@@ -348,6 +348,16 @@ function PopupEditor({
 					{select("layout", settings.layout, ["modal", "slide-in", "bar", "full-screen"], (v) =>
 						setSettings((s) => ({ ...s, layout: v as typeof s.layout })),
 					)}
+					{settings.layout === "bar" ? (
+						<>
+							{select("barPosition", settings.barPosition, ["top", "bottom"], (v) =>
+								setSettings((s) => ({ ...s, barPosition: v as typeof s.barPosition })),
+							)}
+							{select("barBehavior", settings.barBehavior, ["push", "overlay"], (v) =>
+								setSettings((s) => ({ ...s, barBehavior: v as typeof s.barBehavior })),
+							)}
+						</>
+					) : null}
 					<TriggerControls value={settings.trigger} onChange={(trigger) => setSettings((s) => ({ ...s, trigger }))} />
 					{settings.additionalTriggers.map((trigger, index) => (
 						<div className="grid min-w-0 gap-3 rounded border p-4" key={triggerKeys[index]}>

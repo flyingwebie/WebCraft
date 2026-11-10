@@ -39,7 +39,6 @@ test("Staff build a Popup; Members change and publish its Content independently"
 	await expect(author.api.popups.publishContent({ siteId, popupId: popup.id })).rejects.toMatchObject({
 		code: "FORBIDDEN",
 	});
-	await staff.api.components.publish({ siteId, componentId: popup.componentId });
 	await staff.api.popups.publish({ siteId, popupId: popup.id });
 	await owner.api.popups.publishContent({ siteId, popupId: popup.id });
 	const saved = await owner.api.popups.get({ siteId, popupId: popup.id });
@@ -176,12 +175,12 @@ test("a Popup publishes its own tree and settings atomically; a Scheduled publis
 	);
 });
 
-test("publishing a Popup tells its Component editors and supersedes that Component's older schedule", async () => {
+test("publishing a Popup tells its Component editors and supersedes its older schedule", async () => {
 	const { popup } = await staff.api.popups.create({ siteId, name: "Publication", key: "publication" });
 	await staff.api.components.saveMarkup({ siteId, componentId: popup.componentId, markup: "<p>Earlier tree</p>" });
 	await staff.api.publishing.schedule({
 		siteId,
-		item: { kind: "component", id: popup.componentId },
+		item: { kind: "popup", id: popup.id },
 		at: new Date(install.clock.now().getTime() + 60_000).toISOString(),
 	});
 	await staff.api.components.saveMarkup({ siteId, componentId: popup.componentId, markup: "<p>Current tree</p>" });
