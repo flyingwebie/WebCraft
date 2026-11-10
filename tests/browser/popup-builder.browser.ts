@@ -59,6 +59,7 @@ for (const theme of THEMES)
 		await dialog.waitFor({ state: "hidden" });
 		const selected = page.getByRole("combobox", { name: "Popup", exact: true });
 		expect(await selected.inputValue()).toBe(firstId);
+		expect(await page.getByRole("treeitem", { name: /^Popup first/ }).isVisible()).toBe(true);
 		await selected.press("s");
 		expect(await selected.inputValue()).toBe(secondId);
 		await page.keyboard.press("ControlOrMeta+s");
@@ -67,6 +68,7 @@ for (const theme of THEMES)
 			"{{@popup second",
 		);
 		await expectAccessibleScreen(page, `Popup inspector ${theme}`, CANVAS);
+		expect(await page.getByRole("treeitem", { name: /^Popup second/ }).isVisible()).toBe(true);
 		expect(await page.frameLocator("iframe[title^='Canvas']").locator("template[data-wc-popup],dialog").count()).toBe(
 			0,
 		);

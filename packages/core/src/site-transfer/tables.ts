@@ -54,6 +54,9 @@ export const LEFT_OUT_TABLES: Readonly<Record<string, LeftOutReason>> = {
 	// Transfer jobs, reports and temporary archives belong to their Install.
 	"public.site_exports": "working",
 	"public.site_imports": "working",
+	// The durable inventory is not portable; its Module rows are exported under their own table names.
+	"public.site_retained_tables": "retained",
+	"public.site_retained_rows": "retained",
 };
 
 /**
@@ -66,6 +69,7 @@ export type LeftOutReason =
 	| "secrets"
 	| "session"
 	| "working"
+	| "retained"
 	| "members"
 	| "published"
 	| "scheduled"
@@ -92,6 +96,10 @@ export type SiteTable = {
 	/** The Module it is of (by its schema), or null for WebCraft's own. */
 	module: string | null;
 	columns: string[];
+	/** Primary key columns, used to reconcile live and retained rows without duplicating them. */
+	primaryColumns: string[];
+	/** UUID-typed columns, including UUID arrays. Text and JSON are never inferred from their spelling. */
+	uuidColumns: { name: string; array: boolean }[];
 	/** Columns Postgres fills from a sequence (an Audit log entry's id): a new value on import. */
 	sequenced: string[];
 	/** Columns naming a person (`people.id`). */
@@ -124,11 +132,19 @@ export async function siteTables(
 		table: string;
 		partitioned: boolean;
 		columns: string[];
+		primary_columns: string[];
+		uuid_columns: { name: string; array: boolean }[];
 		sequenced: string[];
 		required: string[];
 		defaults: [string, string][] | null;
 	}>(
 		`SELECT c.oid::int AS oid, n.nspname AS schema, c.relname AS "table", c.relkind = 'p' AS partitioned,
+				array(SELECT a.attname::text FROM pg_constraint p JOIN LATERAL unnest(p.conkey) WITH ORDINALITY k(attnum,n) ON true
+				 JOIN pg_attribute a ON a.attrelid = p.conrelid AND a.attnum = k.attnum
+				 WHERE p.conrelid = c.oid AND p.contype = 'p' ORDER BY k.n) AS primary_columns,
+				coalesce((SELECT json_agg(json_build_object('name', a.attname, 'array', a.atttypid = 'uuid[]'::regtype))
+					FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+					AND a.atttypid IN ('uuid'::regtype, 'uuid[]'::regtype)), '[]'::json) AS uuid_columns,
 				array(SELECT a.attname::text FROM pg_attribute a
 					WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
 					ORDER BY a.attnum) AS columns,
@@ -209,6 +225,8 @@ export async function siteTables(
 				table: row.table,
 				module: row.schema === "public" ? null : (modules.get(row.schema) ?? null),
 				columns: row.columns,
+				primaryColumns: row.primary_columns,
+				uuidColumns: row.uuid_columns,
 				sequenced: row.sequenced,
 				personColumns: personColumns.get(row.oid) ?? [],
 				leftOutColumns: [...new Set(leftOutColumns.get(row.oid) ?? [])],

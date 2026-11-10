@@ -174,41 +174,7 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 
 	return {
 		async set(secret, value) {
-			checkRef(secret);
-			checkValue(value);
-			const fingerprint = await masterKey.fingerprint();
-			await db.transaction(async (tx) => {
-				await tx.execute(sql`select pg_advisory_xact_lock_shared(${KEY_VERSION_LOCK})`);
-				let versions = await keyVersions(tx);
-				if (versions.length === 0) {
-					// The Install's first secret: this Master key becomes key version 1.
-					await tx
-						.insert(masterKeyVersions)
-						.values({ version: 1, fingerprint, createdAt: clock.now() })
-						.onConflictDoNothing();
-					versions = await keyVersions(tx);
-				}
-				const [current] = versions;
-				if (!current || current.fingerprint !== fingerprint) {
-					// Most likely the key was rotated while this process kept running with the old one.
-					throw new MasterKeyMismatchError(mismatchMessage(versions, fingerprint, "This process's Master key"));
-				}
-				const sealed = await seal(masterKey, current.version, secret, value);
-				const now = clock.now();
-				const stored = {
-					keyVersion: current.version,
-					iv: Buffer.from(sealed.iv),
-					ciphertext: Buffer.from(sealed.ciphertext),
-					updatedAt: now,
-				};
-				await tx
-					.insert(secretsTable)
-					.values({ ...ownerColumns(secret.owner), name: secret.name, ...stored, createdAt: now })
-					.onConflictDoUpdate({
-						target: [secretsTable.workspaceId, secretsTable.siteId, secretsTable.name],
-						set: stored,
-					});
-			});
+			await db.transaction((tx) => writeSecret(tx, masterKey, clock, secret, value));
 		},
 
 		async useWith(secret, use) {
@@ -280,4 +246,47 @@ function checkValue(value: string): void {
 	if (value.length > SECRET_MAX_LENGTH) {
 		throw new TypeError(`A secret's value can't be longer than ${SECRET_MAX_LENGTH} characters.`);
 	}
+}
+
+/** Writes a secret within the caller's transaction, sharing the key-rotation lock until commit. */
+export async function writeSecret(
+	tx: Pick<Database["db"], "execute" | "select" | "insert">,
+	masterKey: MasterKey,
+	clock: Clock,
+	secret: SecretRef,
+	value: string,
+): Promise<void> {
+	checkRef(secret);
+	checkValue(value);
+	const fingerprint = await masterKey.fingerprint();
+	await tx.execute(sql`select pg_advisory_xact_lock_shared(${KEY_VERSION_LOCK})`);
+	let versions = await keyVersions(tx);
+	if (versions.length === 0) {
+		// The Install's first secret: this Master key becomes key version 1.
+		await tx
+			.insert(masterKeyVersions)
+			.values({ version: 1, fingerprint, createdAt: clock.now() })
+			.onConflictDoNothing();
+		versions = await keyVersions(tx);
+	}
+	const [current] = versions;
+	if (!current || current.fingerprint !== fingerprint) {
+		// Most likely the key was rotated while this process kept running with the old one.
+		throw new MasterKeyMismatchError(mismatchMessage(versions, fingerprint, "This process's Master key"));
+	}
+	const sealed = await seal(masterKey, current.version, secret, value);
+	const now = clock.now();
+	const stored = {
+		keyVersion: current.version,
+		iv: Buffer.from(sealed.iv),
+		ciphertext: Buffer.from(sealed.ciphertext),
+		updatedAt: now,
+	};
+	await tx
+		.insert(secretsTable)
+		.values({ ...ownerColumns(secret.owner), name: secret.name, ...stored, createdAt: now })
+		.onConflictDoUpdate({
+			target: [secretsTable.workspaceId, secretsTable.siteId, secretsTable.name],
+			set: stored,
+		});
 }

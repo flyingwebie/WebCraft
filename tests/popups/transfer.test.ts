@@ -37,6 +37,18 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 		title: "Welcome",
 		slug: "welcome",
 	});
+	const { entry: excluded } = await staff.api.entries.create({
+		siteId,
+		postTypeId: postType.id,
+		title: "Excluded",
+		slug: "excluded",
+	});
+	const { postType: otherType } = await staff.api.postTypes.create({
+		siteId,
+		name: "Other offers",
+		urlPattern: "/other/{slug}",
+	});
+	const literal = `A seasonal promotion ${entry.id} ${media.id}`;
 	const { popup } = await staff.api.popups.create({ siteId, name: "Seasonal", key: "seasonal" });
 	await staff.api.components.saveMarkup({
 		siteId,
@@ -51,6 +63,8 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 				paths: ["/offers/*"],
 				postTypeIds: [postType.id],
 				entryIds: [entry.id],
+				excludePostTypeIds: [otherType.id],
+				excludeEntryIds: [excluded.id],
 				languages: [],
 				devices: ["phone", "tablet", "desktop"],
 				visitors: "all",
@@ -60,7 +74,7 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	await staff.api.popups.saveContent({
 		siteId,
 		popupId: popup.id,
-		values: { title: "Offer", text: "A seasonal promotion", enabled: true, image: media.id },
+		values: { title: `Offer ${entry.id}`, text: literal, enabled: true, image: media.id },
 	});
 	await staff.api.popups.saveContent({ siteId, popupId: popup.id, language: "it", values: { title: "Offerta" } });
 	await staff.api.popups.publish({ siteId, popupId: popup.id });
@@ -91,19 +105,42 @@ test("Site export/import remaps Popup references, keeps its Module switch and im
 	expect(content.content.published).toBeNull();
 	expect(content.content.draft.values.title).toBe("Offerta");
 	expect(content.content.draft.values.enabled).toBe(true);
-	for (const old of [siteId, popup.id, popup.componentId, postType.id, entry.id, media.id])
-		expect(JSON.stringify(content)).not.toContain(old);
+	for (const old of [siteId, popup.id, popup.componentId, postType.id, otherType.id, entry.id, excluded.id])
+		expect(JSON.stringify([copied.id, copied.siteId, copied.componentId, copied.draft.rules])).not.toContain(old);
+	const copiedMediaId = content.content.draft.values.image;
+	expect(copiedMediaId).toEqual(expect.any(String));
+	expect(copiedMediaId).not.toBe(media.id);
+	expect(content.content.draft.values.text).toContain(literal);
+	expect(
+		(await targetStaff.api.popups.get({ siteId: targetId, popupId: copied.id, language: "en" })).content.draft.values
+			.title,
+	).toBe(`Offer ${entry.id}`);
 	expect(
 		(await targetStaff.api.modules.siteList({ siteId: targetId })).modules.find((m) => m.id === "popups")?.on,
 	).toBe(false);
-	const history = await targetStaff.api.history.list({ siteId: targetId, item: { kind: "popup", id: copied.id } });
-	expect(history.copies.some((copy) => copy.type === "revision")).toBe(true);
+	for (const kind of ["popup", "popupContent"] as const) {
+		const item = { kind, id: copied.id };
+		const history = await targetStaff.api.history.list({ siteId: targetId, item });
+		const revision = history.copies.find((copy) => copy.type === "revision");
+		expect(revision).toBeDefined();
+		await targetStaff.api.history.restore({
+			siteId: targetId,
+			item,
+			copy: { type: "revision", id: revision?.id ?? "" },
+		});
+	}
+	const restored = await targetStaff.api.popups.get({ siteId: targetId, popupId: copied.id });
+	expect(restored.content.draft.values.image).toBe(copiedMediaId);
+	expect(restored.content.draft.values.text).toContain(literal);
+	expect(restored.popup.draft.rules).toEqual(copied.draft.rules);
 	await targetStaff.api.modules.setOnSite({ siteId: targetId, moduleId: "popups", on: true });
 	await publishEverything(targetStaff, targetId);
 	const origin = await goLive(install, targetId);
 	const html = await expectSafePage(await install.request(`${origin}/offers/welcome`));
-	expect(html).toContain("A seasonal promotion");
+	expect(html).toContain(literal);
 	expect(html).toContain("data-wc-popup=");
 	expect(html).toContain("/_media/");
-	expect(html).not.toContain(media.id);
+	const imageSource = /<img\b[^>]*\bsrc="([^"]+)"/.exec(html)?.[1];
+	expect(imageSource).toEqual(expect.any(String));
+	expect(imageSource).not.toContain(media.id);
 });

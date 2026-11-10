@@ -1,4 +1,5 @@
 import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
+import { databaseOn } from "@webcraft/db";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createAccessibilityStatement } from "./accessibility/statement.ts";
 import { createAccount, reportAccountLock } from "./account.ts";
@@ -151,7 +152,7 @@ import {
 	stagingPasswordKey,
 	visitorIdKey,
 } from "./secrets/master-key.ts";
-import { createSecrets, installSecretsOnly, openSecrets } from "./secrets/store.ts";
+import { createSecrets, installSecretsOnly, openSecrets, writeSecret } from "./secrets/store.ts";
 import { createSeo } from "./seo/index.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
@@ -421,13 +422,19 @@ export async function createInstallServices(
 		config,
 		linkKey: await siteExportLinkKey(masterKey),
 		tuning: options.siteTransfer,
+		writeImportSecret: (client, site, name, value) =>
+			writeSecret(
+				databaseOn(client),
+				masterKey,
+				clock,
+				{ owner: { kind: "site", workspaceId: site.workspaceId, siteId: site.id }, name },
+				value,
+			),
 		// Only the server commands use these: no person (and so no Site scope) acts there.
 		commandSecrets: {
 			names: (site) => store.names({ kind: "site", workspaceId: site.workspaceId, siteId: site.id }, ""),
 			useWith: (site, name, use) =>
 				store.useWith({ owner: { kind: "site", workspaceId: site.workspaceId, siteId: site.id }, name }, use),
-			set: (site, name, value) =>
-				store.set({ owner: { kind: "site", workspaceId: site.workspaceId, siteId: site.id }, name }, value),
 		},
 	});
 	const backups = createBackups({

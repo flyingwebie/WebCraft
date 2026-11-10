@@ -10,6 +10,7 @@ import { createGzip } from "node:zlib";
 import { lastMigratedVersion, readMigrationLevel } from "@webcraft/db";
 import { SDK_VERSION } from "@webcraft/module-sdk";
 import type pg from "pg";
+import semver from "semver";
 import { useDumpSettings } from "../backups/dump.ts";
 import { type TarInput, writeTar } from "../backups/tar.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
@@ -27,8 +28,8 @@ import {
 	type SiteExportManifest,
 } from "./format.ts";
 import { type Kdf, type SecretsBundle, secretSealer } from "./passphrase.ts";
-import { uuidsWritten } from "./remap.ts";
-import { ident, literal, quoted, siteTables } from "./tables.ts";
+import { createRowRemapper } from "./references.ts";
+import { ident, literal, quoted, type SiteTable, siteTables } from "./tables.ts";
 
 /** One line of `people.jsonl.gz`: a person the Site's rows name, or one of its Members or invites. */
 export type ExportedPerson = {
@@ -214,6 +215,43 @@ async function readSnapshot(
 		if (!siteRow) throw new Error("The Site was deleted before it could be exported.");
 		const schemaModules = new Map([...context.modules].map(([schema, module]) => [schema, module.id]));
 		const { tables: available, leftOut } = await siteTables(client, schemaModules);
+		const retained = await client.query<{
+			table_name: string;
+			module_id: string;
+			module_version: string;
+			definition: Pick<SiteTable, "columns" | "uuidColumns" | "primaryColumns" | "personColumns">;
+		}>(
+			"SELECT table_name, module_id, module_version, definition FROM public.site_retained_tables WHERE workspace_id = $1 AND site_id = $2 ORDER BY (definition->>'position')::integer, table_name",
+			[site.workspaceId, site.id],
+		);
+		const held = new Map(retained.rows.map((row) => [row.table_name, row]));
+		const live = new Set(available.map((table) => table.name));
+		for (const table of available) {
+			const retained = held.get(table.name);
+			if (retained) {
+				table.columns = [...new Set([...table.columns, ...retained.definition.columns])];
+				const current = new Set(table.uuidColumns.map((column) => column.name));
+				table.uuidColumns.push(...retained.definition.uuidColumns.filter((column) => !current.has(column.name)));
+				table.personColumns = [...new Set([...table.personColumns, ...retained.definition.personColumns])];
+			}
+		}
+		for (const row of retained.rows)
+			if (!live.has(row.table_name)) {
+				const [schema, table] = row.table_name.split(".") as [string, string];
+				available.push({
+					name: row.table_name,
+					schema,
+					table,
+					module: row.module_id,
+					...row.definition,
+					sequenced: [],
+					required: [],
+					defaults: {},
+					partitionedBy: null,
+					leftOutColumns: [],
+					filter: null,
+				});
+			}
 		const includeSubmissions = context.includeSubmissions !== false;
 		const tables = available.filter((table) => {
 			if (!includeSubmissions && (table.name === "m_forms.submissions" || table.name === "public.form_uploads")) {
@@ -222,10 +260,21 @@ async function readSnapshot(
 			}
 			return true;
 		});
-		const people = new Set(
-			(await client.query<{ id: string }>("SELECT id::text FROM public.people")).rows.map((row) => row.id),
-		);
 		const named = new Set<string>();
+		// The same typed traversal discovers person references; a UUID in literal text is never an account.
+		const findPeople = createRowRemapper(
+			async (name, id, path) => {
+				const [schema, table] = name.split(".") as [string, string];
+				const result = await client.query<{ value: unknown }>(
+					`SELECT to_jsonb(t) #> $3::text[] AS value FROM ${quoted({ schema, table })} t WHERE t.workspace_id=$1 AND t.site_id=$2 AND ($4::text IS NULL OR to_jsonb(t)->>'id'=$4) LIMIT 1`,
+					[site.workspaceId, site.id, path, id],
+				);
+				return result.rows[0]?.value;
+			},
+			{ id: (id) => id, key: (key) => key, secret: (name) => name, mask: "" },
+			new Map(),
+			(id) => named.add(id),
+		);
 		const written: Snapshot["tables"] = [];
 		const counts: Record<string, number> = {};
 		const where = `t.site_id = ${literal(site.id)} AND t.workspace_id = ${literal(site.workspaceId)}`;
@@ -238,9 +287,19 @@ async function readSnapshot(
 				const order = table.sequenced.length
 					? ` ORDER BY ${table.sequenced.map((column) => `t.${ident(column)}`).join(", ")}`
 					: "";
-				await client.query(
-					`DECLARE site_rows NO SCROLL CURSOR FOR SELECT row_to_json(t)::text AS line FROM ${quoted(table)} t WHERE ${where}${table.filter ? ` AND ${table.filter}` : ""}${order}`,
-				);
+				const liveRows = `SELECT to_jsonb(t) AS value FROM ${quoted(table)} t WHERE ${where}${table.filter ? ` AND ${table.filter}` : ""}${order}`;
+				const retainedRows = `SELECT r.value FROM public.site_retained_rows r WHERE r.workspace_id = ${literal(site.workspaceId)} AND r.site_id = ${literal(site.id)} AND r.table_name = ${literal(table.name)}`;
+				let select = live.has(table.name) ? liveRows : `${retainedRows} ORDER BY r.position`;
+				if (live.has(table.name) && held.has(table.name)) {
+					// Live primary keys win. Without a key, multiset subtraction preserves legitimate equal rows
+					// while avoiding duplicates when a Module has already restored some retained data.
+					const keys = table.primaryColumns;
+					const remaining = keys.length
+						? `${retainedRows} AND NOT EXISTS (SELECT 1 FROM ${quoted(table)} t WHERE ${where} AND ${keys.map((key) => `to_jsonb(t)->${literal(key)} IS NOT DISTINCT FROM r.value->${literal(key)}`).join(" AND ")})`
+						: `(${retainedRows}) EXCEPT ALL (${liveRows})`;
+					select = `(${liveRows}) UNION ALL (${remaining})`;
+				}
+				await client.query(`DECLARE site_rows NO SCROLL CURSOR FOR SELECT x.value::text AS line FROM (${select}) x`);
 				try {
 					for (;;) {
 						const batch = await client.query<{ line: string }>(`FETCH ${context.batchRows} FROM site_rows`);
@@ -248,7 +307,7 @@ async function readSnapshot(
 						for (const { line } of batch.rows) {
 							rows++;
 							// People are named in columns and inside values (who wrote a value, who impersonated whom).
-							for (const id of uuidsWritten(line)) if (people.has(id)) named.add(id);
+							await findPeople(JSON.parse(line), table.name, table.uuidColumns, table.personColumns);
 							yield `${line}\n`;
 						}
 					}
@@ -258,7 +317,17 @@ async function readSnapshot(
 			}
 			const { size, sha256: hash } = await writeGzip(path, lines());
 			written.push({
-				entry: { name: table.name, module: table.module, columns: table.columns, rows, file, sha256: hash },
+				entry: {
+					name: table.name,
+					module: table.module,
+					columns: table.columns,
+					uuidColumns: table.uuidColumns,
+					primaryColumns: table.primaryColumns,
+					personColumns: table.personColumns,
+					rows,
+					file,
+					sha256: hash,
+				},
 				path,
 				size,
 			});
@@ -284,17 +353,21 @@ async function readSnapshot(
 		} & Record<string, unknown>;
 		delete settings.staging_password_hash;
 		delete settings.staging_password_changed_at;
-		const moduleIds = new Set(tables.flatMap((table) => (table.module ? [table.module] : [])));
+		const moduleVersions = new Map([...context.modules.values()].map((module) => [module.id, module.version]));
+		for (const row of retained.rows) {
+			const current = moduleVersions.get(row.module_id);
+			if (!current || semver.gt(row.module_version, current)) moduleVersions.set(row.module_id, row.module_version);
+		}
 		return {
 			site: { id, workspaceId: workspace_id, name, slug, settings },
 			version,
 			migrations: [...level.core],
-			modules: [...context.modules.values()]
-				.filter((module) => moduleIds.has(module.id))
-				.map((module) => ({
-					id: module.id,
-					version: module.version,
-					tables: tables.filter((table) => table.module === module.id).map((table) => table.table),
+			modules: [...moduleVersions]
+				.filter(([id]) => tables.some((table) => table.module === id))
+				.map(([id, version]) => ({
+					id,
+					version,
+					tables: tables.filter((table) => table.module === id).map((table) => table.table),
 				})),
 			tables: written,
 			people: { ...peopleFile, rows: peopleLines.length },

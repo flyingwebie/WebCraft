@@ -48,7 +48,7 @@ describe("a Site export", () => {
 		const manifest = manifestIn(archive);
 		expect(manifest).toMatchObject({
 			format: "webcraft-site-export",
-			formatVersion: 1,
+			formatVersion: 2,
 			site: { id: site.siteId, workspaceId: site.workspaceId, name: "Acme Bakery", slug: "bakery" },
 			secrets: { carried: false },
 		});

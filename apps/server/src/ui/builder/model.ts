@@ -162,6 +162,12 @@ export function layerName(
 				detail: t("builder.layers.command"),
 				kind: "command",
 			};
+		case "popup":
+			return {
+				name: `${t("builder.layers.popup")} ${catalogue.popups.find((popup) => popup.id === node.popup)?.key ?? ""}`,
+				detail: t("builder.layers.command"),
+				kind: "command",
+			};
 		case "filter": {
 			const filter = catalogue.filters.find((each) => each.id === node.filter);
 			return {
