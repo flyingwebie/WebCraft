@@ -13,6 +13,7 @@ import {
 	type TitleToken,
 } from "@webcraft/core/seo-rules";
 import { Button } from "@webcraft/ui/components/button.tsx";
+import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
@@ -55,10 +56,11 @@ const SOURCE_NAMES: Readonly<Record<string, MessageKey>> = {
 };
 
 /**
- * A Post Type's SEO tab (Structure, Staff only): its title pattern, the Fields its Entries'
- * description and social image fall back to, and its Schema type with each property mapped to a
- * source. Choosing a Schema type maps its properties to WebCraft's guesses, which Staff then change.
- * Like the rest of a Post Type, changes apply once saved.
+ * A Post Type's SEO tab (Structure, Staff only): its title pattern, its Summary field (which
+ * descriptions, llms.txt and Markdown copies use) and the Field its social image falls back to, its
+ * Schema type with each property mapped to a source, and whether the Site's sitemaps and llms.txt
+ * list its Entries. Choosing a Schema type maps its properties to WebCraft's guesses, which Staff then
+ * change. Like the rest of a Post Type, changes apply once saved.
  */
 export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeView; siteId: string }) {
 	const t = useT();
@@ -67,12 +69,14 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 	const names = useMemo(() => fieldNames(postType.fields), [postType.fields]);
 	const [saved, setSaved] = useState<Settings>(postType.seo);
 	const [settings, setSettings] = useState<Settings>(postType.seo);
+	const [savedSitemap, setSavedSitemap] = useState(postType.sitemap);
+	const [sitemap, setSitemap] = useState(postType.sitemap);
 	const [problems, setProblems] = useState<string[] | null>(null);
 	const [busy, setBusy] = useState(false);
 	const summary = useRef<HTMLDivElement>(null);
 	const afterRender = useAfterRender();
 	const pattern = useRef<HTMLInputElement>(null);
-	const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
+	const dirty = JSON.stringify(settings) !== JSON.stringify(saved) || sitemap !== savedSitemap;
 	const hasBody = postType.fields.some((field) => field.type === "body");
 	const descriptionChoices = [...names.keys()].filter((path) => givesDescription(postType.fields, path));
 	const imageChoices = [...names.keys()].filter((path) => givesImage(postType.fields, path));
@@ -118,15 +122,18 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 			const { postType: updated } = await api.postTypes.update({
 				siteId,
 				postTypeId: postType.id,
+				summaryField: settings.descriptionField,
+				sitemap,
 				seo: {
 					titlePattern: settings.titlePattern,
-					descriptionField: settings.descriptionField,
 					imageField: settings.imageField,
 					schema: { type: settings.schema.type, properties: { ...settings.schema.properties } },
 				},
 			});
 			setSaved(updated.seo);
 			setSettings(updated.seo);
+			setSavedSitemap(updated.sitemap);
+			setSitemap(updated.sitemap);
 			toast.success(t("seo.postType.saved"));
 			await router.invalidate();
 		} catch (error) {
@@ -161,6 +168,7 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 						disabled={!dirty || busy}
 						onClick={() => {
 							setSettings(saved);
+							setSitemap(savedSitemap);
 							setProblems(null);
 						}}
 					>
@@ -262,6 +270,21 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 					</NativeSelect>
 					<p id={`${id}-image-help`} className="text-muted-foreground text-sm">
 						{t("seo.postType.imageHelp")}
+					</p>
+				</div>
+			</div>
+
+			<div className="flex max-w-3xl items-start gap-3">
+				<Checkbox
+					id={`${id}-sitemap`}
+					checked={sitemap}
+					onCheckedChange={(checked) => setSitemap(checked === true)}
+					aria-describedby={`${id}-sitemap-help`}
+				/>
+				<div className="grid gap-1">
+					<Label htmlFor={`${id}-sitemap`}>{t("seo.postType.sitemap")}</Label>
+					<p id={`${id}-sitemap-help`} className="text-muted-foreground text-sm">
+						{t("seo.postType.sitemapHelp")}
 					</p>
 				</div>
 			</div>

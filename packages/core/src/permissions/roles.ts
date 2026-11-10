@@ -65,6 +65,11 @@ export const PERMISSIONS = {
 	"staging.manage": ["site"],
 	/** Change a Site's Structure: Post Types, Fields, Templates, Components, the Design system, settings. */
 	"structure.edit": ["site"],
+	/**
+	 * Choose what the Site's robots.txt says to AI crawlers (allow all, allow search but block training,
+	 * block all): Staff and Owners (spec story 119). Staff's own robots.txt lines stay `structure.edit`.
+	 */
+	"aiCrawlers.manage": ["site"],
 	/** Edit Content and save Drafts. */
 	"entry.edit": ["site"],
 	"entry.publish": ["site"],
@@ -167,6 +172,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"site.view",
 			"staging.manage",
 			"structure.edit",
+			"aiCrawlers.manage",
 			"entry.edit",
 			"entry.publish",
 			"formEmails.edit",
@@ -199,6 +205,7 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"protectedTerms.edit",
 			"site.view",
 			"staging.manage",
+			"aiCrawlers.manage",
 			"entry.edit",
 			"entry.publish",
 			"formEmails.edit",

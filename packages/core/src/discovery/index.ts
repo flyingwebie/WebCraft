@@ -1,0 +1,104 @@
+/**
+ * Discovery files (spec stories 112, 117, 118, 119): what a Site tells search engines and AI engines
+ * about itself, on each of its domains. All of them are built on request from what is published, and
+ * the Site pipeline keeps them in the page cache, so a publish or a change to a setting shows at once.
+ *
+ * - robots.txt (`robots.ts`): the AI crawler setting (`ai-crawlers.ts`), Staff's own lines and the
+ *   domain's sitemap.
+ * - Sitemaps (`sitemaps.ts`): an index of one sitemap per Post Type, split into parts past the
+ *   protocol's limits.
+ * - `llms.txt` (`llms.ts`): one per language, listing the same Entries with their Markdown copies.
+ * - Markdown copies (`markdown-copy.ts`): each indexable Entry's page in Markdown, at its address
+ *   plus `.md`.
+ *
+ * What they list is one rule (`listed.ts`). The Staging address never offers any of them (its
+ * robots.txt keeps every crawler out): it shows Drafts to the people reviewing a Site, never to
+ * search engines.
+ */
+
+import { canonicalPath, pathSegments } from "../content/url-patterns.ts";
+import { siteSeoSettings } from "../seo/site-settings.ts";
+import type { SiteHost } from "../site-pages/index.ts";
+import type { DataLayer } from "../tenancy/data-layer.ts";
+import { type Listing, listing, type RedirectedPage } from "./listed.ts";
+import { llmsAt, llmsText } from "./llms.ts";
+import { type MarkdownAnswer, markdownCopy } from "./markdown-copy.ts";
+import { robotsText } from "./robots.ts";
+import { createPartStarts, SITEMAP_PATH, type SitemapLimits, sitemapIndex, sitemapPart } from "./sitemaps.ts";
+
+export {
+	AI_CRAWLER_SETTINGS,
+	AI_CRAWLERS,
+	type AiCrawlerPurpose,
+	type AiCrawlerSetting,
+	blockedAiCrawlers,
+	DEFAULT_AI_CRAWLER_SETTING,
+	isAiCrawler,
+	isAiCrawlerSetting,
+} from "./ai-crawlers.ts";
+export { LLMS_ENTRIES_PER_POST_TYPE, LLMS_FILE } from "./llms.ts";
+export { MARKDOWN_SUFFIX, type MarkdownAnswer } from "./markdown-copy.ts";
+export { ROBOTS_LINES_MAX, ROBOTS_PATH, readRobotsLines, STAGING_ROBOTS } from "./robots.ts";
+export { SITEMAP_LIMITS, SITEMAP_PATH, SITEMAPS_FOLDER, type SitemapLimits } from "./sitemaps.ts";
+
+/** A Site's discovery files on one of its domains, for the Site pipeline (see the module's comment). */
+export type Discovery = {
+	/** The robots.txt of one of the Site's domains. */
+	robots(host: SiteHost): Promise<string>;
+	/** The domain's sitemap index (`/sitemap.xml`). */
+	sitemapIndex(host: SiteHost, limits: SitemapLimits): Promise<string>;
+	/** One part of a Post Type's sitemap by its file name (`blog-1.xml`); null when there is none. */
+	sitemap(host: SiteHost, name: string, limits: SitemapLimits): Promise<string | null>;
+	/**
+	 * A language's `llms.txt` at a path (`/llms.txt`, `/fr/llms.txt`): its text, or where it is on
+	 * another of the Site's domains; null when the path is no language's.
+	 */
+	llms(host: SiteHost, pathname: string): Promise<{ text: string } | { location: string } | null>;
+	/**
+	 * The Markdown copy at a path (`/blog/fresh-bread.md`, `/index.html.md`) with its page's canonical
+	 * URL, or where it is on another of the Site's domains; null when the page has none.
+	 */
+	markdown(host: SiteHost, pathname: string): Promise<MarkdownAnswer>;
+};
+
+/** Which of a domain's pages a Site's Redirect rules send elsewhere, by their Site paths. */
+export type RedirectedPages = (host: SiteHost, pages: readonly RedirectedPage[]) => Promise<Set<string>>;
+
+export function createDiscovery(options: { data: DataLayer; redirected?: RedirectedPages }): Discovery {
+	const { data } = options;
+	const redirected = options.redirected ?? (async () => new Set<string>());
+	const starts = createPartStarts();
+	const listingOf = (host: SiteHost): Promise<Listing> =>
+		listing(data.visitors(host.site), host, async (pages) => {
+			// Rules name canonical Site paths (each segment encoded as in a URL).
+			const asked = pages.map((page) => ({ ...page, sitePath: canonicalPath(pathSegments(page.sitePath) ?? []) }));
+			const sent = await redirected(host, asked);
+			return new Set(pages.filter((_, index) => sent.has(asked[index]?.sitePath ?? "")).map((page) => page.sitePath));
+		});
+	return {
+		async robots(host) {
+			const settings = await siteSeoSettings(data.visitors(host.site));
+			return robotsText({
+				aiCrawlers: settings.aiCrawlers,
+				lines: settings.robotsLines,
+				sitemap: `${host.origin}${SITEMAP_PATH}`,
+			});
+		},
+		async sitemapIndex(host, limits) {
+			return sitemapIndex(await listingOf(host), starts, limits);
+		},
+		async sitemap(host, name, limits) {
+			return sitemapPart(await listingOf(host), starts, limits, name);
+		},
+		async llms(host, pathname) {
+			const list = await listingOf(host);
+			const answer = llmsAt(list, pathname);
+			if (!answer) return null;
+			if (answer.kind === "redirect") return { location: answer.location };
+			return { text: await llmsText(list, answer.language) };
+		},
+		async markdown(host, pathname) {
+			return markdownCopy(await listingOf(host), pathname);
+		},
+	};
+}

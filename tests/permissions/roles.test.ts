@@ -70,6 +70,7 @@ describe("the role table", () => {
 				"site.view",
 				"staging.manage",
 				"structure.edit",
+				"aiCrawlers.manage",
 				"entry.edit",
 				"entry.publish",
 				"formEmails.edit",
@@ -125,6 +126,7 @@ describe("the role table", () => {
 				"site.view",
 				"staging.manage",
 				"structure.edit",
+				"aiCrawlers.manage",
 				"entry.edit",
 				"entry.publish",
 				"formEmails.edit",
@@ -145,7 +147,7 @@ describe("the role table", () => {
 		});
 	});
 
-	test("owner: manages Members (and requires two-factor authentication of them), the AI key and the staging password, publishes and deletes Entries, changes Form emails, Translation modes and Report recipients, imports CSV files, sees Dashboards, Reports and Share links, but never changes Structure, builds Dashboards or creates Sites", async () => {
+	test("owner: manages Members (and requires two-factor authentication of them), the AI key, the staging password and the AI crawler setting, publishes and deletes Entries, changes Form emails, Translation modes and Report recipients, imports CSV files, sees Dashboards, Reports and Share links, but never changes Structure, builds Dashboards or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -169,6 +171,7 @@ describe("the role table", () => {
 				"protectedTerms.edit",
 				"site.view",
 				"staging.manage",
+				"aiCrawlers.manage",
 				"entry.edit",
 				"entry.publish",
 				"formEmails.edit",
@@ -270,6 +273,7 @@ describe("each role against Workspace and Site scope", () => {
 			"protectedTerms.edit",
 			"site.view",
 			"staging.manage",
+			"aiCrawlers.manage",
 			"entry.edit",
 			"entry.publish",
 			"formEmails.edit",

@@ -97,6 +97,7 @@ import {
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
+import { createDiscovery } from "./discovery/index.ts";
 import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
@@ -521,6 +522,24 @@ export async function createInstallServices(
 		search: createSiteSearch({ database, data, clock, log }),
 		consent: createConsent({ data, rateLimits }),
 		seo: createSeo(),
+		discovery: createDiscovery({
+			data,
+			// A page a rule sends elsewhere has no page for visitors: asked for a batch at once, then each
+			// path a rule answers followed as a request is (chains, circles, targets gone).
+			async redirected(host, pages) {
+				const ruled = await modules.pathsWithRules(
+					host.site,
+					pages.map((page) => ({ path: page.sitePath, language: page.language })),
+				);
+				const sent = new Set<string>();
+				for (const page of pages) {
+					if (ruled.has(page.sitePath) && (await sitePages.redirect(host, new URL(page.loc).pathname))) {
+						sent.add(page.sitePath);
+					}
+				}
+				return sent;
+			},
+		}),
 		siteScripts: createSiteScripts({ fetch: guardedFetch, storage, moduleHosts: modules.outsideHostsAt }),
 		editMode: createEditMode({
 			database,

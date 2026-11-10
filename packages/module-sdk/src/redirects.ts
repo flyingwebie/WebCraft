@@ -62,6 +62,14 @@ export type RedirectRules = {
 	/** The rule for a request's Site path, or null when none sends it elsewhere. */
 	find(request: RedirectRequest, context: ModuleContext): Promise<RedirectTarget | null>;
 	/**
+	 * The rules for many Site paths at once (SDK 1.10), in order, each as `find` would answer it: for
+	 * the lists of a Site's pages (its sitemaps, `llms.txt`), which must not take a read per page. It
+	 * must be quick: one or two reads of the Module's tables for the whole list (up to a few thousand
+	 * paths). Without it, WebCraft asks `find` for each path. WebCraft follows a chain from the paths a
+	 * rule answers, as it does for `find`.
+	 */
+	findMany?(requests: readonly RedirectRequest[], context: ModuleContext): Promise<(RedirectTarget | null)[]>;
+	/**
 	 * Adds the rules an Import run makes where paths changed (SDK 1.7): from where an item was on the
 	 * old site to its Entry (`entry:<id>`, so a slug changed before it is published is followed), or to
 	 * its Media file (`media:<id>`). Each must step aside where a page

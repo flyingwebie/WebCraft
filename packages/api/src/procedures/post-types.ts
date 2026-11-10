@@ -32,6 +32,14 @@ const seo = z.object({
 		.optional(),
 });
 
+/**
+ * A Post Type's Summary field: the text, rich text or Body field (by path) that says in short what
+ * each Entry is about; null for none. Descriptions fall back to it (else to the start of the Body
+ * field), and llms.txt and Markdown copies show it. It is one setting with `seo.descriptionField`,
+ * its older name: both always answer the same, and a call giving both must give the same Field.
+ */
+const summaryField = z.string().max(300).nullable().optional();
+
 /** Post Types: the kinds of Entry a Site holds, with a URL pattern and Fields. Structure: Staff change them. */
 export const postTypes = {
 	/** The Post Types of a Site. Everyone who can see the Site sees them, to write Entries. */
@@ -58,8 +66,11 @@ export const postTypes = {
 				searchable: z.boolean().optional(),
 				searchedFields: searchedFields.optional(),
 				seo: seo.optional(),
+				summaryField,
 				/** Whether publishing its Entries saves Revisions; true when not given. */
 				revisions: z.boolean().optional(),
+				/** Whether the Site's sitemaps and llms.txt list its Entries; true when not given. */
+				sitemap: z.boolean().optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -69,8 +80,8 @@ export const postTypes = {
 
 	/**
 	 * Changes a Post Type's name, URL pattern, Fields (the full list, in order), whether Site search
-	 * shows its Entries, its Searched fields (the full list), or whether its Entries' publishes save
-	 * Revisions. It applies at once: Post Types have no
+	 * shows its Entries, its Searched fields (the full list), its SEO settings and Summary field, whether
+	 * the Site's sitemaps list its Entries, or whether its Entries' publishes save Revisions. It applies at once: Post Types have no
 	 * Draft, so the Site's page cache is cleared; a change to what is searched rebuilds the Site's
 	 * search index in the background.
 	 */
@@ -88,11 +99,17 @@ export const postTypes = {
 				searchable: z.boolean().optional(),
 				searchedFields: searchedFields.optional(),
 				seo: seo.optional(),
+				summaryField,
 				/**
 				 * Turns Revisions of its Entries on or off. Off, publishing saves none; those saved before
 				 * stay until the usual retention removes them.
 				 */
 				revisions: z.boolean().optional(),
+				/**
+				 * Lists its Entries (and its Archive page) in the Site's sitemaps and llms.txt, or leaves
+				 * them out (their pages stay indexable).
+				 */
+				sitemap: z.boolean().optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {

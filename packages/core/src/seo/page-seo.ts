@@ -366,14 +366,18 @@ export function titleFor(
 }
 
 /**
- * The description of an Entry without one of its own: the Post Type's description Field, else the
- * start of its Body field, as plain text cut cleanly at a word; null when there is no text.
+ * The description of an Entry without one of its own: its Summary (the Post Type's Summary field,
+ * `descriptionField` in its SEO settings), else the start of its Body field, as plain text cut cleanly
+ * at a word; null when neither has text.
  */
 export function descriptionFrom(postType: PostType, settings: PostTypeSeo, values: ValueReader): string | null {
-	const path = settings.descriptionField ?? postType.fields.find((field) => field.type === "body")?.key;
-	if (!path) return null;
-	const text = textOf(values(path)).replace(/\s+/g, " ").trim();
-	return text === "" ? null : cutText(text, DESCRIPTION_CUT);
+	const body = postType.fields.find((field) => field.type === "body")?.key;
+	for (const path of [settings.descriptionField, body]) {
+		if (!path) continue;
+		const text = textOf(values(path)).replace(/\s+/g, " ").trim();
+		if (text !== "") return cutText(text, DESCRIPTION_CUT);
+	}
+	return null;
 }
 
 /** The Media id the Post Type's image Field gives: a media Field's file, or a Body field's first image. */
