@@ -113,6 +113,14 @@ export type BarKit = {
 		dialog: HTMLDialogElement;
 	};
 	/**
+	 * One of the bar's own floating popovers or drawers (the image popover, a Loop item's form, Page
+	 * details): a dialog with a title and close button, closed with Escape, its own close button, or
+	 * (a phone) the bottom sheet's own dismissal, with focus going back through `focusBack` however it
+	 * closed. `anchor` makes it float next to an element, tracked as the page scrolls; without one it is
+	 * a static panel instead (Page details' drawer, with `htmlClass` making room for it).
+	 */
+	panel(options: PanelOptions): PanelHandle;
+	/**
 	 * The page is at another path now (a never-published page's slug changed in Page details): the
 	 * address bar and the bar's own requests follow it.
 	 */
@@ -121,6 +129,43 @@ export type BarKit = {
 	pickImage(options: { title: string; current: string | null; from: HTMLElement | null }): Promise<MediaChoice | null>;
 	/** Opens the image popover for an image region (a part's own image regions open it too). */
 	openImage?(region: HTMLElement): void;
+};
+
+/** What `kit.panel` takes: everything the mechanic needs but what the caller's own panel differs in. */
+export type PanelOptions = {
+	/** The dialog's accessible name, and the phone sheet's title. */
+	title: string;
+	/** The head's icon on desktop (a phone sheet has no head of its own: `kit.sheet` draws its own). */
+	headIcon: string;
+	/** The panel's classes on desktop (e.g. `"popup dialog image-popover"`, or `"drawer"` for a static one); a phone sheet is always `"sheet-body"`. */
+	className: string;
+	/** The body: appended after the built-in head on desktop, or on its own on a phone sheet. */
+	content(phone: boolean): (Node | string)[];
+	/** Where it floats, read again on every reposition; omitted for a static panel (Page details' drawer). */
+	anchor?(): DOMRect;
+	/** The gap from `anchor`'s rect, and which side it prefers; see `kit.place`. Defaults: 8, `"below"`. */
+	gap?: number;
+	prefer?: "above" | "below";
+	/** A class toggled on the root element while it is open on desktop (Page details makes room for its drawer). */
+	htmlClass?: string;
+	/** The caller's own teardown (cancel its timers): run once, before anything closes. */
+	onClose?(): void;
+	/** The caller's own work after it has closed (a Loop's item form refreshes the Loop if it changed). */
+	afterClose?(): void;
+	/** Where focus goes back to when closing with it true (checking `isConnected`, or falling back, is the caller's own). */
+	focusBack(): void;
+};
+
+/** What `kit.panel` hands back. */
+export type PanelHandle = {
+	/** The panel element, already in the page: the caller's own job to focus it (or a control inside
+	 * it) and to add anything else of its own, such as the image popover's focusout listener. */
+	panel: HTMLElement;
+	/** Closes it once (a second call is a no-op): the caller's own teardown, then it leaves the page
+	 * (its sheet, if a phone made it one, or itself), then, with `returnFocus`, `focusBack`. */
+	close(returnFocus: boolean): void;
+	/** Moves a floating panel (one with an `anchor`) to where its anchor is now; does nothing for a static one or a phone sheet. */
+	reposition(): void;
 };
 
 /** What the image tools give the bar back. */

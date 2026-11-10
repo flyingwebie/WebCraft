@@ -1,4 +1,4 @@
-import type { BarKit, ImageTools, MediaChoice, PresenceTarget } from "./kit.ts";
+import type { BarKit, ImageTools, MediaChoice, PanelHandle, PresenceTarget } from "./kit.ts";
 
 /**
  * Images in Edit mode: an image region (an `<img>` whose `src` is a media Field, or a body's image
@@ -13,11 +13,11 @@ import type { BarKit, ImageTools, MediaChoice, PresenceTarget } from "./kit.ts";
  * it uses nothing but its kit.
  */
 export function imageTools(kit: BarKit): ImageTools {
-	const { win, doc, el, button, icon, word, call, later, cancel } = kit;
+	const { doc, el, button, icon, word, call, later, cancel } = kit;
 	const known = new WeakSet<HTMLElement>();
 	let regions: HTMLElement[] = [];
 	let on = false;
-	let opened: { region: HTMLElement; panel: HTMLElement; close(returnFocus: boolean): void } | null = null;
+	let opened: { region: HTMLElement; handle: PanelHandle } | null = null;
 	/** An image region on the page. */
 	const REGION = '[data-wc-type="media"][data-wc-item][data-wc-field]';
 	const POLL_MS = 1000;
@@ -131,7 +131,7 @@ export function imageTools(kit: BarKit): ImageTools {
 		const was = opened;
 		if (!was) return;
 		opened = null;
-		was.close(returnFocus);
+		was.handle.close(returnFocus);
 	}
 
 	// -------------------------------------------------------------------------------------------
@@ -246,53 +246,13 @@ export function imageTools(kit: BarKit): ImageTools {
 
 	function open(region: HTMLElement): void {
 		close();
-		const titleId = "wc-image-title";
-		const panel = el("div", {
-			class: "popup dialog image-popover",
-			role: "dialog",
-			"aria-labelledby": titleId,
-			tabindex: "-1",
-		});
 		const status = el("p", { class: "field-status", role: "status" });
 		const say = (text: string) => {
 			status.textContent = text;
 		};
-		let sheet: ReturnType<BarKit["sheet"]> | null = null;
 		let timers: number[] = [];
-		const onScroll = () => {
-			if (!sheet && opened?.panel === panel) kit.place(panel, region.getBoundingClientRect(), 8, "below");
-		};
-		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				event.preventDefault();
-				event.stopPropagation();
-				close(true);
-			}
-		};
-		const state = {
-			region,
-			panel,
-			close(returnFocus: boolean) {
-				for (const timer of timers) cancel(timer);
-				timers = [];
-				win.removeEventListener("scroll", onScroll, true);
-				kit.placeIn(null);
-				kit.showTag(null);
-				if (sheet) {
-					const was = sheet;
-					sheet = null;
-					was.close();
-				} else panel.remove();
-				if (returnFocus && region.isConnected) region.focus();
-			},
-		};
-		opened = state;
-		panel.addEventListener("keydown", onKey);
-		kit.placeIn({ item: region.dataset.wcItem ?? "", at: (region.dataset.wcField ?? "").split(".")[0] ?? "" });
-
-		const heading = el("h2", { id: titleId, class: "panel-title" }, icon("image"), labelOf(region));
-		const closeButton = button({ class: "icon-button", "aria-label": word("close") }, icon("close"));
-		closeButton.addEventListener("click", () => close(true));
+		// Assigned once `kit.panel` returns, before any of these handlers can run.
+		let handle: PanelHandle;
 		const fileInput = el("input", {
 			type: "file",
 			accept: "image/jpeg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif,image/svg+xml",
@@ -307,14 +267,14 @@ export function imageTools(kit: BarKit): ImageTools {
 		const chooseButton = button({ class: "secondary" }, icon("library"), word("chooseFromMedia"));
 		chooseButton.addEventListener("click", async () => {
 			// The library takes the popover's place while it is open; the popover comes back after.
-			panel.hidden = true;
+			handle.panel.hidden = true;
 			const picked = await pick({
 				title: labelOf(region),
 				current: region.dataset.wcMedia ?? null,
 				from: chooseButton,
 			});
-			if (opened !== state) return;
-			panel.hidden = false;
+			if (opened?.handle !== handle) return;
+			handle.panel.hidden = false;
 			if (!picked) {
 				chooseButton.focus();
 				return;
@@ -335,56 +295,53 @@ export function imageTools(kit: BarKit): ImageTools {
 			actions.append(remove);
 		}
 		const body = el("div", { class: "image-body" });
-		panel.append(el("div", { class: "panel-head" }, heading, closeButton), actions, body, status);
-		panel.addEventListener("dragover", (event) => {
+
+		handle = kit.panel({
+			title: labelOf(region),
+			headIcon: "image",
+			className: "popup dialog image-popover",
+			content: () => [actions, body, status],
+			anchor: () => region.getBoundingClientRect(),
+			onClose: () => {
+				for (const timer of timers) cancel(timer);
+				timers = [];
+				kit.placeIn(null);
+				kit.showTag(null);
+			},
+			focusBack: () => {
+				if (region.isConnected) region.focus();
+			},
+		});
+		opened = { region, handle };
+		kit.placeIn({ item: region.dataset.wcItem ?? "", at: (region.dataset.wcField ?? "").split(".")[0] ?? "" });
+
+		handle.panel.addEventListener("dragover", (event) => {
 			if (hasFiles(event)) event.preventDefault();
 		});
-		panel.addEventListener("drop", (event) => {
+		handle.panel.addEventListener("drop", (event) => {
 			const file = event.dataTransfer?.files[0];
 			if (!file) return;
 			event.preventDefault();
 			void uploadInto(region, file);
 		});
-
-		if (kit.phone()) {
-			// The sheet is the dialog, with its own title and close button.
-			panel.removeAttribute("role");
-			panel.removeAttribute("aria-labelledby");
-			panel.className = "sheet-body";
-			panel.querySelector(".panel-head")?.remove();
-			sheet = kit.sheet({
-				title: labelOf(region),
-				from: region,
-				content: panel,
-				onClose: () => {
-					if (opened === state) {
-						opened = null;
-						state.close(false);
-					}
-				},
-			});
-		} else {
-			kit.layer.append(panel);
-			kit.place(panel, region.getBoundingClientRect(), 8, "below");
-			win.addEventListener("scroll", onScroll, { passive: true, capture: true });
-			panel.addEventListener("focusout", (event) => {
+		if (!kit.phone()) {
+			handle.panel.addEventListener("focusout", (event) => {
 				const next = (event as FocusEvent).relatedTarget;
 				// The Media library opened from here keeps the popover for when it closes.
-				if (panel.hidden) return;
-				if (opened === state && next instanceof Node && !panel.contains(next) && next !== region) {
+				if (handle.panel.hidden) return;
+				if (opened?.handle === handle && next instanceof Node && !handle.panel.contains(next) && next !== region) {
 					close(false);
 				}
 			});
 		}
-		panel.focus();
-		if (mediaId) void renderImage(panel, body, region, mediaId, say, (timer) => timers.push(timer));
+		handle.panel.focus();
+		if (mediaId) void renderImage(handle, body, mediaId, say, (timer) => timers.push(timer));
 	}
 
 	/** The popover's alt text, Focal point and size for the image the region shows. */
 	async function renderImage(
-		panel: HTMLElement,
+		handle: PanelHandle,
 		body: HTMLElement,
-		region: HTMLElement,
 		mediaId: string,
 		say: (text: string) => void,
 		keep: (timer: number) => void,
@@ -392,7 +349,7 @@ export function imageTools(kit: BarKit): ImageTools {
 		const s = kit.state();
 		let language = s.language.code;
 		let loaded = await loadMedia(mediaId, language);
-		if (!loaded || opened?.panel !== panel) return;
+		if (!loaded || opened?.handle !== handle) return;
 		const media = loaded.media;
 		const altId = "wc-image-alt";
 		const altInput = el("input", {
@@ -482,7 +439,7 @@ export function imageTools(kit: BarKit): ImageTools {
 		const size =
 			media.width && media.height ? `${word("imageSize", { width: media.width, height: media.height })} · ` : "";
 		body.append(el("p", { class: "help info" }, icon("info"), `${size}${word("servedAs")}`));
-		if (!kit.phone()) kit.place(panel, region.getBoundingClientRect(), 8, "below");
+		handle.reposition();
 	}
 
 	/**
