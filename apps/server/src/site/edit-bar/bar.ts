@@ -1,8 +1,20 @@
+import type { BarKit, DetailsPanel, ImageTools, LoopTools, PresencePlace, PresenceTarget } from "./kit.ts";
+
 /**
  * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
  * the module that opens the page's Drafts live (Co-editing).
  */
 export type EditingBarConfig = { styles: string; drafts: string };
+
+/**
+ * The bar's parts, each one self-contained function served in the same script (`assets.ts`): the
+ * image popover, Loop item tools and Page details, made with the bar's kit once it starts.
+ */
+export type EditingBarParts = {
+	images(kit: BarKit): ImageTools;
+	loops(kit: BarKit): LoopTools;
+	details(kit: BarKit): DetailsPanel;
+};
 
 /**
  * The editing bar: WebCraft's own script on a page in Edit mode (ADR 0022). It is served as a file
@@ -19,7 +31,7 @@ export type EditingBarConfig = { styles: string; drafts: string };
  * or the page's script) throws or doesn't load, and says so, with a way into Safe mode (ADR 0022) and,
  * for Staff, to the script in Code mode. In Safe mode the page runs none of them, and the bar says so.
  */
-export function editingBar(config: EditingBarConfig): void {
+export function editingBar(config: EditingBarConfig, parts: EditingBarParts): void {
 	type Words = { [key: string]: string | Words };
 	type Change = {
 		item: string;
@@ -54,7 +66,7 @@ export function editingBar(config: EditingBarConfig): void {
 		languages: { code: string; name: string; path: string; current: boolean }[];
 		words?: Words;
 	};
-	type Answer = { ok: true; data: unknown } | { ok: false; code: string };
+	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data?: unknown };
 	type Problem = { at: string; message: string; rule?: string };
 	type Popup = { trigger: HTMLButtonElement; panel: HTMLElement; focus(): void; render?(): void };
 	/** One of the Site's own scripts that threw, or didn't load (`line` null). */
@@ -169,6 +181,38 @@ export function editingBar(config: EditingBarConfig): void {
 		shield: [
 			"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
 		],
+		image: [
+			"M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+			"M9 7a2 2 0 1 0 0 4 2 2 0 1 0 0-4",
+			"m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21",
+		],
+		library: [
+			"M18 22H4a2 2 0 0 1-2-2V6",
+			"m22 13-1.3-1.3a2.4 2.4 0 0 0-3.4 0L12 17",
+			"M14 7a2 2 0 1 0 0 4 2 2 0 1 0 0-4",
+			"M8 2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
+		],
+		upload: ["M12 3v12", "m17 8-5-5-5 5", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"],
+		sparkles: [
+			"M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.13 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0z",
+		],
+		focus: ["M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20", "M22 12h-4", "M6 12H2", "M12 6V2", "M12 22v-4"],
+		details: ["M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M15 3v18"],
+		loop: ["m17 2 4 4-4 4", "M3 11v-1a4 4 0 0 1 4-4h14", "m7 22-4-4 4-4", "M21 13v1a4 4 0 0 1-4 4H3"],
+		up: ["m5 12 7-7 7 7", "M12 19V5"],
+		down: ["M12 5v14", "m19 12-7 7-7-7"],
+		duplicate: [
+			"M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z",
+			"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
+		],
+		remove: ["M3 6h18", "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"],
+		add: ["M5 12h14", "M12 5v14"],
+		more: [
+			"M12 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+			"M19 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+			"M5 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
+		],
+		forward: ["m9 18 6-6-6-6"],
 	};
 
 	let state: State | null = null;
@@ -178,6 +222,8 @@ export function editingBar(config: EditingBarConfig): void {
 
 	let host: HTMLElement;
 	let root: ShadowRoot;
+	/** The element in the shadow root everything the bar shows goes in. */
+	let layer: HTMLElement;
 	let bar: HTMLElement;
 	let live: HTMLElement;
 	let chip: HTMLElement;
@@ -192,12 +238,23 @@ export function editingBar(config: EditingBarConfig): void {
 	let openPopup: Popup | null = null;
 	let publishPopup: Popup;
 	let savedTimer = 0;
+	/** The bar's parts, made once it starts. */
+	let kit: BarKit;
+	let images: ImageTools | null = null;
+	let loops: LoopTools | null = null;
+	let details: DetailsPanel | null = null;
+	let detailsButton: HTMLButtonElement | null = null;
+	/** Phones get a compact bar and bottom sheets instead of popovers and the drawer. */
+	const phoneWidth = win.matchMedia("(max-width: 640px)");
+	const visual = win.visualViewport;
+	const DialogElement = win.HTMLDialogElement;
 
-	const regions: HTMLElement[] = [];
+	/** The regions typed over in place (text and rich text); images and Loop items are the parts'. */
+	let regions: HTMLElement[] = [];
 	/** The page's shared Drafts, by item (`entry:<id>`, `globals`), and who else is in each. */
 	const drafts = new Map<string, { client: DraftClient; participants: Participant[] }>();
-	/** The names shown beside regions someone else is in. */
-	const presenceTags = new Map<HTMLElement, HTMLElement>();
+	/** The names shown beside regions (and images, Loop items) someone else is in, by what they mark. */
+	const presenceTags = new Map<string, HTMLElement>();
 	let othersList: HTMLElement;
 	let presenceLayer: HTMLElement;
 	/** How each region is made editable: `plaintext-only` for plain text where the browser has it. */
@@ -269,6 +326,12 @@ export function editingBar(config: EditingBarConfig): void {
 		state = answer.data as State;
 		words = state.words ?? {};
 		build();
+		kit = makeKit();
+		images = parts.images(kit);
+		loops = parts.loops(kit);
+		details = parts.details(kit);
+		kit.pickImage = images.pick;
+		kit.openImage = images.open;
 		setUpRegions();
 		openDrafts();
 		every(() => void refresh(), 60_000);
@@ -564,6 +627,27 @@ export function editingBar(config: EditingBarConfig): void {
 		popupTrigger(accountPopup);
 		accountMenu.addEventListener("keydown", (event) => menuKeys(event, accountMenu));
 
+		// Page details: the page's Entry's values that don't show on it (the drawer; a bottom sheet on a phone).
+		if (s.page.item) {
+			detailsButton = button(
+				{ class: "control details-button", "aria-haspopup": "dialog" },
+				icon("details"),
+				el("span", { class: "optional" }, word("pageDetails")),
+			);
+			detailsButton.setAttribute("aria-label", word("pageDetails"));
+			const opener = detailsButton;
+			opener.addEventListener("click", () => {
+				if (details?.isOpen()) details.close(true);
+				else details?.open(opener);
+			});
+		}
+		// On a phone: one menu for Preview, the language, Page details and Publish, in a bottom sheet.
+		const moreButton = button(
+			{ class: "control more", "aria-haspopup": "dialog", "aria-label": word("moreMenu") },
+			icon("more"),
+		);
+		moreButton.addEventListener("click", () => openPhoneMenu(moreButton, setMode));
+
 		othersList = el("ul", { class: "others", "aria-label": word("alsoEditing") });
 		presenceLayer = el("div", { class: "presence-layer", "aria-hidden": "true" });
 		tag = el("div", { class: "tag", "aria-hidden": "true", hidden: "" });
@@ -592,10 +676,12 @@ export function editingBar(config: EditingBarConfig): void {
 				othersList,
 				language,
 				languageMenu,
+				...(detailsButton ? [detailsButton] : []),
 				publishButton,
 				publishPanel,
 				account,
 				accountMenu,
+				moreButton,
 			),
 		);
 		// A Site script that failed while the page loaded is shown at once; later ones as they come.
@@ -612,6 +698,7 @@ export function editingBar(config: EditingBarConfig): void {
 			problem,
 			toolbar,
 		);
+		layer = section;
 		const hint = buildHint();
 		if (hint) section.append(hint);
 		root.append(el("link", { rel: "stylesheet", href: config.styles }), section);
@@ -702,6 +789,264 @@ export function editingBar(config: EditingBarConfig): void {
 		notice.hidden = false;
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// The parts' kit, the page read again, uploads and bottom sheets
+
+	function makeKit(): BarKit {
+		const made: BarKit = {
+			win,
+			doc,
+			send,
+			later,
+			cancel: (timer) => cancel(timer),
+			token,
+			call,
+			upload,
+			el,
+			button,
+			icon,
+			word,
+			announce,
+			errorText,
+			richText: cleanHtml,
+			problemText,
+			state: () => state as State,
+			refresh,
+			layer,
+			root,
+			barBottom: () => bar.getBoundingClientRect().bottom,
+			editing: () => editing && !ended,
+			phone: () => phoneWidth.matches,
+			place,
+			showTag(target, text) {
+				if (!target || !editing || ended) {
+					hideTag();
+					return;
+				}
+				tag.textContent = text ?? "";
+				tag.hidden = false;
+				place(tag, target instanceof HTMLElement ? target.getBoundingClientRect() : target, 2, "above");
+			},
+			freshPage,
+			adopt,
+			placeIn: placeAt,
+			pageDraft,
+			sheet,
+			pickImage: () => Promise.resolve(null),
+		};
+		return made;
+	}
+
+	/** The page as Edit mode shows it now, read again from the server. */
+	async function freshPage(): Promise<Document | null> {
+		try {
+			const response = await send(win.location.href, {
+				credentials: "same-origin",
+				cache: "no-store",
+				headers: { accept: "text/html" },
+			});
+			if (!response.ok) return null;
+			return new Parser().parseFromString(await response.text(), "text/html");
+		} catch {
+			return null;
+		}
+	}
+
+	/** Uploads a file to the Site's Media library, as the image popover does. */
+	async function upload(file: File, folderId?: string | null): Promise<Answer> {
+		const form = new FormData();
+		form.set("file", file);
+		if (folderId) form.set("folderId", folderId);
+		try {
+			const response = await send("/_webcraft/edit/api/media/upload", {
+				method: "POST",
+				credentials: "same-origin",
+				cache: "no-store",
+				headers: { "x-webcraft-edit-token": token },
+				body: form,
+			});
+			const data = (await response.json().catch(() => ({}))) as { code?: string };
+			if (response.ok) return { ok: true, data };
+			if (data.code === "EDIT_MODE_ENDED") end();
+			return { ok: false, code: data.code ?? "generic" };
+		} catch {
+			return { ok: false, code: "generic" };
+		}
+	}
+
+	let sheets = 0;
+
+	/**
+	 * A bottom sheet (on a phone): a modal dialog along the bottom of the screen with a title and a close
+	 * button; Escape, the close button or a tap outside it closes it, and focus goes back where it was.
+	 */
+	function sheet(options: { title: string; from: HTMLElement | null; content: HTMLElement; onClose?(): void }): {
+		close(): void;
+		dialog: HTMLDialogElement;
+	} {
+		const id = `wc-sheet-${++sheets}`;
+		const dialog = el("dialog", { class: "sheet", "aria-labelledby": id });
+		const closeButton = button({ class: "icon-button", "aria-label": word("close") }, icon("close"));
+		let closed = false;
+		closeButton.addEventListener("click", () => dialog.close());
+		dialog.addEventListener("click", (event) => {
+			if (event.target === dialog) dialog.close();
+		});
+		dialog.addEventListener("close", () => {
+			if (closed) return;
+			closed = true;
+			dialog.remove();
+			options.onClose?.();
+			if (options.from?.isConnected) options.from.focus();
+		});
+		dialog.append(
+			el("div", { class: "sheet-handle", "aria-hidden": "true" }),
+			el("div", { class: "panel-head" }, el("h2", { id, class: "panel-title" }, options.title), closeButton),
+			options.content,
+		);
+		layer.append(dialog);
+		if (dialog instanceof DialogElement) dialog.showModal();
+		return {
+			dialog,
+			close: () => {
+				if (!closed) dialog.close();
+			},
+		};
+	}
+
+	/**
+	 * The phone's menu, in a bottom sheet: Preview (or Edit), the language (its own sheet of the page in
+	 * each language), Page details, the admin, ending Edit mode, and the page's changes with Publish (or
+	 * Submit for review), which opens the Publish menu in a sheet of its own.
+	 */
+	function openPhoneMenu(from: HTMLElement, setMode: (on: boolean) => void): void {
+		const s = state as State;
+		const rows = el("ul", { class: "sheet-rows" });
+		const row = (iconName: string, text: string, sub: string | null, act: () => void, attributes = {}) => {
+			const made = button(
+				{ class: "sheet-row", ...attributes },
+				icon(iconName),
+				el("span", { class: "sheet-row-text" }, text),
+				...(sub ? [el("span", { class: "sheet-row-sub" }, sub)] : []),
+				icon("forward"),
+			);
+			made.addEventListener("click", act);
+			rows.append(el("li", {}, made));
+			return made;
+		};
+		let menu: ReturnType<typeof sheet> | null = null;
+		const then = (work: () => void) => () => {
+			menu?.close();
+			work();
+		};
+		if (!coding) {
+			row(
+				editing ? "preview" : "edit",
+				editing ? word("preview") : word("edit"),
+				null,
+				then(() => setMode(!editing)),
+			);
+		}
+		if (s.languages.length > 1) {
+			row(
+				"language",
+				word("languageRow"),
+				s.language.name,
+				then(() => openLanguageSheet(from)),
+			);
+		}
+		if (s.page.item && editing && !ended)
+			row(
+				"details",
+				word("pageDetails"),
+				null,
+				then(() => details?.open(from)),
+			);
+		const admin = el(
+			"a",
+			{ class: "sheet-row", href: s.publishAll.url },
+			icon("admin"),
+			el("span", { class: "sheet-row-text" }, word("openAdmin")),
+			icon("forward"),
+		);
+		rows.append(el("li", {}, admin));
+		row("end", word("end"), null, async () => {
+			await call("end", {});
+			win.location.reload();
+		});
+		const count = s.changes.length;
+		const labels = s.changes.map((change) => change.label ?? word(`builtIns.${change.key}`)).join(" · ");
+		const publish = button(
+			{ class: "primary wide" },
+			icon(s.canPublish ? "publish" : "review"),
+			s.canPublish ? word("publishPage") : word("changes"),
+		);
+		publish.disabled = ended;
+		publish.addEventListener(
+			"click",
+			then(() => openPublishSheet(from)),
+		);
+		const content = el(
+			"div",
+			{ class: "sheet-body" },
+			rows,
+			el(
+				"div",
+				{ class: "sheet-changes" },
+				el(
+					"p",
+					{ class: "change-label" },
+					count === 0 ? word("nothingToPublish") : count === 1 ? word("changesOne") : word("changesOther", { count }),
+				),
+				...(labels ? [el("p", { class: "change-sub" }, labels)] : []),
+				publish,
+			),
+		);
+		menu = sheet({ title: s.page.title || s.page.path, from, content });
+	}
+
+	function openLanguageSheet(from: HTMLElement): void {
+		const s = state as State;
+		const list = el(
+			"ul",
+			{ class: "sheet-rows" },
+			...s.languages.map((choice) =>
+				el(
+					"li",
+					{},
+					el(
+						"a",
+						{
+							class: "sheet-row",
+							href: choice.path,
+							hreflang: choice.code,
+							...(choice.current ? { "aria-current": "page" } : {}),
+						},
+						el("span", { class: "sheet-row-text", lang: choice.code }, choice.name),
+						el("span", { class: "sheet-row-sub" }, choice.code),
+					),
+				),
+			),
+		);
+		sheet({ title: word("languages"), from, content: el("div", { class: "sheet-body" }, list) });
+	}
+
+	function openPublishSheet(from: HTMLElement): void {
+		const s = state as State;
+		const panel = el("div", { class: "sheet-body publish-sheet", tabindex: "-1" });
+		renderPublish(panel);
+		// The sheet's own title says what it is; the panel's heading keeps its id for the panel itself.
+		panel.querySelector("h2")?.remove();
+		sheet({
+			title: s.canPublish
+				? word("publishTitle", { title: s.page.title })
+				: word("changesTitle", { title: s.page.title }),
+			from,
+			content: panel,
+		});
+		panel.querySelector<HTMLElement>("button")?.focus();
+	}
+
 	/** Turns Safe mode on or off for this browser, then shows the page again. */
 	async function switchSafe(on: boolean): Promise<void> {
 		const answer = await call(on ? "safe/start" : "safe/stop", {});
@@ -735,7 +1080,7 @@ export function editingBar(config: EditingBarConfig): void {
 			"div",
 			{ class: "hint" },
 			el("p", { class: "hint-title" }, icon("pointer"), word("hintTitle", { title: state?.page.title ?? "" })),
-			el("p", { class: "hint-text" }, word("hintText")),
+			el("p", { class: "hint-text" }, word(phoneWidth.matches ? "hintTextTouch" : "hintText")),
 			el("div", { class: "hint-actions" }, dismiss),
 		);
 		dismiss.addEventListener("click", () => {
@@ -1084,42 +1429,20 @@ export function editingBar(config: EditingBarConfig): void {
 	// ---------------------------------------------------------------------------------------------
 	// Editing in place
 
-	function setUpRegions(): void {
-		const plainTextOnly = (() => {
-			try {
-				const probe = doc.createElement("div");
-				probe.contentEditable = "plaintext-only";
-				return probe.contentEditable === "plaintext-only";
-			} catch {
-				return false;
-			}
-		})();
-		for (const region of doc.querySelectorAll<HTMLElement>("[data-wc-item][data-wc-field]")) {
-			const rich = region.dataset.wcType === "richText";
-			editableAs.set(region, rich ? "true" : plainTextOnly ? "plaintext-only" : "true");
-			regions.push(region);
-			lastSaved.set(region, textIn(region));
-			region.addEventListener("focus", () => focusRegion(region));
-			region.addEventListener("blur", () => blurRegion(region));
-			region.addEventListener("input", () => {
-				toolbarDismissed = false;
-				if (rich) showToolbar(region);
-				queueSave(region, 800);
-			});
-			region.addEventListener("keydown", (event) => regionKeys(event, region));
-			region.addEventListener("paste", (event) => {
-				if (rich || editableAs.get(region) === "plaintext-only") return;
-				// Plain text Fields take text only, whatever the clipboard holds.
-				event.preventDefault();
-				doc.execCommand("insertText", false, event.clipboardData?.getData("text/plain") ?? "");
-			});
-			region.addEventListener("mouseenter", () => {
-				if (editing && !ended) showTag(region);
-			});
-			region.addEventListener("mouseleave", () => {
-				if (current !== region) hideTag();
-			});
+	/** Text and rich text regions: image regions are the image tools'. */
+	const TEXT_REGION = '[data-wc-item][data-wc-field]:not([data-wc-type="media"])';
+	const plainTextOnly = (() => {
+		try {
+			const probe = doc.createElement("div");
+			probe.contentEditable = "plaintext-only";
+			return probe.contentEditable === "plaintext-only";
+		} catch {
+			return false;
 		}
+	})();
+
+	function setUpRegions(): void {
+		adopt([doc.body]);
 		doc.addEventListener("selectionchange", () => {
 			rememberSelection();
 			if (current?.dataset.wcType === "richText") updatePressed();
@@ -1130,10 +1453,60 @@ export function editingBar(config: EditingBarConfig): void {
 				if (!toolbar.hidden) showToolbar(current);
 			}
 			positionPresence();
+			loops?.reposition();
 		};
 		win.addEventListener("scroll", reposition, { passive: true, capture: true });
 		win.addEventListener("resize", reposition, { passive: true });
+		// On a phone the text toolbar sits above the on-screen keyboard, which the visual viewport leaves out.
+		visual?.addEventListener("resize", reposition);
+		visual?.addEventListener("scroll", reposition);
+		images?.setUp(doc);
+		loops?.scan();
 		applyMode();
+	}
+
+	/**
+	 * Makes the editable regions in nodes new to the page editable (at the start, and when a part shows
+	 * a piece of the page again as the server renders it now): text regions here, image regions by the
+	 * image tools.
+	 */
+	function adopt(nodes: readonly Node[]): void {
+		regions = regions.filter((region) => region.isConnected);
+		for (const node of nodes) {
+			if (!(node instanceof Element)) continue;
+			const found = [...(node.matches(TEXT_REGION) ? [node] : []), ...node.querySelectorAll(TEXT_REGION)];
+			for (const region of found) if (region instanceof HTMLElement) setUpRegion(region);
+			images?.setUp(node);
+		}
+		applyMode();
+	}
+
+	function setUpRegion(region: HTMLElement): void {
+		if (regions.includes(region)) return;
+		const rich = region.dataset.wcType === "richText";
+		editableAs.set(region, rich ? "true" : plainTextOnly ? "plaintext-only" : "true");
+		regions.push(region);
+		lastSaved.set(region, textIn(region));
+		region.addEventListener("focus", () => focusRegion(region));
+		region.addEventListener("blur", () => blurRegion(region));
+		region.addEventListener("input", () => {
+			toolbarDismissed = false;
+			if (rich) showToolbar(region);
+			queueSave(region, 800);
+		});
+		region.addEventListener("keydown", (event) => regionKeys(event, region));
+		region.addEventListener("paste", (event) => {
+			if (rich || editableAs.get(region) === "plaintext-only") return;
+			// Plain text Fields take text only, whatever the clipboard holds.
+			event.preventDefault();
+			doc.execCommand("insertText", false, event.clipboardData?.getData("text/plain") ?? "");
+		});
+		region.addEventListener("mouseenter", () => {
+			if (editing && !ended) showTag(region);
+		});
+		region.addEventListener("mouseleave", () => {
+			if (current !== region) hideTag();
+		});
 	}
 
 	function applyMode(): void {
@@ -1147,10 +1520,14 @@ export function editingBar(config: EditingBarConfig): void {
 				region.removeAttribute("contenteditable");
 			}
 		}
+		images?.mode(on);
+		loops?.mode(on);
 		if (!on) {
 			hideTag();
 			hideToolbar();
+			details?.close(false);
 		}
+		if (detailsButton) detailsButton.disabled = !on;
 	}
 
 	function textIn(region: HTMLElement): string {
@@ -1261,7 +1638,14 @@ export function editingBar(config: EditingBarConfig): void {
 
 	/** Loads the shared-Draft module (it hands itself over in an event), then opens each item the page edits. */
 	function openDrafts(): void {
-		const items = [...new Set(regions.map((region) => region.dataset.wcItem ?? ""))].filter(Boolean);
+		// The page's Entry and the Globals its regions show (a Loop's items aren't opened live): presence on
+		// images and Loop items goes through them too.
+		const shown = [
+			...regions.map((region) => region.dataset.wcItem ?? ""),
+			...(images?.targets() ?? []).map((target) => target.item),
+			state?.page.item ?? "",
+		];
+		const items = [...new Set(shown)].filter((item) => item === "globals" || item.startsWith("entry:"));
 		if (items.length === 0) return;
 		doc.addEventListener(
 			"webcraft:drafts",
@@ -1329,16 +1713,37 @@ export function editingBar(config: EditingBarConfig): void {
 
 	/** Says which value of its Draft the person is in (a region's key), or nowhere. */
 	function placeIn(region: HTMLElement | null): void {
-		for (const [item, link] of drafts) {
-			const here = region && region.dataset.wcItem === item ? (region.dataset.wcField ?? "").split(".")[0] : null;
-			link.client.place(here || null);
+		placeAt(region ? regionPlace(region) : null);
+	}
+
+	/**
+	 * Where a region is, for presence: its item's Draft and its Field's key. A Loop item's regions are
+	 * the Loop item's: presence on it goes through the page's own Draft, naming the item.
+	 */
+	function regionPlace(region: HTMLElement): PresencePlace | null {
+		const item = region.dataset.wcItem ?? "";
+		if (item.startsWith("loop:")) {
+			const draft = pageDraft();
+			return draft ? { item: draft, at: item } : null;
 		}
+		return { item, at: (region.dataset.wcField ?? "").split(".")[0] ?? "" };
+	}
+
+	/** Says where the person is in the page's shared Drafts, or nowhere. */
+	function placeAt(place: PresencePlace | null): void {
+		for (const [item, link] of drafts) link.client.place(place && place.item === item ? place.at || null : null);
+	}
+
+	/** The Draft presence on Loop items goes through: the page's Entry's, else the Globals'. */
+	function pageDraft(): string | null {
+		if (state?.page.item && drafts.has(state.page.item)) return state.page.item;
+		return drafts.has("globals") ? "globals" : null;
 	}
 
 	/** Someone else's change: regions nobody is typing in here show the new value. */
 	function showRemote(item: string, draft: unknown): void {
 		for (const region of regions) {
-			if (region.dataset.wcItem !== item || region === current || timers.has(region)) continue;
+			if (!region.isConnected || region.dataset.wcItem !== item || region === current || timers.has(region)) continue;
 			const value = valueAt(draft, region.dataset.wcField ?? "");
 			if (typeof value !== "string" || value === textIn(region)) continue;
 			if (region.dataset.wcType === "richText") region.replaceChildren(...cleanHtml(value));
@@ -1392,6 +1797,9 @@ export function editingBar(config: EditingBarConfig): void {
 		return participant.via ? word("via", { name, client: participant.via }) : name;
 	}
 
+	/** The outline boxes drawn around Loop items others are in (they are ranges of nodes, not one element). */
+	const presenceBoxes = new Map<string, HTMLElement>();
+
 	/** Who else is in the page's Drafts: avatars in the bar, and an outline and name on each region they are in. */
 	function renderPresence(): void {
 		const others = new Map<string, Participant & { item: string }>();
@@ -1422,38 +1830,90 @@ export function editingBar(config: EditingBarConfig): void {
 					return avatar;
 				}),
 		);
-		for (const region of regions) {
-			const key = (region.dataset.wcField ?? "").split(".")[0];
+		regions = regions.filter((region) => region.isConnected);
+		const targets: PresenceTarget[] = [
+			...regions.flatMap((region) => {
+				const place = regionPlace(region);
+				return place ? [{ ...place, rect: () => region.getBoundingClientRect(), outline: region }] : [];
+			}),
+			...(images?.targets() ?? []),
+			...(loops?.targets() ?? []),
+		];
+		const outlined = new Set<HTMLElement>();
+		const tagged = new Set<string>();
+		for (const target of targets) {
 			const here = [...others.values()].filter(
-				(participant) => participant.item === region.dataset.wcItem && participant.at === key,
+				(participant) => participant.item === target.item && participant.at === target.at,
 			);
 			const first = here[0];
-			let tagged = presenceTags.get(region);
-			if (!first) {
-				region.style.outline = "";
-				region.style.outlineOffset = "";
-				tagged?.remove();
-				presenceTags.delete(region);
-				continue;
+			const key = `${target.item}|${target.at}|${target.outline ? regions.indexOf(target.outline) : ""}`;
+			if (!first) continue;
+			const colour = colourOf(first);
+			if (target.outline) {
+				target.outline.style.outline = `2px solid ${colour}`;
+				target.outline.style.outlineOffset = "3px";
+				outlined.add(target.outline);
+			} else {
+				let box = presenceBoxes.get(key);
+				if (!box) {
+					box = el("div", { class: "presence-box" });
+					presenceLayer.append(box);
+					presenceBoxes.set(key, box);
+				}
+				box.style.borderColor = colour;
+				presenceRects.set(box, target.rect);
 			}
-			region.style.outline = `2px solid ${colourOf(first)}`;
-			region.style.outlineOffset = "3px";
-			if (!tagged) {
-				tagged = el("div", { class: "presence-tag" });
-				presenceLayer.append(tagged);
-				presenceTags.set(region, tagged);
+			let name = presenceTags.get(key);
+			if (!name) {
+				name = el("div", { class: "presence-tag" });
+				presenceLayer.append(name);
+				presenceTags.set(key, name);
 			}
-			tagged.textContent = word("isHere", { name: here.map(displayName).join(", ") });
-			tagged.style.background = colourOf(first);
+			name.textContent = word("isHere", { name: here.map(displayName).join(", ") });
+			name.style.background = colour;
+			presenceRects.set(name, target.rect);
+			tagged.add(key);
+		}
+		// Whatever nobody is in any longer loses its outline and name.
+		for (const element of outlinedBefore) {
+			if (!outlined.has(element)) {
+				element.style.outline = "";
+				element.style.outlineOffset = "";
+			}
+		}
+		outlinedBefore = outlined;
+		for (const [key, name] of presenceTags) {
+			if (tagged.has(key)) continue;
+			name.remove();
+			presenceTags.delete(key);
+			presenceRects.delete(name);
+		}
+		for (const [key, box] of presenceBoxes) {
+			if (tagged.has(key)) continue;
+			box.remove();
+			presenceBoxes.delete(key);
+			presenceRects.delete(box);
 		}
 		positionPresence();
 	}
 
+	/** Where each presence name and box goes, by what it marks. */
+	const presenceRects = new Map<HTMLElement, () => DOMRect | null>();
+	let outlinedBefore = new Set<HTMLElement>();
+
 	function positionPresence(): void {
-		for (const [region, tagged] of presenceTags) {
-			const rect = region.getBoundingClientRect();
-			tagged.style.top = `${Math.round(rect.bottom + 4)}px`;
-			tagged.style.left = `${Math.round(Math.max(8, rect.left))}px`;
+		for (const [element, rectOf] of presenceRects) {
+			const rect = rectOf();
+			if (!rect) continue;
+			if (element.classList.contains("presence-box")) {
+				element.style.top = `${Math.round(rect.top - 4)}px`;
+				element.style.left = `${Math.round(rect.left - 4)}px`;
+				element.style.width = `${Math.round(rect.width + 8)}px`;
+				element.style.height = `${Math.round(rect.height + 8)}px`;
+			} else {
+				element.style.top = `${Math.round(rect.bottom + 4)}px`;
+				element.style.left = `${Math.round(Math.max(8, rect.left))}px`;
+			}
 		}
 	}
 
@@ -1466,8 +1926,15 @@ export function editingBar(config: EditingBarConfig): void {
 	function place(panel: HTMLElement, rect: DOMRect, gap: number, prefer: "above" | "below"): void {
 		const barBottom = bar.getBoundingClientRect().bottom;
 		const height = panel.offsetHeight;
-		let top = prefer === "above" ? rect.top - height - gap : rect.bottom + gap;
-		if (prefer === "above" && top < barBottom + 4) top = rect.bottom + gap;
+		const above = rect.top - height - gap;
+		const below = rect.bottom + gap;
+		const fitsAbove = above >= barBottom + 4;
+		const fitsBelow = below + height <= win.innerHeight - 8;
+		let top = prefer === "above" ? (fitsAbove || !fitsBelow ? above : below) : fitsBelow || !fitsAbove ? below : above;
+		// Neither side has room: the panel stays in the window, under the bar.
+		if (top < barBottom + 4 || top + height > win.innerHeight - 8) {
+			top = Math.max(barBottom + 4, Math.min(top, win.innerHeight - height - 8));
+		}
 		const left = Math.max(8, Math.min(rect.left, win.innerWidth - panel.offsetWidth - 8));
 		panel.style.top = `${Math.round(top)}px`;
 		panel.style.left = `${Math.round(left)}px`;
@@ -1622,6 +2089,14 @@ export function editingBar(config: EditingBarConfig): void {
 		if (!editing || ended) return;
 		toolbar.hidden = false;
 		updatePressed();
+		toolbar.classList.toggle("above-keyboard", phoneWidth.matches);
+		if (phoneWidth.matches) {
+			// On a phone the toolbar sits right above the on-screen keyboard (the visual viewport's bottom).
+			const bottom = (visual?.offsetTop ?? 0) + (visual?.height ?? win.innerHeight);
+			toolbar.style.top = `${Math.round(bottom - toolbar.offsetHeight - 6)}px`;
+			toolbar.style.left = `${Math.round((visual?.offsetLeft ?? 0) + 6)}px`;
+			return;
+		}
 		place(toolbar, region.getBoundingClientRect(), (tag.hidden ? 0 : tag.offsetHeight) + 6, "above");
 	}
 
