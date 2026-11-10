@@ -135,6 +135,16 @@ export {
 	type SavedRegion,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
+export {
+	ERROR_LOG_DAYS,
+	type ErrorGroup,
+	type ErrorGroupDetail,
+	ErrorGroupNotFoundError,
+	type ErrorLog,
+	type ErrorLogState,
+	type ErrorPlace,
+	type ErrorSource,
+} from "./error-log/service.ts";
 export * from "./filters/index.ts";
 export { type FilterState, readFilterState, type StateKey, type StateReader } from "./filters/state.ts";
 export * from "./forms/index.ts";

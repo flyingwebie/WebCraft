@@ -39,3 +39,20 @@ export class ModuleFailedError extends Error {
 		super("The Module couldn't do this. The Superadmin can see why in the Module log.");
 	}
 }
+
+/** Errors thrown by Module code, which the Module log keeps (never the Error log). */
+const moduleFailures = new WeakSet<object>();
+
+/** Marks an error as a Module's own failure, written to its Module log, before it is thrown on. */
+export function markModuleFailure(error: unknown): void {
+	if (typeof error === "object" && error !== null) moduleFailures.add(error);
+}
+
+/**
+ * Whether an error is a Module's failure, which its Module log holds: the Error log is for WebCraft's
+ * own unexpected failures (`GLOSSARY.md`).
+ */
+export function isModuleFailure(error: unknown): boolean {
+	if (typeof error !== "object" || error === null) return false;
+	return moduleFailures.has(error) || (error as { name?: unknown }).name === "ModuleFailedError";
+}

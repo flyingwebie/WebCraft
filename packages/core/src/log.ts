@@ -51,6 +51,11 @@ export function withLogContext<Result>(fields: LogContext, work: () => Result): 
 	return contexts.run({ ...contexts.getStore(), ...fields }, work);
 }
 
+/** Runs `work` outside any work's log context: the process's own upkeep, started from inside a request. */
+export function withoutLogContext<Result>(work: () => Result): Result {
+	return contexts.exit(work);
+}
+
 /** What the current work's log lines carry; empty outside any. */
 export function currentLogContext(): LogContext {
 	return { ...contexts.getStore() };

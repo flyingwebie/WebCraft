@@ -102,6 +102,8 @@ import { createDiscovery } from "./discovery/index.ts";
 import { createDomains } from "./domains/index.ts";
 import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
+import { reportingFailures } from "./error-log/capture.ts";
+import { createErrorLog } from "./error-log/service.ts";
 import { createFilters } from "./filters/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
 import { createSubmissionActions } from "./forms/kept.ts";
@@ -178,10 +180,13 @@ export type CreateServicesOptions = {
  * all build them here, so they work the same way everywhere.
  */
 export async function createInstallServices(
-	ports: InstallPorts,
+	givenPorts: InstallPorts,
 	masterKey: MasterKey,
 	options: CreateServicesOptions = {},
 ): Promise<InstallServices> {
+	// Every line logged at error level with an `error` is an unexpected failure: the Error log notes it.
+	const errorLog = createErrorLog({ database: givenPorts.database, clock: givenPorts.clock, log: givenPorts.log });
+	const ports: InstallPorts = { ...givenPorts, log: reportingFailures(givenPorts.log, errorLog) };
 	const { database, clock, log, config } = ports;
 	const secretsOptions = { database, masterKey, clock };
 	// Every secret; the data layer hands out a Workspace's or a Site's, `services.secrets` the Install's.
@@ -598,6 +603,7 @@ export async function createInstallServices(
 		}),
 		updates: createUpdates({ database, feed: config.updateFeed, fetch: guardedFetch, clock, log }),
 		workers: createWorkers({ database, clock }),
+		errorLog,
 		reports,
 		shareLinks: createShareLinks({
 			database,

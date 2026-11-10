@@ -11,7 +11,7 @@ import {
 } from "@webcraft/core";
 
 import type { ApiContext } from "./context.ts";
-import { toApiError } from "./errors.ts";
+import { logUnexpectedFailure, toApiError } from "./errors.ts";
 
 import { adminRouter } from "./module-router.ts";
 
@@ -43,8 +43,7 @@ export function createAdminApi(
 					// Refusals (bad input, no session, a wrong token) are answers; anything else is a failure to log.
 					// The caller only gets a plain 500.
 					onError((error, { path }) => {
-						if (error instanceof ORPCError && error.status < 500) return;
-						services.log.error("A Management API call failed unexpectedly", { error, procedure: path.join(".") });
+						logUnexpectedFailure(services, error, path);
 					}),
 				],
 			});

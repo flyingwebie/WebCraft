@@ -60,6 +60,7 @@ import {
 	ModuleFailedError,
 	ModuleNotApprovedError,
 	ModuleNotFoundError,
+	markModuleFailure,
 } from "./errors.ts";
 import {
 	moduleEventJob,
@@ -680,6 +681,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			await writeLine(options, module, place, "error", `The ${kind} failed.`, { ...what, error: describeError(error) });
 			log.warn("A Module's background work failed", { moduleId: module.id, ...what, error });
 			if (error instanceof ModuleRefusedError) return;
+			// The job fails for the queue to try it again; the Module log has it, the Error log doesn't.
+			markModuleFailure(error);
 			throw error;
 		}
 	};

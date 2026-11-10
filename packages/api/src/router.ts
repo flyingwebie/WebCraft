@@ -13,6 +13,7 @@ import { designSystem } from "./procedures/design-system.ts";
 import { domains } from "./procedures/domains.ts";
 import { editMode } from "./procedures/edit-mode.ts";
 import { entries } from "./procedures/entries.ts";
+import { errorLog } from "./procedures/error-log.ts";
 import { filters } from "./procedures/filters.ts";
 import { forms } from "./procedures/forms.ts";
 import { globals } from "./procedures/globals.ts";
@@ -101,6 +102,7 @@ export const apiRouter = {
 	staff,
 	invites,
 	audit,
+	errorLog,
 	impersonation,
 	modules,
 	dashboards,

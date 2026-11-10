@@ -26,6 +26,11 @@ export const PERMISSIONS = {
 	"audit.view": ["install", "workspace"],
 	/** Approve Modules (what they ask for), withdraw approvals, and read the Module log. */
 	"module.approve": ["install"],
+	/**
+	 * See Install health and the Error log, retry and discard failed jobs, and mark Error log causes
+	 * resolved (the Superadmin): what is going wrong on the Install, Workspaces and Sites alike.
+	 */
+	"installHealth.manage": ["install"],
 	/** See a Workspace and open it in the admin. */
 	"workspace.view": ["workspace"],
 	"site.create": ["workspace"],

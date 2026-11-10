@@ -13,6 +13,7 @@ import {
 } from "../domains/jobs.ts";
 import { emailLogPurge, emailLogPurgeSchedule } from "../email/jobs.ts";
 import { emailSend } from "../email/outbox.ts";
+import { errorLogPrune, errorLogPruneSchedule } from "../error-log/jobs.ts";
 import { historyPrune, historyPruneSchedule } from "../history/prune.ts";
 import { impersonationEnd } from "../impersonation.ts";
 import { importsPurge, importsPurgeSchedule } from "../imports/purge.ts";
@@ -98,6 +99,7 @@ export const coreJobs = [
 	reportsPurge,
 	historyPrune,
 	auditPrune,
+	errorLogPrune,
 	impersonationEnd,
 	scheduledPublishesDue,
 ] as readonly JobDefinition<unknown>[];
@@ -128,6 +130,7 @@ export const coreSchedules = [
 	reportsPurgeSchedule,
 	historyPruneSchedule,
 	auditPruneSchedule,
+	errorLogPruneSchedule,
 	scheduledPublishesDueSchedule,
 ] as readonly JobSchedule<unknown>[];
 

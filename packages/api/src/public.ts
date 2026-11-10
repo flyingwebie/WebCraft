@@ -1,6 +1,6 @@
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { type AnyProcedure, ORPCError, onError, type TraverseContractProcedureCallbackOptions } from "@orpc/server";
+import { type AnyProcedure, onError, type TraverseContractProcedureCallbackOptions } from "@orpc/server";
 import { ResponseHeadersPlugin } from "@orpc/server/plugins";
 import {
 	experimental_ZodSmartCoercionPlugin as ZodSmartCoercionPlugin,
@@ -24,6 +24,7 @@ import {
 
 import { exposureOf } from "./catalogue.ts";
 import { type ApiContext, sensitiveActionOf } from "./context.ts";
+import { logUnexpectedFailure } from "./errors.ts";
 import { adminRouter } from "./module-router.ts";
 import { bodyWithinLimit, type RequestFacts } from "./rpc.ts";
 import { toolPlaceOf } from "./toolsets.ts";
@@ -143,8 +144,7 @@ export function createProcedureCaller(services: InstallServices): (call: Procedu
 				plugins: [new ResponseHeadersPlugin(), new ZodSmartCoercionPlugin()],
 				clientInterceptors: [
 					onError((error, { path }) => {
-						if (error instanceof ORPCError && error.status < 500) return;
-						services.log.error("A Management API call failed unexpectedly", { error, procedure: path.join(".") });
+						logUnexpectedFailure(services, error, path);
 					}),
 				],
 			});

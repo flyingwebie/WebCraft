@@ -67,6 +67,7 @@ import type { Dns } from "./dns.ts";
 import type { Domains } from "./domains/index.ts";
 import type { EditMode } from "./edit-mode/index.ts";
 import type { Email, Mailer } from "./email/index.ts";
+import type { ErrorLog } from "./error-log/service.ts";
 import type { Filters } from "./filters/index.ts";
 import type { Forms } from "./forms/index.ts";
 import type { HistoryService } from "./history/index.ts";
@@ -629,6 +630,8 @@ export type InstallServices = InstallPorts & {
 	updates: Updates;
 	/** The workers working the job queue: their check-ins, and whether one runs now. */
 	workers: Workers;
+	/** The Error log: unexpected failures, grouped by cause, for the Superadmin (`error-log/`). */
+	errorLog: ErrorLog;
 	/**
 	 * Reports (#104): a Dashboard sent as a PDF on a schedule, with AI text, its history and review;
 	 * the worker's steps of making and sending one.
