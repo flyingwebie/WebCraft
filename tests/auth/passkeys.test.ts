@@ -103,6 +103,8 @@ describe("adding a passkey", () => {
 		]);
 		await expect(device.create(options)).rejects.toThrow("InvalidStateError");
 
+		// Passkeys are listed oldest first: the second is added a minute later.
+		await install.clock.advance(60_000);
 		const phone = softwareAuthenticator({ algorithm: "EdDSA" });
 		const second = await addPasskey(browser, phone, "Phone");
 		expect(second.backupCodes).toBeNull();
