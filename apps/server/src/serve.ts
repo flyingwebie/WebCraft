@@ -1,7 +1,7 @@
 // The web process in production: `bun run build`, then `bun run start` from the repo root.
 // (Not named start.ts: TanStack Start reserves that name for its own entry.)
 // It serves the bundle `vite build` made from src/server.ts on Bun.
-import { createLogger } from "@webcraft/core";
+import { createLogger, logSettings } from "@webcraft/core";
 
 import { setConnectionAddress } from "./client-address.ts";
 import type { UpgradeAnswer } from "./handler.ts";
@@ -14,7 +14,7 @@ type ServerEntry = {
 	stop?(): Promise<void>;
 };
 
-const log = createLogger({ fields: { process: "web" } });
+const log = createLogger({ fields: { process: "web" }, ...logSettings(process.env) });
 const bundle = new URL("../dist/server/server.js", import.meta.url);
 
 let entry: ServerEntry;

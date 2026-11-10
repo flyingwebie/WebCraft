@@ -5,6 +5,7 @@ import {
 	type InstallServices,
 	loadInstallConfig,
 	loadMasterKey,
+	logSettings,
 	moduleSchemas,
 	openInstall,
 } from "@webcraft/core";
@@ -56,7 +57,7 @@ export async function checkWebSettings(env: Record<string, string | undefined>):
 }
 
 async function openWebServices(env: Record<string, string | undefined>): Promise<InstallServices> {
-	const log = createLogger({ fields: { process: "web" } });
+	const log = createLogger({ fields: { process: "web" }, ...logSettings(env) });
 	const { services } = await openInstall({
 		env,
 		processName: "web",

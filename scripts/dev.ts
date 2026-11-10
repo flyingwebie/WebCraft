@@ -8,7 +8,7 @@
 // 3. Runs the migrate step (without the Backup it takes first on a server: a development database
 //    doesn't need one).
 // 4. Starts the web process (`vite dev` on Bun) and the worker (Node, restarting on changes).
-import { ConfigError, loadInstallConfig, loadMasterKey } from "@webcraft/core";
+import { ConfigError, LogSettingsError, loadInstallConfig, loadMasterKey, logSettings } from "@webcraft/core";
 import pg from "pg";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -30,13 +30,16 @@ const env = process.env;
 // Web runs in apps/server and the worker in the repo root: one storage folder for both.
 env.WEBCRAFT_STORAGE_DIR ||= `${ROOT}storage`;
 env.WEBCRAFT_BACKUP_DIR ||= `${ROOT}backups`;
+// Readable log lines in a terminal; servers keep JSON, one object per line.
+env.WEBCRAFT_LOG_FORMAT ||= "pretty";
 if (!env.DATABASE_URL) fail("DATABASE_URL is not set. Copy .env.example to .env (see docs/development.md).");
 // The same checks web and worker run when they start, so a bad setting is reported once, here.
 try {
 	loadInstallConfig(env);
 	loadMasterKey(env);
+	logSettings(env);
 } catch (error) {
-	if (error instanceof ConfigError) fail(`${error.message} Set it in .env.`);
+	if (error instanceof ConfigError || error instanceof LogSettingsError) fail(`${error.message} Set it in .env.`);
 	throw error;
 }
 

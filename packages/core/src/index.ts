@@ -195,7 +195,21 @@ export {
 	parseIpRange,
 } from "./ip-ranges.ts";
 export * from "./jobs/index.ts";
-export { createLogger, type LogEntry, type LogFields, type Logger, type LogLevel } from "./log.ts";
+export {
+	createLogger,
+	currentLogContext,
+	LOG_LEVELS,
+	type LogContext,
+	type LogEntry,
+	type LogFields,
+	type LogFormat,
+	type Logger,
+	type LogLevel,
+	LogSettingsError,
+	logSettings,
+	noteLogPlace,
+	withLogContext,
+} from "./log.ts";
 export type { MasterKeyBackup, MasterKeyBackupStatus } from "./master-key-backup.ts";
 export * from "./media/index.ts";
 export { type MigrateBackup, type MigrateStepReport, migrateStep } from "./migrate-step.ts";
@@ -275,6 +289,15 @@ export {
 	type RateLimits,
 	type RateLimitTally,
 } from "./rate-limits.ts";
+export {
+	CONTENT_NAMES,
+	isRedactedName,
+	printedOnPurpose,
+	REDACTED,
+	redactText,
+	redactValue,
+	SECRET_NAMES,
+} from "./redaction.ts";
 export * from "./reports/index.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";

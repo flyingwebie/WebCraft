@@ -6,6 +6,7 @@ import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 import { type AuditDetails, type AuditVia, type RecordedAuditEntry, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import { isUuid } from "../ids.ts";
+import { noteLogPlace } from "../log.ts";
 import { type Actor, can, INSTALL, personIdOf, type Resource } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SecretDescription, SecretOwner, Secrets } from "../secrets/index.ts";
@@ -388,6 +389,7 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			const resource: Resource = { level: "workspace", workspaceId: workspace.id };
 			if (!can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
 			check(access.actor, permission, resource);
+			noteLogPlace({ workspaceId: workspace.id });
 			return workspaceScope(db, access, workspace, null);
 		},
 
@@ -399,21 +401,32 @@ export function createDataLayer({ database, clock, secrets, afterAudit }: DataLa
 			check(access.actor, permission, resource);
 			const workspace = await findWorkspace(db, site.workspaceId);
 			if (!workspace) throw new SiteNotFoundError();
+			noteLogPlace({ workspaceId: workspace.id, siteId: site.id });
 			return siteScope(db, access, workspace, site, null);
 		},
 
-		visitors: readOnly,
-		staging: readOnly,
+		visitors: (site) => {
+			noteLogPlace({ workspaceId: site.workspaceId, siteId: site.id });
+			return readOnly(site);
+		},
+		staging: (site) => {
+			noteLogPlace({ workspaceId: site.workspaceId, siteId: site.id });
+			return readOnly(site);
+		},
 
 		async background(siteId) {
 			const site = isUuid(siteId) ? await findSite(db, siteId) : undefined;
 			const workspace = site ? await findWorkspace(db, site.workspaceId) : undefined;
-			return site && workspace ? backgroundScope(db, workspace, site) : null;
+			if (!site || !workspace) return null;
+			noteLogPlace({ workspaceId: workspace.id, siteId: site.id });
+			return backgroundScope(db, workspace, site);
 		},
 
 		async backgroundWorkspace(workspaceId) {
 			const workspace = isUuid(workspaceId) ? await findWorkspace(db, workspaceId) : undefined;
-			return workspace ? backgroundWorkspaceScope(db, workspace) : null;
+			if (!workspace) return null;
+			noteLogPlace({ workspaceId: workspace.id });
+			return backgroundWorkspaceScope(db, workspace);
 		},
 
 		useSiteSecret(site, name, use) {

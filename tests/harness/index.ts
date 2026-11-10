@@ -811,7 +811,7 @@ async function drainJobs(
 			for (const item of await boss.fetch(job.name, { batchSize })) {
 				ran++;
 				try {
-					await runJob(job, item.data, services);
+					await runJob(job, item.data, services, { id: item.id });
 					await boss.complete(job.name, item.id);
 					report.completed.push({ name: job.name, data: item.data });
 				} catch (cause) {

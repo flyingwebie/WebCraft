@@ -1,4 +1,4 @@
-import { type InstallServices, normaliseHostname, type SitemapLimits } from "@webcraft/core";
+import { type InstallServices, normaliseHostname, type SitemapLimits, withLogContext } from "@webcraft/core";
 
 import { healthz, readyz } from "./admin/health.ts";
 import { createAdminSide } from "./admin/side.ts";
@@ -8,6 +8,7 @@ import {
 	EDIT_DRAFTS_PREFIX,
 	type UpgradeAnswer,
 } from "./co-editing/sockets.ts";
+import { requestIdOf, withRequestId } from "./request-ids.ts";
 import { type Handler, notFound, plainText } from "./responses.ts";
 import { createPageCache } from "./site/page-cache.ts";
 import { createSitePipeline } from "./site/pipeline.ts";
@@ -60,7 +61,10 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 	});
 	const sockets = createDraftSockets(services);
 
-	const upgrade = async (request: Request): Promise<UpgradeAnswer> => {
+	const upgrade = (request: Request): Promise<UpgradeAnswer> =>
+		withLogContext({ requestId: requestIdOf(request, services.config) }, () => answerUpgrade(request));
+
+	const answerUpgrade = async (request: Request): Promise<UpgradeAnswer> => {
 		try {
 			const url = new URL(request.url);
 			const hostname = normaliseHostname(url.hostname);
@@ -77,7 +81,13 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 		}
 	};
 
-	const handler = async (request: Request): Promise<Response> => {
+	// Every line a request writes, and the jobs it queues, carry its request id; so does its answer.
+	const handler = (request: Request): Promise<Response> => {
+		const requestId = requestIdOf(request, services.config);
+		return withLogContext({ requestId }, () => answer(request)).then((response) => withRequestId(response, requestId));
+	};
+
+	const answer = async (request: Request): Promise<Response> => {
 		try {
 			const hostname = normaliseHostname(new URL(request.url).hostname);
 			if (hostname === services.config.adminHost) {
