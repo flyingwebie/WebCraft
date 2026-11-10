@@ -520,6 +520,24 @@ describe("the visual builder", () => {
 
 describe("Popups", () => {
 	let keys = 0;
+	const created: { siteId: string; popupId: string; componentId: string }[] = [];
+	const createPopup = async (api: ApiClient, siteId: string, name: string) => {
+		const result = await api.popups.create({ siteId, name });
+		created.push({ siteId, popupId: result.popup.id, componentId: result.popup.componentId });
+		return result;
+	};
+	// These Components belong to this group; later whole-Site Checks need not scan its fixtures.
+	afterAll(async () => {
+		if (!created.length) return;
+		const { api } = await install.superadmin();
+		for (const { siteId, popupId, componentId } of created) {
+			const popup = await api.popups.delete({ siteId, popupId });
+			if (!popup.deleted) await api.popups.delete({ siteId, popupId, confirmation: popup.confirmation.id });
+			const component = await api.components.delete({ siteId, componentId });
+			if (!component.deleted)
+				await api.components.delete({ siteId, componentId, confirmation: component.confirmation.id });
+		}
+	});
 	/** One Popup and backing Component per Site, as with the shared Content fixtures above. */
 	const popupIds = new Map<string, Promise<string>>();
 	const popupIn = (target: IsolationTarget) => {
@@ -527,7 +545,7 @@ describe("Popups", () => {
 		if (!made) {
 			made = (async () => {
 				const { api } = await install.superadmin();
-				return (await api.popups.create({ siteId: target.siteId, name: `Popup ${++keys}` })).popup.id;
+				return (await createPopup(api, target.siteId, `Popup ${++keys}`)).popup.id;
 			})();
 			popupIds.set(target.siteId, made);
 		}
@@ -537,7 +555,7 @@ describe("Popups", () => {
 	isolation.refuses("popups.get", async (api, target) =>
 		api.popups.get({ siteId: target.siteId, popupId: await popupIn(target) }),
 	);
-	isolation.refuses("popups.create", (api, { siteId }) => api.popups.create({ siteId, name: `Ours ${++keys}` }));
+	isolation.refuses("popups.create", (api, { siteId }) => createPopup(api, siteId, `Ours ${++keys}`));
 	isolation.refuses("popups.saveDraft", async (api, target) =>
 		api.popups.saveDraft({ siteId: target.siteId, popupId: await popupIn(target), popup: { layout: "bar" } }),
 	);
