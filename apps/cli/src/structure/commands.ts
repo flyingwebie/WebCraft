@@ -218,78 +218,243 @@ type Unit = {
 	describe: string;
 };
 
+/** A local file path recognised as one of a kind's units: its key (after `kind:`) and what to call it. */
+type PathMatch = { key: string; describe: string };
+
+/** `path`, with `suffix` taken off its end, or null when it doesn't end with it. */
+function withoutSuffix(path: string, suffix: string): string | null {
+	return path.endsWith(suffix) ? path.slice(0, -suffix.length) : null;
+}
+
+/** `item`, asserting it is `kind` (every call site only ever is, by how the table below is built). */
+function as<Kind extends StructureItem["kind"]>(
+	kind: Kind,
+	item: StructureItem,
+): Extract<StructureItem, { kind: Kind }> {
+	if (item.kind !== kind) throw new Error(`A Structure item of kind "${item.kind}" was read as "${kind}".`);
+	return item as Extract<StructureItem, { kind: Kind }>;
+}
+
+/** What `sendUnit` needs, besides the unit's own key and item. */
+type SendContext = {
+	manifest: Manifest;
+	state: StructureState;
+	unit: Unit;
+	local: Map<string, string>;
+	force: boolean;
+	send: (path: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>;
+};
+
+/**
+ * One kind of Structure item: how a local file path is recognised as one of its units, the matching
+ * Install item's key, where push sends it (lower first), and how it is saved. A new kind is one more
+ * entry here, instead of a fourth place to add it to (`unitOf`, `itemKey` and `sendUnit` used to be
+ * three parallel switches over the same kinds).
+ */
+type Kind = {
+	order: number;
+	pathOf(path: string): PathMatch | null;
+	/** `item`'s key (after `kind:`): called only with an item of this entry's own kind. */
+	itemKeyOf(item: StructureItem): string;
+	/** Saves this unit's change on the Install, as a Draft. `key` is its key, after `kind:`. */
+	send(ctx: SendContext, key: string): Promise<void>;
+};
+
+const KINDS: Record<StructureItem["kind"], Kind> = {
+	postType: {
+		order: 0,
+		pathOf: (path) => {
+			const [folder, file, ...rest] = path.split("/");
+			const key = folder === "post-types" && rest.length === 0 ? withoutSuffix(file ?? "", ".json") : null;
+			return key && SAFE_NAME.test(key) ? { key, describe: `Post Type ${key}` } : null;
+		},
+		itemKeyOf: (item) => as("postType", item).key,
+		send: async (ctx, key) => {
+			const path = `post-types/${key}.json`;
+			const file = parseJson(path, ctx.local.get(path));
+			const item = ctx.unit.item;
+			if (item) await ctx.send("postTypes/update", { postTypeId: as("postType", item).id, ...file });
+			else await ctx.send("postTypes/create", { key, ...file });
+		},
+	},
+	designSystem: {
+		order: 1,
+		pathOf: (path) => (path.split("/")[0] === "design-system" ? { key: "", describe: "the Design system" } : null),
+		itemKeyOf: () => "",
+		send: async (ctx) => sendDesignSystem(ctx.send, ctx.state, ctx.unit, ctx.local),
+	},
+	loop: {
+		order: 2,
+		pathOf: (path) => {
+			const [folder, file, ...rest] = path.split("/");
+			const key = folder === "loops" && rest.length === 0 ? withoutSuffix(file ?? "", ".json") : null;
+			return key && SAFE_NAME.test(key) ? { key, describe: `Loop ${key}` } : null;
+		},
+		itemKeyOf: (item) => as("loop", item).name,
+		send: async (ctx, key) => {
+			const path = `loops/${key}.json`;
+			const { source, query, fields } = parseJson(path, ctx.local.get(path));
+			const item = ctx.unit.item;
+			if (item) await ctx.send("loops/saveDraft", { loopId: as("loop", item).id, source, query, fields });
+			else await ctx.send("loops/create", { name: key, source, query, fields });
+		},
+	},
+	component: {
+		order: 3,
+		pathOf: (path) => {
+			const [folder, file, ...rest] = path.split("/");
+			const key =
+				folder !== "components" || rest.length > 0
+					? null
+					: (withoutSuffix(file ?? "", ".wc.html") ?? withoutSuffix(file ?? "", ".json"));
+			return key && SAFE_NAME.test(key) ? { key, describe: `Component ${key}` } : null;
+		},
+		itemKeyOf: (item) => as("component", item).name,
+		send: async (ctx, key) => {
+			const markupPath = `components/${key}.wc.html`;
+			const propsPath = `components/${key}.json`;
+			const markup = ctx.local.get(markupPath);
+			const props = ctx.local.has(propsPath) ? parseJson(propsPath, ctx.local.get(propsPath)).props : undefined;
+			const item = ctx.unit.item;
+			if (item) {
+				const component = as("component", item);
+				const basedOn = ctx.force
+					? undefined
+					: (ctx.manifest.files[markupPath]?.version ?? ctx.manifest.files[propsPath]?.version);
+				await ctx.send("components/saveMarkup", {
+					componentId: component.id,
+					markup: markupOf(markup ?? ctx.state.files.get(markupPath) ?? ""),
+					...(props === undefined ? {} : { props }),
+					...(basedOn === undefined ? {} : { basedOn }),
+				});
+			} else {
+				const created = (await ctx.send("components/create", {
+					name: key,
+					...(props === undefined ? {} : { props }),
+				})) as { component: { id: string } };
+				if (markup !== undefined) {
+					await ctx.send("components/saveMarkup", { componentId: created.component.id, markup: markupOf(markup) });
+				}
+			}
+		},
+	},
+	template: {
+		order: 4,
+		pathOf: (path) => {
+			const parts = path.split("/");
+			if (parts[0] !== "templates") return null;
+			if (parts.length === 2) {
+				const kind = withoutSuffix(parts[1] ?? "", ".wc.html");
+				if (kind === "site") return { key: "site", describe: "the Site template" };
+				if (kind === "search") return { key: "search", describe: "the Search results template" };
+				return null;
+			}
+			if (parts.length === 3 && (parts[1] === "entry" || parts[1] === "archive")) {
+				const key = withoutSuffix(parts[2] ?? "", ".wc.html");
+				return key && SAFE_NAME.test(key)
+					? {
+							key: `${parts[1]}:${key}`,
+							describe: `the ${parts[1] === "entry" ? "Entry" : "Archive"} template of ${key}`,
+						}
+					: null;
+			}
+			return null;
+		},
+		itemKeyOf: (raw) => {
+			const item = as("template", raw);
+			return item.postType ? `${item.template}:${item.postType.key}` : item.template;
+		},
+		send: async (ctx, key) => {
+			const [template, postTypeKey] = key.split(":");
+			const path = postTypeKey ? `templates/${template}/${postTypeKey}.wc.html` : `templates/${template}.wc.html`;
+			const markup = markupOf(ctx.local.get(path) ?? "");
+			const base = ctx.manifest.files[path];
+			const basedOn = ctx.force ? undefined : base ? (base.version ?? null) : null;
+			const item = ctx.unit.item;
+			const postTypeOnInstall = ctx.state.items.find((each) => each.kind === "postType" && each.key === postTypeKey);
+			const postTypeId = item
+				? as("template", item).postType?.id
+				: postTypeOnInstall?.kind === "postType"
+					? postTypeOnInstall.id
+					: undefined;
+			if (postTypeKey && !postTypeId) {
+				throw new CliError(
+					EXIT.usage,
+					`${path}: there is no Post Type ${postTypeKey} on the Install. Add post-types/${postTypeKey}.json too.`,
+				);
+			}
+			const input = { markup, ...(basedOn === undefined ? {} : { basedOn }) };
+			if (template === "site") await ctx.send("templates/saveSiteTemplateMarkup", input);
+			else if (template === "search") await ctx.send("templates/saveSearchTemplateMarkup", input);
+			else if (template === "entry") await ctx.send("templates/saveEntryTemplateMarkup", { postTypeId, ...input });
+			else await ctx.send("templates/saveArchiveTemplateMarkup", { postTypeId, ...input });
+		},
+	},
+	form: {
+		order: 6,
+		pathOf: (path) => {
+			const [folder, file, ...rest] = path.split("/");
+			const key = folder === "forms" && rest.length === 0 ? withoutSuffix(file ?? "", ".json") : null;
+			return key && SAFE_NAME.test(key) ? { key, describe: `Form ${key}` } : null;
+		},
+		itemKeyOf: (item) => as("form", item).key,
+		send: async (ctx, key) => {
+			const path = `forms/${key}.json`;
+			const { name: title, ...form } = parseJson(path, ctx.local.get(path));
+			const item = ctx.unit.item ? as("form", ctx.unit.item) : null;
+			let formId: string;
+			if (!item) {
+				const created = (await ctx.send("forms/create", {
+					name: typeof title === "string" ? title : key,
+					key,
+				})) as { form: { id: string } };
+				formId = created.form.id;
+			} else {
+				formId = item.id;
+				if (typeof title === "string" && title !== item.name) await ctx.send("forms/rename", { formId, name: title });
+			}
+			await ctx.send("forms/saveDraft", { formId, form });
+		},
+	},
+	filter: {
+		order: 7,
+		pathOf: (path) => {
+			const [folder, file, ...rest] = path.split("/");
+			const key = folder === "filters" && rest.length === 0 ? withoutSuffix(file ?? "", ".json") : null;
+			return key && SAFE_NAME.test(key) ? { key, describe: `Filter ${key}` } : null;
+		},
+		itemKeyOf: (item) => as("filter", item).name,
+		send: async (ctx, key) => {
+			const path = `filters/${key}.json`;
+			const { loop, ...draft } = parseJson(path, ctx.local.get(path));
+			const item = ctx.unit.item;
+			if (item) {
+				const filter = as("filter", item);
+				const before = ctx.state.files.get(path);
+				if (before && JSON.parse(before).loop !== loop) {
+					throw new CliError(
+						EXIT.usage,
+						`${path}: a Filter's Loop can't change. Make a new Filter for the other Loop.`,
+					);
+				}
+				await ctx.send("filters/saveDraft", { filterId: filter.id, ...draft });
+			} else await ctx.send("filters/create", { name: key, loop, ...draft });
+		},
+	},
+};
+
 /** The unit a file belongs to, by its path. */
 function unitOf(path: string): { key: string; order: number; describe: string } | null {
-	const parts = path.split("/");
-	const name = (file: string, suffix: string) => (file.endsWith(suffix) ? file.slice(0, -suffix.length) : null);
-	if (parts[0] === "post-types" && parts.length === 2) {
-		const key = name(parts[1] ?? "", ".json");
-		return key && SAFE_NAME.test(key) ? { key: `postType:${key}`, order: 0, describe: `Post Type ${key}` } : null;
-	}
-	if (parts[0] === "design-system") return { key: "designSystem", order: 1, describe: "the Design system" };
-	if (parts[0] === "loops" && parts.length === 2) {
-		const loop = name(parts[1] ?? "", ".json");
-		return loop && SAFE_NAME.test(loop) ? { key: `loop:${loop}`, order: 2, describe: `Loop ${loop}` } : null;
-	}
-	if (parts[0] === "components" && parts.length === 2) {
-		const component = name(parts[1] ?? "", ".wc.html") ?? name(parts[1] ?? "", ".json");
-		return component && SAFE_NAME.test(component)
-			? { key: `component:${component}`, order: 3, describe: `Component ${component}` }
-			: null;
-	}
-	if (parts[0] === "templates") {
-		if (parts.length === 2) {
-			const kind = name(parts[1] ?? "", ".wc.html");
-			if (kind === "site" || kind === "search") {
-				return {
-					key: `template:${kind}`,
-					order: 4,
-					describe: kind === "site" ? "the Site template" : "the Search results template",
-				};
-			}
-		}
-		if (parts.length === 3 && (parts[1] === "entry" || parts[1] === "archive")) {
-			const key = name(parts[2] ?? "", ".wc.html");
-			if (key && SAFE_NAME.test(key)) {
-				return {
-					key: `template:${parts[1]}:${key}`,
-					order: 5,
-					describe: `the ${parts[1] === "entry" ? "Entry" : "Archive"} template of ${key}`,
-				};
-			}
-		}
-		return null;
-	}
-	if (parts[0] === "forms" && parts.length === 2) {
-		const key = name(parts[1] ?? "", ".json");
-		return key && SAFE_NAME.test(key) ? { key: `form:${key}`, order: 6, describe: `Form ${key}` } : null;
-	}
-	if (parts[0] === "filters" && parts.length === 2) {
-		const filter = name(parts[1] ?? "", ".json");
-		return filter && SAFE_NAME.test(filter)
-			? { key: `filter:${filter}`, order: 7, describe: `Filter ${filter}` }
-			: null;
+	for (const [kind, entry] of Object.entries(KINDS) as [StructureItem["kind"], Kind][]) {
+		const found = entry.pathOf(path);
+		if (found) return { key: found.key ? `${kind}:${found.key}` : kind, order: entry.order, describe: found.describe };
 	}
 	return null;
 }
 
 function itemKey(item: StructureItem): string {
-	switch (item.kind) {
-		case "template":
-			return item.postType ? `template:${item.template}:${item.postType.key}` : `template:${item.template}`;
-		case "component":
-			return `component:${item.name}`;
-		case "designSystem":
-			return "designSystem";
-		case "postType":
-			return `postType:${item.key}`;
-		case "loop":
-			return `loop:${item.name}`;
-		case "form":
-			return `form:${item.key}`;
-		case "filter":
-			return `filter:${item.name}`;
-	}
+	const suffix = KINDS[item.kind].itemKeyOf(item);
+	return suffix ? `${item.kind}:${suffix}` : item.kind;
 }
 
 function itemOfPath(items: StructureItem[], path: string): StructureItem | null {
@@ -497,7 +662,7 @@ function parseJson(path: string, text: string | undefined): Record<string, unkno
 	throw new CliError(EXIT.usage, `${path} isn't a JSON object. Nothing more was sent.`);
 }
 
-/** Saves one unit's change on the Install, as a Draft (a Post Type applies at once). */
+/** Saves one unit's change on the Install, as a Draft (a Post Type applies at once), through `KINDS`. */
 async function sendUnit(
 	connection: Connection,
 	manifest: Manifest,
@@ -509,101 +674,8 @@ async function sendUnit(
 	const siteId = manifest.site.id;
 	const send = (path: string, input: Record<string, unknown>) =>
 		call(connection, { path, files: [] }, { siteId, ...input }) as Promise<Record<string, unknown>>;
-	const [kind, ...rest] = unit.key.split(":");
-	const name = rest.join(":");
-	const item = unit.item;
-
-	if (kind === "postType") {
-		const path = `post-types/${name}.json`;
-		const file = parseJson(path, local.get(path));
-		if (item?.kind === "postType") await send("postTypes/update", { postTypeId: item.id, ...file });
-		else await send("postTypes/create", { key: name, ...file });
-		return;
-	}
-	if (kind === "loop") {
-		const path = `loops/${name}.json`;
-		const { source, query, fields } = parseJson(path, local.get(path));
-		if (item?.kind === "loop") await send("loops/saveDraft", { loopId: item.id, source, query, fields });
-		else await send("loops/create", { name, source, query, fields });
-		return;
-	}
-	if (kind === "form") {
-		const path = `forms/${name}.json`;
-		const { name: title, ...form } = parseJson(path, local.get(path));
-		let formId = item?.kind === "form" ? item.id : null;
-		if (!formId) {
-			const created = (await send("forms/create", { name: typeof title === "string" ? title : name, key: name })) as {
-				form: { id: string };
-			};
-			formId = created.form.id;
-		} else if (item?.kind === "form" && typeof title === "string" && title !== item.name) {
-			await send("forms/rename", { formId, name: title });
-		}
-		await send("forms/saveDraft", { formId, form });
-		return;
-	}
-	if (kind === "filter") {
-		const path = `filters/${name}.json`;
-		const { loop, ...draft } = parseJson(path, local.get(path));
-		if (item?.kind === "filter") {
-			const before = state.files.get(path);
-			if (before && JSON.parse(before).loop !== loop) {
-				throw new CliError(EXIT.usage, `${path}: a Filter's Loop can't change. Make a new Filter for the other Loop.`);
-			}
-			await send("filters/saveDraft", { filterId: item.id, ...draft });
-		} else await send("filters/create", { name, loop, ...draft });
-		return;
-	}
-	if (kind === "component") {
-		const markupPath = `components/${name}.wc.html`;
-		const propsPath = `components/${name}.json`;
-		const markup = local.get(markupPath);
-		const props = local.has(propsPath) ? parseJson(propsPath, local.get(propsPath)).props : undefined;
-		if (item?.kind === "component") {
-			const basedOn = force ? undefined : (manifest.files[markupPath]?.version ?? manifest.files[propsPath]?.version);
-			await send("components/saveMarkup", {
-				componentId: item.id,
-				markup: markupOf(markup ?? state.files.get(markupPath) ?? ""),
-				...(props === undefined ? {} : { props }),
-				...(basedOn === undefined ? {} : { basedOn }),
-			});
-		} else {
-			const created = (await send("components/create", { name, ...(props === undefined ? {} : { props }) })) as {
-				component: { id: string };
-			};
-			if (markup !== undefined) {
-				await send("components/saveMarkup", { componentId: created.component.id, markup: markupOf(markup) });
-			}
-		}
-		return;
-	}
-	if (kind === "template") {
-		const [template, postTypeKey] = rest;
-		const path = postTypeKey ? `templates/${template}/${postTypeKey}.wc.html` : `templates/${template}.wc.html`;
-		const markup = markupOf(local.get(path) ?? "");
-		const base = manifest.files[path];
-		const basedOn = force ? undefined : base ? (base.version ?? null) : null;
-		const postTypeOnInstall = state.items.find((each) => each.kind === "postType" && each.key === postTypeKey);
-		const postTypeId =
-			item?.kind === "template"
-				? item.postType?.id
-				: postTypeOnInstall?.kind === "postType"
-					? postTypeOnInstall.id
-					: undefined;
-		if (postTypeKey && !postTypeId) {
-			throw new CliError(
-				EXIT.usage,
-				`${path}: there is no Post Type ${postTypeKey} on the Install. Add post-types/${postTypeKey}.json too.`,
-			);
-		}
-		const input = { markup, ...(basedOn === undefined ? {} : { basedOn }) };
-		if (template === "site") await send("templates/saveSiteTemplateMarkup", input);
-		else if (template === "search") await send("templates/saveSearchTemplateMarkup", input);
-		else if (template === "entry") await send("templates/saveEntryTemplateMarkup", { postTypeId, ...input });
-		else await send("templates/saveArchiveTemplateMarkup", { postTypeId, ...input });
-		return;
-	}
-	if (kind === "designSystem") await sendDesignSystem(send, state, unit, local);
+	const [kind, ...rest] = unit.key.split(":") as [StructureItem["kind"], ...string[]];
+	await KINDS[kind].send({ manifest, state, unit, local, force, send }, rest.join(":"));
 }
 
 /** The Design system's changed files as one Draft save (tokens imported first, as their own step). */
