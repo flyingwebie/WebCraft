@@ -1,0 +1,134 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "8703c84c-74f1-4d89-85ae-57fc31be2be3",
+  "prevIds": [
+    "6062e147-68f3-40e5-b101-575c3934ee9c"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "reviews",
+        "schedule_id"
+      ],
+      "writes": [
+        "s|col|public.reviews.schedule_id",
+        "n|col|public.reviews.schedule_id",
+        "e|col|public.reviews.schedule_id"
+      ],
+      "reads": [
+        "n|tbl|public.reviews",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "reviews",
+        "reviews_schedule_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.reviews_schedule_id_idx",
+        "n|idx|public.reviews_schedule_id_idx",
+        "e|idx|public.reviews_schedule_id_idx",
+        "n|rel|public.reviews_schedule_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.reviews",
+        "n|sch|public",
+        "n|col|public.reviews.schedule_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "reviews"
+      ],
+      "writes": [
+        "s|fk|public.reviews.reviews_schedule_fkey",
+        "n|fk|public.reviews.reviews_schedule_fkey",
+        "e|fk|public.reviews.reviews_schedule_fkey",
+        "n|con|public.reviews.reviews_schedule_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.reviews",
+        "n|sch|public",
+        "n|tbl|public.scheduled_publishes",
+        "n|sch|public",
+        "n|col|public.reviews.schedule_id",
+        "n|col|public.scheduled_publishes.id",
+        "e|uniqueness|public.scheduled_publishes.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "reviews",
+        "name": "schedule_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "reviews",
+        "name": "reviews_schedule_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "schedule_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "reviews",
+        "name": "reviews_schedule_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "schedule_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "scheduled_publishes",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    }
+  ]
+}

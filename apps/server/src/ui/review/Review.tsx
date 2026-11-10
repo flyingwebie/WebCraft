@@ -1,5 +1,6 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
+import { REVIEW_LIMITS } from "@webcraft/core/field-rules";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
@@ -29,10 +30,6 @@ export type ReviewView = Awaited<ReturnType<ApiClient["reviews"]["get"]>>["revie
 
 /** What can be reviewed: an Entry, the Globals or the Consent banner's words. */
 export type ReviewItem = ReviewView["item"];
-
-/** How long an Author's note and a reviewer's comment may be (as the API takes them). */
-const NOTE_MAX = 2000;
-const COMMENT_MAX = 5000;
 
 /** The error codes that mean the Draft has problems to fix before it can be submitted. */
 const PROBLEM_CODES = [
@@ -118,7 +115,7 @@ export function SubmitForReview({
 						<Textarea
 							id={`${id}-note`}
 							value={note}
-							maxLength={NOTE_MAX}
+							maxLength={REVIEW_LIMITS.noteMax}
 							aria-describedby={`${id}-note-help`}
 							onChange={(event) => setNote(event.target.value)}
 						/>
@@ -206,7 +203,7 @@ export function SendBackDialog({
 						id={`${id}-comment`}
 						value={comment}
 						required
-						maxLength={COMMENT_MAX}
+						maxLength={REVIEW_LIMITS.commentMax}
 						aria-invalid={missing ? true : undefined}
 						aria-describedby={missing ? `${id}-comment-missing` : undefined}
 						onChange={(event) => {
