@@ -5,6 +5,7 @@ import {
 	markdownLink,
 	markdownUrl,
 	richTextToText,
+	schemeOf,
 	storedBlocks,
 } from "@webcraft/renderer";
 
@@ -121,13 +122,15 @@ async function resolver(
 	languages: Languages,
 	address: string,
 ): Promise<Resolve> {
-	const origin = new URL(address).origin;
 	const mediaIds: string[] = [];
 	const entryIds: string[] = [];
 	collect(postType.fields, values, mediaIds, entryIds);
 	const files = await pageMedia(list.scope, mediaIds, languages);
 	const related = await relatedEntries(list.scope, postTypes, entryIds, languages);
-	const absolute = (url: string) => (url.startsWith("/") ? `${origin}${url}` : url);
+	// A link with no scheme (a bare relative path included) is completed against the page's own
+	// absolute address, browser style; one with a scheme is left as it is (unsafe schemes are refused
+	// where links are stored, `isSafeUrl` in `field-types.ts`).
+	const absolute = (url: string) => (schemeOf(url) === undefined ? new URL(url, address).href : url);
 	return {
 		link: (url) => (url.startsWith("#") ? `${address}${url}` : absolute(url)),
 		image(mediaId) {

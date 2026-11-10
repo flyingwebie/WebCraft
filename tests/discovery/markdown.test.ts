@@ -229,6 +229,22 @@ describe("a copy", () => {
 		);
 	});
 
+	test("resolves a link with no scheme against the page's own address, as a browser would", async () => {
+		const site = await newSite();
+		await published(site, site.recipesId, {
+			title: "Bread",
+			fields: {
+				source: { url: "about", text: "About us" },
+				body: [{ type: "paragraph", text: [{ text: "the team", link: "../team" }] }],
+			},
+		});
+
+		const { text } = await copy(`${site.origin}/recipes/bread.md`);
+
+		expect(text).toContain(`- **Source:** [About us](${site.origin}/recipes/about)`);
+		expect(text).toContain(`[the team](${site.origin}/team)`);
+	});
+
 	test("shows Media images at their absolute address with their alt text in the page's language", async () => {
 		const site = await newSite();
 		const bytes = await photo({ width: 800, height: 600, format: "jpeg" });
