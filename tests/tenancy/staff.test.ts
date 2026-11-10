@@ -273,7 +273,7 @@ describe("a Staff invite to an address that got an account meanwhile", () => {
 });
 
 describe("the Staff list", () => {
-	test("shows Staff with the Workspaces they reach, and pending invites", async () => {
+	test("shows Staff with the Workspaces they reach and their second factors, and pending invites", async () => {
 		await admin.api.staff.invite({ email: "pending@agency.example", workspaces: [nimbus.id] });
 
 		const { staff, invites } = await admin.api.staff.list();
@@ -284,6 +284,7 @@ describe("the Staff list", () => {
 			email: "tom@agency.example",
 			workspaces: [nimbus],
 			since: expect.any(Date),
+			twoFactor: [],
 		});
 		expect(staff).toContainEqual(expect.objectContaining({ name: "Alex Everywhere", workspaces: "all" }));
 		expect(staff.map((person) => person.email)).not.toContain(superadmin.email);

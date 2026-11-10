@@ -69,7 +69,8 @@ export const SYSTEM_EMAIL_TYPES = {
 	},
 	"two-factor-reset": {
 		category: "security",
-		data: z.object({ resetBy: name }),
+		// Null: reset from the server, with `webcraft admin reset-2fa`.
+		data: z.object({ resetBy: name.nullable() }),
 	},
 	"two-factor-changed": {
 		category: "security",

@@ -127,7 +127,7 @@ export function EntryEditor({
 			setEntry(fresh);
 		},
 	});
-	const { shared } = coEdited;
+	const { shared, autosave, locked } = coEdited;
 	const values = coEdited.values as {
 		title: string;
 		slug: string;
@@ -135,12 +135,7 @@ export function EntryEditor({
 		fields: FieldValues;
 		seo: SeoValues;
 	};
-	const autosave = {
-		status: shared.status === "saved" ? "saved" : shared.status === "saving" ? "saving" : "waiting",
-		flush: shared.flush,
-	} as const;
 	const tracking = usePlaceTracking(shared.place);
-	const locked = shared.status === "readOnly" || shared.status === "ended" || !shared.editable;
 
 	const change = (part: EntryChange) => {
 		setRefused([]);

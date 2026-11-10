@@ -25,6 +25,8 @@ export type InstallMediaSettings = {
 export type InstallSecuritySettings = {
 	/** Whether new passwords are checked against leaked-password lists. */
 	leakedPasswordCheck: boolean;
+	/** Whether everyone on the Install must use two-factor authentication. */
+	requireTwoFactor: boolean;
 };
 
 export type InstallSettings = {
@@ -76,7 +78,7 @@ export async function writeSettingsRow(
 export function createInstallSettings(database: Database): InstallSettings {
 	const security = async (): Promise<InstallSecuritySettings> => {
 		const row = await readSettingsRow(database.db);
-		return { leakedPasswordCheck: row?.leakedPasswordCheck ?? true };
+		return { leakedPasswordCheck: row?.leakedPasswordCheck ?? true, requireTwoFactor: row?.requireTwoFactor ?? false };
 	};
 	const read = async (): Promise<InstallSettingsValues> => {
 		const row = await readSettingsRow(database.db);

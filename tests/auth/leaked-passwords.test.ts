@@ -103,13 +103,13 @@ describe("the leaked-password check", () => {
 describe("switching the leaked-password check", () => {
 	test("is on unless the Superadmin switches it off; then nothing is looked up", async () => {
 		const admin = await install.superadmin();
-		expect(await admin.api.install.security.get()).toEqual({ leakedPasswordCheck: true });
+		expect(await admin.api.install.security.get()).toEqual({ leakedPasswordCheck: true, requireTwoFactor: false });
 		install.http.respond("GET", RANGE, { body: rangeListing(LEAKED, 52_579) });
 
 		await admin.api.session.confirmIdentity({ password: "a long enough test password" });
 		await admin.api.install.security.update({ leakedPasswordCheck: false });
 
-		expect(await admin.api.install.security.get()).toEqual({ leakedPasswordCheck: false });
+		expect(await admin.api.install.security.get()).toEqual({ leakedPasswordCheck: false, requireTwoFactor: false });
 		await expect(changePassword(LEAKED)).resolves.toBeUndefined();
 		expect(install.http.requests).toEqual([]);
 

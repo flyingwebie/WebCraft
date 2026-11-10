@@ -1,10 +1,16 @@
 import { ORPCError } from "@orpc/server";
 import {
 	AccountLockedError,
+	AuthenticatorExistsError,
 	EmailInUseError,
 	InvalidCredentialsError,
 	InvalidEmailError,
+	PasskeyInvalidError,
 	PasswordRefusedError,
+	SecondFactorNotFoundError,
+	SignInExpiredError,
+	TwoFactorCodeInvalidError,
+	TwoFactorOffError,
 } from "@webcraft/auth";
 import {
 	AccessNotHeldError,
@@ -153,6 +159,8 @@ import {
 	TooManyWebhooksError,
 	TranslationLanguageError,
 	TranslationNotFoundError,
+	TwoFactorRequiredError,
+	TwoFactorSetupRequiredError,
 	WebhookDeliveryNotFoundError,
 	WebhookInvalidError,
 	WebhookNotFoundError,
@@ -1023,6 +1031,39 @@ export function toApiError(error: unknown): unknown {
 			data: { retryAfterSeconds: error.retryAfterSeconds },
 			cause: error,
 		});
+	}
+	if (error instanceof TwoFactorCodeInvalidError) {
+		return new ORPCError("TWO_FACTOR_CODE_INVALID", {
+			// While setting up an app a wrong code is a mistake to correct; elsewhere it is a refused sign-in.
+			status: error.during === "setup" ? 400 : 401,
+			message: error.message,
+			cause: error,
+		});
+	}
+	if (error instanceof PasskeyInvalidError) {
+		return new ORPCError("PASSKEY_INVALID", {
+			status: error.during === "setup" ? 400 : 401,
+			message: error.message,
+			cause: error,
+		});
+	}
+	if (error instanceof SignInExpiredError) {
+		return new ORPCError("SIGN_IN_EXPIRED", { status: 401, message: error.message, cause: error });
+	}
+	if (error instanceof AuthenticatorExistsError) {
+		return new ORPCError("AUTHENTICATOR_EXISTS", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof SecondFactorNotFoundError) {
+		return new ORPCError("TWO_FACTOR_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof TwoFactorOffError) {
+		return new ORPCError("TWO_FACTOR_OFF", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof TwoFactorRequiredError) {
+		return new ORPCError("TWO_FACTOR_REQUIRED", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof TwoFactorSetupRequiredError) {
+		return new ORPCError("TWO_FACTOR_SETUP_REQUIRED", { status: 403, message: error.message, cause: error });
 	}
 	if (error instanceof AccountLockedError) {
 		return new ORPCError("ACCOUNT_LOCKED", {

@@ -147,6 +147,7 @@ export {
 	type OpenInstallOptions,
 	openInstall,
 	openInstallForCommand,
+	openInstallForCommandSendingJobs,
 } from "./install.ts";
 export {
 	INSTALL_NAME_MAX_LENGTH,
@@ -381,6 +382,14 @@ export {
 	toolsetModule,
 } from "./toolsets.ts";
 export * from "./translation/index.ts";
+export {
+	TWO_FACTOR_REMINDER_PAUSE_MS,
+	type TwoFactor,
+	TwoFactorRequiredError,
+	TwoFactorSetupRequiredError,
+	type TwoFactorStatus,
+	type WorkspaceTwoFactor,
+} from "./two-factor/index.ts";
 export {
 	type Release,
 	UPDATE_CHECK_INTERVAL_MS,

@@ -12,6 +12,43 @@ export const password = z.string().max(4096);
 
 export const adminLanguage = z.enum(ADMIN_LANGUAGE_CODES);
 
+/** A code from an authenticator app: 6 digits, spaces between them allowed (some apps group them). */
+export const authenticatorCode = z.string().regex(/^\s*(\d\s*){6}$/, "Enter the 6 digits the app shows.");
+
+const base64url = (max: number) =>
+	z
+		.string()
+		.max(max)
+		.regex(/^[A-Za-z0-9_-]*$/, "Not base64url.");
+
+/** A new passkey, as the browser's `PublicKeyCredential.toJSON()` gives it after `navigator.credentials.create`. */
+export const registrationCredential = z.object({
+	id: base64url(1400),
+	rawId: base64url(1400),
+	type: z.literal("public-key"),
+	response: z.object({
+		clientDataJSON: base64url(4096),
+		attestationObject: base64url(65536),
+		transports: z.array(z.string().max(32)).max(10).optional(),
+	}),
+});
+
+/** A passkey's answer, as the browser's `PublicKeyCredential.toJSON()` gives it after `navigator.credentials.get`. */
+export const assertionCredential = z.object({
+	id: base64url(1400),
+	rawId: base64url(1400),
+	type: z.literal("public-key"),
+	response: z.object({
+		clientDataJSON: base64url(4096),
+		authenticatorData: base64url(4096),
+		signature: base64url(2048),
+		userHandle: base64url(256).nullish(),
+	}),
+});
+
+/** A code given at sign-in: an authenticator app's, or a backup code. A wrong one counts as a wrong attempt. */
+export const signInCode = z.string().min(1).max(64);
+
 /** The id of a Workspace, Site, person or invite. */
 export const id = z.uuid();
 

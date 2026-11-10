@@ -118,7 +118,12 @@ export async function openDraftInEditMode(edit: EditModeBrowser, item: DraftItem
 	return editorOver(() => upgradeDraftInEditMode(edit, item));
 }
 
-async function editorOver(upgrade: () => Promise<UpgradeAnswer>): Promise<TestEditor> {
+/**
+ * Opens an editor over any upgrade that answers it (an admin or Edit mode session's, or
+ * `install.openDraftWithAccess`'s, for access no real session can give): the same client the admin
+ * uses, so `change`, `saved`, `refusals` and the rest work exactly as they do for `openDraft`.
+ */
+export async function editorOver(upgrade: () => Promise<UpgradeAnswer>): Promise<TestEditor> {
 	const messages: ServerMessage[] = [];
 	const refusals: DraftRefused[] = [];
 	let closedWith: { code: number; reason: string } | null = null;

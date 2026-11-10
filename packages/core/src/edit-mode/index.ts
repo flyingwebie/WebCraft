@@ -108,6 +108,11 @@ export function createEditMode(options: {
 	auth: Pick<Auth, "activeSession">;
 	data: DataLayer;
 	actors: { person(personId: string): Promise<PersonActor> };
+	/**
+	 * Whether the person must set up two-factor authentication before anything else: their admin
+	 * session then reaches nothing here either.
+	 */
+	mustSetUpTwoFactor(personId: string): Promise<boolean>;
 	/** Signs header tokens (HMAC-SHA256), derived from the Master key. */
 	signingKey: CryptoKey;
 	/** What a page shows from the content store (`SitePages.pageContent`). */
@@ -188,6 +193,7 @@ export function createEditMode(options: {
 			if (!link) return null;
 			const adminSession = await auth.activeSession(link.adminSessionId);
 			if (adminSession?.personId !== link.personId) return null;
+			if (await options.mustSetUpTwoFactor(link.personId)) return null;
 			const opened = await openSite(link.personId, host.site);
 			if (!opened) return null;
 			const cookie = newToken();
@@ -222,6 +228,7 @@ export function createEditMode(options: {
 			if (row.expiresAt.getTime() <= clock.now().getTime()) return ended();
 			const adminSession = await auth.activeSession(row.adminSessionId);
 			if (adminSession?.personId !== row.personId) return ended();
+			if (await options.mustSetUpTwoFactor(row.personId)) return ended();
 			const opened = await openSite(row.personId, host.site);
 			if (!opened) return ended();
 			return {

@@ -23,21 +23,28 @@ export const Route = createFileRoute("/_admin/settings/security")({
 	component: SecuritySettingsPage,
 });
 
-/** Install settings › Security: how the Install checks people's passwords. */
+/** Install settings › Security: how the Install checks people's passwords, and whether everyone must use two-factor authentication. */
 function SecuritySettingsPage() {
 	const t = useT();
 	const { security } = Route.useLoaderData();
 	if (!security) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
-	return <SecuritySettingsForm leakedPasswordCheck={security.leakedPasswordCheck} />;
+	return <SecuritySettingsForm saved={security} />;
 }
 
-function SecuritySettingsForm(props: { leakedPasswordCheck: boolean }) {
+/**
+ * One form, one Save: each setting that changed goes to its own procedure, each a Sensitive action.
+ * Requiring two-factor authentication needs the Superadmin's own second factor first.
+ */
+function SecuritySettingsForm({ saved }: { saved: { leakedPasswordCheck: boolean; requireTwoFactor: boolean } }) {
 	const t = useT();
 	const router = useRouter();
 	const runSensitive = useSensitiveAction();
-	const [leakedPasswordCheck, setLeakedPasswordCheck] = useState(props.leakedPasswordCheck);
+	const { shell } = Route.useRouteContext();
+	const [leakedPasswordCheck, setLeakedPasswordCheck] = useState(saved.leakedPasswordCheck);
+	const [requireTwoFactor, setRequireTwoFactor] = useState(saved.requireTwoFactor);
 	const [error, setError] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
+	const ownOff = shell.twoFactor?.on !== true;
 
 	const submit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -46,7 +53,12 @@ function SecuritySettingsForm(props: { leakedPasswordCheck: boolean }) {
 		try {
 			const api = await getApi();
 			// A Sensitive action: switching the check changes how every password is checked.
-			await runSensitive(() => api.install.security.update({ leakedPasswordCheck }));
+			if (leakedPasswordCheck !== saved.leakedPasswordCheck) {
+				await runSensitive(() => api.install.security.update({ leakedPasswordCheck }));
+			}
+			if (requireTwoFactor !== saved.requireTwoFactor) {
+				await runSensitive(() => api.install.security.requireTwoFactor({ required: requireTwoFactor }));
+			}
 			toast.success(t("securitySettings.saved"));
 			await router.invalidate();
 		} catch (failure) {
@@ -73,6 +85,22 @@ function SecuritySettingsForm(props: { leakedPasswordCheck: boolean }) {
 							<span className="font-medium">{t("securitySettings.leakedPasswordCheck")}</span>
 							<span id="leaked-password-check-help" className="text-muted-foreground">
 								{t("securitySettings.leakedPasswordCheckHelp")}
+							</span>
+						</span>
+					</label>
+					<label className="flex items-start gap-3 text-sm">
+						<input
+							type="checkbox"
+							checked={requireTwoFactor}
+							onChange={(event) => setRequireTwoFactor(event.target.checked)}
+							aria-describedby="require-two-factor-help"
+							className="accent-primary mt-0.5 size-4 shrink-0"
+						/>
+						<span className="flex flex-col gap-1">
+							<span className="font-medium">{t("securitySettings.requireTwoFactor")}</span>
+							<span id="require-two-factor-help" className="text-muted-foreground">
+								{t("securitySettings.requireTwoFactorHelp")}
+								{ownOff && !saved.requireTwoFactor ? ` ${t("securitySettings.requireTwoFactorOwnFirst")}` : ""}
 							</span>
 						</span>
 					</label>

@@ -31,4 +31,5 @@ export * from "./seo.ts";
 export * from "./site-scripts.ts";
 export * from "./staging.ts";
 export * from "./tenancy.ts";
+export * from "./two-factor.ts";
 export * from "./webhooks.ts";

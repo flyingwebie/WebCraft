@@ -86,16 +86,10 @@ export const withPerson = base.middleware(async ({ context, next }) => {
 });
 
 /**
- * Procedures for signed-in people, in the admin or through an API token: refuses everyone else with
- * `UNAUTHORIZED`. Gives the procedure `context.access`, the person (or their token) as `can()` sees
- * them and how they came in, which opens the data layer:
- *
- *     const workspace = await context.services.data.workspace(context.access, input.workspaceId, "site.create");
- *
- * `context.session` is the admin session, null for a token: procedures that need one (a person's
- * own sessions, confirming who they are) start from `inAdminSession` instead.
+ * Signed-in people, before the check that someone who must use two-factor authentication has it:
+ * only for what they need to add it. Everything else starts from `signedIn`.
  */
-export const signedIn = procedure.use(withPerson).use(async ({ context, next }) => {
+export const signedInBeforeTwoFactor = procedure.use(withPerson).use(async ({ context, next }) => {
 	const { person, session, client } = context;
 	if (client && person) return next({ context: { person, session: null as Session | null, access: client.access } });
 	if (!person || !session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
@@ -104,8 +98,37 @@ export const signedIn = procedure.use(withPerson).use(async ({ context, next }) 
 	return next({ context: { person, session: session as Session | null, access } });
 });
 
+/**
+ * Procedures for signed-in people, in the admin or through an API token: refuses everyone else with
+ * `UNAUTHORIZED`. Gives the procedure `context.access`, the person (or their token) as `can()` sees
+ * them and how they came in, which opens the data layer:
+ *
+ *     const workspace = await context.services.data.workspace(context.access, input.workspaceId, "site.create");
+ *
+ * A person in the admin who must use two-factor authentication and has none yet is refused
+ * everything here (`TWO_FACTOR_SETUP_REQUIRED`) until they add it: the few procedures they need for
+ * that start from `signedInBeforeTwoFactor` instead.
+ *
+ * `context.session` is the admin session, null for a token: procedures that need one (a person's
+ * own sessions, confirming who they are) start from `inAdminSession` instead.
+ */
+export const signedIn = signedInBeforeTwoFactor.use(async ({ context, next }) => {
+	if (context.session) await context.services.twoFactor.assertSetUpWhenRequired(context.person.id);
+	return next();
+});
+
 /** Procedures for a person in an admin session (never an API token): `context.session` is theirs. */
 export const inAdminSession = signedIn.use(({ context, next }) => {
+	const { session } = context;
+	if (!session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in to the admin first." });
+	return next({ context: { session } });
+});
+
+/**
+ * Procedures for a person in an admin session that stay open while they must still add two-factor
+ * authentication: adding it, and confirming who they are first.
+ */
+export const inAdminSessionBeforeTwoFactor = signedInBeforeTwoFactor.use(({ context, next }) => {
 	const { session } = context;
 	if (!session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in to the admin first." });
 	return next({ context: { session } });

@@ -25,7 +25,7 @@ import {
 } from "@webcraft/ui/components/sheet.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { SendIcon, UserPlusIcon } from "lucide-react";
-import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
@@ -34,6 +34,7 @@ import { formatUtcDate } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { ResetTwoFactorDialog } from "../../ui/two-factor/ResetDialog.tsx";
 
 export const Route = createFileRoute("/_admin/staff")({
 	staticData: { crumb: "staff.pageTitle" },
@@ -86,6 +87,7 @@ function StaffPage() {
 									<TableHead className="ps-4">{t("staff.columns.person")}</TableHead>
 									<TableHead>{t("staff.columns.workspaces")}</TableHead>
 									<TableHead>{t("staff.columns.since")}</TableHead>
+									<TableHead>{t("staff.columns.twoFactor")}</TableHead>
 									<TableHead className="pe-4 text-end">{t("staff.columns.actions")}</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -98,8 +100,16 @@ function StaffPage() {
 										</TableCell>
 										<TableCell className="whitespace-normal">{reach(person.workspaces)}</TableCell>
 										<TableCell className="text-muted-foreground">{formatUtcDate(person.since)}</TableCell>
+										<TableCell>
+											{person.twoFactor.length > 0
+												? person.twoFactor.map((method) => t(`twoFactor.methods.${method}`)).join(", ")
+												: t("twoFactor.methods.none")}
+										</TableCell>
 										<TableCell className="pe-4 text-end">
-											<ChangeWorkspacesSheet person={person} workspaces={workspaces} />
+											<span className="inline-flex flex-wrap justify-end gap-2">
+												{person.twoFactor.length > 0 ? <ResetStaffTwoFactor person={person} /> : null}
+												<ChangeWorkspacesSheet person={person} workspaces={workspaces} />
+											</span>
 										</TableCell>
 									</TableRow>
 								))}
@@ -148,6 +158,33 @@ function StaffPage() {
 					)}
 				</section>
 			</div>
+		</>
+	);
+}
+
+/** "Reset 2FA" for a Staff member who lost their second factors (the Superadmin only). */
+function ResetStaffTwoFactor({ person }: { person: { id: string; name: string } }) {
+	const t = useT();
+	const trigger = useRef<HTMLButtonElement>(null);
+	const [open, setOpen] = useState(false);
+	return (
+		<>
+			<Button
+				ref={trigger}
+				variant="outline"
+				size="sm"
+				onClick={() => setOpen(true)}
+				aria-label={t("twoFactor.reset.menuOf", { name: person.name })}
+			>
+				{t("twoFactor.reset.button")}
+			</Button>
+			<ResetTwoFactorDialog
+				name={person.name}
+				open={open}
+				onOpenChange={setOpen}
+				finalFocus={trigger}
+				reset={async () => (await getApi()).staff.resetTwoFactor({ personId: person.id })}
+			/>
 		</>
 	);
 }

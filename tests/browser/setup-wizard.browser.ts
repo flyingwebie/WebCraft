@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
+import { totpCode } from "../harness/two-factor.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -42,6 +43,16 @@ for (const theme of THEMES) {
 			await page.locator("form button[type=submit]").click();
 			await page.getByRole("heading", { level: 1, name: /two-factor/i }).waitFor();
 			await expectAccessibleScreen(page, `two-factor step (${theme})`);
+
+			// The step really sets it up: an authenticator app, from its key, then the backup codes.
+			await page.getByRole("button", { name: "Set up an authenticator app" }).click();
+			await page.getByRole("img", { name: /QR code adding/ }).waitFor();
+			const key = ((await page.locator("#authenticator-key").textContent()) ?? "").replace(/\s/g, "");
+			await page.locator("#authenticator-code").fill(totpCode(key, new Date()));
+			await page.getByRole("button", { name: "Add app" }).click();
+			await page.getByRole("button", { name: "I've saved them" }).click();
+			await page.getByText("Two-factor authentication is on for your account.").waitFor();
+			await expectAccessibleScreen(page, `two-factor step, set up (${theme})`);
 
 			await page.getByRole("button", { name: "Continue" }).click();
 			await page.getByRole("heading", { level: 1, name: "Set up the Install email" }).waitFor();
