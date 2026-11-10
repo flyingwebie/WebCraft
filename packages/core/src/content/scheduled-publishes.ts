@@ -18,7 +18,7 @@ import { PermissionDeniedError } from "../tenancy/errors.ts";
 import type { ComponentSources } from "./components.ts";
 import { draftVersion } from "./json.ts";
 import { orderForPublish, PublishAllInvalidError, PublishAllRefusedError, siteDrafts } from "./publish-all.ts";
-import { type PublishItem, publishItems, publishPermission } from "./publishing.ts";
+import { type PublishItem, publishItems, publishPermission, requirePublishPermissions } from "./publishing.ts";
 import { type ScheduleAction, type ScheduleKind, scheduledItemId, scheduledItemWhere } from "./scheduled-items.ts";
 import { unpublishEntry } from "./unpublishing.ts";
 
@@ -365,9 +365,7 @@ export async function scheduleAll(
 	sources: ComponentSources,
 ): Promise<ScheduleAllPreview | ScheduleAllDone> {
 	checkScheduleTime(at, scope.now());
-	for (const permission of new Set(items.map(publishPermission))) {
-		if (!can(scope.access.actor, permission, siteResource(scope))) throw new PermissionDeniedError(permission);
-	}
+	requirePublishPermissions(scope, items);
 	const chosen = async (reader: SiteScope) => {
 		const drafts = await siteDrafts(reader);
 		const byKey = new Map(drafts.map((draft) => [itemKey(draft.item), draft]));

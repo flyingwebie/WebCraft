@@ -95,6 +95,18 @@ export function publishPermission(item: Pick<PublishItem, "kind">): Permission {
 	return itemPermission(item.kind, "entry.publish");
 }
 
+/**
+ * Checks the person may publish every one of `items` (`publishPermission`), refusing with the first
+ * Permission they lack (`PermissionDeniedError`): what `publishItems`, Publish all and "Publish all
+ * at…" each open with, before taking any lock.
+ */
+export function requirePublishPermissions(scope: SiteScope, items: readonly Pick<PublishItem, "kind">[]): void {
+	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
+	for (const permission of new Set(items.map(publishPermission))) {
+		if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
+	}
+}
+
 /** Items whose publish can change the Site's stylesheet: what it is built from (element trees' Classes). */
 function changesStyles(item: PublishItem): boolean {
 	return item.kind === "template" || item.kind === "component" || item.kind === "designSystem";
@@ -154,10 +166,7 @@ export async function publishItems(
 	refusal?: (item: PublishItem, error: unknown) => Error,
 	frozen?: FrozenVersions,
 ): Promise<Published[]> {
-	const resource = { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
-	for (const permission of new Set(items.map(publishPermission))) {
-		if (!can(scope.access.actor, permission, resource)) throw new PermissionDeniedError(permission);
-	}
+	requirePublishPermissions(scope, items);
 	return scope.transaction(async (tx) => {
 		// Where Entries and Archive templates are depends on the patterns and the Page tree: held first.
 		if (items.some((item) => item.kind === "entry" || item.kind === "template")) await lockSitePaths(tx);
