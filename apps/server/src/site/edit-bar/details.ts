@@ -1,4 +1,4 @@
-import type { BarKit, DetailsPanel, MediaChoice } from "./kit.ts";
+import type { BarKit, DetailsPanel, MediaChoice, PanelHandle } from "./kit.ts";
 
 /**
  * Page details in Edit mode: a drawer (a bottom sheet on a phone) with the values of the page's Entry
@@ -11,7 +11,7 @@ import type { BarKit, DetailsPanel, MediaChoice } from "./kit.ts";
  * Like the editing bar, this is one self-contained function served as source text (`assets.ts`).
  */
 export function pageDetailsPanel(kit: BarKit): DetailsPanel {
-	const { win, el, button, icon, word, call, later, cancel } = kit;
+	const { win, el, button, word, call, later, cancel } = kit;
 	type Seo = {
 		title: string | null;
 		description: string | null;
@@ -32,8 +32,8 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 		published: boolean;
 	};
 	type Problem = { at: string; rule?: string; message?: string };
-	/** What is open: the drawer, how to close it, and the element focus goes back to. */
-	let opened: { panel: HTMLElement; close(returnFocus: boolean): void } | null = null;
+	/** What is open: the drawer's handle, with how to close it. */
+	let opened: PanelHandle | null = null;
 	const SEO_TITLE_MAX = 60;
 	const DESCRIPTION_MAX = 160;
 
@@ -62,8 +62,6 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 		const many = s.languages.length > 1;
 		const named = (label: string, translatable: boolean) =>
 			many && translatable ? word("fieldIn", { label, language: language.name }) : label;
-		const titleId = "wc-details-title";
-		const panel = el("div", { class: "drawer", role: "dialog", "aria-labelledby": titleId, tabindex: "-1" });
 		const status = el("p", { class: "field-status", role: "status" });
 		const timers = new Map<string, number>();
 		const problemOf = new Map<string, HTMLElement>();
@@ -271,7 +269,6 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 			drawImage();
 		};
 
-		const closeButton = button({ class: "icon-button", "aria-label": word("close") }, icon("close"));
 		const content: HTMLElement[] = [
 			el("p", { class: "help intro" }, word("detailsIntro")),
 			field("title", named(word("builtIns.title"), true), title),
@@ -301,57 +298,21 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 		noindex.setAttribute("aria-describedby", "wc-details-noindex-help");
 		update();
 
-		let sheet: ReturnType<BarKit["sheet"]> | null = null;
-		const state = {
-			panel,
-			close(returnFocus: boolean) {
+		const handle = kit.panel({
+			title: word("pageDetails"),
+			headIcon: "details",
+			className: "drawer",
+			content: (phone) => (phone ? content : [el("div", { class: "drawer-body" }, ...content)]),
+			htmlClass: "wc-edit-drawer",
+			onClose: () => {
 				for (const timer of timers.values()) cancel(timer);
-				win.document.documentElement.classList.remove("wc-edit-drawer");
-				if (sheet) {
-					const was = sheet;
-					sheet = null;
-					was.close();
-				} else panel.remove();
-				if (returnFocus && from?.isConnected) from.focus();
 			},
-		};
-		opened = state;
-		closeButton.addEventListener("click", () => close(true));
-		panel.addEventListener("keydown", (event) => {
-			if (event.key !== "Escape") return;
-			event.preventDefault();
-			event.stopPropagation();
-			close(true);
+			focusBack: () => {
+				if (from?.isConnected) from.focus();
+			},
 		});
-		if (kit.phone()) {
-			panel.className = "sheet-body";
-			panel.removeAttribute("role");
-			panel.append(...content);
-			sheet = kit.sheet({
-				title: word("pageDetails"),
-				from,
-				content: panel,
-				onClose: () => {
-					if (opened === state) {
-						opened = null;
-						state.close(false);
-					}
-				},
-			});
-		} else {
-			panel.append(
-				el(
-					"div",
-					{ class: "panel-head" },
-					el("h2", { id: titleId, class: "panel-title" }, icon("details"), word("pageDetails")),
-					closeButton,
-				),
-				el("div", { class: "drawer-body" }, ...content),
-			);
-			kit.layer.append(panel);
-			win.document.documentElement.classList.add("wc-edit-drawer");
-			panel.focus();
-		}
+		opened = handle;
+		if (!kit.phone()) handle.panel.focus();
 	}
 
 	return { open: (from) => void open(from), close, isOpen };
