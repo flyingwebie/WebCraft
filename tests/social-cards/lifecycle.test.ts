@@ -4,6 +4,7 @@ import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { jsonLdNode, metaProperty } from "../harness/seo.ts";
 import { goLive, openStaging } from "../harness/staging.ts";
+import { freshBread, translatedSite } from "../translation/support.ts";
 
 let install: TestInstall;
 let api: ApiClient;
@@ -252,4 +253,20 @@ test("a language domain serves the same published Social card under its own orig
 	expect((await cardText(url)).title).toBe("Pane");
 	expect((await install.request(new Request(url, { method: "HEAD" }))).headers.get("content-type")).toBe("image/png");
 	expect((await install.request(url, { method: "POST" })).status).toBe(405);
+});
+
+test("Automatic translation and approving a translation refresh Social cards with the newly published title", async () => {
+	const site = await translatedSite(install, { de: "automatic", it: "review" });
+	const entryId = await freshBread(site);
+	await site.owner.api.entries.publish({ siteId: site.siteId, entryId });
+	await drain();
+	expect((await cardText(await cardUrl(site.origin, "/de/blog/fresh-bread"))).title).toBe("Fresh bread");
+	expect((await install.drainJobs()).failed).toEqual([]);
+	const automatic = await cardUrl(site.origin, "/de/blog/fresh-bread");
+	expect(automatic).toContain("/_wc/social/");
+	expect((await cardText(automatic)).title).toBe("[de] Fresh bread");
+	expect((await cardText(await cardUrl(site.origin, "/it/blog/fresh-bread"))).title).toBe("Fresh bread");
+	await site.editor.api.translations.approve({ siteId: site.siteId, language: "it" });
+	await drain();
+	expect((await cardText(await cardUrl(site.origin, "/it/blog/fresh-bread"))).title).toBe("[it] Fresh bread");
 });

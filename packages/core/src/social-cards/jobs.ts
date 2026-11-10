@@ -98,6 +98,9 @@ export function socialCardsAfterAudit(jobs: JobQueue) {
 				siteId: entry.siteId,
 				entryId: typeof entry.details.entryId === "string" ? entry.details.entryId : undefined,
 			});
+		} else if (entry.action === "translation.publish") {
+			const item = z.object({ kind: z.literal("entry"), id: z.uuid() }).safeParse(entry.details.item);
+			if (item.success) await jobs.send(socialCardsRender, { siteId: entry.siteId, entryId: item.data.id });
 		} else if (
 			[
 				"seoSettings.change",
