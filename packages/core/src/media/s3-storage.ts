@@ -95,7 +95,7 @@ export function s3Storage(options: S3ClientOptions): StorageBackend {
 			await response.body?.cancel();
 		},
 		async putStream(key, data, contentType) {
-			await writeStream({ send }, key, data, contentType);
+			await writeS3Stream({ send }, key, data, contentType);
 		},
 		async read(key) {
 			const response = await send("GET", key);
@@ -143,11 +143,12 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
 }
 
 /** Multipart upload: abort on any source, checksum or bucket failure. */
-async function writeStream(
+export async function writeS3Stream(
 	client: Pick<S3Client, "send">,
 	key: string,
 	bytes: AsyncIterable<Uint8Array>,
 	contentType: string,
+	partBytes = 5 * 1024 * 1024,
 ): Promise<number> {
 	const started = await client.send("POST", key, {
 		query: { uploads: "" },
@@ -159,7 +160,7 @@ async function writeStream(
 	const parts: { number: number; etag: string }[] = [];
 	let size = 0;
 	try {
-		for await (const part of inParts(bytes, 5 * 1024 * 1024)) {
+		for await (const part of inParts(bytes, partBytes)) {
 			const number = parts.length + 1;
 			const response = await client.send("PUT", key, {
 				query: { partNumber: String(number), uploadId },

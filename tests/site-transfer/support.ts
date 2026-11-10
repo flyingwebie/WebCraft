@@ -9,6 +9,7 @@ import { formVisitor } from "../harness/forms.ts";
 import { photo, upload } from "../harness/images.ts";
 import type { TestAccount, TestBrowser, TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
 export const SMTP_PASSWORD = "site-smtp-password-1234";
@@ -181,7 +182,7 @@ export async function richSite(install: TestInstall, workspaceName = "Acme Ltd")
 	const view = await analyticsVisitor(install, origin).view("/blog/fresh-bread");
 	if (view.status >= 300) throw new Error(`The page view answered ${view.status}`);
 
-	const page = await (await install.request(`${origin}/blog/fresh-bread`)).text();
+	const page = await expectSafePage(await install.request(`${origin}/blog/fresh-bread`));
 	void moduleApi<typeof forms>;
 	return {
 		workspaceId,

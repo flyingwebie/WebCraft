@@ -1,6 +1,7 @@
 // #79's allowed Components and Component Blocks cross Installs with every version and language.
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 import { publishEverything } from "./support.ts";
@@ -155,7 +156,7 @@ test("publishing the Draft and restoring the former live Revision render the rig
 		const path = `${language === "en" ? "" : `/${language}`}/stories/example`;
 		const response = await target.request(`${origin}${path}`);
 		expect(response.status).toBe(200);
-		expect(article(await response.text())).toBe(`<aside>${text.draft}</aside>`);
+		expect(article(await expectSafePage(response))).toBe(`<aside>${text.draft}</aside>`);
 	}
 	await admin.api.history.restore({
 		siteId,
@@ -169,8 +170,8 @@ test("publishing the Draft and restoring the former live Revision render the rig
 		const copied = await target.request(`${origin}${path}`);
 		expect(original.status).toBe(200);
 		expect(copied.status).toBe(200);
-		const copiedArticle = article(await copied.text());
-		expect(copiedArticle).toBe(article(await original.text()));
+		const copiedArticle = article(await expectSafePage(copied));
+		expect(copiedArticle).toBe(article(await expectSafePage(original)));
 		expect(copiedArticle).toBe(`<aside>${text.live}</aside>`);
 	}
 });

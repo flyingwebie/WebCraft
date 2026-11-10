@@ -270,7 +270,7 @@ export async function importSite(
 			);
 		}
 
-		const published = await asDrafts(client, target, siteId);
+		const published = await asDrafts(client, target, siteId, context.now());
 		await client.query("UPDATE public.media_files SET storage = $2 WHERE site_id = $1", [siteId, backend.kind]);
 		await client.query(
 			`UPDATE public.form_uploads SET storage = $2,
@@ -771,6 +771,7 @@ async function asDrafts(
 	client: pg.ClientBase,
 	target: ReadonlyMap<string, SiteTable>,
 	siteId: string,
+	now: Date,
 ): Promise<number> {
 	let published = 0;
 	for (const table of target.values()) {
@@ -803,7 +804,7 @@ async function asDrafts(
 						: has("published_at")
 							? "published_at"
 							: "last_published_at";
-				const at = has(time) ? `coalesce(t.${ident(time)}, CURRENT_TIMESTAMP)` : "CURRENT_TIMESTAMP";
+				const at = has(time) ? `coalesce(t.${ident(time)}, $3::timestamptz)` : "$3::timestamptz";
 				// Revisions may have been disabled or pruned at the source. Never lose the former live version.
 				await client.query(
 					`INSERT INTO public.revisions (workspace_id, site_id, item_kind, item_id, content, published_at, via)
@@ -811,7 +812,7 @@ async function asDrafts(
      FROM ${quoted(table)} t WHERE t.site_id = $1 AND t.${ident(live)} IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM public.revisions r WHERE r.site_id = t.site_id AND r.item_kind = $2
        AND r.item_id IS NOT DISTINCT FROM ${item} AND r.content = to_jsonb(t.${ident(live)}))`,
-					[siteId, kind],
+					[siteId, kind, now],
 				);
 			}
 			sets.push(`${ident(draft)} = COALESCE(${ident(draft)}, ${ident(live)})`, `${ident(live)} = NULL`);

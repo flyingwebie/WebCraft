@@ -27,7 +27,7 @@ import { MediaQuotaFullError } from "../media/errors.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { mediaProcess, mediaVariants } from "../media/jobs.ts";
 import { workspaceMediaBytes } from "../media/quota.ts";
-import { type StorageKind, siteFolder } from "../media/storage.ts";
+import { StorageError, type StorageKind, siteFolder } from "../media/storage.ts";
 import type { ModuleHost } from "../modules/host.ts";
 import type { PersonActor } from "../permissions/can.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
@@ -928,7 +928,7 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 					await archive.done();
 				}
 			} catch (error) {
-				log.error("A Site export failed", { siteId, exportId, error });
+				log[error instanceof StorageError ? "warn" : "error"]("A Site export failed", { siteId, exportId, error });
 				await removeParts(backend, row.key, written).catch(() => {});
 				await update({ status: "failed", failure: { reason: "error" }, progress: null, finishedAt: clock.now() });
 			} finally {
@@ -1012,7 +1012,11 @@ export function createSiteTransfer(deps: SiteTransferDeps): SiteTransfer {
 				else if (error instanceof MediaQuotaFullError) await fail("quota");
 				else if (error instanceof SiteImportSlugError || error instanceof SlugTakenError) await fail("slug");
 				else {
-					log.error("A Site import failed", { workspaceId, importId, error });
+					log[error instanceof StorageError ? "warn" : "error"]("A Site import failed", {
+						workspaceId,
+						importId,
+						error,
+					});
 					await fail("error");
 				}
 			} finally {

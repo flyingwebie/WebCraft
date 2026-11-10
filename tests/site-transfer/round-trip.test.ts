@@ -8,6 +8,7 @@ import type forms from "@webcraft/module-forms";
 import { analyticsApi, dayOf } from "../harness/analytics.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive, manifestIn, tarFiles } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 import { approveModules, publishEverything, type RichSite, richSite } from "./support.ts";
@@ -106,7 +107,7 @@ describe("imported into another Workspace of the same Install", () => {
 		expect(imported.site?.name).toBe("Beta Bakery");
 		expect(newSiteId).not.toBe(site.siteId);
 		const page = await source.request(`${site.origin}/blog/fresh-bread`);
-		expect(mainOf(await page.text())).toBe(mainOf(site.page));
+		expect(mainOf(await expectSafePage(page))).toBe(mainOf(site.page));
 	});
 
 	test("its Content arrives as Drafts, nothing published until someone publishes", async () => {
@@ -127,7 +128,7 @@ describe("imported into another Workspace of the same Install", () => {
 	test("its pages render as they did once published: the Component, the related Entry and the image", async () => {
 		await publishEverything(staff, newSiteId);
 		const origin = await goLive(source, newSiteId);
-		const main = mainOf(await (await source.request(`${origin}/blog/fresh-bread`)).text());
+		const main = mainOf(await expectSafePage(await source.request(`${origin}/blog/fresh-bread`)));
 		expect(main).toContain("<h1>Fresh bread</h1>");
 		expect(main).toContain("<p><em>Bread</em></p>");
 		expect(main).toContain("<strong>Fresh</strong>");
@@ -160,9 +161,10 @@ describe("imported into a fresh Install", () => {
 
 	test("pages render as they did, the image served with the same bytes", async () => {
 		expect(imported.status).toBe("done");
-		const html = await (await target.request(`${origin}/blog/fresh-bread`)).text();
+		const html = await expectSafePage(await target.request(`${origin}/blog/fresh-bread`));
 		expect(mainOf(html)).toBe(mainOf(site.page));
 		const file = await target.request(`${origin}${site.mediaUrl}`);
+		expectSiteHeaders(file, { media: true });
 		expect(file.status).toBe(200);
 		expect(Buffer.from(await file.arrayBuffer()).equals(Buffer.from(site.mediaBytes))).toBe(true);
 	});
@@ -172,7 +174,9 @@ describe("imported into a fresh Install", () => {
 		const { items: media } = await admin.api.media.list({ siteId: newSiteId });
 		expect(media).toHaveLength(1);
 		expect(media[0]?.variants.length).toBeGreaterThan(0);
-		expect((await target.request(`${origin}${media[0]?.variants[0]?.url}`)).status).toBe(200);
+		const variant = await target.request(`${origin}${media[0]?.variants[0]?.url}`);
+		expectSiteHeaders(variant, { media: true });
+		expect(variant.status).toBe(200);
 	});
 
 	test("its Form keeps its Submissions", async () => {
@@ -195,6 +199,7 @@ describe("imported into a fresh Install", () => {
 
 	test("its Redirect rules send visitors on", async () => {
 		const moved = await target.request(`${origin}/old-bread`);
+		expectSiteHeaders(moved);
 		expect(moved.status).toBe(301);
 		expect(moved.headers.get("location")).toBe("/blog/fresh-bread");
 	});

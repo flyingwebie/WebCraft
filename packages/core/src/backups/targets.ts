@@ -6,7 +6,7 @@ import { pipeline } from "node:stream/promises";
 
 import type { Clock } from "../clock.ts";
 import type { OutgoingHttp } from "../http.ts";
-import { refused, type S3Settings, s3Client } from "../media/s3-storage.ts";
+import { type S3Settings, s3Client, writeS3Stream } from "../media/s3-storage.ts";
 import { StorageError } from "../media/storage.ts";
 
 /** Where Backups go: the Backups folder, a bucket, or a file a command named. */
@@ -106,54 +106,7 @@ export function s3Target(options: {
 	return {
 		kind: "s3",
 		location,
-		async write(name, bytes) {
-			const key = keyOf(name);
-			const started = await client.send("POST", key, {
-				query: { uploads: "" },
-				headers: { "content-type": "application/x-tar" },
-			});
-			if (!started.ok) throw await refused(started, "start an upload");
-			const uploadId = /<UploadId>([^<]+)<\/UploadId>/.exec(await started.text())?.[1];
-			if (!uploadId) throw new StorageError("The bucket started an upload without saying its id.");
-			const parts: { number: number; etag: string }[] = [];
-			let size = 0;
-			try {
-				for await (const part of inParts(bytes, PART_BYTES)) {
-					const number = parts.length + 1;
-					const response = await client.send("PUT", key, {
-						query: { partNumber: String(number), uploadId },
-						body: part,
-					});
-					if (!response.ok) throw await refused(response, "store part of a Backup");
-					await response.body?.cancel();
-					const etag = response.headers.get("etag");
-					if (!etag) throw new StorageError("The bucket stored part of a Backup without saying its ETag.");
-					parts.push({ number, etag });
-					size += part.length;
-				}
-				const list = parts
-					.map((part) => `<Part><PartNumber>${part.number}</PartNumber><ETag>${escapeXml(part.etag)}</ETag></Part>`)
-					.join("");
-				const done = await client.send("POST", key, {
-					query: { uploadId },
-					body: new TextEncoder().encode(`<CompleteMultipartUpload>${list}</CompleteMultipartUpload>`),
-					headers: { "content-type": "application/xml" },
-				});
-				// A bucket can answer 200 and still say the upload failed.
-				const answer = await done.text();
-				if (!done.ok || answer.includes("<Error>")) {
-					const code = /<Code>([^<]+)<\/Code>/.exec(answer)?.[1];
-					throw new StorageError(`The bucket refused to finish the upload: ${done.status}${code ? ` ${code}` : ""}.`);
-				}
-			} catch (error) {
-				await client
-					.send("DELETE", key, { query: { uploadId } })
-					.then((response) => response.body?.cancel())
-					.catch(() => {});
-				throw error;
-			}
-			return size;
-		},
+		write: (name, bytes) => writeS3Stream(client, keyOf(name), bytes, "application/x-tar", PART_BYTES),
 		async remove(name) {
 			const response = await client.send("DELETE", keyOf(name));
 			await response.body?.cancel();
@@ -162,31 +115,4 @@ export function s3Target(options: {
 			}
 		},
 	};
-}
-
-/** Regroups chunks into parts of `size` bytes (the last one smaller); one empty part for no bytes. */
-async function* inParts(bytes: AsyncIterable<Uint8Array>, size: number): AsyncGenerator<Uint8Array> {
-	let part = new Uint8Array(size);
-	let filled = 0;
-	let sent = false;
-	for await (const chunk of bytes) {
-		let offset = 0;
-		while (offset < chunk.length) {
-			const taken = Math.min(size - filled, chunk.length - offset);
-			part.set(chunk.subarray(offset, offset + taken), filled);
-			filled += taken;
-			offset += taken;
-			if (filled === size) {
-				yield part;
-				sent = true;
-				part = new Uint8Array(size);
-				filled = 0;
-			}
-		}
-	}
-	if (filled > 0 || !sent) yield part.subarray(0, filled);
-}
-
-function escapeXml(text: string): string {
-	return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }

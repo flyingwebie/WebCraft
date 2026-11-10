@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
-import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
+import { exportedArchive, importArchive, rewritten } from "../harness/site-transfer.ts";
 
 let install: TestInstall;
 beforeAll(async () => {
@@ -36,4 +36,24 @@ test("the former published content stays recoverable when Revisions were off and
 		copy: { type: "revision", id: history.copies[0]?.id ?? "" },
 	});
 	expect(JSON.stringify(saved.content)).toContain("Published words");
+
+	const withoutDate = rewritten(archive, {
+		rows: (table, rows) =>
+			table === "public.entries" ? rows.map((row) => ({ ...row, published_at: null, last_published_at: null })) : rows,
+	});
+	const importedAt = install.clock.now();
+	const untimed = await importArchive(install, admin, workspaceId, withoutDate, { name: "Undated", slug: "undated" });
+	expect(untimed.status).toBe("done");
+	const untimedSite = untimed.site?.id ?? "";
+	const untimedType = (await admin.api.postTypes.list({ siteId: untimedSite })).postTypes.find(
+		(type) => type.key === "posts",
+	);
+	const [untimedEntry] = (await admin.api.entries.list({ siteId: untimedSite, postTypeId: untimedType?.id ?? "" }))
+		.entries;
+	const untimedHistory = await admin.api.history.list({
+		siteId: untimedSite,
+		item: { kind: "entry", id: untimedEntry?.id ?? "" },
+	});
+	expect(untimedHistory.copies).toHaveLength(1);
+	expect(untimedHistory.copies[0]?.at).toEqual(importedAt);
 });

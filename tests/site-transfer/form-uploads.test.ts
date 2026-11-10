@@ -285,6 +285,23 @@ test("an unavailable claimed attachment fails the export instead of offering an 
 	expect(manifestIn(recovered).leftOut.tables).toContainEqual({ name: "public.error_group_places", reason: "install" });
 });
 
+test("a bucket outage fails the export with a warning instead of an unexpected Error log entry", async () => {
+	sourceRemote.fake.fail("GET", 503);
+	const firstLog = source.logs.length;
+	try {
+		const exported = await exportSite(source, sourceAdmin, sourceSiteId);
+		expect(exported).toMatchObject({ status: "failed", download: null });
+		expect(
+			source.logs
+				.slice(firstLog)
+				.filter((line) => line.msg === "A Site export failed")
+				.map((line) => line.level),
+		).toEqual(["warn"]);
+	} finally {
+		sourceRemote.fake.recover();
+	}
+});
+
 test("another Workspace on the same Install gets separate private files and fresh download URLs", async () => {
 	const workspaceId = (await source.createWorkspace("Another Workspace")).id;
 	const imported = await importArchive(source, sourceAdmin, workspaceId, archive, {
@@ -508,6 +525,7 @@ test("an unavailable destination bucket rolls back attachment writes and the Sit
 		const uploaded = await uploadArchive(admin, workspaceId, archive);
 		await admin.api.install.storage.update(remote.settings);
 		remote.fake.fail("PUT", 503);
+		const firstLog = target.logs.length;
 		await admin.api.siteImports.start({
 			workspaceId,
 			importId: uploaded.id,
@@ -518,6 +536,12 @@ test("an unavailable destination bucket rolls back attachment writes and the Sit
 		await target.drainJobs();
 		const { import: imported } = await admin.api.siteImports.get({ workspaceId, importId: uploaded.id });
 		expect(imported).toMatchObject({ status: "failed", site: null });
+		expect(
+			target.logs
+				.slice(firstLog)
+				.filter((line) => line.msg === "A Site import failed")
+				.map((line) => line.level),
+		).toEqual(["warn"]);
 		expect((await admin.api.sites.list({ workspaceId })).sites).toEqual([]);
 		expect([...remote.fake.objects.keys()].filter((key) => key.includes("/form-uploads/"))).toEqual([]);
 		expect(remote.fake.openUploads).toBe(0);
