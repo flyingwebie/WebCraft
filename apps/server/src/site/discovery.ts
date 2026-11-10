@@ -1,6 +1,7 @@
 import {
 	type InstallServices,
 	LLMS_FILE,
+	MARKDOWN_SUFFIX,
 	ROBOTS_PATH,
 	SITEMAP_LIMITS,
 	SITEMAP_PATH,
@@ -16,7 +17,7 @@ import type { CachedPage, PageCache } from "./page-cache.ts";
 
 /**
  * The Site's discovery files (spec stories 117, 118, 119), at the Site pipeline's reserved-path step:
- * robots.txt, the sitemaps and each language's llms.txt. Each is built on request on one of the Site's domains and kept in the page cache under
+ * robots.txt, the sitemaps, each language's llms.txt and Entries' Markdown copies. Each is built on request on one of the Site's domains and kept in the page cache under
  * the Site's page cache generation, like a page, so a publish or a change to a setting shows at once
  * on every web process. The Staging address offers none of them: its robots.txt keeps every crawler out.
  */
@@ -74,11 +75,21 @@ export async function discoveryFile(
 			return answer && "location" in answer ? { redirect: answer.location } : (answer?.text ?? null);
 		});
 	}
+	if (pathname.endsWith(MARKDOWN_SUFFIX)) {
+		return kept(services, cache, request, host, pathname, MARKDOWN, async () => {
+			const answer = await services.discovery.markdown(host, pathname);
+			if (!answer) return null;
+			if ("location" in answer) return { redirect: answer.location };
+			// The page's canonical URL, as its head names it: a copy never competes with its page.
+			return { text: answer.text, headers: { link: `<${answer.canonical}>; rel="canonical"` } };
+		});
+	}
 	return null;
 }
 
 const TEXT = "text/plain; charset=utf-8";
 const XML = "application/xml; charset=utf-8";
+const MARKDOWN = "text/markdown; charset=utf-8";
 
 /**
  * A file kept in the page cache under its address, built with `build` on a miss: its text, where it
@@ -91,20 +102,26 @@ async function kept(
 	host: SiteHost,
 	pathname: string,
 	contentType: string,
-	build: () => Promise<string | { redirect: string } | null>,
+	build: () => Promise<string | { text: string; headers: Record<string, string> } | { redirect: string } | null>,
 ): Promise<Response | null> {
 	const key = `${host.origin}${pathname}`;
 	const found = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
 	if (found) return fileResponse(request, found, "HIT");
-	const text = await build();
-	if (text === null) return null;
-	if (typeof text !== "string") {
+	const built = await build();
+	if (built === null) return null;
+	if (typeof built !== "string" && "redirect" in built) {
 		return new Response(null, {
 			status: 301,
-			headers: { location: text.redirect, "cache-control": FILE_CACHE_CONTROL },
+			headers: { location: built.redirect, "cache-control": FILE_CACHE_CONTROL },
 		});
 	}
-	const file: CachedPage = { html: text, etag: await etagOf(text), headers: { "content-type": contentType } };
+	const text = typeof built === "string" ? built : built.text;
+	const headers = typeof built === "string" ? {} : built.headers;
+	const file: CachedPage = {
+		html: text,
+		etag: await etagOf(text),
+		headers: { "content-type": contentType, ...headers },
+	};
 	cache.set(host.site.id, host.cacheGeneration, key, file);
 	return fileResponse(request, file, "MISS");
 }

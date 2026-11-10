@@ -8,6 +8,8 @@
  * - Sitemaps (`sitemaps.ts`): an index of one sitemap per Post Type, split into parts past the
  *   protocol's limits.
  * - `llms.txt` (`llms.ts`): one per language, listing the same Entries with their Markdown copies.
+ * - Markdown copies (`markdown-copy.ts`): each indexable Entry's page in Markdown, at its address
+ *   plus `.md`.
  *
  * What they list is one rule (`listed.ts`). The Staging address never offers any of them (its
  * robots.txt keeps every crawler out): it shows Drafts to the people reviewing a Site, never to
@@ -19,6 +21,7 @@ import type { SiteHost } from "../site-pages/index.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
 import { type Listing, listing } from "./listed.ts";
 import { llmsAt, llmsText } from "./llms.ts";
+import { type MarkdownAnswer, markdownCopy } from "./markdown-copy.ts";
 import { robotsText } from "./robots.ts";
 import { createPartStarts, SITEMAP_PATH, type SitemapLimits, sitemapIndex, sitemapPart } from "./sitemaps.ts";
 
@@ -33,6 +36,7 @@ export {
 	isAiCrawlerSetting,
 } from "./ai-crawlers.ts";
 export { LLMS_ENTRIES_PER_POST_TYPE, LLMS_FILE } from "./llms.ts";
+export { MARKDOWN_SUFFIX, type MarkdownAnswer } from "./markdown-copy.ts";
 export { ROBOTS_LINES_MAX, ROBOTS_PATH, readRobotsLines, STAGING_ROBOTS } from "./robots.ts";
 export { SITEMAP_LIMITS, SITEMAP_PATH, SITEMAPS_FOLDER, type SitemapLimits } from "./sitemaps.ts";
 
@@ -49,6 +53,11 @@ export type Discovery = {
 	 * another of the Site's domains; null when the path is no language's.
 	 */
 	llms(host: SiteHost, pathname: string): Promise<{ text: string } | { location: string } | null>;
+	/**
+	 * The Markdown copy at a path (`/blog/fresh-bread.md`, `/index.html.md`) with its page's canonical
+	 * URL, or where it is on another of the Site's domains; null when the page has none.
+	 */
+	markdown(host: SiteHost, pathname: string): Promise<MarkdownAnswer>;
 };
 
 export function createDiscovery(options: { data: DataLayer }): Discovery {
@@ -77,6 +86,9 @@ export function createDiscovery(options: { data: DataLayer }): Discovery {
 			if (!answer) return null;
 			if (answer.kind === "redirect") return { location: answer.location };
 			return { text: await llmsText(list, answer.language) };
+		},
+		async markdown(host, pathname) {
+			return markdownCopy(await listingOf(host), pathname);
 		},
 	};
 }
