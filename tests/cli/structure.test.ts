@@ -254,6 +254,37 @@ describe("structure push", () => {
 		}
 	});
 
+	test("what a push changes besides (an inline style makes a Class) comes back too, so editing it next isn't stale", async () => {
+		const site = await bakerySite("sidechange");
+		try {
+			await site.pull();
+			site.write(
+				"templates/entry/posts.wc.html",
+				site
+					.read("templates/entry/posts.wc.html")
+					.replace("</article>", '<p style="margin: 0">Baked today</p></article>'),
+			);
+			expect((await site.push(["--yes"])).code).toBe(0);
+			const classes = JSON.parse(site.read("design-system/design-system.json")).classes as string[];
+			expect(classes).toHaveLength(2);
+			expect(classes[0]).toBe("badge");
+
+			site.write(
+				"design-system/classes/badge.css",
+				site.read("design-system/classes/badge.css").replace("var(--primary-70)", "var(--primary-90)"),
+			);
+			const { code, stderr } = await site.push(["--yes"]);
+			expect(stderr).toBe("");
+			expect(code).toBe(0);
+			const { designSystem } = await staff.designSystem.get({ siteId: site.siteId });
+			expect(designSystem.draft.classes.find((each) => each.name === "badge")?.styles).toBe(
+				"color: var(--primary-90);",
+			);
+		} finally {
+			site.remove();
+		}
+	});
+
 	test("says a Post Type's change applies at once, and --dry-run sends nothing", async () => {
 		const site = await bakerySite("posttypes");
 		try {

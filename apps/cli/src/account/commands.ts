@@ -195,7 +195,16 @@ async function login(context: RunContext, args: string[]): Promise<number> {
 				refreshToken: tokens.refresh_token,
 				accessExpiresAt: new Date(io.now().getTime() + (tokens.expires_in ?? 3600) * 1000).toISOString(),
 			};
+			const previous = await io.credentials.get(name);
 			const place = await io.credentials.set(name, signIn);
+			// Signing in again replaces the sign-in kept before: its grant is revoked, not left behind.
+			if (previous && previous.refreshToken !== signIn.refreshToken) {
+				await postForm(io, `${url}/oauth/revoke`, {
+					token: previous.refreshToken,
+					token_type_hint: "refresh_token",
+					client_id: clientId,
+				}).catch(() => undefined);
+			}
 			return signedIn(context, { ...profile, clientId, place }, place);
 		}
 		if (error === "authorization_pending") {

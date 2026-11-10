@@ -146,6 +146,25 @@ describe("webcraft login", () => {
 		expect((await cli.run(["whoami"])).code).toBe(0);
 	});
 
+	test("logging in again replaces the sign-in kept before: its grant is revoked", async () => {
+		const before = (await owner.browser.api.aiClients.list()).grants.filter(
+			(grant) => grant.client.name === "webcraft CLI on olive-laptop" && grant.status === "active",
+		);
+		expect(before).toHaveLength(1);
+
+		const again = await signInCli(cli, install, owner.browser, { workspaceId, sites: [bakery.id], readOnly: true });
+		expect(again.code).toBe(0);
+
+		const grants = (await owner.browser.api.aiClients.list()).grants.filter(
+			(grant) => grant.client.name === "webcraft CLI on olive-laptop",
+		);
+		expect(grants.filter((grant) => grant.status === "active")).toHaveLength(1);
+		expect(grants.find((grant) => grant.id === before[0]?.id)).toMatchObject({
+			status: "revoked",
+			revokedReason: "client",
+		});
+	});
+
 	test("a denied code signs nothing in", async () => {
 		const other = cliUser(install);
 		try {
@@ -279,6 +298,10 @@ describe("the device authorization grant", () => {
 			await guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB" });
 		}
 		await expect(guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB" })).rejects.toMatchObject({
+			code: "TOO_MANY_REQUESTS",
+		});
+		// Denying (or approving) a code counts the same: guessing one to deny someone's sign-in is hopeless too.
+		await expect(guesser.browser.api.oauth.denyDevice({ userCode: "BBBB-BBBC" })).rejects.toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 		});
 	});

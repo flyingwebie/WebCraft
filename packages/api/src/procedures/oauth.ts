@@ -77,7 +77,7 @@ export const oauth = {
 	 * Looks up the user code a device sign-in shows (`webcraft login`), as the person typed it on
 	 * `/oauth/device`: the client to approve (`ask`) or why it can't be (`refused`: `unknown`,
 	 * `expired`, `decided`), with the Workspaces and Toolsets on offer. At most 20 look-ups per person
-	 * in 15 minutes (`TOO_MANY_REQUESTS`), so codes can't be guessed.
+	 * in 15 minutes, approving and denying included (`TOO_MANY_REQUESTS`), so codes can't be guessed.
 	 */
 	checkDevice: inAdminSession.input(z.object({ userCode })).handler(async ({ context, input }) => {
 		const { services } = context;
@@ -120,7 +120,7 @@ export const oauth = {
 		.use(notWhileImpersonating("aiClients"))
 		.input(z.object({ userCode }))
 		.handler(async ({ context, input }) => {
-			await context.services.oauth.denyDevice(input.userCode);
+			await context.services.oauth.denyDevice(input.userCode, context.person.id);
 			return { denied: true };
 		}),
 };

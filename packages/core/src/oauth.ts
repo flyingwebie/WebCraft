@@ -293,15 +293,19 @@ export type OAuth = {
 	checkDevice(userCode: string, personId: string): Promise<DeviceCheck>;
 	/**
 	 * Approves a user code as the person acting in `workspace`: makes the grant, which the client's
-	 * next poll exchanges for tokens. Logged as `aiClient.approve`. Throws `DeviceCodeInvalidError`.
+	 * next poll exchanges for tokens. Logged as `aiClient.approve`. Throws `DeviceCodeInvalidError`;
+	 * counted as `checkDevice` is.
 	 */
 	approveDevice(
 		workspace: WorkspaceScope,
 		userCode: string,
 		choice: GrantChoice,
 	): Promise<{ grantId: string; client: string }>;
-	/** The person said no: the client's next poll is told `access_denied`. Throws `DeviceCodeInvalidError`. */
-	denyDevice(userCode: string): Promise<void>;
+	/**
+	 * The person said no: the client's next poll is told `access_denied`. Throws
+	 * `DeviceCodeInvalidError`; counted as `checkDevice` is.
+	 */
+	denyDevice(userCode: string, personId: string): Promise<void>;
 	/** The revocation endpoint (RFC 7009): a client ends its grant with one of its tokens. */
 	revokeToken(form: URLSearchParams, authorization: string | null): Promise<void>;
 	/**
@@ -421,6 +425,17 @@ export function createOAuth({
 	/** Whether a client registered for a grant type (clients registered before grant types were kept: the code and refresh grants). */
 	const allows = (client: typeof oauthClients.$inferSelect, grantType: string) =>
 		(client.grantTypes ?? ["authorization_code", "refresh_token"]).includes(grantType);
+
+	/**
+	 * Counts a person's look-up of a user code (checking, approving or denying one), refusing past
+	 * `OAUTH_USER_CODE_LIMIT`: codes are short, so guessing them must stay hopeless.
+	 */
+	const countUserCode = async (personId: string) => {
+		const tally = await rateLimits.tally(`oauth-user-code:${personId}`, OAUTH_USER_CODE_LIMIT);
+		if (!tally.within) {
+			throw new RateLimitedError(Math.max(1, Math.ceil((tally.resetsAt.getTime() - clock.now().getTime()) / 1000)));
+		}
+	};
 
 	/** A user code's letters, upper case, without the dash or spaces people type. */
 	const normalUserCode = (typed: string) => typed.toUpperCase().replace(/[^A-Z]/g, "");
@@ -920,10 +935,7 @@ export function createOAuth({
 		},
 
 		async checkDevice(userCode, personId) {
-			const tally = await rateLimits.tally(`oauth-user-code:${personId}`, OAUTH_USER_CODE_LIMIT);
-			if (!tally.within) {
-				throw new RateLimitedError(Math.max(1, Math.ceil((tally.resetsAt.getTime() - clock.now().getTime()) / 1000)));
-			}
+			await countUserCode(personId);
 			const looked = await deviceByUserCode(db, userCode, clock.now());
 			if (!looked.ok) return { kind: "refused", problem: looked.problem };
 			const { found, letters } = looked;
@@ -939,6 +951,7 @@ export function createOAuth({
 		async approveDevice(scope, userCode, choice) {
 			const { actor } = scope.access;
 			if (actor.kind !== "person") throw new TypeError("Only a person approves an AI client.");
+			await countUserCode(actor.personId);
 			const listed = choice.sites === "all" ? null : [...new Set(choice.sites)];
 			if (listed !== null) {
 				if (listed.length === 0) throw new SiteNotFoundError();
@@ -990,7 +1003,8 @@ export function createOAuth({
 			});
 		},
 
-		async denyDevice(userCode) {
+		async denyDevice(userCode, personId) {
+			await countUserCode(personId);
 			await db.transaction(async (tx) => {
 				const looked = await deviceByUserCode(tx, userCode, clock.now());
 				if (!looked.ok) throw new DeviceCodeInvalidError(looked.problem);

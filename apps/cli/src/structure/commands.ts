@@ -443,8 +443,9 @@ async function push(context: RunContext, options: Options): Promise<number> {
 			sent.push(unit.key);
 		}
 	} finally {
-		// What was sent is written back as the Install stored it, with its new base in the manifest.
-		if (sent.length > 0) await refresh(connection, dir, manifest, sent, warn);
+		// What was sent is written back as the Install stored it, with its new base in the manifest,
+		// and so is what a save changed besides (an inline style makes a Class) where nothing changed here.
+		if (sent.length > 0) await refresh(connection, dir, manifest, sent, local, warn);
 	}
 	if (!context.options.json) {
 		io.stdout(
@@ -454,18 +455,31 @@ async function push(context: RunContext, options: Options): Promise<number> {
 	return EXIT.ok;
 }
 
-/** Writes back the files of the units sent, as the Install now has them, and their new bases. */
+/**
+ * Writes back the files of the units sent as the Install now has them, with their new bases, and the
+ * files that were the same here as when pulled but changed there (a save can change another item: an
+ * inline style makes a Class), so the next push of those isn't taken for stale.
+ */
 async function refresh(
 	connection: Connection,
 	dir: string,
 	manifest: Manifest,
 	sent: string[],
+	local: Map<string, string>,
 	warn: (text: string) => void,
 ) {
 	const state = await readStructure(connection, manifest.site.id, warn);
 	const files = new Map<string, string>();
 	for (const [path, content] of state.files) {
-		if (!sent.includes(unitOf(path)?.key ?? "")) continue;
+		const wasSent = sent.includes(unitOf(path)?.key ?? "");
+		const before = local.get(path);
+		const base = manifest.files[path];
+		// A file the same here as when pulled takes what the Install has now, and so does one the Install
+		// made meanwhile that isn't here; one changed here is left alone.
+		const untouchedHere =
+			(base !== undefined && before !== undefined && hashOf(before) === base.hash) ||
+			(base === undefined && before === undefined);
+		if (!wasSent && (!untouchedHere || (base !== undefined && hashOf(content) === base.hash))) continue;
 		files.set(path, content);
 		manifest.files[path] = entryFor(state, path, content);
 	}
