@@ -504,6 +504,10 @@ _Avoid_: Frontend editing, live editing, visual editing
 A way of viewing a Site on its own domain that shows Drafts and lets a signed-in person change Content in place. Previewing is Edit mode with the editing tools turned off.
 _Avoid_: Preview mode, draft mode, admin bar
 
+**Page details**:
+The drawer in Edit mode with the values of a page's Entry that don't show on the page: its title, its address, its SEO fields, its Summary, its social image and noindex.
+_Avoid_: Page settings, page properties, inspector
+
 **Code mode**:
 A third way of using Edit mode, for Staff and the Superadmin only: selecting an element on the page opens its HTML (from its Template or Component), its CSS (its Class or the Site CSS) and a page or Site script, all editable and saved to the Draft.
 _Avoid_: God mode, dev mode, developer tools

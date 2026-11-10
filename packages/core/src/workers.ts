@@ -72,10 +72,10 @@ export function createWorkers({ database, clock }: { database: Database; clock: 
  */
 export async function startWorkerHeartbeat(
 	workers: Workers,
-	{ hostname, log }: { hostname: string; log: Logger },
+	{ hostname, log, clock }: { hostname: string; log: Logger; clock: Clock },
 ): Promise<{ stop(): Promise<void> }> {
 	const id = crypto.randomUUID();
-	const startedAt = new Date();
+	const startedAt = clock.now();
 	const beat = () =>
 		workers.beat({ id, hostname, startedAt }).catch((error: unknown) => {
 			log.warn("The worker couldn't check in", { error });

@@ -19,6 +19,7 @@ import {
 	type RateLimitTally,
 	resolvePermission,
 	type ToolsetKey,
+	VERSION_HEADER,
 	WEBCRAFT_VERSION,
 } from "@webcraft/core";
 
@@ -270,12 +271,6 @@ export function createPublicApi(
 		return withHeaders(await call({ request, path, client: use, clientAddress }), limits);
 	};
 }
-
-/**
- * The header every answer to a client whose token works carries: the Install's WebCraft version
- * (`WEBCRAFT_VERSION`). Never sent to anyone else, so the version isn't announced to the world.
- */
-export const VERSION_HEADER = "webcraft-version";
 
 /** A request's bearer token that doesn't work, answered as 401 with its problem. */
 export function tokenRefusal(error: ApiTokenInvalidError, challenge = `Bearer realm="WebCraft"`): Response {

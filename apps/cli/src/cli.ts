@@ -1,4 +1,5 @@
 import { CliError, EXIT, EXIT_CODES_HELP } from "./exit-codes.ts";
+import { readFlags } from "./flags.ts";
 import type { CliIo } from "./io.ts";
 import type { Catalogue } from "./remote/catalogue.ts";
 import { connect, type GlobalOptions, type RunContext } from "./remote/connection.ts";
@@ -110,7 +111,11 @@ async function admin(args: string[], io: CliIo, options: GlobalOptions & { help:
 	return runAdmin(args, io, { help: options.help, json: options.json });
 }
 
-/** Takes the options every command has out of the arguments, wherever they are. */
+/**
+ * Takes the options every command has out of the arguments, wherever they are. An option this
+ * doesn't know (a command's own, such as `--site-id`) is passed through in `rest` for the parser
+ * further down the line to read.
+ */
 function globalOptions(args: readonly string[]): {
 	options: GlobalOptions & { help: boolean; version: boolean };
 	rest: string[];
@@ -119,24 +124,17 @@ function globalOptions(args: readonly string[]): {
 		help: boolean;
 		version: boolean;
 	};
-	const rest: string[] = [];
-	for (let index = 0; index < args.length; index++) {
-		const arg = args[index] ?? "";
-		if (arg === "--") {
-			rest.push(...args.slice(index + 1));
-			break;
-		}
-		if (arg === "--json") options.json = true;
-		else if (arg === "--yes" || arg === "-y") options.yes = true;
-		else if (arg === "--help" || arg === "-h") options.help = true;
-		else if (arg === "--version" || arg === "-V") options.version = true;
-		else if (arg === "--install" || arg.startsWith("--install=")) {
-			const value = arg === "--install" ? args[++index] : arg.slice("--install=".length);
-			if (!value) throw new CliError(EXIT.usage, "--install needs a profile's name or an Install's address.");
-			options.install = value;
-		} else rest.push(arg);
+	const flags = readFlags(args);
+	for (let flag = flags.next(); flag; flag = flags.next()) {
+		if (!flag.short && flag.name === "json") options.json = true;
+		else if ((!flag.short && flag.name === "yes") || (flag.short && flag.name === "y")) options.yes = true;
+		else if ((!flag.short && flag.name === "help") || (flag.short && flag.name === "h")) options.help = true;
+		else if ((!flag.short && flag.name === "version") || (flag.short && flag.name === "V")) options.version = true;
+		else if (!flag.short && flag.name === "install") {
+			options.install = flags.value(flag, "--install needs a profile's name or an Install's address.");
+		} else flags.rest.push(flag.raw);
 	}
-	return { options, rest };
+	return { options, rest: flags.rest };
 }
 
 /** The Install's catalogue when one answers; else the commands this webcraft was built with. */

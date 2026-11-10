@@ -96,6 +96,7 @@ import {
 	LibraryRefusedError,
 	LoopIncompleteError,
 	LoopInvalidError,
+	LoopItemRestoreRefusedError,
 	LoopNameTakenError,
 	LoopNotFoundError,
 	MediaFolderNotFoundError,
@@ -1185,6 +1186,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof EditFieldInvalidError) {
 		return new ORPCError("EDIT_FIELD_INVALID", { status: 400, message: error.message, cause: error });
+	}
+	if (error instanceof LoopItemRestoreRefusedError) {
+		return new ORPCError("LOOP_ITEM_RESTORE_REFUSED", { status: 403, message: error.message, cause: error });
 	}
 	if (error instanceof PublishAllInvalidError) {
 		return new ORPCError("PUBLISH_ALL_INVALID", {

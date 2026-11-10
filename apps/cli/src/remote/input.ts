@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 
 import { CliError, EXIT } from "../exit-codes.ts";
+import { readFlags } from "../flags.ts";
 import type { CliIo } from "../io.ts";
 import type { JsonSchema, RemoteCommand } from "./catalogue.ts";
 
@@ -33,42 +34,34 @@ export async function inputOf(
 	const given: Record<string, unknown> = {};
 	const repeated = new Map<string, unknown[]>();
 
-	for (let index = 0; index < args.length; index++) {
-		const arg = args[index] ?? "";
-		if (!arg.startsWith("--")) {
-			throw new CliError(
-				EXIT.usage,
-				`Unexpected argument "${arg}". Options start with --; see webcraft ${command.words.join(" ")} --help.`,
-			);
-		}
-		const equals = arg.indexOf("=");
-		const flag = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
-		const inline = equals === -1 ? undefined : arg.slice(equals + 1);
-		if (flag === "data") {
-			const text = inline ?? args[++index];
-			if (text === undefined) throw new CliError(EXIT.usage, "--data needs JSON, @file or - (standard input).");
+	const flags = readFlags(args);
+	for (let flag = flags.next(); flag; flag = flags.next()) {
+		if (flag.name === "data" && !flag.short) {
+			const text = flags.value(flag, "--data needs JSON, @file or - (standard input).");
 			input = await dataOption(text, io);
 			continue;
 		}
-		const negated = flag.startsWith("no-") && !byOption.has(flag) ? byOption.get(flag.slice(3)) : undefined;
-		const name = byOption.get(flag) ?? negated;
+		const negated =
+			!flag.short && flag.name.startsWith("no-") && !byOption.has(flag.name)
+				? byOption.get(flag.name.slice(3))
+				: undefined;
+		const name = byOption.get(flag.name) ?? negated;
 		if (!name) {
 			throw new CliError(
 				EXIT.usage,
-				`webcraft ${command.words.join(" ")} has no option --${flag}. See webcraft ${command.words.join(" ")} --help.`,
+				`webcraft ${command.words.join(" ")} has no option ${flag.raw}. See webcraft ${command.words.join(" ")} --help.`,
 			);
 		}
 		const schema = properties[name] ?? {};
 		const kinds = kindsOf(schema);
-		if (kinds.has("boolean") && kinds.size <= 2 && (inline === undefined || negated)) {
-			if (negated && inline !== undefined) throw new CliError(EXIT.usage, `--no-${optionName(name)} takes no value.`);
+		if (kinds.has("boolean") && kinds.size <= 2 && (flag.inline === undefined || negated)) {
+			if (negated && flag.inline !== undefined)
+				throw new CliError(EXIT.usage, `--no-${optionName(name)} takes no value.`);
 			given[name] = !negated;
 			continue;
 		}
 		if (negated) throw new CliError(EXIT.usage, `--${optionName(name)} isn't a switch: give it a value.`);
-		const text = inline ?? args[++index];
-		if (text === undefined)
-			throw new CliError(EXIT.usage, `--${optionName(name)} needs a value (${placeholder(schema, command, name)}).`);
+		const text = flags.value(flag, `--${optionName(name)} needs a value (${placeholder(schema, command, name)}).`);
 		if (command.files.includes(name)) {
 			given[name] = await fileOption(text, io);
 			continue;
@@ -82,6 +75,12 @@ export async function inputOf(
 			continue;
 		}
 		given[name] = await optionValue(name, schema, text, io);
+	}
+	if (flags.rest.length > 0) {
+		throw new CliError(
+			EXIT.usage,
+			`Unexpected argument "${flags.rest[0]}". Options start with --; see webcraft ${command.words.join(" ")} --help.`,
+		);
 	}
 
 	input = { ...input, ...given };

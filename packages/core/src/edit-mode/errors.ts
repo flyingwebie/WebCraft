@@ -24,3 +24,14 @@ export class EditFieldInvalidError extends Error {
 		super("Only the title and text and rich text Fields can be changed in place.");
 	}
 }
+
+/**
+ * A Loop item couldn't be put back: what was sent isn't what Edit mode removed in this session (it was
+ * changed, or comes from another session).
+ */
+export class LoopItemRestoreRefusedError extends Error {
+	override name = "LoopItemRestoreRefusedError";
+	constructor() {
+		super("This item can't be put back from here: remove and add it again instead.");
+	}
+}

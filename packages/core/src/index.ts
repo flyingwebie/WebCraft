@@ -119,20 +119,26 @@ export {
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	EDIT_LINK_LIFETIME_MS,
+	EDIT_MEDIA_PAGE,
 	EDIT_MODE_PATH,
 	EDIT_SESSION_LIFETIME_MS,
 	EditFieldInvalidError,
 	type EditItem,
 	type EditLink,
+	type EditMediaItem,
+	type EditMediaQuery,
 	type EditMode,
 	EditModeUnavailableError,
 	EditPathInvalidError,
 	type EditSession,
 	type EnteredEditMode,
+	type ImageChange,
 	isEditPath,
+	LoopItemRestoreRefusedError,
 	type PageChange,
 	type PageState,
 	type RegionChange,
+	type SavedImage,
 	type SavedRegion,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
@@ -491,7 +497,7 @@ export {
 	updatesCheck,
 	updatesCheckSchedule,
 } from "./updates.ts";
-export { WEBCRAFT_VERSION } from "./version.ts";
+export { VERSION_HEADER, WEBCRAFT_VERSION } from "./version.ts";
 export * from "./webhooks/index.ts";
 export {
 	createWorkers,

@@ -133,6 +133,12 @@ export type BodyRenderContext = {
 	 * placeholder it shows meanwhile. Absent where nothing is held back (no banner, Edit mode).
 	 */
 	held?: HoldEmbed;
+	/**
+	 * Edit mode's tags for an image Block's image, by the Block's id: the image region's attributes, or
+	 * undefined when it isn't editable. Absent for the pages visitors get. An image Block with no image
+	 * to show is still rendered then, as an empty region to choose one in.
+	 */
+	imageRegion?: (blockId: string) => readonly (readonly [string, string])[] | undefined;
 };
 
 /**
@@ -345,9 +351,17 @@ const image: BlockTypeSpec<ImageBlock> = {
 	hasContent: (block) => block.media !== null,
 	render(block, context) {
 		const found = block.media ? context.media?.(block.media) : undefined;
-		if (found?.kind !== "image") return "";
+		const region = context.imageRegion?.(block.id);
+		if (found?.kind !== "image") {
+			if (!region) return "";
+			const tags = region.map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`).join("");
+			return `<figure><span${tags}></span></figure>`;
+		}
+		const own: [string, string][] = region
+			? [...region.map(([name, value]): [string, string] => [name, value]), ["data-wc-media", block.media ?? ""]]
+			: [];
 		const caption = found.caption?.trim() ? `<figcaption>${escapeText(found.caption.trim())}</figcaption>` : "";
-		return `<figure>${renderMediaImage(found, [], context.priorityImage)}${caption}</figure>`;
+		return `<figure>${renderMediaImage(found, own, context.priorityImage)}${caption}</figure>`;
 	},
 };
 

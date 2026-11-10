@@ -69,7 +69,7 @@ export function createAdminApi(
 }
 
 /** Room a multipart body needs beside its file: boundaries, part headers and the other fields. */
-const MULTIPART_ALLOWANCE = 64 * 1024;
+export const MULTIPART_ALLOWANCE = 64 * 1024;
 
 export type LimitedBody = { request: Request; overflowed(): boolean; tooLarge(): Response };
 
@@ -104,12 +104,28 @@ export async function bodyWithinLimit(
 	const own = Object.hasOwn(OWN_UPLOAD_LIMITS, procedurePath) ? OWN_UPLOAD_LIMITS[procedurePath] : undefined;
 	const maxFileBytes = own?.maxFileBytes ?? (await services.settings.media()).maxFileBytes;
 	const refusal = own?.refusal ?? (() => new MediaTooLargeError(maxFileBytes));
-	const limit = maxFileBytes + MULTIPART_ALLOWANCE;
+	const limited = limitBody(request, maxFileBytes + MULTIPART_ALLOWANCE, refusal);
+	if ("refused" in limited) return tooLarge(limited.refused);
+	return { ...limited, tooLarge: () => tooLarge(refusal()) };
+}
+
+/**
+ * Keeps a request's body to `limit` bytes before it is read into memory: a body that says it is
+ * larger is refused at once (`refused`), and one that doesn't say stops being read once it passes the
+ * limit, its reading failing with `refusal()` (`overflowed()` then says so). Edit mode's uploads use
+ * it too, with the Install's largest Media file.
+ */
+export function limitBody(
+	request: Request,
+	limit: number,
+	refusal: () => Error,
+): { request: Request; overflowed(): boolean } | { refused: Error } {
+	if (request.body === null) return { request, overflowed: () => false };
 	const declared = Number(request.headers.get("content-length"));
 	if (Number.isFinite(declared) && declared > limit) {
 		// Not waited for: a body cancelled half-read may never say it is done (Bun's never does).
 		request.body.cancel().catch(() => {});
-		return tooLarge(refusal());
+		return { refused: refusal() };
 	}
 	const reader = request.body.getReader();
 	let read = 0;
@@ -142,11 +158,7 @@ export async function bodyWithinLimit(
 		signal: request.signal,
 		duplex: "half",
 	};
-	return {
-		request: new Request(request.url, init),
-		overflowed: () => overflowed,
-		tooLarge: () => tooLarge(refusal()),
-	};
+	return { request: new Request(request.url, init), overflowed: () => overflowed };
 }
 
 /** A refused upload (`MEDIA_TOO_LARGE`, `IMPORT_FILE_REFUSED`), as a procedure answers it. */

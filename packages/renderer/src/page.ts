@@ -12,7 +12,7 @@ import { THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.ts";
 import type { RenderTime } from "./expressions.ts";
 import { FILTER_SCRIPT } from "./filters/script.ts";
 import { escapeAttribute, escapeText, type PlacementRenderer, renderTree, safeUrl } from "./html.ts";
-import type { LoopItemPlace, LoopRun } from "./loops.ts";
+import type { LoopRun, RegionPlace } from "./loops.ts";
 import { SEARCH_HIT_NAME, SEARCH_LOOP, SEARCH_QUERY_VALUE } from "./loops.ts";
 import type { MediaReader } from "./media.ts";
 import { type PageSeo, seoTags, sharingTags } from "./seo.ts";
@@ -230,15 +230,21 @@ export type PageStyles = {
 /** What a page rendered for Edit mode adds to what visitors get. */
 export type EditModePage = {
 	/**
-	 * The attributes that tag an element showing `value` alone as an editable region, or undefined
-	 * when it isn't editable. `template` is where the binding is: the page's content or the Site template;
-	 * `item`, the Loop item it sits in, if any.
+	 * The attributes that tag an element showing `value` alone (or an image whose `src` it is) as an
+	 * editable region, or undefined when it isn't editable. `template` is where the binding is: the
+	 * page's content or the Site template; `place`, the Loop item it sits in, if any, and whether it is
+	 * an image's (`RegionPlace`).
 	 */
 	region(
 		value: ValueNode,
 		template: "content" | "site",
-		item?: LoopItemPlace,
+		place: RegionPlace,
 	): readonly (readonly [string, string])[] | undefined;
+	/**
+	 * The words of the mark around a Loop of the Site (`RenderOptions.editLoop`): its id, where its
+	 * items come from and its name; undefined for one not to mark.
+	 */
+	loop?(name: string): readonly string[] | undefined;
 	/** `<meta>` elements for WebCraft's own script, by name, such as the Edit mode session's header token. */
 	meta: readonly (readonly [name: string, content: string])[];
 	/** WebCraft's own scripts, as paths on the Site's domain; they run before anything else on the page. */
@@ -327,7 +333,8 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		languageSwitcher,
 		consentSettings,
 		held,
-		editRegion: editMode && !editMode.code ? (value, item) => editMode.region(value, "content", item) : undefined,
+		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "content", place) : undefined,
+		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		codeSource: editMode?.code ? "content" : undefined,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
@@ -352,7 +359,8 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		languageSwitcher,
 		consentSettings,
 		held,
-		editRegion: editMode && !editMode.code ? (value, item) => editMode.region(value, "site", item) : undefined,
+		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "site", place) : undefined,
+		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		codeSource: editMode?.code ? "site" : undefined,
 	});
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
