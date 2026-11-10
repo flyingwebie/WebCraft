@@ -9,7 +9,7 @@ import { isUuid } from "../ids.ts";
 import type { Logger } from "../log.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { sniff } from "../media/sniff.ts";
-import { type ByteRange, type StorageKind, siteFolder } from "../media/storage.ts";
+import { type ByteRange, StorageError, type StorageKind, siteFolder } from "../media/storage.ts";
 import type { BackgroundScope, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 
 /**
@@ -175,7 +175,10 @@ export function createFormUploads(deps: FormUploadsDeps): FormUploads {
 				await (await storage.holding(row.storage as StorageKind)).delete(row.key);
 				await scope.delete(formUploads, and(eq(formUploads.id, row.id), isNull(formUploads.submissionId)));
 			} catch (error) {
-				log.error("A Form upload's file couldn't be deleted", { key: row.key, error });
+				log[error instanceof StorageError ? "warn" : "error"]("A Form upload's file couldn't be deleted", {
+					key: row.key,
+					error,
+				});
 			}
 		}
 	};

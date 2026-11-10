@@ -272,6 +272,7 @@ function scriptRules(form: FormToRender) {
 			textLength: FORM_LIMITS.textLength,
 			textareaLength: FORM_LIMITS.textareaLength,
 			options: FORM_LIMITS.options,
+			defaultFileBytes: FORM_LIMITS.defaultFileBytes,
 		},
 		words: {
 			errors: words.errors,

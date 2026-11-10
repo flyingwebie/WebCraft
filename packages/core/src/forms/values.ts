@@ -54,6 +54,7 @@ const LIMITS = {
 	textLength: FORM_LIMITS.textLength,
 	textareaLength: FORM_LIMITS.textareaLength,
 	options: FORM_LIMITS.options,
+	defaultFileBytes: FORM_LIMITS.defaultFileBytes,
 };
 
 function matches(pattern: string, text: string): boolean {
@@ -107,6 +108,7 @@ export function checkValues(
 				field,
 				given.map((file) => ({ name: file.name, size: file.bytes.byteLength, format: file.format })),
 				uploadExtensions(field.accept),
+				LIMITS,
 			);
 			if (broken) broke(broken);
 			files.set(field.key, given);

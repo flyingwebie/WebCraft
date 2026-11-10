@@ -19,6 +19,7 @@ import {
 	type ElementTree,
 	elementsOf,
 	FILTER_SCRIPT,
+	FORM_PATTERN_SCRIPT,
 	FORM_SCRIPT,
 	readDesignSystem,
 	THEME_TOGGLE_SCRIPT,
@@ -166,7 +167,14 @@ export { SCRIPT_PATH } from "@webcraft/renderer";
  * Null for any other name.
  */
 export function siteScript(name: string): string | null {
-	for (const script of [THEME_TOGGLE_SCRIPT, VIDEO_SCRIPT, CONSENT_SCRIPT, FILTER_SCRIPT, FORM_SCRIPT])
+	for (const script of [
+		THEME_TOGGLE_SCRIPT,
+		VIDEO_SCRIPT,
+		CONSENT_SCRIPT,
+		FILTER_SCRIPT,
+		FORM_SCRIPT,
+		FORM_PATTERN_SCRIPT,
+	])
 		if (name === script.name) return script.text;
 	return null;
 }

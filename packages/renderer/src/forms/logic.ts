@@ -21,7 +21,7 @@ export type ReadValue = {
 export type CheckedFile = { name: string; size: number; format?: string | null };
 
 /** The limits the rules read (`FORM_LIMITS`), handed in so the function needs nothing from outside. */
-export type LogicLimits = { textLength: number; textareaLength: number; options: number };
+export type LogicLimits = { textLength: number; textareaLength: number; options: number; defaultFileBytes: number };
 
 export type FormLogic = {
 	/**
@@ -43,7 +43,12 @@ export type FormLogic = {
 	 * extensions (`extensions`, `.pdf`), and by what their bytes are where that is known (`format`, on
 	 * the server: null for bytes that are none of the formats taken, SVG among them).
 	 */
-	checkFiles(field: FormField, files: readonly CheckedFile[], extensions: readonly string[]): ReadValue["broken"];
+	checkFiles(
+		field: FormField,
+		files: readonly CheckedFile[],
+		extensions: readonly string[],
+		limits: LogicLimits,
+	): ReadValue["broken"];
 	/** Whether `value` is a day of the calendar, `2026-03-02`. */
 	isDay(value: string): boolean;
 	/** Words with their numbers filled in: `{min}`, `{max}`, `{count}`, `{types}`, `{n}`. */
@@ -232,6 +237,7 @@ export function formLogic(): FormLogic {
 		field: FormField,
 		files: readonly CheckedFile[],
 		extensions: readonly string[],
+		limits: LogicLimits,
 	): ReadValue["broken"] {
 		if (files.length === 0) return field.required ? { rule: "requiredFile" } : null;
 		const most = field.maxFiles ?? 1;
@@ -244,8 +250,7 @@ export function formLogic(): FormLogic {
 			return file.format === undefined || (file.format !== null && (field.accept as string[]).includes(file.format));
 		};
 		if (!files.every(taken)) return { rule: "fileType", params: { types } };
-		// Unset, a field takes files of up to 10 MB (`FORM_LIMITS.defaultFileBytes`).
-		const largest = field.maxFileBytes ?? 10 * 1024 * 1024;
+		const largest = field.maxFileBytes ?? limits.defaultFileBytes;
 		if (files.some((file) => file.size > largest)) {
 			return { rule: "fileSize", params: { max: size(largest) } };
 		}

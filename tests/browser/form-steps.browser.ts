@@ -116,6 +116,39 @@ beforeAll(async () => {
 	await api.entries.publish({ siteId, entryId: order.id });
 	await api.designSystem.saveDraft({ siteId, darkMode: true });
 	await api.designSystem.publish({ siteId });
+	const patterns = await api.forms.create({ siteId, name: "Pattern checks", key: "patterns" });
+	await api.forms.saveDraft({
+		siteId,
+		formId: patterns.form.id,
+		form: {
+			fields: [
+				{ key: "first", type: "step", label: "First" },
+				{ key: "code", type: "text", label: "Code", required: true, pattern: "\\S+" },
+				{ key: "second", type: "step", label: "Second" },
+				{ key: "ending", type: "text", label: "Ending", required: true, pattern: "(a+)+b" },
+			],
+			spam: { minFillSeconds: 0, perMinute: 100, perHour: 1000 },
+		},
+	});
+	await api.forms.publish({ siteId, formId: patterns.form.id });
+	const { postType: patternType } = await api.postTypes.create({
+		siteId,
+		name: "Patterns",
+		urlPattern: "/patterns/{slug}",
+	});
+	const patternTemplate = await api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId: patternType.id,
+		markup: "<article><h1>{{ title }}</h1>{{@form patterns}}</article>",
+	});
+	await api.templates.publish({ siteId, templateId: patternTemplate.template.id });
+	const patternEntry = await api.entries.create({
+		siteId,
+		postTypeId: patternType.id,
+		title: "Patterns",
+		slug: "checks",
+	});
+	await api.entries.publish({ siteId, entryId: patternEntry.entry.id });
 });
 
 afterAll(async () => {
@@ -135,6 +168,47 @@ async function withoutFormsScript(page: Page): Promise<Page> {
 	});
 	return page;
 }
+
+test("pattern checks agree with the server and finish without backtracking", async () => {
+	const page = await install.newPage("light");
+	await page.goto(install.liveUrl(slug, "/patterns/checks"));
+	await page.locator(".wc-form-progress").waitFor();
+	// RE2's whitespace class is ASCII: an internal nonbreaking space is accepted by the server.
+	await page.getByLabel("Code").fill("two\u00a0words");
+	await page.getByRole("button", { name: "Next" }).click();
+	await page.getByLabel("Ending").waitFor({ timeout: 3000 });
+
+	// This valid RE2 pattern takes seconds to backtrack in the native JavaScript engine. Checking it
+	// must promptly show the error and leave the page usable so the visitor can correct the value.
+	await page.getByLabel("Ending").fill("a".repeat(32));
+	await page.getByRole("button", { name: "Send" }).click({ timeout: 3000 });
+	await page.locator("#wc-form-1-ending-error").waitFor({ timeout: 3000 });
+	await expect(page.getByLabel("Ending").getAttribute("aria-invalid")).resolves.toBe("true");
+	await page.getByLabel("Ending").fill(`${"a".repeat(32)}b`);
+	await page.getByRole("button", { name: "Send" }).click();
+	await page.locator(".wc-form-sent").waitFor();
+	await expect(page.getByRole("status").first().textContent()).resolves.toBe(
+		"Thank you. We have received your message.",
+	);
+});
+
+test("a Form still posts normally if its pattern engine cannot load", async () => {
+	const page = await install.newPage("light");
+	await page.route("**/_wc/js/*.js", async (route) => {
+		const response = await route.fetch();
+		if (!(await response.text()).includes("export const RE2JS")) return route.fulfill({ response });
+		return route.fulfill({ status: 200, contentType: "text/javascript", body: 'throw new Error("Unavailable");' });
+	});
+	await page.goto(install.liveUrl(slug, "/patterns/checks"));
+	await page.waitForLoadState("networkidle");
+	await expect(page.getByLabel("Code").isVisible()).resolves.toBe(true);
+	await expect(page.getByLabel("Ending").isVisible()).resolves.toBe(true);
+	await expect(page.getByRole("button", { name: "Next" }).isVisible()).resolves.toBe(false);
+	await page.getByLabel("Code").fill("two\u00a0words");
+	await page.getByLabel("Ending").fill("aaaab");
+	await page.getByRole("button", { name: "Send" }).click();
+	await page.locator(".wc-form-sent").waitFor();
+});
 
 for (const theme of THEMES) {
 	describe(`a Form with steps, ${theme}`, () => {

@@ -548,11 +548,18 @@ describe("storage failures", () => {
 		const [file] = filesOf(submission, "cv");
 		expect(bucket.objects.size).toBe(1);
 		bucket.fail("DELETE", 503);
+		const firstLog = install.logs.length;
 		const asked = await submissions(owner).submissions.delete({ siteId, ids: [submission.id] });
 		if (asked.deleted) throw new Error("It deleted at once.");
 		await submissions(owner).submissions.delete({ siteId, ids: [submission.id], confirmation: asked.confirmation.id });
 		expect((await owner.request(downloadPath(file?.uploadId ?? null))).status).toBe(404);
 		expect(bucket.objects.size).toBe(1);
+		expect(
+			install.logs
+				.slice(firstLog)
+				.filter((line) => line.msg === "A Form upload's file couldn't be deleted")
+				.map((line) => line.level),
+		).toEqual(["warn"]);
 
 		bucket.recover();
 		await install.clock.advance(2 * DAY);

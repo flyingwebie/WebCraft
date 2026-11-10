@@ -25,6 +25,7 @@ import { createHash } from "node:crypto";
 
 import { SCRIPT_PATH } from "../design-system/theme-toggle.ts";
 import { formLogic } from "./logic.ts";
+import { FORM_PATTERN_SCRIPT } from "./pattern-script.ts";
 
 /** The header the forms script sends with its posts: the Site answers them in JSON. */
 export const FORM_SCRIPT_HEADER = "x-webcraft-form";
@@ -34,7 +35,7 @@ const SCRIPT = `(() => {
 	const HEADER = ${JSON.stringify(FORM_SCRIPT_HEADER)};
 	const LAYOUT = new Set(["section", "step"]);
 
-	const setUp = (form) => {
+	const setUp = async (form) => {
 		let rules;
 		try {
 			rules = JSON.parse(form.dataset.wcRules || "{}");
@@ -42,6 +43,20 @@ const SCRIPT = `(() => {
 			return;
 		}
 		const fields = rules.fields || [];
+		let matches = () => true;
+		if (fields.some((field) => field.pattern !== null)) {
+			try {
+				const { RE2JS } = await import(${JSON.stringify(FORM_PATTERN_SCRIPT.href)});
+				const patterns = new Map();
+				for (const field of fields) {
+					if (field.pattern !== null) patterns.set(field.pattern, RE2JS.compile("^(?:" + field.pattern + ")$"));
+				}
+				matches = (pattern, text) => patterns.get(pattern).matches(text);
+			} catch {
+				// The dependency didn't load: leave every step visible and let the server check the post.
+				return;
+			}
+		}
 		const words = rules.words || {};
 		const status = form.querySelector(".wc-form-status");
 		const submit = form.querySelector(".wc-form-submit");
@@ -181,15 +196,10 @@ const SCRIPT = `(() => {
 						field,
 						filesOf(field.key).map((file) => ({ name: file.name, size: file.size })),
 						field.extensions || [],
+						rules.limits,
 					);
 				} else {
-					broken = logic.readValue(field, valuesOf(field.key), rules.limits, (pattern, text) => {
-						try {
-							return new RegExp("^(?:" + pattern + ")$", "u").test(text);
-						} catch {
-							return true;
-						}
-					}).broken;
+					broken = logic.readValue(field, valuesOf(field.key), rules.limits, matches).broken;
 				}
 				if (broken) found.push({ key: field.key, message: messageOf(field, broken) });
 				else clearError(field.key);

@@ -7,6 +7,7 @@
 export * from "./email-words.ts";
 export * from "./emails.ts";
 export * from "./logic.ts";
+export * from "./pattern-script.ts";
 export * from "./placed.ts";
 export * from "./render.ts";
 export * from "./script.ts";
