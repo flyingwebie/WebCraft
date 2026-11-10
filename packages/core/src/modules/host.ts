@@ -1366,8 +1366,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 							if (!live) throw new ModuleNotFoundError();
 							const connection = {
 								includeHidden: config.includeHidden,
-								http: (path: string, request?: { anonymous?: boolean }) =>
-									importSourceHttp(module, scope, options, config, path, request?.anonymous),
+								http: importSourceHttp(module, scope, options, config),
 							};
 							const noteFailure = async (error: unknown, phase: "test" | "read") => {
 								if (!isModuleAnswer(error)) {

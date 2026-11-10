@@ -4,6 +4,7 @@ import {
 	isModuleError,
 	type KeptSubmission,
 	type Label,
+	type LiveConnection,
 	labelProblem,
 	type ModuleContext,
 	type ModuleError,
@@ -30,6 +31,7 @@ import { redactText, redactValue } from "../redaction.ts";
 import { SecretNotSetError } from "../secrets/store.ts";
 import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { type EnsurePartition, moduleData, type PlaceScope } from "./data.ts";
+import { discoverImportRoot, importRoute, importRouteUrl } from "./import-http.ts";
 import { moduleJob, type QueuedPlace } from "./jobs.ts";
 import { type ModuleLogLevel, writeModuleLog } from "./module-log.ts";
 import type { RunnableModule } from "./registry.ts";
@@ -446,37 +448,28 @@ export function isModuleAnswer(error: unknown): error is ModuleError | Confirmat
 }
 
 /** Core-only binding: a live source can GET only beneath the authorized REST root. */
-export async function importSourceHttp(
+export function importSourceHttp(
 	module: RunnableModule,
 	scope: SiteScope,
 	deps: RuntimeDeps,
 	config: { address: string; secretName: string },
-	path: string,
-	anonymous = false,
-): Promise<Response> {
-	if (!module.manifest.uses.includes("importSourceHttp"))
-		throw new ModuleRefusedError("host", "Source requests were not approved.");
-	const base = new URL(`${config.address}wp-json/`);
-	const target = new URL(path, base);
-	if (
-		!path ||
-		target.origin !== base.origin ||
-		!target.pathname.startsWith(base.pathname) ||
-		target.username ||
-		target.password ||
-		target.hash ||
-		target.pathname.includes("%") ||
-		/\{\{|%7b/i.test(path) ||
-		path.includes("\\")
-	)
-		throw new ModuleRefusedError("host", "Only routes of this Import's source may be called.");
-	if (!anonymous) await scope.audit("import.credentials.use", { source: module.id, host: base.host });
-	return moduleHttp(
-		module,
-		scope,
-		deps,
-		target,
-		{ headers: anonymous ? {} : { authorization: "{{wc-secret:login}}" }, maxBytes: 5 * 1024 * 1024 },
-		{ host: base.hostname, secretName: config.secretName },
-	);
+): LiveConnection["http"] {
+	let root: Promise<URL> | undefined;
+	return async (path, { anonymous = false } = {}) => {
+		if (!module.manifest.uses.includes("importSourceHttp"))
+			throw new ModuleRefusedError("host", "Source requests were not approved.");
+		// Refuse an escaped route before doing even unauthenticated discovery.
+		const route = importRoute(config.address, path);
+		root ??= discoverImportRoot(config.address, deps.fetch);
+		const target = importRouteUrl(await root, route);
+		if (!anonymous) await scope.audit("import.credentials.use", { source: module.id, host: target.host });
+		return moduleHttp(
+			module,
+			scope,
+			deps,
+			target,
+			{ headers: anonymous ? {} : { authorization: "{{wc-secret:login}}" }, maxBytes: 5 * 1024 * 1024 },
+			{ host: target.hostname, secretName: config.secretName },
+		);
+	};
 }

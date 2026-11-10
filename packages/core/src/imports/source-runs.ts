@@ -32,7 +32,8 @@ import { createPostType, listPostTypes, type PostType, updatePostType } from "..
 import { canonicalPath, pathFor, pathSegments } from "../content/url-patterns.ts";
 import { readValue, storedVersion } from "../content/values.ts";
 import { defineJob, type JobContext } from "../jobs/define.ts";
-import type { SiteScope } from "../tenancy/data-layer.ts";
+import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
+import { connectionOf } from "./connection.ts";
 import { ImportFileNotReadyError, ImportInvalidError } from "./errors.ts";
 import type { EntryItem, ItemProblem } from "./items.ts";
 import { readSource } from "./live.ts";
@@ -73,6 +74,34 @@ type FileRow = typeof importFiles.$inferSelect;
 type RunRow = typeof importRuns.$inferSelect;
 type ImportRow = typeof imports.$inferSelect;
 
+/** Live snapshots belong to exactly one connection revision, including for samples and Preview. */
+async function checkSourceBinding(
+	scope: SiteScope | BackgroundScope,
+	file: FileRow,
+	importId: string | null,
+	row?: ImportRow,
+) {
+	if (file.expiresAt.getTime() <= scope.now().getTime()) throw new ImportFileNotReadyError("expired");
+	const captured = (file.details as SourceFileDetails).live;
+	if (!importId) {
+		if (captured) throw new ImportFileNotReadyError("source");
+		return;
+	}
+	const parent = row ?? (await scope.first(imports, eq(imports.id, importId)));
+	if (!parent || parent.source !== file.source) throw new ImportFileNotReadyError("source");
+	const connection = connectionOf(parent.connection);
+	if (
+		captured
+			? captured.importId !== importId ||
+				!connection ||
+				connection.revision !== captured.connection.revision ||
+				connection.address !== captured.connection.address ||
+				connection.includeHidden !== captured.connection.includeHidden
+			: connection !== null
+	)
+		throw new ImportFileNotReadyError("source");
+}
+
 /** What a source's run keeps in its summary, besides the counts every run keeps. */
 export type SourceRunSummary = {
 	created: number;
@@ -107,17 +136,7 @@ export async function checkSourceRun(
 	file: FileRow,
 ): Promise<{ total: number; settings: SourceSettings; summary: SourceRunSummary }> {
 	await sourceFor(scope, context.modules, importRow.source);
-	if (
-		(file.details as SourceFileDetails).live?.importId !== undefined &&
-		(file.details as SourceFileDetails).live?.importId !== importRow.id
-	)
-		throw new ImportFileNotReadyError("source");
-	const captured = (file.details as SourceFileDetails).live;
-	if (
-		captured &&
-		captured.connection.revision !== (importRow.connection as import("./live.ts").ImportConnection | null)?.revision
-	)
-		throw new ImportFileNotReadyError("source");
+	await checkSourceBinding(scope, file, importRow.id, importRow);
 	const survey = surveyOf(file, importRow.source);
 	const settings = sourceSettingsSchema.parse(importRow.settings);
 	const mapping = await sourceMapping(scope, settings, survey);
@@ -655,6 +674,7 @@ export async function sourcePreview(
 	importId: string | null,
 ): Promise<SourcePreview> {
 	const survey = surveyOf(file, file.source);
+	await checkSourceBinding(scope, file, importId);
 	const mapping = await sourceMapping(scope, settings, survey);
 	const key = previewKey(settings, importId);
 	const stored = file.preview as StoredPreview | null;
@@ -737,7 +757,14 @@ async function runPreview(
 				.from(importFiles)
 				.where(tx.where(importFiles, eq(importFiles.id, file.id)))
 				.for("update");
-			if ((now?.preview as StoredPreview | null)?.key !== payload.key) return;
+			if (!now || (now.preview as StoredPreview | null)?.key !== payload.key) return;
+			try {
+				await checkSourceBinding(tx, now, payload.importId);
+			} catch (error) {
+				if (!(error instanceof ImportFileNotReadyError)) throw error;
+				// Reconnecting can invalidate a queued or running Preview. Never publish that result.
+				return;
+			}
 			await tx.update(importFiles, { preview: { key: payload.key, preview } }, eq(importFiles.id, file.id));
 		});
 	};
@@ -753,6 +780,7 @@ async function runPreview(
 	if (preview?.status !== "working") return;
 	try {
 		const source = await sourceFor(scope, context.modules, file.source);
+		await checkSourceBinding(scope, file, payload.importId);
 		const survey = surveyOf(file, file.source);
 		const mapping = await sourceMapping(scope, payload.settings, survey);
 		const pipeline = await pipelineContext(scope, payload.importId, null);
@@ -960,6 +988,7 @@ export async function sourceSample(
 	input: { settings: SourceSettings; type: string; index: number; importId: string | null },
 ): Promise<{ entry: PreviewEntry | null; media: PreviewMedia | null; of: number; count: number }> {
 	const survey = surveyOf(file, file.source);
+	await checkSourceBinding(scope, file, input.importId);
 	const type = survey.types.find((each) => each.key === input.type);
 	if (!type) return { entry: null, media: null, of: 0, count: 0 };
 	const sample = type.samples[input.index];

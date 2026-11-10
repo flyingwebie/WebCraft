@@ -82,6 +82,14 @@ test("the live SDK port confines a Module to the chosen REST root and never expo
 			"wp/v2/%2fescape",
 			"wp/v2/users?x={{wc-secret:other}}",
 			"wp\\v2\\users",
+			"wp/v2/users?rest_route=/elsewhere",
+			"wp/v2/users?rest.route=/elsewhere",
+			"wp/v2/users?rest%20route=/elsewhere",
+			"wp/v2/users?rest_route[]=elsewhere",
+			"wp/v2/users?_method=POST",
+			"wp/v2/users?_method[]=DELETE",
+			"wp/v2/users?_method%00=DELETE",
+			"wp/v2/users?%20_method=POST",
 			"https://login:password@source.example/blog/wp-json/wp/v2/users/me",
 		]) {
 			route = path;

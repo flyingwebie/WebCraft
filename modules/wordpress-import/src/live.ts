@@ -27,6 +27,12 @@ function html(value: unknown): string {
 	const v = object(value ?? {});
 	return text(v.raw ?? v.rendered);
 }
+function titleValue(value: unknown): Extract<SourceValue, { kind: "text" | "html" }> {
+	const title = object(value ?? {});
+	return typeof title.raw === "string"
+		? { kind: "text", text: title.raw }
+		: { kind: "html", html: text(title.rendered) };
+}
 function id(value: unknown): number {
 	if (!Number.isSafeInteger(value) || (value as number) < 1)
 		return fail("response", "WordPress returned an invalid Source id.");
@@ -67,6 +73,21 @@ function total(response: Response, name: string): number {
 	if (!raw || !/^\d+$/.test(raw) || Number(raw) > MAX_ITEMS)
 		return fail("pagination", "WordPress did not return bounded pagination totals.");
 	return Number(raw);
+}
+function pageLength(type: LiveSurvey["types"][number], actual: number, expected: number) {
+	// WordPress counts attachments before checking read/edit permissions. Only Media permits
+	// short (even empty) pages; stable totals still determine every page we must request.
+	return actual <= expected && (actual === expected || type.holds === "media");
+}
+function checkVisibility(row: RecordValue, type: LiveSurvey["types"][number], connection: LiveConnection) {
+	if (
+		!type.taxonomy &&
+		type.holds !== "media" &&
+		(!connection.includeHidden
+			? row.status !== "publish"
+			: !["publish", "draft", "pending", "future", "private"].includes(text(row.status)))
+	)
+		return fail("visibility", "WordPress returned content outside the requested visibility.");
 }
 function query(
 	type: LiveSurvey["types"][number],
@@ -126,7 +147,7 @@ export const liveSource: LiveImportSource = {
 				entry.count = total(answer.response, "x-wp-total");
 				if (
 					total(answer.response, "x-wp-totalpages") !== entry.count ||
-					answer.value.length !== Math.min(1, entry.count)
+					!pageLength(entry, answer.value.length, Math.min(1, entry.count))
 				)
 					return fail("pagination", "WordPress returned inconsistent counts.");
 				types.push(entry);
@@ -147,14 +168,7 @@ export const liveSource: LiveImportSource = {
 				if (yielded.has(current)) return;
 				if (visiting.has(current) || visiting.size >= 100)
 					return fail("hierarchy", "The source has a cyclic or excessively deep hierarchy.");
-				if (
-					!type.taxonomy &&
-					type.holds !== "media" &&
-					(!connection.includeHidden
-						? row.status !== "publish"
-						: !["publish", "draft", "pending", "future", "private"].includes(text(row.status)))
-				)
-					return fail("visibility", "WordPress returned content outside the requested visibility.");
+				checkVisibility(row, type, connection);
 				visiting.add(current);
 				if (row.parent && type.holds !== "media") {
 					const parentId = id(row.parent);
@@ -185,7 +199,7 @@ export const liveSource: LiveImportSource = {
 					!Array.isArray(value) ||
 					total(response, "x-wp-total") !== type.count ||
 					total(response, "x-wp-totalpages") !== Math.ceil(type.count / PAGE_SIZE) ||
-					value.length !== Math.min(PAGE_SIZE, type.count - seen)
+					!pageLength(type, value.length, Math.min(PAGE_SIZE, type.count - (page - 1) * PAGE_SIZE))
 				)
 					return fail("pagination", "The source changed or returned an incomplete page. Test the connection again.");
 				for (const raw of value) {
@@ -194,18 +208,12 @@ export const liveSource: LiveImportSource = {
 					if (sourceId <= lastId) return fail("pagination", "WordPress returned repeated or unordered Source ids.");
 					lastId = sourceId;
 					seen++;
-					if (
-						!type.taxonomy &&
-						type.holds !== "media" &&
-						(!connection.includeHidden
-							? row.status !== "publish"
-							: !["publish", "draft", "pending", "future", "private"].includes(text(row.status)))
-					)
-						return fail("visibility", "WordPress returned content outside the requested visibility.");
+					// Check page rows too: a parent already yielded must not evade visibility checks.
+					checkVisibility(row, type, connection);
 					yield* ordered(row);
 				}
 			}
-			if (yielded.size !== type.count)
+			if (yielded.size !== seen || !pageLength(type, seen, type.count))
 				return fail("pagination", "The source hierarchy changed while reading. Test the connection again.");
 		}
 	},
@@ -241,7 +249,9 @@ async function itemOf(
 			file: mediaFile(row),
 			path: path(row.source_url),
 		};
-	const values: Record<string, SourceValue> = {};
+	// The shared Import converter reads HTML titles as plain text, using its complete HTML parser.
+	const title = type.taxonomy ? { kind: "text" as const, text: text(row.name) } : titleValue(row.title);
+	const values: Record<string, SourceValue> = { title };
 	if (type.taxonomy) values.description = { kind: "html", html: text(row.description) };
 	else {
 		values.content = { kind: "html", html: html(row.content) };
@@ -270,7 +280,7 @@ async function itemOf(
 		kind: "entry",
 		type: type.key,
 		sourceId: `${prefix}${id(row.id)}`,
-		title: type.taxonomy ? text(row.name) : html(row.title),
+		title: title.kind === "text" ? title.text : "",
 		slug: text(row.slug) || null,
 		parent: row.parent ? `${prefix}${id(row.parent)}` : null,
 		path: path(row.link),

@@ -67,11 +67,11 @@ export function convertEntry(source: SourceEntry, position: number, target: Entr
 		path: source.path,
 	};
 	const values: [string, SourceValue | { kind: "title" | "slug"; text: string }][] = [
-		["title", { kind: "title", text: source.title }],
+		["title", source.values.title ?? { kind: "title", text: source.title }],
 		...(source.slug
 			? [["slug", { kind: "slug" as const, text: source.slug }] as [string, { kind: "slug"; text: string }]]
 			: []),
-		...Object.entries(source.values),
+		...Object.entries(source.values).filter(([key]) => key !== "title"),
 	];
 	for (const [key, value] of values) {
 		const target = converted.target.keys.get(key);
