@@ -6,6 +6,7 @@ import { and, eq, gt, isNull, lte, type SQL } from "drizzle-orm";
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import type { FieldDefinition } from "../content/field-types.ts";
 import { domainOrigin, verifiedDomains } from "../domains/addresses.ts";
 import type { FocalPoint, MediaLibrary } from "../media/library.ts";
 import { type PersonActor, personIdOf } from "../permissions/can.ts";
@@ -14,7 +15,20 @@ import type { PageContent, SiteHost } from "../site-pages/index.ts";
 import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
-import { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+import { EditModeUnavailableError, EditPathInvalidError, LoopItemRestoreRefusedError } from "./errors.ts";
+import {
+	addLoopItem,
+	duplicateLoopItem,
+	type ItemOrder,
+	itemIndex,
+	type LoopItemValues,
+	moveLoopItem,
+	ownItemsLoop,
+	removeLoopItem,
+	restoreLoopItem,
+	type SavedLoopItem,
+	saveLoopItemValues,
+} from "./loop-items.ts";
 import {
 	changeImage,
 	type EditMediaItem,
@@ -44,7 +58,12 @@ import {
 	saveRegion,
 } from "./regions.ts";
 
-export { EditFieldInvalidError, EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
+export {
+	EditFieldInvalidError,
+	EditModeUnavailableError,
+	EditPathInvalidError,
+	LoopItemRestoreRefusedError,
+} from "./errors.ts";
 export { EDIT_MEDIA_PAGE, type EditMediaItem, type EditMediaQuery } from "./media.ts";
 export type { PageChange, PageState } from "./page.ts";
 export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
@@ -140,6 +159,35 @@ export type EditMode = {
 	): Promise<PageState>;
 	/** Withdraws the page's Reviews the person submitted, answering the page's state afterwards. */
 	withdrawReview(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/** A Loop's own items, edited in place (GLOSSARY.md › Loop item): Content, in the Loop's Draft. */
+	loops: {
+		/**
+		 * The item form of one of a Loop's own items: the Loop, its items' Fields and the item's values in a
+		 * language. Refuses a query Loop and an item the Loop doesn't have (`EditFieldInvalidError`).
+		 */
+		item(
+			session: EditSession,
+			input: { loop: string; item: string; language?: string },
+		): Promise<{ loop: { id: string; name: string }; fields: FieldDefinition[]; item: LoopItemValues }>;
+		/** Saves some of an item's values (by key) in a language, as the item form sends them. */
+		save(
+			session: EditSession,
+			input: { loop: string; item: string; language?: string; values: Record<string, unknown> },
+		): Promise<SavedLoopItem>;
+		/** Moves an item to another place (`to`, from 0), in every language. */
+		move(session: EditSession, input: { loop: string; item: string; to: number }): Promise<ItemOrder>;
+		/** Copies an item, with its values in every language, right after it. */
+		duplicate(session: EditSession, input: { loop: string; item: string }): Promise<ItemOrder & { item: string }>;
+		/**
+		 * Removes an item in every language. `restore` puts it back, as it was, where it was: it holds the
+		 * item signed for this session, so nothing else can be put in its place.
+		 */
+		remove(session: EditSession, input: { loop: string; item: string }): Promise<ItemOrder & { restore: string }>;
+		/** Puts back an item `remove` removed in this session (`LoopItemRestoreRefusedError` for anything else), once. */
+		restore(session: EditSession, restore: string): Promise<ItemOrder & { item: string }>;
+		/** Adds an item with its Fields' defaults after one (`after`), or first. */
+		add(session: EditSession, input: { loop: string; after: string | null }): Promise<ItemOrder & { item: string }>;
+	};
 	/** The image popover's Media library: the Site's images and folders, as the admin's Media screen has them. */
 	media: {
 		/** The Site's images out of the Trash, newest first, `EDIT_MEDIA_PAGE` at a time, and the library's folders. */
@@ -207,12 +255,9 @@ export function createEditMode(options: {
 		}
 	};
 
-	const sign = async (sessionId: string) => {
-		const signature = await crypto.subtle.sign(
-			"HMAC",
-			signingKey,
-			new TextEncoder().encode(`edit-session:${sessionId}`),
-		);
+	/** An HMAC of `text` under the Edit mode signing key, as base64url. */
+	const sign = async (text: string) => {
+		const signature = await crypto.subtle.sign("HMAC", signingKey, new TextEncoder().encode(text));
 		return Buffer.from(signature).toString("base64url");
 	};
 
@@ -309,7 +354,7 @@ export function createEditMode(options: {
 				expiresAt: row.expiresAt,
 				access: opened.access,
 				scope: opened.scope,
-				headerToken: await sign(row.id),
+				headerToken: await sign(`edit-session:${row.id}`),
 			};
 		},
 
@@ -337,6 +382,39 @@ export function createEditMode(options: {
 		publish: (session, host, path) => publishPage(deps, session, host, path),
 		submitForReview: (session, host, input) => submitPage(deps, session, host, input),
 		withdrawReview: (session, host, path) => withdrawPage(deps, session, host, path),
+		loops: {
+			async item(session, input) {
+				const loop = await ownItemsLoop(session.scope, input.loop, input.language);
+				const index = itemIndex(loop, input.item);
+				return {
+					loop: { id: loop.id, name: loop.name },
+					fields: loop.draft.fields,
+					item: loop.draft.items[index] ?? { id: input.item },
+				};
+			},
+			save: (session, input) =>
+				saveLoopItemValues(session.scope, { loopId: input.loop, itemId: input.item }, input.values, input.language),
+			move: (session, input) => moveLoopItem(session.scope, input.loop, input.item, input.to),
+			duplicate: (session, input) => duplicateLoopItem(session.scope, input.loop, input.item),
+			async remove(session, input) {
+				const { items, removed } = await removeLoopItem(session.scope, input.loop, input.item);
+				const payload = Buffer.from(
+					JSON.stringify({ session: session.id, loop: input.loop, row: removed.row, index: removed.index }),
+				).toString("base64url");
+				return { items, restore: `${payload}.${await sign(`loop-restore:${payload}`)}` };
+			},
+			async restore(session, restore) {
+				const [payload = "", signature = ""] = restore.split(".");
+				const expected = await sign(`loop-restore:${payload}`);
+				if (!payload || signature.length !== expected.length || !timingSafeEqual(signature, expected)) {
+					throw new LoopItemRestoreRefusedError();
+				}
+				const removed = readRemoved(payload);
+				if (!removed || removed.session !== session.id) throw new LoopItemRestoreRefusedError();
+				return restoreLoopItem(session.scope, removed.loop, { row: removed.row, index: removed.index });
+			},
+			add: (session, input) => addLoopItem(session.scope, input.loop, input.after),
+		},
 		media: {
 			list: (session, query) => libraryImages(mediaDeps, session, query),
 			get: (session, mediaId, language) => libraryImage(mediaDeps, session, mediaId, language),
@@ -353,4 +431,42 @@ export function createEditMode(options: {
  */
 function onSite(table: typeof editLinks | typeof editSessions, site: Site, where: SQL | undefined): SQL {
 	return and(eq(table.workspaceId, site.workspaceId), eq(table.siteId, site.id), where) as SQL;
+}
+
+/** Compares two strings of the same length in time that doesn't depend on where they differ. */
+function timingSafeEqual(a: string, b: string): boolean {
+	let difference = 0;
+	for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+	return difference === 0;
+}
+
+/** What a Loop item's restore token holds, once its signature was checked; null when it isn't that shape. */
+function readRemoved(
+	payload: string,
+): { session: string; loop: string; row: { id: string; values: Record<string, unknown> }; index: number } | null {
+	try {
+		const read = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+		const row = read.row as { id?: unknown; values?: unknown } | undefined;
+		if (
+			typeof read.session !== "string" ||
+			typeof read.loop !== "string" ||
+			typeof read.index !== "number" ||
+			!Number.isInteger(read.index) ||
+			read.index < 0 ||
+			typeof row?.id !== "string" ||
+			!row.values ||
+			typeof row.values !== "object" ||
+			Array.isArray(row.values)
+		) {
+			return null;
+		}
+		return {
+			session: read.session,
+			loop: read.loop,
+			row: { id: row.id, values: row.values as Record<string, unknown> },
+			index: read.index,
+		};
+	} catch {
+		return null;
+	}
 }

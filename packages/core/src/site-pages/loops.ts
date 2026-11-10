@@ -59,6 +59,11 @@ export type LoopPlace = {
 	 */
 	version: "published" | "draft";
 	/**
+	 * Where a Loop's own items' values come from when they aren't the Draft's already: `draft` in Edit
+	 * mode, which shows Content's Drafts (Loop items are Content) through the published Loop.
+	 */
+	items?: "draft";
+	/**
 	 * Site search on the page (the Site's search results page, ADR 0021): what the visitor searches
 	 * for and the keys of the Post Types it lists. The built-in `search` Loop runs it.
 	 */
@@ -118,7 +123,14 @@ export type PageLoops = {
 	values: unknown[];
 	/** How many Entries a query Loop of the Site matches on the page, across its pages (its offset aside). */
 	matched(name: string): number | undefined;
+	/** Which Loop of the Site a name is, as the page shows it: its id, where its items come from and their Fields. */
+	info(name: string): ShownLoop | undefined;
+	/** The same, by the Loop's id. */
+	byId(id: string): ShownLoop | undefined;
 };
+
+/** A Loop of the Site as a page shows it (`PageLoops.info`). */
+export type ShownLoop = { id: string; name: string; source: "query" | "items"; fields: readonly FieldDefinition[] };
 
 /**
  * How long a page whose Loops list Entries by a date window relative to now (the last 12 months,
@@ -154,6 +166,7 @@ export async function pageLoops(
 ): Promise<PageLoops> {
 	const names = [...new Set(trees.flatMap((tree) => (tree ? loopNamesIn(tree) : [])))];
 	const matched = new Map<string, number>();
+	const shown = new Map<string, ShownLoop>();
 	const result: PageLoops & { runs: Map<string, LoopRun> } = {
 		runs: new Map(),
 		run: (name) => result.runs.get(name),
@@ -161,6 +174,8 @@ export async function pageLoops(
 		changesAt: null,
 		values: [],
 		matched: (name) => matched.get(name),
+		info: (name) => shown.get(name),
+		byId: (id) => [...shown.values()].find((loop) => loop.id === id),
 	};
 	if (names.length === 0) return result;
 	const rows = await scope.select(loops, inArray(loops.name, names));
@@ -197,7 +212,13 @@ export async function pageLoops(
 			continue;
 		}
 		ran++;
-		const version = storedLoopVersion(stored);
+		const read = storedLoopVersion(stored);
+		// Edit mode shows the published Loop with its own items' values from the Draft (they are Content).
+		const version =
+			read.source === "items" && place.items === "draft"
+				? { ...read, values: storedLoopVersion(row.draft).values }
+				: read;
+		shown.set(name, { id: row.id, name, source: version.source, fields: version.fields });
 		if (version.source === "items") {
 			result.runs.set(name, ownItems(row.id, version, place, result.values));
 			continue;

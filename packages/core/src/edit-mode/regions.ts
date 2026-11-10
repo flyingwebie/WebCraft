@@ -11,16 +11,18 @@ import { isUuid } from "../ids.ts";
 import { MediaInTrashError, MediaInvalidError, MediaNotFoundError } from "../media/errors.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { EditFieldInvalidError } from "./errors.ts";
+import { itemValueAt, loopItemField, readLoopItem, saveLoopItemValues } from "./loop-items.ts";
 
 /**
  * What an editable region shows: an Entry (`entry:<id>`) or the Globals (`globals`), as the
- * renderer tags it in `data-wc-item`.
+ * renderer tags it in `data-wc-item`. A Loop's own item (`loop:<loop id>:<item id>`) is read by
+ * `readLoopItem` instead.
  */
 export type EditItem = { kind: "entry"; id: string } | { kind: "globals" };
 
 /** A change made in place: the new value of one editable region. */
 export type RegionChange = {
-	/** `entry:<id>` or `globals`, as the region's `data-wc-item` says. */
+	/** `entry:<id>`, `globals` or `loop:<loop id>:<item id>`, as the region's `data-wc-item` says. */
 	item: string;
 	/** The binding's path within the item, as `data-wc-field` says: `title`, `intro`, `address.city`. */
 	field: string;
@@ -41,7 +43,7 @@ export type SavedRegion = {
 
 /** A new image for an image region: a Media image of the Site's library, or null for none. */
 export type ImageChange = {
-	/** `entry:<id>` or `globals`, as the region's `data-wc-item` says. */
+	/** `entry:<id>`, `globals` or `loop:<loop id>:<item id>`, as the region's `data-wc-item` says. */
 	item: string;
 	/** The media Field's path within it, as `data-wc-field` says. */
 	field: string;
@@ -74,6 +76,16 @@ export function readEditItem(item: string): EditItem {
  * problems are the same. Only text and rich text values (and an Entry's title) are changed in place.
  */
 export async function saveRegion(scope: SiteScope, change: RegionChange): Promise<SavedRegion> {
+	const loopItem = readLoopItem(change.item);
+	if (loopItem) {
+		await loopItemField(scope, loopItem, change.field, false, change.language);
+		const saved = await saveLoopItemValues(scope, loopItem, nested(change.field, change.value), change.language);
+		return {
+			status: saved.status,
+			value: itemValueAt(saved.item, change.field),
+			problems: saved.problems.filter((problem) => problem.at.endsWith(`.${change.field}`)),
+		};
+	}
 	const item = readEditItem(change.item);
 	const { language } = change;
 	if (item.kind === "globals") {
@@ -126,6 +138,17 @@ function problemsAt(problems: readonly ContentProblem[], at: string): ContentPro
  * library's images, out of the Trash; null empties the region.
  */
 export async function saveImage(scope: SiteScope, change: ImageChange): Promise<SavedImage> {
+	const loopItem = readLoopItem(change.item);
+	if (loopItem) {
+		await loopItemField(scope, loopItem, change.field, true, change.language);
+		if (change.media !== null) await checkImage(scope, change.media);
+		const saved = await saveLoopItemValues(scope, loopItem, nested(change.field, change.media), change.language);
+		return {
+			status: saved.status,
+			media: mediaIdOf(itemValueAt(saved.item, change.field)),
+			problems: saved.problems.filter((problem) => problem.at.endsWith(`.${change.field}`)),
+		};
+	}
 	const item = readEditItem(change.item);
 	const { language } = change;
 	const fields =

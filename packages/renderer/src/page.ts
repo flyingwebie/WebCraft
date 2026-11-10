@@ -240,6 +240,11 @@ export type EditModePage = {
 		template: "content" | "site",
 		place: RegionPlace,
 	): readonly (readonly [string, string])[] | undefined;
+	/**
+	 * The words of the mark around a Loop of the Site (`RenderOptions.editLoop`): its id, where its
+	 * items come from and its name; undefined for one not to mark.
+	 */
+	loop?(name: string): readonly string[] | undefined;
 	/** `<meta>` elements for WebCraft's own script, by name, such as the Edit mode session's header token. */
 	meta: readonly (readonly [name: string, content: string])[];
 	/** WebCraft's own scripts, as paths on the Site's domain; they run before anything else on the page. */
@@ -329,6 +334,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		consentSettings,
 		held,
 		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "content", place) : undefined,
+		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		codeSource: editMode?.code ? "content" : undefined,
 	});
 	const body = renderTree(page.siteTemplate ?? BUILT_IN_SITE_TEMPLATE, {
@@ -354,6 +360,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		consentSettings,
 		held,
 		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "site", place) : undefined,
+		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		codeSource: editMode?.code ? "site" : undefined,
 	});
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];

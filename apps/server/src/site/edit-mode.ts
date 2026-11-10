@@ -174,6 +174,27 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	},
 	/** Saves a value typed in place to the Draft. */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
+	/** The item form of one of a Loop's own items: its Fields and values in a language. */
+	"loop/get": async (services, session, body) =>
+		json(200, await services.editMode.loops.item(session, parse(loopItem, body))),
+	/** Saves some of a Loop item's values in a language, as the item form sends them. */
+	"loop/save": async (services, session, body) =>
+		json(200, await services.editMode.loops.save(session, parse(loopItemValues, body))),
+	/** Moves a Loop item to another place, in every language. */
+	"loop/move": async (services, session, body) =>
+		json(200, await services.editMode.loops.move(session, parse(loopMove, body))),
+	/** Copies a Loop item right after it. */
+	"loop/duplicate": async (services, session, body) =>
+		json(200, await services.editMode.loops.duplicate(session, parse(loopItem, body))),
+	/** Removes a Loop item, answering what puts it back (the undo). */
+	"loop/remove": async (services, session, body) =>
+		json(200, await services.editMode.loops.remove(session, parse(loopItem, body))),
+	/** Puts back a Loop item removed in this session. */
+	"loop/restore": async (services, session, body) =>
+		json(200, await services.editMode.loops.restore(session, parse(loopRestore, body).restore)),
+	/** Adds a Loop item after one, or first. */
+	"loop/add": async (services, session, body) =>
+		json(200, await services.editMode.loops.add(session, parse(loopAdd, body))),
 	/** The image popover's Media library: the Site's images (a search, a folder, a page) and its folders. */
 	"media/list": async (services, session, body) =>
 		json(200, await services.editMode.media.list(session, parse(mediaQuery, body))),
@@ -318,6 +339,22 @@ const imageChange = z.object({
 	block: z.string().max(64).optional(),
 	language: z.string().max(35).optional(),
 });
+
+/** A Loop's id and one of its own items, by id. */
+const loopItem = z.object({
+	loop: z.string().max(100),
+	item: z.string().max(64),
+	language: z.string().max(35).optional(),
+});
+
+const loopItemValues = loopItem.extend({ values: z.record(z.string().max(100), z.unknown()) });
+
+const loopMove = loopItem.extend({ to: z.number().int().min(0).max(1000) });
+
+const loopAdd = z.object({ loop: z.string().max(100), after: z.string().max(64).nullable() });
+
+/** What `loop/remove` answered to put the item back: at most a Loop item's worth of values. */
+const loopRestore = z.object({ restore: z.string().max(2_000_000) });
 
 const mediaId = z.string().max(100);
 

@@ -34,7 +34,8 @@ export type StoredValues = Record<string, unknown>;
 
 type StoredLeaf = Record<string, LanguageValue>;
 type StoredGroup = { values: StoredValues };
-type StoredRow = { id: string; values: StoredValues };
+/** A Repeater's row (or a Loop item), as stored: its id and its Fields' values in every language. */
+export type StoredRow = { id: string; values: StoredValues };
 
 /** The language values are read or written in, and the Default language they fall back to. */
 export type Languages = { language: string; defaultLanguage: string };
@@ -50,7 +51,8 @@ function groupOf(node: unknown): StoredGroup {
 	return { values: record(record(node).values) };
 }
 
-function rowsOf(node: unknown): StoredRow[] {
+/** A Repeater's rows (or a Loop's items) as stored, from its stored value. */
+export function rowsOf(node: unknown): StoredRow[] {
 	const rows = record(node).rows;
 	if (!Array.isArray(rows)) return [];
 	return rows.flatMap((row) => {

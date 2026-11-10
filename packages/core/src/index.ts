@@ -132,6 +132,7 @@ export {
 	type EnteredEditMode,
 	type ImageChange,
 	isEditPath,
+	LoopItemRestoreRefusedError,
 	type PageChange,
 	type PageState,
 	type RegionChange,

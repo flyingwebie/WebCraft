@@ -121,6 +121,13 @@ export type RenderOptions = {
 		value: ValueNode,
 		place: RegionPlace,
 	) => readonly (readonly [name: string, value: string])[] | undefined;
+	/**
+	 * Edit mode's marks around a Loop of the Site and each of its items: HTML comments, so they change
+	 * nothing of the page's layout (`<!--wc-loop …-->` and `<!--wc-item <key>-->`, each closed). It
+	 * answers what the Loop's mark says, by the Loop's name (its id, where its items come from, its
+	 * name), or undefined for a Loop not to mark. Absent for the pages visitors get.
+	 */
+	editLoop?: (name: string) => readonly string[] | undefined;
 
 	/**
 	 * Code mode's tags (ADR 0016): where the tree being rendered comes from, such as `content` (the
@@ -297,13 +304,16 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 	const all = run ? run.items : listItems(node.source, options.values);
 	const items = all.slice(0, Math.max(0, LOOP_LIMITS.items - state.items.count));
 	state.items.count += items.length;
-	if (items.length === 0) return node.empty ? renderNodes(node.empty, options, state) : "";
+	const mark = run ? options.editLoop?.(node.source) : undefined;
+	const marked = (html: string) =>
+		mark ? `<!--wc-loop ${mark.map(markToken).join(" ")}-->${html}<!--/wc-loop-->` : html;
+	if (items.length === 0) return marked(node.empty ? renderNodes(node.empty, options, state) : "");
 	const inner: RenderState = { ...state, loops: state.loops + 1 };
 	let html = "";
 	items.forEach((item, index) => {
 		const place: LoopItemPlace = { alias: node.alias, key: item.key };
 		const editRegion = options.editRegion;
-		html += renderNodes(
+		const shown = renderNodes(
 			node.children,
 			{
 				...options,
@@ -316,8 +326,17 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 			},
 			inner,
 		);
+		html += mark && item.key ? `<!--wc-item ${markToken(item.key)}-->${shown}<!--/wc-item-->` : shown;
 	});
-	return html;
+	return marked(html);
+}
+
+/**
+ * A word of an Edit mode mark, written so it can't end the comment or break it (`--`, a last `-`):
+ * percent-encoded, dashes too; `decodeURIComponent` reads it back.
+ */
+function markToken(text: string): string {
+	return encodeURIComponent(text).replace(/-/g, "%2D");
 }
 
 /**

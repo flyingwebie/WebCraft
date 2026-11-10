@@ -105,7 +105,7 @@ import { retiredScript } from "../site-scripts/retired.ts";
 import type { DataLayer, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { slugOfStagingHostname, stagingUrl } from "./addresses.ts";
 import { pageFilters } from "./filters.ts";
-import { PAGE_PARAMETER, pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
+import { PAGE_PARAMETER, type PageLoops, pageHref, pageLoops, type SearchOnPage } from "./loops.ts";
 import {
 	addressFrom,
 	createRedirectAnswers,
@@ -1463,12 +1463,24 @@ type Routing = "published" | "draft" | "publishedThenDraft";
 function editRegions(
 	entry: { id: string; fields: readonly FieldDefinition[] } | null,
 	globalFields: readonly FieldDefinition[],
+	loops: Pick<PageLoops, "byId">,
 ): EditModePage["region"] {
 	return (value, template, place) => {
-		// Inside a Loop, values are an item's (Loop items in place are #74), or repeat with every item.
-		if (value.format || place.item) return undefined;
+		if (value.format) return undefined;
 		// An image's `src` shows a media Field; everything else is typed over.
 		const editableIn = place.image ? imageField : editableField;
+		if (place.item) {
+			// Inside a Loop: a Loop's own item's values are regions of that item (`loop:<id>:<item id>`);
+			// a query Loop's items are Entries, changed on their own pages; what is around the Loop
+			// repeats with every item.
+			const { alias, key } = place.item;
+			const [kind, loopId] = key?.split(":") ?? [];
+			if (kind !== "loop" || !key || !value.path.startsWith(`${alias}.`)) return undefined;
+			const shown = loopId ? loops.byId(loopId) : undefined;
+			const path = value.path.slice(alias.length + 1);
+			const editable = shown?.source === "items" ? editableIn(shown.fields, path) : undefined;
+			return editable && regionTags(key, path, editable.type, editable.label);
+		}
 		if (value.path.startsWith("site.")) {
 			const key = value.path.slice("site.".length);
 			const editable = editableIn(globalFields, key);
@@ -1896,6 +1908,7 @@ async function renderSitePage(
 			...options.loops,
 			languages,
 			version: view.entries,
+			items: editing ? "draft" : undefined,
 			narrowing: filters.narrowing,
 			state: writeQuery([...filters.state.values, ...kept]),
 		},
@@ -1978,7 +1991,11 @@ async function renderSitePage(
 		consent: editing ? undefined : await pageConsent(scope, languages, view.version),
 		editMode: editing && {
 			...editing.head,
-			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields)),
+			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields), loops),
+			loop: (name) => {
+				const shown = loops.info(name);
+				return shown && [`loop:${shown.id}`, shown.source, shown.name];
+			},
 			code: view.structure === "draft",
 		},
 		component: placed.render,
