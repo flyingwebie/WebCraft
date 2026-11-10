@@ -60,6 +60,7 @@ export {
 	type StoredMediaFile,
 	type TrashEmptying,
 } from "./library.ts";
+export { MediaMoveRefusedError, type MediaMoveReport, moveMediaFiles } from "./move.ts";
 export { MEDIA_PATH } from "./names.ts";
 export { MEDIA_QUOTA_MIN_BYTES, type MediaStorage, QUOTA_WARNING_SHARE } from "./quota.ts";
 export type { S3Settings } from "./s3-storage.ts";

@@ -57,7 +57,9 @@ describe("tools/list", () => {
 		expect(names).toEqual(expect.arrayContaining(["media_list", "media_upload", "sites_list", "guide_get"]));
 		expect(names).not.toContain("entries_save_draft");
 		expect(names).not.toContain("post_types_list");
-		expect(names.every((name) => /^(media_|workspaces_|sites_(list|get)$|guide_get$)/.test(name))).toBe(true);
+		expect(names.every((name) => /^(media_|workspaces_|sites_(list|get)$|access_current$|guide_get$)/.test(name))).toBe(
+			true,
+		);
 	});
 
 	test("a read-only client lists only reads, and one that may not publish lists nothing that publishes", async () => {

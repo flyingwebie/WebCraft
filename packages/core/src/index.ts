@@ -204,14 +204,22 @@ export {
 	type AuthorizationCheck,
 	type AuthorizationParameters,
 	type AuthorizationRequest,
+	DEVICE_CODE_GRANT,
+	DEVICE_POLL_INTERVAL_SECONDS,
+	type DeviceAuthorizationAnswer,
+	type DeviceCheck,
+	DeviceCodeInvalidError,
 	type GrantChoice,
 	MCP_PATH,
+	OAUTH_DEVICE_LIMIT,
 	OAUTH_LIFETIMES,
 	OAUTH_PREFIXES,
+	OAUTH_USER_CODE_LIMIT,
 	type OAuth,
 	OAuthGrantNotFoundError,
 	type OAuthGrantView,
 	OAuthRequestError,
+	PUBLIC_API_PATH,
 	type RegisteredClient,
 	type TokenAnswer,
 } from "./oauth.ts";
@@ -428,3 +436,12 @@ export {
 } from "./updates.ts";
 export { WEBCRAFT_VERSION } from "./version.ts";
 export * from "./webhooks/index.ts";
+export {
+	createWorkers,
+	startWorkerHeartbeat,
+	WORKER_BEAT_MS,
+	WORKER_FRESH_MS,
+	type WorkerCheckIn,
+	type Workers,
+	type WorkersStatus,
+} from "./workers.ts";

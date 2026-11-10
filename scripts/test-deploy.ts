@@ -6,7 +6,8 @@
 // through it; plain HTTP goes on to HTTPS except domain verification; an unknown hostname gets no
 // certificate; the admin renders; the web log prints the setup link; the worker works and its Chromium
 // prints a Report's PDF; the `webcraft`
-// command runs in the web container; `webcraft admin backup` writes into the Backups volume, which the
+// command runs in the web container, and its health checks find the web process and the worker;
+// `webcraft admin backup` writes into the Backups volume, which the
 // worker shares; and, with web and worker stopped, `webcraft admin restore` puts that Backup back and
 // the Install comes up again. It removes its project (and only its project) when it ends.
 //
@@ -254,6 +255,11 @@ try {
 		"the webcraft command runs in the web container",
 		cli.stdout,
 	);
+
+	const webHealth = await run([...compose, "exec", "-T", "web", "webcraft", "admin", "health"]);
+	expect(webHealth.code === 0, "`webcraft admin health` finds the web process ready", webHealth.stdout);
+	const workerHealth = await run([...compose, "exec", "-T", "web", "webcraft", "admin", "health", "--worker"]);
+	expect(workerHealth.code === 0, "`webcraft admin health --worker` finds the worker checked in", workerHealth.stdout);
 
 	const backup = await run([...compose, "exec", "-T", "web", "webcraft", "admin", "backup"]);
 	const archive = /Took a Backup: (\/var\/lib\/webcraft\/backups\/webcraft-backup-[^\s]+\.tar)/.exec(

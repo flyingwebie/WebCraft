@@ -34,6 +34,7 @@
 	"scripts": {
 		"dev": "bun scripts/dev.ts",
 		"build": "turbo run build",
+		"build:cli": "bun scripts/build-cli.ts",
 		"start": "bun apps/server/src/serve.ts",
 		"start:worker": "node apps/worker/src/main.ts",
 		"test": "bun test --timeout 30000",
