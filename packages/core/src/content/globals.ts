@@ -7,7 +7,6 @@ import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { restoredVersion } from "./entries.ts";
 import { type ContentProblem, GlobalsIncompleteError, GlobalsInvalidError } from "./errors.ts";
-import { currentReviews, type Review } from "./review-items.ts";
 import type { FieldDefinition, FieldInput, Json } from "./field-types.ts";
 import {
 	checkFields,
@@ -24,6 +23,7 @@ import { sameJson } from "./json.ts";
 import { languagesFor, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import type { Published } from "./publishing.ts";
+import { currentReviews, type Review } from "./review-items.ts";
 import { type EntryVersion, emptyVersion, storedVersion, type Writer } from "./values.ts";
 
 /**
