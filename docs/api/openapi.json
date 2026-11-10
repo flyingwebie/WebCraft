@@ -15545,6 +15545,329 @@
 				"x-webcraft-permissions": ["entry.publish", "structure.edit", "formEmails.edit"]
 			}
 		},
+		"/reviews/list": {
+			"post": {
+				"operationId": "reviews.list",
+				"summary": "The Site's Reviews waiting for someone to act, oldest first: what was submitted, by whom, with their note.",
+				"tags": ["reviews"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"item": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entry"
+													},
+													"id": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "id"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "globals"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "consentBanner"
+													}
+												},
+												"required": ["kind"]
+											}
+										]
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "publishing"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/reviews/get": {
+			"post": {
+				"operationId": "reviews.get",
+				"summary": "One Review, whatever became of it: in review, withdrawn, sent back, published or scheduled.",
+				"tags": ["reviews"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"reviewId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "reviewId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "publishing"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/reviews/submit": {
+			"post": {
+				"operationId": "reviews.submit",
+				"summary": "Submits Drafts for Review with an optional note: they show In review, and the people who may publish them are emailed.",
+				"tags": ["reviews"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"items": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 50,
+										"items": {
+											"anyOf": [
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "entry"
+														},
+														"id": {
+															"type": "string",
+															"format": "uuid"
+														}
+													},
+													"required": ["kind", "id"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "globals"
+														}
+													},
+													"required": ["kind"]
+												},
+												{
+													"type": "object",
+													"properties": {
+														"kind": {
+															"const": "consentBanner"
+														}
+													},
+													"required": ["kind"]
+												}
+											]
+										}
+									},
+									"note": {
+										"anyOf": [
+											{
+												"type": "string",
+												"maxLength": 2000
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["siteId", "items"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.edit"]
+			}
+		},
+		"/reviews/withdraw": {
+			"post": {
+				"operationId": "reviews.withdraw",
+				"summary": "Withdraws a Review you submitted, while it waits.",
+				"tags": ["reviews"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"reviewId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "reviewId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.edit"]
+			}
+		},
+		"/reviews/sendBack": {
+			"post": {
+				"operationId": "reviews.sendBack",
+				"summary": "Sends a waiting Review back to its Author with a comment saying why.",
+				"tags": ["reviews"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"reviewId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"comment": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 5000
+									}
+								},
+								"required": ["siteId", "reviewId", "comment"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["publishing"],
+				"x-webcraft-permissions": ["entry.publish"]
+			}
+		},
 		"/history/list": {
 			"post": {
 				"operationId": "history.list",

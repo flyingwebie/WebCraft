@@ -61,6 +61,7 @@ describe("creating an Entry", () => {
 			lastPublishedAt: null,
 			unpublishedAt: null,
 			scheduled: { publish: null, unpublish: null },
+			review: null,
 			language: "en",
 			draft: {
 				title: "Sourdough starter",

@@ -18,6 +18,7 @@ import type { ComponentSources } from "./components.ts";
 import { draftVersion } from "./json.ts";
 import { orderForPublish, PublishAllInvalidError, PublishAllRefusedError, siteDrafts } from "./publish-all.ts";
 import { isDatabaseFailure, type PublishItem, publishItems, publishPermission } from "./publishing.ts";
+import { reviewsOnSchedule } from "./review-items.ts";
 import { type ScheduleAction, type ScheduleKind, scheduledItemId, scheduledItemWhere } from "./scheduled-items.ts";
 import { unpublishEntry } from "./unpublishing.ts";
 
@@ -238,6 +239,15 @@ async function insertSchedule(
 			updatedAt: now,
 		});
 		await insertItems(tx, row.id, input.action, input.frozen);
+		// Items In review are scheduled from their Review: it ends, and their Author is told when.
+		if (input.action === "publish") {
+			await reviewsOnSchedule(
+				tx,
+				input.frozen.map((each) => each.item),
+				input.at,
+				row.id,
+			);
+		}
 		await tx.audit("scheduledPublish.create", {
 			scheduleId: row.id,
 			action: input.action,
@@ -621,6 +631,13 @@ export async function updateScheduled(
 			scheduledPublishes,
 			{ updatedAt: tx.now(), updatedBy: personIdOf(tx.access.actor) },
 			eq(scheduledPublishes.id, locked.id),
+		);
+		// The current Drafts of items In review are scheduled now: their Reviews end.
+		await reviewsOnSchedule(
+			tx,
+			frozen.map((each) => each.item),
+			locked.at,
+			locked.id,
 		);
 		await tx.audit("scheduledPublish.update", {
 			scheduleId: locked.id,

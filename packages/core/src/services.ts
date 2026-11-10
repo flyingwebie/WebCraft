@@ -42,6 +42,7 @@ import type {
 	Published,
 	PublishItem,
 	PublishPreview,
+	Review,
 	RunOutcome,
 	SaveBase,
 	SavedComponentMarkup,
@@ -511,6 +512,26 @@ export type InstallServices = InstallPorts & {
 		cancelScheduled(scope: SiteScope, scheduleId: string): Promise<void>;
 		/** For the worker: runs every Scheduled publish whose time came. */
 		runDue(): Promise<RunOutcome[]>;
+	};
+	/**
+	 * Review (see `content/reviews.ts`): Authors submit Drafts; those who may publish them publish
+	 * (through `publishing`), schedule (through `publishing.schedule`) or send them back with a comment.
+	 */
+	reviews: {
+		/** Submits items for Review together, with an optional note. Open the Site with `entry.edit`. */
+		submit(scope: SiteScope, items: readonly PublishItem[], note: string | null): Promise<Review[]>;
+		/** Withdraws a waiting Review its Author submitted. Open the Site with `entry.edit`. */
+		withdraw(scope: SiteScope, reviewId: string): Promise<Review>;
+		/** Sends a waiting Review back with a comment. Open the Site with `site.view`; it needs what publishing the item needs. */
+		sendBack(scope: SiteScope, reviewId: string, comment: string): Promise<Review>;
+		/** The Site's waiting Reviews, oldest first; with `item`, that item's. Open the Site with `site.view`. */
+		list(scope: SiteScope, filter?: { item?: PublishItem }): Promise<Review[]>;
+		/** One of the Site's Reviews, whatever its state. Open the Site with `site.view`. */
+		get(scope: SiteScope, reviewId: string): Promise<Review>;
+		/** How many waiting Reviews the person may act on. Open the Site with `site.view`. */
+		countToAct(scope: SiteScope): Promise<number>;
+		/** An item's Reviews, newest first. Open the Site with `site.view`. */
+		ofItem(scope: SiteScope, item: PublishItem): Promise<Review[]>;
 	};
 	/**
 	 * Every publishable item's history: Revisions saved by each publish and Checkpoints of its Draft,

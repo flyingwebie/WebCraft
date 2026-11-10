@@ -422,3 +422,67 @@ export class UnpublishNotAllowedError extends Error {
 		super("Only Entries and Pages can be scheduled to unpublish.");
 	}
 }
+
+/**
+ * Why something can't be submitted for Review, or a Review can't be decided that way:
+ * - `notReviewable`: only Content Authors can't publish is reviewed (Entries, the Globals, the Consent
+ *   banner's words);
+ * - `nothingToReview`: its Draft is what visitors see already;
+ * - `commentRequired`: sending back needs a comment saying why.
+ */
+export type ReviewProblem = "notReviewable" | "nothingToReview" | "commentRequired";
+
+export class ReviewInvalidError extends Error {
+	override name = "ReviewInvalidError";
+	readonly reason: ReviewProblem;
+	readonly item: unknown;
+	constructor(reason: ReviewProblem, item: unknown = null) {
+		super(
+			reason === "notReviewable"
+				? "Only Entries, the Globals and the Consent banner's words are reviewed."
+				: reason === "nothingToReview"
+					? "Its Draft is what visitors see already: there is nothing to review."
+					: "Say why it is sent back: a comment is needed.",
+		);
+		this.reason = reason;
+		this.item = item;
+	}
+}
+
+/** The item waits in a Review already: one Review at a time. */
+export class ItemInReviewError extends Error {
+	override name = "ItemInReviewError";
+	readonly item: unknown;
+	readonly reviewId: string;
+	constructor(item: unknown, reviewId: string) {
+		super("It is In review already.");
+		this.item = item;
+		this.reviewId = reviewId;
+	}
+}
+
+/** No Review of the Site has this id. */
+export class ReviewNotFoundError extends Error {
+	override name = "ReviewNotFoundError";
+	constructor() {
+		super("No such Review.");
+	}
+}
+
+/** The Review was decided already (withdrawn, sent back, published or scheduled): it no longer waits. */
+export class ReviewDecidedError extends Error {
+	override name = "ReviewDecidedError";
+	readonly status: string;
+	constructor(status: string) {
+		super("It isn't In review any more.");
+		this.status = status;
+	}
+}
+
+/** Only the person who submitted a Review withdraws it; those who may publish it send it back instead. */
+export class ReviewNotYoursError extends Error {
+	override name = "ReviewNotYoursError";
+	constructor() {
+		super("Only the person who submitted it can withdraw it.");
+	}
+}

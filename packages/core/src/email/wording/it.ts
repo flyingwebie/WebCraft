@@ -111,12 +111,18 @@ export const it: EmailWording = {
 				"Se non sei stato tu, accedi e revoca il suo accesso.",
 			],
 		}),
-		"review-submitted": ({ authorName, itemTitle, siteName, reviewPath }) => ({
-			subject: `${authorName} ha inviato “${itemTitle}” in revisione`,
-			heading: "Pronto per la revisione",
-			paragraphs: [`${authorName} ha inviato “${itemTitle}” su ${siteName} in revisione.`],
-			action: { label: "Rivedilo", path: reviewPath },
-		}),
+		"review-submitted": ({ authorName, items, siteName, note, reviewPath }) => {
+			const named = elenco(items.map(nomeInRevisione), "e");
+			return {
+				subject: `${authorName} ha inviato ${named} in revisione`,
+				heading: "Pronto per la revisione",
+				paragraphs: [
+					`${authorName} ha inviato ${named} su ${siteName} in revisione. Pubblicalo, programmalo o rimandalo indietro con un commento.`,
+					...(note ? [`La sua nota: ${note}`] : []),
+				],
+				action: { label: "Rivedilo", path: reviewPath },
+			};
+		},
 		"report-review": ({ reportName, placeName, reviewPath }) => ({
 			subject: `“${reportName}” attende la revisione`,
 			heading: "Un report attende la revisione",
@@ -125,17 +131,29 @@ export const it: EmailWording = {
 			],
 			action: { label: "Rivedilo", path: reviewPath },
 		}),
-		"review-result": ({ itemTitle, siteName, result, reviewerName, comment, itemPath }) => {
-			const published = result === "published";
+		"review-result": ({ item, siteName, result, reviewerName, comment, scheduledFor, itemPath }) => {
+			const named = nomeInRevisione(item);
+			const esito = {
+				published: {
+					subject: `${maiuscola(named)}: pubblicato`,
+					heading: "Pubblicato",
+					what: `${reviewerName} ha pubblicato ${named} su ${siteName}.`,
+				},
+				scheduled: {
+					subject: `${maiuscola(named)}: pubblicazione programmata`,
+					heading: "Programmato",
+					what: `${reviewerName} ha programmato la pubblicazione di ${named} su ${siteName} alle ${scheduledFor ?? "un'ora successiva"}.`,
+				},
+				"sent-back": {
+					subject: `${maiuscola(named)}: rimandato indietro`,
+					heading: "Rimandato indietro",
+					what: `${reviewerName} ti ha rimandato ${named} su ${siteName}. Modificalo, poi invialo di nuovo in revisione.`,
+				},
+			}[result];
 			return {
-				subject: published ? `“${itemTitle}” è stato pubblicato` : `“${itemTitle}” ti è stato rimandato`,
-				heading: published ? "Pubblicato" : "Rimandato indietro",
-				paragraphs: [
-					published
-						? `${reviewerName} ha pubblicato “${itemTitle}” su ${siteName}.`
-						: `${reviewerName} ti ha rimandato “${itemTitle}” su ${siteName}.`,
-					...(comment ? [`Il suo commento: ${comment}`] : []),
-				],
+				subject: esito.subject,
+				heading: esito.heading,
+				paragraphs: [esito.what, ...(comment ? [`Il suo commento: ${comment}`] : [])],
 				action: { label: "Aprilo", path: itemPath },
 			};
 		},
@@ -251,6 +269,19 @@ export const it: EmailWording = {
 };
 
 /** La prima lettera di una frase in maiuscolo. */
+/** Come le email della revisione nominano un elemento: una Entry con il suo titolo; i Globali e i testi del banner del consenso per quello che sono. */
+function nomeInRevisione(item: { kind: "entry" | "globals" | "consentBanner"; title: string | null }): string {
+	if (item.kind === "globals") return "i Globali";
+	if (item.kind === "consentBanner") return "i testi del Banner del consenso";
+	return item.title ? `“${item.title}”` : "una Entry senza titolo";
+}
+
+/** Nomi uniti come in una frase: “A”, “B” e “C”. */
+function elenco(nomi: readonly string[], e: string): string {
+	if (nomi.length <= 1) return nomi[0] ?? "";
+	return `${nomi.slice(0, -1).join(", ")} ${e} ${nomi.at(-1)}`;
+}
+
 function maiuscola(testo: string): string {
 	return testo.charAt(0).toUpperCase() + testo.slice(1);
 }

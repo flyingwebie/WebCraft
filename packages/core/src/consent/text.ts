@@ -199,6 +199,20 @@ export async function restoreConsentTextDraft(scope: SiteScope, version: unknown
  * (`ConsentBannerInvalidError`), and makes a new banner version, which the Consent records made from
  * now on name. `version`, when given, is published instead of the Draft (a Scheduled publish's).
  */
+/**
+ * Checks the words' Draft as publishing would, publishing nothing (`ConsentBannerInvalidError`):
+ * submitting them for Review asks it.
+ */
+export async function checkConsentTextReady(scope: SiteScope): Promise<void> {
+	const row = await scope.first(consentBanners);
+	const site = await siteLanguages(scope);
+	const draft = storedVersion(row?.draft);
+	const findings = findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
+		textFindings(draft.values, languages),
+	);
+	if (findings.problems.length > 0) throw new ConsentBannerInvalidError(findings.problems);
+}
+
 export async function publishConsentText(scope: SiteScope, version?: unknown): Promise<Published> {
 	const row = await lockBanner(scope);
 	const site = await siteLanguages(scope);

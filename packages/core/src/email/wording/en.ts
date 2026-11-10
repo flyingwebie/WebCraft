@@ -109,12 +109,18 @@ export const en: EmailWording = {
 				"If it wasn't you, sign in and remove its access.",
 			],
 		}),
-		"review-submitted": ({ authorName, itemTitle, siteName, reviewPath }) => ({
-			subject: `${authorName} submitted “${itemTitle}” for review`,
-			heading: "Ready for review",
-			paragraphs: [`${authorName} submitted “${itemTitle}” on ${siteName} for review.`],
-			action: { label: "Review it", path: reviewPath },
-		}),
+		"review-submitted": ({ authorName, items, siteName, note, reviewPath }) => {
+			const named = listOf(items.map(reviewedName), "and");
+			return {
+				subject: `${authorName} submitted ${named} for review`,
+				heading: "Ready for review",
+				paragraphs: [
+					`${authorName} submitted ${named} on ${siteName} for review. Publish it, schedule it or send it back with a comment.`,
+					...(note ? [`Their note: ${note}`] : []),
+				],
+				action: { label: "Review it", path: reviewPath },
+			};
+		},
 		"report-review": ({ reportName, placeName, reviewPath }) => ({
 			subject: `“${reportName}” is waiting for review`,
 			heading: "A Report is waiting for review",
@@ -123,17 +129,29 @@ export const en: EmailWording = {
 			],
 			action: { label: "Review it", path: reviewPath },
 		}),
-		"review-result": ({ itemTitle, siteName, result, reviewerName, comment, itemPath }) => {
-			const published = result === "published";
+		"review-result": ({ item, siteName, result, reviewerName, comment, scheduledFor, itemPath }) => {
+			const named = reviewedName(item);
+			const outcome = {
+				published: {
+					subject: `${capital(named)} was published`,
+					heading: "Published",
+					what: `${reviewerName} published ${named} on ${siteName}.`,
+				},
+				scheduled: {
+					subject: `${capital(named)} is scheduled to be published`,
+					heading: "Scheduled",
+					what: `${reviewerName} scheduled ${named} on ${siteName} to be published at ${scheduledFor ?? "a later time"}.`,
+				},
+				"sent-back": {
+					subject: `${capital(named)} was sent back`,
+					heading: "Sent back",
+					what: `${reviewerName} sent ${named} on ${siteName} back to you. Change it, then submit it for review again.`,
+				},
+			}[result];
 			return {
-				subject: published ? `“${itemTitle}” was published` : `“${itemTitle}” was sent back`,
-				heading: published ? "Published" : "Sent back",
-				paragraphs: [
-					published
-						? `${reviewerName} published “${itemTitle}” on ${siteName}.`
-						: `${reviewerName} sent “${itemTitle}” on ${siteName} back to you.`,
-					...(comment ? [`Their comment: ${comment}`] : []),
-				],
+				subject: outcome.subject,
+				heading: outcome.heading,
+				paragraphs: [outcome.what, ...(comment ? [`Their comment: ${comment}`] : [])],
 				action: { label: "Open it", path: itemPath },
 			};
 		},
@@ -249,6 +267,19 @@ export const en: EmailWording = {
 };
 
 /** A sentence's first letter in capitals. */
+/** How a Review email names an item: an Entry by its title; the Globals and the Consent banner's words by what they are. */
+function reviewedName(item: { kind: "entry" | "globals" | "consentBanner"; title: string | null }): string {
+	if (item.kind === "globals") return "the Globals";
+	if (item.kind === "consentBanner") return "the Consent banner's words";
+	return item.title ? `“${item.title}”` : "an untitled Entry";
+}
+
+/** Names joined as a sentence lists them: “A”, “B” and “C”. */
+function listOf(names: readonly string[], and: string): string {
+	if (names.length <= 1) return names[0] ?? "";
+	return `${names.slice(0, -1).join(", ")} ${and} ${names.at(-1)}`;
+}
+
 function capital(text: string): string {
 	return text.charAt(0).toUpperCase() + text.slice(1);
 }

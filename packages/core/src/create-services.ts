@@ -14,10 +14,12 @@ import {
 	addLanguage,
 	cancelScheduled,
 	countDrafts,
+	countReviewsToAct,
 	createComponent,
 	createEntry,
 	createLoop,
 	createPostType,
+	createReviews,
 	deleteComponent,
 	deleteEntry,
 	getArchiveTemplate,
@@ -30,6 +32,7 @@ import {
 	getGlobals,
 	getLoop,
 	getPostType,
+	getReview,
 	getScheduled,
 	getScript,
 	getSearchTemplate,
@@ -37,10 +40,12 @@ import {
 	getSiteTemplate,
 	getSiteTemplateMarkup,
 	getSpecialPages,
+	itemReviewHistory,
 	listComponents,
 	listEntries,
 	listLoops,
 	listPostTypes,
+	listReviews,
 	listScheduled,
 	listTemplates,
 	publish,
@@ -69,15 +74,18 @@ import {
 	scheduleItem,
 	scheduleUnpublish,
 	scriptById,
+	sendBackReview,
 	setBrowserLanguageRedirect,
 	setDefaultLanguage,
 	setGlobalFields,
 	setSpecialPage,
 	siteDrafts,
 	siteLanguages,
+	submitForReview,
 	updateLanguage,
 	updatePostType,
 	updateScheduled,
+	withdrawReview,
 } from "./content/index.ts";
 import { createDashboards } from "./dashboards/index.ts";
 import {
@@ -284,6 +292,9 @@ export async function createInstallServices(
 		actors: { person: (personId: string) => loadPersonActor(database.db, personId) },
 	});
 	listeners.afterAudit.push(translations.afterAudit);
+	// Review emails go once what they are about is saved: a submission, a publish, a schedule, a send back.
+	const reviewEmails = createReviews({ database, data, email, log });
+	listeners.afterAudit.push(reviewEmails.afterAudit);
 	const storage = createInstallStorage({
 		database,
 		secrets: installSecrets,
@@ -486,6 +497,15 @@ export async function createInstallServices(
 			updateScheduled: (scope, scheduleId) => updateScheduled(scope, scheduleId, componentSources),
 			cancelScheduled,
 			runDue: () => runDueScheduledPublishes({ database, data, clock, log, email, actors, componentSources }),
+		},
+		reviews: {
+			submit: submitForReview,
+			withdraw: withdrawReview,
+			sendBack: sendBackReview,
+			list: listReviews,
+			get: getReview,
+			countToAct: countReviewsToAct,
+			ofItem: itemReviewHistory,
 		},
 		history: createHistory({ database, componentSources }),
 		sitePages,

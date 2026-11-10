@@ -62,6 +62,7 @@ export {
 	GlobalsIncompleteError,
 	GlobalsInvalidError,
 	HomePageUnpublishError,
+	ItemInReviewError,
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
@@ -78,6 +79,11 @@ export {
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	ReviewDecidedError,
+	ReviewInvalidError,
+	ReviewNotFoundError,
+	ReviewNotYoursError,
+	type ReviewProblem,
 	ScriptNotFoundError,
 	TemplateNotFoundError,
 } from "./errors.ts";
@@ -182,6 +188,26 @@ export {
 	publishPermission,
 } from "./publishing.ts";
 export type { LinkBack } from "./relationships.ts";
+export {
+	isReviewable,
+	REVIEW_KINDS,
+	type Review,
+	type ReviewItem,
+	type ReviewPerson,
+	type ReviewStatus,
+} from "./review-items.ts";
+export {
+	countReviewsToAct,
+	createReviews,
+	getReview,
+	itemReviewHistory,
+	listReviews,
+	REVIEW_LIMITS,
+	type Reviews,
+	sendBackReview,
+	submitForReview,
+	withdrawReview,
+} from "./reviews.ts";
 export type {
 	EntrySchedule,
 	ScheduleAction,

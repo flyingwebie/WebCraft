@@ -247,6 +247,23 @@ export async function writeGlobalsTranslations(
  * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`). `version`, when
  * given, is published instead of the Draft (a Scheduled publish's).
  */
+/**
+ * Checks the Globals' Draft as publishing would, publishing nothing: refuses values that break a rule
+ * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`). Submitting them for
+ * Review asks it, so a reviewer is never handed what they couldn't publish.
+ */
+export async function checkGlobalsReady(scope: SiteScope): Promise<void> {
+	const row = await scope.first(globals);
+	const site = await siteLanguages(scope);
+	const draft = storedVersion(row?.draft);
+	const findings = findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
+		globalsFindings(draft, storedFields(row?.fields), languages),
+	);
+	if (findings.problems.some((problem) => problem.rule !== "required"))
+		throw new GlobalsInvalidError(findings.problems);
+	if (findings.missing.length > 0) throw new GlobalsIncompleteError(findings.missing);
+}
+
 export async function publishGlobals(scope: SiteScope, version?: unknown): Promise<Published> {
 	const row = await lockGlobals(scope);
 	const site = await siteLanguages(scope);
