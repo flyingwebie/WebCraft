@@ -35,8 +35,11 @@ export class SessionNotFoundError extends Error {
 
 /** A person's own account: their sessions and their password. */
 export type Account = {
-	/** The person's sessions that haven't ended, most recently used first; `current` is this one. */
-	sessions(current: Session): Promise<SessionView[]>;
+	/**
+	 * The person's sessions that haven't ended, most recently used first; `current` is the one with
+	 * `currentSessionId` (none while someone impersonates them: their session isn't the person's).
+	 */
+	sessions(personId: string, currentSessionId: string | null): Promise<SessionView[]>;
 	/**
 	 * Ends one of the person's sessions at once, and records it. Answers whether it was the current
 	 * one (its cookie must then be cleared). Throws `SessionNotFoundError` for any other session.
@@ -63,11 +66,11 @@ export function createAccount({ database, auth, clock }: { database: Database; a
 		});
 
 	return {
-		async sessions(current) {
-			const sessions = await auth.listSessions(current.personId);
+		async sessions(personId, currentSessionId) {
+			const sessions = await auth.listSessions(personId);
 			return sessions.map((session) => ({
 				id: session.id,
-				current: session.id === current.id,
+				current: session.id === currentSessionId,
 				...describeUserAgent(session.userAgent),
 				network: networkOf(session.clientAddress),
 				startedAt: session.startedAt,

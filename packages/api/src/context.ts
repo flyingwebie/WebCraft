@@ -2,12 +2,17 @@ import { ORPCError, os } from "@orpc/server";
 import type { Session } from "@webcraft/auth";
 import {
 	type Access,
+	type ActingAs,
 	type ApiClientUse,
 	type AuditVia,
+	assertNotImpersonating,
 	assertSensitiveActionAllowed,
+	type ImpersonationView,
 	type InstallServices,
+	type NotWhileImpersonating,
 	type Permission,
 	type Person,
+	type PersonActor,
 	type RateLimitName,
 	type SensitiveAction,
 } from "@webcraft/core";
@@ -74,15 +79,19 @@ export function rateLimited(name: RateLimitName) {
 export const authEndpoint = procedure.use(rateLimited("auth"));
 
 /**
- * Reads the session the request carries and the person it belongs to (`context.person`, null when
- * signed out). An ended session's cookie is cleared in the answer.
+ * Reads the session the request carries and the person it acts as (`context.person`, null when
+ * signed out): its own person, or the person it impersonates while an impersonation goes on
+ * (`context.acting.impersonation`). An ended session's cookie is cleared in the answer.
  */
 export const withPerson = base.middleware(async ({ context, next }) => {
-	if (context.client) return next({ context: { person: context.client.person as Person | null, session: null } });
+	if (context.client) {
+		return next({ context: { person: context.client.person as Person | null, session: null, acting: null } });
+	}
 	const { session, setCookie } = await context.services.auth.session(context);
 	setCookies(context, setCookie);
-	const person: Person | null = session ? await context.services.people.get(session.personId) : null;
-	return next({ context: { person, session: person ? session : null } });
+	const acting: ActingAs | null = session ? await context.services.impersonation.actingAs(session) : null;
+	const person: Person | null = acting ? await context.services.people.get(acting.personId) : null;
+	return next({ context: { person, session: person ? session : null, acting: person ? acting : null } });
 });
 
 /**
@@ -90,12 +99,21 @@ export const withPerson = base.middleware(async ({ context, next }) => {
  * only for what they need to add it. Everything else starts from `signedIn`.
  */
 export const signedInBeforeTwoFactor = procedure.use(withPerson).use(async ({ context, next }) => {
-	const { person, session, client } = context;
-	if (client && person) return next({ context: { person, session: null as Session | null, access: client.access } });
-	if (!person || !session) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
-	const actor = await context.services.actors.person(person.id);
-	const access: Access = { actor, via: context.via, identityCheckedAt: session.identityCheckedAt };
-	return next({ context: { person, session: session as Session | null, access } });
+	const { person, session, client, acting } = context;
+	if (client && person) {
+		return next({
+			context: {
+				person,
+				session: null as Session | null,
+				access: client.access,
+				impersonation: null as ImpersonationView | null,
+			},
+		});
+	}
+	if (!person || !session || !acting) throw new ORPCError("UNAUTHORIZED", { message: "Sign in first." });
+	return next({
+		context: { person, session: session as Session | null, access: acting.access, impersonation: acting.impersonation },
+	});
 });
 
 /**
@@ -110,12 +128,30 @@ export const signedInBeforeTwoFactor = procedure.use(withPerson).use(async ({ co
  * that start from `signedInBeforeTwoFactor` instead.
  *
  * `context.session` is the admin session, null for a token: procedures that need one (a person's
- * own sessions, confirming who they are) start from `inAdminSession` instead.
+ * own sessions, confirming who they are) start from `inAdminSession` instead. While the session
+ * impersonates someone, `context.person` and `context.access` are theirs and `context.session` stays
+ * the impersonator's own (`context.impersonation` says who is who): a procedure that changes a
+ * person's account refuses then (`notWhileImpersonating`).
  */
 export const signedIn = signedInBeforeTwoFactor.use(async ({ context, next }) => {
-	if (context.session) await context.services.twoFactor.assertSetUpWhenRequired(context.person.id);
+	// The requirement is about whoever signed in: an impersonated person's isn't the impersonator's.
+	if (context.session) await context.services.twoFactor.assertSetUpWhenRequired(context.session.personId);
 	return next();
 });
+
+/**
+ * The person as `can()` sees them in this call: while impersonating, limited to the Workspaces the
+ * impersonation reaches.
+ */
+export async function personActorOf(context: {
+	access: Access;
+	person: Person;
+	services: InstallServices;
+}): Promise<PersonActor> {
+	return context.access.actor.kind === "person"
+		? context.access.actor
+		: context.services.actors.person(context.person.id);
+}
 
 /** Procedures for a person in an admin session (never an API token): `context.session` is theirs. */
 export const inAdminSession = signedIn.use(({ context, next }) => {
@@ -171,6 +207,18 @@ export function onSite(permission: Permission) {
 			const site = await context.services.data.site(context.access, input.siteId, permission);
 			return next({ context: { site } });
 		});
+}
+
+/**
+ * Refuses a procedure while the admin session impersonates someone (`NOT_WHILE_IMPERSONATING`,
+ * `data.what`): changes to the person's account (their password, second factors, sessions, API
+ * tokens, AI clients, preferences), confirming who they are, Edit mode and the Staging address.
+ */
+export function notWhileImpersonating(what: NotWhileImpersonating) {
+	return base.$context<ApiContext & { access: Access }>().middleware(({ context, next }) => {
+		assertNotImpersonating(context.access, what);
+		return next();
+	});
 }
 
 /**

@@ -98,8 +98,9 @@ async function mediaPreview(services: InstallServices, request: Request, rest: s
 	if (!session) return notFound();
 	let site: SiteScope;
 	try {
-		const actor = await services.actors.person(session.personId);
-		site = await services.data.site({ actor, via: { kind: "admin" } }, siteId, "site.view");
+		// As whoever the session acts as: the person it impersonates sees their own Sites' files only.
+		const { access } = await services.impersonation.actingAs(session);
+		site = await services.data.site(access, siteId, "site.view");
 	} catch (error) {
 		if (error instanceof SiteNotFoundError || error instanceof PermissionDeniedError) return notFound();
 		throw error;

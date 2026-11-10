@@ -55,12 +55,16 @@ function initialsOf(name: string): string {
 	return letters.map((word) => (word ? Array.from(word)[0]?.toLocaleUpperCase() : "")).join("") || "?";
 }
 
-/** A participant's name as people read it: the person, and the client they came through. */
+/**
+ * A participant's name as people read it: the person, and the client they came through, or who is
+ * impersonating them ("<Staff> as <Member>").
+ */
 function useDisplayName() {
 	const t = useT();
 	return (participant: Participant) => {
 		const name = participant.name || t("coEditing.someone");
 		if (participant.translation) return t("coEditing.viaTranslation", { name });
+		if (participant.impersonator) return t("coEditing.as", { impersonator: participant.impersonator, name });
 		return participant.via ? t("coEditing.via", { name, client: participant.via }) : name;
 	};
 }
@@ -187,6 +191,7 @@ export function SharedDraftStatus({
 									personId: null,
 									name: publishedBy.name,
 									via: publishedBy.via,
+									...(publishedBy.impersonator ? { impersonator: publishedBy.impersonator } : {}),
 									colour: 0,
 									at: null,
 								}),

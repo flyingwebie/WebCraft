@@ -48,7 +48,8 @@ export const OFFLINE_EDITING_MS = 5 * 60 * 1000;
 
 /**
  * Someone in a document: a person with an editor open, or a person's API client or AI client that
- * changed it a moment ago (`via` names the client: "<person> via <client>").
+ * changed it a moment ago (`via` names the client: "<person> via <client>"). A person impersonated
+ * by the Superadmin or Staff shows as "<Staff> as <Member>" (`impersonator`).
  */
 export type Participant = {
 	/** This participant in this document (a connection, or a client that wrote). */
@@ -57,6 +58,8 @@ export type Participant = {
 	name: string;
 	/** The client a person came through (an API token's or AI client's name); null in the admin and Edit mode. */
 	via: string | null;
+	/** Who is acting as the person: the impersonator's name, while they impersonate them. */
+	impersonator?: string;
 	/** AI translation writing for the person who asked for it (who published, or pressed Translate now). */
 	translation?: boolean;
 	/** One of 8 colours, the same for a person everywhere; shown with the name, never alone. */
@@ -100,7 +103,10 @@ export type ServerMessage =
 			message: string;
 			data?: unknown;
 	  }
-	| { type: "published"; by: { personId: string; name: string; via: string | null } | null }
+	| {
+			type: "published";
+			by: { personId: string; name: string; via: string | null; impersonator?: string } | null;
+	  }
 	| {
 			/** The session ended (signed out, access lost) or the connection broke a limit: the server closes it. */
 			type: "ended";

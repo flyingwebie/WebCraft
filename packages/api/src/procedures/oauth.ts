@@ -1,7 +1,7 @@
 import { defaultToolsets } from "@webcraft/core";
 import { z } from "zod";
 
-import { inAdminSession, onWorkspace, sensitive } from "../context.ts";
+import { personActorOf as actorOf, inAdminSession, notWhileImpersonating, onWorkspace, sensitive } from "../context.ts";
 import { id, memberSites, toolsetsInput } from "../inputs.ts";
 import { toolsetOffer } from "../toolset-offer.ts";
 
@@ -22,11 +22,8 @@ export const oauth = {
 	 * (and their Sites) the person may approve it for, and the Toolsets on offer.
 	 */
 	check: inAdminSession.input(z.object({ parameters })).handler(async ({ context, input }) => {
-		const { services, person } = context;
-		const [check, actor] = await Promise.all([
-			services.oauth.check(input.parameters),
-			services.actors.person(person.id),
-		]);
+		const { services } = context;
+		const [check, actor] = await Promise.all([services.oauth.check(input.parameters), actorOf(context)]);
 		return { check, workspaces: await services.apiTokens.offer(actor), toolsets: toolsetOffer(services) };
 	}),
 
@@ -37,6 +34,7 @@ export const oauth = {
 	 * Answers where to send the person back to, with the one-time code.
 	 */
 	approve: inAdminSession
+		.use(notWhileImpersonating("aiClients"))
 		.input(
 			z.object({
 				parameters,
@@ -61,6 +59,7 @@ export const oauth = {
 
 	/** The person said no: where to send them back to, with `access_denied`. */
 	deny: inAdminSession
+		.use(notWhileImpersonating("aiClients"))
 		.input(z.object({ parameters }))
 		.handler(async ({ context, input }) => context.services.oauth.deny(input.parameters)),
 };
@@ -68,12 +67,18 @@ export const oauth = {
 /** Your account › AI clients: the AI clients the person approved, and revoking them. */
 export const aiClients = {
 	/** The person's approved AI clients, newest first: active, expired and revoked. Never a token. */
-	list: inAdminSession.handler(async ({ context }) => ({
-		grants: await context.services.oauth.list(context.person.id),
-	})),
+	list: inAdminSession.handler(async ({ context }) => {
+		const grants = await context.services.oauth.list(context.person.id);
+		const reach = context.impersonation?.workspaceIds;
+		// While impersonating, only the Workspaces the impersonation reaches.
+		return { grants: reach ? grants.filter((grant) => reach.includes(grant.workspace.id)) : grants };
+	}),
 
 	/** Revokes one of the person's AI clients at once: its next request is refused. */
-	revoke: inAdminSession.input(z.object({ grantId: id })).handler(async ({ context, input }) => ({
-		grant: await context.services.oauth.revoke(context.access, input.grantId),
-	})),
+	revoke: inAdminSession
+		.use(notWhileImpersonating("aiClients"))
+		.input(z.object({ grantId: id }))
+		.handler(async ({ context, input }) => ({
+			grant: await context.services.oauth.revoke(context.access, input.grantId),
+		})),
 };

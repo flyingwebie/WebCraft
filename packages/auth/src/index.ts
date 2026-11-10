@@ -2,7 +2,8 @@
  * Auth: WebCraft's own sign-in interface, with Better Auth (version pinned) behind it, so the rest
  * of WebCraft never imports Better Auth directly: sessions and their lifetime, the recent identity
  * check, lockout, the leaked-password check, and second factors (authenticator apps, backup codes
- * and passkeys). A later ticket adds Impersonation.
+ * and passkeys). Impersonation rides on these sessions: `@webcraft/core`'s `services.impersonation`
+ * says who an admin session acts as.
  */
 export {
 	type Auth,

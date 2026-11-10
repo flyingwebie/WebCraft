@@ -194,7 +194,13 @@
 		"TWO_FACTOR_REQUIRED": "L'autenticazione a due fattori è obbligatoria per il tuo account: aggiungi un altro metodo prima di rimuovere questo.",
 		"TWO_FACTOR_SETUP_REQUIRED": "Configura l'autenticazione a due fattori per continuare.",
 		"PASSKEY_INVALID": "Non è stato possibile usare la passkey. Riprova oppure usa un altro metodo.",
-		"PASSKEY_CANCELLED": "Nessuna passkey è stata usata. Riprova quando vuoi."
+		"PASSKEY_CANCELLED": "Nessuna passkey è stata usata. Riprova quando vuoi.",
+		"NOT_WHILE_IMPERSONATING": "Mentre impersoni qualcuno non si può fare. Prima smetti di impersonare.",
+		"IMPERSONATION_REFUSED_SELF": "Non puoi impersonare te stesso.",
+		"IMPERSONATION_REFUSED_STAFF": "Solo il Superadmin può impersonare lo Staff.",
+		"IMPERSONATION_REFUSED_SUPERADMIN": "Nessuno può impersonare il Superadmin.",
+		"IMPERSONATION_NEEDS_TWO_FACTOR": "Prima di impersonare qualcuno aggiungi un'app di autenticazione o una passkey al tuo account (Il tuo account).",
+		"PERSON_NOT_FOUND": "Questa persona non esiste, o non puoi raggiungerla."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -333,7 +339,8 @@
 			"account": "Il tuo account",
 			"signOut": "Esci",
 			"apiTokens": "Token API",
-			"aiClients": "Client AI"
+			"aiClients": "Client AI",
+			"activity": "Attività"
 		},
 		"darkTheme": "Tema scuro",
 		"nav": {
@@ -383,7 +390,8 @@
 			"history": "Revisioni",
 			"filters": "Filtri",
 			"servicesList": "Elenco dei servizi",
-			"reportBranding": "Brand dei report"
+			"reportBranding": "Brand dei report",
+			"auditLog": "Audit log"
 		}
 	},
 	"masterKeyBanner": {
@@ -451,7 +459,11 @@
 		"saved": "Salvato.",
 		"requireTwoFactor": "Rendi obbligatoria l'autenticazione a due fattori per tutti",
 		"requireTwoFactorHelp": "Chi non ce l'ha, Staff compreso, deve configurarla subito dopo l'accesso e non può fare altro finché non l'ha fatto. I token API continuano a funzionare.",
-		"requireTwoFactorOwnFirst": "Aggiungi prima l'autenticazione a due fattori al tuo account (Il tuo account)."
+		"requireTwoFactorOwnFirst": "Aggiungi prima l'autenticazione a due fattori al tuo account (Il tuo account).",
+		"auditRetention": "Conserva le voci dell'Audit log per",
+		"auditRetentionHelp": "Le voci più vecchie vengono rimosse ogni giorno, per sempre. Per modificarlo devi confermare chi sei.",
+		"auditRetentionDays": "{days, plural, one {# giorno} other {# giorni}}",
+		"auditRetentionYears": "{years, plural, one {# anno} other {# anni}}"
 	},
 	"storageSettings": {
 		"pageTitle": "Archiviazione",
@@ -4933,7 +4945,8 @@
 			"module": "Il modulo {module}",
 			"translation": "Traduzione AI per {person}",
 			"via": "{person} tramite {client}",
-			"scheduledPublish": "{person} (pubblicazione programmata)"
+			"scheduledPublish": "{person} (pubblicazione programmata)",
+			"as": "{impersonator} come {person}"
 		},
 		"copy": {
 			"revision": "Revisione",
@@ -5546,7 +5559,8 @@
 			"viewOnly": "Puoi vedere questa bozza mentre gli altri la modificano, ma non modificarla.",
 			"ended": "La modifica è terminata: sei uscito o non hai più accesso. Ricarica la pagina per continuare."
 		},
-		"refused": "Questa modifica non è stata salvata: {reason}"
+		"refused": "Questa modifica non è stata salvata: {reason}",
+		"as": "{impersonator} come {name}"
 	},
 	"schedule": {
 		"localTime": "({time} ora tua)",
@@ -5747,5 +5761,425 @@
 			"close": "Chiudi",
 			"done": "L'autenticazione a due fattori di {name} è stata reimpostata."
 		}
+	},
+	"audit": {
+		"pageTitle": "Audit log",
+		"heading": "Audit log",
+		"introInstall": "Chi ha fatto cosa in questa installazione, quando e come: in ogni Workspace e nell'installazione stessa. Le voci non si possono modificare; ognuna è conservata per {days, plural, one {# giorno} other {# giorni}}.",
+		"introWorkspace": "Chi ha fatto cosa in questo Workspace, quando e come. Le voci non si possono modificare; ognuna è conservata per {days, plural, one {# giorno} other {# giorni}}.",
+		"filtersLabel": "Filtra le voci",
+		"who": "Chi",
+		"everyone": "Tutti",
+		"action": "Cosa",
+		"everyAction": "Ogni azione",
+		"how": "Come",
+		"everyWay": "In ogni modo",
+		"workspace": "Workspace",
+		"everyWorkspace": "Ogni Workspace",
+		"site": "Sito",
+		"everySite": "Ogni sito",
+		"from": "Dal (UTC)",
+		"until": "Fino al (UTC)",
+		"clear": "Azzera i filtri",
+		"columns": {
+			"time": "Ora (UTC)",
+			"who": "Chi",
+			"action": "Cosa",
+			"where": "Dove",
+			"how": "Come"
+		},
+		"tableLabel": "Voci dell'Audit log, dalla più recente",
+		"older": "Mostra voci meno recenti",
+		"loading": "Caricamento…",
+		"shown": "{count, plural, one {# voce mostrata} other {# voci mostrate}}",
+		"emptyTitle": "Ancora nulla di registrato",
+		"emptyBody": "Le azioni compaiono qui man mano che le persone le compiono.",
+		"noMatch": "Nessuna voce corrisponde a questi filtri.",
+		"export": "Esporta CSV",
+		"exported": "Esportato {filename}.",
+		"exportedTruncated": "Esportate le {count} voci più recenti in {filename}.",
+		"details": "Dettagli",
+		"install": "L'installazione",
+		"workspaceGone": "Un Workspace eliminato",
+		"siteGone": "Un sito eliminato",
+		"onlyThisPerson": "Mostra solo cosa ha fatto {name}",
+		"whoWords": {
+			"webcraft": "WebCraft",
+			"gone": "Qualcuno che non è più nell'installazione",
+			"via": "{person} tramite {client}",
+			"as": "{impersonator} come {person}"
+		},
+		"howWords": {
+			"admin": "Admin",
+			"editMode": "Modalità modifica",
+			"token": "Token {name}",
+			"aiClient": "Client AI {name}",
+			"impersonation": "Impersonificazione",
+			"module": "Modulo {name}",
+			"command": "webcraft admin {name}",
+			"translation": "Traduzione AI",
+			"scheduledPublish": "Pubblicazione programmata"
+		},
+		"howOptions": {
+			"admin": "Admin",
+			"editMode": "Modalità modifica",
+			"token": "Token API",
+			"aiClient": "Client AI",
+			"impersonation": "Impersonificazione",
+			"module": "Modulo",
+			"command": "Comando del server",
+			"translation": "Traduzione AI",
+			"scheduledPublish": "Pubblicazione programmata"
+		},
+		"moduleAction": "{module}: {action}",
+		"actions": {
+			"account": {
+				"lock": "Account bloccato dopo password errate"
+			},
+			"aiClient": {
+				"approve": "Client AI approvato",
+				"revoke": "Client AI revocato"
+			},
+			"aiKey": {
+				"changeCap": "Limite mensile della chiave AI modificato",
+				"remove": "Chiave AI rimossa",
+				"set": "Chiave AI impostata"
+			},
+			"aiSettings": {
+				"change": "Impostazioni AI modificate"
+			},
+			"allowedHost": {
+				"add": "Host consentito aggiunto",
+				"remove": "Host consentito rimosso"
+			},
+			"apiToken": {
+				"create": "Token API creato",
+				"revoke": "Token API revocato"
+			},
+			"auditRetention": {
+				"change": "Conservazione dell'Audit log modificata"
+			},
+			"backupCode": {
+				"use": "Accesso con un codice di backup"
+			},
+			"backupCodes": {
+				"regenerate": "Nuovi codici di backup creati"
+			},
+			"backups": {
+				"change": "Impostazioni dei backup modificate"
+			},
+			"browserLanguageRedirect": {
+				"change": "Reindirizzamento per lingua del browser modificato"
+			},
+			"cdn": {
+				"change": "Impostazioni della CDN modificate"
+			},
+			"class": {
+				"delete": "Classe eliminata"
+			},
+			"component": {
+				"create": "Componente creato",
+				"delete": "Componente eliminato",
+				"publish": "Componente pubblicato",
+				"rename": "Componente rinominato"
+			},
+			"consentBanner": {
+				"change": "Banner del consenso modificato",
+				"publish": "Banner del consenso pubblicato"
+			},
+			"csp": {
+				"change": "Content Security Policy modificata"
+			},
+			"dashboard": {
+				"create": "Dashboard creata",
+				"delete": "Dashboard eliminata",
+				"export": "Dashboard esportata in CSV",
+				"update": "Dashboard modificata"
+			},
+			"dashboardTemplate": {
+				"create": "Modello di Dashboard creato",
+				"delete": "Modello di Dashboard eliminato"
+			},
+			"defaultLanguage": {
+				"change": "Lingua predefinita modificata"
+			},
+			"designSystem": {
+				"publish": "Design system pubblicato"
+			},
+			"domain": {
+				"add": "Dominio aggiunto",
+				"makePrimary": "Dominio principale modificato",
+				"remove": "Dominio rimosso"
+			},
+			"draft": {
+				"restore": "Bozza ripristinata dalla cronologia"
+			},
+			"editMode": {
+				"start": "Modalità modifica aperta"
+			},
+			"entry": {
+				"delete": "Contenuto eliminato",
+				"publish": "Contenuto pubblicato",
+				"unpublish": "Contenuto ritirato"
+			},
+			"filter": {
+				"create": "Filtro creato",
+				"publish": "Filtro pubblicato"
+			},
+			"form": {
+				"create": "Form creato",
+				"delete": "Form eliminato",
+				"publish": "Form pubblicato",
+				"rename": "Form rinominato"
+			},
+			"formCaptcha": {
+				"change": "CAPTCHA dei Form modificato"
+			},
+			"formEmails": {
+				"publish": "Email del Form pubblicate"
+			},
+			"globals": {
+				"publish": "Globali pubblicati",
+				"update": "Campi dei Globali modificati"
+			},
+			"historySettings": {
+				"change": "Impostazioni delle revisioni modificate"
+			},
+			"homePage": {
+				"change": "Home page modificata"
+			},
+			"impersonation": {
+				"start": "Impersonificazione iniziata",
+				"stop": "Impersonificazione terminata"
+			},
+			"import": {
+				"create": "Importazione creata",
+				"run": "Esecuzione dell'importazione avviata",
+				"stop": "Esecuzione dell'importazione fermata",
+				"undo": "Esecuzione dell'importazione annullata"
+			},
+			"install": {
+				"claim": "Installazione rivendicata"
+			},
+			"installSmtp": {
+				"change": "SMTP dell'installazione modificato"
+			},
+			"language": {
+				"add": "Lingua aggiunta",
+				"remove": "Lingua rimossa",
+				"update": "Lingua modificata"
+			},
+			"leakedPasswordCheck": {
+				"change": "Controllo delle password compromesse modificato"
+			},
+			"library": {
+				"add": "Libreria aggiunta",
+				"remove": "Libreria rimossa",
+				"update": "Libreria modificata"
+			},
+			"loop": {
+				"create": "Loop creato",
+				"publish": "Loop pubblicato"
+			},
+			"masterKey": {
+				"confirmStored": "Conservazione della Master key confermata"
+			},
+			"media": {
+				"deleteForever": "File multimediale eliminato definitivamente",
+				"import": "File multimediale importato da un indirizzo",
+				"replace": "File multimediale sostituito",
+				"restore": "File multimediale ripristinato dal Cestino",
+				"trash": "File multimediale spostato nel Cestino",
+				"update": "File multimediale modificato",
+				"upload": "File multimediale caricato"
+			},
+			"mediaFolder": {
+				"create": "Cartella multimediale creata",
+				"delete": "Cartella multimediale eliminata",
+				"rename": "Cartella multimediale rinominata"
+			},
+			"mediaMaxFileSize": {
+				"change": "Dimensione massima dei file multimediali modificata"
+			},
+			"mediaTrash": {
+				"empty": "Cestino multimediale svuotato"
+			},
+			"member": {
+				"changeRole": "Ruolo del Membro modificato",
+				"changeSites": "Siti del Membro modificati",
+				"invite": "Membro invitato",
+				"join": "Membro entrato",
+				"remove": "Membro rimosso",
+				"resendInvite": "Invito del Membro inviato di nuovo",
+				"revokeInvite": "Invito del Membro revocato"
+			},
+			"module": {
+				"approve": "Modulo approvato",
+				"changeKeep": "Conservazione dei dati del modulo modificata",
+				"removeData": "Dati del modulo rimossi",
+				"switchOff": "Modulo disattivato",
+				"switchOn": "Modulo attivato",
+				"withdraw": "Approvazione del modulo ritirata"
+			},
+			"notFoundPage": {
+				"change": "Pagina 404 modificata"
+			},
+			"outsideScript": {
+				"add": "Script esterno aggiunto",
+				"remove": "Script esterno rimosso",
+				"update": "Script esterno modificato"
+			},
+			"password": {
+				"change": "Password modificata"
+			},
+			"postType": {
+				"create": "Tipo di contenuto creato",
+				"update": "Tipo di contenuto modificato"
+			},
+			"protectedTerm": {
+				"add": "Termine protetto aggiunto",
+				"remove": "Termine protetto rimosso"
+			},
+			"report": {
+				"approve": "Report approvato",
+				"create": "Report creato",
+				"delete": "Report eliminato",
+				"discard": "Report scartato",
+				"resend": "Report inviato di nuovo",
+				"test": "Report di prova inviato",
+				"update": "Report modificato"
+			},
+			"reportBranding": {
+				"change": "Personalizzazione dei report modificata"
+			},
+			"reportRecipients": {
+				"change": "Destinatari del report modificati"
+			},
+			"script": {
+				"publish": "Script pubblicato"
+			},
+			"searchPage": {
+				"change": "Pagina di ricerca modificata"
+			},
+			"seoSettings": {
+				"change": "Impostazioni SEO modificate"
+			},
+			"servicesList": {
+				"change": "Elenco dei servizi modificato"
+			},
+			"session": {
+				"revoke": "Sessione disconnessa",
+				"revokeOthers": "Altre sessioni disconnesse"
+			},
+			"shareLink": {
+				"create": "Link di condivisione creato",
+				"revoke": "Link di condivisione revocato",
+				"update": "Link di condivisione modificato"
+			},
+			"sharedAiKey": {
+				"add": "Chiave AI condivisa aggiunta",
+				"assign": "Chiave AI condivisa assegnata",
+				"remove": "Chiave AI condivisa rimossa",
+				"update": "Chiave AI condivisa modificata"
+			},
+			"site": {
+				"create": "Sito creato",
+				"publishAll": "Pubblica tutto",
+				"slugChanged": "Slug del sito spostato con l'aggiornamento"
+			},
+			"siteSmtp": {
+				"change": "Impostazioni email del sito modificate"
+			},
+			"staff": {
+				"changeWorkspaces": "Workspace di un membro dello Staff modificati",
+				"invite": "Membro dello Staff invitato",
+				"join": "Membro dello Staff entrato",
+				"revokeInvite": "Invito dello Staff revocato"
+			},
+			"stagingPassword": {
+				"change": "Password di staging modificata"
+			},
+			"storage": {
+				"change": "Archiviazione modificata"
+			},
+			"storageQuota": {
+				"change": "Quota di archiviazione multimediale modificata"
+			},
+			"submissions": {
+				"read": "Invii letti da un client API"
+			},
+			"superadmin": {
+				"create": "Superadmin creato"
+			},
+			"template": {
+				"publish": "Template pubblicato"
+			},
+			"translation": {
+				"publish": "Traduzione pubblicata",
+				"run": "Traduci ora avviato"
+			},
+			"translationMode": {
+				"change": "Modalità di traduzione modificata"
+			},
+			"twoFactor": {
+				"add": "Secondo fattore aggiunto",
+				"remove": "Secondo fattore rimosso",
+				"reset": "Autenticazione a due fattori reimpostata"
+			},
+			"twoFactorRequirement": {
+				"change": "Obbligo dei due fattori modificato"
+			},
+			"webhook": {
+				"add": "Webhook aggiunto",
+				"changeSecret": "Segreto di firma del webhook modificato",
+				"remove": "Webhook rimosso",
+				"switchOff": "Webhook disattivato",
+				"switchOn": "Webhook attivato",
+				"update": "Webhook modificato"
+			},
+			"workspace": {
+				"create": "Workspace creato"
+			},
+			"scheduledPublish": {
+				"create": "Pubblicazione programmata impostata",
+				"reschedule": "Pubblicazione programmata spostata",
+				"update": "Pubblicazione programmata modificata",
+				"change": "Versione della pubblicazione programmata modificata",
+				"cancel": "Pubblicazione programmata annullata",
+				"run": "Pubblicazione programmata eseguita",
+				"fail": "Pubblicazione programmata non riuscita"
+			}
+		}
+	},
+	"activity": {
+		"pageTitle": "Attività",
+		"heading": "La tua attività",
+		"intro": "Cosa hai fatto in questa installazione, dalla più recente, e cosa il Superadmin o lo Staff hanno fatto come te mentre ti impersonavano.",
+		"introImpersonating": "Cosa ha fatto {name} in questa installazione, dalla più recente, fin dove arriva questa impersonificazione.",
+		"tableLabel": "Attività, dalla più recente",
+		"emptyTitle": "Ancora nulla",
+		"emptyBody": "Ciò che fai nell'admin compare qui."
+	},
+	"impersonation": {
+		"menuItem": "Impersona",
+		"title": "Impersona {name}",
+		"intro": "Vedi l'admin esattamente come lo vede {name}, per un'ora al massimo.",
+		"ruleAccount": "Nel frattempo password, autenticazione a due fattori, sessioni, token API e client AI di questa persona non possono cambiare.",
+		"ruleRecorded": "Tutto ciò che fai è registrato come “{you} come {name}”, e {name} lo vede nella propria attività.",
+		"ruleOwn": "La modalità modifica, l'indirizzo di staging e le azioni che richiedono di confermare chi sei restano tuoi: prima smetti di impersonare.",
+		"reason": "Motivo (facoltativo)",
+		"reasonHelp": "Conservato nell'Audit log, ad esempio il numero di una richiesta di assistenza.",
+		"start": "Inizia a impersonare",
+		"cancel": "Annulla",
+		"needsSecondFactor": "Prima aggiungi un'app di autenticazione o una passkey al tuo account.",
+		"openAccount": "Apri Il tuo account",
+		"bannerLabel": "Impersonificazione",
+		"bannerText": "Stai impersonando {name} ({email}).",
+		"minutesLeft": "{minutes, plural, one {# minuto rimasto} other {# minuti rimasti}}",
+		"stop": "Smetti di impersonare",
+		"stopped": "Sei di nuovo te stesso.",
+		"ended": "L'impersonificazione è terminata: sei di nuovo te stesso.",
+		"buttonLabel": "Impersona {name}",
+		"accountNotice": "Mentre impersoni {name}, nulla del suo account può cambiare: lo vedi come lo vede questa persona."
 	}
 }
