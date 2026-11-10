@@ -8,8 +8,9 @@ import type { JobContext, JobQueue } from "../jobs/define.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { siteFolder } from "../media/storage.ts";
 import type { ModuleHost, RunningSource } from "../modules/host.ts";
-import { actingPerson } from "../permissions/can.ts";
+import { actingPerson, can } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { CONNECTION_LIFETIME, connectionOf, type ImportConnection } from "./connection.ts";
 import { ImportInvalidError, ImportNotFoundError, ImportRunningError } from "./errors.ts";
 import { deleteFile, IMPORT_FILE_LIFETIME_MS } from "./files.ts";
@@ -265,7 +266,11 @@ export async function removeImport(
 			.where(tx.where(imports, eq(imports.id, importId)))
 			.for("update");
 		if (!row) throw new ImportNotFoundError();
-		if (row.source !== "csv") await sourceFor(tx, modules, row.source);
+		if (row.connection) {
+			// Staff can revoke a saved live login even when its Module is off or no longer installed.
+			const resource = { level: "site", workspaceId: tx.site.workspaceId, siteId: tx.site.id } as const;
+			if (!can(tx.access.actor, "structure.edit", resource)) throw new PermissionDeniedError("structure.edit");
+		} else if (row.source !== "csv") await sourceFor(tx, modules, row.source);
 		const running = await tx.first(
 			importRuns,
 			and(eq(importRuns.importId, importId), inArray(importRuns.status, ["waiting", "running"])),

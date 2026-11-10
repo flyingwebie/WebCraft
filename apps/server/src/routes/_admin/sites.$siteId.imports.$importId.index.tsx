@@ -14,5 +14,13 @@ function RunAgainPage() {
 	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
 	if (place.level !== "site") return null;
-	return <ImportFlow siteId={siteId} postTypes={place.postTypes} languages={place.languages} existing={existing} />;
+	return (
+		<ImportFlow
+			siteId={siteId}
+			postTypes={place.postTypes}
+			languages={place.languages}
+			existing={existing}
+			canRemoveLive={place.permissions.includes("structure.edit")}
+		/>
+	);
 }

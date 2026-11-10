@@ -33,6 +33,7 @@ import {
 	suggestedMatch,
 } from "./model.ts";
 import { Note } from "./Note.tsx";
+import { RemoveImport } from "./RemoveImport.tsx";
 import { type SourceChoice, SourceImportFlow } from "./SourceFlow.tsx";
 import { type ImportStep, Stepper } from "./Stepper.tsx";
 
@@ -53,6 +54,8 @@ export function ImportFlow({
 	existing: ImportView | null;
 	/** The source a new Import starts with (`csv` unless given). */
 	initialSource?: string;
+	/** Staff can remove a saved login even when the source Module is unavailable. */
+	canRemoveLive?: boolean;
 }) {
 	const t = useT();
 	const ids = useId();
@@ -127,9 +130,15 @@ export function ImportFlow({
 				return null;
 			}
 			return found ? (
-				<p className="text-muted-foreground max-w-3xl" role="status">
-					{t("imports.sourceFlow.sourceOff")}
-				</p>
+				<div className="grid max-w-3xl justify-items-start gap-4">
+					<h1 className="text-2xl font-semibold">{props.existing?.name}</h1>
+					<p className="text-muted-foreground" role="status">
+						{t("imports.sourceFlow.sourceOff")}
+					</p>
+					{props.existing?.connection && props.canRemoveLive ? (
+						<RemoveImport siteId={props.siteId} importId={props.existing.id} />
+					) : null}
+				</div>
 			) : (
 				<p className="text-muted-foreground flex items-center gap-2 text-sm" role="status">
 					<LoaderIcon className="size-4 animate-spin" aria-hidden="true" />

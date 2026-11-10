@@ -182,6 +182,11 @@ for (const theme of THEMES) {
 		await page.keyboard.press("Enter");
 		await page.getByRole("heading", { name: "WordPress live site" }).waitFor();
 		expect(await page.getByLabel("Application password", { exact: true }).inputValue()).toBe("");
+		const admin = (await install.install.superadmin()).api;
+		await admin.modules.setOnSite({ siteId, moduleId: "wordpress-import", on: false });
+		await page.reload();
+		await page.getByText("This Import's source isn't available", { exact: false }).waitFor();
+		await expectAccessibleScreen(page, `Live Import with Module off (${theme})`);
 		await press(page, "Remove Import and saved login");
 		const dialog = page.getByRole("dialog", { name: "Remove Import and saved login" });
 		await dialog.waitFor();
@@ -189,6 +194,7 @@ for (const theme of THEMES) {
 		await dialog.getByRole("button", { name: "Remove Import and saved login", exact: true }).focus();
 		await page.keyboard.press("Enter");
 		await page.getByRole("heading", { name: "Imports", exact: true }).waitFor();
+		await admin.modules.setOnSite({ siteId, moduleId: "wordpress-import", on: true });
 		await page.close();
 	});
 }

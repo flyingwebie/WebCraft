@@ -450,7 +450,7 @@ test("login use is audited, Site exports encrypt it, and transfers remap it to t
 	});
 });
 
-test("removing an Import requires confirmation and removes its login while content stays", async () => {
+test("removing an Import works with its Module off, requires Staff confirmation and keeps content", async () => {
 	const workspace = await install.createWorkspace();
 	const site = await install.createSite(workspace.id);
 	const staff = (await install.createStaff({ workspaces: [workspace.id] })).browser;
@@ -467,9 +467,14 @@ test("removing an Import requires confirmation and removes its login while conte
 	await staff.api.imports.update({ siteId: site.id, importId: connected.importId, settings: required(file.suggested) });
 	await staff.api.imports.start({ siteId: site.id, importId: connected.importId, fileId: file.id });
 	await install.drainJobs();
+	await staff.api.modules.setOnSite({ siteId: site.id, moduleId: "wordpress-import", on: false });
 	const first = await staff.api.imports.remove({ siteId: site.id, importId: connected.importId });
 	expect(first.removed).toBe(false);
 	if (first.removed) throw new Error("No confirmation");
+	const owner = (await install.createMember({ workspaceId: workspace.id, role: "owner" })).browser;
+	await expect(owner.api.imports.remove({ siteId: site.id, importId: connected.importId })).rejects.toMatchObject({
+		code: "FORBIDDEN",
+	});
 	await staff.api.imports.remove({
 		siteId: site.id,
 		importId: connected.importId,
