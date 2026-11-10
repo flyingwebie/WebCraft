@@ -1,9 +1,20 @@
+import { entries } from "@webcraft/db/schema";
+import { inArray } from "drizzle-orm";
+
+import { draftAddresses } from "../content/draft-paths.ts";
 import { editableField, imageField } from "../content/editable.ts";
+import { entryValues } from "../content/entries.ts";
+import { publishedAddresses } from "../content/entry-paths.ts";
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition, Json } from "../content/field-types.ts";
 import { defaultValues, randomRowId, type StoredRow } from "../content/field-values.ts";
-import { siteLanguages } from "../content/languages.ts";
+import { languagesFor, siteLanguages } from "../content/languages.ts";
 import { getLoop, type Loop, rearrangeLoopItems, type StoredLoopVersion, saveLoopItems } from "../content/loops.ts";
+import { isPagePostType } from "../content/pages.ts";
+import { listPostTypes } from "../content/post-types.ts";
+import { getEntryTemplate } from "../content/templates.ts";
+import { storedVersion } from "../content/values.ts";
+import { isUuid } from "../ids.ts";
 import { actingPerson } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { EditFieldInvalidError } from "./errors.ts";
@@ -192,4 +203,49 @@ export async function addLoopItem(
 		return { rows, result: added.id };
 	});
 	return { items: order(loop), item: result };
+}
+
+/** Where a query Loop's item (an Entry) is changed: its own page in Edit mode, else its editor in the admin. */
+export type EntryLink = { id: string; title: string; href: string; page: boolean };
+
+/**
+ * Where each of these Entries of the Site is changed, for the "Edit this Entry" link on a query
+ * Loop's items: its page (published, else where its Draft would be) in the language, which Edit mode
+ * opens on the same domain; for an Entry with no page (its Entry template isn't published), its
+ * editor in the admin. Entries the Site doesn't have are left out.
+ */
+export async function entryLinks(
+	scope: SiteScope,
+	adminOrigin: string,
+	entryIds: readonly string[],
+	language?: string,
+): Promise<EntryLink[]> {
+	const ids = [...new Set(entryIds.filter(isUuid))];
+	if (ids.length === 0) return [];
+	const languages = languagesFor(await siteLanguages(scope), language);
+	if (!languages) throw new EditFieldInvalidError();
+	const rows = await scope.select(entries, inArray(entries.id, ids));
+	const found = new Map<string, EntryLink>();
+	for (const postType of await listPostTypes(scope)) {
+		const own = rows.filter((row) => row.postTypeId === postType.id);
+		if (own.length === 0) continue;
+		const hasPages = isPagePostType(postType) || Boolean((await getEntryTemplate(scope, postType.id))?.published);
+		const ownIds = own.map((row) => row.id);
+		const published = hasPages ? await publishedAddresses(scope, postType, ownIds, languages) : new Map();
+		const drafts = hasPages ? await draftAddresses(scope, postType, ownIds, languages) : new Map();
+		for (const row of own) {
+			const path = published.get(row.id)?.path ?? drafts.get(row.id)?.path;
+			const editor = new URL(`/sites/${scope.site.id}/entries/${postType.id}/${row.id}`, adminOrigin).toString();
+			found.set(row.id, {
+				id: row.id,
+				title: entryValues(storedVersion(row.draft), [], languages).title,
+				href: path ?? editor,
+				page: path !== undefined,
+			});
+		}
+	}
+	return ids.flatMap((id) => {
+		const link = found.get(id);
+		return link ? [link] : [];
+	});
 }

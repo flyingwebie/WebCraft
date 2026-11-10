@@ -195,6 +195,9 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/** Adds a Loop item after one, or first. */
 	"loop/add": async (services, session, body) =>
 		json(200, await services.editMode.loops.add(session, parse(loopAdd, body))),
+	/** Where a query Loop's items (Entries) are changed: their own pages, or the admin's editor. */
+	"loop/entries": async (services, session, body) =>
+		json(200, await services.editMode.loops.entries(session, parse(loopEntries, body))),
 	/** The image popover's Media library: the Site's images (a search, a folder, a page) and its folders. */
 	"media/list": async (services, session, body) =>
 		json(200, await services.editMode.media.list(session, parse(mediaQuery, body))),
@@ -350,6 +353,12 @@ const loopItem = z.object({
 const loopItemValues = loopItem.extend({ values: z.record(z.string().max(100), z.unknown()) });
 
 const loopMove = loopItem.extend({ to: z.number().int().min(0).max(1000) });
+
+/** The Entries a page's query Loops show, at most as many as a page lists. */
+const loopEntries = z.object({
+	entries: z.array(z.string().max(100)).max(2000),
+	language: z.string().max(35).optional(),
+});
 
 const loopAdd = z.object({ loop: z.string().max(100), after: z.string().max(64).nullable() });
 

@@ -19,6 +19,8 @@ import { EditModeUnavailableError, EditPathInvalidError, LoopItemRestoreRefusedE
 import {
 	addLoopItem,
 	duplicateLoopItem,
+	type EntryLink,
+	entryLinks,
 	type ItemOrder,
 	itemIndex,
 	type LoopItemValues,
@@ -187,6 +189,11 @@ export type EditMode = {
 		restore(session: EditSession, restore: string): Promise<ItemOrder & { item: string }>;
 		/** Adds an item with its Fields' defaults after one (`after`), or first. */
 		add(session: EditSession, input: { loop: string; after: string | null }): Promise<ItemOrder & { item: string }>;
+		/**
+		 * Where a query Loop's items (Entries of the Site) are changed, in a language: each one's own page,
+		 * or its editor in the admin when it has none.
+		 */
+		entries(session: EditSession, input: { entries: string[]; language?: string }): Promise<{ entries: EntryLink[] }>;
 	};
 	/** The image popover's Media library: the Site's images and folders, as the admin's Media screen has them. */
 	media: {
@@ -414,6 +421,9 @@ export function createEditMode(options: {
 				return restoreLoopItem(session.scope, removed.loop, { row: removed.row, index: removed.index });
 			},
 			add: (session, input) => addLoopItem(session.scope, input.loop, input.after),
+			entries: async (session, input) => ({
+				entries: await entryLinks(session.scope, config.adminOrigin, input.entries, input.language),
+			}),
 		},
 		media: {
 			list: (session, query) => libraryImages(mediaDeps, session, query),

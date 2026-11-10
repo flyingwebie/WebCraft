@@ -10,6 +10,7 @@ import {
 	formWords,
 	isComponentInfo,
 	type LanguageLink,
+	loopNamesIn,
 	mediaReferencesIn,
 	type PageAlternate,
 	type PageSearch,
@@ -257,6 +258,8 @@ export type PageContent = {
 	languages: PageInLanguage[];
 	/** Whether the page's Templates read the Globals. */
 	readsGlobals: boolean;
+	/** The Loops of the Site the page's Templates (and the Components they place) name. */
+	loops: string[];
 	/** Whether the path has no page, so the 404 page shows there. */
 	notFound: boolean;
 	/**
@@ -602,6 +605,7 @@ export function createSitePages(options: {
 						current: language.code === archive.language.code,
 					})),
 					readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
+					loops: [...new Set(trees.flatMap((tree) => loopNamesIn(tree)))],
 					notFound: false,
 					// Code mode opens Entry templates and the Site template so far; an Archive page's Template is a later step.
 					templatePostTypeId: null,
@@ -626,6 +630,7 @@ export function createSitePages(options: {
 					current: language.code === place.language.code,
 				})),
 				readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
+				loops: [...new Set(trees.flatMap((tree) => loopNamesIn(tree)))],
 				notFound: located === null,
 				templatePostTypeId: found && !isPagePostType(found.postType) ? found.postType.id : null,
 			};

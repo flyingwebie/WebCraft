@@ -442,3 +442,178 @@ describe("moving, duplicating, removing and adding Loop items", () => {
 		}
 	});
 });
+
+describe("a query Loop's items", () => {
+	let site: Bakes;
+	let editing: EditModeBrowser;
+
+	beforeAll(async () => {
+		site = await bakery();
+		editing = await openEditMode(install, editor, site.siteId, "/recipes/menu");
+	});
+
+	test("each links to its Entry's own page, in the page's language, where it is changed in Edit mode", async () => {
+		const response = await editing.edit("loop/entries", { entries: site.postIds, language: "it" });
+
+		expect(response.status).toBe(200);
+		expect(await json(response)).toEqual({
+			entries: [
+				{ id: site.postIds[0], title: "Our starter, explained", href: "/it/blog/our-starter-explained", page: true },
+				{ id: site.postIds[1], title: "Spring menu", href: "/it/blog/spring-menu", page: true },
+			],
+		});
+	});
+
+	test("an Entry with no page of its own links to its editor in the admin; another Site's Entries to nothing", async () => {
+		const { postType } = await staff.api.postTypes.create({
+			siteId: site.siteId,
+			name: "Suppliers",
+			urlPattern: "/suppliers/{slug}",
+			fields: [],
+		});
+		const { entry } = await editor.api.entries.create({ siteId: site.siteId, postTypeId: postType.id, title: "Mill" });
+		const other = await bakery();
+
+		const answer = (await json(await editing.edit("loop/entries", { entries: [entry.id, other.postIds[0]] }))) as {
+			entries: { id: string; href: string; page: boolean }[];
+		};
+
+		expect(answer.entries).toEqual([
+			{
+				id: entry.id,
+				title: "Mill",
+				href: install.adminUrl(`/sites/${site.siteId}/entries/${postType.id}/${entry.id}`),
+				page: false,
+			},
+		]);
+	});
+});
+
+type Change = { item: string; key: string; label: string | null; type: string; structure?: boolean };
+type State = { changes: Change[]; canPublish: boolean };
+
+describe("a Loop's items in the Publish menu", () => {
+	let site: Bakes;
+
+	beforeAll(async () => {
+		site = await bakery();
+	});
+
+	const pageState = async (editing: EditModeBrowser) =>
+		(await json(await editing.edit("state", { path: "/recipes/menu" }))) as unknown as State;
+
+	test("the page's changes list its Loops' item changes, one for each Loop, published by Staff", async () => {
+		const editing = await openEditMode(install, editor, site.siteId, "/recipes/menu");
+		await editing.edit("save", { item: `loop:${site.loopId}:${site.items[0]}`, field: "name", value: "Rye loaf" });
+
+		const state = await pageState(editing);
+
+		expect(state.changes).toEqual([
+			{
+				item: `loop:${site.loopId}`,
+				key: "items",
+				label: "our-bakes",
+				type: "loopItems",
+				structure: true,
+				by: { name: expect.any(String) as unknown as string, you: true },
+			},
+		]);
+	});
+
+	test("Editors publish the page's own changes; the Loop's items wait for Staff", async () => {
+		const editing = await openEditMode(install, editor, site.siteId, "/recipes/menu");
+		await editing.edit("save", { item: `entry:${site.menuId}`, field: "title", value: "Our menu" });
+
+		const published = await editing.edit("publish", { path: "/recipes/menu" });
+
+		expect(published.status).toBe(200);
+		const state = (await json(published)) as unknown as State;
+		expect(state.changes.map((change) => change.item)).toEqual([`loop:${site.loopId}`]);
+		const visitors = await (await install.request(`${site.origin}/recipes/menu`)).text();
+		expect(visitors).toContain("<h1>Our menu</h1>");
+		expect(visitors).toContain("<h3>Country sourdough</h3>");
+	});
+
+	test("Staff publish the Loop's items with the page", async () => {
+		const editing = await openEditMode(install, staff, site.siteId, "/recipes/menu");
+
+		const published = await editing.edit("publish", { path: "/recipes/menu" });
+
+		expect(((await json(published)) as unknown as State).changes).toEqual([]);
+		expect(await (await install.request(`${site.origin}/recipes/menu`)).text()).toContain("<h3>Rye loaf</h3>");
+	});
+
+	test("Undo and Discard put the Loop's items back as published, for everyone who edits", async () => {
+		const editing = await openEditMode(install, author, site.siteId, "/recipes/menu");
+		const item = `loop:${site.loopId}:${site.items[1]}`;
+		const saved = await editing.edit("save", { item, field: "name", value: "Bun" });
+		expect(saved.status).toBe(200);
+
+		const undone = await editing.edit("undo", { path: "/recipes/menu", item: `loop:${site.loopId}`, key: "items" });
+		expect(((await json(undone)) as unknown as State).changes).toEqual([]);
+		expect((await draftItems(site))[1]?.name).toBe("Cardamom bun");
+
+		await editing.edit("loop/add", { loop: site.loopId, after: null });
+		await editing.edit("discard", { path: "/recipes/menu" });
+		expect(await draftItems(site)).toHaveLength(3);
+	});
+
+	test("a Loop's items aren't submitted for Review: Staff publish them", async () => {
+		const editing = await openEditMode(install, author, site.siteId, "/recipes/menu");
+		await editing.edit("save", { item: `loop:${site.loopId}:${site.items[1]}`, field: "name", value: "Bun" });
+
+		const submitted = await editing.edit("review/submit", { path: "/recipes/menu" });
+
+		expect({ status: submitted.status, code: (await json(submitted)).code }).toEqual({
+			status: 400,
+			code: "REVIEW_INVALID",
+		});
+		await editing.edit("discard", { path: "/recipes/menu" });
+	});
+});
+
+describe("Loop items and who may change them", () => {
+	let site: Bakes;
+
+	beforeAll(async () => {
+		site = await bakery();
+	});
+
+	test("Authors change a Loop's items in place: they are Content", async () => {
+		const editing = await openEditMode(install, author, site.siteId, "/recipes/menu");
+
+		const saved = await editing.edit("save", {
+			item: `loop:${site.loopId}:${site.items[0]}`,
+			field: "name",
+			value: "Country loaf",
+		});
+		const moved = await editing.edit("loop/move", { loop: site.loopId, item: site.items[0], to: 1 });
+
+		expect([saved.status, moved.status]).toEqual([200, 200]);
+		await editing.edit("discard", { path: "/recipes/menu" });
+	});
+
+	test("another Site's Loops can't be reached from this Site's Edit mode", async () => {
+		const other = await bakery();
+		const editing = await openEditMode(install, editor, site.siteId, "/recipes/menu");
+
+		for (const [action, body] of [
+			["save", { item: `loop:${other.loopId}:${other.items[0]}`, field: "name", value: "Stolen" }],
+			["loop/get", { loop: other.loopId, item: other.items[0] }],
+			["loop/save", { loop: other.loopId, item: other.items[0], values: { name: "Stolen" } }],
+			["loop/move", { loop: other.loopId, item: other.items[0], to: 2 }],
+			["loop/duplicate", { loop: other.loopId, item: other.items[0] }],
+			["loop/remove", { loop: other.loopId, item: other.items[0] }],
+			["loop/add", { loop: other.loopId, after: null }],
+		] as const) {
+			const response = await editing.edit(action, body);
+			expect({ action, status: response.status, code: (await json(response)).code }).toEqual({
+				action,
+				status: 404,
+				code: "LOOP_NOT_FOUND",
+			});
+		}
+		const items = (await staff.api.loops.get({ siteId: other.siteId, loopId: other.loopId })).loop.draft.items;
+		expect(items.map((item) => item.name)).toEqual(["Country sourdough", "Cardamom bun", "Seeded rye"]);
+	});
+});
