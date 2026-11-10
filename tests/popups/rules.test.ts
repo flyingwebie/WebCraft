@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
@@ -19,15 +19,17 @@ const rules = {
 	devices: ["phone", "desktop"],
 	visitors: "all",
 };
-const page = "https://targeted.live.test/news/welcome";
+let page: string;
 beforeAll(async () => {
 	install = await createTestInstall();
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "popups", version: "1.0.0" });
+});
+beforeEach(async () => {
 	const ws = await install.createWorkspace();
-	siteId = (await install.createSite(ws.id, { slug: "targeted" })).id;
-	otherSite = (await install.createSite(ws.id, { slug: "other" })).id;
-	await goLive(install, siteId);
+	siteId = (await install.createSite(ws.id)).id;
+	otherSite = (await install.createSite(ws.id)).id;
+	page = `${await goLive(install, siteId)}/news/welcome`;
 	staff = (await install.createStaff({ workspaces: [ws.id] })).browser;
 	owner = (await install.createMember({ workspaceId: ws.id, role: "owner" })).browser;
 	await staff.api.languages.add({ siteId, code: "it" });

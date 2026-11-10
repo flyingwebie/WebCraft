@@ -17,7 +17,7 @@ import { currentReviews, itemKey } from "../content/review-items.ts";
 import { slugify } from "../content/slugs.ts";
 import { storedVersion } from "../content/values.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
-import { actingPerson, personIdOf } from "../permissions/can.ts";
+import { actingPerson, can, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { popupAttachments } from "./catalogue.ts";
 import { popupChecks } from "./checks.ts";
@@ -119,13 +119,24 @@ export async function popupRow(scope: Pick<SiteScope, "first">, id: string) {
 }
 const status = (draft: unknown, published: unknown) =>
 	published === null ? ("draft" as const) : sameJson(draft, published) ? ("published" as const) : ("changed" as const);
-export function popupView(row: Row, versions?: { draft: unknown; published: unknown }, attached = false) {
+export function popupView(
+	scope: SiteScope,
+	row: Row,
+	versions?: { draft: unknown; published: unknown },
+	attached = false,
+) {
 	return {
 		...row,
 		draft: row.draft as PopupSettings,
 		published: row.published as PopupSettings | null,
 		status: status(versions?.draft ?? row.draft, versions?.published ?? row.published),
-		checks: popupChecks(row.draft as PopupSettings, attached),
+		checks: can(scope.access.actor, "structure.edit", {
+			level: "site",
+			workspaceId: scope.workspace.id,
+			siteId: scope.site.id,
+		})
+			? popupChecks(row.draft as PopupSettings, attached)
+			: [],
 	};
 }
 export async function getPopup(scope: SiteScope, id: string, language?: string) {
@@ -138,7 +149,7 @@ export async function getPopup(scope: SiteScope, id: string, language?: string) 
 			itemKey(item),
 		) ?? null;
 	return {
-		popup: popupView(row, await popupStructureState(scope, row), (await popupAttachments(scope)).has(id)),
+		popup: popupView(scope, row, await popupStructureState(scope, row), (await popupAttachments(scope)).has(id)),
 		content: {
 			review,
 			fields: POPUP_FIELDS,
@@ -198,7 +209,7 @@ export async function savePopupDraft(scope: SiteScope, id: string, change: Popup
 		);
 		await tx.audit("popup.save", { popupId: id });
 		const saved = await popupRow(tx, id);
-		return popupView(saved, await popupStructureState(tx, saved), (await popupAttachments(tx)).has(id));
+		return popupView(tx, saved, await popupStructureState(tx, saved), (await popupAttachments(tx)).has(id));
 	});
 }
 export async function savePopupContent(
@@ -289,7 +300,7 @@ export function createPopups(sources: ComponentSources = NO_MODULE_COMPONENTS) {
 			const attached = await popupAttachments(scope);
 			return Promise.all(
 				(await scope.select(popups)).map(async (row) =>
-					popupView(row, await popupStructureState(scope, row), attached.has(row.id)),
+					popupView(scope, row, await popupStructureState(scope, row), attached.has(row.id)),
 				),
 			);
 		},
@@ -337,7 +348,7 @@ export function createPopups(sources: ComponentSources = NO_MODULE_COMPONENTS) {
 					updatedBy: personIdOf(tx.access.actor),
 				});
 				await tx.audit("popup.create", { popupId: row.id, name, key });
-				return popupView(row);
+				return popupView(tx, row);
 			});
 		},
 		async delete(scope: SiteScope, id: string, confirmation?: string) {

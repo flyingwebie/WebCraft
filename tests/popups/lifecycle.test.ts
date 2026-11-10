@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import type { DocumentJson } from "@webcraft/core";
 import { openDraft } from "../harness/co-editing.ts";
 import { photo, upload } from "../harness/images.ts";
@@ -11,6 +11,8 @@ let owner: TestBrowser;
 let siteId: string;
 beforeAll(async () => {
 	install = await createTestInstall();
+});
+beforeEach(async () => {
 	const workspace = await install.createWorkspace();
 	siteId = (await install.createSite(workspace.id)).id;
 	staff = (await install.createStaff({ workspaces: [workspace.id] })).browser;
