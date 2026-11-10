@@ -25,7 +25,7 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 		title: string;
 		address: { prefix: string; slug: string; path: string | null; home: boolean };
 		seo: Seo;
-		fallbacks: { title: string; description: string | null; image: { mediaId: string; from: string } | null };
+		fallbacks: { title: string; description: string | null; image: { mediaId?: string; from: string } | null };
 		summary: { field: string; label: string; type: string; value: unknown } | null;
 		translatable: { title: boolean; slug: boolean; seo: boolean; summary: boolean };
 		image: MediaChoice | null;
@@ -241,7 +241,9 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 							? word("imageFromField")
 							: from === "site"
 								? word("imageFromSite")
-								: word("imageNone"),
+								: from === "socialCard"
+									? word("imageFromSocialCard")
+									: word("imageNone"),
 				),
 				change,
 			);

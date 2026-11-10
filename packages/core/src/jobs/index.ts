@@ -48,6 +48,7 @@ import {
 } from "../reports/jobs.ts";
 import { searchRebuild, searchRebuildDue, searchRebuildDueSchedule } from "../search/jobs.ts";
 import { siteFilesPurge, siteFilesPurgeSchedule } from "../site-scripts/retired.ts";
+import { socialCardsReconcile, socialCardsReconcileSchedule, socialCardsRender } from "../social-cards/jobs.ts";
 import { translationsResume, translationsResumeSchedule, translationsRun } from "../translation/service.ts";
 import { updatesCheck, updatesCheckSchedule } from "../updates.ts";
 import { webhooksDeliver, webhooksPurgeLog, webhooksPurgeLogSchedule } from "../webhooks/jobs.ts";
@@ -60,6 +61,8 @@ import type { JobSchedule } from "./schedules.ts";
  * worked, so add each new job to this list.
  */
 export const coreJobs = [
+	socialCardsRender,
+	socialCardsReconcile,
 	samplePing,
 	emailSend,
 	emailLogPurge,
@@ -110,6 +113,7 @@ export const coreJobs = [
 
 /** Every job that runs on a schedule. The worker registers them; the test harness's drain runs them when due. */
 export const coreSchedules = [
+	socialCardsReconcileSchedule,
 	emailLogPurgeSchedule,
 	rateLimitsPurgeSchedule,
 	oauthPurgeSchedule,

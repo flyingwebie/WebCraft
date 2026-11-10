@@ -1,4 +1,4 @@
-import { foreignKey, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 import { sites } from "./tenancy.ts";
 
@@ -20,6 +20,8 @@ export const seoSettings = pgTable(
 		separator: text("separator").notNull().default("·"),
 		/** The social image of every page without one of its own: a Media image's id, or null. */
 		defaultImage: uuid("default_image"),
+		socialCardsEnabled: boolean("social_cards_enabled").notNull().default(true),
+		socialCardLayout: text("social_card_layout").notNull().default("editorial"),
 		/**
 		 * The organisation behind the Site, as structured data shows it on every page: its kind
 		 * (`organization` or `localBusiness`), name, logo (a Media id), profiles elsewhere (`sameAs`) and

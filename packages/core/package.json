@@ -13,6 +13,7 @@
 		"./media-kinds": "./src/media/kinds.ts",
 		"./field-rules": "./src/content/field-rules.ts",
 		"./search-fields": "./src/search/searched-fields.ts",
+		"./social-card-rules": "./src/social-cards/rules.ts",
 		"./seo-rules": "./src/seo/seo-rules.ts",
 		"./ai-crawlers": "./src/discovery/ai-crawlers.ts",
 		"./import-rules": "./src/imports/source-rules.ts",

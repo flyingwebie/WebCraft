@@ -19,6 +19,7 @@ beforeAll(async () => {
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	await staff.api.languages.add({ siteId, code: "fr" });
+	await staff.api.seoSettings.update({ siteId, socialCards: { enabled: false } });
 	postTypeId = (
 		await staff.api.postTypes.create({
 			siteId,

@@ -6,6 +6,7 @@ import { clearPageCache } from "../content/page-cache.ts";
 import { type AiCrawlerSetting, DEFAULT_AI_CRAWLER_SETTING, isAiCrawlerSetting } from "../discovery/ai-crawlers.ts";
 import { readRobotsLines } from "../discovery/robots.ts";
 import { isUuid } from "../ids.ts";
+import { DEFAULT_SOCIAL_CARD_LAYOUT, isSocialCardLayout, type SocialCardSettings } from "../social-cards/rules.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { isSocialImageOf } from "./entry-seo.ts";
 import { DEFAULT_SEPARATOR, fieldAt, SEPARATOR_MAX_LENGTH } from "./seo-rules.ts";
@@ -40,6 +41,7 @@ export const ORGANIZATION_GLOBALS = ["telephone", "email", "address"] as const;
  * 119), which Owners change too (`aiCrawlers.manage`, `setAiCrawlers`).
  */
 export type SiteSeoSettings = {
+	socialCards: SocialCardSettings;
 	siteName: string | null;
 	separator: string;
 	defaultImage: string | null;
@@ -52,6 +54,7 @@ export type SiteSeoSettings = {
 
 /** A change to a Site's SEO settings: each given replaces that setting (the organisation part by part). */
 export type SiteSeoChange = {
+	socialCards?: { enabled?: boolean; layout?: unknown };
 	siteName?: string | null;
 	separator?: string;
 	defaultImage?: string | null;
@@ -80,6 +83,7 @@ export class SeoSettingsInvalidError extends Error {
 /** The defaults until a Site changes its SEO settings. */
 export function defaultSeoSettings(): SiteSeoSettings {
 	return {
+		socialCards: { enabled: true, layout: DEFAULT_SOCIAL_CARD_LAYOUT },
 		siteName: null,
 		separator: DEFAULT_SEPARATOR,
 		defaultImage: null,
@@ -108,6 +112,10 @@ function settingsOf(row: typeof seoSettings.$inferSelect): SiteSeoSettings {
 	const stored = (row.organization ?? {}) as Partial<Record<keyof SeoOrganization, unknown>>;
 	const text = (value: unknown) => (typeof value === "string" && value !== "" ? value : null);
 	return {
+		socialCards: {
+			enabled: row.socialCardsEnabled,
+			layout: isSocialCardLayout(row.socialCardLayout) ? row.socialCardLayout : DEFAULT_SOCIAL_CARD_LAYOUT,
+		},
 		siteName: row.siteName,
 		separator: row.separator,
 		defaultImage: row.defaultImage,
@@ -136,6 +144,19 @@ export async function updateSiteSeoSettings(scope: SiteScope, change: SiteSeoCha
 		const current = await siteSeoSettings(tx);
 		const problems: ContentProblem[] = [];
 		const next: SiteSeoSettings = { ...current, organization: { ...current.organization } };
+		if (change.socialCards !== undefined) {
+			next.socialCards = { ...current.socialCards };
+			if (change.socialCards.enabled !== undefined) next.socialCards.enabled = change.socialCards.enabled;
+			if (change.socialCards.layout !== undefined) {
+				if (isSocialCardLayout(change.socialCards.layout)) next.socialCards.layout = change.socialCards.layout;
+				else
+					problems.push({
+						at: "socialCards.layout",
+						rule: "socialCardLayout",
+						message: "Choose a built-in Social card layout.",
+					});
+			}
+		}
 		if (change.siteName !== undefined) {
 			const name = (change.siteName ?? "").trim();
 			if (name.length > SEO_NAME_MAX_LENGTH) {
@@ -174,6 +195,8 @@ export async function updateSiteSeoSettings(scope: SiteScope, change: SiteSeoCha
 
 		const now = tx.now();
 		const values = {
+			socialCardsEnabled: next.socialCards.enabled,
+			socialCardLayout: next.socialCards.layout,
 			siteName: next.siteName,
 			separator: next.separator,
 			defaultImage: next.defaultImage,

@@ -61,9 +61,7 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { level: 3, name: "SEO check" }).waitFor();
 
 			await expectAccessibleScreen(page, `the Entry editor with its SEO card (${theme})`);
-			expect(await page.getByText("There's no social image: shared links will show without a picture.").count()).toBe(
-				1,
-			);
+			expect(await page.getByText("A Social card will be generated from this title on publish.").count()).toBe(1);
 		});
 	});
 }
@@ -248,5 +246,41 @@ for (const theme of THEMES) {
 			expect(await lines.inputValue()).toBe("Disallow: /private");
 			await expectAccessibleScreen(page, `Site › Crawlers, a refused line (${theme})`);
 		});
+	});
+}
+
+for (const theme of THEMES) {
+	test(`Social card controls work with the keyboard (${theme})`, async () => {
+		const { api } = await install.install.superadmin();
+		await api.postTypes.update({ siteId, postTypeId, seo: { socialCardLayout: null } });
+		const page = await install.newPage(theme);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}/seo`));
+		await page.waitForLoadState("networkidle");
+		const layout = page.getByRole("combobox", { name: "Social card layout", exact: true });
+		expect(await layout.locator("option").count()).toBe(20);
+		await layout.focus();
+		await page.keyboard.press("o");
+		await page.keyboard.press("Enter");
+		expect(await layout.inputValue()).toBe("orbit");
+		await page.keyboard.press("Tab");
+		const enabled = page.getByRole("checkbox", { name: "Generate Social cards" });
+		await enabled.focus();
+		await page.keyboard.press("Space");
+		await expectAccessibleScreen(page, `Social card settings (${theme})`);
+		await page.getByRole("button", { name: "Save", exact: true }).click();
+		await page.getByText("SEO settings saved.").first().waitFor();
+		await page.goto(install.adminUrl(`/sites/${siteId}/post-types/${postTypeId}?tab=seo`));
+		await page.waitForLoadState("networkidle");
+		const override = page.getByRole("combobox", { name: "Social card layout", exact: true });
+		expect(await override.locator("option").count()).toBe(21);
+		await override.focus();
+		await page.keyboard.press("f");
+		await page.keyboard.press("Enter");
+		expect(await override.inputValue()).toBe("frame");
+		await page.keyboard.press("Tab");
+		await expectAccessibleScreen(page, `Social card Post Type override (${theme})`);
+		await page.getByRole("button", { name: "Save", exact: true }).click();
+		await page.getByText("SEO settings saved.").first().waitFor();
 	});
 }

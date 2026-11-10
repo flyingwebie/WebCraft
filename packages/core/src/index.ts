@@ -381,6 +381,9 @@ export {
 } from "./site-pages/index.ts";
 export { MAX_PAGE_NUMBER, PAGE_PARAMETER, pageHref, pageNumberIn } from "./site-pages/loops.ts";
 export * from "./site-scripts/index.ts";
+export { socialCardFile } from "./social-cards/cards.ts";
+export * from "./social-cards/renderer.ts";
+export * from "./social-cards/rules.ts";
 export {
 	type EnteredStaging,
 	type PasswordAccess,

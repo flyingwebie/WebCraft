@@ -9,7 +9,6 @@ import {
 	type ValueReader,
 } from "@webcraft/renderer";
 import { inArray } from "drizzle-orm";
-
 import { publishedArchives } from "../content/archives.ts";
 import { homePageId, publishedAddresses } from "../content/entry-paths.ts";
 import type { Languages } from "../content/field-values.ts";
@@ -21,6 +20,7 @@ import { pathSegments } from "../content/url-patterns.ts";
 import { readValue, storedVersion } from "../content/values.ts";
 import { isVisibleIn } from "../content/visibility.ts";
 import { placeOf, type SiteAddresses } from "../domains/addresses.ts";
+import { publishedCard } from "../social-cards/cards.ts";
 import type { VisitorScope } from "../tenancy/data-layer.ts";
 import type { EntrySeo } from "./entry-seo.ts";
 import { firstImage, shareableImages } from "./images.ts";
@@ -39,7 +39,7 @@ import {
 } from "./structured-data.ts";
 
 /** What reading a page's SEO needs: the Site's Media library and its published content. */
-export type SeoScope = Pick<VisitorScope, "select" | "first" | "db" | "where">;
+export type SeoScope = Pick<VisitorScope, "select" | "first" | "db" | "where" | "site">;
 
 /**
  * What every page of a Site works its SEO out with: the Site's SEO settings and the name titles give
@@ -70,6 +70,7 @@ export type SeoPlace = { languages: Languages; alsoIn: readonly string[] };
  * paginated Loop.
  */
 export type EntryPageSeo = {
+	version: "draft" | "published";
 	postType: PostType;
 	entryId: string;
 	seo: EntrySeo;
@@ -141,7 +142,12 @@ export async function entryPageSeo(
 		mediaOrigin(site, languages),
 	);
 	// The Social card (#93) comes after the Post Type's image Field, before the Site's default image.
-	const image = firstImage(images, [seo.image, fieldImage, site.settings.defaultImage]);
+	const image =
+		firstImage(images, [seo.image, fieldImage]) ??
+		(entry.version === "published"
+			? await publishedCard(scope, entry.entryId, languages.language, mediaOrigin(site, languages))
+			: null) ??
+		firstImage(images, [site.settings.defaultImage]);
 	const type = settings.schema.type;
 	const article = type === "article" || type === "blogPosting";
 	const graph = await siteGraph(scope, site, languages, images);

@@ -54,7 +54,6 @@ import type { ModuleDefinition } from "@webcraft/module-sdk";
 import { createWebHandler, type UpgradeAnswer, type WebHandler } from "@webcraft/server/handler";
 import { createImageProcessor } from "@webcraft/worker/images";
 import type { PgBoss } from "pg-boss";
-
 import { createTestBrowser, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
 import { createTestClock, type TestInstallClock } from "./clock.ts";
 import { testCountryFile } from "./countries.ts";
@@ -65,6 +64,7 @@ import { createFakeDns, type FakeDns } from "./fake-dns.ts";
 import { createFakeHttp, type FakeHttp } from "./fake-http.ts";
 import { createFakeMailer, type FakeMailer } from "./fake-mailer.ts";
 import { createFakePdf, type FakePdf } from "./fake-pdf.ts";
+import { createFakeSocialCards } from "./fake-social-cards.ts";
 import { createFakeTls, type FakeTls } from "./fake-tls.ts";
 import { TEST_MODULES } from "./modules.ts";
 
@@ -119,6 +119,8 @@ export const TEST_INSTALL_ADDRESSES = ["203.0.113.10", "2001:db8::10"] as const;
 export const DEFAULT_TEST_TIME = new Date("2026-03-02T09:00:00.000Z");
 
 export type TestInstallOptions = {
+	/** Exercise the worker renderer through HTTP when supplied. */
+	socialCardRenderer?: import("@webcraft/core").SocialCardRenderer;
 	/**
 	 * - `migrated` (default): a fresh database with every real migration applied.
 	 * - `empty`: a fresh database nobody has migrated yet.
@@ -342,6 +344,7 @@ export type TestInstall = {
 	disk: FakeDisk;
 	/** Turns Reports into PDFs without a browser: each holds the page's text (`pdfText` in `fake-pdf.ts`). */
 	pdf: FakePdf;
+	socialCards: ReturnType<typeof createFakeSocialCards>;
 	/**
 	 * Points a domain at this Install, as its DNS records would: it resolves to the Install's first
 	 * address, every HTTP request to it reaches this Install's handler, and it answers HTTPS with a
@@ -430,6 +433,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const tls = createFakeTls();
 	const ai = createFakeAi();
 	const pdf = createFakePdf();
+	const socialCards = createFakeSocialCards();
 	const disk = createFakeDisk();
 	// The leaked-password range service lists no password as leaked unless a test says otherwise.
 	http.respond("GET", LEAKED_PASSWORD_RANGE, { body: "" });
@@ -488,6 +492,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			options.maxImagePixels === undefined ? {} : { maxInputPixels: options.maxImagePixels },
 		),
 		pdf: pdf.renderer,
+		socialCardRenderer: options.socialCardRenderer ?? socialCards.renderer,
 		disk: disk.space,
 	};
 	/**
@@ -695,6 +700,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 		tls,
 		ai,
 		pdf,
+		socialCards,
 		disk,
 		connectDomain(name, connectOptions = {}) {
 			const domain = name.toLowerCase();

@@ -1938,7 +1938,8 @@
 		"canonicalHelp": "Leave it empty for the page's own address.",
 		"noindex": "Hide from search engines",
 		"noindexHelp": "For every language of the page.",
-		"staffPublish": "Staff publish Loop items"
+		"staffPublish": "Staff publish Loop items",
+		"imageFromSocialCard": "A Social card will be generated from this title on publish."
 	},
 	"siteLanguages": {
 		"pageTitle": "Languages",
@@ -3972,6 +3973,37 @@
 			"filesIntro": "Built from what is published, in every language, and updated as soon as something is published.",
 			"noDomain": "Once the Site has a Primary domain, its robots.txt, sitemap and llms.txt are at its address.",
 			"opensInNewTab": "(opens in a new tab)"
+		},
+		"socialCards": {
+			"title": "Social cards",
+			"help": "Generated from the published Entry title, the organisation logo below and the published colour tokens. Used after the Entry image and Post Type image Field, before the Site default image. Changes refresh published cards in the background.",
+			"enabled": "Generate Social cards",
+			"layout": "Social card layout",
+			"inherit": "Use the Site layout",
+			"overrideHelp": "Overrides the Site layout for this Post Type. Switching Social cards off for the Site also switches off this override.",
+			"onPublish": "A Social card will be generated from this title on publish.",
+			"layouts": {
+				"editorial": "Editorial",
+				"frame": "Frame",
+				"split": "Split",
+				"band": "Band",
+				"corner": "Corner",
+				"orbit": "Orbit",
+				"arch": "Arch",
+				"steps": "Steps",
+				"grid": "Grid",
+				"spotlight": "Spotlight",
+				"ribbon": "Ribbon",
+				"window": "Window",
+				"stack": "Stack",
+				"diagonal": "Diagonal",
+				"horizon": "Horizon",
+				"columns": "Columns",
+				"ticket": "Ticket",
+				"underline": "Underline",
+				"mosaic": "Mosaic",
+				"capsule": "Capsule"
+			}
 		}
 	},
 	"backupFailingBanner": {

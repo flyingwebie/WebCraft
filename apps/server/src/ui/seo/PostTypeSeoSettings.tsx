@@ -12,6 +12,7 @@ import {
 	TITLE_TOKENS,
 	type TitleToken,
 } from "@webcraft/core/seo-rules";
+import { SOCIAL_CARD_LAYOUTS, type SocialCardLayout } from "@webcraft/core/social-card-rules";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
@@ -125,6 +126,7 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 				summaryField: settings.descriptionField,
 				sitemap,
 				seo: {
+					socialCardLayout: settings.socialCardLayout,
 					titlePattern: settings.titlePattern,
 					imageField: settings.imageField,
 					schema: { type: settings.schema.type, properties: { ...settings.schema.properties } },
@@ -199,6 +201,27 @@ export function PostTypeSeoSettings({ postType, siteId }: { postType: PostTypeVi
 				</div>
 			) : null}
 
+			<div className="grid max-w-3xl gap-2">
+				<Label htmlFor={`${id}-social-layout`}>{t("seo.socialCards.layout")}</Label>
+				<NativeSelect
+					id={`${id}-social-layout`}
+					value={settings.socialCardLayout ?? ""}
+					aria-describedby={`${id}-social-help`}
+					onChange={(event) =>
+						setSettings({ ...settings, socialCardLayout: (event.target.value || null) as SocialCardLayout | null })
+					}
+				>
+					<NativeSelectOption value="">{t("seo.socialCards.inherit")}</NativeSelectOption>
+					{SOCIAL_CARD_LAYOUTS.map((layout) => (
+						<NativeSelectOption key={layout} value={layout}>
+							{t(`seo.socialCards.layouts.${layout}`)}
+						</NativeSelectOption>
+					))}
+				</NativeSelect>
+				<p id={`${id}-social-help`} className="text-muted-foreground text-sm">
+					{t("seo.socialCards.overrideHelp")}
+				</p>
+			</div>
 			<div className="grid max-w-3xl gap-2">
 				<Label htmlFor={`${id}-pattern`}>{t("seo.postType.titlePattern")}</Label>
 				<Input

@@ -17,7 +17,7 @@ export const SHARED_WIDTH = 1200;
  * Site's Media library, not in the Trash, not SVGs), by id, as absolute addresses on `origin`: each
  * one's narrowest WebP variant at least `SHARED_WIDTH` wide, else its original (narrower than that, or
  * waiting for its variants), with its size and its alt text in the page's language. The server never crops (ADR 0027): the
- * whole image is shown, so its Focal point plays no part here (the Social card, #93, composes with it).
+ * whole image is shown, so its Focal point plays no part here.
  */
 export async function shareableImages(
 	scope: Pick<VisitorScope, "select">,

@@ -1654,6 +1654,7 @@ async function renderEntryPage(
 	const seo = await entryPageSeo(scope, await seoSiteOf(view, host, located), seoPlace(located, extras.alternates), {
 		postType,
 		entryId: entry.id,
+		version: view.entries,
 		seo: readEntrySeo(version.values, languages),
 		title,
 		values: (path) => resolvePath(root, path),

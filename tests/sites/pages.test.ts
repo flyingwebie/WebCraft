@@ -71,6 +71,7 @@ describe("the Page Post Type", () => {
 				searchable: true,
 				searchedFields: [{ field: "title", weight: "A" }],
 				seo: {
+					socialCardLayout: null,
 					titlePattern: "{title} {separator} {site}",
 					descriptionField: null,
 					imageField: null,

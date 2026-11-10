@@ -1128,6 +1128,17 @@
 									"seo": {
 										"type": "object",
 										"properties": {
+											"socialCardLayout": {
+												"anyOf": [
+													{
+														"type": "string",
+														"maxLength": 100
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
 											"titlePattern": {
 												"type": "string",
 												"maxLength": 1000
@@ -1607,6 +1618,17 @@
 									"seo": {
 										"type": "object",
 										"properties": {
+											"socialCardLayout": {
+												"anyOf": [
+													{
+														"type": "string",
+														"maxLength": 100
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
 											"titlePattern": {
 												"type": "string",
 												"maxLength": 1000
@@ -10548,6 +10570,18 @@
 									"siteId": {
 										"type": "string",
 										"format": "uuid"
+									},
+									"socialCards": {
+										"type": "object",
+										"properties": {
+											"enabled": {
+												"type": "boolean"
+											},
+											"layout": {
+												"type": "string",
+												"maxLength": 100
+											}
+										}
 									},
 									"siteName": {
 										"anyOf": [

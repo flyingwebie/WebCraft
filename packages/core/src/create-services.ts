@@ -1,6 +1,5 @@
 import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
-
 import { createAccount, reportAccountLock } from "./account.ts";
 import { createAiKeys } from "./ai/keys.ts";
 import { createApiTokens } from "./api-tokens.ts";
@@ -153,6 +152,7 @@ import { createInstallSetup } from "./setup.ts";
 import { entryTemplateData, globalsData, loopData } from "./site-pages/data-samples.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createSiteScripts } from "./site-scripts/index.ts";
+import { socialCardsAfterAudit } from "./social-cards/jobs.ts";
 import { createStaging } from "./staging/index.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createInvites } from "./tenancy/invites.ts";
@@ -297,7 +297,7 @@ export async function createInstallServices(
 		countries: ports.countries,
 		visitorIdKey: await visitorIdKey(masterKey),
 	});
-	listeners.afterAudit.push(modules.afterAudit, webhooks.afterAudit);
+	listeners.afterAudit.push(modules.afterAudit, webhooks.afterAudit, socialCardsAfterAudit(ports.jobs));
 	// The Components of Modules: placed on Sites where their Module runs.
 	const componentSources = modules.components;
 	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };
