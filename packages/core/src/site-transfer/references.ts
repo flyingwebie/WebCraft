@@ -112,6 +112,12 @@ export function createRowRemapper(
 			let field: Row = {};
 			for (const key of path) {
 				field = record(list(fields).find((item) => record(item).key === key));
+				if (!field.type)
+					throw new ArchiveRefusedError(
+						"damaged",
+						`The source declaration for Module Component ${componentId} has no Prop ${path.join(".")}. Restore its source Module version before transferring this Site.`,
+						{ componentId, path },
+					);
 				fields = field.fields;
 			}
 			return field;
