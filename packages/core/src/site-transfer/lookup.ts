@@ -59,7 +59,8 @@ export function createReferenceLookup(
  FROM versions ${joins.join(" ")} WHERE ${matches.join(" AND ")}
  )
  SELECT value FROM candidates
- ORDER BY CASE WHEN historical THEN 0 ELSE 1 END,
+ ORDER BY CASE WHEN ${parameter(2)} = 'published' AND kind <> 'published' THEN 1 ELSE 0 END,
+ CASE WHEN historical THEN 0 ELSE 1 END,
  CASE WHEN historical THEN 0 ELSE priority END,
  CASE WHEN historical AND ${parameter(2)} = 'draft' THEN 0 WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END,
  at DESC NULLS LAST, CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END

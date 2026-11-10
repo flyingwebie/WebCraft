@@ -172,3 +172,81 @@ test("a Template Checkpoint uses newer published text declarations ahead of olde
 	});
 	expect(JSON.stringify(full.content)).toContain(`media:${media.id}`);
 });
+
+test("published Template history does not use an obsolete Draft type after revision pruning", async () => {
+	let { admin, workspaceId, siteId, media, postType } = await setup("pruned-draft-schema");
+	await admin.api.install.history.update({ revisionDays: 1, revisionsKept: 1, checkpointDays: 30 });
+	const { component } = await admin.api.components.create({
+		siteId,
+		name: "ChangedPhoto",
+		props: [{ key: "image", label: "Image", type: "text" }],
+	});
+	await admin.api.components.saveMarkup({ siteId, componentId: component.id, markup: "<p>{{ props.image }}</p>" });
+	await admin.api.components.publish({ siteId, componentId: component.id });
+	await install.clock.advance(1000);
+	await admin.api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		markup: "<span>{{ props.image }}</span>",
+	});
+	await admin.api.history.leave({ siteId, item: { kind: "component", id: component.id } });
+	await install.clock.advance(1000);
+	await admin.api.components.saveMarkup({ siteId, componentId: component.id, props: [], markup: "<p>Removed</p>" });
+	await admin.api.components.publish({ siteId, componentId: component.id });
+	await install.clock.advance(1000);
+	await admin.api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		props: [{ key: "image", label: "Image", type: "media" }],
+		markup: '<img src="{{ props.image }}" alt="First">',
+	});
+	await admin.api.components.publish({ siteId, componentId: component.id });
+	const { template } = await admin.api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId: postType.id,
+		markup: `<ChangedPhoto image="media:${media.id}"/>`,
+	});
+	await admin.api.templates.publish({ siteId, templateId: template.id });
+	const { entry } = await admin.api.entries.create({
+		siteId,
+		postTypeId: postType.id,
+		title: "Example",
+		slug: "example",
+	});
+	await admin.api.entries.publish({ siteId, entryId: entry.id });
+	await install.clock.advance(60_000);
+	await admin.api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		markup: '<img src="{{ props.image }}" alt="Second">',
+	});
+	await admin.api.components.publish({ siteId, componentId: component.id });
+	await install.clock.advance(2 * 24 * 60 * 60 * 1000);
+	expect((await install.drainJobs()).failed).toEqual([]);
+	admin = await install.superadmin();
+	const { copies } = await admin.api.history.list({ siteId, item: { kind: "component", id: component.id } });
+	expect(copies.filter((x) => x.type === "revision")).toHaveLength(1);
+	expect(copies.some((x) => x.type === "checkpoint")).toBe(true);
+	const originalUrl = (await admin.api.media.get({ siteId, mediaId: media.id })).media.url;
+	expect(await main(siteId)).toContain(`src="${originalUrl}"`);
+	await admin.api.session.confirmIdentity({ password: TEST_PASSWORD });
+	const imported = await importArchive(install, admin, workspaceId, await exportedArchive(install, admin, siteId), {
+		name: "Pruned copy",
+		slug: "pruned-copy",
+	});
+	expect(imported.status).toBe("done");
+	const destination = imported.site?.id ?? "";
+	const copiedType = (await admin.api.postTypes.list({ siteId: destination })).postTypes.find((x) => x.key === "pages");
+	const copiedTemplate = (
+		await admin.api.templates.getEntryTemplate({ siteId: destination, postTypeId: copiedType?.id ?? "" })
+	).template;
+	const item = { kind: "template" as const, id: copiedTemplate?.id ?? "" };
+	const hist = await admin.api.history.list({ siteId: destination, item });
+	const revision = hist.copies.find((x) => x.type === "revision");
+	await admin.api.history.restore({ siteId: destination, item, copy: { type: "revision", id: revision?.id ?? "" } });
+	await publishEverything(admin, destination);
+	const [copiedMedia] = (await admin.api.media.list({ siteId: destination })).items;
+	const newUrl = (await admin.api.media.get({ siteId: destination, mediaId: copiedMedia?.id ?? "" })).media.url;
+	const html = await main(destination);
+	expect(html).toContain(`src="${newUrl}"`);
+});
