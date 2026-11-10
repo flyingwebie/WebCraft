@@ -20,6 +20,8 @@
  * (what is pasted) refuses nothing: whatever has no Block becomes text, never HTML, and an image's
  * address becomes an image Block with no image yet (it is never fetched).
  */
+import { decodeHTMLStrict as decodeEntities } from "entities";
+
 import { type ComponentFound, isComponentInfo, isComponentTag } from "../components.ts";
 import { type Block, CALLOUT_TONES, type CalloutTone, HEADING_LEVELS, type ListItem } from "./blocks.ts";
 import { readBody } from "./body.ts";
@@ -887,45 +889,6 @@ type INode =
 const PUNCTUATION = /[!-/:-@[-`{-~\p{P}\p{S}]/u;
 const ESCAPABLE = /[!-/:-@[-`{-~]/;
 
-const ENTITIES: Readonly<Record<string, string>> = {
-	amp: "&",
-	lt: "<",
-	gt: ">",
-	quot: '"',
-	apos: "'",
-	nbsp: " ",
-	copy: "©",
-	reg: "®",
-	hellip: "…",
-	mdash: "—",
-	ndash: "–",
-	laquo: "«",
-	raquo: "»",
-	lsquo: "‘",
-	rsquo: "’",
-	ldquo: "“",
-	rdquo: "”",
-	euro: "€",
-	deg: "°",
-	times: "×",
-};
-
-function decodeEntity(entity: string): string | null {
-	const numeric = /^#(?:x([0-9a-f]{1,6})|(\d{1,7}))$/i.exec(entity);
-	if (numeric) {
-		const code = numeric[1] ? Number.parseInt(numeric[1], 16) : Number(numeric[2]);
-		return code === 0 || code > 0x10ffff ? "�" : String.fromCodePoint(code);
-	}
-	return ENTITIES[entity] ?? null;
-}
-
-function decodeEntities(text: string): string {
-	return text.replace(
-		/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/gi,
-		(whole, entity: string) => decodeEntity(entity) ?? whole,
-	);
-}
-
 function unescapeMarkdown(text: string): string {
 	return decodeEntities(text.replace(/\\([!-/:-@[-`{-~])/g, "$1"));
 }
@@ -1004,8 +967,8 @@ function tokenize(
 			continue;
 		}
 		if (character === "&") {
-			const entity = /^&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/i.exec(rest);
-			const decoded = entity ? decodeEntity(entity[1] ?? "") : null;
+			const entity = /^&(?:#x[0-9a-f]{1,6}|#\d{1,7}|[a-z][a-z0-9]*);/i.exec(rest);
+			const decoded = entity ? decodeEntities(entity[0]) : null;
 			if (entity && decoded !== null) {
 				plain += decoded;
 				index += entity[0].length;

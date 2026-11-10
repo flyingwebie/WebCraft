@@ -149,7 +149,13 @@ export function inlineMarkdown(
  * that would end it backslash-escaped), in a copy percent-encoded.
  */
 function destination(url: string, context: Pick<MarkdownContext, "exchange">): string {
-	return context.exchange ? url.replace(/[\\()<>]/g, "\\$&").replace(/\s/g, "%20") : markdownUrl(url);
+	// An address can contain a literal entity such as &copy;: protect its ampersand from decoding.
+	return context.exchange
+		? url
+				.replace(/[\\()<>]/g, "\\$&")
+				.replace(/\s/g, "%20")
+				.replace(/&/g, "&amp;")
+		: markdownUrl(url);
 }
 
 const MARK_SYNTAX: Readonly<Record<Exclude<Run["marks"], undefined>[number], string>> = {

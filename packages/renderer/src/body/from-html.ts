@@ -19,6 +19,7 @@ import { parseFragment } from "parse5";
 import { type Block, BODY_LIMITS, type HeadingLevel, type ListItem, type ListStyle } from "./blocks.ts";
 import { newBlockId, readBody } from "./body.ts";
 import { canonicalInline, inlineText, isSafeLink, LINK_MAX_LENGTH, type Mark, type Run } from "./inline.ts";
+import { listItemsFromLines } from "./lists.ts";
 import { videoAt } from "./video.ts";
 
 /** A piece of the HTML no Block type matches, kept as the plain paragraph `blockId`. */
@@ -421,7 +422,7 @@ class Reader {
 		});
 		const marker = collapse(textOf(findFirst(paragraphs[0] as Node, isWordListMarker) ?? { nodeName: "#text" })).trim();
 		const style: ListStyle = /^\(?[0-9A-Za-z]{1,4}[.)]$/.test(marker) ? "numbered" : "bulleted";
-		const items = nestLines(lines);
+		const items = listItemsFromLines(lines);
 		if (items.length > 0) this.add({ type: "list", style, items }, items.map(itemText).join(""));
 	}
 
@@ -757,26 +758,6 @@ function styledMarks(node: Node, marks: readonly Mark[]): Mark[] {
 	else if (fontStyle === "normal") out.delete("italic");
 	if (/text-decoration[a-z-]*\s*:[^;]*line-through/.test(style)) out.add("strike");
 	return [...out];
-}
-
-/** List items from lines with their depth: each line under the closest line before it that is less deep. */
-function nestLines(lines: readonly { depth: number; text: Run[] }[]): ListItem[] {
-	const root: ListItem[] = [];
-	const stack: { depth: number; items: ListItem[] }[] = [{ depth: -1, items: root }];
-	for (const line of lines) {
-		while ((stack.at(-1)?.depth ?? -1) >= line.depth) stack.pop();
-		const parent = stack.at(-1) ?? { depth: -1, items: root };
-		const item: ListItem = { text: line.text };
-		parent.items.push(item);
-		const children: ListItem[] = [];
-		stack.push({ depth: Math.min(line.depth, parent.depth + 1), items: children });
-		item.items = children;
-	}
-	const tidy = (items: ListItem[]): ListItem[] =>
-		items.map((item) =>
-			item.items && item.items.length > 0 ? { text: item.text, items: tidy(item.items) } : { text: item.text },
-		);
-	return tidy(root);
 }
 
 /** Whether an element holds block-level elements (a list, a heading, a paragraph), however deep. */

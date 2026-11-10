@@ -257,6 +257,20 @@ describe("inserting a Component in a body", () => {
 });
 
 describe("Components in a body as Markdown", () => {
+	test("Component Props decode the same named entities as Markdown text", async () => {
+		const { postType } = await postTypeAllowing([noteId]);
+		const { entry } = await author.api.entries.create({
+			siteId,
+			postTypeId: postType.id,
+			title: "Named entities",
+			bodyFormat: "markdown",
+			fields: { body: '<Note text="&Aacute; &alpha; &CounterClockwiseContourIntegral; &unknown; &copy" />' },
+		});
+		expect(entry.draft.fields.body).toMatchObject([
+			{ type: "component", component: noteId, props: [{ name: "text", value: "Á α ∳ &unknown; &copy" }] },
+		]);
+	});
+
 	test("a Component is its tag with its Props, both ways", async () => {
 		const { postType } = await postTypeAllowing([pricingId]);
 		const { entry } = await author.api.entries.create({
