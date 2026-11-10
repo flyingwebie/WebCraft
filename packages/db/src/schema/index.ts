@@ -7,6 +7,7 @@ export * from "./backups.ts";
 export * from "./co-editing.ts";
 export * from "./consent.ts";
 export * from "./content.ts";
+export * from "./content-api.ts";
 export * from "./dashboards.ts";
 export * from "./design-system.ts";
 export * from "./domains.ts";

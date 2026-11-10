@@ -126,6 +126,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Site › Modules (Staff)", path: ({ siteId }) => `/sites/${siteId}/modules`, as: "staff" },
 	{ name: "Site › Languages (Staff)", path: ({ siteId }) => `/sites/${siteId}/languages`, as: "staff" },
 	{ name: "Site › SEO (Staff)", path: ({ siteId }) => `/sites/${siteId}/seo`, as: "staff" },
+	{ name: "Site › Content API, off (Staff)", path: ({ siteId }) => `/sites/${siteId}/content-api`, as: "staff" },
 	{ name: "Site › Crawlers (Staff)", path: ({ siteId }) => `/sites/${siteId}/crawlers`, as: "staff" },
 	{ name: "Site › Crawlers (Owner)", path: ({ siteId }) => `/sites/${siteId}/crawlers`, as: "owner" },
 	{ name: "Site › Consent banner (Staff)", path: ({ siteId }) => `/sites/${siteId}/consent-banner`, as: "staff" },

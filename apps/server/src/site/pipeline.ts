@@ -34,6 +34,7 @@ import { clientAddress, recordVisitorAddress, sameClient } from "../client-addre
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
+import { contentApiAnswer, isContentApiPath } from "./content-api.ts";
 import { discoveryFile, stagingRobots } from "./discovery.ts";
 import {
 	clearEditCookie,
@@ -84,9 +85,12 @@ export type SitePipelineOptions = {
  * Redirect domains and then the Site's Redirect rules (kept by the Module that keeps them, SDK 1.5)
  * come before everything else; a visitor's request the 404 page answers goes to the Site's 404 log.
  *
+ * The Content API (`/_content/v1/…`, ADR 0029) answers before the Staging address's checks: it shows
+ * published content only, to frontends holding one of the Site's Content keys.
+ *
  * The discovery files (robots.txt, sitemaps, `llms.txt`, Markdown copies) answer at the reserved-path
  * step, kept in the page cache like pages (`discovery.ts`); the Staging address's robots.txt answers
- * before its access check. Still to come in its place: the Content API.
+ * before its access check.
  */
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();
@@ -121,6 +125,9 @@ async function siteAnswer(
 	const url = new URL(request.url);
 	// A Redirect domain sends every request on to the same path on the Primary domain (ADR 0015).
 	if (host.address === "redirect") return domainRedirect(host, url);
+	// The Content API (ADR 0029): published content only, opened by a Content key, so the Staging
+	// address's sign-in doesn't apply to it.
+	if (isContentApiPath(url.pathname)) return contentApiAnswer(services, cache, request, host);
 	// The Staging address shows the Site with its Drafts to the people reviewing it, and to nobody else
 	// (ADR 0014): its own ways in first (a link from the admin, the staging password), then a page
 	// asking everyone else to sign in, whatever they asked for.

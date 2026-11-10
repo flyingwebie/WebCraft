@@ -327,6 +327,27 @@ describe("SEO", () => {
 	);
 });
 
+/** A Content key of a target's Site, made by the Superadmin. */
+async function contentKeyIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { key } = await api.contentApi.keys.create({ siteId: target.siteId, name: `Frontend ${newSlug()}` });
+	return key.id;
+}
+
+describe("the Content API", () => {
+	isolation.refuses("contentApi.get", (api, { siteId }) => api.contentApi.get({ siteId }));
+	isolation.refuses("contentApi.update", (api, { siteId }) => api.contentApi.update({ siteId, enabled: true }));
+	isolation.refuses("contentApi.keys.create", (api, { siteId }) =>
+		api.contentApi.keys.create({ siteId, name: "Isolation frontend" }),
+	);
+	isolation.refuses("contentApi.keys.update", async (api, target) =>
+		api.contentApi.keys.update({ siteId: target.siteId, keyId: await contentKeyIn(target), name: "Renamed" }),
+	);
+	isolation.refuses("contentApi.keys.revoke", async (api, target) =>
+		api.contentApi.keys.revoke({ siteId: target.siteId, keyId: await contentKeyIn(target) }),
+	);
+});
+
 describe("Site script safety", () => {
 	isolation.refuses("consentBanner.get", (api, { siteId }) => api.consentBanner.get({ siteId }), {
 		as: ["staff", "author"],
