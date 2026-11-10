@@ -23,6 +23,7 @@ import {
 	ReviewNotFoundError,
 	ReviewNotYoursError,
 } from "./errors.ts";
+import { REVIEW_LIMITS } from "./field-rules.ts";
 import { checkGlobalsReady } from "./globals.ts";
 import { draftVersion, sameJson } from "./json.ts";
 import { checkEntryReady, type PublishItem } from "./publishing.ts";
@@ -59,8 +60,8 @@ import {
  *   once the change is saved (`afterAudit`), never for one rolled back.
  */
 
-/** How long a note and a comment may be, and how many items one submission holds. */
-export const REVIEW_LIMITS = { noteMax: 2000, commentMax: 5000, itemsMax: 50 } as const;
+/** How long a note and a comment may be, and how many items one submission holds (`@webcraft/core/field-rules`, browser-safe). */
+export { REVIEW_LIMITS };
 
 type Row = typeof reviews.$inferSelect;
 
