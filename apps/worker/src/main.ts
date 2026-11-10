@@ -61,7 +61,7 @@ async function main(): Promise<void> {
 	await scheduleJobs(boss, coreSchedules);
 	await workJobs(boss, coreJobs, services);
 	// It checks in every 30 seconds while it runs: `webcraft admin health --worker` reads that.
-	heartbeat = await startWorkerHeartbeat(services.workers, { hostname: hostname(), log });
+	heartbeat = await startWorkerHeartbeat(services.workers, { hostname: hostname(), log, clock: services.clock });
 	log.info("The worker is working the job queue", {
 		jobs: coreJobs.map((job) => job.name),
 		schedules: coreSchedules.map((schedule) => `${schedule.job.name} (${schedule.cron})`),
