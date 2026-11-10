@@ -129,6 +129,24 @@ async function refusal(markdown: string) {
 }
 
 describe("a round trip", () => {
+	test("a link containing a literal entity keeps its address through Markdown exchange", async () => {
+		const original = await recipe([
+			{ type: "paragraph", text: [{ text: "An address", link: "https://example.com/?literal=&alpha;&copy;" }] },
+		]);
+		const copy = await recipe(await bodyOf(original.id, "markdown"), "markdown");
+		expect(withoutIds(copy.draft.fields.body)).toEqual(withoutIds(original.draft.fields.body));
+	});
+
+	test("Markdown decodes named and numeric entities without changing escaped or unknown references", async () => {
+		const entry = await recipe(
+			"&Aacute; &alpha; &CounterClockwiseContourIntegral; &#x1f35e; &#0; &#xD800; &unknown; &copy \\&amp;",
+			"markdown",
+		);
+		expect(withoutIds(entry.draft.fields.body)).toEqual([
+			{ type: "paragraph", text: [{ text: "Á α ∳ 🍞 � � &unknown; &copy &amp;" }] },
+		]);
+	});
+
 	test("every Block type comes back from Markdown as it was", async () => {
 		const original = await recipe(EVERY_BLOCK);
 		const blocks = original.draft.fields.body;

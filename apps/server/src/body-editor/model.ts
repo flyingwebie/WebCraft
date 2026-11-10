@@ -13,6 +13,7 @@ import {
 	type HeadingLevel,
 	type InlineText,
 	type ListItem,
+	type ListLine,
 	type ListStyle,
 	newBlockId,
 } from "@webcraft/renderer/body/editing";
@@ -193,30 +194,13 @@ export const SHORTCUTS: Readonly<Record<string, string>> = {
 export const WHOLE_SHORTCUTS: Readonly<Record<string, string>> = { "```": "code", "---": "divider" };
 
 /** One line of a list as the editors show it: its depth (0 at the top) and its text. */
-export type Line = { depth: number; text: InlineText };
+export type Line = ListLine;
 
 export function linesOf(items: readonly ListItem[], depth = 0): Line[] {
 	return items.flatMap((item) => [{ depth, text: item.text }, ...linesOf(item.items ?? [], depth + 1)]);
 }
 
-/** A list's items from its lines: each line under the closest line before it that is less deep. */
-export function itemsOf(lines: readonly Line[]): ListItem[] {
-	const root: ListItem[] = [];
-	const stack: { depth: number; items: ListItem[] }[] = [{ depth: -1, items: root }];
-	for (const line of lines) {
-		while ((stack.at(-1)?.depth ?? -1) >= line.depth) stack.pop();
-		const parent = stack.at(-1) ?? { depth: -1, items: root };
-		const item: ListItem = { text: line.text };
-		parent.items.push(item);
-		item.items = [];
-		stack.push({ depth: Math.min(line.depth, parent.depth + 1), items: item.items });
-	}
-	const tidy = (items: ListItem[]): ListItem[] =>
-		items.map((item) =>
-			item.items && item.items.length > 0 ? { text: item.text, items: tidy(item.items) } : { text: item.text },
-		);
-	return tidy(root);
-}
+export { listItemsFromLines as itemsOf } from "@webcraft/renderer/body/editing";
 
 /** The deepest a list line may go: one deeper than the line before it, and 3 deep in all. */
 export function maxDepth(lines: readonly Line[], index: number): number {

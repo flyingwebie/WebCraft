@@ -30,4 +30,5 @@ export {
 	type Run,
 	renderInline,
 } from "./inline.ts";
+export { type ListLine, listItemsFromLines } from "./lists.ts";
 export { videoAt } from "./video.ts";

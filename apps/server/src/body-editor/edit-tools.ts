@@ -1983,8 +1983,11 @@ export function bodyTools(kit: BarKit): BodyTools {
 		const files = [...event.clipboardData.files].filter((file) => file.type.startsWith("image/"));
 		const html = event.clipboardData.getData("text/html");
 		const text = event.clipboardData.getData("text/plain");
+		const selection = kit.win.getSelection();
+		const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
 		event.preventDefault();
 		if (files.length > 0) {
+			if (body.data.blocksOff.includes("image")) return;
 			announce(word("body.paste.uploading"));
 			const added: Block[] = [];
 			for (const file of files) {
@@ -1996,7 +1999,7 @@ export function bodyTools(kit: BarKit): BodyTools {
 				const media = (answer.data as { media?: { id?: string } }).media?.id;
 				if (media) added.push({ id: newBlockId(), type: "image", media });
 			}
-			if (added.length > 0) {
+			if (added.length > 0 && element.isConnected && body.views.has(id)) {
 				insertBlocks(body, id, added, false);
 				void refreshRendered(
 					body,
@@ -2018,10 +2021,21 @@ export function bodyTools(kit: BarKit): BodyTools {
 			announce(word("body.paste.failed"));
 			return;
 		}
+		if (!element.isConnected || !body.views.has(id)) return;
 		const blocks = (answer.data as { blocks: Block[] }).blocks;
 		const [only] = blocks;
-		// One paragraph goes into the text where the caret is, its formatting and links kept.
-		if (blocks.length === 1 && only?.type === "paragraph" && view.parts.size > 0) {
+		// Conversion is asynchronous: the person may have selected another Block while waiting.
+		// One paragraph goes into the original range, with its formatting and links kept.
+		if (
+			blocks.length === 1 &&
+			only?.type === "paragraph" &&
+			view.parts.size > 0 &&
+			range &&
+			element.contains(range.commonAncestorContainer)
+		) {
+			element.focus();
+			selection?.removeAllRanges();
+			selection?.addRange(range);
 			doc.execCommand("insertHTML", false, renderRuns(only.text));
 			element.dispatchEvent(new Event("input", { bubbles: true }));
 			return;

@@ -81,5 +81,6 @@ export {
 	type Run,
 	renderInline,
 } from "./inline.ts";
+export { type ListLine, listItemsFromLines } from "./lists.ts";
 export { bodyMarkdown, inlineMarkdown, type MarkdownContext } from "./markdown.ts";
 export { PLAYER_ORIGINS, VIDEO_PROVIDERS, type Video, type VideoProvider, videoAt } from "./video.ts";

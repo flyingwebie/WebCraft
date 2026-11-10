@@ -373,6 +373,123 @@ test("pasting a document and an image file in the admin converts Blocks and uplo
 	await page.close();
 });
 
+test("Edit mode keeps the original paste position while conversion is pending", async () => {
+	const { entryId, path } = await article();
+	const { api } = await install.install.superadmin();
+	await api.entries.saveDraft({
+		siteId,
+		entryId,
+		fields: {
+			body: [
+				{ type: "paragraph", text: "FIRST" },
+				{ type: "paragraph", text: "SECOND" },
+				{ type: "component", component: noteId, props: [{ name: "text", value: "Closed on Mondays." }] },
+			],
+		},
+	});
+	const page = await editModePage("light", path);
+	let releasePaste = () => {};
+	const held = new Promise<void>((resolve) => {
+		releasePaste = resolve;
+	});
+	await page.route("**/body/paste", async (route) => {
+		await held;
+		await route.continue();
+	});
+	try {
+		const paragraphs = page.locator('[data-wc-type="body"] p[contenteditable]');
+		const pending = page.waitForRequest("**/body/paste");
+		await paragraphs.first().evaluate((element) => {
+			(element as HTMLElement).focus();
+			const range = document.createRange();
+			range.selectNodeContents(element);
+			range.collapse(false);
+			window.getSelection()?.removeAllRanges();
+			window.getSelection()?.addRange(range);
+			const clipboardData = new DataTransfer();
+			clipboardData.setData("text/plain", "PASTED");
+			element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+		});
+		await pending;
+		await paragraphs.nth(1).evaluate((element) => {
+			(element as HTMLElement).focus();
+			const range = document.createRange();
+			range.selectNodeContents(element);
+			window.getSelection()?.removeAllRanges();
+			window.getSelection()?.addRange(range);
+		});
+		releasePaste();
+		const saved = await eventually(
+			() => bodyOf(entryId),
+			(body) => JSON.stringify(body).includes("PASTED"),
+		);
+		expect(saved.slice(0, 2)).toMatchObject([
+			{ type: "paragraph", text: [{ text: "FIRSTPASTED" }] },
+			{ type: "paragraph", text: [{ text: "SECOND" }] },
+		]);
+		await expect(paragraphs.allTextContents()).resolves.toEqual(["FIRSTPASTED", "SECOND"]);
+	} finally {
+		releasePaste();
+		await page.close();
+	}
+});
+
+test("Edit mode does not upload pasted image files when the Body field switches images off", async () => {
+	const { api } = await install.install.superadmin();
+	const { postType } = await api.postTypes.create({
+		siteId,
+		name: "Text articles",
+		urlPattern: "/text-articles/{slug}",
+		fields: [{ key: "body", label: "Story", type: "body", components: [noteId], blocksOff: ["image"] }],
+	});
+	const template = await api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId: postType.id,
+		markup: "<article><h1>{{ title }}</h1><div>{{ body }}</div></article>",
+	});
+	await api.templates.publish({ siteId, templateId: template.template.id });
+	const { entry } = await api.entries.create({
+		siteId,
+		postTypeId: postType.id,
+		title: "Text only",
+		slug: "text-only",
+		fields: {
+			body: [
+				{ type: "paragraph", text: "Text only." },
+				{ type: "component", component: noteId, props: [{ name: "text", value: "Closed on Mondays." }] },
+			],
+		},
+	});
+	await api.entries.publish({ siteId, entryId: entry.id });
+	const before = await bodyOf(entry.id);
+	const page = await editModePage("light", "/text-articles/text-only");
+	try {
+		const uploaded = page
+			.waitForRequest((request) => request.url().endsWith("/upload"), { timeout: 1000 })
+			.then(
+				() => true,
+				() => false,
+			);
+		await page
+			.locator('[data-wc-type="body"] p[contenteditable]')
+			.first()
+			.evaluate((element) => {
+				(element as HTMLElement).focus();
+				const clipboardData = new DataTransfer();
+				clipboardData.items.add(
+					new File(['<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"/>'], "clipboard.svg", {
+						type: "image/svg+xml",
+					}),
+				);
+				element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+			});
+		expect(await uploaded).toBe(false);
+		expect(await bodyOf(entry.id)).toEqual(before);
+	} finally {
+		await page.close();
+	}
+});
+
 for (const theme of THEMES) {
 	test(`Staff choose the Components allowed in a Body field, ${theme}`, async () => {
 		const { api } = await install.install.superadmin();
