@@ -295,6 +295,7 @@
         "@orpc/client": "catalog:",
         "@orpc/server": "catalog:",
         "@webcraft/api": "workspace:*",
+        "@webcraft/cli": "workspace:*",
         "@webcraft/core": "workspace:*",
         "@webcraft/db": "workspace:*",
         "@webcraft/module-forms": "workspace:*",
