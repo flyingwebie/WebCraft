@@ -1475,6 +1475,11 @@ function editRegions(
 			return editable && regionTags("globals", key, editable.type, editable.label);
 		}
 		if (template !== "content" || !entry) return undefined;
+		if (place.block !== undefined) {
+			// An image Block of the Entry's body: the image is the region, the body's text the block editor's.
+			const body = entry.fields.find((field) => field.key === value.path && field.type === "body");
+			return body && regionTags(`entry:${entry.id}`, body.key, "media", body.label);
+		}
 		// The title is a built-in value: the editing bar names it in the person's own language.
 		if (value.path === "title" && !place.image) return regionTags(`entry:${entry.id}`, "title", "text", null);
 		const editable = editableIn(entry.fields, value.path);

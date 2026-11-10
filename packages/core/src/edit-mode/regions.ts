@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { editableField, imageField } from "../content/editable.ts";
 import { getEntry, saveDraft } from "../content/entries.ts";
 import type { ContentProblem } from "../content/errors.ts";
-import type { Json } from "../content/field-types.ts";
+import type { FieldDefinition, Json } from "../content/field-types.ts";
 import { getGlobals, saveGlobalsDraft } from "../content/globals.ts";
 import { getPostType } from "../content/post-types.ts";
 import { isUuid } from "../ids.ts";
@@ -47,6 +47,8 @@ export type ImageChange = {
 	field: string;
 	/** The Media item's id, or null to empty the region. */
 	media: string | null;
+	/** For an image Block of a body (`field` the Body field), the Block's id, as `data-wc-block` says. */
+	block?: string;
 	/** The language of the page the region is on (the Default language when absent). */
 	language?: string;
 };
@@ -130,8 +132,12 @@ export async function saveImage(scope: SiteScope, change: ImageChange): Promise<
 		item.kind === "globals"
 			? (await getGlobals(scope, language)).fields
 			: (await getPostType(scope, (await getEntry(scope, item.id, language)).postTypeId)).fields;
-	if (!imageField(fields, change.field)) throw new EditFieldInvalidError();
+	if (change.block === undefined && !imageField(fields, change.field)) throw new EditFieldInvalidError();
 	if (change.media !== null) await checkImage(scope, change.media);
+	if (change.block !== undefined) {
+		if (item.kind !== "entry") throw new EditFieldInvalidError();
+		return saveBlockImage(scope, item.id, fields, { ...change, block: change.block });
+	}
 	const values = nested(change.field, change.media);
 	if (item.kind === "globals") {
 		const saved = await saveGlobalsDraft(scope, { language, fields: values });
@@ -159,4 +165,46 @@ export async function checkImage(scope: SiteScope, mediaId: string): Promise<voi
 
 function mediaIdOf(value: Json): string | null {
 	return typeof value === "string" ? value : null;
+}
+
+/**
+ * Puts a new image in one image Block of an Entry's body, in the page's language: the body's Blocks
+ * as that language shows them (the Default language's while it has none of its own), with only that
+ * Block's image changed, saved as the admin's block editor saves a body.
+ */
+async function saveBlockImage(
+	scope: SiteScope,
+	entryId: string,
+	fields: readonly FieldDefinition[],
+	change: ImageChange & { block: string },
+): Promise<SavedImage> {
+	const body = fields.find((field) => field.key === change.field && field.type === "body");
+	if (!body) throw new EditFieldInvalidError();
+	const entry = await getEntry(scope, entryId, change.language);
+	const blocks = entry.draft.fields[body.key];
+	const list = Array.isArray(blocks) ? blocks : [];
+	const at = list.findIndex(
+		(block) =>
+			block !== null &&
+			typeof block === "object" &&
+			!Array.isArray(block) &&
+			block.id === change.block &&
+			block.type === "image",
+	);
+	if (at < 0) throw new EditFieldInvalidError();
+	const next = list.map((block, index) =>
+		index === at && block && typeof block === "object" && !Array.isArray(block)
+			? { ...block, media: change.media }
+			: block,
+	);
+	const saved = await saveDraft(scope, entryId, { language: change.language, fields: { [body.key]: next } });
+	const stored = saved.draft.fields[body.key];
+	const kept = Array.isArray(stored)
+		? stored.find((block) => block && typeof block === "object" && !Array.isArray(block) && block.id === change.block)
+		: undefined;
+	return {
+		status: saved.status,
+		media: kept && typeof kept === "object" && !Array.isArray(kept) ? mediaIdOf(kept.media ?? null) : null,
+		problems: saved.problems.filter((problem) => problem.at.startsWith(`fields.${body.key}[${at}]`)),
+	};
 }

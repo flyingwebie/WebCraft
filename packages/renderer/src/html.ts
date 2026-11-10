@@ -451,12 +451,15 @@ function valueHtml(node: ValueNode, value: TemplateValue, options: RenderOptions
 	if (isList(value)) return joinList(value.map((item) => valueHtml(node, item, options)));
 	if (!node.format && isRichText(value)) return cleanRichText(value.html);
 	if (!node.format && isBody(value)) {
+		const editRegion = options.editRegion;
 		return renderBody(value.blocks, {
 			media: options.media,
 			priorityImage: options.priorityImage,
 			words: options.words ?? { playVideo: "Play video", video: "Video" },
 			shown: options.shown,
 			held: options.held,
+			// Edit mode: each image Block's image is a region of its own, named by the Block.
+			imageRegion: editRegion && ((block) => blockRegion(editRegion(node, { image: true, block }), block)),
 		});
 	}
 	if (!node.format && isToc(value)) return renderToc(value.headings);
@@ -502,6 +505,14 @@ function imageRegion(node: ElementNode, src: Attribute, options: RenderOptions):
 	return region
 		? [...region.map(([name, value]): [string, string] => [name, value]), ["data-wc-id", node.id]]
 		: undefined;
+}
+
+/** An image Block's region: its attributes and the Block's id, or undefined when it isn't editable. */
+function blockRegion(
+	region: readonly (readonly [string, string])[] | undefined,
+	block: string,
+): readonly (readonly [string, string])[] | undefined {
+	return region && [...region, ["data-wc-block", block]];
 }
 
 /**

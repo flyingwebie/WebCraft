@@ -315,6 +315,7 @@ const imageChange = z.object({
 	item: z.string().max(100),
 	field: z.string().max(200),
 	media: z.string().max(100).nullable(),
+	block: z.string().max(64).optional(),
 	language: z.string().max(35).optional(),
 });
 

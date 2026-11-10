@@ -494,3 +494,90 @@ describe("uploading in Edit mode", () => {
 		expect(listed.items).toEqual([]);
 	});
 });
+
+describe("a body's image Blocks", () => {
+	let site: Bakery;
+	let editing: EditModeBrowser;
+	let postId: string;
+
+	beforeAll(async () => {
+		site = await bakery();
+		const { postType } = await staff.api.postTypes.create({
+			siteId: site.siteId,
+			name: "Posts",
+			urlPattern: "/posts/{slug}",
+			fields: [{ key: "body", label: "Story", type: "body" }],
+		});
+		const template = await staff.api.templates.saveEntryTemplateMarkup({
+			siteId: site.siteId,
+			postTypeId: postType.id,
+			markup: "<article><h1>{{ title }}</h1><div>{{ body }}</div></article>",
+		});
+		await staff.api.templates.publish({ siteId: site.siteId, templateId: template.template.id });
+		const { entry } = await editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: postType.id,
+			title: "Our week",
+			fields: {
+				body: [
+					{ id: "intro", type: "paragraph", text: "A week at the bakery." },
+					{ id: "photo", type: "image", media: site.loaf },
+					{ id: "later", type: "image", media: null },
+				],
+			},
+		});
+		postId = entry.id;
+		await editor.api.entries.publish({ siteId: site.siteId, entryId: postId });
+		editing = await openEditMode(install, editor, site.siteId, "/posts/our-week");
+	});
+
+	test("an image Block's image is an image region, named by its Block; one with no image yet too", async () => {
+		const html = await (await editing.page("/posts/our-week")).text();
+
+		const [photoBlock, emptyBlock] = tagged(html, "body");
+		expect(photoBlock).toStartWith("<img ");
+		expect(photoBlock).toContain(`data-wc-item="entry:${postId}"`);
+		expect(photoBlock).toContain('data-wc-block="photo"');
+		expect(photoBlock).toContain('data-wc-type="media"');
+		expect(photoBlock).toContain('data-wc-label="Story"');
+		expect(photoBlock).toContain(`data-wc-media="${site.loaf}"`);
+		expect(emptyBlock).toStartWith("<span ");
+		expect(emptyBlock).toContain('data-wc-block="later"');
+		// The paragraph isn't a region: the body's text is the block editor's (#79).
+		expect(html).toContain("<p>A week at the bakery.</p>");
+	});
+
+	test("choosing an image changes that Block only, in the Draft", async () => {
+		const response = await editing.edit("image", {
+			item: `entry:${postId}`,
+			field: "body",
+			block: "photo",
+			media: site.rolls,
+		});
+
+		expect(await json(response)).toMatchObject({ status: "changed", media: site.rolls });
+		const { entry } = await editor.api.entries.get({ siteId: site.siteId, entryId: postId });
+		expect(entry.draft.fields.body).toEqual([
+			{ id: "intro", type: "paragraph", text: [{ text: "A week at the bakery." }] },
+			{ id: "photo", type: "image", media: site.rolls },
+			{ id: "later", type: "image", media: null },
+		]);
+		expect((entry.published?.fields.body as { media?: string }[])[1]?.media).toBe(site.loaf);
+	});
+
+	test("refuses a Block that isn't one of the body's image Blocks", async () => {
+		for (const block of ["intro", "nowhere"]) {
+			const response = await editing.edit("image", {
+				item: `entry:${postId}`,
+				field: "body",
+				block,
+				media: site.rolls,
+			});
+			expect({ block, status: response.status, code: (await json(response)).code }).toEqual({
+				block,
+				status: 400,
+				code: "EDIT_FIELD_INVALID",
+			});
+		}
+	});
+});
