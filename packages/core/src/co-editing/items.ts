@@ -9,6 +9,7 @@ import { getPostType } from "../content/post-types.ts";
 import { type HistoryItem, historyEditPermission, historyReadPermission } from "../history/items.ts";
 import { writeItemDraft } from "../history/restore.ts";
 import type { Permission } from "../permissions/roles.ts";
+import { POPUP_FIELDS, PopupInvalidError, savePopupContent } from "../popups/index.ts";
 import { SEO_GROUP, SEO_KEY } from "../seo/entry-seo.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type Json, sameValue } from "./document.ts";
@@ -30,6 +31,8 @@ export const LIVE_KINDS = [
 	"globals",
 	"template",
 	"component",
+	"popup",
+	"popupContent",
 ] as const satisfies readonly HistoryItem["kind"][];
 
 export type LiveKind = (typeof LIVE_KINDS)[number];
@@ -63,6 +66,21 @@ export async function saveLiveChange(
 	switch (item.kind) {
 		case "entry":
 			return saveEntryChange(scope, item.id, before, after);
+		case "popupContent": {
+			const { defaultLanguage } = await siteLanguages(scope);
+			const problems: ContentProblem[] = [];
+			const changes = valueChanges(
+				valuesOf(before),
+				valuesOf(after),
+				POPUP_FIELDS,
+				{ defaultLanguage, problems },
+				"values.",
+			);
+			if (problems.length) throw new PopupInvalidError(problems);
+			for (const language of inOrder(changes, defaultLanguage))
+				await savePopupContent(scope, item.id, { language, values: changes.get(language) ?? {} });
+			return;
+		}
 		case "globals":
 			return saveGlobalsChange(scope, before, after);
 		default:

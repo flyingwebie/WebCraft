@@ -1,12 +1,12 @@
 import { components, entries, templates } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
-
 import { lockComponents } from "../content/components.ts";
 import { ComponentNotFoundError, EntryNotFoundError, TemplateNotFoundError } from "../content/errors.ts";
 import { lockGlobals } from "../content/globals.ts";
 import { lockSitePaths } from "../content/pages.ts";
 import { type HistoryItem, itemIdOf } from "../history/items.ts";
 import { isUuid } from "../ids.ts";
+import { lockPopup } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 
 /**
@@ -30,11 +30,16 @@ export async function lockItem(scope: SiteScope, item: HistoryItem): Promise<voi
 			break;
 		case "template":
 		case "component":
+		case "popup":
 			// Every Template's and Component's save takes this lock before its own row.
 			await lockComponents(scope);
 			break;
 	}
 	switch (item.kind) {
+		case "popup":
+		case "popupContent":
+			await lockPopup(scope, item.id);
+			return;
 		case "entry": {
 			const [row] =
 				id && isUuid(id)

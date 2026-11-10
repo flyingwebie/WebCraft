@@ -54,6 +54,7 @@ import {
 	labelProblem,
 	MAX_PROBLEMS,
 	nestingProblem,
+	type PopupCatalogue,
 	parseElementTree,
 	randomElementId,
 	type TextNode,
@@ -100,6 +101,7 @@ export type ParseMarkupOptions = {
 	unknownValue?: (path: string) => string;
 	/** The Forms the markup may place (`{{@form <key>}}`), by key and by id. Every Form is refused when absent. */
 	forms?: FormCatalogue;
+	popups?: PopupCatalogue;
 	/** The Filters the markup may place (`{{@filter <name> for="…"}}`), by name and by id. Every Filter is refused when absent. */
 	filters?: FilterCatalogue;
 	/**
@@ -249,6 +251,7 @@ class MarkupParser {
 					refuseCommand: this.options.refuseCommand,
 					components: this.options.components,
 					forms: this.options.forms,
+					popups: this.options.popups,
 					filters: this.options.filters,
 					unknownValue: this.options.unknownValue,
 					loops: this.options.loops,
@@ -691,6 +694,14 @@ class MarkupParser {
 				const found = this.options.forms?.keyed(key);
 				if (!found || "refused" in found) {
 					this.problem(offset, found?.refused ?? `There is no Form with the key ${key} on this Site.`);
+					return undefined;
+				}
+				return found.id;
+			},
+			popup: (key, offset) => {
+				const found = this.options.popups?.keyed(key);
+				if (!found || "refused" in found) {
+					this.problem(offset, found?.refused ?? `There is no Popup with the key ${key} on this Site.`);
 					return undefined;
 				}
 				return found.id;

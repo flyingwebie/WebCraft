@@ -208,7 +208,7 @@ type TaskRow = typeof translationTasks.$inferSelect;
 
 function itemOf(row: Pick<TaskRow, "itemKind" | "itemId">): ItemRef | null {
 	if (row.itemKind === "globals") return { kind: "globals" };
-	if ((row.itemKind === "entry" || row.itemKind === "formEmails") && row.itemId)
+	if ((row.itemKind === "entry" || row.itemKind === "formEmails" || row.itemKind === "popupContent") && row.itemId)
 		return { kind: row.itemKind, id: row.itemId };
 	return null;
 }
@@ -766,11 +766,13 @@ export function createTranslations(options: TranslationsOptions): Translations {
 				const item: ItemRef | null =
 					entry.action === "entry.publish" && typeof details.entryId === "string"
 						? { kind: "entry", id: details.entryId }
-						: entry.action === "globals.publish"
-							? { kind: "globals" }
-							: entry.action === "formEmails.publish" && typeof details.formId === "string"
-								? { kind: "formEmails", id: details.formId }
-								: null;
+						: entry.action === "popupContent.publish" && typeof details.popupContentId === "string"
+							? { kind: "popupContent", id: details.popupContentId }
+							: entry.action === "globals.publish"
+								? { kind: "globals" }
+								: entry.action === "formEmails.publish" && typeof details.formId === "string"
+									? { kind: "formEmails", id: details.formId }
+									: null;
 				if (!item) return;
 				const [site] = await database.db
 					.select({ defaultLanguage: sites.defaultLanguage })

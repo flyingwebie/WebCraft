@@ -36,6 +36,7 @@ const PROBLEM_CODES = [
 	"ENTRY_INVALID",
 	"ENTRY_INCOMPLETE",
 	"GLOBALS_INVALID",
+	"POPUP_INVALID",
 	"GLOBALS_INCOMPLETE",
 	"CONSENT_BANNER_INVALID",
 ];
@@ -395,6 +396,8 @@ function itemLink(siteId: string, review: ReviewView) {
 			params: { siteId, postTypeId: review.postType?.id ?? "", entryId: review.item.id },
 		};
 	}
+	if (review.item.kind === "popupContent")
+		return { to: "/sites/$siteId/popups" as const, params: { siteId }, search: { popup: review.item.id } };
 	return review.item.kind === "globals"
 		? { to: "/sites/$siteId/globals" as const, params: { siteId } }
 		: { to: "/sites/$siteId/consent-banner" as const, params: { siteId } };

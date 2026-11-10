@@ -1,5 +1,13 @@
 import type { ModuleSchema } from "@webcraft/db";
-import { moduleApprovals, moduleSwitches, people, siteModuleComponents, sites, workspaces } from "@webcraft/db/schema";
+import {
+	moduleApprovals,
+	moduleSwitches,
+	people,
+	popups,
+	siteModuleComponents,
+	sites,
+	workspaces,
+} from "@webcraft/db/schema";
 import {
 	type AddedRule,
 	type FormSender,
@@ -920,6 +928,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				const rows = moduleData(module, tx);
 				const counts: { table: string; rows: number }[] = [];
 				for (const table of tables) counts.push({ table: getTableName(table), rows: await rows.count(table) });
+				if (module.id === "popups" && tx.level === "site")
+					counts.push({ table: "popups", rows: await tx.count(popups) });
 				const secretNames = await tx.secrets.names(`module:${module.id}:`);
 				const request = {
 					action: "module.removeData",
@@ -939,6 +949,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 				if (module.receiver && tx.level === "site") {
 					await options.uploads?.removeSite(tx, tx.site, (work) => afterRemoval.push(work));
 				}
+				if (module.id === "popups" && tx.level === "site") await tx.delete(popups);
 				// Children before the tables they point at: a definition lists parents first.
 				for (const table of tables.reverse()) await rows.delete(table);
 				for (const name of secretNames) await tx.secrets.remove(name);

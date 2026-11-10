@@ -14,7 +14,7 @@ import type { HistoryItem } from "./items.ts";
 export type PartPlace = { part: string; language: string | null };
 
 /** The kinds whose versions keep values by key and language (`{ values }`, ADR 0003). */
-export const VALUE_KINDS: readonly HistoryItem["kind"][] = ["entry", "globals", "consentBanner"];
+export const VALUE_KINDS: readonly HistoryItem["kind"][] = ["entry", "globals", "consentBanner", "popupContent"];
 
 function record(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;

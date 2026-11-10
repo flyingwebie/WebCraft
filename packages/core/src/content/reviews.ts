@@ -1,7 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { installRoles, reviews } from "@webcraft/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
-
 import type { RecordedAuditEntry } from "../audit.ts";
 import { checkConsentTextReady } from "../consent/text.ts";
 import { isUniqueViolation } from "../db-errors.ts";
@@ -13,6 +12,7 @@ import { isUuid } from "../ids.ts";
 import type { Logger } from "../log.ts";
 import { personIdOf } from "../permissions/can.ts";
 import { SUPERADMIN_ROLE } from "../permissions/roles.ts";
+import { checkPopupContentReady } from "../popups/index.ts";
 import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { siteMembersHolding, siteStaff } from "../tenancy/site-owners.ts";
@@ -69,6 +69,7 @@ type Row = typeof reviews.$inferSelect;
 async function checkReady(scope: SiteScope, item: ReviewItem): Promise<void> {
 	if (item.kind === "entry") await checkEntryReady(scope, item.id);
 	else if (item.kind === "globals") await checkGlobalsReady(scope);
+	else if (item.kind === "popupContent") await checkPopupContentReady(scope, item.id);
 	else await checkConsentTextReady(scope);
 }
 
@@ -112,6 +113,7 @@ export async function submitForReview(
 				const row = await tx.insert(reviews, {
 					itemKind: item.kind,
 					entryId: item.kind === "entry" ? item.id : null,
+					popupId: item.kind === "popupContent" ? item.id : null,
 					status: "inReview",
 					submittedBy: personIdOf(tx.access.actor),
 					submittedVia: tx.access.via,
@@ -290,6 +292,7 @@ type EmailItem = { kind: ReviewItem["kind"]; title: string | null };
 
 /** Where an item is edited in the admin, which Review emails link to. */
 function itemPath(siteId: string, item: ReviewItem, postTypeId: string | null): string {
+	if (item.kind === "popupContent") return `/sites/${siteId}/popups?popup=${item.id}`;
 	if (item.kind === "entry") return `/sites/${siteId}/entries/${postTypeId ?? ""}/${item.id}`;
 	return item.kind === "globals" ? `/sites/${siteId}/globals` : `/sites/${siteId}/consent-banner`;
 }

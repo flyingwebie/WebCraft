@@ -112,6 +112,16 @@
         "typescript": "catalog:",
       },
     },
+    "modules/popups": {
+      "name": "@webcraft/module-popups",
+      "version": "1.0.0",
+      "dependencies": {
+        "@webcraft/module-sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "catalog:",
+      },
+    },
     "modules/redirects": {
       "name": "@webcraft/module-redirects",
       "version": "1.0.0",
@@ -189,6 +199,7 @@
         "@webcraft/db": "workspace:*",
         "@webcraft/module-extra-blocks": "workspace:*",
         "@webcraft/module-forms": "workspace:*",
+        "@webcraft/module-popups": "workspace:*",
         "@webcraft/module-redirects": "workspace:*",
         "@webcraft/module-sdk": "workspace:*",
         "@webcraft/module-site-analytics": "workspace:*",
@@ -802,6 +813,8 @@
     "@webcraft/module-extra-blocks": ["@webcraft/module-extra-blocks@workspace:modules/extra-blocks"],
 
     "@webcraft/module-forms": ["@webcraft/module-forms@workspace:modules/forms"],
+
+    "@webcraft/module-popups": ["@webcraft/module-popups@workspace:modules/popups"],
 
     "@webcraft/module-redirects": ["@webcraft/module-redirects@workspace:modules/redirects"],
 

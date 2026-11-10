@@ -23,7 +23,7 @@ import { newElement, withNewIds } from "./tree.ts";
 /** Where a new layer goes: inside the selected one (at its end), after it, or before it. */
 export type InsertWhere = "inside" | "after" | "before";
 
-type Step = "image" | "value" | "component" | "loop" | "form" | "filter" | "pagination" | "condition" | "tag";
+type Step = "image" | "value" | "component" | "loop" | "form" | "popup" | "filter" | "pagination" | "condition" | "tag";
 
 /** One thing the insert menu offers. */
 type Item = {
@@ -198,6 +198,7 @@ export function InsertDialog({
 				"if",
 				"loop",
 				"form",
+				"popup",
 				"filter",
 				"pagination",
 				"outlet",
@@ -220,6 +221,7 @@ export function InsertDialog({
 					if: "condition",
 					loop: "loop",
 					form: "form",
+					popup: "popup",
 					filter: "filter",
 					pagination: "pagination",
 				};
@@ -482,6 +484,9 @@ function StepForm({
 				return put([
 					{ type: "loop", source: (text || choice).trim(), alias: alias.trim() || "item", children: [], empty: null },
 				]);
+			case "popup":
+				if (!choice) return setOwn(t("builder.insert.choosePopup"));
+				return put([{ type: "popup", popup: choice }]);
 			case "form":
 				if (!choice) return setOwn(t("builder.insert.chooseForm"));
 				return put([{ type: "form", form: choice }]);
@@ -611,6 +616,19 @@ function StepForm({
 						{offered.forms.map((form) => (
 							<NativeSelectOption key={form.id} value={form.id}>
 								{`${form.name} (${form.key})`}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+			) : null}
+			{chosen.step === "popup" ? (
+				<Field>
+					<FieldLabel htmlFor={`${fieldId}-choice`}>{t("builder.insert.popupChoice")}</FieldLabel>
+					<NativeSelect id={`${fieldId}-choice`} value={choice} onChange={(event) => setChoice(event.target.value)}>
+						<NativeSelectOption value="">{t("builder.insert.valueNone")}</NativeSelectOption>
+						{offered.popups.map((popup) => (
+							<NativeSelectOption key={popup.id} value={popup.id}>
+								{`${popup.name} (${popup.key})`}
 							</NativeSelectOption>
 						))}
 					</NativeSelect>

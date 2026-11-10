@@ -452,6 +452,23 @@ function Settings({
 					</NativeSelect>
 				</Field>
 			);
+		case "popup":
+			return (
+				<Field>
+					<FieldLabel htmlFor={`${id}-popup`}>{t("builder.insert.popupChoice")}</FieldLabel>
+					<NativeSelect
+						id={`${id}-popup`}
+						value={node.popup}
+						onChange={(event) => replace({ ...node, popup: event.target.value })}
+					>
+						{catalogue.popups.map((popup) => (
+							<NativeSelectOption key={popup.id} value={popup.id}>
+								{`${popup.name} (${popup.key})`}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</Field>
+			);
 		case "pagination":
 			return (
 				<Field>

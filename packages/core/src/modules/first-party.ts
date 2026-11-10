@@ -1,5 +1,6 @@
 import extraBlocks from "@webcraft/module-extra-blocks";
 import forms from "@webcraft/module-forms";
+import popups from "@webcraft/module-popups";
 import redirects from "@webcraft/module-redirects";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 import siteAnalytics from "@webcraft/module-site-analytics";
@@ -14,6 +15,7 @@ import wordpressImport from "@webcraft/module-wordpress-import";
  */
 export const FIRST_PARTY_MODULES: readonly ModuleDefinition[] = [
 	forms,
+	popups,
 	siteAnalytics,
 	redirects,
 	wordpressImport,

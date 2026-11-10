@@ -222,7 +222,9 @@
 		"SITE_IMPORT_UPLOAD_REFUSED": "Il caricamento è stato rifiutato: scegli di nuovo il file.",
 		"SITE_IMPORT_REFUSED": "Questo file non si può importare.",
 		"SITE_IMPORT_NOT_READY": "Questa importazione non può partire ora: è ancora in caricamento, è stata rifiutata o è già partita.",
-		"SITE_IMPORT_PASSPHRASE_WRONG": "Non è la passphrase con cui il Sito è stato esportato."
+		"SITE_IMPORT_PASSPHRASE_WRONG": "Non è la passphrase con cui il Sito è stato esportato.",
+		"POPUP_INVALID": "Controlla le impostazioni del Popup.",
+		"POPUP_NOT_FOUND": "Popup non trovato."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -421,7 +423,8 @@
 			"designSystem": "Design system",
 			"siteExport": "Esporta",
 			"siteImports": "Importazioni di Siti",
-			"checks": "Controlli"
+			"checks": "Controlli",
+			"popups": "Popup"
 		}
 	},
 	"masterKeyBanner": {
@@ -4294,7 +4297,8 @@
 			"loop": "Loop",
 			"form": "Form",
 			"pagination": "Paginazione",
-			"filter": "Filtro"
+			"filter": "Filtro",
+			"popup": "Popup"
 		},
 		"moves": {
 			"moved": "Spostato {name}: {where}.",
@@ -4380,7 +4384,8 @@
 				"themeToggle": "Selettore del tema",
 				"languageSwitcher": "Selettore della lingua",
 				"consentSettings": "Impostazioni dei cookie",
-				"filter": "Filtro"
+				"filter": "Filtro",
+				"popup": "Popup"
 			},
 			"componentHint": "Component",
 			"text": "Testo",
@@ -4427,7 +4432,9 @@
 			"filterWhole": "Il Filtro intero (il suo modulo)",
 			"filterOne": "Solo {name} ({id})",
 			"chooseFilter": "Scegli un Filtro.",
-			"filterHint": "Accanto al suo Loop"
+			"filterHint": "Accanto al suo Loop",
+			"popupChoice": "Popup",
+			"choosePopup": "Scegli un Popup."
 		},
 		"inspector": {
 			"heading": "Impostazioni",
@@ -4474,7 +4481,8 @@
 			"themeToggle": "Selettore del tema",
 			"languageSwitcher": "Selettore della lingua",
 			"consentSettings": "Impostazioni dei cookie",
-			"filter": "Filtro"
+			"filter": "Filtro",
+			"popup": "Popup"
 		},
 		"commandHelp": {
 			"outlet": "Dove va il contenuto di ogni pagina. Il Site template ne ha uno, dentro il suo elemento main.",
@@ -4482,7 +4490,8 @@
 			"themeToggle": "Un pulsante per passare tra chiaro e scuro, mostrato quando la Modalità scura è attiva.",
 			"languageSwitcher": "Link alla pagina in ognuna delle lingue del Sito.",
 			"consentSettings": "Un pulsante che riapre il Consent banner.",
-			"filter": "Controlli con cui i visitatori restringono, cercano e ordinano un Loop di questo Template."
+			"filter": "Controlli con cui i visitatori restringono, cercano e ordinano un Loop di questo Template.",
+			"popup": "Popup"
 		},
 		"style": {
 			"classes": "Class",
@@ -7371,7 +7380,8 @@
 			"archive": "Template archivio",
 			"search": "Template dei risultati di ricerca",
 			"designSystem": "Sistema di design"
-		}
+		},
+		"popupPhoneEarly": "Su telefono, attendi almeno 5 secondi prima di aprire un Popup."
 	},
 	"statement": {
 		"heading": "Dichiarazione di accessibilità",
@@ -7409,5 +7419,80 @@
 			"enforcementUrl": "Link alla procedura di attuazione (HTTPS)"
 		},
 		"languages": "Il modulo fornisce testi in inglese e italiano. Per le altre lingue del sito, traduci i campi della pagina con gli strumenti di traduzione prima di pubblicare."
+	},
+	"popups": {
+		"title": "Popup",
+		"new": "Nuovo Popup",
+		"name": "Nome",
+		"save": "Salva Bozza",
+		"publish": "Pubblica",
+		"content": "Contenuto",
+		"structure": "Struttura",
+		"build": "Costruisci layout",
+		"layout": "Layout",
+		"trigger": "Attivazione",
+		"seconds": "Secondi",
+		"percent": "Scorrimento (%)",
+		"element": "Ancora elemento",
+		"paths": "Percorsi (uno per riga; * finale include i figli)",
+		"postTypes": "Tipi di Contenuto",
+		"entries": "Voci",
+		"languages": "Lingue",
+		"devices": "Dispositivi",
+		"visitors": "Visitatori",
+		"frequency": "Frequenza",
+		"saved": "Bozza salvata",
+		"published": "Pubblicato",
+		"warning": "Sul telefono, attendi almeno 5 secondi prima di aprire un Popup.",
+		"delete": "Elimina Popup",
+		"fields": {
+			"title": "Titolo",
+			"text": "Testo",
+			"image": "Immagine",
+			"enabled": "Attivo",
+			"start": "Inizio",
+			"end": "Fine"
+		},
+		"options": {
+			"modal": "Modale",
+			"slide-in": "Laterale",
+			"bar": "Barra",
+			"full-screen": "Schermo intero",
+			"load": "Al caricamento",
+			"delay": "Dopo un ritardo",
+			"scroll": "Scorrimento",
+			"element": "Elemento visibile",
+			"exit": "Uscita",
+			"idle": "Inattività",
+			"click": "Clic",
+			"phone": "Telefono",
+			"desktop": "Desktop",
+			"all": "Tutti",
+			"new": "Nuovi",
+			"returning": "Di ritorno",
+			"page": "Ogni pagina",
+			"interval": "Ogni N giorni",
+			"tablet": "Tablet",
+			"visit": "Una volta per visita",
+			"closed": "Mai più dopo la chiusura",
+			"submitted": "Mai più dopo un invio o il pulsante principale",
+			"none": "Nessuna",
+			"fade": "Dissolvenza",
+			"slide": "Scorrimento",
+			"zoom": "Zoom"
+		},
+		"confirm": "Conferma eliminazione",
+		"confirmDelete": "Eliminare questo Popup? Il suo Componente rimane disponibile.",
+		"days": "Giorni",
+		"addTrigger": "Aggiungi Trigger",
+		"removeTrigger": "Rimuovi Trigger",
+		"animation": "Animazione",
+		"backdropClose": "Chiudi facendo clic sullo sfondo",
+		"autoCloseSeconds": "Chiudi dopo secondi (vuoto: mai)",
+		"afterSubmitCloseSeconds": "Chiudi dopo un invio riuscito, in secondi (vuoto: mantieni aperto)",
+		"mainButton": "Elemento del pulsante principale (#id, facoltativo)",
+		"excludePaths": "Escludi percorsi (uno per riga)",
+		"excludePostTypes": "Escludi Tipi di post",
+		"excludeEntries": "Escludi Voci"
 	}
 }

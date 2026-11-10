@@ -9,6 +9,7 @@ const item = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("entry"), id }),
 	z.object({ kind: z.literal("globals") }),
 	z.object({ kind: z.literal("formEmails"), id }),
+	z.object({ kind: z.literal("popupContent"), id }),
 ]);
 
 const language = z.string().trim().min(1).max(35);

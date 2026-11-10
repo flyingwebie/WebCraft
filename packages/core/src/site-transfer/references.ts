@@ -1,4 +1,5 @@
 import type { FieldDefinition } from "../content/field-types.ts";
+import { POPUP_FIELDS } from "../popups/index.ts";
 import { ArchiveRefusedError } from "./format.ts";
 import type { ReferenceLookup, ReferenceVersion } from "./lookup.ts";
 import type { IdMap } from "./remap.ts";
@@ -34,6 +35,8 @@ const CORE_AUDIT_NOUNS = new Set([
 	"mediaFolder",
 	"member",
 	"pausedDomain",
+	"popup",
+	"popupContent",
 	"postType",
 	"report",
 	"reportRecipients",
@@ -267,6 +270,7 @@ export function createRowRemapper(
 					at(node, "id");
 					at(node, "component");
 				} else if (node.type === "form") at(node, "form");
+				else if (node.type === "popup") at(node, "popup");
 				else if (node.type === "filter") at(node, "filter");
 				else if (node.type === "loop") {
 					await visit(node.children);
@@ -302,6 +306,11 @@ export function createRowRemapper(
 		for (const value of Object.values(record(document.baseStyles))) css(value);
 		css(document.customCss);
 	}
+	function popupSettings(value: unknown) {
+		const rules = record(record(value).rules);
+		for (const name of ["postTypeIds", "entryIds", "excludePostTypeIds", "excludeEntryIds"])
+			if (name in rules) rules[name] = refs(rules[name]);
+	}
 	async function version(kind: string, id: string | null, value: unknown, context: ReferenceVersion, fields?: unknown) {
 		const content = record(value);
 		if (kind === "entry") {
@@ -319,7 +328,11 @@ export function createRowRemapper(
 			at(content, "parentId");
 		} else if (kind === "globals")
 			await values(content.values, fields ?? (await lookup.row("public.globals", null, ["fields"])), context);
-		else if (kind === "template") await tree(content, context);
+		else if (kind === "popupContent") await values(content.values, POPUP_FIELDS, context);
+		else if (kind === "popup") {
+			popupSettings(content.settings);
+			await version("component", null, content.component, context);
+		} else if (kind === "template") await tree(content, context);
 		else if (kind === "component") {
 			await definitions(content.props, context);
 			await tree(content.tree, context);
@@ -358,6 +371,11 @@ export function createRowRemapper(
 			for (const key of ["draft", "published"] as const)
 				if (row[key]) await version(kind, originalId, row[key], { kind: key }, fields);
 		}
+		if (table === "public.popups") {
+			for (const key of ["draft", "published"]) popupSettings(row[key]);
+			for (const key of ["draft", "published"] as const)
+				await version("popupContent", originalId, row[`content_${key}`], { kind: key });
+		}
 		if (["public.post_types", "public.globals"].includes(table)) await definitions(row.fields, { kind: "draft" });
 		if (table === "public.media") await values(record(row.texts).values, [], { kind: "draft" });
 		if (table === "public.seo_settings") at(row.organization, "logo");
@@ -383,6 +401,8 @@ export function createRowRemapper(
 				for (const name of [
 					"entryId",
 					"postTypeId",
+					"popupId",
+					"popupContentId",
 					"componentId",
 					"templateId",
 					"formId",

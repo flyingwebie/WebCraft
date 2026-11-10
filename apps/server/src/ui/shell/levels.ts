@@ -355,6 +355,7 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 					{ id: "site-checks", label: "shell.nav.checks", icon: SearchCheckIcon, to: "/sites/$siteId/checks" },
 					// The Site's Post Types come here (`postTypeItems`).
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
+					{ id: "site-popups", label: "shell.nav.popups", icon: SlidersHorizontalIcon, to: "/sites/$siteId/popups" },
 					{ id: "site-globals", label: "shell.nav.globals", icon: SlidersHorizontalIcon, to: "/sites/$siteId/globals" },
 					{
 						id: "site-translations",

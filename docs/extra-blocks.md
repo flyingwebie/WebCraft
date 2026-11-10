@@ -17,6 +17,8 @@ Repeaters hold at most 50 items and use the existing Props JSON editor. Tabs enh
 
 `siteScript: { code, whenUsed: ["Tabs", "MapEmbed"] }` requests the existing hashed, same-origin script route. The host checks the declaration; the renderer includes it only if one of those declared Components or Block types actually rendered, including Body Blocks and nested Placements. Gallery and Accordion require no script. Existing Modules without `whenUsed` keep their behaviour.
 
+The renderer also counts Components in a Popup's inert template. The enhancement script initializes on load and on `webcraft:mounted`, so a Popup opened later gets working controls without initializing existing controls twice. Consent still governs whether that script runs.
+
 Extra blocks declares **Media** consent for its optional enhancement script. Tabs stay as visible sections until consent; maps make no outside request before it. The map script checks the URL's HTTPS origin, credentials, port and `/export/embed.html` path before making a sandboxed, named iframe. The manifest declares `www.openstreetmap.org`; the existing host approval and Site CSP cover it. No raw iframe markup or general embed hook is added. The script never loads in Edit, Code or Safe mode, or while the Module is off. With no JavaScript the map remains a usable link.
 
 ## Storage, translation and Markdown

@@ -1,5 +1,5 @@
 import { reviews } from "@webcraft/db/schema";
-import { and, desc, eq, inArray, isNull, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNull, or, type SQL } from "drizzle-orm";
 
 import { clientNameOf } from "../audit.ts";
 import { peopleNames, storedVia } from "../history/attribution.ts";
@@ -22,9 +22,13 @@ import type { PublishItem } from "./publishing.ts";
  * `entry.publish`): Entries (Pages too), the Globals and the Consent banner's words. A Form's emails
  * are never Authors' to change, and Structure is Staff's.
  */
-export type ReviewItem = { kind: "entry"; id: string } | { kind: "globals" } | { kind: "consentBanner" };
+export type ReviewItem =
+	| { kind: "entry"; id: string }
+	| { kind: "globals" }
+	| { kind: "consentBanner" }
+	| { kind: "popupContent"; id: string };
 
-export const REVIEW_KINDS: readonly ReviewItem["kind"][] = ["entry", "globals", "consentBanner"];
+export const REVIEW_KINDS: readonly ReviewItem["kind"][] = ["entry", "globals", "consentBanner", "popupContent"];
 
 export function isReviewable(item: PublishItem): item is ReviewItem {
 	return (REVIEW_KINDS as readonly string[]).includes(item.kind);
@@ -79,7 +83,8 @@ function reviewStatus(value: string): ReviewStatus {
 }
 
 /** The item a Review row names. */
-export function reviewItemOf(row: Pick<Row, "itemKind" | "entryId">): ReviewItem {
+export function reviewItemOf(row: Pick<Row, "itemKind" | "entryId" | "popupId">): ReviewItem {
+	if (row.itemKind === "popupContent" && row.popupId) return { kind: "popupContent", id: row.popupId };
 	if (row.itemKind === "entry" && row.entryId) return { kind: "entry", id: row.entryId };
 	return { kind: row.itemKind === "consentBanner" ? "consentBanner" : "globals" };
 }
@@ -88,13 +93,17 @@ export function reviewItemOf(row: Pick<Row, "itemKind" | "entryId">): ReviewItem
 export function reviewItemWhere(item: ReviewItem): SQL {
 	return and(
 		eq(reviews.itemKind, item.kind),
-		item.kind === "entry" ? eq(reviews.entryId, item.id) : isNull(reviews.entryId),
+		item.kind === "entry"
+			? eq(reviews.entryId, item.id)
+			: item.kind === "popupContent"
+				? eq(reviews.popupId, item.id)
+				: isNull(reviews.entryId),
 	) as SQL;
 }
 
 /** A Review's item, as a string key: an Entry by id, else its kind alone (one per Site). */
 export function itemKey(item: ReviewItem): string {
-	return item.kind === "entry" ? `entry:${item.id}` : item.kind;
+	return "id" in item ? `${item.kind}:${item.id}` : item.kind;
 }
 
 function siteResource(scope: SiteScope) {
@@ -167,21 +176,12 @@ export async function currentReviews(
 ): Promise<Map<string, Review>> {
 	const found = new Map<string, Review>();
 	if (items.length === 0) return found;
-	const entryIds = items.flatMap(({ item }) => (item.kind === "entry" ? [item.id] : []));
-	const others = items.flatMap(({ item }) => (item.kind === "entry" ? [] : [item.kind]));
+
 	const rows = await scope.db
-		.selectDistinctOn([reviews.itemKind, reviews.entryId])
+		.selectDistinctOn([reviews.itemKind, reviews.entryId, reviews.popupId])
 		.from(reviews)
-		.where(
-			scope.where(
-				reviews,
-				or(
-					entryIds.length > 0 ? and(eq(reviews.itemKind, "entry"), inArray(reviews.entryId, entryIds)) : undefined,
-					others.length > 0 ? and(inArray(reviews.itemKind, others), isNull(reviews.entryId)) : undefined,
-				),
-			),
-		)
-		.orderBy(reviews.itemKind, reviews.entryId, desc(reviews.serial));
+		.where(scope.where(reviews, or(...items.map(({ item }) => reviewItemWhere(item)))))
+		.orderBy(reviews.itemKind, reviews.entryId, reviews.popupId, desc(reviews.serial));
 	const shown = rows.filter(
 		(row) => row.status === "inReview" || (row.status === "sentBack" && row.clearedAt === null),
 	);

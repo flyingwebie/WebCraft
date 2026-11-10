@@ -28,8 +28,10 @@ import {
 	type PageToRender,
 	type PlacementRenderer,
 	pageWords,
+	phoneWidthOf,
 	placementsIn,
 	placementsInValues,
+	popupsPlacedIn,
 	type QualityCheck,
 	renderDocument,
 	renderedCheckReport,
@@ -111,6 +113,7 @@ import { uuidsIn } from "../ids.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { type StoredMediaFile, storedFile } from "../media/library.ts";
 import { pageMedia } from "../media/page-media.ts";
+import { pagePopups } from "../popups/page.ts";
 import { readEntrySeo } from "../seo/entry-seo.ts";
 import { archivePageSeo, entryPageSeo, type SeoPlace, type SeoSite, unlistedPageSeo } from "../seo/page-seo.ts";
 import { siteSeoSettings } from "../seo/site-settings.ts";
@@ -1978,17 +1981,46 @@ async function renderSitePage(
 		version: ELEMENT_TREE_VERSION,
 		nodes: placementsInValues(options.contentValues),
 	};
-	const placed = await pageComponents(
-		scope,
-		[page.content, siteTemplate, bodyPlacements],
-		view.sources,
-		site,
-		languages,
-		{
-			which: view.structure,
-			replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
-		},
+	const moduleScripts = editing ? [] : await view.moduleScripts(host.site);
+
+	const baseTrees = [page.content, siteTemplate, bodyPlacements];
+	const initialPlaced = await pageComponents(scope, baseTrees, view.sources, site, languages, {
+		which: view.structure,
+		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
+	});
+	const attachedIds = new Set(
+		[...baseTrees, ...initialPlaced.trees].flatMap((tree) => (tree ? popupsPlacedIn(tree) : [])),
 	);
+	const widths = styles.designSystem.tokens.breakpoints.map((b) => b.width).sort((a, b) => a - b);
+	const phoneWidth = phoneWidthOf(styles.designSystem.tokens.breakpoints);
+	const popupOptions = {
+		on: !editing && moduleScripts.some((s) => s.moduleId === "popups"),
+		which: view.version,
+		languages,
+		path: options.loops.path,
+		entryId: options.loops.current,
+		phoneWidth,
+		tabletWidth: widths.find((w) => w > phoneWidth) ?? Math.max(1024, phoneWidth + 1),
+		attachedIds,
+	};
+	let popupPage = await pagePopups(scope, popupOptions);
+	let placed = initialPlaced;
+	// Popup Components can attach other Popups. Resolve their ordinary Component trees until no
+	// new attachment is found; the growing set also bounds cycles to one template per Popup.
+	while (popupPage.items.length) {
+		placed = await pageComponents(
+			scope,
+			[...baseTrees, ...popupPage.items.map((p) => p.tree)],
+			view.sources,
+			site,
+			languages,
+			{ which: view.structure },
+		);
+		const before = attachedIds.size;
+		for (const tree of placed.trees) for (const id of popupsPlacedIn(tree)) attachedIds.add(id);
+		if (attachedIds.size === before) break;
+		popupPage = await pagePopups(scope, popupOptions);
+	}
 	const postTypes = await listPostTypes(scope);
 	const trees = [page.content, siteTemplate, ...placed.trees];
 	// The page's Filters: what the visitor chose in its address narrows their Loops. Site search's
@@ -2053,7 +2085,7 @@ async function renderSitePage(
 		[
 			...mediaReferencesIn(JSON.stringify([page.content, siteTemplate ?? null, placed.trees])),
 			...uuidsIn(JSON.stringify([page.content, siteTemplate ?? null, placed.trees])),
-			...uuidsIn(JSON.stringify([options.contentValues ?? null, globalValues.values, loops.values])),
+			...uuidsIn(JSON.stringify([options.contentValues ?? null, popupPage.items, globalValues.values, loops.values])),
 		],
 		languages,
 	);
@@ -2076,6 +2108,7 @@ async function renderSitePage(
 		loops.changesAt && filters.changesAt
 			? new Date(Math.min(loops.changesAt.getTime(), filters.changesAt.getTime()))
 			: (loops.changesAt ?? filters.changesAt);
+	if (popupPage.changesAt && (!expiresAt || popupPage.changesAt < expiresAt)) expiresAt = popupPage.changesAt;
 	const time = {
 		now: scope.now(),
 		changesAt(instant: Date) {
@@ -2115,13 +2148,15 @@ async function renderSitePage(
 		// Like outside scripts, Modules' Site scripts never run in Edit mode.
 		moduleScripts: editing
 			? []
-			: (await view.moduleScripts(host.site)).map((script) => ({
-					moduleId: script.moduleId,
-					src: `${SCRIPT_PATH}${script.name}`,
-					consentCategory: script.category,
-					beforeConsent: script.beforeConsent,
-					components: script.components,
-				})),
+			: moduleScripts
+					.filter((script) => script.moduleId !== "popups" || popupPage.items.length > 0)
+					.map((script) => ({
+						moduleId: script.moduleId,
+						src: `${SCRIPT_PATH}${script.name}`,
+						consentCategory: script.category,
+						beforeConsent: script.beforeConsent,
+						components: script.components,
+					})),
 		// People editing are never asked for consent (ADR 0022).
 		consent: editing ? undefined : await pageConsent(scope, languages, view.version),
 		editMode: editing && {
@@ -2139,6 +2174,7 @@ async function renderSitePage(
 			formHtml.push(html);
 			return html;
 		},
+		popups: { siteId: host.site.id, items: popupPage.items, reveal: Boolean(view.forms?.state || view.forms?.sent) },
 		search,
 		formScripts: forms.outsideScripts,
 		loop: loops.run,

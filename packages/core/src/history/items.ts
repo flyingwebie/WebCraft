@@ -7,6 +7,7 @@ import {
 	forms,
 	globals,
 	loops,
+	popups,
 	postTypes,
 	scripts,
 	templates,
@@ -29,6 +30,7 @@ import { FilterNotFoundError } from "../filters/errors.ts";
 import { FormNotFoundError } from "../forms/errors.ts";
 import { isUuid } from "../ids.ts";
 import type { Permission } from "../permissions/roles.ts";
+import { PopupNotFoundError, popupStructureState } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 
 /**
@@ -79,7 +81,13 @@ export type ItemState = {
 type ItemReader = Pick<SiteScope, "first" | "db" | "site">;
 
 /** The Content kinds: Members edit them; the rest is Structure. */
-const CONTENT_KINDS: readonly HistoryItem["kind"][] = ["entry", "globals", "consentBanner", "formEmails"];
+const CONTENT_KINDS: readonly HistoryItem["kind"][] = [
+	"entry",
+	"globals",
+	"consentBanner",
+	"formEmails",
+	"popupContent",
+];
 
 /**
  * The Permission reading an item's history needs: whatever reading the item itself needs. Entries,
@@ -184,6 +192,24 @@ export async function itemState(scope: ItemReader, item: HistoryItem): Promise<I
 			const row = known ? await scope.first(filters, eq(filters.id, known)) : undefined;
 			if (!row) throw new FilterNotFoundError();
 			return { ...base, ...rowState(row), summary: summary(item, row.name) };
+		}
+		case "popup":
+		case "popupContent": {
+			const row = known ? await scope.first(popups, eq(popups.id, known)) : undefined;
+			if (!row) throw new PopupNotFoundError();
+			return {
+				...base,
+				...rowState(row),
+				summary: summary(item, row.name),
+				...(item.kind === "popupContent"
+					? {
+							draft: row.contentDraft,
+							published: row.contentPublished,
+							changedAt: row.contentUpdatedAt,
+							changedBy: row.contentUpdatedBy,
+						}
+					: await popupStructureState(scope, row)),
+			};
 		}
 		case "form": {
 			const row = known ? await scope.first(forms, eq(forms.id, known)) : undefined;

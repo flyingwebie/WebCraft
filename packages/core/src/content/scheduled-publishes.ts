@@ -709,6 +709,7 @@ export function failureOf(error: unknown): ScheduleFailure {
 		case "ComponentNotFoundError":
 		case "LoopNotFoundError":
 		case "FilterNotFoundError":
+		case "PopupNotFoundError":
 		case "FormNotFoundError":
 		case "ScriptNotFoundError":
 		case "PostTypeNotFoundError":
@@ -720,6 +721,7 @@ export function failureOf(error: unknown): ScheduleFailure {
 		case "LoopInvalidError":
 		case "LoopIncompleteError":
 		case "FilterInvalidError":
+		case "PopupInvalidError":
 		case "FormInvalidError":
 		case "ConsentBannerInvalidError":
 		case "DesignSystemInvalidError":

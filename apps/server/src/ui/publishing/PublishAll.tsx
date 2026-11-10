@@ -632,6 +632,9 @@ function kindOf(t: T, draft: Named): string {
 			return t("publishAll.kinds.loop");
 		case "filter":
 			return t("publishAll.kinds.filter");
+		case "popup":
+		case "popupContent":
+			return t("popups.title");
 		case "form":
 			return t("publishAll.kinds.form");
 		case "formEmails":
@@ -698,6 +701,8 @@ function iconOf(draft: SiteDraft): LucideIcon {
 			return RepeatIcon;
 		case "filter":
 			return FilterIcon;
+		case "popup":
+		case "popupContent":
 		case "form":
 			return ListIcon;
 		case "formEmails":

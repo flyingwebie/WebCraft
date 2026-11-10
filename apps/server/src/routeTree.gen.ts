@@ -63,6 +63,7 @@ import { Route as AdminSitesSiteIdLoopsRouteImport } from './routes/_admin/sites
 import { Route as AdminSitesSiteIdMediaRouteImport } from './routes/_admin/sites.$siteId.media'
 import { Route as AdminSitesSiteIdModulesRouteImport } from './routes/_admin/sites.$siteId.modules'
 import { Route as AdminSitesSiteIdOutsideScriptsRouteImport } from './routes/_admin/sites.$siteId.outside-scripts'
+import { Route as AdminSitesSiteIdPopupsRouteImport } from './routes/_admin/sites.$siteId.popups'
 import { Route as AdminSitesSiteIdPostTypesRouteImport } from './routes/_admin/sites.$siteId.post-types'
 import { Route as AdminSitesSiteIdReportBrandingRouteImport } from './routes/_admin/sites.$siteId.report-branding'
 import { Route as AdminSitesSiteIdSeoRouteImport } from './routes/_admin/sites.$siteId.seo'
@@ -384,6 +385,11 @@ const AdminSitesSiteIdOutsideScriptsRoute =
     path: '/outside-scripts',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminSitesSiteIdPopupsRoute = AdminSitesSiteIdPopupsRouteImport.update({
+  id: '/popups',
+  path: '/popups',
+  getParentRoute: () => AdminSitesSiteIdRoute,
+} as any)
 const AdminSitesSiteIdPostTypesRoute =
   AdminSitesSiteIdPostTypesRouteImport.update({
     id: '/post-types',
@@ -677,6 +683,7 @@ export interface FileRoutesByFullPath {
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
+  '/sites/$siteId/popups': typeof AdminSitesSiteIdPopupsRoute
   '/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
   '/sites/$siteId/report-branding': typeof AdminSitesSiteIdReportBrandingRoute
   '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
@@ -767,6 +774,7 @@ export interface FileRoutesByTo {
   '/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
+  '/sites/$siteId/popups': typeof AdminSitesSiteIdPopupsRoute
   '/sites/$siteId/report-branding': typeof AdminSitesSiteIdReportBrandingRoute
   '/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
   '/sites/$siteId/templates': typeof AdminSitesSiteIdTemplatesRoute
@@ -861,6 +869,7 @@ export interface FileRoutesById {
   '/_admin/sites/$siteId/media': typeof AdminSitesSiteIdMediaRoute
   '/_admin/sites/$siteId/modules': typeof AdminSitesSiteIdModulesRoute
   '/_admin/sites/$siteId/outside-scripts': typeof AdminSitesSiteIdOutsideScriptsRoute
+  '/_admin/sites/$siteId/popups': typeof AdminSitesSiteIdPopupsRoute
   '/_admin/sites/$siteId/post-types': typeof AdminSitesSiteIdPostTypesRouteWithChildren
   '/_admin/sites/$siteId/report-branding': typeof AdminSitesSiteIdReportBrandingRoute
   '/_admin/sites/$siteId/seo': typeof AdminSitesSiteIdSeoRoute
@@ -958,6 +967,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/media'
     | '/sites/$siteId/modules'
     | '/sites/$siteId/outside-scripts'
+    | '/sites/$siteId/popups'
     | '/sites/$siteId/post-types'
     | '/sites/$siteId/report-branding'
     | '/sites/$siteId/seo'
@@ -1048,6 +1058,7 @@ export interface FileRouteTypes {
     | '/sites/$siteId/media'
     | '/sites/$siteId/modules'
     | '/sites/$siteId/outside-scripts'
+    | '/sites/$siteId/popups'
     | '/sites/$siteId/report-branding'
     | '/sites/$siteId/seo'
     | '/sites/$siteId/templates'
@@ -1141,6 +1152,7 @@ export interface FileRouteTypes {
     | '/_admin/sites/$siteId/media'
     | '/_admin/sites/$siteId/modules'
     | '/_admin/sites/$siteId/outside-scripts'
+    | '/_admin/sites/$siteId/popups'
     | '/_admin/sites/$siteId/post-types'
     | '/_admin/sites/$siteId/report-branding'
     | '/_admin/sites/$siteId/seo'
@@ -1575,6 +1587,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSitesSiteIdOutsideScriptsRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
+    '/_admin/sites/$siteId/popups': {
+      id: '/_admin/sites/$siteId/popups'
+      path: '/popups'
+      fullPath: '/sites/$siteId/popups'
+      preLoaderRoute: typeof AdminSitesSiteIdPopupsRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
     '/_admin/sites/$siteId/post-types': {
       id: '/_admin/sites/$siteId/post-types'
       path: '/post-types'
@@ -1987,6 +2006,7 @@ interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdMediaRoute: typeof AdminSitesSiteIdMediaRoute
   AdminSitesSiteIdModulesRoute: typeof AdminSitesSiteIdModulesRoute
   AdminSitesSiteIdOutsideScriptsRoute: typeof AdminSitesSiteIdOutsideScriptsRoute
+  AdminSitesSiteIdPopupsRoute: typeof AdminSitesSiteIdPopupsRoute
   AdminSitesSiteIdPostTypesRoute: typeof AdminSitesSiteIdPostTypesRouteWithChildren
   AdminSitesSiteIdReportBrandingRoute: typeof AdminSitesSiteIdReportBrandingRoute
   AdminSitesSiteIdSeoRoute: typeof AdminSitesSiteIdSeoRoute
@@ -2027,6 +2047,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdMediaRoute: AdminSitesSiteIdMediaRoute,
   AdminSitesSiteIdModulesRoute: AdminSitesSiteIdModulesRoute,
   AdminSitesSiteIdOutsideScriptsRoute: AdminSitesSiteIdOutsideScriptsRoute,
+  AdminSitesSiteIdPopupsRoute: AdminSitesSiteIdPopupsRoute,
   AdminSitesSiteIdPostTypesRoute: AdminSitesSiteIdPostTypesRouteWithChildren,
   AdminSitesSiteIdReportBrandingRoute: AdminSitesSiteIdReportBrandingRoute,
   AdminSitesSiteIdSeoRoute: AdminSitesSiteIdSeoRoute,

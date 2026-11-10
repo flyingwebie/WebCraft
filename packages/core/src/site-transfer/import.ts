@@ -858,12 +858,22 @@ async function asDrafts(
 	now: Date,
 ): Promise<number> {
 	let published = 0;
+	// A Popup's Revision includes its backing Component. Capture it before the Component table's
+	// published column is cleared below; the temporary wrapper itself is cleared with this Popup.
+	if (target.has("public.popups"))
+		await client.query(
+			`UPDATE public.popups p
+  SET published=jsonb_build_object('settings',p.published,'component',c.published)
+  FROM public.components c WHERE p.site_id=$1 AND c.site_id=p.site_id AND c.id=p.component_id AND p.published IS NOT NULL`,
+			[siteId],
+		);
 	for (const table of target.values()) {
 		if (table.schema !== "public") continue;
 		const has = (column: string) => table.columns.includes(column);
 		const pairs: [string, string][] = [];
 		if (has("draft") && has("published")) pairs.push(["draft", "published"]);
 		if (has("emails_draft") && has("emails_published")) pairs.push(["emails_draft", "emails_published"]);
+		if (has("content_draft") && has("content_published")) pairs.push(["content_draft", "content_published"]);
 		if (pairs.length === 0) continue;
 		const sets: string[] = [];
 		const kinds: Record<string, string> = {
@@ -874,20 +884,24 @@ async function asDrafts(
 			filters: "filter",
 			scripts: "script",
 			forms: "form",
+			popups: "popup",
 			globals: "globals",
 			consent_banners: "consentBanner",
 			design_systems: "designSystem",
 		};
 		for (const [draft, live] of pairs) {
-			const kind = live === "emails_published" ? "formEmails" : kinds[table.table];
+			const kind =
+				live === "emails_published" ? "formEmails" : live === "content_published" ? "popupContent" : kinds[table.table];
 			if (kind) {
 				const item = ["globals", "consentBanner", "designSystem"].includes(kind) ? "NULL::uuid" : "t.id";
 				const time =
 					live === "emails_published"
 						? "emails_last_published_at"
-						: has("published_at")
-							? "published_at"
-							: "last_published_at";
+						: live === "content_published"
+							? "content_published_at"
+							: has("published_at")
+								? "published_at"
+								: "last_published_at";
 				const at = has(time) ? `coalesce(t.${ident(time)}, $3::timestamptz)` : "$3::timestamptz";
 				// Revisions may have been disabled or pruned at the source. Never lose the former live version.
 				await client.query(
@@ -904,7 +918,13 @@ async function asDrafts(
 		if (has("draft_hash") && has("published_hash")) {
 			sets.push("draft_hash = COALESCE(draft_hash, published_hash)", "published_hash = NULL");
 		}
-		for (const column of ["published_at", "last_published_at", "unpublished_at", "emails_last_published_at"]) {
+		for (const column of [
+			"published_at",
+			"last_published_at",
+			"unpublished_at",
+			"emails_last_published_at",
+			"content_published_at",
+		]) {
 			if (has(column)) sets.push(`${ident(column)} = NULL`);
 		}
 		const counted = await client.query<{ count: string }>(

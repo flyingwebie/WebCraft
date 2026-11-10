@@ -21,7 +21,9 @@ import type { EditModeBrowser } from "./edit-mode.ts";
 import type { TestBrowser, TestInstall } from "./index.ts";
 
 /** An item as Co-editing names it. */
-export type DraftItem = { kind: "entry" | "template" | "component"; id: string } | { kind: "globals" };
+export type DraftItem =
+	| { kind: "entry" | "template" | "component" | "popup" | "popupContent"; id: string }
+	| { kind: "globals" };
 
 /** One editor with a Draft open. */
 export type TestEditor = {

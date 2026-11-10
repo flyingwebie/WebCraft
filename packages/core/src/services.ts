@@ -99,6 +99,7 @@ import type { ModuleHost } from "./modules/host.ts";
 import type { OAuth } from "./oauth.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
+import type { Popups } from "./popups/index.ts";
 import type { RateLimits } from "./rate-limits.ts";
 import type { PdfRenderer, Reports, ShareLinks } from "./reports/index.ts";
 import type { SiteSearch } from "./search/service.ts";
@@ -385,6 +386,7 @@ export type InstallServices = InstallPorts & {
 	 */
 	/** The Site's Forms, as Structure: building them, their keys and names, deleting them. */
 	forms: Forms;
+	popups: Popups;
 	components: {
 		list(scope: SiteScope): Promise<(Component & { usage: ComponentUsage })[]>;
 		get(scope: SiteScope, componentId: string): Promise<{ component: Component; usage: ComponentUsage }>;

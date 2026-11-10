@@ -328,9 +328,13 @@ export const it: EmailWording = {
 
 /** La prima lettera di una frase in maiuscolo. */
 /** Come le email della revisione nominano un elemento: una Entry con il suo titolo; i Globali e i testi del banner del consenso per quello che sono. */
-function nomeInRevisione(item: { kind: "entry" | "globals" | "consentBanner"; title: string | null }): string {
+function nomeInRevisione(item: {
+	kind: "entry" | "globals" | "consentBanner" | "popupContent";
+	title: string | null;
+}): string {
 	if (item.kind === "globals") return "i Globali";
 	if (item.kind === "consentBanner") return "i testi del Banner del consenso";
+	if (item.kind === "popupContent") return item.title ? `il Popup “${item.title}”` : "un Popup";
 	return item.title ? `“${item.title}”` : "una Entry senza titolo";
 }
 

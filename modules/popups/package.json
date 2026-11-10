@@ -1,0 +1,17 @@
+{
+	"name": "@webcraft/module-popups",
+	"version": "1.0.0",
+	"type": "module",
+	"license": "AGPL-3.0-or-later",
+	"exports": "./src/index.ts",
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/module-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"typescript": "catalog:"
+	},
+	"private": true
+}

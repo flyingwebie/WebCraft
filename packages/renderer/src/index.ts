@@ -196,6 +196,7 @@ export {
 	searchPageTitle,
 } from "./page.ts";
 export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
+export { popupsPlacedIn } from "./popups.ts";
 export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, richTextTranslation } from "./rich-text.ts";
 export {
 	cutText,
@@ -244,6 +245,9 @@ export {
 	type OutletNode,
 	type PaginationNode,
 	type ParseTreeOptions,
+	type PopupCatalogue,
+	type PopupFound,
+	type PopupNode,
 	parseElementTree,
 	randomElementId,
 	type SearchNode,

@@ -126,26 +126,33 @@ describe("starting an import", () => {
 
 describe("Modules", () => {
 	test("data of a Module this Install lacks is kept aside, and the report says which Module it needs", async () => {
-		const withPopups = rewritten(archive, {
+		const withUnavailable = rewritten(archive, {
 			manifest: (manifest) => {
-				manifest.modules.push({ id: "popups", version: "1.0.0", tables: ["popups"] });
+				manifest.modules.push({ id: "unavailable", version: "1.0.0", tables: ["records"] });
 			},
 			extraTables: [
-				{ name: "m_popups.popups", module: "popups", rows: [{ id: crypto.randomUUID(), name: "Spring sale" }] },
+				{
+					name: "m_unavailable.records",
+					module: "unavailable",
+					rows: [{ id: crypto.randomUUID(), name: "Spring sale" }],
+				},
 			],
 		});
-		const target = (await install.createWorkspace("Popups Ltd")).id;
-		const imported = await importArchive(install, admin, target, withPopups, { name: "Popups", slug: "popups" });
+		const target = (await install.createWorkspace("Missing Module Ltd")).id;
+		const imported = await importArchive(install, admin, target, withUnavailable, {
+			name: "Unavailable Module",
+			slug: "unavailable",
+		});
 		expect(imported.status).toBe("done");
 		expect(imported.report?.modules).toContainEqual({
-			id: "popups",
+			id: "unavailable",
 			version: "1.0.0",
 			status: "missing",
 			keptAside: true,
 		});
-		expect(imported.archive?.modules).toContainEqual({ id: "popups", version: "1.0.0", status: "missing" });
+		expect(imported.archive?.modules).toContainEqual({ id: "unavailable", version: "1.0.0", status: "missing" });
 		const again = await exportedArchive(install, admin, imported.site?.id ?? "");
-		expect(rowsIn(again, "m_popups.popups")).toContainEqual(expect.objectContaining({ name: "Spring sale" }));
+		expect(rowsIn(again, "m_unavailable.records")).toContainEqual(expect.objectContaining({ name: "Spring sale" }));
 	});
 
 	test("data of a Module waiting for approval here comes in, and works once it is approved", async () => {

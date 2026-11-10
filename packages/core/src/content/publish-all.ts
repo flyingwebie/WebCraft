@@ -8,15 +8,16 @@ import {
 	globals,
 	loops,
 	people,
+	popups,
 	scripts,
 	templates,
 } from "@webcraft/db/schema";
 import { defaultDesignSystem, type ElementTree, placementsIn, readDesignSystem } from "@webcraft/renderer";
 import { inArray, sql } from "drizzle-orm";
-
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { CONSENT_TEXT_FIELDS } from "../consent/text.ts";
 import { can } from "../permissions/can.ts";
+import { popupStructureState } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import { type ComponentSources, NO_MODULE_COMPONENTS } from "./components.ts";
@@ -303,12 +304,15 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 			);
 		}
 	}
+	const popupRows = await scope.select(popups);
+	const ownedComponents = new Set(popupRows.map((row) => row.componentId));
 	const changedComponents = await scope.select(
 		components,
 		sql`${components.draft} is distinct from ${components.published}`,
 		{ orderBy: [components.name] },
 	);
 	for (const row of changedComponents) {
+		if (ownedComponents.has(row.id)) continue;
 		add(structure({ kind: "component", id: row.id }, row, row.name), row);
 	}
 	const changedLoops = await scope.select(loops, sql`${loops.draft} is distinct from ${loops.published}`, {
@@ -322,6 +326,28 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	});
 	for (const row of changedFilters) {
 		add(structure({ kind: "filter", id: row.id }, row, row.name), row);
+	}
+	for (const row of popupRows) {
+		const state = await popupStructureState(scope, row);
+		if (!sameJson(state.draft, state.published))
+			add(structure({ kind: "popup", id: row.id }, { ...row, ...state }, row.name), row);
+		if (!sameJson(row.contentDraft, row.contentPublished))
+			add(
+				{
+					...structure(
+						{ kind: "popupContent", id: row.id },
+						{
+							...row,
+							draft: row.contentDraft,
+							published: row.contentPublished,
+							updatedAt: row.contentUpdatedAt,
+						},
+						row.name,
+					),
+					group: "content",
+				},
+				{ ...row, updatedBy: row.contentUpdatedBy, updatedVia: row.contentUpdatedVia },
+			);
 	}
 	const changedForms = await scope.select(forms, sql`${forms.draft} is distinct from ${forms.published}`, {
 		orderBy: [forms.name],
@@ -470,6 +496,8 @@ async function publishOrder<Chosen extends { item: PublishItem }>(
 		loop: 1,
 		filter: 2,
 		form: 3,
+		popup: 5.5,
+		popupContent: 9,
 		formEmails: 4,
 		component: 5,
 		template: 6,

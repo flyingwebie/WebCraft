@@ -25,6 +25,8 @@ function placeName(use: Use, t: ReturnType<typeof useT>): string {
 			};
 			return t(keys[use.templateKind], { postType: use.postType?.name ?? "" });
 		}
+		case "popup":
+			return `${t("popups.title")}: ${use.name}`;
 		case "component":
 			return t("media.usedIn.component", { name: use.name });
 		case "loop":

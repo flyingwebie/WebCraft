@@ -291,6 +291,8 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		...SEARCH_PARTS,
 		...filterParts(phoneWidthOf(tokens.breakpoints)),
 		...CONSENT_PARTS,
+		`.wc-popup{color:CanvasText;background:Canvas;border:1px solid GrayText;border-radius:.5rem;padding:1.5rem;max-width:min(36rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);overflow:auto}.wc-popup::backdrop{background:rgb(0 0 0 / .5)}.wc-popup[data-layout="slide-in"]{position:fixed;inset:auto 1rem 1rem auto;margin:0;z-index:999}.wc-popup[data-layout="bar"]{position:fixed;inset:auto 0 0;margin:0;max-width:none;width:100%;max-height:40dvh;border-radius:0;z-index:1000}.wc-popup[data-layout="full-screen"]{width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;border-radius:0}.wc-popup [data-wc-popup-close]{display:block;margin-inline-start:auto;min-width:44px;min-height:44px}.wc-popup :focus-visible{outline:3px solid Highlight;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.wc-popup[open][data-animation="fade"]{animation:wc-popup-fade .15s ease-out}.wc-popup[open][data-animation="slide"]{animation:wc-popup-in .15s ease-out}.wc-popup[open][data-animation="zoom"]{animation:wc-popup-zoom .15s ease-out}@keyframes wc-popup-fade{from{opacity:0}to{opacity:1}}@keyframes wc-popup-zoom{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}@keyframes wc-popup-in{from{opacity:0;transform:translateY(.5rem)}to{opacity:1;transform:none}}}`,
+
 		...focalPointRules(),
 	);
 

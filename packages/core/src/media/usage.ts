@@ -5,6 +5,7 @@ import {
 	globals,
 	loops,
 	mediaFiles,
+	popups,
 	postTypes,
 	seoSettings,
 	templates,
@@ -47,6 +48,7 @@ export type MediaUse =
 			versions: UseVersion[];
 	  }
 	| { kind: "component"; id: string; name: string; versions: UseVersion[] }
+	| { kind: "popup"; id: string; name: string; versions: UseVersion[] }
 	| { kind: "loop"; id: string; name: string; versions: UseVersion[] }
 	| { kind: "designSystem"; versions: UseVersion[] }
 	| {
@@ -74,6 +76,7 @@ const SOURCES: readonly MediaUseSource[] = [
 	loopUses,
 	designSystemUses,
 	seoSettingsUses,
+	popupUses,
 ];
 
 /** Every place a Media item is used on its Site, in the order of `SOURCES`, each kind sorted by name. */
@@ -215,4 +218,15 @@ async function seoSettingsUses(scope: SiteScope, file: MediaReferences): Promise
 	if (row.defaultImage === file.id) settings.push("defaultImage");
 	if ((row.organization as { logo?: unknown } | null)?.logo === file.id) settings.push("organizationLogo");
 	return settings.length > 0 ? [{ kind: "seoSettings", settings, versions: ["published"] }] : [];
+}
+
+async function popupUses(scope: SiteScope, file: MediaReferences): Promise<MediaUse[]> {
+	return (
+		await scope.select(popups, or(holds(popups.contentDraft, file.id), holds(popups.contentPublished, file.id)))
+	).map((row) => ({
+		kind: "popup",
+		id: row.id,
+		name: row.name,
+		versions: versionsHolding({ draft: row.contentDraft, published: row.contentPublished }, file.id),
+	}));
 }

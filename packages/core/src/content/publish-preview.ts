@@ -7,14 +7,15 @@ import {
 	forms,
 	globals,
 	loops,
+	popups,
 	scripts,
 	templates,
 } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
-
 import { FilterNotFoundError } from "../filters/errors.ts";
 import { FormNotFoundError } from "../forms/errors.ts";
 import { isUuid } from "../ids.ts";
+import { PopupNotFoundError, popupStructureState } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	ComponentNotFoundError,
@@ -106,6 +107,15 @@ export async function publishPreview(scope: SiteScope, item: PublishItem): Promi
 				changed: row.draftHash !== row.publishedHash,
 				version: row.draftHash,
 			};
+		}
+		case "popup":
+		case "popupContent": {
+			const row = byId(await scope.first(popups, eq(popups.id, item.id)), () => new PopupNotFoundError());
+			if (item.kind === "popup") {
+				const state = await popupStructureState(scope, row);
+				return versions(state.draft, state.published, row.name);
+			}
+			return versions(row.contentDraft, row.contentPublished, row.name);
 		}
 		case "form": {
 			const row = byId(

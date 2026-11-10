@@ -522,6 +522,66 @@ describe("the visual builder", () => {
 	);
 });
 
+describe("Popups", () => {
+	let keys = 0;
+	const created: { siteId: string; popupId: string; componentId: string }[] = [];
+	const createPopup = async (api: ApiClient, siteId: string, name: string) => {
+		const result = await api.popups.create({ siteId, name });
+		created.push({ siteId, popupId: result.popup.id, componentId: result.popup.componentId });
+		return result;
+	};
+	// These Components belong to this group; later whole-Site Checks need not scan its fixtures.
+	afterAll(async () => {
+		if (!created.length) return;
+		const { api } = await install.superadmin();
+		for (const { siteId, popupId, componentId } of created) {
+			const popup = await api.popups.delete({ siteId, popupId });
+			if (!popup.deleted) await api.popups.delete({ siteId, popupId, confirmation: popup.confirmation.id });
+			const component = await api.components.delete({ siteId, componentId });
+			if (!component.deleted)
+				await api.components.delete({ siteId, componentId, confirmation: component.confirmation.id });
+		}
+	});
+	/** One Popup and backing Component per Site, as with the shared Content fixtures above. */
+	const popupIds = new Map<string, Promise<string>>();
+	const popupIn = (target: IsolationTarget) => {
+		let made = popupIds.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				return (await createPopup(api, target.siteId, `Popup ${++keys}`)).popup.id;
+			})();
+			popupIds.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses("popups.list", (api, { siteId }) => api.popups.list({ siteId }));
+	isolation.refuses("popups.get", async (api, target) =>
+		api.popups.get({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+	isolation.refuses("popups.create", (api, { siteId }) => createPopup(api, siteId, `Ours ${++keys}`));
+	isolation.refuses("popups.saveDraft", async (api, target) =>
+		api.popups.saveDraft({ siteId: target.siteId, popupId: await popupIn(target), popup: { layout: "bar" } }),
+	);
+	isolation.refuses(
+		"popups.saveContent",
+		async (api, target) =>
+			api.popups.saveContent({ siteId: target.siteId, popupId: await popupIn(target), values: { title: "Our offer" } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("popups.publish", async (api, target) =>
+		api.popups.publish({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+	isolation.refuses(
+		"popups.publishContent",
+		async (api, target) => api.popups.publishContent({ siteId: target.siteId, popupId: await popupIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses("popups.delete", async (api, target) =>
+		api.popups.delete({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+});
+
 describe("Forms", () => {
 	let keys = 0;
 	/** A new Form in a target's Site, made by the Superadmin. */

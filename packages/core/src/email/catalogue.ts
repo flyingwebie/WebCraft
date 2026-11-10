@@ -27,7 +27,7 @@ const title = z.string().trim().min(1).max(300);
 const count = z.number().int().positive().max(1_000_000);
 /** An item a Review is of, as its emails name it: an Entry by its title; the Globals and the Consent banner's words by what they are. */
 const reviewedItem = z.object({
-	kind: z.enum(["entry", "globals", "consentBanner"]),
+	kind: z.enum(["entry", "globals", "consentBanner", "popupContent"]),
 	title: z.string().max(300).nullable(),
 });
 /** Words a Module wrote, by language. */

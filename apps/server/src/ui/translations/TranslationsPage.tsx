@@ -540,6 +540,22 @@ function QueueDetails({
 							{t("translations.queue.confirm")}
 						</Button>
 					) : null}
+					{line.item.kind === "popupContent" && canEdit ? (
+						<Button
+							size="sm"
+							variant="outline"
+							render={
+								<Link
+									to="/sites/$siteId/popups"
+									params={{ siteId }}
+									search={{ popup: line.item.id ?? "", language: line.language }}
+								/>
+							}
+						>
+							<PencilIcon aria-hidden="true" />
+							{t("translations.queue.edit")}
+						</Button>
+					) : null}
 					{line.item.kind === "entry" && line.item.postTypeId && canEdit ? (
 						<Button
 							size="sm"

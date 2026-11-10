@@ -324,9 +324,13 @@ export const en: EmailWording = {
 
 /** A sentence's first letter in capitals. */
 /** How a Review email names an item: an Entry by its title; the Globals and the Consent banner's words by what they are. */
-function reviewedName(item: { kind: "entry" | "globals" | "consentBanner"; title: string | null }): string {
+function reviewedName(item: {
+	kind: "entry" | "globals" | "consentBanner" | "popupContent";
+	title: string | null;
+}): string {
 	if (item.kind === "globals") return "the Globals";
 	if (item.kind === "consentBanner") return "the Consent banner's words";
+	if (item.kind === "popupContent") return item.title ? `the Popup “${item.title}”` : "a Popup";
 	return item.title ? `“${item.title}”` : "an untitled Entry";
 }
 
