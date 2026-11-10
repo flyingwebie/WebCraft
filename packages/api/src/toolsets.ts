@@ -158,6 +158,13 @@ export const TOOL_PLACES = {
 	"publishing.reschedule": publishing(["publishing"], "entry.publish", "structure.edit", "formEmails.edit"),
 	"publishing.updateScheduled": publishing(["publishing"], "entry.publish", "structure.edit", "formEmails.edit"),
 	"publishing.cancelScheduled": place(["publishing"], "entry.publish", "structure.edit", "formEmails.edit"),
+	"reviews.list": place(["content", "publishing"], "site.view"),
+	"reviews.get": place(["content", "publishing"], "site.view"),
+	"reviews.submit": place(["content"], "entry.edit"),
+	"reviews.withdraw": place(["content"], "entry.edit"),
+	// Deciding a Review is Publishing; publishing or scheduling it goes through those procedures (which
+	// need "May publish"), sending it back publishes nothing.
+	"reviews.sendBack": place(["publishing"], "entry.publish"),
 	"history.list": place(["content", "structure", "publishing"], "site.view"),
 	"history.compare": place(["content", "structure", "publishing"], "site.view"),
 	"history.get": place(["content", "structure", "publishing"], "site.view"),

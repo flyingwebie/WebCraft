@@ -284,6 +284,16 @@ export const PROCEDURES = {
 		"Takes the current Drafts into a Scheduled publish (API clients confirm a preview first).",
 	),
 	"publishing.cancelScheduled": write("Cancels a Scheduled publish: nothing of it is published."),
+	"reviews.list": read(
+		"The Site's Reviews waiting for someone to act, oldest first: what was submitted, by whom, with their note.",
+	),
+	"reviews.get": read("One Review, whatever became of it: in review, withdrawn, sent back, published or scheduled."),
+	"reviews.count": internal(),
+	"reviews.submit": write(
+		"Submits Drafts for Review with an optional note: they show In review, and the people who may publish them are emailed.",
+	),
+	"reviews.withdraw": write("Withdraws a Review you submitted, while it waits."),
+	"reviews.sendBack": write("Sends a waiting Review back to its Author with a comment saying why."),
 	"history.list": read(
 		"One page of an item's history: the Revisions its publishes saved and the Checkpoints of its Draft, newest first.",
 	),

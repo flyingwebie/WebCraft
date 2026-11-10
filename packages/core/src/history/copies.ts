@@ -17,8 +17,8 @@ import { readHistorySettings } from "./settings.ts";
 /** Which kind of saved copy: a Revision (a publish) or a Checkpoint (the Draft, while it was edited). */
 export type CopyType = "revision" | "checkpoint";
 
-/** Why a Checkpoint was saved: 10 minutes of changes, the last person leaving, or a restore over it. */
-export type CheckpointReason = "activity" | "left" | "restore";
+/** Why a Checkpoint was saved: 10 minutes of changes, the last person leaving, a restore over it, or a submission for Review. */
+export type CheckpointReason = "activity" | "left" | "restore" | "review";
 
 /** Names one saved copy of an item. */
 export type CopyRef = { type: CopyType; id: string };

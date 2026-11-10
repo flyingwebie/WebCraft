@@ -23,6 +23,7 @@ import { sameJson } from "./json.ts";
 import { languagesFor, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
 import type { Published } from "./publishing.ts";
+import { currentReviews, type Review } from "./review-items.ts";
 import { type EntryVersion, emptyVersion, storedVersion, type Writer } from "./values.ts";
 
 /**
@@ -49,6 +50,11 @@ export type Globals = {
 	updatedAt: Date | null;
 	publishedAt: Date | null;
 	lastPublishedAt: Date | null;
+	/**
+	 * Their Review, while it waits (In review) or once it was sent back (with the comment, until they
+	 * are submitted again or published); null otherwise.
+	 */
+	review: Review | null;
 };
 
 /** A change to the Globals' Draft, in one language (the Site's Default language unless given). */
@@ -247,6 +253,23 @@ export async function writeGlobalsTranslations(
  * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`). `version`, when
  * given, is published instead of the Draft (a Scheduled publish's).
  */
+/**
+ * Checks the Globals' Draft as publishing would, publishing nothing: refuses values that break a rule
+ * (`GlobalsInvalidError`) and empty required values (`GlobalsIncompleteError`). Submitting them for
+ * Review asks it, so a reviewer is never handed what they couldn't publish.
+ */
+export async function checkGlobalsReady(scope: SiteScope): Promise<void> {
+	const row = await scope.first(globals);
+	const site = await siteLanguages(scope);
+	const draft = storedVersion(row?.draft);
+	const findings = findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
+		globalsFindings(draft, storedFields(row?.fields), languages),
+	);
+	if (findings.problems.some((problem) => problem.rule !== "required"))
+		throw new GlobalsInvalidError(findings.problems);
+	if (findings.missing.length > 0) throw new GlobalsIncompleteError(findings.missing);
+}
+
 export async function publishGlobals(scope: SiteScope, version?: unknown): Promise<Published> {
 	const row = await lockGlobals(scope);
 	const site = await siteLanguages(scope);
@@ -317,9 +340,12 @@ function globalsFindings(version: EntryVersion, fields: readonly FieldDefinition
 	return findings;
 }
 
-function toGlobals(scope: Pick<SiteScope, "site">, row: GlobalsRow | undefined, languages: Languages): Globals {
+async function toGlobals(scope: SiteScope, row: GlobalsRow | undefined, languages: Languages): Promise<Globals> {
 	const fields = storedFields(row?.fields);
 	const draft = storedVersion(row?.draft);
+	const reviews = await currentReviews(scope, [
+		{ item: { kind: "globals" }, draft: row?.draft ?? emptyVersion(), name: null, postType: null },
+	]);
 	return {
 		siteId: scope.site.id,
 		fields,
@@ -331,6 +357,7 @@ function toGlobals(scope: Pick<SiteScope, "site">, row: GlobalsRow | undefined, 
 		updatedAt: row?.updatedAt ?? null,
 		publishedAt: row?.publishedAt ?? null,
 		lastPublishedAt: row?.lastPublishedAt ?? null,
+		review: reviews.get("globals") ?? null,
 	};
 }
 

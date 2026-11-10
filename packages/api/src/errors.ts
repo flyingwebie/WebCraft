@@ -82,6 +82,7 @@ import {
 	InviteForAnotherAccountError,
 	InviteInvalidError,
 	ItemAlreadyScheduledError,
+	ItemInReviewError,
 	LanguageInvalidError,
 	LanguageNotFoundError,
 	LanguageTakenError,
@@ -131,6 +132,10 @@ import {
 	ReportNotFoundError,
 	ReportSendNotFoundError,
 	ReportSendRefusedError,
+	ReviewDecidedError,
+	ReviewInvalidError,
+	ReviewNotFoundError,
+	ReviewNotYoursError,
 	RevisionNotFoundError,
 	ScheduledPublishNotFoundError,
 	ScheduleInvalidError,
@@ -438,6 +443,36 @@ export function toApiError(error: unknown): unknown {
 			data: { item: error.item, scheduleId: error.scheduleId, at: error.at.toISOString() },
 			cause: error,
 		});
+	}
+	if (error instanceof ReviewInvalidError) {
+		return new ORPCError("REVIEW_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { reason: error.reason, item: error.item },
+			cause: error,
+		});
+	}
+	if (error instanceof ItemInReviewError) {
+		return new ORPCError("ALREADY_IN_REVIEW", {
+			status: 409,
+			message: error.message,
+			data: { item: error.item, reviewId: error.reviewId },
+			cause: error,
+		});
+	}
+	if (error instanceof ReviewNotFoundError) {
+		return new ORPCError("REVIEW_NOT_FOUND", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof ReviewDecidedError) {
+		return new ORPCError("REVIEW_DECIDED", {
+			status: 409,
+			message: error.message,
+			data: { status: error.status },
+			cause: error,
+		});
+	}
+	if (error instanceof ReviewNotYoursError) {
+		return new ORPCError("REVIEW_NOT_YOURS", { status: 403, message: error.message, cause: error });
 	}
 	if (error instanceof ScheduledPublishNotFoundError) {
 		return new ORPCError("SCHEDULED_PUBLISH_NOT_FOUND", { status: 404, message: error.message, cause: error });

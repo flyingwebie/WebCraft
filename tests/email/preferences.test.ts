@@ -32,9 +32,15 @@ beforeEach(async () => {
 });
 
 const REVIEW = {
-	type: "review-submitted",
-	data: { authorName: "Ada", itemTitle: "Spring menu", siteName: "Acme Bakery", reviewPath: "/review/1" },
-} as const;
+	type: "review-submitted" as const,
+	data: {
+		authorName: "Ada",
+		items: [{ kind: "entry" as const, title: "Spring menu" }],
+		siteName: "Acme Bakery",
+		note: null,
+		reviewPath: "/review/1",
+	},
+};
 
 describe("email switches", () => {
 	test("list every System email type, by category; all are on until the person turns one off", async () => {

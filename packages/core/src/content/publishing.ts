@@ -29,7 +29,13 @@ import {
 	siteComponents,
 } from "./components.ts";
 import { entryValues, lockEntry, versionFindings } from "./entries.ts";
-import { EntryIncompleteError, EntryInvalidError, EntrySlugTakenError, PathTakenError } from "./errors.ts";
+import {
+	EntryIncompleteError,
+	EntryInvalidError,
+	EntryNotFoundError,
+	EntrySlugTakenError,
+	PathTakenError,
+} from "./errors.ts";
 import type { FieldDefinition } from "./field-types.ts";
 import { type Findings, findingsInEveryLanguage, type Languages, linksIn } from "./field-values.ts";
 import { publishGlobals } from "./globals.ts";
@@ -52,6 +58,7 @@ import {
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { checkReferences, saveLinks } from "./relationships.ts";
+import { reviewsOnPublish } from "./review-items.ts";
 import { leaveScheduledPublishes } from "./scheduled-items.ts";
 import { publishScriptDraft } from "./scripts.ts";
 import { checkTemplateForPublish, lockTemplate } from "./templates.ts";
@@ -157,7 +164,8 @@ export type FrozenVersions = (item: PublishItem) => unknown;
  * `frozen`, when given, names the version to publish of each item instead of its Draft: a Scheduled
  * publish's, which the worker publishes at its time; every check runs on it as on a Draft. Without it
  * (publishing now), each item published leaves the Scheduled publish it waited in, since a newer
- * version is live already (`leaveScheduledPublishes`).
+ * version is live already (`leaveScheduledPublishes`). An item In review ends its Review as published
+ * (`reviewsOnPublish`), whatever published it.
  */
 export async function publishItems(
 	scope: SiteScope,
@@ -192,6 +200,8 @@ export async function publishItems(
 			await announcePublished(tx, item);
 		}
 		if (!frozen) await leaveScheduledPublishes(tx, items);
+		// An item In review that is published now ends its Review (its Author is emailed).
+		await reviewsOnPublish(tx, items, frozen);
 		if (stylesBefore) await keepReplacedStylesheet(tx, stylesBefore);
 		await clearPageCache(tx);
 		return published;
@@ -237,6 +247,22 @@ async function publishItem(
 			return { kind: "formEmails", id: published.id, publishedAt: published.publishedAt, pathChanges: [] };
 		}
 	}
+}
+
+/**
+ * Checks an Entry's Draft as publishing would check its values, publishing nothing: refuses values
+ * that break a rule (`EntryInvalidError`) and empty required values, the title and slug included
+ * (`EntryIncompleteError`). Where it would be published (its slug, its parent Page, its path) is
+ * checked when it is published. Submitting it for Review asks it.
+ */
+export async function checkEntryReady(scope: SiteScope, entryId: string): Promise<void> {
+	const row = await scope.first(entries, eq(entries.id, entryId));
+	if (!row) throw new EntryNotFoundError();
+	const postType = await getPostType(scope, row.postTypeId);
+	const findings = publishFindings(storedVersion(row.draft), postType.fields, await siteLanguages(scope));
+	await checkReferences(scope, findings.references, "rule");
+	if (findings.problems.some((problem) => problem.rule !== "required")) throw new EntryInvalidError(findings.problems);
+	if (findings.missing.length > 0) throw new EntryIncompleteError(findings.missing);
 }
 
 async function publishEntry(scope: SiteScope, entryId: string, version: unknown): Promise<Published> {

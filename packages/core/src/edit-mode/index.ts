@@ -14,7 +14,16 @@ import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.t
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import { EditModeUnavailableError, EditPathInvalidError } from "./errors.ts";
-import { discardChanges, type PageDeps, type PageState, pageState, publishPage, undoChange } from "./page.ts";
+import {
+	discardChanges,
+	type PageDeps,
+	type PageState,
+	pageState,
+	publishPage,
+	submitPage,
+	undoChange,
+	withdrawPage,
+} from "./page.ts";
 import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 import { type RegionChange, type SavedRegion, saveRegion } from "./regions.ts";
 
@@ -99,6 +108,14 @@ export type EditMode = {
 	discard(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
 	/** Publishes the page's changes, all or none (needs `entry.publish`), answering the page's state afterwards. */
 	publish(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/** Submits the page's changes for Review together, with an optional note, answering the page's state afterwards. */
+	submitForReview(
+		session: EditSession,
+		host: SiteHost,
+		input: { path: string; note: string | null },
+	): Promise<PageState>;
+	/** Withdraws the page's Reviews the person submitted, answering the page's state afterwards. */
+	withdrawReview(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
 };
 
 export function createEditMode(options: {
@@ -263,6 +280,8 @@ export function createEditMode(options: {
 		undo: (session, host, input) => undoChange(deps, session, host, input),
 		discard: (session, host, path) => discardChanges(deps, session, host, path),
 		publish: (session, host, path) => publishPage(deps, session, host, path),
+		submitForReview: (session, host, input) => submitPage(deps, session, host, input),
+		withdrawReview: (session, host, path) => withdrawPage(deps, session, host, path),
 	};
 }
 

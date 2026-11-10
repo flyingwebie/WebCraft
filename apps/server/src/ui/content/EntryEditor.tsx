@@ -35,6 +35,7 @@ import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { EntrySchedule } from "../publishing/EntrySchedule.tsx";
+import { ReviewStatus, SubmitForReview } from "../review/Review.tsx";
 import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
 import { OutdatedTranslations } from "../translations/OutdatedTranslations.tsx";
 import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
@@ -55,7 +56,7 @@ export type PageOption = { id: string; title: string; slug: string; parentId: st
  * Type, in one language. The Draft is shared (Co-editing, ADR 0025): changes save by themselves and
  * everyone editing it sees each other's as they are saved, with who is where; what keeps the Draft
  * from being published shows next to each value and in the Status card. Editors, Owners and Staff publish;
- * Authors save Drafts only (Review comes later).
+ * Authors submit their Drafts for Review, and everyone sees where its Review stands (In review, sent back).
  */
 export function EntryEditor({
 	siteId,
@@ -168,6 +169,13 @@ export function EntryEditor({
 			await router.invalidate();
 		},
 	});
+
+	/** Reads the Entry again: its status, schedules and Review. */
+	const refresh = async () => {
+		const api = await getApi();
+		const { entry: fresh } = await api.entries.get({ siteId, entryId: entry.id, language: entry.language });
+		setEntry(fresh);
+	};
 
 	const titleProblems = problemsAt(problems, "title");
 	const slugProblems = problemsAt(problems, "slug");
@@ -334,6 +342,18 @@ export function EntryEditor({
 					fields={postType.fields}
 					idPrefix="entry"
 					headingId="entry-problems-heading"
+					submit={
+						<SubmitForReview
+							siteId={siteId}
+							items={[{ kind: "entry", id: entry.id }]}
+							disabled={locked || entry.status === "published" || entry.review?.status === "inReview"}
+							flush={autosave.flush}
+							onSubmitted={refresh}
+							onProblems={() => publishing.summary.current?.focus()}
+						/>
+					}
+					authorHelp={entry.review?.status === "inReview" ? "review.inReviewHelp" : "review.authorHelp"}
+					review={<ReviewStatus siteId={siteId} review={entry.review} onChanged={refresh} />}
 				>
 					{entry.path ? (
 						<p className="text-muted-foreground text-sm">
@@ -346,11 +366,7 @@ export function EntryEditor({
 						isPage={isPage}
 						canPublish={canPublish}
 						flush={autosave.flush}
-						onChanged={async () => {
-							const api = await getApi();
-							const { entry: fresh } = await api.entries.get({ siteId, entryId: entry.id, language: entry.language });
-							setEntry(fresh);
-						}}
+						onChanged={refresh}
 					/>
 				</DraftStatusCard>
 

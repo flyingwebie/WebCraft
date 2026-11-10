@@ -1,3 +1,11 @@
+CREATE TABLE "worker_heartbeats" (
+	"id" uuid PRIMARY KEY,
+	"hostname" text NOT NULL,
+	"version" text NOT NULL,
+	"started_at" timestamp with time zone NOT NULL,
+	"beat_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "oauth_device_codes" (
 	"device_code_hash" text PRIMARY KEY,
 	"user_code_hash" text NOT NULL UNIQUE,

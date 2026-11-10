@@ -27,6 +27,7 @@ import { parseFields } from "../content/fields.ts";
 import { sameJson } from "../content/json.ts";
 import { languagesFor, siteLanguages } from "../content/languages.ts";
 import type { Published } from "../content/publishing.ts";
+import { currentReviews, type Review } from "../content/review-items.ts";
 import { storedVersion } from "../content/values.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
 import { actingPerson, personIdOf } from "../permissions/can.ts";
@@ -112,6 +113,8 @@ export type ConsentText = {
 	updatedAt: Date | null;
 	publishedAt: Date | null;
 	lastPublishedAt: Date | null;
+	/** Their Review, while it waits (In review) or once it was sent back; null otherwise. */
+	review: Review | null;
 };
 
 /** A change to the words' Draft, in one language (the Site's Default language unless given). */
@@ -123,7 +126,7 @@ export async function consentText(
 	row: ConsentBannerRow | undefined,
 	language?: string,
 ): Promise<ConsentText> {
-	return toText(row, await textLanguages(scope, language));
+	return toText(scope, row, await textLanguages(scope, language));
 }
 
 /**
@@ -167,7 +170,7 @@ export async function saveConsentTextDraft(scope: SiteScope, change: ConsentText
 			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
 			{ values },
 		);
-		return toText(saved ?? row, languages);
+		return toText(tx, saved ?? row, languages);
 	});
 }
 
@@ -199,6 +202,20 @@ export async function restoreConsentTextDraft(scope: SiteScope, version: unknown
  * (`ConsentBannerInvalidError`), and makes a new banner version, which the Consent records made from
  * now on name. `version`, when given, is published instead of the Draft (a Scheduled publish's).
  */
+/**
+ * Checks the words' Draft as publishing would, publishing nothing (`ConsentBannerInvalidError`):
+ * submitting them for Review asks it.
+ */
+export async function checkConsentTextReady(scope: SiteScope): Promise<void> {
+	const row = await scope.first(consentBanners);
+	const site = await siteLanguages(scope);
+	const draft = storedVersion(row?.draft);
+	const findings = findingsInEveryLanguage(site.languages, site.defaultLanguage, (languages) =>
+		textFindings(draft.values, languages),
+	);
+	if (findings.problems.length > 0) throw new ConsentBannerInvalidError(findings.problems);
+}
+
 export async function publishConsentText(scope: SiteScope, version?: unknown): Promise<Published> {
 	const row = await lockBanner(scope);
 	const site = await siteLanguages(scope);
@@ -247,8 +264,11 @@ function textFindings(values: ReturnType<typeof storedVersion>["values"], langua
 	return findings;
 }
 
-function toText(row: ConsentBannerRow | undefined, languages: Languages): ConsentText {
+async function toText(scope: SiteScope, row: ConsentBannerRow | undefined, languages: Languages): Promise<ConsentText> {
 	const draft = storedVersion(row?.draft);
+	const reviews = await currentReviews(scope, [
+		{ item: { kind: "consentBanner" }, draft: row?.draft ?? { values: {} }, name: null, postType: null },
+	]);
 	const published = row?.published ? storedVersion(row.published) : null;
 	const same = sameJson(draft.values, published?.values ?? {});
 	return {
@@ -262,6 +282,7 @@ function toText(row: ConsentBannerRow | undefined, languages: Languages): Consen
 		updatedAt: row?.updatedAt ?? null,
 		publishedAt: row?.publishedAt ?? null,
 		lastPublishedAt: row?.lastPublishedAt ?? null,
+		review: reviews.get("consentBanner") ?? null,
 	};
 }
 

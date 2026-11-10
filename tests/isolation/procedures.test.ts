@@ -1159,6 +1159,47 @@ describe("Scheduled publish", () => {
 	);
 });
 
+describe("Review", () => {
+	/** A new Draft Entry in the target's Site, made by the Superadmin. */
+	const draftIn = async (target: IsolationTarget) => {
+		const admin = await install.superadmin();
+		const { postTypeId } = await contentIn(target);
+		return (await admin.api.entries.create({ siteId: target.siteId, postTypeId, title: "Reviewed" })).entry.id;
+	};
+	/** A Review of its own in the target's Site, submitted by `api`'s person, or by the Superadmin where they can't. */
+	const reviewIn = async (api: ApiClient, target: IsolationTarget) => {
+		const items = [{ kind: "entry" as const, id: await draftIn(target) }];
+		const submitted = await api.reviews
+			.submit({ siteId: target.siteId, items })
+			.catch(async () => (await install.superadmin()).api.reviews.submit({ siteId: target.siteId, items }));
+		return submitted.reviews[0]?.id as string;
+	};
+	isolation.refuses("reviews.list", (api, { siteId }) => api.reviews.list({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("reviews.count", (api, { siteId }) => api.reviews.count({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"reviews.get",
+		async (api, target) => api.reviews.get({ siteId: target.siteId, reviewId: await reviewIn(api, target) }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"reviews.submit",
+		async (api, target) =>
+			api.reviews.submit({ siteId: target.siteId, items: [{ kind: "entry", id: await draftIn(target) }] }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"reviews.withdraw",
+		async (api, target) => api.reviews.withdraw({ siteId: target.siteId, reviewId: await reviewIn(api, target) }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"reviews.sendBack",
+		async (api, target) =>
+			api.reviews.sendBack({ siteId: target.siteId, reviewId: await reviewIn(api, target), comment: "Not yet." }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
 /** The Revision a target's Entry was published with, made once by the Superadmin. */
 const revisions = new Map<string, Promise<{ entryId: string; revisionId: string }>>();
 function revisionIn(target: IsolationTarget) {

@@ -200,7 +200,14 @@
 		"IMPERSONATION_REFUSED_STAFF": "Only the Superadmin impersonates Staff.",
 		"IMPERSONATION_REFUSED_SUPERADMIN": "Nobody impersonates the Superadmin.",
 		"IMPERSONATION_NEEDS_TWO_FACTOR": "Add an authenticator app or a passkey to your own account (Your account) before you impersonate anyone.",
-		"PERSON_NOT_FOUND": "There is no such person, or you can't reach them."
+		"PERSON_NOT_FOUND": "There is no such person, or you can't reach them.",
+		"REVIEW_INVALID_NOTHING": "Its Draft is what visitors see already: there is nothing to review.",
+		"REVIEW_INVALID_NOT_REVIEWABLE": "Only Entries, the Globals and the Consent banner's words are reviewed.",
+		"REVIEW_INVALID_COMMENT": "Say why you're sending it back.",
+		"ALREADY_IN_REVIEW": "It's In review already.",
+		"REVIEW_NOT_FOUND": "That Review isn't there any more.",
+		"REVIEW_DECIDED": "Someone acted on it already: it isn't In review any more.",
+		"REVIEW_NOT_YOURS": "Only the person who submitted it can withdraw it."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -1163,7 +1170,8 @@
 			"darkMode": "Dark mode",
 			"notifications": "Notifications",
 			"autoReply": "Auto-reply"
-		}
+		},
+		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author."
 	},
 	"staging": {
 		"button": "Staging",
@@ -1544,7 +1552,7 @@
 		"publishTitle": "Publish {title}",
 		"changesTitle": "Changes to {title}",
 		"publishIntro": "Visitors see these changes once you publish.",
-		"authorIntro": "Your changes are saved to the Draft. An Editor or Owner publishes them.",
+		"authorIntro": "Your changes are saved to the Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 		"nothingToPublish": "There are no changes on this page.",
 		"undo": "Undo",
 		"undoChange": "Undo {label}",
@@ -1640,7 +1648,11 @@
 			"ENTRY_SLUG_TAKEN": "Another page already has this address.",
 			"PATH_TAKEN": "Another page already has this address.",
 			"PAGE_PARENT_UNPUBLISHED": "Publish the parent page first.",
-			"TOO_MANY_REQUESTS": "Too many attempts. Wait a moment, then try again."
+			"TOO_MANY_REQUESTS": "Too many attempts. Wait a moment, then try again.",
+			"REVIEW_INVALID": "There are no changes on this page to submit.",
+			"ALREADY_IN_REVIEW": "This page is In review already.",
+			"REVIEW_DECIDED": "Someone acted on it already.",
+			"REVIEW_NOT_YOURS": "Only the person who submitted it can withdraw it."
 		},
 		"codeMode": {
 			"label": "Code mode",
@@ -1777,7 +1789,19 @@
 				"EDIT_MODE_ENDED": "Edit mode has ended. Open it again from the admin."
 			}
 		},
-		"alsoEditing": "Also editing this page"
+		"alsoEditing": "Also editing this page",
+		"inReview": "In review",
+		"inReviewBy": "{item} · In review · submitted by {name} · {time}",
+		"sentBackBy": "{item} · Sent back by {name} · {time}",
+		"sentBackHelp": "Change the page, then submit it for review again.",
+		"changedSinceSubmitted": "Changed since it was submitted: publishing it publishes the page as it is now.",
+		"reviewYou": "you",
+		"reviewNoteLabel": "Note for the reviewer (optional)",
+		"submitForReview": "Submit for review",
+		"submitting": "Submitting…",
+		"submittedForReview": "Submitted for review. An Editor or Owner checks it.",
+		"withdrawReview": "Withdraw from review",
+		"withdrawnFromReview": "Withdrawn from review."
 	},
 	"siteLanguages": {
 		"pageTitle": "Languages",
@@ -2632,8 +2656,8 @@
 			"liveSince": "Live since {date}",
 			"saveDraft": "Save draft",
 			"publish": "Publish",
-			"publishHelp": "Publishing puts this Draft live at once. Authors can only save Drafts; an Editor or Owner publishes.",
-			"authorHelp": "Your changes are saved as a Draft. An Editor or Owner publishes them.",
+			"publishHelp": "Publishing puts this Draft live at once. Authors submit their Drafts for review; an Editor or Owner publishes them.",
+			"authorHelp": "Your changes are saved as a Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 			"published": "{title} is live.",
 			"saveFirst": "The latest changes aren't saved yet, so nothing was published.",
 			"fixFirst": "Not published: fix what's marked first.",
@@ -5010,7 +5034,8 @@
 			"revision": "Revision",
 			"checkpointActivity": "Checkpoint",
 			"checkpointLeft": "Checkpoint on leaving",
-			"checkpointRestore": "Checkpoint before a restore"
+			"checkpointRestore": "Checkpoint before a restore",
+			"checkpointReview": "Submitted for review"
 		},
 		"item": {
 			"siteTemplate": "The Site template",
@@ -6206,6 +6231,13 @@
 				"cancel": "Scheduled publish cancelled",
 				"run": "Scheduled publish ran",
 				"fail": "Scheduled publish failed"
+			},
+			"review": {
+				"submit": "Submitted for review",
+				"withdraw": "Withdrawn from review",
+				"sendBack": "Review sent back",
+				"publish": "Published from review",
+				"schedule": "Scheduled from review"
 			}
 		}
 	},
@@ -6239,5 +6271,50 @@
 		"ended": "The impersonation ended: you are yourself again.",
 		"buttonLabel": "Impersonate {name}",
 		"accountNotice": "While you impersonate {name}, nothing about their account can change: you see it as they do."
+	},
+	"review": {
+		"submit": "Submit for review",
+		"submitTitle": "Submit for review",
+		"submitBody": "An Editor or Owner of this Site checks it, then publishes it, schedules it or sends it back with a comment. You can go on editing while it waits.",
+		"noteLabel": "Note for the reviewer (optional)",
+		"noteHelp": "Say what changed, or what to look at.",
+		"submitConfirm": "Submit for review",
+		"submitted": "Submitted for review.",
+		"fixFirst": "Not submitted: fix what's marked first.",
+		"cancel": "Cancel",
+		"close": "Close",
+		"badge": "In review",
+		"sentBackBadge": "Sent back",
+		"submittedBy": "Submitted by {name} · {time}",
+		"noteHeading": "Their note",
+		"changedSince": "Changed since submitted",
+		"changedSinceHelp": "The Draft changed after it was submitted. Publishing it publishes the Draft as it is now.",
+		"actHelp": "Publish it or schedule it with the buttons above, or send it back with a comment.",
+		"sendBack": "Send back…",
+		"sendBackTitle": "Send back",
+		"sendBackBody": "It goes back to a Draft, and its Author is emailed your comment. They see it here until they submit it again.",
+		"commentLabel": "Comment",
+		"commentRequired": "Say why you're sending it back.",
+		"sendBackConfirm": "Send back",
+		"sentBackDone": "Sent back to its Author.",
+		"withdraw": "Withdraw",
+		"withdrawn": "Withdrawn from review.",
+		"sentBackHeading": "Sent back",
+		"sentBackBy": "Sent back by {name} · {time}",
+		"sentBackHelp": "Change it, then submit it for review again.",
+		"you": "you",
+		"someone": "someone",
+		"via": "{name} via {client}",
+		"waitingHeading": "Waiting for review",
+		"waitingNone": "Nothing is waiting for review.",
+		"waitingCount": "{count, plural, one {# item is} other {# items are}} waiting for review.",
+		"waitingToAct": "{count, plural, one {# item waits} other {# items wait}} for you to publish, schedule or send back.",
+		"items": {
+			"globals": "Globals",
+			"consentBanner": "Consent banner's words"
+		},
+		"authorHelp": "Your changes are saved as a Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
+		"inReviewHelp": "It's In review. You can go on editing; the reviewer sees what changed since you submitted it.",
+		"navBadge": "{count} to review"
 	}
 }

@@ -87,5 +87,15 @@ export const publishItem = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("designSystem") }),
 ]);
 
+/**
+ * An item submitted for Review: the Content Authors change and can't publish (an Entry, Pages
+ * included; the Globals; the Consent banner's words).
+ */
+export const reviewItem = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("entry"), id }),
+	z.object({ kind: z.literal("globals") }),
+	z.object({ kind: z.literal("consentBanner") }),
+]);
+
 /** The Toolsets a client is given: WebCraft's own keys (`content`, `submissions`, …) and Modules' (`m.<id>`). */
 export const toolsetsInput = z.array(z.string().max(120)).max(100);
