@@ -371,6 +371,12 @@ const NAVIGATION: Record<AdminLevel, LevelNavigation> = {
 						icon: ComponentIcon,
 						to: "/sites/$siteId/components",
 					},
+					{
+						id: "site-design-system",
+						label: "shell.nav.designSystem",
+						icon: PaletteIcon,
+						to: "/sites/$siteId/design-system",
+					},
 					{ id: "site-loops", label: "shell.nav.loops", icon: RepeatIcon, to: "/sites/$siteId/loops" },
 					{ id: "site-filters", label: "shell.nav.filters", icon: ListFilterIcon, to: "/sites/$siteId/filters" },
 					{

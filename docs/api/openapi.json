@@ -11876,6 +11876,111 @@
 				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
+		"/designSystem/exportFile": {
+			"post": {
+				"operationId": "designSystem.exportFile",
+				"summary": "The whole Design system as one file.",
+				"tags": ["designSystem"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"version": {
+										"enum": ["draft", "published"],
+										"type": "string",
+										"default": "draft"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/designSystem/importFile": {
+			"post": {
+				"operationId": "designSystem.importFile",
+				"summary": "Imports a Design system file over the Draft (two steps: a preview of what changes, then a confirmation).",
+				"tags": ["designSystem"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"file": {
+										"type": "object",
+										"propertyNames": {
+											"type": "string"
+										},
+										"additionalProperties": {}
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "file"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-confirmation": true
+			}
+		},
 		"/designSystem/publish": {
 			"post": {
 				"operationId": "designSystem.publish",

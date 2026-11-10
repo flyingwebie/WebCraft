@@ -135,3 +135,42 @@ export async function tokenUses(
 	if (designSystem.tokens.focus.colour.colour === tokenId) uses.push({ kind: "focus" });
 	return uses;
 }
+
+/** How many places use each Class and each token: elements in the Drafts' trees, and pieces of the Design system's own CSS. */
+export type UseCounts = { classes: Record<string, number>; tokens: Record<string, number> };
+
+/**
+ * How many places use each Class and token now, as the Design system screen shows them: every
+ * element of a Template's or Component's Draft giving it (or its utility) to an element, and every
+ * piece of the Design system's CSS naming it (a Class's CSS, a base style, the custom CSS), the
+ * focus style and Classes' breakpoint styles. Published versions aren't counted again.
+ */
+export async function useCounts(scope: Pick<SiteScope, "select">, designSystem: DesignSystem): Promise<UseCounts> {
+	const classes: Record<string, number> = {};
+	const tokens: Record<string, number> = {};
+	const count = (into: Record<string, number>, id: string) => {
+		into[id] = (into[id] ?? 0) + 1;
+	};
+	for (const source of await treeSources(scope)) {
+		if (source.use.version !== "draft") continue;
+		for (const element of elementsOf(source.tree.nodes)) {
+			for (const id of new Set(element.classes)) {
+				if (id.startsWith(UTILITY_ID_PREFIX)) count(tokens, id.split(":")[2] ?? "");
+				else count(classes, id);
+			}
+		}
+	}
+	const pieces: CssText[] = [
+		...designSystem.classes.flatMap((each) => [each.styles, each.css, ...Object.values(each.breakpoints)]),
+		...Object.values(designSystem.baseStyles),
+		designSystem.customCss,
+	];
+	for (const css of pieces) {
+		const references = referencesIn(css);
+		for (const id of new Set(references.classes)) count(classes, id);
+		for (const id of new Set(references.tokens.map((ref) => ref.token))) count(tokens, id);
+	}
+	for (const each of designSystem.classes) for (const id of Object.keys(each.breakpoints)) count(tokens, id);
+	count(tokens, designSystem.tokens.focus.colour.colour);
+	return { classes, tokens };
+}

@@ -127,6 +127,12 @@ export function errorMessage(error: unknown): MessageKey {
 		case "SHARE_LINK_NOT_FOUND":
 		case "SHARE_LINKS_UNAVAILABLE":
 		case "SERVICES_LIST_INVALID":
+		case "DESIGN_SYSTEM_INVALID":
+		case "DESIGN_SYSTEM_FILE_INVALID":
+		case "TOKENS_FILE_INVALID":
+		case "CLASS_IN_USE":
+		case "TOKEN_IN_USE":
+		case "CLASS_NOT_FOUND":
 			return `errors.${code}`;
 		case "REVIEW_INVALID":
 			switch ((data as { reason?: unknown } | undefined)?.reason) {

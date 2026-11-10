@@ -31,6 +31,13 @@ export {
 } from "./components.ts";
 export * from "./consent/index.ts";
 export {
+	type ColourMode,
+	normaliseHex,
+	normaliseHexWithAlpha,
+	SHADE_STEPS,
+	TRANSPARENCY_STEPS,
+} from "./design-system/colour.ts";
+export {
 	CASCADE_LAYERS,
 	compileStylesheet,
 	contentHash,
@@ -70,6 +77,7 @@ export { SCRIPT_PATH, THEME_TOGGLE_SCRIPT } from "./design-system/theme-toggle.t
 export {
 	type Breakpoint,
 	type ColourToken,
+	colourSteps,
 	DEFAULT_TOKENS,
 	type Dimension,
 	type DimensionToken,
@@ -79,6 +87,7 @@ export {
 	type ScaleStep,
 	type ShadowLayer,
 	type ShadowToken,
+	stepRange,
 	type TokenRef,
 	type Tokens,
 	tokenNames,

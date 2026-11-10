@@ -207,7 +207,13 @@
 		"ALREADY_IN_REVIEW": "È già in revisione.",
 		"REVIEW_NOT_FOUND": "Quella revisione non c'è più.",
 		"REVIEW_DECIDED": "Qualcuno ha già deciso: non è più in revisione.",
-		"REVIEW_NOT_YOURS": "Solo chi l'ha inviato può ritirarlo."
+		"REVIEW_NOT_YOURS": "Solo chi l'ha inviato può ritirarlo.",
+		"DESIGN_SYSTEM_INVALID": "Il Design system ha dei problemi: prima correggili.",
+		"DESIGN_SYSTEM_FILE_INVALID": "Questo file non si può importare come Design system.",
+		"TOKENS_FILE_INVALID": "Questo file di Design token non si può importare.",
+		"CLASS_IN_USE": "Questa Classe è in uso, quindi non si può eliminare. Prima toglila da qui:",
+		"TOKEN_IN_USE": "Questo token è in uso, quindi non si può rimuovere. Prima smetti di usarlo qui:",
+		"CLASS_NOT_FOUND": "Questa Classe non è più nel Design system. Ricarica la pagina."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -400,7 +406,8 @@
 			"servicesList": "Elenco dei servizi",
 			"reportBranding": "Brand dei report",
 			"auditLog": "Audit log",
-			"contentApi": "Content API"
+			"contentApi": "Content API",
+			"designSystem": "Design system"
 		}
 	},
 	"masterKeyBanner": {
@@ -5988,7 +5995,9 @@
 				"change": "Lingua predefinita modificata"
 			},
 			"designSystem": {
-				"publish": "Design system pubblicato"
+				"publish": "Design system pubblicato",
+				"import": "File del Design system importato nella Bozza",
+				"export": "File del Design system esportato"
 			},
 			"domain": {
 				"add": "Dominio aggiunto",
@@ -6390,5 +6399,236 @@
 		"searchNote": "Un Post Type i cui campi di ricerca includono un Campo nascosto è escluso dalla ricerca dell'API.",
 		"saveShown": "Salva cosa mostra",
 		"shownSaved": "Quello che mostra la Content API è stato salvato."
+	},
+	"designSystem": {
+		"pageTitle": "Design system",
+		"heading": "Design system",
+		"intro": "Design token, Classi e CSS personalizzato di questo Sito. Si pubblicano insieme come un unico elemento; i clienti non li modificano mai.",
+		"staffOnly": "Solo lo Staff modifica il Design system.",
+		"published": "Design system pubblicato.",
+		"publish": "Pubblica il Design system",
+		"previewInEditMode": "Anteprima in modalità Modifica",
+		"previewProblems": "L'anteprima mostra l'ultima versione senza problemi. Prima correggi questi:",
+		"close": "Chiudi",
+		"cancel": "Annulla",
+		"uses": "{count, plural, one {# uso} other {# usi}}",
+		"usesHeading": "Usi",
+		"removeToken": "Rimuovi {name}",
+		"tokenName": "Nome di {name}",
+		"tokenValue": "Valore di {name}",
+		"tokenUnit": "Unità di {name}",
+		"tabs": {
+			"label": "Design system",
+			"tokens": "Token",
+			"classes": "Classi",
+			"base": "Stili di base",
+			"css": "CSS personalizzato"
+		},
+		"tokens": {
+			"groups": "Gruppi di Design token",
+			"group": {
+				"colours": "Colori",
+				"space": "Spaziature",
+				"text": "Scala tipografica",
+				"fonts": "Font",
+				"radius": "Raggi",
+				"shadows": "Ombre",
+				"breakpoints": "Breakpoint",
+				"widths": "Larghezze del contenuto"
+			}
+		},
+		"colours": {
+			"intro": "Tonalità e trasparenze sono calcolate da ogni colore di base. A ogni passo si può dare un valore proprio.",
+			"darkOn": "La modalità scura è attiva per questo Sito, quindi ogni colore ha un valore scuro.",
+			"darkOff": "La modalità scura è disattivata: i visitatori vedono solo i valori chiari. Scuro mostra i valori che avrebbero.",
+			"mode": "Mostra i valori chiari o scuri",
+			"light": "Chiaro",
+			"dark": "Scuro",
+			"add": "Aggiungi colore",
+			"darkMode": "Modalità scura",
+			"darkModeHelp": "Le pagine seguono il dispositivo del visitatore, o il selettore del tema, tra i valori chiari e scuri.",
+			"caption": "Scale di colore, valori {mode}",
+			"colour": "Colore",
+			"swatch": "{name} {step}: {value}",
+			"swatchOverridden": "{name} {step}: {value}, valore proprio",
+			"pick": "Scegli un campione per modificarlo.",
+			"editing": "{name} {step}, {mode}",
+			"base": "Colore di base (passo 60)",
+			"darkBase": "Colore di base scuro (passo 60)",
+			"override": "Valore proprio",
+			"picker": "Scegli il colore di {name} {step}",
+			"baseHelp": "Tutti gli altri passi sono calcolati da questo.",
+			"generated": "Calcolato: {value}",
+			"hexInvalid": "Scrivi un colore come #rrggbb.",
+			"name": "Nome",
+			"nameHelp": "Lettere minuscole, cifre e trattini. Rinominare cambia ogni uso.",
+			"useLightBase": "Usa il colore di base chiaro",
+			"reset": "Torna al valore calcolato",
+			"remove": "Rimuovi {name}",
+			"sampleText": "Testo su {name}",
+			"sampleLabel": "Etichetta",
+			"sampleOutline": "Contorno",
+			"previewTitle": "Anteprima dei colori, valori {mode}"
+		},
+		"contrast": {
+			"heading": "Contrasto",
+			"intro": "Le coppie di colori che il Design system mette insieme, in chiaro e, con la modalità scura attiva, in scuro. Il testo richiede 4,5:1; il testo grande e le parti dell'interfaccia 3:1. È un Controllo: non blocca mai la pubblicazione.",
+			"failing": "{count, plural, one {# coppia richiede} other {# coppie richiedono}} più contrasto, su {checked} controllate.",
+			"allPass": "Ogni coppia ha contrasto sufficiente ({checked} controllate).",
+			"pair": "{foreground} su {background}",
+			"ratio": "{ratio}:1, richiede {required}:1",
+			"use": {
+				"text": "testo",
+				"largeText": "testo grande",
+				"ui": "parte dell'interfaccia"
+			},
+			"source": {
+				"baseStyle": "Stile di base di {target}",
+				"focus": "Stile del focus",
+				"textOnTint": "Testo sulla sua tinta",
+				"labelOnSolid": "Etichetta sul colore pieno",
+				"solidOnTint": "Colore pieno sulla sua tinta"
+			}
+		},
+		"scales": {
+			"spaceIntro": "Fluida tra la finestra più piccola e la più grande: ogni passo è base × rapporto alla sua potenza.",
+			"textIntro": "I titoli negli stili di base usano questi passi.",
+			"baseMin": "Base nella finestra più piccola (px)",
+			"baseMax": "Base nella finestra più grande (px)",
+			"ratioMin": "Rapporto nella finestra più piccola",
+			"ratioMax": "Rapporto nella finestra più grande",
+			"viewportMin": "Finestra più piccola (px)",
+			"viewportMax": "Finestra più grande (px)",
+			"step": "Passo",
+			"property": "Proprietà personalizzata",
+			"size": "Più piccola → più grande",
+			"ownSizes": "Dimensioni proprie",
+			"minOf": "{name} nella finestra più piccola (px)",
+			"maxOf": "{name} nella finestra più grande (px)",
+			"reset": "Fai seguire di nuovo la scala a {name}",
+			"sample": "La rapida volpe marrone",
+			"previewTitle": "Anteprima di {scale}"
+		},
+		"fonts": {
+			"intro": "Elenchi di font, la prima scelta per prima.",
+			"add": "Aggiungi font",
+			"name": "Nome del font {name}",
+			"family": "Famiglie del font {name}, separate da virgole"
+		},
+		"radius": {
+			"intro": "Raggi degli angoli.",
+			"add": "Aggiungi raggio"
+		},
+		"widths": {
+			"intro": "Larghezze entro cui resta il contenuto.",
+			"add": "Aggiungi larghezza"
+		},
+		"shadows": {
+			"intro": "Ombre, dai loro valori DTCG. Modificane i livelli in un file di Design token."
+		},
+		"breakpoints": {
+			"intro": "Mobile first: gli stili di una Classe per un breakpoint valgono da questa larghezza in su.",
+			"add": "Aggiungi breakpoint",
+			"width": "Larghezza di {name} (px)"
+		},
+		"declarations": {
+			"property": "{what}: proprietà {number}",
+			"value": "{what}: valore {number}",
+			"remove": "{what}: rimuovi la dichiarazione {number}"
+		},
+		"classes": {
+			"new": "Nuova Classe",
+			"create": "Crea la Classe",
+			"nameInvalid": "Il nome di una Classe inizia con una lettera, poi lettere, cifre, trattini o trattini bassi, e non inizia mai con wc-.",
+			"search": "Cerca Classi",
+			"showGenerated": "Mostra le Classi generate ({count})",
+			"count": "{shown} di {count}",
+			"list": "Classi",
+			"generated": "Generata",
+			"none": "Ancora nessuna Classe.",
+			"pick": "Scegli una Classe per darle stile, o creane una nuova.",
+			"generatedHelp": "WebCraft ha creato questa Classe da uno stile occasionale. Quando la modifichi, diventa una Classe come le altre.",
+			"name": "Nome",
+			"nameHelp": "Gli elementi tengono la Classe per id, quindi rinominarla cambia ogni uso una volta pubblicata.",
+			"tokensFirst": "I valori propongono prima i Design token adatti a ogni proprietà; si può comunque scrivere qualsiasi altro valore.",
+			"styles": "Stili per ogni larghezza",
+			"fromBreakpoint": "Da {name} ({width} px) in su",
+			"ownCss": "Il CSS proprio della Classe",
+			"ownCssHelp": "Dichiarazioni, e regole annidate con &, come una regola per & h2. Controllato al salvataggio.",
+			"previewTitle": "Anteprima di un elemento con .{name}",
+			"sampleHeading": "Un titolo",
+			"sampleText": "Del testo dentro l'elemento, con",
+			"sampleLink": "un link",
+			"delete": "Elimina",
+			"deleteTitle": "Eliminare .{name}?",
+			"deleteBody": "Viene eliminata dalla Bozza. Una Classe usata da un elemento o dal CSS non si può eliminare: vedrai dove è usata.",
+			"deleteConfirm": "Elimina la Classe"
+		},
+		"base": {
+			"intro": "Gli stili degli elementi semplici, dai Design token. Le Classi e il CSS personalizzato vengono dopo.",
+			"element": "Elemento",
+			"styles": "Stili di {element}",
+			"previewTitle": "Anteprima degli stili di base"
+		},
+		"css": {
+			"label": "Il CSS personalizzato del Sito",
+			"help": "Nell'ultimo livello della cascata, quindi prevale senza !important. Controllato al salvataggio, ogni problema con riga e colonna.",
+			"previewTitle": "Anteprima con il CSS personalizzato"
+		},
+		"sample": {
+			"h1": "Titolo uno",
+			"h2": "Titolo due",
+			"h3": "Titolo tre",
+			"paragraph": "Un paragrafo di testo, come lo mostrano le pagine, con",
+			"link": "un link",
+			"mark": "testo evidenziato",
+			"small": "testo piccolo",
+			"item": "Una voce di elenco",
+			"quote": "Una citazione.",
+			"th": "Intestazione",
+			"caption": "Una didascalia",
+			"pre": "Testo preformattato"
+		},
+		"usedIn": {
+			"template": "Template {kind} ({version}): {count, plural, one {# elemento} other {# elementi}}",
+			"component": "Componente {name} ({version}): {count, plural, one {# elemento} other {# elementi}}",
+			"class": "Classe {name}",
+			"baseStyle": "Stile di base di {element}",
+			"customCss": "Il CSS personalizzato",
+			"focus": "Lo stile del focus",
+			"draft": "Bozza",
+			"published": "pubblicato"
+		},
+		"export": {
+			"button": "Esporta",
+			"draft": "File del Design system (Bozza)",
+			"published": "File del Design system (pubblicato)",
+			"tokens": "Solo i Design token (DTCG)"
+		},
+		"import": {
+			"button": "Importa",
+			"title": "Importa un file del Design system",
+			"body": "Sostituisce la Bozza, non ciò che vedono i visitatori: lo vedranno quando pubblichi il Design system. Prima vedrai cosa cambia.",
+			"file": "File del Design system (.json)",
+			"fileHelp": "Un file esportato da una schermata Design system, di questo Sito o di un altro.",
+			"notJson": "Questo file non è JSON.",
+			"changesHeading": "Cosa cambia nella Bozza",
+			"nothing": "Niente: il file è uguale alla Bozza.",
+			"adds": "aggiunge {names}",
+			"removes": "rimuove {names}",
+			"changes": "modifica {names}",
+			"setting": {
+				"viewport": "Cambiano le dimensioni della finestra",
+				"focus": "Cambia lo stile del focus",
+				"space": "Cambia la base o il rapporto della scala delle spaziature",
+				"text": "Cambia la base o il rapporto della scala tipografica"
+			},
+			"baseStyles": "Cambiano gli stili di base: {elements}",
+			"customCss": "Cambia il CSS personalizzato",
+			"darkOn": "La modalità scura si attiva",
+			"darkOff": "La modalità scura si disattiva",
+			"confirm": "Sostituisci la Bozza",
+			"done": "Design system importato nella Bozza."
+		}
 	}
 }
