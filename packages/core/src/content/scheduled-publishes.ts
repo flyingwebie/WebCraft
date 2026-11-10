@@ -5,6 +5,7 @@ import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import { type AuditVia, clientNameOf, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
+import { isUniqueViolation } from "../db-errors.ts";
 import type { Email } from "../email/index.ts";
 import { peopleNames, storedVia } from "../history/attribution.ts";
 import { itemState } from "../history/items.ts";
@@ -249,6 +250,26 @@ async function insertSchedule(
 	});
 }
 
+/**
+ * Saves a new Scheduled publish (`save`, outside a transaction), answering `ItemAlreadyScheduledError`
+ * when another one took one of its items at the same moment (the unique index refused it).
+ */
+async function saveRefusingScheduledAlready<Result>(
+	scope: SiteScope,
+	action: ScheduleAction,
+	frozen: readonly Frozen[],
+	save: () => Promise<Result>,
+): Promise<Result> {
+	try {
+		return await save();
+	} catch (error) {
+		if (isUniqueViolation(error, "scheduled_publish_items_item_unique")) {
+			await refuseScheduledAlready(scope, action, frozen);
+		}
+		throw error;
+	}
+}
+
 async function refuseScheduledAlready(scope: SiteScope, action: ScheduleAction, frozen: readonly Frozen[]) {
 	for (const { item } of frozen) {
 		const [waiting] = await scope.db
@@ -295,7 +316,10 @@ export async function scheduleItem(
 		return frozen;
 	});
 	await checkPublishable(scope, frozen, sources);
-	return getScheduled(scope, await insertSchedule(scope, { action: "publish", kind: "item", at, frozen }));
+	const id = await saveRefusingScheduledAlready(scope, "publish", frozen, () =>
+		insertSchedule(scope, { action: "publish", kind: "item", at, frozen }),
+	);
+	return getScheduled(scope, id);
 }
 
 /**
@@ -317,7 +341,10 @@ export async function scheduleUnpublish(scope: SiteScope, item: PublishItem, at:
 		await unpublishEntry(tx, item.id);
 		return frozen;
 	});
-	return getScheduled(scope, await insertSchedule(scope, { action: "unpublish", kind: "item", at, frozen }));
+	const id = await saveRefusingScheduledAlready(scope, "unpublish", frozen, () =>
+		insertSchedule(scope, { action: "unpublish", kind: "item", at, frozen }),
+	);
+	return getScheduled(scope, id);
 }
 
 /**
@@ -388,10 +415,12 @@ export async function scheduleAll(
 	});
 	const names = new Map(listed.map((draft) => [itemKey(draft.item), draft.name]));
 	await checkPublishable(scope, frozen, sources, setRefusal(names));
-	const id = await scope.transaction(async (tx) => {
-		await useConfirmation(tx, confirmation, request(frozen));
-		return insertSchedule(tx, { action: "publish", kind: "set", at, frozen });
-	});
+	const id = await saveRefusingScheduledAlready(scope, "publish", frozen, () =>
+		scope.transaction(async (tx) => {
+			await useConfirmation(tx, confirmation, request(frozen));
+			return insertSchedule(tx, { action: "publish", kind: "set", at, frozen });
+		}),
+	);
 	return { scheduled: await getScheduled(scope, id) };
 }
 

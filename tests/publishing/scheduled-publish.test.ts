@@ -8,18 +8,22 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { scheduledPublishesDue } from "@webcraft/core";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { approveAiClient, connectMcp } from "../harness/mcp.ts";
 import { goLive } from "../harness/staging.ts";
+import { confirmed } from "../webhooks/support.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
+let staffAccount: TestAccount;
 let workspaceId: string;
 
 beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
-	staff = (await install.createStaff({ workspaces: [workspaceId], name: "Ada Staff" })).browser;
+	const created = await install.createStaff({ workspaces: [workspaceId], name: "Ada Staff" });
+	staff = created.browser;
+	staffAccount = created.account;
 });
 
 afterAll(async () => {
@@ -235,7 +239,9 @@ describe("unpublishing an Entry", () => {
 		const url = "https://hooks.agency.example/gone";
 		install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
 		install.http.respond("POST", url, { status: 204 });
-		await staff.api.webhooks.add({ siteId: site.siteId, url, events: ["unpublish"] });
+		await confirmed(staff, staffAccount, () =>
+			staff.api.webhooks.add({ siteId: site.siteId, url, events: ["unpublish"] }),
+		);
 		const { entry } = await site.editor.api.entries.create({
 			siteId: site.siteId,
 			postTypeId: site.postTypeId,
@@ -638,7 +644,9 @@ describe("the worker", () => {
 		const url = "https://hooks.agency.example/once";
 		install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
 		install.http.respond("POST", url, { status: 204 });
-		await staff.api.webhooks.add({ siteId: site.siteId, url, events: ["publish"] });
+		await confirmed(staff, staffAccount, () =>
+			staff.api.webhooks.add({ siteId: site.siteId, url, events: ["publish"] }),
+		);
 		const { entry } = await site.editor.api.entries.create({
 			siteId: site.siteId,
 			postTypeId: site.postTypeId,
@@ -676,7 +684,9 @@ describe("the worker", () => {
 		const url = "https://hooks.agency.example/behalf";
 		install.dns.answer("hooks.agency.example", ["93.184.216.34"]);
 		install.http.respond("POST", url, { status: 204 });
-		await staff.api.webhooks.add({ siteId: site.siteId, url, events: ["publish"] });
+		await confirmed(staff, staffAccount, () =>
+			staff.api.webhooks.add({ siteId: site.siteId, url, events: ["publish"] }),
+		);
 		const { entry } = await site.editor.api.entries.create({
 			siteId: site.siteId,
 			postTypeId: site.postTypeId,
@@ -802,5 +812,25 @@ describe("API clients", () => {
 		expect(scheduling.filter((name) => writerTools.includes(name))).toEqual([]);
 		const publisher = await approveAiClient(install, owner.browser, { workspaceId, mayPublish: true });
 		expect(await names(publisher.accessToken)).toEqual(expect.arrayContaining(scheduling));
+	});
+});
+
+describe("two people at once", () => {
+	test("scheduling the same item at the same moment: one wins, the other is told it is scheduled already", async () => {
+		const site = await newSite();
+		const { entry } = await site.editor.api.entries.create({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+			title: "Twice",
+		});
+		const item = { kind: "entry" as const, id: entry.id };
+		const answers = await Promise.allSettled([
+			site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(10) }),
+			staff.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(20) }),
+		]);
+		expect(answers.filter((answer) => answer.status === "fulfilled")).toHaveLength(1);
+		const refused = answers.find((answer) => answer.status === "rejected") as PromiseRejectedResult;
+		expect(refused.reason).toMatchObject({ code: "ALREADY_SCHEDULED" });
+		expect((await staff.api.publishing.scheduled({ siteId: site.siteId })).scheduled).toHaveLength(1);
 	});
 });
