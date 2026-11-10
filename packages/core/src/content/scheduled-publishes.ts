@@ -5,19 +5,20 @@ import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import { type AuditVia, clientNameOf, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
-import { isUniqueViolation } from "../db-errors.ts";
+import { isSerializationFailure, isUniqueViolation } from "../db-errors.ts";
 import type { Email } from "../email/index.ts";
 import { peopleNames, storedVia } from "../history/attribution.ts";
 import { itemState } from "../history/items.ts";
 import { isUuid } from "../ids.ts";
 import type { Logger } from "../log.ts";
 import { can, type PersonActor, personIdOf } from "../permissions/can.ts";
+import type { Permission } from "../permissions/roles.ts";
 import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import type { ComponentSources } from "./components.ts";
 import { draftVersion } from "./json.ts";
 import { orderForPublish, PublishAllInvalidError, PublishAllRefusedError, siteDrafts } from "./publish-all.ts";
-import { isDatabaseFailure, type PublishItem, publishItems, publishPermission } from "./publishing.ts";
+import { type PublishItem, publishItems, publishPermission, requirePublishPermissions } from "./publishing.ts";
 import { type ScheduleAction, type ScheduleKind, scheduledItemId, scheduledItemWhere } from "./scheduled-items.ts";
 import { unpublishEntry } from "./unpublishing.ts";
 
@@ -364,9 +365,7 @@ export async function scheduleAll(
 	sources: ComponentSources,
 ): Promise<ScheduleAllPreview | ScheduleAllDone> {
 	checkScheduleTime(at, scope.now());
-	for (const permission of new Set(items.map(publishPermission))) {
-		if (!can(scope.access.actor, permission, siteResource(scope))) throw new PermissionDeniedError(permission);
-	}
+	requirePublishPermissions(scope, items);
 	const chosen = async (reader: SiteScope) => {
 		const drafts = await siteDrafts(reader);
 		const byKey = new Map(drafts.map((draft) => [itemKey(draft.item), draft]));
@@ -428,10 +427,16 @@ function siteResource(scope: SiteScope) {
 	return { level: "site", workspaceId: scope.workspace.id, siteId: scope.site.id } as const;
 }
 
+/** The Permission needed for each item of a Scheduled publish: `entry.publish` for an unpublish, else each item's own. */
+function changePermissions(action: string, items: readonly PublishItem[]): Permission[] {
+	return action === "unpublish" ? ["entry.publish"] : items.map(publishPermission);
+}
+
 /** Whether the person may publish every item of a Scheduled publish (an unpublish: `entry.publish`). */
 function mayChange(scope: SiteScope, action: string, items: readonly PublishItem[]): boolean {
-	const permissions = action === "unpublish" ? ["entry.publish" as const] : items.map(publishPermission);
-	return permissions.every((permission) => can(scope.access.actor, permission, siteResource(scope)));
+	return changePermissions(action, items).every((permission) =>
+		can(scope.access.actor, permission, siteResource(scope)),
+	);
 }
 
 /**
@@ -556,9 +561,9 @@ async function lockForChange(scope: SiteScope, scheduleId: string): Promise<{ ro
 	const items = await scope.select(scheduledPublishItems, eq(scheduledPublishItems.scheduleId, row.id), {
 		orderBy: [asc(scheduledPublishItems.position)],
 	});
-	const refused = (
-		row.action === "unpublish" ? ["entry.publish" as const] : items.map((each) => publishPermission(itemOf(each)))
-	).find((permission) => !can(scope.access.actor, permission, siteResource(scope)));
+	const refused = changePermissions(row.action, items.map(itemOf)).find(
+		(permission) => !can(scope.access.actor, permission, siteResource(scope)),
+	);
 	if (refused) throw new PermissionDeniedError(refused);
 	return { row, items };
 }
@@ -815,8 +820,10 @@ async function runOne(deps: ScheduledPublishingDeps, due: Due): Promise<RunOutco
 			return "done";
 		});
 	} catch (error) {
-		if (isDatabaseFailure(error) && due.attempts + 1 < SCHEDULE_LIMITS.maxAttempts) {
-			// Postgres gave up on it (two transactions at once): it is tried again the next minute.
+		if (isSerializationFailure(error) && due.attempts + 1 < SCHEDULE_LIMITS.maxAttempts) {
+			// Postgres gave up on it (a deadlock or a serialization failure, two transactions at once): it
+			// is tried again the next minute. Any other database failure (a constraint, a timeout, a lock
+			// that gave up) is deterministic, so trying again wouldn't help: it fails at once, below.
 			const background = await deps.data.background(due.siteId);
 			await background?.update(scheduledPublishes, { attempts: due.attempts + 1 }, eq(scheduledPublishes.id, due.id));
 			deps.log.warn("A Scheduled publish will be tried again", { siteId: due.siteId, scheduleId: due.id, error });
