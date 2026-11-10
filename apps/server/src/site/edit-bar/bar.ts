@@ -109,7 +109,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	const Socket = win.WebSocket;
 	const Parser = win.DOMParser;
 	const token = doc.querySelector('meta[name="webcraft-edit-token"]')?.getAttribute("content") ?? "";
-	const path = win.location.pathname;
+	/** The page's path; a never-published page whose slug changes in Page details moves (`kit.moved`). */
+	let path = win.location.pathname;
 	const SVG = "http://www.w3.org/2000/svg";
 	const HINT_KEY = "webcraft-edit-hint";
 	const PREVIEW_KEY = "webcraft-edit-preview";
@@ -832,6 +833,11 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			placeIn: placeAt,
 			pageDraft,
 			sheet,
+			moved(next) {
+				if (next === path) return;
+				path = next;
+				win.history.replaceState(win.history.state, "", next);
+			},
 			pickImage: () => Promise.resolve(null),
 		};
 		return made;
@@ -1463,6 +1469,16 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		images?.setUp(doc);
 		loops?.scan();
 		applyMode();
+		// Parts of the page shown again (a Filter's results, a Site script's own) bring regions and Loop
+		// marks of their own: they are made editable as they come.
+		let rescan = 0;
+		new win.MutationObserver((records) => {
+			const added = records.flatMap((record) => [...record.addedNodes]).filter((node) => !host.contains(node));
+			if (added.length === 0) return;
+			adopt(added);
+			cancel(rescan);
+			rescan = later(() => loops?.scan(), 150);
+		}).observe(doc.body, { childList: true, subtree: true });
 	}
 
 	/**
@@ -1832,8 +1848,9 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		);
 		regions = regions.filter((region) => region.isConnected);
 		const targets: PresenceTarget[] = [
+			// A Loop item's own regions are outlined with the item (the Loop item tools' targets).
 			...regions.flatMap((region) => {
-				const place = regionPlace(region);
+				const place = region.dataset.wcItem?.startsWith("loop:") ? null : regionPlace(region);
 				return place ? [{ ...place, rect: () => region.getBoundingClientRect(), outline: region }] : [];
 			}),
 			...(images?.targets() ?? []),
@@ -1869,7 +1886,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				presenceLayer.append(name);
 				presenceTags.set(key, name);
 			}
-			name.textContent = word("isHere", { name: here.map(displayName).join(", ") });
+			// One name for a person however many tabs they have open.
+			name.textContent = word("isHere", { name: [...new Set(here.map(displayName))].join(", ") });
 			name.style.background = colour;
 			presenceRects.set(name, target.rect);
 			tagged.add(key);

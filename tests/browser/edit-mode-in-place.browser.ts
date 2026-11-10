@@ -13,6 +13,9 @@ import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./
 
 let install: BrowserInstall;
 let editor: TestAccount;
+/** Two more people editing, for presence: each person may have at most 20 shared Drafts open at once. */
+let pat: TestAccount;
+let theo: TestAccount;
 let siteId: string;
 let entryId: string;
 let loopId: string;
@@ -28,6 +31,8 @@ beforeAll(async () => {
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	editor = (await local.createMember({ workspaceId, role: "editor", name: "Erin Editor" })).account;
+	pat = (await local.createMember({ workspaceId, role: "editor", name: "Pat Baker" })).account;
+	theo = (await local.createMember({ workspaceId, role: "editor", name: "Theo Writer" })).account;
 	await api.languages.add({ siteId, code: "it" });
 	const image = async (name: string, colourful: number) => {
 		const { media } = await api.media.upload({
@@ -106,21 +111,29 @@ afterAll(async () => {
 	await install.close();
 });
 
-/** The edit cookie from the first time Edit mode opened, handed to later pages (the link works once). */
-let editCookies: Cookie[] | undefined;
+/** Each person's edit cookie from the first time Edit mode opened, handed to later pages (the link works once). */
+const editCookies = new Map<string, Cookie[]>();
 
-/** A page in Edit mode, the first time through "Edit on site" in the admin; at a phone's size with `phone`. */
-async function editModePage(theme: Theme, options: { phone?: boolean } = {}): Promise<Page> {
+/**
+ * A page in Edit mode, the first time through "Edit on site" in the admin: as the Editor unless
+ * another person is given, at a phone's size with `phone`.
+ */
+async function editModePage(theme: Theme, options: { phone?: boolean; as?: TestAccount } = {}): Promise<Page> {
+	const person = options.as ?? editor;
 	const page = await install.newPage(theme);
 	if (options.phone) await page.setViewportSize({ width: 390, height: 844 });
-	if (editCookies) {
-		await page.context().addCookies(editCookies);
+	const cookies = editCookies.get(person.email);
+	if (cookies) {
+		await page.context().addCookies(cookies);
 	} else {
-		await install.signIn(page, editor);
+		await install.signIn(page, person);
 		await page.goto(install.adminUrl(`/sites/${siteId}`));
 		await page.getByRole("button", { name: "Edit on site" }).click();
 		await page.waitForURL((url) => url.hostname === new URL(install.siteUrl(slug, "/")).hostname);
-		editCookies = (await page.context().cookies()).filter((cookie) => cookie.name === "webcraft.edit");
+		editCookies.set(
+			person.email,
+			(await page.context().cookies()).filter((cookie) => cookie.name === "webcraft.edit"),
+		);
 	}
 	// The first-time hint is dismissed once, as people do: it stays out of later checks.
 	await page.addInitScript(() => {
@@ -434,5 +447,34 @@ describe("on a phone", () => {
 		});
 		expect(gap).toBeGreaterThanOrEqual(0);
 		expect(gap).toBeLessThan(16);
+	});
+});
+
+describe("Co-editing presence", () => {
+	test("others see who is on an image or a Loop item, outlined with their name", async () => {
+		const mine = await editModePage("light", { as: pat });
+		const theirs = await editModePage("light", { as: theo });
+		const presence = () =>
+			theirs.evaluate(() =>
+				[...(document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelectorAll(".presence-tag") ?? [])].map(
+					(tag) => tag.textContent,
+				),
+			);
+
+		await mine.locator("li").nth(1).focus();
+		// Pages earlier tests left open are people here too: what matters is the one this page is on.
+		const pats = (tags: (string | null)[]) => tags.filter((tag) => tag?.includes("Pat Baker"));
+		expect(pats(await eventually(presence, (tags) => pats(tags).length > 0))).toEqual([
+			expect.stringMatching(/^(Erin Editor, )?Pat Baker is here$/) as unknown as string,
+		]);
+		const boxed = await theirs.evaluate(
+			() => document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelectorAll(".presence-box").length ?? 0,
+		);
+		expect(boxed).toBeGreaterThanOrEqual(1);
+
+		await mine.locator('img[data-wc-item^="entry:"][data-wc-field="photo"]').click();
+		const outlined = () =>
+			theirs.locator('img[data-wc-item^="entry:"][data-wc-field="photo"]').evaluate((image) => image.style.outline);
+		expect(await eventually(outlined, (outline) => outline.includes("solid"))).toContain("solid");
 	});
 });

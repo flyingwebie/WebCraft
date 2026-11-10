@@ -29,6 +29,7 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 		summary: { field: string; label: string; type: string; value: unknown } | null;
 		translatable: { title: boolean; slug: boolean; seo: boolean; summary: boolean };
 		image: MediaChoice | null;
+		published: boolean;
 	};
 	type Problem = { at: string; rule?: string; message?: string };
 	/** What is open: the drawer, how to close it, and the element focus goes back to. */
@@ -123,6 +124,8 @@ export function pageDetailsPanel(kit: BarKit): DetailsPanel {
 					}
 					const data = saved.data as { details: Details; problems: Problem[] };
 					details = data.details;
+					// A page never published is found at its Draft's address: it moves with its slug.
+					if (key === "slug" && !details.published && details.address.path) kit.moved(details.address.path);
 					showProblems(data.problems, [key]);
 					update();
 					status.textContent = word("saved");

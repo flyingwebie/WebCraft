@@ -112,6 +112,11 @@ export type BarKit = {
 		close(): void;
 		dialog: HTMLDialogElement;
 	};
+	/**
+	 * The page is at another path now (a never-published page's slug changed in Page details): the
+	 * address bar and the bar's own requests follow it.
+	 */
+	moved(path: string): void;
 	/** Lets the person choose an image of the Site's Media library, or upload one; null when they choose none. */
 	pickImage(options: { title: string; current: string | null; from: HTMLElement | null }): Promise<MediaChoice | null>;
 	/** Opens the image popover for an image region (a part's own image regions open it too). */

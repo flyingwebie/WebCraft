@@ -43,6 +43,8 @@ export type PageDetails = {
 	translatable: { title: true; slug: true; seo: true; summary: boolean };
 	/** The social image the page shares now (its own, else the one it falls back to), to show; null for none. */
 	image: EditMediaItem | null;
+	/** Whether the Entry was published: a page never published is found at its Draft's address, which its slug moves. */
+	published: boolean;
 };
 
 /** A change from the Page details drawer: only what is given changes; null or "" clears an SEO field. */
@@ -110,6 +112,7 @@ export async function pageDetails(
 				: null,
 		translatable: { title: true, slug: true, seo: true, summary: summaryField?.translatable ?? false },
 		image: shown ? await shownImage(scope, media, shown, languages.language) : null,
+		published: entry.published !== null,
 	};
 }
 
