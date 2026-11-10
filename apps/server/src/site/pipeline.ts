@@ -49,6 +49,7 @@ import { pageParts } from "./filter-fragments.ts";
 import { formPost, isFormPath, sentPage, withFormTokens } from "./forms.ts";
 import { browserLanguageRedirect, languageChoiceResponse, languageVary } from "./languages.ts";
 import { type CachedPage, createPageCache, type PageCache } from "./page-cache.ts";
+import { isShareHost, shareAnswer } from "./share.ts";
 import { stagingEndpoint, stagingRefusal } from "./staging.ts";
 
 /** Where Modules' Site routes are: `/_wc/m/<route prefix>/…`. */
@@ -99,6 +100,8 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 				await readOnly(request, () => verification(services, hostname, url.pathname.slice(VERIFY_PATH.length))),
 			);
 		}
+		// The Share link address is the Install's own, under the sites domain: never a Site.
+		if (isShareHost(services, hostname)) return withSecurityHeaders(await shareAnswer(services, request));
 		const host = await services.sitePages.resolveHost(hostname);
 		if (!host) return notFound();
 		// From here on the client address is the visitor's, as the Site's CDN gives it when it has one.

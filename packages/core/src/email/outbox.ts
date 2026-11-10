@@ -11,7 +11,14 @@ import { SecretNotSetError, type Secrets } from "../secrets/store.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
 import type { EmailLogSmtp, RelatedItem } from "./email-log.ts";
 import { FAILING_AFTER, INSTALL_SMTP, INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
-import { type Mailer, type MailerReceipt, type OutgoingEmail, SmtpDeliveryError } from "./mailer.ts";
+import {
+	type EmailAttachment,
+	type EmailAttachmentRef,
+	type Mailer,
+	type MailerReceipt,
+	type OutgoingEmail,
+	SmtpDeliveryError,
+} from "./mailer.ts";
 
 /**
  * Which SMTP server an email goes through, chosen per email. System emails use the Install SMTP; a
@@ -52,6 +59,8 @@ export type OutboxEmail = {
 	 * emails); a Site's mail always says, so the Install SMTP's reply-to never reaches it.
 	 */
 	replyTo?: string | null;
+	/** Files to send with it, named here and read when it is sent (a Report's PDF). */
+	attachments?: readonly EmailAttachmentRef[];
 };
 
 export type OutboxPorts = {
@@ -66,6 +75,8 @@ export type OutboxPorts = {
 	data?: DataLayer;
 	/** Told once when a server becomes Failing (its third failed send in a row), with its last answer. */
 	onFailing?(smtp: string, lastResponse: string): Promise<void>;
+	/** Reads a file an email names, when it is sent; null when it is no longer kept. */
+	attachment?(ref: EmailAttachmentRef): Promise<EmailAttachment | null>;
 };
 
 /** How long a failing email is retried, counted from when it was queued. */
@@ -140,6 +151,18 @@ const message = z.object({
 	html: z.string(),
 	headers: z.record(z.string(), z.string()),
 	replyTo: z.string().nullable().optional(),
+	attachments: z
+		.array(
+			z.object({
+				kind: z.string(),
+				id: z.uuid(),
+				workspaceId: z.uuid(),
+				siteId: z.uuid().nullable(),
+				filename: z.string().max(200),
+			}),
+		)
+		.max(5)
+		.optional(),
 });
 
 type Message = z.infer<typeof message>;
@@ -186,9 +209,32 @@ export async function attemptDelivery(ports: OutboxPorts, attempt: EmailAttempt)
 	if (row.smtp !== smtp.label) await db.update(emailLog).set({ smtp: smtp.label }).where(thisRow);
 
 	const attemptedAt = clock.now();
+	// Files it names are read now; one that is gone fails it, as it would go out half-done.
+	const attachments: EmailAttachment[] = [];
+	for (const ref of attempt.message.attachments ?? []) {
+		const found = ports.attachment ? await ports.attachment(ref) : null;
+		if (!found) {
+			await db
+				.update(emailLog)
+				.set({
+					status: "failed",
+					attempts: attempt.attempt,
+					lastResponse: "Its attachment is no longer kept, so it wasn't sent.",
+					lastAttemptAt: attemptedAt,
+					nextAttemptAt: null,
+				})
+				.where(thisRow);
+			return;
+		}
+		attachments.push(found);
+	}
 	// Delivery is at least once: if the server takes the email but recording that fails, the job is
 	// retried and sends it again. The Message-ID stays the same, so mail clients can drop the copy.
-	const email = { ...emailOf(attempt.message, smtp.settings), messageId: messageIdOf(row.id, smtp.settings) };
+	const email = {
+		...emailOf(attempt.message, smtp.settings),
+		messageId: messageIdOf(row.id, smtp.settings),
+		...(attachments.length > 0 ? { attachments } : {}),
+	};
 	const outcome = await send(ports, smtp, email);
 	const attempts = attempt.attempt;
 
@@ -380,6 +426,7 @@ function messageOf(email: OutboxEmail): Message {
 		html,
 		headers,
 		...(email.replyTo !== undefined ? { replyTo: email.replyTo } : {}),
+		...(email.attachments?.length ? { attachments: [...email.attachments] } : {}),
 	};
 }
 

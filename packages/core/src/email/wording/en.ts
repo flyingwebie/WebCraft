@@ -113,6 +113,14 @@ export const en: EmailWording = {
 			paragraphs: [`${authorName} submitted “${itemTitle}” on ${siteName} for review.`],
 			action: { label: "Review it", path: reviewPath },
 		}),
+		"report-review": ({ reportName, placeName, reviewPath }) => ({
+			subject: `“${reportName}” is waiting for review`,
+			heading: "A Report is waiting for review",
+			paragraphs: [
+				`The Report “${reportName}” for ${placeName} is ready, with AI text to check. It goes out once someone approves it.`,
+			],
+			action: { label: "Review it", path: reviewPath },
+		}),
 		"review-result": ({ itemTitle, siteName, result, reviewerName, comment, itemPath }) => {
 			const published = result === "published";
 			return {
@@ -169,6 +177,15 @@ export const en: EmailWording = {
 				"Delete files you no longer need (emptying the Trash frees their space at once), or ask for a larger quota.",
 			],
 			action: { label: "See the storage", path: workspacePath },
+		}),
+		"report-failed": ({ reportName, placeName, reportsPath }) => ({
+			subject: `“${reportName}” couldn't be sent`,
+			heading: "A Report couldn't be sent",
+			paragraphs: [
+				`The PDF of the Report “${reportName}” for ${placeName} couldn't be made after three tries, so it wasn't sent to anyone.`,
+				"Its history says why. Send it again from there once the problem is fixed.",
+			],
+			action: { label: "Open its history", path: reportsPath },
 		}),
 		"webhook-switched-off": ({ webhookName, host, siteName, failures, webhooksPath }) => ({
 			subject: `A Webhook of ${siteName} was switched off`,

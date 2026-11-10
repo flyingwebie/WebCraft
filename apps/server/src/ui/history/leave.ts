@@ -24,8 +24,10 @@ function closingApi(): ApiClient {
 
 /**
  * Tells the server an editor of `item` closed (`history.leave`), when the page using it unmounts and
- * when the tab closes, so its Draft is kept as a Checkpoint if it changed since the newest one. Until
- * Co-editing knows who else is editing, every editor closing counts as the last one.
+ * when the tab closes, so its Draft is kept as a Checkpoint if it changed since the newest one. For
+ * editors that don't co-edit their Draft yet (the Consent banner's words): every one closing counts as
+ * the last one. Co-edited Drafts (Entries, the Globals) leave no call to make: the web process saves the
+ * Checkpoint itself when their last participant goes (ADR 0025).
  */
 export function useLeaveOnClose(siteId: string, item: HistoryItem): void {
 	const { item: kind, itemId } = itemSearch(item);

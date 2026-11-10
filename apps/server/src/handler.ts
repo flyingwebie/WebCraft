@@ -2,11 +2,29 @@ import { type InstallServices, normaliseHostname, type SitemapLimits } from "@we
 
 import { healthz, readyz } from "./admin/health.ts";
 import { createAdminSide } from "./admin/side.ts";
+import {
+	ADMIN_DRAFTS_PREFIX,
+	createDraftSockets,
+	EDIT_DRAFTS_PREFIX,
+	type UpgradeAnswer,
+} from "./co-editing/sockets.ts";
 import { type Handler, notFound, plainText } from "./responses.ts";
 import { createPageCache } from "./site/page-cache.ts";
 import { createSitePipeline } from "./site/pipeline.ts";
 
+export type { SocketUpgrade, UpgradeAnswer } from "./co-editing/sockets.ts";
 export type { Handler } from "./responses.ts";
+
+/**
+ * The web process's request handler, with what serving it needs besides answering requests: WebSocket
+ * upgrades (Co-editing, ADR 0025), answered as a refusal or a socket to open, and stopping.
+ */
+export type WebHandler = Handler & {
+	/** Answers a WebSocket upgrade request: a refusal, or what to do with the socket once it is open. */
+	upgrade(request: Request): Promise<UpgradeAnswer>;
+	/** Closes every open socket and stops listening for other processes' changes. */
+	stop(): Promise<void>;
+};
 
 /**
  * The hostname Railway's health checks always use, whatever the service's domains. On Railway
@@ -34,14 +52,32 @@ export type WebHandlerOptions = {
  * The web process's request handler: a plain `(Request) => Promise<Response>`. It routes every
  * request by hostname: the admin host to the admin side, every other hostname to the Site pipeline.
  */
-export function createWebHandler({ services, adminApp, filterVariants, sitemapLimits }: WebHandlerOptions): Handler {
+export function createWebHandler({ services, adminApp, filterVariants, sitemapLimits }: WebHandlerOptions): WebHandler {
 	const adminSide = createAdminSide(services, adminApp);
 	const sitePipeline = createSitePipeline(services, {
 		pageCache: createPageCache({ maxVariants: filterVariants }),
 		sitemapLimits,
 	});
+	const sockets = createDraftSockets(services);
 
-	return async (request) => {
+	const upgrade = async (request: Request): Promise<UpgradeAnswer> => {
+		try {
+			const url = new URL(request.url);
+			const hostname = normaliseHostname(url.hostname);
+			if (hostname === services.config.adminHost) {
+				return url.pathname.startsWith(ADMIN_DRAFTS_PREFIX) ? await sockets.admin(request) : notFound();
+			}
+			if (!url.pathname.startsWith(EDIT_DRAFTS_PREFIX)) return notFound();
+			const host = await services.sitePages.resolveHost(hostname);
+			if (!host || host.address === "redirect") return notFound();
+			return await sockets.site(request, host);
+		} catch (error) {
+			services.log.error("A WebSocket upgrade failed unexpectedly", { error, url: request.url });
+			return plainText(500, "Internal Server Error");
+		}
+	};
+
+	const handler = async (request: Request): Promise<Response> => {
 		try {
 			const hostname = normaliseHostname(new URL(request.url).hostname);
 			if (hostname === services.config.adminHost) {
@@ -56,6 +92,7 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 			return plainText(500, "Internal Server Error");
 		}
 	};
+	return Object.assign(handler, { upgrade, stop: () => sockets.stop() });
 }
 
 /** Railway's health check of a new deployment: only `/healthz` and `/readyz`, as on the admin host. */

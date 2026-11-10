@@ -21,6 +21,7 @@ const FORM_TIME_LABEL = "webcraft form time trap";
 const VISITOR_ID_LABEL = "webcraft visitor daily ids hmac-sha256 key";
 const RATE_LIMIT_LABEL = "webcraft rate limit keys hmac-sha256 key";
 const STAGING_PASSWORD_LABEL = "webcraft staging password access";
+const SHARE_LINK_PASSWORD_LABEL = "webcraft share link password v1";
 const API_TOKEN_LABEL = "webcraft api tokens hmac-sha256 key";
 const OAUTH_LABEL = "webcraft oauth codes and tokens hmac-sha256 key";
 const MCP_REQUEST_STATE_LABEL = "webcraft mcp request state hmac-sha256 key";
@@ -143,6 +144,21 @@ export async function editModeSigningKey(masterKey: MasterKey): Promise<CryptoKe
 export async function stagingPasswordKey(masterKey: MasterKey): Promise<CryptoKey> {
 	return crypto.subtle.deriveKey(
 		hkdf(STAGING_PASSWORD_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key a Share link's password access is signed with (HMAC-SHA256), derived from the Master key:
+ * the cookie the right password sets carries an expiry signed over the link and its password's hash,
+ * so a new password, removing it (or a new Master key) shuts out every browser it let in.
+ */
+export async function shareLinkPasswordKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(SHARE_LINK_PASSWORD_LABEL),
 		await stateOf(masterKey).base,
 		{ name: "HMAC", hash: "SHA-256", length: 256 },
 		false,

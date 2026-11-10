@@ -13,6 +13,7 @@ import {
 } from "@webcraft/core";
 
 import { createImageProcessor } from "./images.ts";
+import { createChromiumPdf } from "./pdf.ts";
 
 /** How long a stopping worker waits for running jobs to finish. */
 const STOP_TIMEOUT_MS = 30_000;
@@ -45,6 +46,8 @@ async function main(): Promise<void> {
 		opened: running,
 		// Only the worker processes images (ADR 0027).
 		images: createImageProcessor(),
+		// Only the worker renders Reports' PDFs, with the headless Chromium its image carries.
+		pdf: createChromiumPdf(),
 		http: createNodeHttp(),
 	});
 	// Every job's queue first: a schedule names its queue, which a new Install doesn't have yet.

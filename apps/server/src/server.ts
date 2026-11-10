@@ -14,6 +14,8 @@ const adminApp = import.meta.env.PROD
 	? serveStaticFiles(new URL("../client/", import.meta.url), renderAdmin)
 	: async (request: Request) => renderAdmin(request);
 
-export default createServerEntry({
-	fetch: createWebHandler({ services: await startWebServices(), adminApp }),
-});
+const handler = createWebHandler({ services: await startWebServices(), adminApp });
+
+// `serve.ts` hands WebSocket upgrades (Co-editing's Drafts) to `upgrade`, and stops the handler as the
+// process stops; the rest goes to `fetch`.
+export default Object.assign(createServerEntry({ fetch: handler }), { upgrade: handler.upgrade, stop: handler.stop });

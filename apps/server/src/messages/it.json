@@ -157,7 +157,29 @@
 		"CHECKPOINT_NOT_FOUND": "Questo elemento non ha più questo checkpoint: potrebbe essere stato rimosso dopo il tempo di conservazione dei checkpoint.",
 		"FILTER_NOT_FOUND": "Questo Filtro non esiste su questo Sito.",
 		"FILTER_INVALID": "Il Filtro non si può salvare: guarda cosa correggere.",
-		"FILTER_NAME_TAKEN": "Un altro Filtro di questo Sito ha quel nome: scegline un altro."
+		"FILTER_NAME_TAKEN": "Un altro Filtro di questo Sito ha quel nome: scegline un altro.",
+		"REPORT_NOT_FOUND": "Qui non c'è questo report.",
+		"REPORT_INVALID_NAME": "Date al report un nome di al massimo 100 caratteri.",
+		"REPORT_INVALID_RECIPIENTS": "Ogni destinatario deve essere un indirizzo email, al massimo 20.",
+		"REPORT_INVALID_LANGUAGE": "Scegliete una delle lingue in cui sono scritti i report.",
+		"REPORT_INVALID_TEXT": "Dite cosa è successo in poche frasi, con al massimo 5 suggerimenti.",
+		"REPORT_INVALID_REPORTS": "Una dashboard ha al massimo 10 report.",
+		"REPORT_SEND_NOT_FOUND": "Quel report non è più nella cronologia.",
+		"REPORT_SEND_REFUSED_NOT_HELD": "Solo un report in attesa di revisione si può modificare, approvare o scartare.",
+		"REPORT_SEND_REFUSED_NOT_SENT": "Solo un report inviato, o non riuscito, si può inviare di nuovo.",
+		"REPORT_SEND_REFUSED_NO_PDF": "Il PDF di questo report non è conservato.",
+		"REPORT_SEND_REFUSED_NO_RECIPIENTS": "Questo report non va a nessuno: aggiungete prima dei destinatari.",
+		"SHARE_LINK_NOT_FOUND": "Qui non c'è questo link di condivisione.",
+		"SHARE_LINK_INVALID_NAME": "Date al link un nome di al massimo 100 caratteri.",
+		"SHARE_LINK_INVALID_PASSWORD": "La password di un link di condivisione ha da 8 a 200 caratteri.",
+		"SHARE_LINK_INVALID_EXPIRES": "Il link deve scadere in un giorno futuro, entro cinque anni.",
+		"SHARE_LINK_INVALID_LINKS": "Una dashboard ha al massimo 20 link di condivisione.",
+		"SHARE_LINKS_UNAVAILABLE": "I link di condivisione richiedono il dominio dei siti dell'installazione (WEBCRAFT_SITES_DOMAIN): sono serviti sotto di esso.",
+		"BRANDING_INVALID_LOGO": "Un logo è un'immagine PNG, JPEG o WebP di al massimo 256 KB.",
+		"BRANDING_INVALID_ACCENT": "Un colore d'accento si scrive #rrggbb, come #c2410c.",
+		"BRANDING_INVALID_NAME": "Un nome ha al massimo 100 caratteri.",
+		"SERVICES_LIST_INVALID": "Ogni servizio ha bisogno di un nome; l'elenco ne contiene al massimo 30.",
+		"PDF_UNAVAILABLE": "Qui non è stato possibile creare il PDF."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -326,7 +348,9 @@
 			"ai": "AI",
 			"dashboards": "Dashboard",
 			"history": "Revisioni",
-			"filters": "Filtri"
+			"filters": "Filtri",
+			"servicesList": "Elenco dei servizi",
+			"reportBranding": "Brand dei report"
 		}
 	},
 	"masterKeyBanner": {
@@ -790,6 +814,10 @@
 			"name": "Spazio Media oltre l'80%",
 			"description": "Quando i Media di un Workspace che segui superano l'80% della quota di spazio."
 		},
+		"report-failed": {
+			"name": "Report non riuscito",
+			"description": "Quando il PDF di un report non può essere creato, quindi non viene inviato."
+		},
 		"webhook-switched-off": {
 			"name": "Webhook disattivato",
 			"description": "Quando un Webhook di un Site continua a non funzionare e viene disattivato."
@@ -797,6 +825,14 @@
 		"form-notification": {
 			"name": "Notifica di un Form",
 			"description": "Quando l'invio di un Form viene conservato."
+		},
+		"report-review": {
+			"name": "Report da rivedere",
+			"description": "Quando il testo dell'IA di un report attende una revisione."
+		},
+		"report": {
+			"name": "Report",
+			"description": "Un report inviato ai suoi destinatari."
 		},
 		"form-auto-reply": {
 			"name": "Risposta automatica",
@@ -1681,7 +1717,13 @@
 				"FORBIDDEN": "Solo lo Staff può cambiare il codice.",
 				"EDIT_MODE_ENDED": "La modalità di modifica è terminata. Riaprila dall'admin."
 			}
-		}
+		},
+		"alsoEditing": "Stanno modificando anche questa pagina",
+		"isHere": "{name} è qui",
+		"via": "{name} tramite {client}",
+		"viaTranslation": "{name} tramite la traduzione con IA",
+		"someone": "Qualcuno",
+		"publishedBy": "Pubblicato da {name}"
 	},
 	"siteLanguages": {
 		"pageTitle": "Lingue",
@@ -4699,7 +4741,9 @@
 		"missingOption": "{name} (non qui)",
 		"noOptions": "Ancora niente da scegliere qui.",
 		"optionsLoading": "Caricamento…",
-		"savedToast": "Widget salvato."
+		"savedToast": "Widget salvato.",
+		"reports": "Report",
+		"share": "Condividi"
 	},
 	"analyticsGoals": {
 		"goalsHeading": "Obiettivi",
@@ -5258,5 +5302,242 @@
 			"waiting": "L'anteprima mostra la bozza quando questi problemi sono risolti:",
 			"frame": "Anteprima dal vivo del Filtro {name}"
 		}
+	},
+	"reports": {
+		"heading": "Report di {name}",
+		"intro": "Ogni report invia questa dashboard in PDF secondo la sua cadenza, confrontando i suoi giorni con i precedenti, con un testo dell'IA in parole semplici quando lo spazio di lavoro ha una chiave IA.",
+		"backToDashboard": "Torna a {name}",
+		"new": "Nuovo report",
+		"empty": "Questa dashboard non ha ancora report.",
+		"emptyStaff": "Questa dashboard non ha ancora report. Impostatene uno per inviarlo al cliente ogni settimana o mese.",
+		"listLabel": "Report",
+		"columns": {
+			"name": "Report",
+			"schedule": "Cadenza",
+			"language": "Lingua",
+			"recipients": "Destinatari",
+			"next": "Prossimo invio",
+			"actions": "Azioni"
+		},
+		"schedules": {
+			"weekly": "Settimanale, il lunedì",
+			"monthly": "Mensile, il giorno 1"
+		},
+		"reviewBadge": "Prima la revisione",
+		"nobody": "Ancora nessuno",
+		"off": "Disattivato",
+		"menu": "Azioni per {name}",
+		"edit": "Modifica",
+		"changeRecipients": "Cambia destinatari",
+		"sendTest": "Invia una prova a me",
+		"testQueued": "La prova è in preparazione: arriverà nella vostra casella tra poco.",
+		"delete": "Elimina",
+		"deleted": "{name} è stato eliminato.",
+		"deleteTitle": "Eliminare {name}?",
+		"deleteIntro": "Smette di essere inviato, e la sua cronologia e i suoi PDF vengono eliminati.",
+		"historyOf": "Cronologia di {name}",
+		"historyIntro": "Ogni report creato, dal più recente, con il suo PDF per 400 giorni.",
+		"noHistory": "Non è ancora stato inviato nulla.",
+		"historyColumns": {
+			"made": "Creato",
+			"days": "Giorni",
+			"status": "Stato",
+			"ai": "Testo dell'IA",
+			"recipients": "Inviato a"
+		},
+		"test": "Prova",
+		"statuses": {
+			"preparing": "In preparazione",
+			"review": "In attesa di revisione",
+			"rendering": "Creazione del PDF",
+			"sent": "Inviato",
+			"failed": "Non riuscito",
+			"discarded": "Scartato"
+		},
+		"ai": {
+			"written": "Scritto",
+			"noKey": "Nessuno: manca la chiave IA",
+			"cap": "Nessuno: budget IA esaurito",
+			"failed": "Nessuno: il fornitore di IA non ha risposto",
+			"none": "Non necessario"
+		},
+		"mailStatuses": {
+			"queued": "In coda",
+			"retrying": "Nuovo tentativo",
+			"sent": "Inviata",
+			"failed": "Non riuscita",
+			"logged": "Scritta nel log",
+			"waiting": "Non ancora inviata"
+		},
+		"review": "Rivedi",
+		"download": "PDF",
+		"downloadLabel": "Scarica il PDF creato il {day}",
+		"resend": "Invia di nuovo",
+		"resendLabel": "Invia di nuovo il report creato il {day}",
+		"resent": "È in corso un nuovo invio.",
+		"close": "Chiudi",
+		"cancel": "Annulla",
+		"save": "Salva",
+		"create": "Imposta il report",
+		"created": "{name} è impostato.",
+		"saved": "{name} è stato salvato.",
+		"newTitle": "Nuovo report",
+		"editTitle": "Modifica {name}",
+		"dialogIntro": "Un report parte alle 06:00 UTC, ogni lunedì per la settimana precedente o il giorno 1 per il mese precedente.",
+		"name": "Nome",
+		"schedule": "Cadenza",
+		"scheduleHelp": "Ogni periodo è confrontato con quello precedente.",
+		"language": "Lingua",
+		"languageHelp": "La lingua delle parole del report e del suo testo dell'IA.",
+		"recipients": "Destinatari",
+		"recipientsHelp": "Indirizzi email, uno per riga, al massimo 20. Lo ricevono tramite la posta del sito.",
+		"recipientsTitle": "Destinatari di {name}",
+		"recipientsIntro": "Chi riceve questo report. La modifica vale dal prossimo.",
+		"recipientsSaved": "I destinatari di {name} sono stati salvati.",
+		"sending": "Invio",
+		"holdForReview": "Aspetta che qualcuno riveda il testo dell'IA",
+		"holdForReviewHelp": "Lo staff riceve un'email quando è pronto; parte quando uno di loro lo approva.",
+		"active": "Invialo secondo la cadenza",
+		"reviewTitle": "Rivedi il testo dell'IA",
+		"reviewIntro": "Controllate cosa ha scritto l'IA a partire dai totali di questo report. Modificate ciò che serve, poi approvate per inviarlo, oppure scartatelo.",
+		"whatHappened": "Cosa è successo",
+		"aboutWidget": "Su {title}",
+		"suggestions": "Suggerimenti",
+		"noSuggestions": "Nessun suggerimento.",
+		"suggestionN": "Suggerimento {n}",
+		"relatedService": "Servizio correlato",
+		"noService": "Nessuno",
+		"removeSuggestion": "Rimuovi il suggerimento {n}",
+		"discard": "Scarta",
+		"discarded": "Il report è stato scartato: non partirà.",
+		"approve": "Approva e invia",
+		"approved": "Approvato: il report è in invio.",
+		"forbiddenWorkspace": "I report di una dashboard dello spazio di lavoro sommano tutti i siti dello spazio di lavoro, quindi li apre solo chi vede ogni sito."
+	},
+	"shareLinks": {
+		"title": "Link di condivisione",
+		"intro": "Chiunque abbia un link di condivisione esplora questa dashboard senza un account: ne cambia i giorni e i filtri, nient'altro. I link non sono mai indicizzati dai motori di ricerca.",
+		"loading": "Caricamento dei link…",
+		"empty": "Ancora nessun link di condivisione.",
+		"listLabel": "Link di condivisione",
+		"states": {
+			"active": "Funziona",
+			"expired": "Scaduto",
+			"revoked": "Revocato"
+		},
+		"withPassword": "Password",
+		"withoutPassword": "Senza password",
+		"expires": "Scade il {day}",
+		"noExpiry": "Non scade mai",
+		"opens": "{count, plural, one {Aperto # volta} other {Aperto # volte}}",
+		"lastOpened": "l'ultima il {at}",
+		"revoke": "Revoca",
+		"revokeLabel": "Revoca {name}",
+		"revoked": "{name} non funziona più.",
+		"new": "Nuovo link di condivisione",
+		"newTitle": "Nuovo link di condivisione",
+		"name": "Nome",
+		"nameHelp": "Per distinguere i link, ad esempio a chi è stato inviato.",
+		"password": "Password (facoltativa)",
+		"passwordHelp": "Da 8 a 200 caratteri. Si inserisce una volta nella pagina del link; è conservata solo come hash.",
+		"expiry": "Scade il (facoltativo)",
+		"expiryHelp": "Il link smette di funzionare alla fine di quel giorno (UTC).",
+		"language": "Lingua della pagina",
+		"make": "Crea il link",
+		"cancel": "Annulla",
+		"close": "Chiudi",
+		"made": "{name} è pronto.",
+		"address": "Il suo indirizzo",
+		"shownOnce": "Copiatelo ora: non viene più mostrato.",
+		"copy": "Copia",
+		"copied": "L'indirizzo è stato copiato.",
+		"copyFailed": "Non è stato possibile copiare l'indirizzo: selezionatelo e copiatelo voi."
+	},
+	"branding": {
+		"installPageTitle": "Brand dei report",
+		"workspacePageTitle": "Brand dei report",
+		"sitePageTitle": "Brand dei report",
+		"installHeading": "Brand dei report",
+		"installIntro": "Come appaiono report e link di condivisione in tutta l'installazione. Gli spazi di lavoro possono usare un proprio brand dell'agenzia. Le email di sistema hanno il loro brand, in Email.",
+		"agencyTitle": "Brand dell'agenzia",
+		"agencyIntro": "Nome, logo e colore d'accento della vostra agenzia, in cima a ogni report e link di condivisione.",
+		"agencyName": "Nome dell'agenzia",
+		"accentColour": "Colore d'accento",
+		"accentHelp": "Scritto #rrggbb. Appare come una sottile barra in alto.",
+		"agencyLogo": "Logo dell'agenzia",
+		"clientTitle": "Brand del cliente",
+		"clientName": "Nome del cliente",
+		"clientNameHelp": "Se vuoto, il nome del sito (o dello spazio di lavoro).",
+		"clientLogo": "Logo del cliente",
+		"logoHelp": "Un'immagine PNG, JPEG o WebP di al massimo 256 KB.",
+		"logoKept": "Logo impostato: {type}, {size}.",
+		"noLogo": "Nessun logo.",
+		"logoChosen": "È stato scelto un nuovo logo: salvando lo si conserva.",
+		"logoRemoved": "Il logo viene rimosso quando salvate.",
+		"removeLogo": "Rimuovi il logo",
+		"showTitle": "Cosa appare",
+		"showIntro": "Attivate o disattivate ogni parte su tutti i report e i link di condivisione.",
+		"show": {
+			"agency": "Brand dell'agenzia",
+			"client": "Brand del cliente",
+			"madeWith": "Creato con WebCraft"
+		},
+		"save": "Salva",
+		"saved": "Il brand è stato salvato.",
+		"workspaceHeading": "Brand dei report",
+		"workspaceIntro": "Come appaiono i report e i link di condivisione di questo spazio di lavoro.",
+		"workspaceAgencyIntro": "Usate il brand dell'agenzia dell'installazione, o uno proprio di questo spazio di lavoro.",
+		"ownAgency": "Usa un brand dell'agenzia proprio di questo spazio di lavoro",
+		"workspaceClientIntro": "Il cliente sui report e i link di condivisione delle dashboard dello spazio di lavoro, e sui siti senza un brand proprio.",
+		"workspaceShowIntro": "Seguite la scelta dell'installazione, o fatene una propria di questo spazio di lavoro.",
+		"asInstallShown": "Come l'installazione: visibile",
+		"asInstallHidden": "Come l'installazione: nascosto",
+		"shown": "Visibile",
+		"hidden": "Nascosto",
+		"siteHeading": "Brand dei report",
+		"siteIntro": "Come appare questo sito sui suoi report e link di condivisione.",
+		"siteClientIntro": "Se vuoto, il nome del sito e il logo dello spazio di lavoro."
+	},
+	"servicesList": {
+		"pageTitle": "Elenco dei servizi",
+		"heading": "Elenco dei servizi",
+		"intro": "I servizi che la vostra agenzia offre, per tutta l'installazione. I suggerimenti dell'IA nei report possono indicarne uno.",
+		"empty": "Ancora nessun servizio.",
+		"name": "Nome del servizio {n}",
+		"description": "Cos'è il servizio {n}",
+		"moveUp": "Sposta su il servizio {n}",
+		"moveDown": "Sposta giù il servizio {n}",
+		"remove": "Rimuovi il servizio {n}",
+		"moved": "{name} spostato alla posizione {position}.",
+		"removed": "{name} è stato rimosso. Salvate per conservare la modifica.",
+		"unnamed": "Un servizio senza nome",
+		"add": "Aggiungi un servizio",
+		"save": "Salva l'elenco",
+		"saved": "L'elenco dei servizi è stato salvato."
+	},
+	"coEditing": {
+		"someone": "Qualcuno",
+		"via": "{name} tramite {client}",
+		"viaTranslation": "{name} tramite la traduzione con IA",
+		"alsoHere": "Stanno modificando anche",
+		"isHere": "{name} è qui",
+		"published": "Pubblicato",
+		"publishedBy": "Pubblicato da {name}",
+		"status": {
+			"connecting": "Connessione…",
+			"saving": "Salvataggio…",
+			"saved": "Tutte le modifiche salvate",
+			"offline": "Offline: le modifiche restano qui e partono al ritorno della connessione",
+			"readOnly": "Sola lettura finché la connessione non torna",
+			"viewOnly": "Puoi vedere questa bozza",
+			"ended": "La modifica è terminata"
+		},
+		"banner": {
+			"offline": "Sei offline. Continua pure: le tue modifiche restano qui e si uniscono a quelle degli altri quando la connessione torna. Dopo 5 minuti senza connessione, la bozza diventa di sola lettura.",
+			"readOnly": "Nessuna connessione da 5 minuti: la bozza è di sola lettura finché la connessione non torna. Le modifiche fatte prima restano e verranno inviate allora.",
+			"viewOnly": "Puoi vedere questa bozza mentre gli altri la modificano, ma non modificarla.",
+			"ended": "La modifica è terminata: sei uscito o non hai più accesso. Ricarica la pagina per continuare."
+		},
+		"refused": "Questa modifica non è stata salvata: {reason}"
 	}
 }

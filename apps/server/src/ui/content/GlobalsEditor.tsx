@@ -3,20 +3,21 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
-import { errorCode, errorMessage } from "../errors.ts";
+import { useCoEditedValues } from "../co-editing/co-edited.ts";
+import {
+	PresenceList,
+	PresenceOutline,
+	SharedDraftBanner,
+	SharedDraftStatus,
+	usePlaceTracking,
+} from "../co-editing/Presence.tsx";
+import { documentValues, readFieldValues, withFieldValues } from "../co-editing/values.ts";
+import { errorMessage } from "../errors.ts";
 import { HistoryCard } from "../history/HistoryCard.tsx";
 import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
-import { useAutosave } from "./autosave.ts";
-import {
-	DraftStatusCard,
-	LanguageTabs,
-	SaveErrorBanner,
-	SaveStatusText,
-	StatusBadge,
-	useDraftPublish,
-} from "./DraftParts.tsx";
+import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
 import type { FieldValues, GlobalsView, Json, Problem } from "./model.ts";
 
@@ -44,27 +45,37 @@ export function GlobalsEditor({
 	const t = useT();
 	const router = useRouter();
 	const [globals, setGlobals] = useState(loaded);
-	const [values, setValues] = useState(() => loaded.draft as FieldValues);
 	const [refused, setRefused] = useState<Problem[]>([]);
 	const [saveError, setSaveError] = useState<MessageKey | null>(null);
 	const [media, setMedia] = useState(knownMedia);
 	const canPublish = permissions.includes("entry.publish");
+	const valueLanguages = { language: globals.language, defaultLanguage: languages.default };
 
-	const autosave = useAutosave<Record<string, Json>>({
-		merge: (older, newer) => ({ ...older, ...newer }),
-		save: async (fields) => {
-			const api = await getApi();
-			const { globals: saved } = await api.globals.saveDraft({ siteId, language: globals.language, fields });
-			setGlobals(saved);
-			setRefused([]);
-			setSaveError(null);
+	// The Draft is shared (Co-editing): everyone editing it sees each other's changes as they are saved.
+	const coEdited = useCoEditedValues<FieldValues, Record<string, Json>>({
+		path: `/api/drafts/${siteId}/globals`,
+		initial: loaded.draft as FieldValues,
+		read: (draft) => readFieldValues(documentValues(draft), globals.fields, valueLanguages),
+		write: (draft, fields) => withFieldValues(draft, fields, globals.fields, valueLanguages),
+		merge: (before, fields) => ({ ...before, ...fields }),
+		onRefused: (refusal) => {
+			const data = refusal.data as { problems?: Problem[] } | undefined;
+			if (refusal.code === "GLOBALS_INVALID" && data?.problems) setRefused(data.problems);
+			setSaveError(errorMessage(refusal));
 		},
-		onFailed: (error) => {
-			const data = (error as { data?: { problems?: Problem[] } }).data;
-			if (errorCode(error) === "GLOBALS_INVALID" && data?.problems) setRefused(data.problems);
-			setSaveError(errorMessage(error));
+		onSettled: async () => {
+			const api = await getApi();
+			const { globals: fresh } = await api.globals.get({ siteId, language: globals.language });
+			setGlobals(fresh);
 		},
 	});
+	const { shared, values } = coEdited;
+	const autosave = {
+		status: shared.status === "saved" ? "saved" : shared.status === "saving" ? "saving" : "waiting",
+		flush: shared.flush,
+	} as const;
+	const tracking = usePlaceTracking(shared.place);
+	const locked = shared.status === "readOnly" || shared.status === "ended" || !shared.editable;
 
 	const problems = [...globals.problems, ...refused];
 	const context: ValueContext = {
@@ -101,12 +112,8 @@ export function GlobalsEditor({
 					</div>
 					<p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-sm">
 						<span>{t("globals.intro")}</span>
-						{globals.updatedAt ? (
-							<>
-								<span aria-hidden="true">·</span>
-								<SaveStatusText status={autosave.status} savedAt={globals.updatedAt} />
-							</>
-						) : null}
+						<span aria-hidden="true">·</span>
+						<SharedDraftStatus status={shared.status} editable={shared.editable} publishedBy={coEdited.publishedBy} />
 					</p>
 				</div>
 
@@ -119,6 +126,10 @@ export function GlobalsEditor({
 						search: { language: language === languages.default ? undefined : language },
 					})}
 				/>
+
+				<PresenceList participants={shared.participants} />
+
+				<SharedDraftBanner status={shared.status} editable={shared.editable} />
 
 				{saveError ? <SaveErrorBanner error={saveError} onRetry={() => void autosave.flush()} /> : null}
 
@@ -138,15 +149,23 @@ export function GlobalsEditor({
 						) : null}
 					</div>
 				) : (
-					<FieldValueList
-						fields={globals.fields}
-						values={values}
-						onChange={(key, value) => {
-							setValues((before) => ({ ...before, [key]: value }));
-							autosave.change({ [key]: value });
-						}}
-						context={context}
-					/>
+					<fieldset disabled={locked} className="min-w-0" {...tracking}>
+						<FieldValueList
+							fields={globals.fields}
+							values={values}
+							onChange={(key, value) => {
+								setRefused([]);
+								setSaveError(null);
+								coEdited.change({ [key]: value });
+							}}
+							context={context}
+							wrap={(field, control) => (
+								<PresenceOutline place={field.key} participants={shared.participants}>
+									{control}
+								</PresenceOutline>
+							)}
+						/>
+					</fieldset>
 				)}
 			</div>
 

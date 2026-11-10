@@ -5,11 +5,12 @@ import {
 	type AiProviders,
 	type AiUsage,
 	type ImageDescriptionRequest,
+	type ReportTextRequest,
 	type TranslationRequest,
 } from "@webcraft/core";
 
 /** A call WebCraft made to the fake AI providers: an image description, a translation or a key's Test. */
-export type FakeAiRequest = ImageDescriptionRequest | TranslationRequest;
+export type FakeAiRequest = ImageDescriptionRequest | TranslationRequest | ReportTextRequest;
 
 /**
  * AI providers that never leave the test (ADR 0011 calls real ones directly). Tests say how they
@@ -27,6 +28,13 @@ export type FakeAi = {
 		translate: (text: string, request: TranslationRequest) => string,
 		usage?: AiUsage | ((request: TranslationRequest, texts: string[]) => AiUsage),
 	): void;
+	/**
+	 * Answers every Report's text with what `write` makes of the request (an object, sent as JSON; or
+	 * the provider's raw text), reporting `usage` (by default 1,000 tokens in and 300 out).
+	 */
+	reportWith(write: (request: ReportTextRequest) => unknown, usage?: AiUsage): void;
+	/** The Report text requests made so far, oldest first. */
+	reportRequests(): ReportTextRequest[];
 	/** Every call from then on fails, as a provider that is down, refuses or answers nonsense. */
 	fail(problem?: AiProviderProblem): void;
 	/** Every request made so far, oldest first. */
@@ -47,10 +55,19 @@ export function createFakeAi(): FakeAi {
 		throw new AiProviderError("unavailable", "The fake AI provider has no answer prepared.");
 	};
 	let translate: ((request: TranslationRequest) => { texts: string[]; usage: AiUsage }) | null = null;
+	let report: ((request: ReportTextRequest) => AiAnswer) | null = null;
 	const failed = (problem: AiProviderProblem) => new AiProviderError(problem, `The fake AI provider is ${problem}.`);
 	return {
 		requests,
 		translations: () => requests.filter((request): request is TranslationRequest => "texts" in request),
+		reportRequests: () => requests.filter((request): request is ReportTextRequest => request.purpose === "report"),
+		reportWith(write, usage = { inputTokens: 1000, outputTokens: 300 }) {
+			failing = null;
+			report = (request) => {
+				const answer = write(request);
+				return { text: typeof answer === "string" ? answer : JSON.stringify(answer), usage };
+			};
+		},
 		answer(answer) {
 			failing = null;
 			describe = typeof answer === "string" ? () => ({ text: answer }) : answer;
@@ -77,6 +94,12 @@ export function createFakeAi(): FakeAi {
 				requests.push(request);
 				if (failing) throw failed(failing);
 				return describe(request);
+			},
+			async writeReport(request) {
+				requests.push(request);
+				if (failing) throw failed(failing);
+				if (!report) throw new AiProviderError("unavailable", "The fake AI provider has no Report text prepared.");
+				return report(request);
 			},
 			async translate(request) {
 				requests.push(request);

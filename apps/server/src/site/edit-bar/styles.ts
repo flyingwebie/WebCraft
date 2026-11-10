@@ -219,6 +219,15 @@ svg { flex: none; }
 .hint-text { margin: 0.5rem 0 0.75rem; color: var(--muted); }
 .hint-actions { display: flex; justify-content: flex-end; }
 
+.others { display: flex; align-items: center; gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
+.other {
+	display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 999px;
+	color: #ffffff; font-size: 11px; font-weight: 700; box-shadow: 0 0 0 2px var(--bar);
+}
+.presence-tag {
+	position: fixed; z-index: 2147482998; padding: 0.125rem 0.5rem; border-radius: 0.25rem;
+	color: #ffffff; font-size: 12px; font-weight: 600; pointer-events: none; white-space: nowrap;
+}
 .tag {
 	position: fixed; z-index: 2147482999; padding: 0.125rem 0.5rem; border-radius: 0.25rem 0.25rem 0 0;
 	background: #4f46e5; color: #ffffff; font-size: 12px; font-weight: 600; pointer-events: none;

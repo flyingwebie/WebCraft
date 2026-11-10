@@ -126,6 +126,8 @@ describe("the document", () => {
 				["members.changeAccess", "member.changeAccess"],
 				["members.invite", "member.invite"],
 				["members.remove", "member.remove"],
+				["shareLinks.create", "shareLink.change"],
+				["shareLinks.update", "shareLink.change"],
 				["siteSmtp.update", "siteSmtp.change"],
 				["staging.setPassword", "stagingPassword.change"],
 				["webhooks.add", "webhook.change"],

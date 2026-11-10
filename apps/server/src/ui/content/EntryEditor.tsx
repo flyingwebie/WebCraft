@@ -19,6 +19,15 @@ import { ArrowLeftIcon, CircleAlertIcon, Trash2Icon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { getApi } from "../api.ts";
+import { useCoEditedValues } from "../co-editing/co-edited.ts";
+import {
+	PresenceList,
+	PresenceOutline,
+	SharedDraftBanner,
+	SharedDraftStatus,
+	usePlaceTracking,
+} from "../co-editing/Presence.tsx";
+import { type EntryFormChange, entryValuesIn, withEntryChange } from "../co-editing/values.ts";
 import { errorCode, errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { HistoryCard } from "../history/HistoryCard.tsx";
@@ -27,43 +36,24 @@ import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
 import { OutdatedTranslations } from "../translations/OutdatedTranslations.tsx";
-import { useAutosave } from "./autosave.ts";
-import {
-	DraftStatusCard,
-	LanguageTabs,
-	SaveErrorBanner,
-	SaveStatusText,
-	StatusBadge,
-	useDraftPublish,
-} from "./DraftParts.tsx";
+import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
-import { type EntryView, type FieldValues, type Json, type PostTypeView, type Problem, problemsAt } from "./model.ts";
+import { type EntryView, type FieldValues, type PostTypeView, type Problem, problemsAt } from "./model.ts";
 import { pageTree, parentSlugs } from "./page-tree.ts";
 import { problemText } from "./problems.ts";
 import type { RelationshipTargets } from "./RelationshipPicker.tsx";
 
 /** A change to an Entry's Draft, as `entries.saveDraft` takes it. */
-type EntryChange = {
-	title?: string;
-	slug?: string;
-	parentId?: string | null;
-	fields?: Record<string, Json>;
-	seo?: Partial<SeoValues>;
-};
+type EntryChange = EntryFormChange & { seo?: Partial<SeoValues> };
 
 /** A Page another Page can be under. */
 export type PageOption = { id: string; title: string; slug: string; parentId: string | null };
 
-function mergeChanges(older: EntryChange, newer: EntryChange): EntryChange {
-	const fields = older.fields || newer.fields ? { ...older.fields, ...newer.fields } : undefined;
-	const seo = older.seo || newer.seo ? { ...older.seo, ...newer.seo } : undefined;
-	return { ...older, ...newer, ...(fields ? { fields } : {}), ...(seo ? { seo } : {}) };
-}
-
 /**
  * The Entry editor: an Entry's title, slug (and parent Page, for a Page) and every Field of its Post
- * Type, in one language. Changes save to the Draft by themselves; what keeps the Draft from being
- * published shows next to each value and in the Status card. Editors, Owners and Staff publish;
+ * Type, in one language. The Draft is shared (Co-editing, ADR 0025): changes save by themselves and
+ * everyone editing it sees each other's as they are saved, with who is where; what keeps the Draft
+ * from being published shows next to each value and in the Status card. Editors, Owners and Staff publish;
  * Authors save Drafts only (Review comes later).
  */
 export function EntryEditor({
@@ -92,58 +82,70 @@ export function EntryEditor({
 	const t = useT();
 	const router = useRouter();
 	const [entry, setEntry] = useState(loaded);
-	const [values, setValues] = useState(() => ({
-		title: loaded.draft.title,
-		slug: loaded.draft.slug,
-		parentId: loaded.draft.parentId,
-		fields: loaded.draft.fields as FieldValues,
-		seo: loaded.draft.seo,
-	}));
 	const [refused, setRefused] = useState<Problem[]>([]);
 	const [slugTaken, setSlugTaken] = useState(false);
 	const [saveError, setSaveError] = useState<MessageKey | null>(null);
 	const [media, setMedia] = useState(knownMedia);
 	const canPublish = permissions.includes("entry.publish");
 	const isPage = postType.builtIn === "page";
+	const valueLanguages = { language: entry.language, defaultLanguage: languages.default };
 
-	const autosave = useAutosave<EntryChange>({
-		merge: mergeChanges,
-		save: async (change) => {
-			const api = await getApi();
-			const { entry: saved } = await api.entries.saveDraft({
-				siteId,
-				entryId: entry.id,
-				language: entry.language,
-				...change,
-			});
-			setEntry(saved);
-			setRefused([]);
-			setSlugTaken(false);
-			setSaveError(null);
+	// The Draft is shared (Co-editing): everyone editing it sees each other's changes as they are saved.
+	const coEdited = useCoEditedValues<ReturnType<typeof entryValuesIn>, EntryChange>({
+		path: `/api/drafts/${siteId}/entry/${loaded.id}`,
+		initial: {
+			title: loaded.draft.title,
+			slug: loaded.draft.slug,
+			parentId: loaded.draft.parentId,
+			fields: loaded.draft.fields as FieldValues,
+			seo: loaded.draft.seo as FieldValues,
 		},
-		onFailed: (error) => {
-			const code = errorCode(error);
-			const data = (error as { data?: { problems?: Problem[] } }).data;
-			if (code === "ENTRY_INVALID" && data?.problems) {
-				setRefused(data.problems);
-				setSaveError("errors.ENTRY_INVALID");
-			} else if (code === "ENTRY_SLUG_TAKEN") {
-				setSlugTaken(true);
-				setSaveError("errors.ENTRY_SLUG_TAKEN");
-			} else {
-				setSaveError(errorMessage(error));
-			}
-		},
-	});
-
-	const change = (part: EntryChange) => {
-		setValues((before) => ({
+		read: (draft) => entryValuesIn(draft, postType.fields, valueLanguages),
+		write: (draft, part) => withEntryChange(draft, part, postType.fields, valueLanguages),
+		merge: (before, part) => ({
 			...before,
 			...part,
 			fields: { ...before.fields, ...part.fields },
 			seo: { ...before.seo, ...part.seo },
-		}));
-		autosave.change(part);
+		}),
+		onRefused: (refusal) => {
+			const data = refusal.data as { problems?: Problem[] } | undefined;
+			if (refusal.code === "ENTRY_INVALID" && data?.problems) {
+				setRefused(data.problems);
+				setSaveError("errors.ENTRY_INVALID");
+			} else if (refusal.code === "ENTRY_SLUG_TAKEN") {
+				setSlugTaken(true);
+				setSaveError("errors.ENTRY_SLUG_TAKEN");
+			} else {
+				setSaveError(errorMessage(refusal));
+			}
+		},
+		onSettled: async () => {
+			const api = await getApi();
+			const { entry: fresh } = await api.entries.get({ siteId, entryId: loaded.id, language: entry.language });
+			setEntry(fresh);
+		},
+	});
+	const { shared } = coEdited;
+	const values = coEdited.values as {
+		title: string;
+		slug: string;
+		parentId: string | null;
+		fields: FieldValues;
+		seo: SeoValues;
+	};
+	const autosave = {
+		status: shared.status === "saved" ? "saved" : shared.status === "saving" ? "saving" : "waiting",
+		flush: shared.flush,
+	} as const;
+	const tracking = usePlaceTracking(shared.place);
+	const locked = shared.status === "readOnly" || shared.status === "ended" || !shared.editable;
+
+	const change = (part: EntryChange) => {
+		setRefused([]);
+		setSlugTaken(false);
+		setSaveError(null);
+		coEdited.change(part);
 	};
 
 	const problems = [...entry.problems, ...refused];
@@ -198,7 +200,7 @@ export function EntryEditor({
 						<p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-sm">
 							<span>{postType.name}</span>
 							<span aria-hidden="true">·</span>
-							<SaveStatusText status={autosave.status} savedAt={entry.updatedAt} />
+							<SharedDraftStatus status={shared.status} editable={shared.editable} publishedBy={coEdited.publishedBy} />
 						</p>
 					</div>
 				</div>
@@ -213,6 +215,10 @@ export function EntryEditor({
 					})}
 				/>
 
+				<PresenceList participants={shared.participants} />
+
+				<SharedDraftBanner status={shared.status} editable={shared.editable} />
+
 				{saveError ? <SaveErrorBanner error={saveError} onRetry={() => void autosave.flush()} /> : null}
 
 				<OutdatedTranslations
@@ -220,93 +226,104 @@ export function EntryEditor({
 					entryId={entry.id}
 					language={entry.language}
 					translation={entry.translation}
-					beforeChange={() => autosave.flush()}
+					beforeChange={() => shared.flush()}
 				/>
 
-				<div className="grid gap-6">
-					<BuiltInValue
-						id="entry-title"
-						label={t("content.builtIn.title")}
-						required
-						problems={titleProblems}
-						subject="title"
-					>
-						{(described) => (
-							<Input
-								id="entry-title"
-								value={values.title}
-								maxLength={ENTRY_TITLE_MAX_LENGTH}
-								lang={entry.language}
-								autoComplete="off"
-								className="h-11 text-lg"
-								aria-describedby={described}
-								aria-invalid={titleProblems.length > 0 ? true : undefined}
-								onChange={(event) => change({ title: event.target.value })}
-							/>
-						)}
-					</BuiltInValue>
-					<BuiltInValue
-						id="entry-slug"
-						label={t("content.builtIn.slug")}
-						required
-						help={t("entries.editor.slugHelp")}
-						problems={slugProblems}
-						extra={slugTaken ? t("errors.ENTRY_SLUG_TAKEN") : null}
-						subject="slug"
-					>
-						{(described) => (
-							<InputGroup>
-								<InputGroupAddon className="font-mono" aria-hidden="true">
-									{slugPrefix}
-								</InputGroupAddon>
-								<InputGroupInput
-									id="entry-slug"
-									value={values.slug}
-									lang={entry.language}
-									autoComplete="off"
-									spellCheck={false}
-									className="font-mono"
-									aria-describedby={described}
-									aria-invalid={slugProblems.length > 0 || slugTaken ? true : undefined}
-									onChange={(event) => change({ slug: event.target.value })}
-								/>
-							</InputGroup>
-						)}
-					</BuiltInValue>
-					{isPage && pages ? (
+				<fieldset disabled={locked} className="grid min-w-0 gap-6" {...tracking}>
+					<PresenceOutline place="title" participants={shared.participants}>
 						<BuiltInValue
-							id="entry-parentId"
-							label={t("content.builtIn.parent")}
-							help={t("entries.editor.parentHelp")}
-							problems={parentProblems}
-							subject="parentId"
+							id="entry-title"
+							label={t("content.builtIn.title")}
+							required
+							problems={titleProblems}
+							subject="title"
 						>
 							{(described) => (
-								<NativeSelect
-									id="entry-parentId"
-									value={values.parentId ?? ""}
+								<Input
+									id="entry-title"
+									value={values.title}
+									maxLength={ENTRY_TITLE_MAX_LENGTH}
+									lang={entry.language}
+									autoComplete="off"
+									className="h-11 text-lg"
 									aria-describedby={described}
-									aria-invalid={parentProblems.length > 0 ? true : undefined}
-									onChange={(event) => change({ parentId: event.target.value || null })}
-									className="w-full"
-								>
-									<NativeSelectOption value="">{t("entries.editor.topLevel")}</NativeSelectOption>
-									{parentOptions(pages, entry.id).map((page) => (
-										<NativeSelectOption key={page.id} value={page.id}>
-											{`${"— ".repeat(page.depth)}${page.title || untitled}`}
-										</NativeSelectOption>
-									))}
-								</NativeSelect>
+									aria-invalid={titleProblems.length > 0 ? true : undefined}
+									onChange={(event) => change({ title: event.target.value })}
+								/>
 							)}
 						</BuiltInValue>
+					</PresenceOutline>
+					<PresenceOutline place="slug" participants={shared.participants}>
+						<BuiltInValue
+							id="entry-slug"
+							label={t("content.builtIn.slug")}
+							required
+							help={t("entries.editor.slugHelp")}
+							problems={slugProblems}
+							extra={slugTaken ? t("errors.ENTRY_SLUG_TAKEN") : null}
+							subject="slug"
+						>
+							{(described) => (
+								<InputGroup>
+									<InputGroupAddon className="font-mono" aria-hidden="true">
+										{slugPrefix}
+									</InputGroupAddon>
+									<InputGroupInput
+										id="entry-slug"
+										value={values.slug}
+										lang={entry.language}
+										autoComplete="off"
+										spellCheck={false}
+										className="font-mono"
+										aria-describedby={described}
+										aria-invalid={slugProblems.length > 0 || slugTaken ? true : undefined}
+										onChange={(event) => change({ slug: event.target.value })}
+									/>
+								</InputGroup>
+							)}
+						</BuiltInValue>
+					</PresenceOutline>
+					{isPage && pages ? (
+						<PresenceOutline place="parent" participants={shared.participants}>
+							<BuiltInValue
+								id="entry-parentId"
+								label={t("content.builtIn.parent")}
+								help={t("entries.editor.parentHelp")}
+								problems={parentProblems}
+								subject="parentId"
+							>
+								{(described) => (
+									<NativeSelect
+										id="entry-parentId"
+										value={values.parentId ?? ""}
+										aria-describedby={described}
+										aria-invalid={parentProblems.length > 0 ? true : undefined}
+										onChange={(event) => change({ parentId: event.target.value || null })}
+										className="w-full"
+									>
+										<NativeSelectOption value="">{t("entries.editor.topLevel")}</NativeSelectOption>
+										{parentOptions(pages, entry.id).map((page) => (
+											<NativeSelectOption key={page.id} value={page.id}>
+												{`${"— ".repeat(page.depth)}${page.title || untitled}`}
+											</NativeSelectOption>
+										))}
+									</NativeSelect>
+								)}
+							</BuiltInValue>
+						</PresenceOutline>
 					) : null}
 					<FieldValueList
 						fields={postType.fields}
 						values={values.fields}
 						onChange={(key, value) => change({ fields: { [key]: value } })}
 						context={context}
+						wrap={(field, control) => (
+							<PresenceOutline place={field.key} participants={shared.participants}>
+								{control}
+							</PresenceOutline>
+						)}
 					/>
-				</div>
+				</fieldset>
 			</div>
 
 			<div className="grid content-start gap-6">
@@ -329,16 +346,20 @@ export function EntryEditor({
 					) : null}
 				</DraftStatusCard>
 
-				<EntrySeoCard
-					siteId={siteId}
-					postType={postType}
-					entry={entry}
-					values={values.seo}
-					problems={problems}
-					media={media}
-					onMediaChosen={(item) => setMedia((before) => ({ ...before, [item.id]: item }))}
-					onChange={(seo) => change({ seo })}
-				/>
+				<fieldset disabled={locked} className="min-w-0" {...tracking}>
+					<PresenceOutline place="seo" participants={shared.participants}>
+						<EntrySeoCard
+							siteId={siteId}
+							postType={postType}
+							entry={entry}
+							values={values.seo}
+							problems={problems}
+							media={media}
+							onMediaChosen={(item) => setMedia((before) => ({ ...before, [item.id]: item }))}
+							onChange={(seo) => change({ seo })}
+						/>
+					</PresenceOutline>
+				</fieldset>
 
 				<Card>
 					<CardHeader>

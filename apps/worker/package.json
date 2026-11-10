@@ -6,7 +6,8 @@
 	"description": "The background worker (Node LTS): runs pg-boss jobs, including image processing.",
 	"type": "module",
 	"exports": {
-		"./images": "./src/images.ts"
+		"./images": "./src/images.ts",
+		"./pdf": "./src/pdf.ts"
 	},
 	"engines": {
 		"node": ">=22.18.0"

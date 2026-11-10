@@ -92,6 +92,23 @@ export const PERMISSIONS = {
 	 * Editors and Authors see the Dashboards Staff show to everyone who works on the Site, and only those.
 	 */
 	"dashboard.view": ["workspace", "site"],
+	/**
+	 * Set up a Dashboard's Reports (their schedule, language, how their AI text goes out), send a test,
+	 * review, approve, discard and resend what they make (Staff).
+	 */
+	"report.manage": ["workspace", "site"],
+	/** See a Dashboard's Reports, their history and their PDFs (Staff and Owners). */
+	"report.view": ["workspace", "site"],
+	/** Change who a Report goes to (Content, as Form emails' recipients are: Staff and Owners). */
+	"reportRecipients.edit": ["workspace", "site"],
+	/** Make, change and revoke a Dashboard's Share links (Staff). */
+	"shareLink.manage": ["workspace", "site"],
+	/** See a Dashboard's Share links and how often each was opened (Staff and Owners). */
+	"shareLink.view": ["workspace", "site"],
+	/** The client brand on a Site's or Workspace's Reports and Share links, and a Workspace's own agency brand (Staff). */
+	"reportBranding.manage": ["workspace", "site"],
+	/** Write the Install's Services list, which Reports' suggestions may point to (the Superadmin and Staff). */
+	"servicesList.edit": ["install"],
 } as const satisfies Record<string, readonly Level[]>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -108,7 +125,8 @@ export type RoleKey = (typeof ROLE_KEYS)[number];
  * Where a role is held and what it reaches:
  * - `install`: an Install-level role reaching the whole Install (the Superadmin).
  * - `assigned-workspaces`: an Install-level role reaching the Workspaces its holder is assigned to,
- *   some or all of them, and their Sites (Staff).
+ *   some or all of them, and their Sites (Staff), and holding on the Install itself only the
+ *   Permissions its row lists that are checked on the Install alone (the Services list).
  * - `membership`: a Workspace role, held on a Membership, reaching that Workspace and the Sites the
  *   Membership reaches.
  */
@@ -149,6 +167,13 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"translation.manage",
 			"dashboard.manage",
 			"dashboard.view",
+			"report.manage",
+			"report.view",
+			"reportRecipients.edit",
+			"shareLink.manage",
+			"shareLink.view",
+			"reportBranding.manage",
+			"servicesList.edit",
 		],
 	},
 	owner: {
@@ -173,6 +198,9 @@ export const ROLES: Record<RoleKey, RoleDefinition> = {
 			"import.run",
 			"translation.manage",
 			"dashboard.view",
+			"report.view",
+			"reportRecipients.edit",
+			"shareLink.view",
 		],
 	},
 	editor: {

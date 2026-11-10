@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # The worker (Node LTS, ADR 0006): the job queue, image processing, email, Webhooks, Domain checks,
-# the daily Backup.
+# the daily Backup, and Reports' PDFs, printed by headless Chromium (Debian's `chromium`, BSD-licensed,
+# run as a program of its own) with an OFL-licensed font (Liberation).
 # Built from the repo root:
 #
 #   docker build -f apps/worker/Dockerfile -t webcraft-worker .
@@ -30,6 +31,11 @@ WORKDIR /app
 ENV NODE_ENV=production \
 	WEBCRAFT_STORAGE_DIR=/var/lib/webcraft/storage \
 	WEBCRAFT_BACKUP_DIR=/var/lib/webcraft/backups
+# Headless Chromium for Reports' PDFs, and fonts for their text.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends chromium fonts-liberation \
+	&& rm -rf /var/lib/apt/lists/*
+ENV WEBCRAFT_CHROMIUM=/usr/bin/chromium
 COPY --from=runtime-files /app /app
 # The Backups folder: the worker writes the daily Backup there while Backups go to a folder.
 RUN install -d -o node -g node /var/lib/webcraft/storage /var/lib/webcraft/backups

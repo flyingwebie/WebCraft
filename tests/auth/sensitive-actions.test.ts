@@ -16,6 +16,8 @@ type Fixture = {
 	staffId: string;
 	workspaceId: string;
 	siteId: string;
+	/** A Dashboard of the Site, to make Share links to. */
+	dashboardId: string;
 	/** A Member whose access is changed, and one who is removed. */
 	changedMemberId: string;
 	removedMemberId: string;
@@ -64,6 +66,8 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 			key: "sk-test-key-for-the-sensitive-action",
 		}),
 	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
+	"shareLink.change": (api, { siteId, dashboardId, next }) =>
+		api.shareLinks.create({ siteId, dashboardId, name: `Client link ${next()}` }),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 	"aiClient.approve": (api, { workspaceId, authorization }) =>
 		api.oauth.approve({ parameters: authorization, workspaceId }),
@@ -83,12 +87,14 @@ beforeAll(async () => {
 	const removed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const client = await registerClient(install);
 	const { challenge } = await pkcePair();
+	const { dashboard } = await (await install.superadmin()).api.dashboards.create({ siteId: site.id, name: "Overview" });
 	let made = 0;
 	fixture = {
 		authorization: authorizationParameters(install, String(client.body.client_id), challenge),
 		staffId: staff.personId,
 		workspaceId: workspace.id,
 		siteId: site.id,
+		dashboardId: dashboard.id,
 		changedMemberId: changed.personId,
 		removedMemberId: removed.personId,
 		next: () => ++made,
@@ -161,6 +167,7 @@ describe("each Sensitive action", () => {
 			"siteSmtp.change",
 			"aiKey.change",
 			"stagingPassword.change",
+			"shareLink.change",
 		];
 		expect(answers).toEqual(
 			Object.fromEntries(

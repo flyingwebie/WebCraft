@@ -55,6 +55,7 @@ export {
 } from "./builder/index.ts";
 export * from "./cdns/index.ts";
 export { type Clock, systemClock } from "./clock.ts";
+export * from "./co-editing/index.ts";
 export {
 	type CodeMode,
 	type CodePreviewPage,
@@ -139,6 +140,7 @@ export { normaliseHostname } from "./hostnames.ts";
 export type { OutgoingHttp, OutgoingHttpOptions } from "./http.ts";
 export { createNodeHttp } from "./http-node.ts";
 export { pinnedTarget } from "./http-pinned.ts";
+export { isUuid } from "./ids.ts";
 export * from "./imports/index.ts";
 export {
 	type InstallProcess,
@@ -245,6 +247,7 @@ export {
 	type RateLimits,
 	type RateLimitTally,
 } from "./rate-limits.ts";
+export * from "./reports/index.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";
 export * from "./secrets/index.ts";
@@ -306,6 +309,7 @@ export {
 export type {
 	Access,
 	BackgroundScope,
+	BackgroundWorkspaceScope,
 	DataLayer,
 	InstallScope,
 	ScopedQueries,

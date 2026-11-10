@@ -31,7 +31,14 @@ async function permissionsOf(browser: TestBrowser) {
 describe("the role table", () => {
 	test("superadmin: every Permission, everywhere", async () => {
 		expect(await permissionsOf(await install.superadmin())).toEqual({
-			install: ["install.manage", "workspace.create", "staff.manage", "audit.view", "module.approve"],
+			install: [
+				"install.manage",
+				"workspace.create",
+				"staff.manage",
+				"audit.view",
+				"module.approve",
+				"servicesList.edit",
+			],
 			workspace: [
 				"audit.view",
 				"workspace.view",
@@ -45,6 +52,12 @@ describe("the role table", () => {
 				"protectedTerms.edit",
 				"dashboard.manage",
 				"dashboard.view",
+				"report.manage",
+				"report.view",
+				"reportRecipients.edit",
+				"shareLink.manage",
+				"shareLink.view",
+				"reportBranding.manage",
 			],
 			site: [
 				"module.manage",
@@ -64,15 +77,21 @@ describe("the role table", () => {
 				"translation.manage",
 				"dashboard.manage",
 				"dashboard.view",
+				"report.manage",
+				"report.view",
+				"reportRecipients.edit",
+				"shareLink.manage",
+				"shareLink.view",
+				"reportBranding.manage",
 			],
 		});
 	});
 
-	test("staff: everything in their Workspaces, including Structure, new Sites, Modules and storage quotas; nothing on the Install", async () => {
+	test("staff: everything in their Workspaces, including Structure, new Sites, Modules, storage quotas, Reports and Share links; on the Install, only the Services list", async () => {
 		const { browser } = await install.createStaff({ workspaces: [workspaceId] });
 
 		expect(await permissionsOf(browser)).toEqual({
-			install: [],
+			install: ["servicesList.edit"],
 			workspace: [
 				"audit.view",
 				"workspace.view",
@@ -86,6 +105,12 @@ describe("the role table", () => {
 				"protectedTerms.edit",
 				"dashboard.manage",
 				"dashboard.view",
+				"report.manage",
+				"report.view",
+				"reportRecipients.edit",
+				"shareLink.manage",
+				"shareLink.view",
+				"reportBranding.manage",
 			],
 			site: [
 				"module.manage",
@@ -105,11 +130,17 @@ describe("the role table", () => {
 				"translation.manage",
 				"dashboard.manage",
 				"dashboard.view",
+				"report.manage",
+				"report.view",
+				"reportRecipients.edit",
+				"shareLink.manage",
+				"shareLink.view",
+				"reportBranding.manage",
 			],
 		});
 	});
 
-	test("owner: manages Members, the AI key, the staging password and the AI crawler setting, publishes and deletes Entries, changes Form emails and Translation modes, imports CSV files, sees Dashboards, but never changes Structure, builds Dashboards or creates Sites", async () => {
+	test("owner: manages Members, the AI key, the staging password and the AI crawler setting, publishes and deletes Entries, changes Form emails, Translation modes and Report recipients, imports CSV files, sees Dashboards, Reports and Share links, but never changes Structure, builds Dashboards or creates Sites", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "owner" });
 
 		expect(await permissionsOf(browser)).toEqual({
@@ -123,6 +154,9 @@ describe("the role table", () => {
 				"aiUsage.view",
 				"protectedTerms.edit",
 				"dashboard.view",
+				"report.view",
+				"reportRecipients.edit",
+				"shareLink.view",
 			],
 			site: [
 				"aiUsage.view",
@@ -139,6 +173,9 @@ describe("the role table", () => {
 				"import.run",
 				"translation.manage",
 				"dashboard.view",
+				"report.view",
+				"reportRecipients.edit",
+				"shareLink.view",
 			],
 		});
 	});
@@ -238,6 +275,9 @@ describe("each role against Workspace and Site scope", () => {
 			"import.run",
 			"translation.manage",
 			"dashboard.view",
+			"report.view",
+			"reportRecipients.edit",
+			"shareLink.view",
 		],
 		editor: [
 			"protectedTerms.edit",
