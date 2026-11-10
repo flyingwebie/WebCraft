@@ -11,6 +11,7 @@ import type { Cdns } from "./cdns/index.ts";
 import type { Clock } from "./clock.ts";
 import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
+import type { Confirmation } from "./confirmations.ts";
 import type { ConsentService } from "./consent/index.ts";
 import type {
 	Component,
@@ -61,7 +62,15 @@ import type {
 import type { ContentApi } from "./content-api/index.ts";
 import type { Countries } from "./countries.ts";
 import type { Dashboards } from "./dashboards/index.ts";
-import type { ClassChange, DesignSystemChange, DesignSystemView, EditableClass } from "./design-system/index.ts";
+import type {
+	ClassChange,
+	DesignSystemChange,
+	DesignSystemFile,
+	DesignSystemImportPreview,
+	DesignSystemPreview,
+	DesignSystemView,
+	EditableClass,
+} from "./design-system/index.ts";
 import type { Discovery } from "./discovery/index.ts";
 import type { DiskSpace } from "./disk.ts";
 import type { Dns } from "./dns.ts";
@@ -468,6 +477,22 @@ export type InstallServices = InstallPorts & {
 		exportTokens(scope: SiteScope, version: "draft" | "published"): Promise<Record<string, unknown>>;
 		/** Imports a DTCG file into the Draft: each kind of token it holds replaces the Draft's. */
 		importTokens(scope: SiteScope, file: unknown): Promise<DesignSystemView>;
+		/**
+		 * The Draft with an unsaved change, as the Design system screen shows it: its compiled
+		 * stylesheet, ramps, scale sizes, use counts and the contrast Check. Saves nothing.
+		 */
+		preview(scope: SiteScope, change: DesignSystemChange): Promise<DesignSystemPreview>;
+		/** The Draft's or the published Design system as one file (logged `designSystem.export`). */
+		exportFile(scope: SiteScope, version: "draft" | "published"): Promise<DesignSystemFile>;
+		/**
+		 * Imports a Design system file over the Draft, in two steps: without a confirmation it answers
+		 * what would change; with it, it replaces the Draft (logged `designSystem.import`).
+		 */
+		importFile(
+			scope: SiteScope,
+			file: unknown,
+			confirmation?: string,
+		): Promise<{ confirmation: Confirmation; preview: DesignSystemImportPreview } | { designSystem: DesignSystemView }>;
 	};
 	publishing: {
 		/**

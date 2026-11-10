@@ -791,6 +791,13 @@ describe("Design system", () => {
 	isolation.refuses("designSystem.importTokens", (api, { siteId }) =>
 		api.designSystem.importTokens({ siteId, tokens: { width: { content: { $value: { value: 70, unit: "rem" } } } } }),
 	);
+	isolation.refuses("designSystem.preview", (api, { siteId }) => api.designSystem.preview({ siteId, darkMode: true }));
+	isolation.refuses("designSystem.exportFile", (api, { siteId }) => api.designSystem.exportFile({ siteId }));
+	isolation.refuses("designSystem.importFile", async (api, target) => {
+		const { api: admin } = await install.superadmin();
+		const { file } = await admin.designSystem.exportFile({ siteId: target.siteId });
+		return api.designSystem.importFile({ siteId: target.siteId, file: { ...file, darkMode: true } });
+	});
 });
 
 describe("Pages", () => {

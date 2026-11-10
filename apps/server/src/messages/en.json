@@ -209,7 +209,13 @@
 		"REVIEW_DECIDED": "Someone acted on it already: it isn't In review any more.",
 		"REVIEW_NOT_YOURS": "Only the person who submitted it can withdraw it.",
 		"ERROR_GROUP_NOT_FOUND": "There is no such failure in the Error log: it may have been deleted after 30 days.",
-		"JOB_QUEUE_NOT_FOUND": "There is no such job queue."
+		"JOB_QUEUE_NOT_FOUND": "There is no such job queue.",
+		"DESIGN_SYSTEM_INVALID": "The Design system has problems: fix them first.",
+		"DESIGN_SYSTEM_FILE_INVALID": "This file can't be imported as a Design system.",
+		"TOKENS_FILE_INVALID": "This Design tokens file can't be imported.",
+		"CLASS_IN_USE": "This Class is in use, so it can't be deleted. Take it off these first:",
+		"TOKEN_IN_USE": "This token is in use, so it can't be removed. Stop using it here first:",
+		"CLASS_NOT_FOUND": "This Class isn't in the Design system any more. Reload the page."
 	},
 	"roles": {
 		"superadmin": "Superadmin",
@@ -404,7 +410,8 @@
 			"auditLog": "Audit log",
 			"contentApi": "Content API",
 			"installHealth": "Install health",
-			"errorLog": "Error log"
+			"errorLog": "Error log",
+			"designSystem": "Design system"
 		}
 	},
 	"masterKeyBanner": {
@@ -6115,7 +6122,9 @@
 				"change": "Default language changed"
 			},
 			"designSystem": {
-				"publish": "Design system published"
+				"publish": "Design system published",
+				"import": "Design system file imported into the Draft",
+				"export": "Design system file exported"
 			},
 			"domain": {
 				"add": "Domain added",
@@ -6706,5 +6715,236 @@
 		"resolved": "Marked resolved. It opens again if it happens again.",
 		"older": "Older causes",
 		"ofCause": " ({name})"
+	},
+	"designSystem": {
+		"pageTitle": "Design system",
+		"heading": "Design system",
+		"intro": "Design tokens, Classes and custom CSS for this Site. Published together as one item; clients never change it.",
+		"staffOnly": "Only Staff change the Design system.",
+		"published": "Design system published.",
+		"publish": "Publish Design system",
+		"previewInEditMode": "Preview in Edit mode",
+		"previewProblems": "The preview shows the last version without problems. Fix these first:",
+		"close": "Close",
+		"cancel": "Cancel",
+		"uses": "{count, plural, one {# use} other {# uses}}",
+		"usesHeading": "Uses",
+		"removeToken": "Remove {name}",
+		"tokenName": "Name of {name}",
+		"tokenValue": "Value of {name}",
+		"tokenUnit": "Unit of {name}",
+		"tabs": {
+			"label": "Design system",
+			"tokens": "Tokens",
+			"classes": "Classes",
+			"base": "Base styles",
+			"css": "Custom CSS"
+		},
+		"tokens": {
+			"groups": "Groups of Design tokens",
+			"group": {
+				"colours": "Colours",
+				"space": "Spacing",
+				"text": "Type scale",
+				"fonts": "Fonts",
+				"radius": "Radius",
+				"shadows": "Shadows",
+				"breakpoints": "Breakpoints",
+				"widths": "Content widths"
+			}
+		},
+		"colours": {
+			"intro": "Shades and transparencies are worked out from each base colour. Any step can be given its own value.",
+			"darkOn": "Dark mode is on for this Site, so every colour has a dark value.",
+			"darkOff": "Dark mode is off: visitors see the light values only. Dark shows the values they would get.",
+			"mode": "Show the light or dark values",
+			"light": "Light",
+			"dark": "Dark",
+			"add": "Add colour",
+			"darkMode": "Dark mode",
+			"darkModeHelp": "Pages follow the visitor's device, or the theme toggle, between the light and dark values.",
+			"caption": "Colour ramps, {mode} values",
+			"colour": "Colour",
+			"swatch": "{name} {step}: {value}",
+			"swatchOverridden": "{name} {step}: {value}, its own value",
+			"pick": "Pick a swatch to change it.",
+			"editing": "{name} {step}, {mode}",
+			"base": "Base colour (step 60)",
+			"darkBase": "Dark base colour (step 60)",
+			"override": "Own value",
+			"picker": "Pick the colour of {name} {step}",
+			"baseHelp": "Every other step is worked out from it.",
+			"generated": "Worked out: {value}",
+			"hexInvalid": "Write a colour as #rrggbb.",
+			"name": "Name",
+			"nameHelp": "Lower-case letters, digits and hyphens. Renaming changes every use.",
+			"useLightBase": "Use the light base colour",
+			"reset": "Reset to the worked-out value",
+			"remove": "Remove {name}",
+			"sampleText": "Text on {name}",
+			"sampleLabel": "Label",
+			"sampleOutline": "Outline",
+			"previewTitle": "Preview of the colours, {mode} values"
+		},
+		"contrast": {
+			"heading": "Contrast",
+			"intro": "Colour pairs the Design system puts together, in light and, with Dark mode on, dark. Text needs 4.5:1; large text and UI parts 3:1. This is a Check: it never stops publishing.",
+			"failing": "{count, plural, one {# pair needs} other {# pairs need}} more contrast, of {checked} checked.",
+			"allPass": "Every pair has enough contrast ({checked} checked).",
+			"pair": "{foreground} on {background}",
+			"ratio": "{ratio}:1, needs {required}:1",
+			"use": {
+				"text": "text",
+				"largeText": "large text",
+				"ui": "UI part"
+			},
+			"source": {
+				"baseStyle": "Base style of {target}",
+				"focus": "Focus style",
+				"textOnTint": "Text on its tint",
+				"labelOnSolid": "Label on the solid colour",
+				"solidOnTint": "Solid colour on its tint"
+			}
+		},
+		"scales": {
+			"spaceIntro": "Fluid between the smallest and largest viewport: each step is base × ratio to its power.",
+			"textIntro": "Headings in the base styles use these steps.",
+			"baseMin": "Base at the smallest viewport (px)",
+			"baseMax": "Base at the largest viewport (px)",
+			"ratioMin": "Ratio at the smallest viewport",
+			"ratioMax": "Ratio at the largest viewport",
+			"viewportMin": "Smallest viewport (px)",
+			"viewportMax": "Largest viewport (px)",
+			"step": "Step",
+			"property": "Custom property",
+			"size": "Smallest → largest",
+			"ownSizes": "Its own sizes",
+			"minOf": "{name} at the smallest viewport (px)",
+			"maxOf": "{name} at the largest viewport (px)",
+			"reset": "Let {name} follow the scale again",
+			"sample": "The quick brown fox",
+			"previewTitle": "Preview of {scale}"
+		},
+		"fonts": {
+			"intro": "Font stacks, first choice first.",
+			"add": "Add font",
+			"name": "Name of font {name}",
+			"family": "Families of font {name}, separated by commas"
+		},
+		"radius": {
+			"intro": "Corner radii.",
+			"add": "Add radius"
+		},
+		"widths": {
+			"intro": "Widths content keeps within.",
+			"add": "Add width"
+		},
+		"shadows": {
+			"intro": "Shadows, from their DTCG values. Change their layers in a Design tokens file."
+		},
+		"breakpoints": {
+			"intro": "Mobile first: a Class's styles for a breakpoint apply from this width up.",
+			"add": "Add breakpoint",
+			"width": "Width of {name} (px)"
+		},
+		"declarations": {
+			"property": "{what}: property {number}",
+			"value": "{what}: value {number}",
+			"remove": "{what}: remove declaration {number}"
+		},
+		"classes": {
+			"new": "New Class",
+			"create": "Create Class",
+			"nameInvalid": "A Class name starts with a letter, then letters, digits, hyphens or underscores, and never starts with wc-.",
+			"search": "Search Classes",
+			"showGenerated": "Show generated Classes ({count})",
+			"count": "{shown} of {count}",
+			"list": "Classes",
+			"generated": "Generated",
+			"none": "No Classes yet.",
+			"pick": "Pick a Class to style it, or make a new one.",
+			"generatedHelp": "WebCraft made this Class from a one-off style. Once you change it, it is a Class like any other.",
+			"name": "Name",
+			"nameHelp": "Elements keep the Class by its id, so renaming changes every use once published.",
+			"tokensFirst": "Values offer the Design tokens that fit each property first; any other value can still be typed.",
+			"styles": "Styles for every width",
+			"fromBreakpoint": "From {name} ({width} px) up",
+			"ownCss": "The Class's own CSS",
+			"ownCssHelp": "Declarations, and rules nested with &, such as a rule for & h2. Checked when saved.",
+			"previewTitle": "Preview of an element with .{name}",
+			"sampleHeading": "A heading",
+			"sampleText": "Some text inside the element, with",
+			"sampleLink": "a link",
+			"delete": "Delete",
+			"deleteTitle": "Delete .{name}?",
+			"deleteBody": "It is deleted from the Draft. A Class an element or CSS uses can't be deleted: you'll see where it is used.",
+			"deleteConfirm": "Delete Class"
+		},
+		"base": {
+			"intro": "Plain elements' styles, from the Design tokens. Classes and custom CSS come after them.",
+			"element": "Element",
+			"styles": "Styles of {element}",
+			"previewTitle": "Preview of the base styles"
+		},
+		"css": {
+			"label": "The Site's custom CSS",
+			"help": "In the last cascade layer, so it wins without !important. Checked when saved, each problem with its line and column.",
+			"previewTitle": "Preview with the custom CSS"
+		},
+		"sample": {
+			"h1": "Heading one",
+			"h2": "Heading two",
+			"h3": "Heading three",
+			"paragraph": "A paragraph of text, as pages show it, with",
+			"link": "a link",
+			"mark": "marked text",
+			"small": "small print",
+			"item": "A list item",
+			"quote": "A quotation.",
+			"th": "Heading",
+			"caption": "A caption",
+			"pre": "Preformatted text"
+		},
+		"usedIn": {
+			"template": "{kind} template ({version}): {count, plural, one {# element} other {# elements}}",
+			"component": "Component {name} ({version}): {count, plural, one {# element} other {# elements}}",
+			"class": "Class {name}",
+			"baseStyle": "Base style of {element}",
+			"customCss": "The custom CSS",
+			"focus": "The focus style",
+			"draft": "Draft",
+			"published": "published"
+		},
+		"export": {
+			"button": "Export",
+			"draft": "Design system file (Draft)",
+			"published": "Design system file (published)",
+			"tokens": "Design tokens only (DTCG)"
+		},
+		"import": {
+			"button": "Import",
+			"title": "Import a Design system file",
+			"body": "It replaces the Draft, not what visitors see: they see it once you publish the Design system. You'll see what changes first.",
+			"file": "Design system file (.json)",
+			"fileHelp": "A file exported from a Design system screen, this Site's or another's.",
+			"notJson": "This file isn't JSON.",
+			"changesHeading": "What changes in the Draft",
+			"nothing": "Nothing: the file is the same as the Draft.",
+			"adds": "adds {names}",
+			"removes": "removes {names}",
+			"changes": "changes {names}",
+			"setting": {
+				"viewport": "The viewport sizes change",
+				"focus": "The focus style changes",
+				"space": "The spacing scale's base or ratio changes",
+				"text": "The type scale's base or ratio changes"
+			},
+			"baseStyles": "Base styles change: {elements}",
+			"customCss": "The custom CSS changes",
+			"darkOn": "Dark mode turns on",
+			"darkOff": "Dark mode turns off",
+			"confirm": "Replace the Draft",
+			"done": "Design system imported into the Draft."
+		}
 	}
 }

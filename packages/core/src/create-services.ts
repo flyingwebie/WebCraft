@@ -98,6 +98,8 @@ import {
 	saveDesignSystemDraft,
 	updateClass,
 } from "./design-system/drafts.ts";
+import { exportDesignSystemFile, importDesignSystemFile } from "./design-system/file.ts";
+import { previewDesignSystem } from "./design-system/preview.ts";
 import { createDiscovery } from "./discovery/index.ts";
 import { systemDiskSpace } from "./disk.ts";
 import { createDomains } from "./domains/index.ts";
@@ -527,6 +529,9 @@ export async function createInstallServices(
 			deleteClass,
 			exportTokens: exportDesignTokens,
 			importTokens: importDesignTokens,
+			preview: previewDesignSystem,
+			exportFile: exportDesignSystemFile,
+			importFile: importDesignSystemFile,
 		},
 		publishing: {
 			publish: (scope, item) => publish(scope, item, componentSources),

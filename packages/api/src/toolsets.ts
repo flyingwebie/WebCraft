@@ -152,6 +152,8 @@ export const TOOL_PLACES = {
 	"designSystem.deleteClass": place(["structure"], "structure.edit"),
 	"designSystem.exportTokens": place(["structure"], "structure.edit"),
 	"designSystem.importTokens": place(["structure"], "structure.edit"),
+	"designSystem.exportFile": place(["structure"], "structure.edit"),
+	"designSystem.importFile": place(["structure"], "structure.edit"),
 	"designSystem.publish": publishing(["structure", "publishing"], "structure.edit"),
 	"publishing.drafts": place(["publishing"], "site.view"),
 	"publishing.publishAll": publishing(["publishing"], "entry.publish", "structure.edit", "formEmails.edit"),

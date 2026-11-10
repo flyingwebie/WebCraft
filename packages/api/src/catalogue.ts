@@ -266,6 +266,11 @@ export const PROCEDURES = {
 	"designSystem.deleteClass": write("Deletes a Class from the Draft (API clients confirm a preview first)."),
 	"designSystem.exportTokens": read("The Design tokens as a DTCG file."),
 	"designSystem.importTokens": write("Imports a DTCG file into the Design system's Draft."),
+	"designSystem.preview": internal(),
+	"designSystem.exportFile": read("The whole Design system as one file."),
+	"designSystem.importFile": write(
+		"Imports a Design system file over the Draft (two steps: a preview of what changes, then a confirmation).",
+	),
 	"designSystem.publish": write("Publishes the Design system's Draft (API clients confirm a preview first)."),
 	"publishing.drafts": read(
 		"Every Draft of the Site: what changed, who changed it last, and whether the caller may publish it.",

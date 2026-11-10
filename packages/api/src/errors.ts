@@ -42,6 +42,7 @@ import {
 	DashboardInvalidError,
 	DashboardNotFoundError,
 	DashboardTemplateNotFoundError,
+	DesignSystemFileInvalidError,
 	DeviceCodeInvalidError,
 	DomainChangeRefusedError,
 	DomainInvalidError,
@@ -719,6 +720,14 @@ export function toApiError(error: unknown): unknown {
 			status: 409,
 			message: error.message,
 			data: { tokenId: error.tokenId, usedBy: error.usedBy },
+			cause: error,
+		});
+	}
+	if (error instanceof DesignSystemFileInvalidError) {
+		return new ORPCError("DESIGN_SYSTEM_FILE_INVALID", {
+			status: 400,
+			message: error.message,
+			data: { problems: error.problems },
 			cause: error,
 		});
 	}

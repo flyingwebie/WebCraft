@@ -46,3 +46,18 @@ export class TokensFileInvalidError extends Error {
 		this.problems = problems;
 	}
 }
+
+/** A Design system file can't be imported: `problems` says what and where in the file. */
+export class DesignSystemFileInvalidError extends Error {
+	override name = "DesignSystemFileInvalidError";
+	readonly problems: readonly { at: string; message: string }[];
+	constructor(problems: readonly { at: string; message: string }[]) {
+		super(
+			`The Design system file can't be imported: ${problems
+				.slice(0, 10)
+				.map((problem) => `${problem.at || "file"}: ${problem.message}`)
+				.join("; ")}`,
+		);
+		this.problems = problems;
+	}
+}

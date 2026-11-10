@@ -125,7 +125,7 @@ export async function getDesignSystem(scope: SiteScope): Promise<DesignSystemVie
 	return viewOf(await scope.first(designSystems));
 }
 
-function viewOf(row: DesignSystemRow | undefined): DesignSystemView {
+export function viewOf(row: DesignSystemRow | undefined): DesignSystemView {
 	if (!row) {
 		return {
 			status: "draft",
@@ -419,7 +419,7 @@ function tokenList(tokens: Tokens): { id: string; name: string }[] {
 }
 
 /** Refuses a change that removes a Class or a token something still uses. */
-async function refuseRemovingUsed(scope: SiteScope, current: DesignSystem, next: DesignSystem): Promise<void> {
+export async function refuseRemovingUsed(scope: SiteScope, current: DesignSystem, next: DesignSystem): Promise<void> {
 	const kept = new Set(next.classes.map((each) => each.id));
 	for (const removed of current.classes.filter((each) => !kept.has(each.id))) {
 		const uses = await classUses(scope, next, removed.id);

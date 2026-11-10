@@ -161,6 +161,7 @@ describe("the document", () => {
 			"components.delete",
 			"forms.delete",
 			"designSystem.deleteClass",
+			"designSystem.importFile",
 			"libraries.remove",
 			"media.delete",
 			"media.deleteForever",
