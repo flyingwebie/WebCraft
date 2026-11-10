@@ -30,6 +30,7 @@ import {
 	ShieldOffIcon,
 	UserCogIcon,
 	UserMinusIcon,
+	VenetianMaskIcon,
 } from "lucide-react";
 import { type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +40,7 @@ import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { useSensitiveAction } from "../../ui/identity-check.tsx";
+import { ImpersonateDialog } from "../../ui/impersonation/ImpersonateDialog.tsx";
 import {
 	type AccessOffer,
 	ChangeAccessSheet,
@@ -80,7 +82,7 @@ type RoleFilter = (typeof ROLE_FILTERS)[number];
 function MembersPage() {
 	const t = useT();
 	const data = Route.useLoaderData();
-	const { place: reached, person } = Route.useRouteContext();
+	const { place: reached, person, shell } = Route.useRouteContext();
 	const place = reached as WorkspacePlace;
 	const [query, setQuery] = useState("");
 	const [role, setRole] = useState<RoleFilter>("all");
@@ -88,6 +90,8 @@ function MembersPage() {
 
 	const canInvite = place.permissions.includes("member.invite") && data.offer.length > 0;
 	const canReset = place.permissions.includes("twoFactor.reset");
+	// Staff and the Superadmin impersonate the Workspace's Members, never while impersonating already.
+	const canImpersonate = place.permissions.includes("impersonation.start") && !shell.impersonation;
 	const methodsOf = new Map(data.twoFactor.members.map((member) => [member.personId, member.methods]));
 	const sites: SiteOption[] = place.sites.map(({ id, name }) => ({ id, name }));
 	const search = query.trim().toLocaleLowerCase();
@@ -213,6 +217,7 @@ function MembersPage() {
 																mayResetTwoFactor={
 																	canReset && member.id !== person.id && (methodsOf.get(member.id) ?? []).length > 0
 																}
+																impersonator={canImpersonate && member.id !== person.id ? person.name : null}
 															/>
 														) : null}
 													</TableCell>
@@ -267,6 +272,7 @@ function MemberActions({
 	sites,
 	isYou,
 	mayResetTwoFactor,
+	impersonator,
 }: {
 	member: Member;
 	workspace: { id: string; name: string };
@@ -274,9 +280,12 @@ function MemberActions({
 	sites: readonly SiteOption[];
 	isYou: boolean;
 	mayResetTwoFactor: boolean;
+	/** The name of the person who may impersonate this Member (the viewer), or null when they may not. */
+	impersonator: string | null;
 }) {
 	const t = useT();
 	const trigger = useRef<HTMLButtonElement>(null);
+	const [impersonating, setImpersonating] = useState(false);
 	const [changing, setChanging] = useState(false);
 	const [removing, setRemoving] = useState(false);
 	const [resetting, setResetting] = useState(false);
@@ -294,6 +303,12 @@ function MemberActions({
 						<UserCogIcon aria-hidden="true" />
 						{t("members.changeAccess")}
 					</DropdownMenuItem>
+					{impersonator ? (
+						<DropdownMenuItem onClick={() => setImpersonating(true)}>
+							<VenetianMaskIcon aria-hidden="true" />
+							{t("impersonation.menuItem")}
+						</DropdownMenuItem>
+					) : null}
 					{mayResetTwoFactor ? (
 						<DropdownMenuItem onClick={() => setResetting(true)}>
 							<ShieldOffIcon aria-hidden="true" />
@@ -306,6 +321,15 @@ function MemberActions({
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
+			{impersonator ? (
+				<ImpersonateDialog
+					person={member}
+					you={impersonator}
+					open={impersonating}
+					onOpenChange={setImpersonating}
+					finalFocus={trigger}
+				/>
+			) : null}
 			<ResetTwoFactorDialog
 				name={member.name}
 				open={resetting}

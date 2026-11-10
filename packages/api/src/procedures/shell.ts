@@ -73,6 +73,11 @@ export const shell = {
 						impersonator: impersonation.impersonator,
 						startedAt: impersonation.startedAt,
 						endsAt: impersonation.endsAt,
+						/** How long is left now, by the Install's clock (the banner counts down from it). */
+						secondsLeft: Math.max(
+							0,
+							Math.round((impersonation.endsAt.getTime() - services.clock.now().getTime()) / 1000),
+						),
 					}
 				: null,
 		};

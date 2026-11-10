@@ -332,6 +332,7 @@ export const PROCEDURES = {
 	"invites.join": internal(),
 	"audit.list": internal(),
 	"audit.export": internal(),
+	"audit.people": internal(),
 	"me.activity": internal(),
 	"impersonation.start": internal(),
 	"impersonation.stop": internal(),

@@ -1134,6 +1134,9 @@ describe("the Audit log", () => {
 	isolation.refuses("audit.export", (api, { workspaceId }) => api.audit.export({ workspaceId }), {
 		as: ["staff", "owner"],
 	});
+	isolation.refuses("audit.people", (api, { workspaceId }) => api.audit.people({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
 });
 
 describe("Members", () => {

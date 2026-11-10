@@ -27,6 +27,7 @@ beforeAll(async () => {
 	owner = await install.createMember({ workspaceId: acme, role: "owner", name: "Olive Owner" });
 	bakeryOwner = await install.createMember({ workspaceId: acme, role: "owner", sites: [bakery], name: "Bea Baker" });
 	editor = await install.createMember({ workspaceId: acme, role: "editor", name: "Eddie Editor" });
+	await install.createMember({ workspaceId: nimbus, role: "editor", name: "Nina Nimbus" });
 });
 
 afterAll(async () => {
@@ -95,6 +96,16 @@ describe("who sees which entries", () => {
 	test("Editors and Authors read no Audit log", async () => {
 		await expect(editor.browser.api.audit.list({ workspaceId: acme })).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(editor.browser.api.audit.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+
+	test("the people to filter by: a Workspace's Members, its Staff and the Superadmin", async () => {
+		const { people } = await owner.browser.api.audit.people({ workspaceId: acme });
+
+		const names = people.map((person) => person.name);
+		expect(names).toEqual(expect.arrayContaining(["Agency Anna", "Olive Owner", "Bea Baker", "Eddie Editor"]));
+		expect(names).not.toContain("Nina Nimbus");
+		expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+		await expect(editor.browser.api.audit.people({ workspaceId: acme })).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("each page names the people, Workspaces and Sites its entries mention", async () => {

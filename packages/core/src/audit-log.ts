@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
-import { auditLog, people, sites, workspaces } from "@webcraft/db/schema";
-import { and, desc, eq, gte, inArray, isNull, lt, or, type SQL, sql } from "drizzle-orm";
+import { auditLog, installRoles, memberships, people, sites, staffWorkspaces, workspaces } from "@webcraft/db/schema";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { type AuditEntry, type AuditViaKind, viaOf } from "./audit.ts";
@@ -10,6 +10,7 @@ import { readSettingsRow, writeSettingsRow } from "./install-settings.ts";
 import { defineJob } from "./jobs/define.ts";
 import { defineSchedule } from "./jobs/schedules.ts";
 import { can } from "./permissions/can.ts";
+import { STAFF_ROLE, SUPERADMIN_ROLE } from "./permissions/roles.ts";
 import type { Access, DataLayer, Executor, InstallScope } from "./tenancy/data-layer.ts";
 
 /**
@@ -54,6 +55,9 @@ export type AuditPage = {
 /** The Audit log's retention: entries older than this many days are removed every day. */
 export const AUDIT_RETENTION_DAYS = { default: 365, min: 90, max: 3650 } as const;
 
+/** The most people a "Who" filter offers. */
+const PEOPLE_LIMIT = 2_000;
+
 /** The most entries one CSV export holds: the newest ones that match. */
 export const AUDIT_EXPORT_LIMIT = 50_000;
 
@@ -78,6 +82,11 @@ export type AuditLog = {
 		access: Access,
 		query: Omit<AuditQuery, "after" | "limit">,
 	): Promise<{ filename: string; csv: string; truncated: boolean }>;
+	/**
+	 * The people to filter a level's Audit log by, by name: everyone on the Install (the Superadmin)
+	 * or, in a Workspace, its Members, its Staff and the Superadmin. Same access as `list`.
+	 */
+	people(access: Access, workspaceId: string | undefined): Promise<{ id: string; name: string; email: string }[]>;
 	/** How many days entries are kept. */
 	retention(): Promise<{ days: number }>;
 	/**
@@ -156,6 +165,33 @@ export function createAuditLog({
 				csv: auditCsv(read),
 				truncated: read.next !== null,
 			};
+		},
+
+		async people(access, workspaceId) {
+			const columns = { id: people.id, name: people.name, email: people.email };
+			if (!workspaceId) {
+				await data.install(access, "audit.view");
+				return database.db.select(columns).from(people).orderBy(asc(people.name)).limit(PEOPLE_LIMIT);
+			}
+			const workspace = await data.workspace(access, workspaceId, "audit.view");
+			return database.db
+				.select(columns)
+				.from(people)
+				.where(
+					sql`${people.id} in (
+						select ${memberships.personId} from ${memberships} where ${memberships.workspaceId} = ${workspace.workspace.id}
+						union
+						select ${installRoles.personId} from ${installRoles}
+						where ${installRoles.role} = ${SUPERADMIN_ROLE}
+							or (${installRoles.role} = ${STAFF_ROLE} and (${installRoles.allWorkspaces} or exists (
+								select 1 from ${staffWorkspaces}
+								where ${staffWorkspaces.personId} = ${installRoles.personId}
+									and ${staffWorkspaces.workspaceId} = ${workspace.workspace.id}
+							)))
+					)`,
+				)
+				.orderBy(asc(people.name))
+				.limit(PEOPLE_LIMIT);
 		},
 
 		async retention() {

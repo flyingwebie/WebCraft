@@ -33,6 +33,7 @@ import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { useSensitiveAction } from "../../ui/identity-check.tsx";
+import { ImpersonateDialog } from "../../ui/impersonation/ImpersonateDialog.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { ResetTwoFactorDialog } from "../../ui/two-factor/ResetDialog.tsx";
 
@@ -62,8 +63,11 @@ const fromAccess = (access: Access): "all" | string[] => (access.mode === "all" 
 function StaffPage() {
 	const t = useT();
 	const data = Route.useLoaderData();
+	const { shell, person: you } = Route.useRouteContext();
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 	const { staff, invites, workspaces } = data;
+	// The Superadmin impersonates Staff, never while impersonating already.
+	const canImpersonate = shell.permissions.includes("impersonation.start") && !shell.impersonation;
 	const reach = (assigned: "all" | WorkspaceOption[]) =>
 		assigned === "all"
 			? t("staff.allWorkspaces")
@@ -107,6 +111,7 @@ function StaffPage() {
 										</TableCell>
 										<TableCell className="pe-4 text-end">
 											<span className="inline-flex flex-wrap justify-end gap-2">
+												{canImpersonate ? <ImpersonateStaff person={person} you={you.name} /> : null}
 												{person.twoFactor.length > 0 ? <ResetStaffTwoFactor person={person} /> : null}
 												<ChangeWorkspacesSheet person={person} workspaces={workspaces} />
 											</span>
@@ -158,6 +163,27 @@ function StaffPage() {
 					)}
 				</section>
 			</div>
+		</>
+	);
+}
+
+/** "Impersonate" a Staff member: see the admin as they do, for up to an hour (the Superadmin only). */
+function ImpersonateStaff({ person, you }: { person: { id: string; name: string }; you: string }) {
+	const t = useT();
+	const trigger = useRef<HTMLButtonElement>(null);
+	const [open, setOpen] = useState(false);
+	return (
+		<>
+			<Button
+				ref={trigger}
+				variant="outline"
+				size="sm"
+				onClick={() => setOpen(true)}
+				aria-label={t("impersonation.buttonLabel", { name: person.name })}
+			>
+				{t("impersonation.menuItem")}
+			</Button>
+			<ImpersonateDialog person={person} you={you} open={open} onOpenChange={setOpen} finalFocus={trigger} />
 		</>
 	);
 }

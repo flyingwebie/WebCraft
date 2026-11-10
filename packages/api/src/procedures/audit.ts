@@ -38,7 +38,19 @@ export const audit = {
 				.object({ ...filters, after: after.optional(), limit: z.number().int().min(1).max(200).default(50) })
 				.default({ limit: 50 }),
 		)
-		.handler(({ context, input }) => context.services.audit.list(context.access, input)),
+		.handler(async ({ context, input }) => ({
+			...(await context.services.audit.list(context.access, input)),
+			/** How many days entries are kept, for the screen to say. */
+			keptDays: (await context.services.audit.retention()).days,
+		})),
+
+	/**
+	 * The people to filter a level's entries by ("Who"), by name: everyone on the Install, or a
+	 * Workspace's Members, its Staff and the Superadmin.
+	 */
+	people: signedIn.input(z.object({ workspaceId: id.optional() })).handler(async ({ context, input }) => ({
+		people: await context.services.audit.people(context.access, input.workspaceId),
+	})),
 
 	/**
 	 * The entries `list` reads with the same filters, as a CSV file: UTF-8 with a BOM, formulas made
