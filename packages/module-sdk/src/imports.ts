@@ -29,9 +29,8 @@ export type ImportSource = {
 	 */
 	permission: string;
 	/** The file it reads: its largest size and the file name endings the admin offers. */
-	file?: { maxBytes: number; extensions: readonly string[] };
-	/** A live source uses only the source-bound, secret-backed GET port Core provides. */
-	live?: LiveImportSource;
+	file: { maxBytes: number; extensions: readonly string[] };
+	live?: never;
 	/**
 	 * Reads the file into items, in the order they are to be written: a `type` before the first item
 	 * of that type, and an item another item points at (a parent Page, a term) before it where the
@@ -41,11 +40,24 @@ export type ImportSource = {
 	 * It must give the same items in the same order every time it reads the same file: a long run is
 	 * gone through by several jobs, each reading from the start and skipping what was written.
 	 */
-	read?(file: SourceFile, context: ModuleContext): AsyncIterable<SourceItem>;
+	read(file: SourceFile, context: ModuleContext): AsyncIterable<SourceItem>;
 };
 
+/** A live declaration (SDK 1.13), using only Core's source-bound, secret-backed GET port. */
+export type LiveImportSourceDefinition = Pick<ImportSource, "key" | "label" | "description" | "permission"> & {
+	file?: never;
+	read?: never;
+	live: LiveImportSource;
+};
+
+/** The file and live declarations a Module may offer in its source catalogue. */
+export type ModuleImportSource = ImportSource | LiveImportSourceDefinition;
+
 /** Declares an import source. */
-export function importSource(source: ImportSource): ImportSource {
+export function importSource(source: ImportSource): ImportSource;
+export function importSource(source: LiveImportSourceDefinition): LiveImportSourceDefinition;
+export function importSource(source: ModuleImportSource): ModuleImportSource;
+export function importSource(source: ModuleImportSource): ModuleImportSource {
 	return source;
 }
 

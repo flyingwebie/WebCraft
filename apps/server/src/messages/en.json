@@ -6352,7 +6352,12 @@
 				"stop": "Impersonation ended"
 			},
 			"import": {
+				"connect": "Import source connected",
 				"create": "Import created",
+				"credentials": {
+					"use": "Import login used"
+				},
+				"remove": "Import removed",
 				"run": "Import run started",
 				"stop": "Import run stopped",
 				"undo": "Import run undone"

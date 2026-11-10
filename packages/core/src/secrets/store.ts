@@ -1,6 +1,6 @@
 import type { Database } from "@webcraft/db";
 import { masterKeyVersions, secrets as secretsTable } from "@webcraft/db/schema";
-import { and, eq, isNull, type SQL, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, type SQL, sql } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
 import { type Sealed, seal, unseal } from "./cipher.ts";
@@ -35,8 +35,8 @@ export type Secrets<Owner extends SecretOwner = SecretOwner> = {
 	useWith<Result>(secret: SecretRef<Owner>, use: (value: string) => Result | Promise<Result>): Promise<Result>;
 	/** What a person may see of a secret: whether it is set, its last 4 characters and when it was set. */
 	describe(secret: SecretRef<Owner>): Promise<SecretDescription>;
-	/** Forgets the secret, so it is no longer set. Does nothing when it isn't. */
-	remove(secret: SecretRef<Owner>): Promise<void>;
+	/** Forgets the secret; an expiry cutoff preserves any value replaced since that time. */
+	remove(secret: SecretRef<Owner>, updatedBefore?: Date): Promise<void>;
 	/** The names of the owner's secrets that start with `prefix`, such as a Module's (`module:sample:`). */
 	names(owner: Owner, prefix: string): Promise<string[]>;
 };
@@ -70,9 +70,9 @@ export function installSecretsOnly(store: Secrets): InstallSecrets {
 			check(secret);
 			return store.describe(secret);
 		},
-		async remove(secret) {
+		async remove(secret, updatedBefore) {
 			check(secret);
-			return store.remove(secret);
+			return store.remove(secret, updatedBefore);
 		},
 		async names(owner, prefix) {
 			check({ owner, name: prefix });
@@ -207,9 +207,8 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 			};
 		},
 
-		async remove(secret) {
-			checkRef(secret);
-			await db.delete(secretsTable).where(whereSecret(secret));
+		async remove(secret, updatedBefore) {
+			await removeSecret(db, secret, updatedBefore);
 		},
 
 		async names(owner, prefix) {
@@ -228,6 +227,18 @@ export function createSecrets({ database, masterKey, clock }: SecretsOptions): S
 			return rows.map((row) => row.name);
 		},
 	};
+}
+
+/** Forgets one secret using the caller's transaction, without decrypting or exposing its value. */
+export async function removeSecret(
+	executor: Pick<Database["db"], "delete">,
+	secret: SecretRef,
+	updatedBefore?: Date,
+): Promise<void> {
+	checkRef(secret);
+	await executor
+		.delete(secretsTable)
+		.where(and(whereSecret(secret), updatedBefore ? lt(secretsTable.updatedAt, updatedBefore) : undefined));
 }
 
 function whereSecret(secret: SecretRef): SQL | undefined {

@@ -34,19 +34,23 @@ export const importsPurge = defineJob({
 						.for("update");
 					const connection = connectionOf(current?.connection);
 					if (current && (!connection || new Date(connection.expiresAt).getTime() <= now.getTime()))
-						await tx.delete(secrets, eq(secrets.name, `import:${row.id}:credentials`));
+						await tx.secrets.remove(`import:${row.id}:credentials`);
 				});
 			}
 		}
 		// A process killed during Test connection can leave its temporary encrypted candidate.
+		const candidateCutoff = new Date(now.getTime() - 86400_000);
 		const abandoned = and(
 			sql`${secrets.name} ~ '^import:[a-f0-9-]+:credentials:test$'`,
-			lt(secrets.updatedAt, new Date(now.getTime() - 86400_000)),
+			lt(secrets.updatedAt, candidateCutoff),
 		);
-		const candidateSites = await database.db.selectDistinct({ siteId: secrets.siteId }).from(secrets).where(abandoned);
-		for (const { siteId } of candidateSites) {
+		const candidates = await database.db
+			.select({ siteId: secrets.siteId, name: secrets.name })
+			.from(secrets)
+			.where(abandoned);
+		for (const { siteId, name } of candidates) {
 			const scope = siteId ? await data.background(siteId) : null;
-			if (scope) await scope.delete(secrets, abandoned);
+			if (scope) await scope.secrets.remove(name, candidateCutoff);
 		}
 
 		const expiredRuns = await database.db

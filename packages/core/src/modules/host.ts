@@ -7,7 +7,6 @@ import {
 	formSenderCounted,
 	type ImportedRule,
 	type ImportedRuleResult,
-	type ImportSource,
 	isModuleError,
 	isSubmissionFiles,
 	type KeptSubmission,
@@ -17,6 +16,7 @@ import {
 	type ModuleDefinition,
 	type ModuleEventName,
 	type ModuleEvents,
+	type ModuleImportSource,
 	ModuleRefusedError,
 	type ModuleWidget,
 	type PageMiss,
@@ -511,7 +511,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	const words = (module: LoadedModule, label: Label | undefined, language: string) =>
 		label && module.manifest ? wordsIn(label, language, module.manifest.adminLanguages) : "";
 
-	const sourceView = (module: RunnableModule, source: ImportSource, language: string): ImportSourceView => ({
+	const sourceView = (module: RunnableModule, source: ModuleImportSource, language: string): ImportSourceView => ({
 		id: `${module.id}.${source.key}`,
 		moduleId: module.id,
 		label: words(module, source.label, language),
@@ -1358,7 +1358,32 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 								http: (path: string, request?: { anonymous?: boolean }) =>
 									importSourceHttp(module, scope, options, config, path, request?.anonymous),
 							};
-							return { test: () => live.test(connection), read: (survey) => live.read(connection, survey) };
+							const noteFailure = async (error: unknown, phase: "test" | "read") => {
+								if (!isModuleAnswer(error)) {
+									await writeLine(options, module, place, "error", `The live import source ${source.key} failed.`, {
+										phase,
+										error: describeError(error),
+									}).catch(() => {});
+								}
+							};
+							return {
+								async test() {
+									try {
+										return await live.test(connection);
+									} catch (error) {
+										await noteFailure(error, "test");
+										throw error;
+									}
+								},
+								async *read(survey) {
+									try {
+										yield* live.read(connection, survey);
+									} catch (error) {
+										await noteFailure(error, "read");
+										throw error;
+									}
+								},
+							};
 						}
 					: undefined,
 				async *read(file) {

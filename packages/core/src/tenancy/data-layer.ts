@@ -12,6 +12,7 @@ import { noteLogPlace } from "../log.ts";
 import { type Actor, can, INSTALL, personIdOf, type Resource } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SecretDescription, SecretOwner, Secrets } from "../secrets/index.ts";
+import { removeSecret } from "../secrets/store.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "./errors.ts";
 
 /**
@@ -125,7 +126,7 @@ export type ScopedSecrets = {
 	set(name: string, value: string): Promise<void>;
 	useWith<Result>(name: string, use: (value: string) => Result | Promise<Result>): Promise<Result>;
 	describe(name: string): Promise<SecretDescription>;
-	remove(name: string): Promise<void>;
+	remove(name: string, updatedBefore?: Date): Promise<void>;
 	/** The names of this Workspace's (or Site's) secrets that start with `prefix`. */
 	names(prefix: string): Promise<string[]>;
 };
@@ -202,11 +203,12 @@ export type VisitorScope = Pick<
 
 /**
  * A Site opened for WebCraft's own background work: the queries of a Site scope, limited to the
- * Site, with no person, no Audit log and no secrets.
+ * Site, with no person, no Audit log and no access to secret values. Cleanup can only remove them.
  */
 export type BackgroundScope = ScopedQueries<SiteTable, "workspaceId" | "siteId"> &
 	ScopeDatabase & {
 		readonly level: "background";
+		readonly secrets: Pick<ScopedSecrets, "remove">;
 		readonly workspace: Workspace;
 		readonly site: Site;
 		readonly componentSources: ComponentSources;
@@ -349,6 +351,14 @@ export function createDataLayer({
 			...scopedQueries(executor, condition, { workspaceId: workspace.id, siteId: site.id }),
 			db: executor,
 			level: "background",
+			secrets: {
+				remove: (name, updatedBefore) =>
+					removeSecret(
+						executor,
+						{ owner: { kind: "site", workspaceId: workspace.id, siteId: site.id }, name },
+						updatedBefore,
+					),
+			},
 			workspace,
 			site,
 			get componentSources() {
@@ -558,7 +568,7 @@ function scopedSecrets(secrets: Secrets, owner: SecretOwner): ScopedSecrets {
 		set: (name, value) => secrets.set({ owner, name }, value),
 		useWith: (name, use) => secrets.useWith({ owner, name }, use),
 		describe: (name) => secrets.describe({ owner, name }),
-		remove: (name) => secrets.remove({ owner, name }),
+		remove: (name, updatedBefore) => secrets.remove({ owner, name }, updatedBefore),
 		names: (prefix) => secrets.names(owner, prefix),
 	};
 }

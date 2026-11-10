@@ -6352,7 +6352,12 @@
 				"stop": "Impersonificazione terminata"
 			},
 			"import": {
+				"connect": "Origine dell'importazione collegata",
 				"create": "Importazione creata",
+				"credentials": {
+					"use": "Credenziali dell'importazione utilizzate"
+				},
+				"remove": "Importazione rimossa",
 				"run": "Esecuzione dell'importazione avviata",
 				"stop": "Esecuzione dell'importazione fermata",
 				"undo": "Esecuzione dell'importazione annullata"
