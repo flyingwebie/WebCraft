@@ -1,4 +1,13 @@
-import type { BarKit, DetailsPanel, ImageTools, LoopTools, PresencePlace, PresenceTarget } from "./kit.ts";
+import type {
+	BarKit,
+	DetailsPanel,
+	ImageTools,
+	LoopTools,
+	PanelHandle,
+	PanelOptions,
+	PresencePlace,
+	PresenceTarget,
+} from "./kit.ts";
 
 /**
  * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
@@ -835,6 +844,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			placeIn: placeAt,
 			pageDraft,
 			sheet,
+			panel,
 			moved(next) {
 				if (next === path) return;
 				path = next;
@@ -928,6 +938,87 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				if (!closed) dialog.close();
 			},
 		};
+	}
+
+	let panels = 0;
+
+	/**
+	 * One of the bar's own floating popovers or drawers (the image popover, a Loop item's form, Page
+	 * details): the mechanic every one of them shares (`kit.panel`), so only what differs between them
+	 * (their classes, their body, their anchor, what else closing does) stays their own. Escape, the
+	 * close button and, on a phone, the bottom sheet's own dismissal (backdrop, its close button) all
+	 * close it exactly once, however they got there; `returnFocus` then runs the caller's `focusBack`.
+	 */
+	function panel(options: PanelOptions): PanelHandle {
+		const onPhone = phoneWidth.matches;
+		const titleId = `wc-panel-${++panels}`;
+		const made = el("div", {});
+		if (onPhone) made.className = "sheet-body";
+		else {
+			made.className = options.className;
+			made.setAttribute("role", "dialog");
+			made.setAttribute("aria-labelledby", titleId);
+			made.setAttribute("tabindex", "-1");
+		}
+		let closed = false;
+		let sheetHandle: ReturnType<typeof sheet> | null = null;
+		let scrollHandler: (() => void) | null = null;
+
+		const reposition = () => {
+			if (!onPhone && options.anchor) place(made, options.anchor(), options.gap ?? 8, options.prefer ?? "below");
+		};
+
+		function close(returnFocus: boolean): void {
+			if (closed) return;
+			closed = true;
+			options.onClose?.();
+			if (scrollHandler) {
+				win.removeEventListener("scroll", scrollHandler, true);
+				scrollHandler = null;
+			}
+			if (options.htmlClass) doc.documentElement.classList.remove(options.htmlClass);
+			if (sheetHandle) {
+				const was = sheetHandle;
+				sheetHandle = null;
+				was.close();
+			} else {
+				made.remove();
+			}
+			options.afterClose?.();
+			if (returnFocus) options.focusBack();
+		}
+
+		made.addEventListener("keydown", (event) => {
+			if (event.key !== "Escape") return;
+			event.preventDefault();
+			event.stopPropagation();
+			close(true);
+		});
+
+		if (onPhone) {
+			made.append(...options.content(true));
+			sheetHandle = sheet({ title: options.title, from: null, content: made, onClose: () => close(false) });
+		} else {
+			const closeButton = button({ class: "icon-button", "aria-label": word("close") }, icon("close"));
+			closeButton.addEventListener("click", () => close(true));
+			made.append(
+				el(
+					"div",
+					{ class: "panel-head" },
+					el("h2", { id: titleId, class: "panel-title" }, icon(options.headIcon), options.title),
+					closeButton,
+				),
+				...options.content(false),
+			);
+			layer.append(made);
+			if (options.htmlClass) doc.documentElement.classList.add(options.htmlClass);
+			if (options.anchor) {
+				reposition();
+				scrollHandler = reposition;
+				win.addEventListener("scroll", scrollHandler, { passive: true, capture: true });
+			}
+		}
+		return { panel: made, close, reposition };
 	}
 
 	/**
@@ -1224,17 +1315,28 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		}
 		if (s.canPublish) {
 			const publish = button({ class: "primary" }, icon("publish"), word("publishPage"));
-			publish.disabled = s.changes.length === 0;
+			// Only those who may change Structure publish a Loop's items: disabled when every change
+			// left is one of those (nothing else here for this person to publish).
+			const publishable = s.changes.filter((change) => !change.structure || s.canCode);
+			publish.disabled = publishable.length === 0;
 			publish.addEventListener("click", async () => {
 				publish.disabled = true;
 				publish.replaceChildren(word("publishing"));
 				const answer = await call("publish", { path });
 				if (answer.ok) {
-					state = { ...(answer.data as State), words };
+					const next = answer.data as State;
+					// Honest about what actually went live: a Loop item change that is still one of the
+					// page's changes afterwards waited for Staff, even though publishing was answered 200.
+					const stillWaiting = s.changes.some(
+						(change) =>
+							change.structure &&
+							next.changes.some((remaining) => remaining.item === change.item && remaining.key === change.key),
+					);
+					state = { ...next, words };
 					renderStatus();
 					renderPublish(panel);
 					panel.focus();
-					announce(word("published"));
+					announce(stillWaiting ? word("publishedWaiting") : word("published"));
 				} else {
 					publish.disabled = false;
 					publish.replaceChildren(icon("publish"), word("publishPage"));

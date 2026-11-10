@@ -1,4 +1,4 @@
-import type { BarKit, LoopTools, MediaChoice, PresenceTarget } from "./kit.ts";
+import type { BarKit, LoopTools, MediaChoice, PanelHandle, PresenceTarget } from "./kit.ts";
 
 /**
  * Loop items in Edit mode (GLOSSARY.md › Loop item). The page marks each Loop of the Site and its
@@ -50,7 +50,7 @@ export function loopTools(kit: BarKit): LoopTools {
 	const adds = new Map<string, HTMLButtonElement>();
 	const notice = el("div", { class: "loop-notice", role: "status", hidden: "" });
 	let noticeTimer = 0;
-	let form: { close(): void } | null = null;
+	let form: PanelHandle | null = null;
 	kit.layer.append(outline, label, toolbar, notice);
 
 	// -------------------------------------------------------------------------------------------
@@ -511,7 +511,7 @@ export function loopTools(kit: BarKit): LoopTools {
 
 	/** Opens the item form; focus goes back to `from` (the tool that opened it) when it closes, else to the item. */
 	async function openForm(loop: Shown, item: Item, from?: HTMLElement): Promise<void> {
-		form?.close();
+		form?.close(false);
 		const itemId = item.key.split(":")[2] ?? "";
 		const language = kit.state().language;
 		const answer = await call("loop/get", { loop: loop.id, item: itemId, language: language.code });
@@ -520,13 +520,6 @@ export function loopTools(kit: BarKit): LoopTools {
 			return;
 		}
 		const data = answer.data as { fields: Field[]; item: Values };
-		const titleId = "wc-item-form-title";
-		const panel = el("div", {
-			class: "popup dialog item-form",
-			role: "dialog",
-			"aria-labelledby": titleId,
-			tabindex: "-1",
-		});
 		const status = el("p", { class: "field-status", role: "status" });
 		const many = kit.state().languages.length > 1;
 		const problems = new Map<string, HTMLElement>();
@@ -735,69 +728,31 @@ export function loopTools(kit: BarKit): LoopTools {
 			}
 		};
 
-		const closeButton = button({ class: "icon-button", "aria-label": word("close") }, icon("close"));
-		let sheet: ReturnType<BarKit["sheet"]> | null = null;
-		const onScroll = () => {
-			const rect = rectOf(item);
-			if (!sheet) kit.place(panel, rect, 8, "below");
-		};
-		const done = (returnFocus: boolean) => {
-			for (const timer of pending.values()) cancel(timer);
-			win.removeEventListener("scroll", onScroll, true);
-			if (sheet) {
-				const was = sheet;
-				sheet = null;
-				was.close();
-			} else panel.remove();
-			form = null;
-			if (changed) void refreshLoop(loop.id);
-			if (!returnFocus) return;
-			if (from?.isConnected && !toolbar.hidden) from.focus();
-			else focusItem(loop.id, item.key);
-		};
-		form = { close: () => done(false) };
-		closeButton.addEventListener("click", () => done(true));
-		panel.addEventListener("keydown", (event) => {
-			if (event.key === "Escape") {
-				event.preventDefault();
-				event.stopPropagation();
-				done(true);
-			}
-		});
-		panel.append(
-			el(
-				"div",
-				{ class: "panel-head" },
-				el("h2", { id: titleId, class: "panel-title" }, icon("loop"), itemLabel(loop, item)),
-				closeButton,
-			),
-			el(
-				"div",
-				{ class: "item-fields" },
-				...data.fields.map((field) => control(field, data.item[field.key], field.key)),
-			),
-			status,
+		const fields = el(
+			"div",
+			{ class: "item-fields" },
+			...data.fields.map((field) => control(field, data.item[field.key], field.key)),
 		);
-		if (kit.phone()) {
-			// The sheet is the dialog, with its own title and close button.
-			panel.removeAttribute("role");
-			panel.removeAttribute("aria-labelledby");
-			panel.className = "sheet-body";
-			panel.querySelector(".panel-head")?.remove();
-			sheet = kit.sheet({
-				title: itemLabel(loop, item),
-				from: elementsOf(item)[0] ?? null,
-				content: panel,
-				onClose: () => {
-					if (form) done(false);
-				},
-			});
-		} else {
-			kit.layer.append(panel);
-			onScroll();
-			win.addEventListener("scroll", onScroll, { passive: true, capture: true });
-		}
-		panel.querySelector<HTMLElement>("input, select, [contenteditable], button.switch")?.focus();
+		const handle = kit.panel({
+			title: itemLabel(loop, item),
+			headIcon: "loop",
+			className: "popup dialog item-form",
+			content: () => [fields, status],
+			anchor: () => rectOf(item),
+			onClose: () => {
+				for (const timer of pending.values()) cancel(timer);
+			},
+			afterClose: () => {
+				form = null;
+				if (changed) void refreshLoop(loop.id);
+			},
+			focusBack: () => {
+				if (from?.isConnected && !toolbar.hidden) from.focus();
+				else focusItem(loop.id, item.key);
+			},
+		});
+		form = handle;
+		handle.panel.querySelector<HTMLElement>("input, select, [contenteditable], button.switch")?.focus();
 	}
 
 	// -------------------------------------------------------------------------------------------
@@ -819,7 +774,7 @@ export function loopTools(kit: BarKit): LoopTools {
 		}
 		if (!on) {
 			hideTools();
-			form?.close();
+			form?.close(false);
 			notice.hidden = true;
 		}
 		renderAdds();
@@ -837,7 +792,7 @@ export function loopTools(kit: BarKit): LoopTools {
 		targets,
 		close: () => {
 			hideTools();
-			form?.close();
+			form?.close(false);
 		},
 		reposition,
 	};

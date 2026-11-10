@@ -335,12 +335,14 @@ describe("a Loop's items in place", () => {
 		);
 		expect(await page.locator("li h3").allTextContents()).toEqual(["Cardamom bun", "Country sourdough", "Seeded rye"]);
 		await page.getByRole("button", { name: "Publish", exact: true }).click();
-		// An Editor's Publish menu says the Loop's items wait for Staff.
+		// An Editor's Publish menu says the Loop's items wait for Staff, and Publish is off: an
+		// Editor has nothing of their own to publish here.
 		await page.getByRole("dialog").getByText("our-bakes").waitFor();
 		await page
 			.getByRole("dialog")
 			.getByText(/Staff publish Loop items/)
 			.waitFor();
+		expect(await page.getByRole("dialog").getByRole("button", { name: "Publish page" }).isDisabled()).toBe(true);
 		await page.getByRole("button", { name: "Discard changes" }).click();
 		await page.getByRole("button", { name: "Discard", exact: true }).click();
 		expect(await eventually(names, (list) => list[0] === "Country sourdough")).toEqual([
@@ -402,6 +404,19 @@ describe("Page details", () => {
 		const seoOf = async () => (await (await admin()).entries.get({ siteId, entryId })).entry.draft.seo.title;
 		expect(await eventually(seoOf, (value) => value !== null)).toBe("Sourdough in Cork");
 		await (await admin()).entries.saveDraft({ siteId, entryId, seo: { title: null } });
+	});
+
+	test("the drawer reopens after Escape closed it", async () => {
+		const page = await editModePage("light");
+		const open = page.getByRole("button", { name: "Page details" });
+
+		await open.click();
+		await page.getByRole("textbox", { name: "SEO title · English" }).waitFor();
+		await page.keyboard.press("Escape");
+		await page.getByRole("dialog", { name: "Page details" }).waitFor({ state: "hidden" });
+
+		await open.click();
+		await page.getByRole("textbox", { name: "SEO title · English" }).waitFor();
 	});
 });
 

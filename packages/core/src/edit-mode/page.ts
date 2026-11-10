@@ -5,7 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import type { InstallConfig } from "../config.ts";
 import { draftAddresses } from "../content/draft-paths.ts";
 import { getEntry, listEntries, undoDraftChanges } from "../content/entries.ts";
-import { ItemInReviewError, ReviewInvalidError } from "../content/errors.ts";
+import { ItemInReviewError, PublishInvalidError, ReviewInvalidError } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { storedFields } from "../content/fields.ts";
 import { undoGlobalsChanges } from "../content/globals.ts";
@@ -207,20 +207,28 @@ export async function discardChanges(
 /**
  * Publishes the page: its Entry and the Globals it shows, those with changes, all or none of them,
  * and for those who may change Structure (Staff) the Loops whose items changed, first. Needs
- * `entry.publish` (Authors can't); refuses Drafts that can't be published yet, as publishing from the
- * admin does. Everyone else's Loop item changes wait in the Loop's Draft for Staff.
+ * `entry.publish` (Authors can't). Refuses Drafts that can't be published yet, as publishing from the
+ * admin does, and refuses a page whose only changes are Loop items while the person may not change
+ * Structure (`PublishInvalidError`): there is nothing they may publish, so nothing is. Everyone else's
+ * Loop item changes wait in the Loop's Draft for Staff.
  */
 export async function publishPage(deps: PageDeps, editing: Editing, host: SiteHost, path: string): Promise<PageState> {
 	if (!isEditPath(path)) throw new EditPathInvalidError();
 	const changed = await changedItems(deps, editing, host, path);
 	const structure = holds(editing.scope, "structure.edit");
 	const scope = await deps.data.site(editing.scope.access, editing.scope.site.id, "entry.publish");
+	// A Loop's items are Structure's Draft: only those who may change it may publish them here.
+	const publishable = changed.filter((item) => item.kind !== "loop" || structure);
+	if (publishable.length === 0) throw new PublishInvalidError();
 	const publishing = structure ? await deps.data.site(scope.access, scope.site.id, "structure.edit") : scope;
-	const order = [...changed.filter((item) => item.kind === "loop"), ...changed.filter((item) => item.kind !== "loop")];
+	const order = [
+		...publishable.filter((item) => item.kind === "loop"),
+		...publishable.filter((item) => item.kind !== "loop"),
+	];
 	await publishing.transaction(async (tx) => {
 		for (const item of order) {
 			if (item.kind !== "loop") await publish(tx, item);
-			else if (structure) await publish(tx, { kind: "loop", id: item.id });
+			else await publish(tx, { kind: "loop", id: item.id });
 		}
 	});
 	return pageState(deps, editing, host, path);

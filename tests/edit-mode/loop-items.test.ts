@@ -579,6 +579,48 @@ describe("a Loop's items in the Publish menu", () => {
 	});
 });
 
+describe("Publish refuses a page whose only changes are Loop items, for those who may not change Structure", () => {
+	test("an Editor's only change is a Loop item: Publish refuses, and nothing changes for visitors", async () => {
+		const site = await bakery();
+		const editing = await openEditMode(install, editor, site.siteId, "/recipes/menu");
+		await editing.edit("save", { item: `loop:${site.loopId}:${site.items[0]}`, field: "name", value: "Rye loaf" });
+
+		const response = await editing.edit("publish", { path: "/recipes/menu" });
+
+		expect(response.status).toBe(400);
+		expect(await json(response)).toMatchObject({ code: "PUBLISH_INVALID" });
+		expect((await draftItems(site))[0]?.name).toBe("Rye loaf");
+		const visitors = await (await install.request(`${site.origin}/recipes/menu`)).text();
+		expect(visitors).toContain("<h3>Country sourdough</h3>");
+	});
+
+	test("with a Content change too: the Content change goes live, the Loop item change stays in the Loop's Draft", async () => {
+		const site = await bakery();
+		const editing = await openEditMode(install, editor, site.siteId, "/recipes/menu");
+		await editing.edit("save", { item: `entry:${site.menuId}`, field: "title", value: "Our new menu" });
+		await editing.edit("save", { item: `loop:${site.loopId}:${site.items[0]}`, field: "name", value: "Rye loaf" });
+
+		const response = await editing.edit("publish", { path: "/recipes/menu" });
+
+		expect(response.status).toBe(200);
+		const state = (await json(response)) as unknown as State;
+		expect(state.changes).toEqual([
+			{
+				item: `loop:${site.loopId}`,
+				key: "items",
+				label: "our-bakes",
+				type: "loopItems",
+				structure: true,
+				by: expect.anything() as unknown as State["changes"][number]["by"],
+			},
+		]);
+		const visitors = await (await install.request(`${site.origin}/recipes/menu`)).text();
+		expect(visitors).toContain("<h1>Our new menu</h1>");
+		expect(visitors).toContain("<h3>Country sourdough</h3>");
+		expect((await draftItems(site))[0]?.name).toBe("Rye loaf");
+	});
+});
+
 describe("Loop items and who may change them", () => {
 	let site: Bakes;
 
