@@ -36,6 +36,7 @@ import {
 	type NewMembership,
 	type OpenDraft,
 	type OpenedDraft,
+	parseErrorDsn,
 	parseMasterKey,
 	type RestoreOptions,
 	type RestoreReport,
@@ -158,6 +159,8 @@ export type TestInstallOptions = {
 	filterVariants?: number;
 	/** How much one sitemap file holds: the protocol's limits unless given (to test splitting with a few Entries). */
 	sitemapLimits?: { urls?: number; bytes?: number };
+	/** `WEBCRAFT_ERROR_DSN`: an outside error tracker failures are also sent to; none unless given. */
+	errorDsn?: string;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -452,6 +455,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			countryFile,
 			backupDir,
 			updateFeed: options.updateFeed === undefined ? DEFAULT_UPDATE_FEED : options.updateFeed,
+			errorDsn: options.errorDsn === undefined ? null : parseErrorDsn(options.errorDsn),
 		},
 		database,
 		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),

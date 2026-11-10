@@ -7,6 +7,7 @@ import { type LogContext, type Logger, withoutLogContext } from "../log.ts";
 import { redactText } from "../redaction.ts";
 import type { InstallScope } from "../tenancy/data-layer.ts";
 import { fingerprintOf } from "./fingerprint.ts";
+import type { ErrorTracker } from "./tracker.ts";
 
 /**
  * The Error log (`GLOSSARY.md`): unexpected failures on the Install, grouped by cause, kept 30 days,
@@ -113,8 +114,8 @@ export function createErrorLog(deps: {
 	clock: Clock;
 	/** Where the Error log says what went wrong with itself; never at error level, which feeds it. */
 	log: Logger;
-	/** Told of every failure as it is noted (an error tracker's DSN), besides being written here. */
-	onCapture?: (error: Error, at: { source: ErrorSource; context: LogContext; fingerprint: string }) => void;
+	/** An outside error tracker (`WEBCRAFT_ERROR_DSN`) each failure is also sent to, redacted. */
+	tracker?: ErrorTracker | null;
 }): ErrorLog {
 	const { database, clock, log } = deps;
 	const { db } = database;
@@ -179,7 +180,10 @@ export function createErrorLog(deps: {
 						});
 					}
 				}
-				deps.onCapture?.(error, { source, context, fingerprint });
+				deps.tracker?.report(
+					{ name: error.name, message: redactText(error.message), stack: error.stack && redactText(error.stack) },
+					{ source, context, fingerprint },
+				);
 				if (!timer) {
 					timer = setTimeout(() => void flush().catch(() => {}), FLUSH_DELAY_MS);
 					timer.unref?.();

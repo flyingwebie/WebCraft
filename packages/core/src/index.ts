@@ -145,6 +145,7 @@ export {
 	type ErrorPlace,
 	type ErrorSource,
 } from "./error-log/service.ts";
+export { type ErrorDsn, loadErrorDsn, parseErrorDsn, TRACKER_EVERY_MS } from "./error-log/tracker.ts";
 export * from "./filters/index.ts";
 export { type FilterState, readFilterState, type StateKey, type StateReader } from "./filters/state.ts";
 export * from "./forms/index.ts";

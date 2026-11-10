@@ -104,6 +104,7 @@ import { createEditMode } from "./edit-mode/index.ts";
 import { createEmail } from "./email/index.ts";
 import { reportingFailures } from "./error-log/capture.ts";
 import { createErrorLog } from "./error-log/service.ts";
+import { createErrorTracker } from "./error-log/tracker.ts";
 import { createFilters } from "./filters/index.ts";
 import { createForms, createFormTokens } from "./forms/index.ts";
 import { createSubmissionActions } from "./forms/kept.ts";
@@ -185,7 +186,19 @@ export async function createInstallServices(
 	options: CreateServicesOptions = {},
 ): Promise<InstallServices> {
 	// Every line logged at error level with an `error` is an unexpected failure: the Error log notes it.
-	const errorLog = createErrorLog({ database: givenPorts.database, clock: givenPorts.clock, log: givenPorts.log });
+	const errorLog = createErrorLog({
+		database: givenPorts.database,
+		clock: givenPorts.clock,
+		log: givenPorts.log,
+		tracker: givenPorts.config.errorDsn
+			? createErrorTracker({
+					dsn: givenPorts.config.errorDsn,
+					fetch: createGuardedFetch({ http: givenPorts.http, dns: givenPorts.dns }),
+					clock: givenPorts.clock,
+					log: givenPorts.log,
+				})
+			: null,
+	});
 	const ports: InstallPorts = { ...givenPorts, log: reportingFailures(givenPorts.log, errorLog) };
 	const { database, clock, log, config } = ports;
 	const secretsOptions = { database, masterKey, clock };
