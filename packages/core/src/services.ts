@@ -109,6 +109,7 @@ import type { Translations } from "./translation/service.ts";
 import type { TwoFactor } from "./two-factor/index.ts";
 import type { Updates } from "./updates.ts";
 import type { Webhooks } from "./webhooks/index.ts";
+import type { Workers } from "./workers.ts";
 
 /**
  * The edges of a running Install: real adapters in the processes, fakes in tests. Everything else
@@ -599,6 +600,8 @@ export type InstallServices = InstallPorts & {
 	backups: Backups;
 	/** The update check: the newest WebCraft release the release feed lists, checked once a day. */
 	updates: Updates;
+	/** The workers working the job queue: their check-ins, and whether one runs now. */
+	workers: Workers;
 	/**
 	 * Reports (#104): a Dashboard sent as a PDF on a schedule, with AI text, its history and review;
 	 * the worker's steps of making and sending one.

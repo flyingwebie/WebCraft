@@ -435,3 +435,12 @@ export {
 } from "./updates.ts";
 export { WEBCRAFT_VERSION } from "./version.ts";
 export * from "./webhooks/index.ts";
+export {
+	createWorkers,
+	startWorkerHeartbeat,
+	WORKER_BEAT_MS,
+	WORKER_FRESH_MS,
+	type WorkerCheckIn,
+	type Workers,
+	type WorkersStatus,
+} from "./workers.ts";

@@ -28,9 +28,11 @@ import {
 	type LogEntry,
 	loadTrustedProxies,
 	MASTER_KEY_VARIABLE,
+	type MediaMoveReport,
 	type MigrateStepReport,
 	migrateStep,
 	moduleSchemas,
+	moveMediaFiles,
 	type NewMembership,
 	type OpenDraft,
 	type OpenedDraft,
@@ -367,6 +369,8 @@ export type TestInstall = {
 	restore(archive: string, options?: Pick<RestoreOptions, "replace">): Promise<RestoreReport>;
 	/** Checks the release feed now, as `webcraft admin check-update` does. */
 	checkUpdate(): Promise<UpdateCheck>;
+	/** Moves the stored Media files to the bucket or to local disk, as `webcraft admin media move` does. */
+	moveMedia(options: { to: "s3" | "disk"; keepSource?: boolean }): Promise<MediaMoveReport>;
 	/** Stops the Install and drops its database. */
 	close(): Promise<void>;
 };
@@ -761,6 +765,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			return report;
 		},
 		checkUpdate: () => services.updates.check(),
+		moveMedia: (moveOptions) => moveMediaFiles({ database, storage: services.storage, log }, moveOptions),
 		upgrade,
 		webProcess() {
 			const other = createWebHandler({ services, filterVariants: options.filterVariants });

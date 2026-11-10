@@ -62,7 +62,7 @@ export async function runCli(args: readonly string[], io: CliIo): Promise<number
 		if (first === "admin") {
 			// Server commands load the Install's own code (the database, the migrations): only when asked.
 			const { runAdmin } = await import("./admin/index.ts");
-			return await runAdmin(rest.slice(1), io, { help: options.help });
+			return await runAdmin(rest.slice(1), io, { help: options.help, json: options.json });
 		}
 		if (!first || first === "help" || (options.help && rest.length === 0)) {
 			return await help(context, first === "help" ? rest.slice(1) : []);
