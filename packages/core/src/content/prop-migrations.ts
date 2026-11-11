@@ -320,29 +320,7 @@ export async function migratePropPlacements(
 				migrateTree(tree, componentId, from, next.props, drop, (id) => losing.add(`${kind}:${row.id}:${id}`));
 				if (!sameJson(version, row[which])) change[which] = version;
 			}
-			if (mode !== "preview" && Object.keys(change).length) {
-				await scope.update(
-					table,
-					{
-						...change,
-						...(change.draft
-							? {
-									updatedAt: scope.now(),
-									updatedBy: personIdOf(scope.access.actor),
-									updatedVia: clientNameOf(scope.access.via),
-								}
-							: {}),
-					},
-					eq(table.id, row.id),
-				);
-				if (change.draft)
-					await noteDraftChange(
-						scope,
-						{ kind, id: row.id },
-						{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
-						change.draft,
-					);
-			}
+			if (mode !== "preview" && Object.keys(change).length) await saveMigratedVersions(scope, table, kind, row, change);
 		}
 	}
 	// Bodies always use the published Prop contract, including in an Entry Draft.
@@ -374,35 +352,45 @@ export async function migratePropPlacements(
 				}
 				if (!sameJson(version, row[which])) change[which] = version;
 			}
-			if (mode !== "preview" && Object.keys(change).length) {
-				await scope.update(
-					entries,
-					{
-						...change,
-						...(change.draft
-							? {
-									updatedAt: scope.now(),
-									updatedBy: personIdOf(scope.access.actor),
-									updatedVia: clientNameOf(scope.access.via),
-								}
-							: {}),
-					},
-					eq(entries.id, row.id),
-				);
-				if (change.draft)
-					await noteDraftChange(
-						scope,
-						{ kind: "entry", id: row.id },
-						{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
-						change.draft,
-					);
-			}
+			if (mode !== "preview" && Object.keys(change).length)
+				await saveMigratedVersions(scope, entries, "entry", row, change);
 		}
 	}
 	return {
 		placements: losing.size,
 		message: losing.size ? `${losing.size} Placement${losing.size === 1 ? " loses its" : "s lose their"} value` : null,
 	};
+}
+
+/** Attribute and checkpoint migrated tree and Body values in the same way. */
+async function saveMigratedVersions(
+	scope: SiteScope,
+	table: typeof templates | typeof components | typeof entries,
+	kind: "template" | "component" | "entry",
+	row: Pick<typeof templates.$inferSelect, "id" | "draft" | "updatedAt" | "updatedBy" | "createdAt">,
+	change: { draft?: unknown; published?: unknown },
+): Promise<void> {
+	await scope.update(
+		table,
+		{
+			...change,
+			...(change.draft
+				? {
+						updatedAt: scope.now(),
+						updatedBy: personIdOf(scope.access.actor),
+						updatedVia: clientNameOf(scope.access.via),
+					}
+				: {}),
+		},
+		eq(table.id, row.id),
+	);
+	if (change.draft)
+		await noteDraftChange(
+			scope,
+			{ kind, id: row.id },
+			{ content: row.draft, changedAt: row.updatedAt, changedBy: row.updatedBy, since: row.createdAt },
+			change.draft,
+		);
 }
 
 /** Settings edits rename the Component's own bindings; literal strings never stand for paths. */
@@ -423,19 +411,15 @@ export function renamePropBindings(
 		}
 	};
 	collect(before, next, "props", "props");
-	const paths = [...names].sort(([a], [b]) => b.length - a.length);
-	const path = (value: string) => {
-		const match = paths.find(([from]) => value === from || value.startsWith(`${from}.`));
-		return match ? match[1] + value.slice(match[0].length) : value;
-	};
+	const paths = Object.fromEntries(names);
 	const result = structuredClone(tree);
 	const visit = (value: unknown, aliases: Readonly<Record<string, string>> = {}) => {
 		const renamed = (written: string) => {
 			const root = written.split(".")[0] ?? "";
 			const source = aliases[root];
-			if (!source) return path(written);
-			const mapped = path(source + written.slice(root.length));
-			const nextRoot = path(source);
+			if (!source) return mappedBindingPath(written, paths);
+			const mapped = mappedBindingPath(source + written.slice(root.length), paths);
+			const nextRoot = mappedBindingPath(source, paths);
 			return mapped === nextRoot || mapped.startsWith(`${nextRoot}.`) ? root + mapped.slice(nextRoot.length) : written;
 		};
 		if (Array.isArray(value)) {
