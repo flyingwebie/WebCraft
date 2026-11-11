@@ -1,4 +1,5 @@
 /** Scoped data preserving a whole-Group/Repeater binding across declaration renames. */
+import { isPropDeclarationId } from "./prop-identities.ts";
 import { type AttributePart, isValuePath } from "./tree.ts";
 
 export type PropBinding = {
@@ -69,7 +70,7 @@ export function readPropBinding(
 		for (const [name, value] of Object.entries(values).sort(([a], [b]) => a.localeCompare(b))) {
 			const id = key === "retained" ? name : value;
 			const relative = key === "retained" ? value : name;
-			if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id) || !path(relative, 256, 8))
+			if (!isPropDeclarationId(id) || !path(relative, 256, 8))
 				return { problem: "Binding identities need a declaration id and relative Field path." };
 			if (key === "sources" && !allowed.includes(name)) return { problem: `This Prop has no nested Field ${name}.` };
 			Object.defineProperty(checked, name, { value, enumerable: true, configurable: true, writable: true });

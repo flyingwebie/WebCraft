@@ -1,5 +1,6 @@
 import { checkFormat } from "./formatters.ts";
 import { canonicalLanguage } from "./languages.ts";
+import { isPropDeclarationId } from "./prop-identities.ts";
 import { isValuePath, textProblem } from "./tree.ts";
 
 /** Identity-tagged values whose old names are now occupied by another declaration. */
@@ -19,8 +20,7 @@ export function retainedValues(input: unknown): RetainedJsonValue[] {
 			typeof item !== "object" ||
 			Array.isArray(item) ||
 			Object.keys(item).some((key) => !["id", "name", "value"].includes(key)) ||
-			typeof item.id !== "string" ||
-			!/^[A-Za-z0-9_-]{1,64}$/.test(item.id) ||
+			!isPropDeclarationId(item.id) ||
 			typeof item.name !== "string" ||
 			!/^[a-z][A-Za-z0-9_]{0,63}$/.test(item.name) ||
 			!("value" in item)
@@ -38,8 +38,7 @@ export function retainedPropProblem(input: unknown): string | undefined {
 	const item = input as Record<string, unknown>;
 	if (Object.keys(item).some((key) => !["name", "value", "binding", "retained"].includes(key)))
 		return "A retained Prop holds only its name, value, declaration identity and binding metadata.";
-	if (typeof item.retained !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(item.retained))
-		return "A retained Prop needs its declaration identity.";
+	if (!isPropDeclarationId(item.retained)) return "A retained Prop needs its declaration identity.";
 	if (typeof item.name !== "string" || !/^[a-z][A-Za-z0-9_]{0,63}$/.test(item.name))
 		return "A retained Prop needs its original name.";
 	if (!Array.isArray(item.value) || item.value.length > 10_000)

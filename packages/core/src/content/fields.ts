@@ -1,4 +1,4 @@
-import { EXPRESSION_KEYWORDS } from "@webcraft/renderer";
+import { EXPRESSION_KEYWORDS, isPropDeclarationId } from "@webcraft/renderer";
 
 import type { ContentProblem } from "./errors.ts";
 import {
@@ -171,7 +171,7 @@ export function parseFields(
 			let declarationId: string | undefined;
 			if (context.owner === "component") {
 				declarationId = input.id ?? previous?.id ?? crypto.randomUUID();
-				if (typeof declarationId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$/.test(declarationId)) {
+				if (!isPropDeclarationId(declarationId)) {
 					problems.push({
 						at: `${here}.id`,
 						message: "A declaration id has 1 to 100 letters, digits, colons, underscores or hyphens.",

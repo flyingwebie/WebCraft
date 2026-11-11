@@ -199,6 +199,7 @@ export {
 export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
 export { popupsPlacedIn } from "./popups.ts";
 export { boundRoot, mappedBindingPath, type PropBinding, readMetadataJson, readPropBinding } from "./prop-bindings.ts";
+export { isPropDeclarationId } from "./prop-identities.ts";
 export { RETAINED_KEY, type RetainedJsonValue, retainedPropProblem, retainedValues } from "./prop-retention.ts";
 export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, richTextTranslation } from "./rich-text.ts";
 export {

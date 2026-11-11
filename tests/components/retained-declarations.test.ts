@@ -13,6 +13,53 @@ afterAll(async () => {
 	await install.close();
 });
 
+test("accepted declaration identities round-trip through retained values and binding metadata", async () => {
+	const admin = await install.superadmin();
+	const workspaceId = (await install.createWorkspace()).id;
+	const siteId = (await install.createSite(workspaceId)).id;
+	const { component } = await admin.api.components.create({ siteId, name: "Card" });
+	const target = { siteId, componentId: component.id };
+	const fields = [
+		{ key: "a", label: "A", type: "text", id: "n".repeat(100) },
+		{ key: "b", label: "B", type: "text", id: "nested:survivor" },
+	];
+	const original = await admin.api.components.saveMarkup({
+		...target,
+		markup: `{{@props}}\na: text id="legacy:removed"\nb: text id="survivor"\ncard: group fields=${JSON.stringify(fields)}\n{{/props}}\n<p>{{ props.a }}</p>`,
+	});
+	const { postType } = await admin.api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}" });
+	const holder = { siteId, postTypeId: postType.id };
+	await admin.api.templates.saveEntryTemplateMarkup({
+		...holder,
+		markup: '<Card a="Removed" b="Kept" card=\'{"a":"Nested removed","b":"Nested kept"}\' />',
+	});
+	const { component: wrapper } = await admin.api.components.create({ siteId, name: "Wrapper" });
+	const wrapperTarget = { siteId, componentId: wrapper.id };
+	await admin.api.components.saveMarkup({
+		...wrapperTarget,
+		markup: `{{@props}}\ncard: group fields=${JSON.stringify(fields)}\n{{/props}}\n<Card a="Bound removed" b="Bound kept" card="{{ props.card }}" />`,
+	});
+	const props = structuredClone(original.component.draft.props);
+	const survivor = props[1];
+	const card = props[2];
+	if (!survivor || !card || !("fields" in card) || !card.fields[1]) throw new Error("Missing declarations");
+	card.fields = [{ ...card.fields[1], key: "a" }];
+	await admin.api.components.saveDraft({ ...target, props: [{ ...survivor, key: "a" }, card] });
+	const pending = await admin.api.templates.getEntryTemplateMarkup(holder);
+	await admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup: pending.markup?.draft ?? "" });
+	expect((await admin.api.templates.getEntryTemplateMarkup(holder)).template?.draft).toEqual(pending.template?.draft);
+	const bound = await admin.api.components.getMarkup(wrapperTarget);
+	await admin.api.components.saveMarkup({ ...wrapperTarget, markup: bound.markup.draft });
+	expect((await admin.api.components.getMarkup(wrapperTarget)).component.draft.tree).toEqual(
+		bound.component.draft.tree,
+	);
+	await admin.api.components.saveMarkup({ ...target, markup: original.markup });
+	const restored = await admin.api.templates.getEntryTemplateMarkup(holder);
+	expect(restored.markup?.draft).toContain('a="Removed" b="Kept"');
+	expect(restored.markup?.draft).toContain("Nested removed");
+	expect(restored.markup?.draft).toContain("Nested kept");
+});
+
 test("reusing a deleted Prop name preserves both identities across holder saves, reversal and publish", async () => {
 	const admin = await install.superadmin();
 	const workspaceId = (await install.createWorkspace()).id;
