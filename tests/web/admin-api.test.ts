@@ -56,13 +56,14 @@ describe("the Management API at /api/rpc", () => {
 	test("refuses a page whose Origin isn't the admin's own, whatever the browser says of the site", async () => {
 		const admin = new URL(install.adminUrl("/"));
 		const otherPort = `${admin.protocol}//${admin.hostname}:${Number(admin.port || 443) + 1}`;
-		for (const headers of [
+		const refused: Record<string, string>[] = [
 			{ origin: "https://attacker.example" },
 			{ origin: otherPort },
 			{ origin: otherPort, "sec-fetch-site": "same-origin" },
 			{ origin: "null" },
 			{ "sec-fetch-site": "same-site" },
-		]) {
+		];
+		for (const headers of refused) {
 			expect({ headers, ...(await confirmStored(headers)) }).toEqual({ headers, status: 403, banner: true });
 		}
 	});
