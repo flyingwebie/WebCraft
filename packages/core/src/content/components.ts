@@ -72,6 +72,7 @@ import {
 	projectSourceBindings,
 	propBaseline,
 	renamePropBindings,
+	restorePropContracts,
 	retainedContract,
 	retainPropBindings,
 	upgradePropValueContracts,
@@ -540,11 +541,14 @@ async function writeDraft(
 	scope: SiteScope,
 	row: ComponentRow,
 	input: ComponentVersion,
-	catalogue: ComponentCatalogue,
+	catalogue: SiteComponents,
 ): Promise<Component> {
 	let draft: ComponentVersion = { ...input, propValueVersion: 1 };
 	const before = storedComponentVersion(row.draft);
-	draft = { ...draft, tree: retainPropBindings(draft.tree, before.tree) };
+	draft = {
+		...draft,
+		tree: retainPropBindings(restorePropContracts(draft.tree, catalogue), before.tree),
+	};
 	if (!sameJson(before.props, draft.props)) {
 		draft = { ...draft, tree: projectSourceBindings(draft.tree, before.tree, before.props, draft.props, catalogue) };
 		await migratePropPlacements(scope, row.id, before, draft, "rename");
@@ -931,7 +935,7 @@ export async function siteComponents(
 				...(which === "draft"
 					? {
 							retainedProps: propInfos(retainedContract(entry.version.props, entry.version.propBaseline)),
-							retainedContract: (input: unknown, id: string) => {
+							contractInfo: (input: unknown, id: string) => {
 								const info = propInfos([readRetainedContract(input, id)])[0];
 								if (!info) throw new Error("Missing retained contract.");
 								return info;

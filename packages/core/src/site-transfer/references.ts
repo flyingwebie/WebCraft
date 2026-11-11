@@ -218,9 +218,10 @@ export function createRowRemapper(
 			const path = [item.name];
 			let field = await definition(path, typeof item.retained === "string" ? item.retained : undefined);
 			if (item.contract !== undefined) {
-				if (typeof item.retained !== "string")
-					throw new ArchiveRefusedError("damaged", "Only a retained Prop has a source contract.");
-				field = retainedDefinition(item.contract, item.retained);
+				const identity = item.retained ?? record(item.contract).id;
+				if (typeof identity !== "string")
+					throw new ArchiveRefusedError("damaged", "A Prop source contract needs its declaration identity.");
+				field = retainedDefinition(item.contract, identity);
 			}
 			if (item.retained !== undefined && (!tree || !field.id || item.retained !== field.id))
 				throw new ArchiveRefusedError("damaged", "A retained Prop has no source declaration identity.");

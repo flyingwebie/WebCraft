@@ -36,7 +36,7 @@ import { canonicalLanguage, languageTagMessage, type Translations } from "../lan
 import { type LoopCatalogue, rootScope, type ValueScope } from "../loops.ts";
 import { mediaReference } from "../media.ts";
 import { BINDINGS_ATTRIBUTE, readBindingsJson, readMetadataJson, readPropBinding } from "../prop-bindings.ts";
-import { RETAINED_ATTRIBUTE, RETAINED_MAX_LENGTH } from "../prop-retention.ts";
+import { CONTRACTS_ATTRIBUTE, RETAINED_ATTRIBUTE, RETAINED_MAX_LENGTH } from "../prop-retention.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -829,7 +829,14 @@ class MarkupParser {
 		const given = new Set<string>();
 		let bindings: WrittenAttribute | undefined;
 		let retained: WrittenAttribute | undefined;
+		let contracts: WrittenAttribute | undefined;
+		const hasContracts = written.some((a) => a.name === CONTRACTS_ATTRIBUTE);
 		for (const attribute of written) {
+			if (attribute.name === CONTRACTS_ATTRIBUTE) {
+				if (contracts) this.problem(attribute.offset, `${CONTRACTS_ATTRIBUTE} is given twice.`);
+				contracts = attribute;
+				continue;
+			}
 			if (attribute.name === RETAINED_ATTRIBUTE) {
 				if (retained) this.problem(attribute.offset, `${RETAINED_ATTRIBUTE} is given twice.`);
 				retained = attribute;
@@ -855,7 +862,7 @@ class MarkupParser {
 			}
 			given.add(key);
 			const prop = found.props.find((candidate) => candidate.key === key);
-			if (!prop) {
+			if (!prop && !hasContracts) {
 				const near = found.props.find((candidate) => candidate.key.toLowerCase() === key.toLowerCase());
 				this.problem(
 					attribute.offset,
@@ -865,8 +872,8 @@ class MarkupParser {
 				);
 				continue;
 			}
-			if (!attribute.bound) {
-				const refused = prop.check(attribute.text);
+			if (!attribute.bound && !hasContracts) {
+				const refused = prop?.check(attribute.text);
 				if (refused) {
 					this.problem(attribute.valueOffset, `${key}: ${refused}`);
 					continue;
@@ -874,10 +881,21 @@ class MarkupParser {
 			}
 			props.push({ name: key, value: canonicalNodes(attribute.parts) });
 		}
-		if (retained) {
+		if (retained || contracts) {
 			try {
-				if (retained.bound) throw new Error("Retained values are literal JSON.");
-				const values = readMetadataJson(retained.text, RETAINED_MAX_LENGTH);
+				if (contracts) {
+					if (contracts.bound) throw new Error("Source contracts are literal JSON.");
+					const entries = readMetadataJson(contracts.text, RETAINED_MAX_LENGTH);
+					if (!entries || typeof entries !== "object" || Array.isArray(entries) || Object.keys(entries).length > 256)
+						throw new Error("Source contracts are an object of at most 256 Prop names.");
+					for (const [name, contract] of Object.entries(entries)) {
+						const value = props.find((p) => p.name === name);
+						if (!value) throw new Error(`Source contract names ${name}, which this Placement does not give.`);
+						value.contract = contract as Record<string, unknown>;
+					}
+				}
+				if (retained?.bound) throw new Error("Retained values are literal JSON.");
+				const values = retained ? readMetadataJson(retained.text, RETAINED_MAX_LENGTH) : [];
 				if (!Array.isArray(values) || values.length > 256 || values.some((p) => !p?.retained))
 					throw new Error("Retained Props need declaration identities, at most 256 values.");
 				const checked = parseElementTree(
@@ -890,7 +908,8 @@ class MarkupParser {
 				const placement = checked.nodes[0];
 				if (placement?.type === "component") props.splice(0, props.length, ...placement.props);
 			} catch (error) {
-				this.problem(retained.valueOffset, `${RETAINED_ATTRIBUTE}: ${(error as Error).message}`);
+				const metadata = contracts ?? retained;
+				this.problem(metadata?.valueOffset ?? offset, `${metadata?.name}: ${(error as Error).message}`);
 			}
 		}
 		if (bindings) {
@@ -899,7 +918,11 @@ class MarkupParser {
 				for (const [key, input] of Object.entries(readBindingsJson(bindings.text))) {
 					const value = props.find((prop) => prop.name === key);
 					if (!value) throw new Error(`Binding metadata names ${key}, which this Placement does not give.`);
-					const metadata = readPropBinding(input, value.value, found.props.find((p) => p.key === key)?.bindingPaths);
+					const info =
+						value.contract && found.contractInfo
+							? found.contractInfo(value.contract, String(value.contract.id))
+							: found.props.find((p) => p.key === key);
+					const metadata = readPropBinding(input, value.value, info?.bindingPaths);
 					if ("problem" in metadata) throw new Error(`${key}: ${metadata.problem}`);
 					if (metadata.binding) value.binding = metadata.binding;
 				}
@@ -911,7 +934,7 @@ class MarkupParser {
 			if (
 				prop.required &&
 				!given.has(prop.key) &&
-				!props.some((value) => value.retained && value.retained === prop.id)
+				!props.some((value) => prop.id !== undefined && (value.retained === prop.id || value.contract?.id === prop.id))
 			) {
 				this.problem(offset, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}

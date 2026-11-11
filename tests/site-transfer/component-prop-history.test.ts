@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, TEST_PASSWORD, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
-import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
+import { exportedArchive, importArchive, rewritten } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 import { publishEverything } from "./support.ts";
 
@@ -292,7 +292,20 @@ test("transfer searches past newer missing contracts without remapping historica
 	const sourceHistory = await admin.api.history.list({ siteId, item: { kind: "component", id: component.id } });
 	expect(sourceHistory.copies.length).toBeGreaterThan(20);
 	await admin.api.session.confirmIdentity({ password: TEST_PASSWORD });
-	const imported = await importArchive(install, admin, workspaceId, await exportedArchive(install, admin, siteId), {
+	// Legacy copies have no self-contained contracts. Keep exercising the bounded historical
+	// lookup even though new copies now capture those contracts when they are created.
+	const archive = rewritten(await exportedArchive(install, admin, siteId), {
+		rows: (table, rows) => {
+			if (table !== "public.revisions") return rows;
+			return rows.map((row) => {
+				if (row.item_kind !== "template") return row;
+				const content = structuredClone(row.content) as { nodes: { props: { contract?: unknown }[] }[] };
+				for (const node of content.nodes) for (const prop of node.props) delete prop.contract;
+				return { ...row, content };
+			});
+		},
+	});
+	const imported = await importArchive(install, admin, workspaceId, archive, {
 		name: "Fallback copy",
 		slug: "fallback-copy",
 		partBytes: 1024,
@@ -306,7 +319,8 @@ test("transfer searches past newer missing contracts without remapping historica
 	const copiedTemplate = (await admin.api.templates.getEntryTemplate(holder)).template;
 	const item = { kind: "template" as const, id: copiedTemplate?.id ?? "" };
 	const history = await admin.api.history.list({ siteId: destination, item });
-	const revision = history.copies.find((c) => c.type === "revision");
+	// Select the source Revision, not import's last-live recovery copy (timestamps may tie).
+	const revision = history.copies.find((c) => c.type === "revision" && c.by?.via?.kind !== "command");
 	const restored = await admin.api.history.get({
 		siteId: destination,
 		item,

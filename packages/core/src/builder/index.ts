@@ -45,7 +45,7 @@ import {
 	printPropDeclarations,
 	readPropDeclarations,
 } from "../content/prop-markup.ts";
-import { projectSourceBindings, retainPropBindings } from "../content/prop-migrations.ts";
+import { projectSourceBindings, restorePropContracts, retainPropBindings } from "../content/prop-migrations.ts";
 import type { Template } from "../content/templates.ts";
 import { type ClassCatalogue, classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
@@ -270,7 +270,7 @@ function checked(tree: unknown, source: BuilderSource, catalogue: ClassCatalogue
 
 /** Previews and saves project the same immediate outer binding contract. */
 function prepared(tree: ElementTree, source: BuilderSource): ElementTree {
-	const retained = retainPropBindings(tree, source.draft);
+	const retained = retainPropBindings(restorePropContracts(tree, source.components), source.draft);
 	return source.component && source.props
 		? projectSourceBindings(retained, source.draft, source.component.draft.props, source.props, source.components)
 		: retained;

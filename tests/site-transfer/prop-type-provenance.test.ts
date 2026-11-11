@@ -330,3 +330,140 @@ test("typed retained contracts transfer with Component history and malformed sna
 	expect(final.markup?.draft).toContain(`value="${entry.id}"`);
 	expect(final.markup?.draft).not.toContain("data-wc-retained");
 });
+
+test("a Template Checkpoint preserves a new text contract after the Component changes again", async () => {
+	const install = await createTestInstall();
+	try {
+		const admin = await install.superadmin();
+		const workspaceId = (await install.createWorkspace()).id;
+		const siteId = (await install.createSite(workspaceId)).id;
+		const { postType } = await admin.api.postTypes.create({
+			siteId,
+			name: "Stories",
+			key: "stories",
+			urlPattern: "/stories/{slug}",
+		});
+		const holder = { siteId, postTypeId: postType.id };
+		const { entry } = await admin.api.entries.create({ ...holder, title: "Example" });
+		const { component } = await admin.api.components.create({ siteId, name: "Card" });
+		const target = { siteId, componentId: component.id };
+		const first = await admin.api.components.saveMarkup({
+			...target,
+			markup: '{{@props}}\nvalue: relationship postTypes=["stories"]\n{{/props}}\n<p>Card</p>',
+		});
+		await admin.api.components.publish(target);
+		await install.clock.advance(1000);
+		await admin.api.components.saveMarkup({
+			...target,
+			markup: `{{@props}}\nvalue: text id="${first.component.draft.props[0]?.id}"\n{{/props}}\n<p>Card</p>`,
+		});
+		const { template } = await admin.api.templates.saveEntryTemplateMarkup({
+			...holder,
+			markup: `<Card value="${entry.id}" />`,
+		});
+		await admin.api.history.leave({ siteId, item: { kind: "template", id: template.id } });
+		await admin.api.history.leave({ siteId, item: { kind: "template", id: template.id } });
+		expect(
+			(await admin.api.history.list({ siteId, item: { kind: "template", id: template.id } })).copies.filter(
+				(c) => c.type === "checkpoint",
+			),
+		).toHaveLength(1);
+		const sourceItem = { kind: "template" as const, id: template.id };
+		const sourceCopies = await admin.api.history.list({ siteId, item: sourceItem });
+		const sourceCopy = sourceCopies.copies.find((copy) => copy.type === "checkpoint");
+		const unchanged = await admin.api.history.compare({
+			siteId,
+			item: sourceItem,
+			copy: { type: "checkpoint", id: sourceCopy?.id ?? "" },
+		});
+		expect(unchanged.changes).toBe(0);
+		const sourceSnapshot = await admin.api.history.get({
+			siteId,
+			item: sourceItem,
+			copy: { type: "checkpoint", id: sourceCopy?.id ?? "" },
+		});
+		for (const reverse of [false, true]) {
+			const duplicate = structuredClone(sourceSnapshot.content) as {
+				nodes: { props: { name: string; value: unknown; contract?: unknown }[] }[];
+			};
+			const node = duplicate.nodes[0];
+			const value = node?.props[0];
+			if (!node || !value) throw new Error("Expected the historical Placement.");
+			node.props = [
+				{ ...value, name: "formerName" },
+				{ name: "value", value: value.value },
+			];
+			if (reverse) node.props.reverse();
+			await expect(admin.api.templates.saveEntryTemplate({ ...holder, tree: duplicate })).rejects.toMatchObject({
+				code: "TEMPLATE_INVALID",
+			});
+		}
+		expect((await admin.api.templates.getEntryTemplate(holder)).template?.draft).toEqual(template.draft);
+		await install.clock.advance(1000);
+		await admin.api.components.saveMarkup({ ...target, markup: first.markup });
+		const copied = await importArchive(install, admin, workspaceId, await exportedArchive(install, admin, siteId), {
+			name: "History probe",
+			slug: "history-probe",
+		});
+		expect(copied.status).toBe("done");
+		const destination = copied.site?.id ?? "";
+		const type = (await admin.api.postTypes.list({ siteId: destination })).postTypes.find((p) => p.key === "stories");
+		const placed = await admin.api.templates.getEntryTemplateMarkup({
+			siteId: destination,
+			postTypeId: type?.id ?? "",
+		});
+		const item = { kind: "template" as const, id: placed.template?.id ?? "" };
+		const history = await admin.api.history.list({ siteId: destination, item });
+		const checkpoint = history.copies.find((c) => c.type === "checkpoint" && c.reason === "left");
+		const copy = await admin.api.history.get({
+			siteId: destination,
+			item,
+			copy: { type: "checkpoint", id: checkpoint?.id ?? "" },
+		});
+		expect(JSON.stringify(copy.content)).toContain(entry.id);
+		const builder = { siteId: destination, target: { kind: "entryTemplate" as const, postTypeId: type?.id ?? "" } };
+		const printed = await admin.api.builder.markup({ ...builder, tree: copy.content });
+		const parsed = await admin.api.builder.read({ ...builder, markup: printed.markup });
+		const again = await admin.api.builder.markup({ ...builder, tree: parsed.tree });
+		expect(again.markup).toBe(printed.markup);
+		expect(printed.markup).toContain(entry.id);
+		expect(printed.markup).not.toContain(' value="');
+		const sourceContract = (copy.content as { nodes: { props: { contract: unknown }[] }[] }).nodes[0]?.props[0]
+			?.contract;
+		await admin.api.templates.saveEntryTemplateMarkup({
+			siteId: destination,
+			postTypeId: type?.id ?? "",
+			markup: `<Card value="${entry.id}" data-wc-id="restored-new" data-wc-contracts='${JSON.stringify({ value: sourceContract })}' />`,
+		});
+		expect(
+			(await admin.api.templates.getEntryTemplateMarkup({ siteId: destination, postTypeId: type?.id ?? "" })).markup
+				?.draft,
+		).not.toContain(' value="');
+
+		await admin.api.history.restore({
+			siteId: destination,
+			item,
+			copy: { type: "checkpoint", id: checkpoint?.id ?? "" },
+		});
+		const copiedComponent = (await admin.api.components.list({ siteId: destination })).components.find(
+			(c) => c.name === "Card",
+		);
+		await admin.api.components.saveMarkup({
+			siteId: destination,
+			componentId: copiedComponent?.id ?? "",
+			markup: `{{@props}}\nvalue: text id="${first.component.draft.props[0]?.id}"\n{{/props}}\n<p>Card</p>`,
+		});
+		const restored = await admin.api.templates.getEntryTemplateMarkup({
+			siteId: destination,
+			postTypeId: type?.id ?? "",
+		});
+		expect(restored.markup?.draft).toContain(`value="${entry.id}"`);
+		await admin.api.templates.saveEntryTemplateMarkup({
+			siteId: destination,
+			postTypeId: type?.id ?? "",
+			markup: restored.markup?.draft ?? "",
+		});
+	} finally {
+		await install.close();
+	}
+});

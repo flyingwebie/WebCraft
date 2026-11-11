@@ -1042,9 +1042,10 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 						: found.retainedProps?.find((candidate) => candidate.id === retained);
 				if (contract !== undefined) {
 					try {
-						if (typeof retained !== "string" || !prop || !found.retainedContract)
-							throw new Error("A source contract belongs to a known retained Prop.");
-						prop = found.retainedContract(contract, retained);
+						const identity = retained ?? contract?.id;
+						if (typeof identity !== "string" || !found.contractInfo)
+							throw new Error("A Prop source contract needs a declaration identity.");
+						prop = found.contractInfo(contract, identity);
 					} catch (error) {
 						problem(here, (error as Error).message);
 						return;
@@ -1057,7 +1058,9 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 				if (
 					props.some((given) =>
 						retained === undefined
-							? !given.retained && given.name === name
+							? !given.retained &&
+								(given.name === name ||
+									(prop.id && (given.contract?.id ?? found.props.find((p) => p.key === given.name)?.id) === prop.id))
 							: given.retained === retained &&
 								retainedValueIdentity(String(retained), given.contract) ===
 									retainedValueIdentity(String(retained), contract),
@@ -1097,7 +1100,11 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		for (const prop of found.props) {
 			if (
 				prop.required &&
-				!props.some((given) => (given.retained ? given.retained === prop.id : given.name === prop.key))
+				!props.some((given) =>
+					given.retained
+						? given.retained === prop.id
+						: given.name === prop.key || (prop.id !== undefined && given.contract?.id === prop.id),
+				)
 			) {
 				problem(`${at}.props`, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}

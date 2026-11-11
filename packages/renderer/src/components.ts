@@ -39,12 +39,13 @@ export type PropValue = {
 	value: AttributePart[];
 	binding?: PropBinding;
 	retained?: string;
+	/** Complete source declaration for retained values and values captured in new history copies. */
 	contract?: Record<string, unknown>;
 };
 
 /** What reading and checking a Placement needs to know about one Prop of its Component. */
 export type PropInfo = {
-	/** Stable declaration identity, used only to recover retained values. */
+	/** Stable declaration identity, also used to reconcile a historical value with today's Props. */
 	id?: string;
 	/** The Prop's key, as Template markup writes it: `heading`. */
 	key: string;
@@ -64,8 +65,8 @@ export type ComponentInfo = {
 	props: readonly PropInfo[];
 	/** Old declarations addressable by identity even when their names are reused. */
 	retainedProps?: readonly PropInfo[];
-	/** Validate an explicit source contract retained across a type change. */
-	retainedContract?(input: unknown, id: string): PropInfo;
+	/** Validate a source contract carried by a retained value or a historical snapshot. */
+	contractInfo?(input: unknown, id: string): PropInfo;
 	/** The tree a Placement shows, so it can be checked where it sits (a <div> can't go inside <p>). */
 	tree: ElementTree;
 };

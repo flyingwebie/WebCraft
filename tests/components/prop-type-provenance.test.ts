@@ -356,3 +356,54 @@ test("a type change exceeding the retained value limit refuses the whole migrati
 	expect((await admin.api.templates.getEntryTemplateMarkup(holder)).template?.draft).toEqual(before.template?.draft);
 	expect((await admin.api.components.getMarkup(target)).component.draft).toEqual(componentBefore.component.draft);
 });
+
+test("historical source contracts cannot bypass current same-type validation", async () => {
+	const admin = await install.superadmin();
+	const siteId = (await install.createSite((await install.createWorkspace()).id)).id;
+	const { postType } = await admin.api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}" });
+	const holder = { siteId, postTypeId: postType.id };
+	const { component } = await admin.api.components.create({
+		siteId,
+		name: "Card",
+		props: [{ key: "value", label: "Value", type: "text", maxLength: 20 }],
+	});
+	const { template } = await admin.api.templates.saveEntryTemplateMarkup({
+		...holder,
+		markup: '<Card value="Long" />',
+	});
+	const item = { kind: "template" as const, id: template.id };
+	await admin.api.history.leave({ siteId, item });
+	const { copies } = await admin.api.history.list({ siteId, item });
+	const copy = { type: "checkpoint" as const, id: copies[0]?.id ?? "" };
+	const snapshot = await admin.api.history.get({ siteId, item, copy });
+	await admin.api.components.saveDraft({
+		siteId,
+		componentId: component.id,
+		props: [{ ...component.draft.props[0], key: "value", label: "Value", type: "text", maxLength: 1 }],
+	});
+	await expect(
+		admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup: '<Card value="Long" />' }),
+	).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+	const current = await admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup: '<Card value="Z" />' });
+	const before = await admin.api.history.list({ siteId, item });
+	await expect(admin.api.history.restore({ siteId, item, copy })).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	await expect(admin.api.templates.saveEntryTemplate({ ...holder, tree: snapshot.content })).rejects.toMatchObject({
+		code: "TEMPLATE_INVALID",
+	});
+	await expect(
+		admin.api.builder.markup({
+			siteId,
+			target: { kind: "entryTemplate", postTypeId: postType.id },
+			tree: snapshot.content,
+		}),
+	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	const contract = (snapshot.content as { nodes: { props: { contract: unknown }[] }[] }).nodes[0]?.props[0]?.contract;
+	await expect(
+		admin.api.templates.saveEntryTemplateMarkup({
+			...holder,
+			markup: `<Card value="Long" data-wc-contracts='${JSON.stringify({ value: contract })}' />`,
+		}),
+	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect((await admin.api.templates.getEntryTemplate(holder)).template?.draft).toEqual(current.template.draft);
+	expect(await admin.api.history.list({ siteId, item })).toEqual(before);
+});

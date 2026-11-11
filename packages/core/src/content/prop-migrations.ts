@@ -6,6 +6,7 @@ import {
 	type ComponentCatalogue,
 	childListsOf,
 	type ElementTree,
+	ElementTreeInvalidError,
 	isComponentInfo,
 	mappedBindingPath,
 	type PlacementNode,
@@ -23,9 +24,11 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
+import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ComponentVersion, storedComponentVersion } from "./component-versions.ts";
+import type { SiteComponents } from "./components.ts";
 import { ComponentInvalidError } from "./errors.ts";
 import type { FieldDefinition } from "./fields.ts";
 import { sameJson } from "./json.ts";
@@ -213,10 +216,9 @@ function migrateValues(
 	}
 	const migrated: Value[] = [];
 	for (const value of values) {
-		const old =
-			value.contract && value.retained
-				? readRetainedContract(value.contract, value.retained)
-				: before.find((f) => (value.retained ? f.id === value.retained : f.key === value.name));
+		const old = value.contract
+			? readRetainedContract(value.contract, value.retained ?? String(value.contract.id))
+			: before.find((f) => (value.retained ? f.id === value.retained : f.key === value.name));
 		if (!old) {
 			migrated.push(value);
 			continue;
@@ -321,7 +323,7 @@ function migrateValues(
 		const { binding: _, retained: __, contract: ___, ...plain } = value;
 		const collision = !fresh && next.some((field) => field.key === value.name);
 		const incompatible = fresh && (old.type !== fresh.type || (root && changesFieldTypes(old, fresh)));
-		const retained = incompatible || (!fresh && (value.retained || collision)) ? old.id : undefined;
+		const retained = incompatible || (!fresh && (value.retained || value.contract || collision)) ? old.id : undefined;
 		migrated.push({
 			...plain,
 			name: fresh?.key ?? value.name,
@@ -687,5 +689,89 @@ export function renamePropBindings(
 		for (const child of Object.values(node)) visit(child, aliases);
 	};
 	visit(result);
+	return result;
+}
+
+/** Capture active source contracts when a new history copy is created; never rewrite old copies. */
+export async function snapshotPropContracts(
+	scope: SiteScope,
+	kind: string,
+	input: unknown,
+	which: "draft" | "published",
+): Promise<unknown> {
+	return capturePropContracts(kind, input, async (id) => {
+		const [source] = await scope.db
+			.select({
+				version: sql`jsonb_build_object('props', ${components[which]}->'props', 'propBaseline', ${components[which]}->'propBaseline', 'propValueVersion', ${components[which]}->'propValueVersion')`,
+			})
+			.from(components)
+			.where(scope.where(components, eq(components.id, id)));
+		if (!source) return undefined;
+		const version = storedComponentVersion(source.version);
+		return retainedContract(version.props, version.propBaseline, version.propValueVersion !== 1);
+	});
+}
+
+/** Shared by new history copies and import's last-live copy; reads one holder's contracts at a time. */
+export async function capturePropContracts(
+	kind: string,
+	input: unknown,
+	fieldsOf: (id: string) => Promise<FieldDefinition[] | undefined>,
+): Promise<unknown> {
+	if (!["template", "component", "popup"].includes(kind) || !input) return input;
+	const content = structuredClone(input);
+	const tree = (
+		kind === "template"
+			? content
+			: kind === "popup"
+				? (content as { component: ComponentVersion }).component?.tree
+				: (content as ComponentVersion).tree
+	) as ElementTree | undefined;
+	if (!tree?.nodes) return content;
+	const contracts = new Map<string, FieldDefinition[]>();
+	for (const node of placementsIn(tree.nodes)) {
+		if (!isUuid(node.component) || !node.props.some((value) => !value.contract)) continue;
+		let fields = contracts.get(node.component);
+		if (!fields) {
+			fields = await fieldsOf(node.component);
+			if (!fields) continue;
+			contracts.set(node.component, fields);
+		}
+		for (const value of node.props) {
+			if (value.contract) continue;
+			const field = fields.find((field) => (value.retained ? field.id === value.retained : field.key === value.name));
+			if (field) {
+				checkStoredContract(field, String(field.id));
+				value.contract = structuredClone(field);
+			}
+		}
+		const problem = retainedPropsProblem(node.props);
+		if (problem) throw new ComponentInvalidError([{ at: "props", message: problem }]);
+	}
+	return content;
+}
+
+/** A restored snapshot carries its own active contract; reconcile it before saving a current Draft. */
+export function restorePropContracts(tree: ElementTree, catalogue: SiteComponents): ElementTree {
+	const result = structuredClone(tree);
+	for (const node of placementsIn(result.nodes)) {
+		if (!node.props.some((value) => value.contract && !value.retained)) continue;
+		const fields = catalogue.version(node.component)?.props;
+		if (fields) node.props = migrateValues(node.props, fields, fields, false).values as typeof node.props;
+		// A compatible historical type becomes current input; its old constraints cannot bypass
+		// today's validation. Incompatible retained values still use their own dormant contract.
+		const info = catalogue.byId(node.component);
+		if (!isComponentInfo(info)) continue;
+		for (const value of node.props) {
+			if (value.retained || !value.value.every((part) => part.type === "text")) continue;
+			const prop = info.props.find((candidate) => candidate.key === value.name);
+			const parts = value.value.filter((part) => part.type === "text");
+			const languages = new Set(["", ...parts.flatMap((part) => Object.keys(part.translations ?? {}))]);
+			for (const language of languages) {
+				const problem = prop?.check(parts.map((part) => part.translations?.[language] ?? part.text).join(""));
+				if (problem) throw new ElementTreeInvalidError([{ at: `props.${value.name}`, message: problem }]);
+			}
+		}
+	}
 	return result;
 }

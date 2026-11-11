@@ -1,3 +1,4 @@
+import { type ElementTree, placementsIn } from "@webcraft/renderer";
 import { sameJson } from "../content/json.ts";
 import { storedVersion } from "../content/values.ts";
 import type { HistoryItem } from "./items.ts";
@@ -84,7 +85,22 @@ export function inLanguage(node: unknown, language: string): unknown {
 }
 
 /** The sections of a Structure item's version (or of a Form's emails), each one part. */
-export function sectionsOf(kind: HistoryItem["kind"], version: unknown): Map<string, unknown> {
+export function sectionsOf(kind: HistoryItem["kind"], input: unknown): Map<string, unknown> {
+	let version = input;
+	// New copies record source contracts; that bookkeeping alone is not an authored change.
+	if (["template", "component", "popup"].includes(kind) && version) {
+		version = structuredClone(version);
+		const tree = (
+			kind === "template"
+				? version
+				: kind === "popup"
+					? record(record(version)?.component)?.tree
+					: record(version)?.tree
+		) as ElementTree | undefined;
+		if (tree?.nodes)
+			for (const node of placementsIn(tree.nodes))
+				for (const value of node.props) if (!value.retained) delete value.contract;
+	}
 	if (kind === "template") return new Map([["tree", version ?? null]]);
 	if (kind === "script") return new Map([["code", typeof version === "string" ? version : ""]]);
 	return new Map(Object.entries(record(version) ?? {}));
