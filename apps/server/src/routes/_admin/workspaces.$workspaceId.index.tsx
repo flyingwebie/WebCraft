@@ -25,6 +25,7 @@ import { formatBytes } from "../../ui/media/preview.ts";
 import { type MediaStorageView, QuotaNotice, StorageMeter } from "../../ui/media/StorageCard.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 import type { AdminPlace } from "../../ui/shell/levels.ts";
+import { slugFrom } from "../../ui/site-slug.ts";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
 	staticData: { crumb: "sites.pageTitle" },
@@ -228,18 +229,6 @@ function QuotaDialog({ workspaceId, storage }: { workspaceId: string; storage: M
 			</Dialog>
 		</>
 	);
-}
-
-/** A slug from a Site's name: "Acme Bakery" → "acme-bakery". */
-function slugFrom(name: string): string {
-	return name
-		.normalize("NFKD")
-		.replace(/[̀-ͯ]/g, "")
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 63)
-		.replace(/-+$/g, "");
 }
 
 /** "New Site": a name and a slug (made from the name until the person changes it). */

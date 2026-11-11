@@ -151,6 +151,12 @@ export type InstallScope = Omit<ScopeBase, "audit"> & {
 	readonly db: Executor;
 	/** Runs `work` in one transaction: its queries and Audit log entries are saved together or not at all. */
 	transaction<Result>(work: (scope: InstallScope) => Promise<Result>): Promise<Result>;
+	/**
+	 * Opens one Workspace's data as `DataLayer.workspace` does, but on this scope's connection: inside
+	 * `transaction`, a Workspace created in that same transaction can be opened, and what is done in
+	 * it is saved with the rest or not at all.
+	 */
+	workspace(workspaceId: string, permission: Permission): Promise<WorkspaceScope>;
 };
 
 /**
@@ -300,6 +306,14 @@ export function createDataLayer({
 		db: executor,
 		transaction: (work) =>
 			inTransaction(executor, afterCommit, (tx, pending) => work(installScope(tx, access, pending))),
+		workspace: async (workspaceId, permission) => {
+			const workspace = isUuid(workspaceId) ? await findWorkspace(executor, workspaceId) : undefined;
+			if (!workspace) throw new WorkspaceNotFoundError();
+			const resource: Resource = { level: "workspace", workspaceId: workspace.id };
+			if (!can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
+			check(access.actor, permission, resource);
+			return workspaceScope(executor, access, workspace, afterCommit);
+		},
 	});
 
 	const workspaceScope = (

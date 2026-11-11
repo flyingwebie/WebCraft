@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 import type { MessageKey } from "../i18n.tsx";
 import { AccountStep } from "./AccountStep.tsx";
 import { EmailStep } from "./EmailStep.tsx";
+import { FirstClientStep } from "./FirstClientStep.tsx";
 import { ModulesStep } from "./ModulesStep.tsx";
 import { TokenStep } from "./TokenStep.tsx";
 import { TwoFactorStep } from "./TwoFactorStep.tsx";
@@ -40,7 +41,8 @@ export type WizardStep = {
 
 /**
  * The setup wizard's steps, in order. The steps after the account are `continue` steps: they run
- * signed in as the Superadmin, and the last one finishes setup: approving the first-party Modules.
+ * signed in as the Superadmin, and the last one finishes setup: the first client, which may create
+ * the Install's first Workspace and Site.
  */
 export const WIZARD_STEPS: readonly WizardStep[] = [
 	{
@@ -78,5 +80,12 @@ export const WIZARD_STEPS: readonly WizardStep[] = [
 		hint: "setup.steps.modules.hint",
 		stage: "continue",
 		Panel: ModulesStep,
+	},
+	{
+		id: "first-client",
+		title: "setup.steps.firstClient.title",
+		hint: "setup.steps.firstClient.hint",
+		stage: "continue",
+		Panel: FirstClientStep,
 	},
 ];

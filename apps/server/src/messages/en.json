@@ -307,6 +307,19 @@
 				"approveAndFinish": "Approve and finish",
 				"continue": "Continue",
 				"finish": "Finish setup"
+			},
+			"firstClient": {
+				"title": "Your first client",
+				"hint": "A Workspace, and its first Site, to start in",
+				"heading": "Add your first client",
+				"intro": "A Workspace holds one client organisation: its Sites, its people and its Media. Create the first one now, and its first Site, and the admin opens there, ready for you to start building.",
+				"later": "You can skip this for now and create Workspaces later on the Workspaces page.",
+				"workspaceName": "Workspace name",
+				"workspaceNameHelp": "The client's name, such as Acme Ltd.",
+				"alsoSite": "Also create its first Site",
+				"siteName": "Site name",
+				"skip": "Skip for now",
+				"finish": "Create and finish"
 			}
 		},
 		"finish": "Finish setup",
