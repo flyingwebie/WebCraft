@@ -8,6 +8,8 @@ export type ComponentVersion = {
 	props: FieldDefinition[];
 	/** Pre-change contract for values retained in Draft Placements until publish. */
 	propBaseline?: FieldDefinition[];
+	/** Type changes retain per-value contracts; unmarked legacy versions use their baseline. */
+	propValueVersion?: 1;
 	tree: ElementTree;
 };
 
@@ -16,8 +18,14 @@ export const EMPTY_TREE: ElementTree = { version: 1, nodes: [] };
 
 /** A Component version as stored (a `draft` or `published` column), read safely. */
 export function storedComponentVersion(value: unknown): ComponentVersion {
-	const { props, tree, propBaseline } = (value ?? {}) as { props?: unknown; tree?: unknown; propBaseline?: unknown };
+	const { props, tree, propBaseline, propValueVersion } = (value ?? {}) as {
+		props?: unknown;
+		tree?: unknown;
+		propBaseline?: unknown;
+		propValueVersion?: unknown;
+	};
 	return {
+		...(propValueVersion === 1 ? { propValueVersion: 1 } : {}),
 		...(Array.isArray(propBaseline) ? { propBaseline: identifiedProps(storedFields(propBaseline)) } : {}),
 		props: identifiedProps(storedFields(props)),
 		tree: (tree as ElementTree | undefined) ?? EMPTY_TREE,

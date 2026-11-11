@@ -13,18 +13,24 @@ import {
 	placementsIn,
 	RETAINED_KEY,
 	type RetainedJsonValue,
+	retainedPropProblem,
+	retainedPropsProblem,
+	retainedValueIdentity,
 	retainedValues,
 	type TreeNode,
+	textProblem,
 } from "@webcraft/renderer";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
-import type { ComponentVersion } from "./component-versions.ts";
+import { type ComponentVersion, storedComponentVersion } from "./component-versions.ts";
+import { ComponentInvalidError } from "./errors.ts";
 import type { FieldDefinition } from "./fields.ts";
 import { sameJson } from "./json.ts";
 import { listPostTypes } from "./post-types.ts";
+import { readRetainedContract } from "./prop-contracts.ts";
 
 function successor(field: FieldDefinition, next: readonly FieldDefinition[]) {
 	return field.id ? next.find((f) => f.id === field.id) : next.find((f) => f.key === field.key);
@@ -55,19 +61,22 @@ export function propBaseline(before: ComponentVersion, next: readonly FieldDefin
 	return renamed(all, before.props, next);
 }
 
-/** Current names take precedence, but retained types and identities remain authoritative until publish. */
+/** Legacy values use baseline types. Marked values use current types plus deleted identities. */
 export function retainedContract(
 	current: readonly FieldDefinition[],
 	baseline: readonly FieldDefinition[] = [],
+	legacyTypes = true,
 ): FieldDefinition[] {
 	return [
 		...current.map((field) => {
 			const old = successor(field, baseline);
 			if (!old) return field;
 			return {
-				...old,
+				...(legacyTypes ? old : field),
 				key: field.key,
-				...("fields" in field && "fields" in old ? { fields: retainedContract(field.fields, old.fields) } : {}),
+				...("fields" in field && "fields" in old
+					? { fields: retainedContract(field.fields, old.fields, legacyTypes) }
+					: {}),
 			};
 		}),
 		...baseline.filter((field) => !successor(field, current)),
@@ -132,7 +141,21 @@ function compactPaths(entries: Iterable<readonly [string, string]>): Record<stri
 	return Object.fromEntries(Object.entries(paths).sort(([a], [b]) => a.localeCompare(b)));
 }
 
-type Value = { name: string; value: string | AttributePart[]; binding?: PropBinding; retained?: string };
+function checkStoredContract(contract: Record<string, unknown>, id: string): void {
+	try {
+		readRetainedContract(contract, id);
+	} catch (error) {
+		throw new ComponentInvalidError([{ at: "props", message: (error as Error).message }]);
+	}
+}
+
+type Value = {
+	name: string;
+	value: string | AttributePart[];
+	binding?: PropBinding;
+	retained?: string;
+	contract?: Record<string, unknown>;
+};
 function migrateValues(
 	values: Value[],
 	before: readonly FieldDefinition[],
@@ -155,25 +178,45 @@ function migrateValues(
 			...retainedValues(object[RETAINED_KEY]),
 		];
 		for (const part of parts) {
-			const previous = old.fields.find((f) => (part.id ? f.id === part.id : f.key === part.name));
+			const previous =
+				"contract" in part && part.contract && part.id
+					? readRetainedContract(part.contract, part.id)
+					: old.fields.find((f) => (part.id ? f.id === part.id : f.key === part.name));
 			const current = previous && successor(previous, fresh.fields);
 			if (previous && (!current || current.type !== previous.type)) {
 				lost = true;
 				if (drop) continue;
 			}
-			if (!current && previous?.id && (part.id || fresh.fields.some((f) => f.key === part.name))) {
-				held.push({ id: previous.id, name: part.name, value: part.value });
+			if (
+				previous?.id &&
+				((current && current.type !== previous.type) ||
+					(!current && (part.id || fresh.fields.some((f) => f.key === part.name))))
+			) {
+				held.push({
+					id: previous.id,
+					name: part.name,
+					value: part.value,
+					...(current?.type !== previous.type || ("contract" in part && part.contract) ? { contract: previous } : {}),
+				});
 			} else {
 				result[current?.key ?? part.name] =
 					previous && current && previous.type === current.type ? json(part.value, previous, current) : part.value;
 			}
 		}
+		if (held.length > 256)
+			throw new ComponentInvalidError([
+				{ at: "props", message: "At most 256 retained values per Group or Repeater row." },
+			]);
+		for (const value of held) if (value.contract) checkStoredContract(value.contract, value.id);
 		if (held.length) result[RETAINED_KEY] = held;
 		return result;
 	}
 	const migrated: Value[] = [];
 	for (const value of values) {
-		const old = before.find((f) => (value.retained ? f.id === value.retained : f.key === value.name));
+		const old =
+			value.contract && value.retained
+				? readRetainedContract(value.contract, value.retained)
+				: before.find((f) => (value.retained ? f.id === value.retained : f.key === value.name));
 		if (!old) {
 			migrated.push(value);
 			continue;
@@ -200,13 +243,17 @@ function migrateValues(
 		}
 		if (fresh && "fields" in old && old.type === fresh.type) {
 			const migrateText = (text: string) => {
+				let original: unknown;
 				try {
-					const original: unknown = JSON.parse(text);
-					const updated = json(original, old, fresh);
-					return sameJson(original, updated) ? text : JSON.stringify(updated);
+					original = JSON.parse(text);
 				} catch {
 					return text;
 				}
+				const updated = json(original, old, fresh);
+				const written = sameJson(original, updated) ? text : JSON.stringify(updated);
+				const problem = textProblem(written);
+				if (problem) throw new ComponentInvalidError([{ at: "props", message: problem }]);
+				return written;
 			};
 			if (typeof written === "string") written = migrateText(written);
 			else if (written.every((p) => p.type === "text")) {
@@ -232,7 +279,7 @@ function migrateValues(
 		}
 		let binding = value.binding;
 		const root = Array.isArray(written) ? boundRoot(written) : undefined;
-		if (root && fresh && "fields" in old && "fields" in fresh) {
+		if (root && fresh && "fields" in old && "fields" in fresh && !changesFieldTypes(old, fresh)) {
 			const pairs = declarationPaths(old.fields, fresh.fields);
 			const prior = binding?.paths ?? {};
 			const retained: Record<string, string> = Object.assign(Object.create(null), binding?.retained);
@@ -271,15 +318,16 @@ function migrateValues(
 						}
 					: undefined;
 		}
-		const { binding: _, retained: __, ...plain } = value;
+		const { binding: _, retained: __, contract: ___, ...plain } = value;
 		const collision = !fresh && next.some((field) => field.key === value.name);
-		const retained = !fresh && (value.retained || collision) ? old.id : undefined;
+		const incompatible = fresh && (old.type !== fresh.type || (root && changesFieldTypes(old, fresh)));
+		const retained = incompatible || (!fresh && (value.retained || collision)) ? old.id : undefined;
 		migrated.push({
 			...plain,
 			name: fresh?.key ?? value.name,
 			value: written,
 			...(binding ? { binding } : {}),
-			...(retained ? { retained } : {}),
+			...(retained ? { retained, ...(incompatible || value.contract ? { contract: old } : {}) } : {}),
 		});
 	}
 	if (values.some((value) => value.retained))
@@ -288,6 +336,14 @@ function migrateValues(
 			return rank(a) - rank(b);
 		});
 	migrated.sort((a, b) => Number(Boolean(a.retained)) - Number(Boolean(b.retained)));
+	const held = migrated.filter((p) => p.retained);
+	const retentionProblem = retainedPropsProblem(held);
+	if (retentionProblem) throw new ComponentInvalidError([{ at: "props", message: retentionProblem }]);
+	for (const value of held) {
+		if (value.contract && value.retained) checkStoredContract(value.contract, value.retained);
+		const problem = retainedPropProblem(value);
+		if (problem) throw new ComponentInvalidError([{ at: "props", message: problem }]);
+	}
 	return { values: migrated, lost };
 }
 
@@ -391,9 +447,26 @@ export function retainPropBindings(tree: ElementTree, previous: ElementTree): El
 		const was = old.get(node.id);
 		if (!was || was.component !== node.component) continue;
 		for (const held of was.props.filter((p) => p.retained))
-			if (!node.props.some((p) => p.retained === held.retained)) node.props.push(structuredClone(held));
+			if (
+				!node.props.some(
+					(p) =>
+						p.retained === held.retained &&
+						retainedValueIdentity(String(p.retained), p.contract) ===
+							retainedValueIdentity(String(held.retained), held.contract),
+				)
+			)
+				node.props.push(structuredClone(held));
+		const retentionProblem = retainedPropsProblem(node.props);
+		if (retentionProblem) throw new ComponentInvalidError([{ at: "props", message: retentionProblem }]);
 		for (const value of node.props) {
-			const prior = was.props.find((p) => p.name === value.name && p.retained === value.retained);
+			const prior = was.props.find(
+				(p) =>
+					p.name === value.name &&
+					p.retained === value.retained &&
+					(!value.retained ||
+						retainedValueIdentity(value.retained, value.contract) ===
+							retainedValueIdentity(value.retained, p.contract)),
+			);
 			if (!value.binding && prior?.binding && boundRoot(value.value) === prior.binding.root)
 				value.binding = structuredClone(prior.binding);
 		}
@@ -453,7 +526,7 @@ export async function migratePropPlacements(
 				const from =
 					which === "published"
 						? (published?.props ?? before.props)
-						: retainedContract(before.props, before.propBaseline);
+						: retainedContract(before.props, before.propBaseline, before.propValueVersion !== 1);
 				migrateTree(tree, componentId, from, next.props, drop, (id) => losing.add(`${kind}:${row.id}:${id}`));
 				if (!sameJson(version, row[which])) change[which] = version;
 			}
@@ -497,6 +570,40 @@ export async function migratePropPlacements(
 		placements: losing.size,
 		message: losing.size ? `${losing.size} Placement${losing.size === 1 ? " loses its" : "s lose their"} value` : null,
 	};
+}
+
+/** Upgrade ambiguous legacy storage by its documented baseline before accepting current-type input.
+ * Call under the Site Component lock, in the same transaction as the authoritative save.
+ * Immutable history stays unmarked and continues to use its historical baseline contract.
+ */
+export async function upgradePropValueContracts(scope: SiteScope): Promise<void> {
+	const rows = await scope.db
+		.select({ id: components.id })
+		.from(components)
+		.where(
+			scope.where(
+				components,
+				sql`${components.draft}->'propBaseline' <> '[]'::jsonb AND (${components.draft}->>'propValueVersion') IS DISTINCT FROM '1'`,
+			),
+		)
+		.orderBy(components.id);
+	for (const candidate of rows) {
+		const [row] = await scope.db
+			.select()
+			.from(components)
+			.where(scope.where(components, eq(components.id, candidate.id)))
+			.for("update");
+		if (!row) continue;
+		const before = storedComponentVersion(row.draft);
+		const draft: ComponentVersion = { ...before, propValueVersion: 1 };
+		await migratePropPlacements(scope, row.id, before, draft, "rename");
+		// Another legacy Component may place this one; read the tree after all migrations above.
+		const current = await scope.first(components, eq(components.id, row.id));
+		if (!current) continue;
+		await saveMigratedVersions(scope, components, "component", current, {
+			draft: { ...storedComponentVersion(current.draft), propValueVersion: 1 },
+		});
+	}
 }
 
 /** Attribute and checkpoint migrated tree and Body values in the same way. */

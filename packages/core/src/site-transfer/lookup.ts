@@ -35,7 +35,7 @@ export function createReferenceLookup(
 		},
 		async prop(componentId, path, version, retainedId) {
 			// Select the source contract by time, then resolve names through its live identities.
-			// Baseline types belong to those identities, never whichever declaration reused a key.
+			// Only unmarked legacy values inherit baseline types. Marked values retain their own old contracts.
 			// Both callers own a transaction and traverse Props sequentially. Keep the ordered
 			// search in that snapshot, fetching one contract at a time, including fallbacks.
 			await client.query(
@@ -55,7 +55,7 @@ export function createReferenceLookup(
  SELECT content, priority, kind, at::timestamptz AS at,
  (${parameter(3)}::timestamptz IS NOT NULL AND at::timestamptz <= ${parameter(3)}::timestamptz) AS historical
  FROM versions WHERE content IS NOT NULL
- ) SELECT jsonb_build_object('props', content->'props', 'propBaseline', content->'propBaseline') AS content FROM candidates
+ ) SELECT jsonb_build_object('props', content->'props', 'propBaseline', content->'propBaseline', 'propValueVersion', content->'propValueVersion') AS content FROM candidates
  ORDER BY CASE WHEN ${parameter(2)} = 'published' AND kind <> 'published' THEN 1 ELSE 0 END,
  CASE WHEN historical THEN 0 ELSE 1 END,
  CASE WHEN historical THEN 0 ELSE priority END,
@@ -69,7 +69,7 @@ export function createReferenceLookup(
 					const row = result.rows[0];
 					if (!row) return undefined;
 					const contract = storedComponentVersion(row.content);
-					let fields = retainedContract(contract.props, contract.propBaseline);
+					let fields = retainedContract(contract.props, contract.propBaseline, contract.propValueVersion !== 1);
 					let found: (typeof fields)[number] | undefined;
 					for (const [index, key] of path.entries()) {
 						found = fields.find((field) =>

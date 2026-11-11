@@ -528,9 +528,9 @@ async function publishComponent(
 		components,
 		{
 			...(sameJson(storedComponentVersion(row.draft).props, draft.props)
-				? { draft: { props: draft.props, tree: storedComponentVersion(row.draft).tree } }
+				? { draft: { props: draft.props, tree: storedComponentVersion(row.draft).tree, propValueVersion: 1 } }
 				: {}),
-			published: { props: draft.props, tree },
+			published: { props: draft.props, tree, propValueVersion: 1 },
 			publishedAt: row.publishedAt ?? now,
 			lastPublishedAt: now,
 		},

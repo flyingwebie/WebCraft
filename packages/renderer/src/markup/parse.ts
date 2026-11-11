@@ -908,7 +908,11 @@ class MarkupParser {
 			}
 		}
 		for (const prop of found.props) {
-			if (prop.required && !given.has(prop.key)) {
+			if (
+				prop.required &&
+				!given.has(prop.key) &&
+				!props.some((value) => value.retained && value.retained === prop.id)
+			) {
 				this.problem(offset, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}
 		}

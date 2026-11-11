@@ -1,4 +1,5 @@
 import { checkFormat } from "./formatters.ts";
+import { stableJson } from "./json.ts";
 import { canonicalLanguage } from "./languages.ts";
 import { isPropDeclarationId } from "./prop-identities.ts";
 import { isValuePath, textProblem } from "./tree.ts";
@@ -8,7 +9,7 @@ export const RETAINED_MAX_LENGTH = 16_777_216;
 export const RETAINED_ATTRIBUTE = "data-wc-retained";
 /** Kept inside its Group/Repeater row, so moving a row also moves its retained values. */
 export const RETAINED_KEY = "$wc-retained";
-export type RetainedJsonValue = { id: string; name: string; value: unknown };
+export type RetainedJsonValue = { id: string; name: string; value: unknown; contract?: Record<string, unknown> };
 
 export function retainedValues(input: unknown): RetainedJsonValue[] {
 	if (input === undefined) return [];
@@ -19,15 +20,16 @@ export function retainedValues(input: unknown): RetainedJsonValue[] {
 			!item ||
 			typeof item !== "object" ||
 			Array.isArray(item) ||
-			Object.keys(item).some((key) => !["id", "name", "value"].includes(key)) ||
+			Object.keys(item).some((key) => !["id", "name", "value", "contract"].includes(key)) ||
 			!isPropDeclarationId(item.id) ||
 			typeof item.name !== "string" ||
 			!/^[a-z][A-Za-z0-9_]{0,63}$/.test(item.name) ||
 			!("value" in item)
 		)
 			throw new Error("A retained value needs a declaration id, its name and its value.");
-		if (ids.has(item.id)) throw new Error("A retained declaration is given twice.");
-		ids.add(item.id);
+		const identity = retainedValueIdentity(item.id, item.contract);
+		if (ids.has(identity)) throw new Error("A retained declaration is given twice.");
+		ids.add(identity);
 	}
 	return input as RetainedJsonValue[];
 }
@@ -36,9 +38,14 @@ export function retainedValues(input: unknown): RetainedJsonValue[] {
 export function retainedPropProblem(input: unknown): string | undefined {
 	if (!input || typeof input !== "object" || Array.isArray(input)) return "A retained Prop is an object.";
 	const item = input as Record<string, unknown>;
-	if (Object.keys(item).some((key) => !["name", "value", "binding", "retained"].includes(key)))
+	if (Object.keys(item).some((key) => !["name", "value", "binding", "retained", "contract"].includes(key)))
 		return "A retained Prop holds only its name, value, declaration identity and binding metadata.";
 	if (!isPropDeclarationId(item.retained)) return "A retained Prop needs its declaration identity.";
+	try {
+		retainedValueIdentity(item.retained as string, item.contract as Record<string, unknown> | undefined);
+	} catch (error) {
+		return (error as Error).message;
+	}
 	if (typeof item.name !== "string" || !/^[a-z][A-Za-z0-9_]{0,63}$/.test(item.name))
 		return "A retained Prop needs its original name.";
 	if (!Array.isArray(item.value) || item.value.length > 10_000)
@@ -77,5 +84,39 @@ export function retainedPropProblem(input: unknown): string | undefined {
 			}
 		} else return "Retained values are text or value parts.";
 	}
+	return undefined;
+}
+
+/** One retained value per declaration and recursive types, independent of values, names and order. */
+export function retainedValueIdentity(id: string, contract?: Record<string, unknown>): string {
+	if (contract === undefined) return `${id}/legacy`;
+	let count = 0;
+	const shape = (value: unknown, depth: number): unknown => {
+		if (!value || typeof value !== "object" || Array.isArray(value) || depth > 8 || ++count > 256)
+			throw new Error("Invalid or oversized retained contract.");
+		const field = value as Record<string, unknown>;
+		if (!isPropDeclarationId(field.id) || typeof field.type !== "string" || field.type.length > 64)
+			throw new Error("A retained contract needs declaration identities and Field types.");
+		if (field.fields !== undefined && !Array.isArray(field.fields)) throw new Error("Invalid retained Fields.");
+		return {
+			id: field.id,
+			type: field.type,
+			...(Array.isArray(field.fields)
+				? {
+						fields: field.fields
+							.map((child) => shape(child, depth + 1))
+							.sort((a, b) => stableJson(a).localeCompare(stableJson(b))),
+					}
+				: {}),
+		};
+	};
+	return `${id}/${stableJson(shape(contract, 1))}`;
+}
+
+/** Bound the combined list too, including metadata recovered from an existing Placement. */
+export function retainedPropsProblem(values: readonly unknown[]): string | undefined {
+	const held = values.filter((value) => value && typeof value === "object" && "retained" in value);
+	if (held.length > 256 || JSON.stringify(held).length > RETAINED_MAX_LENGTH)
+		return "Retained Props exceed the 256-value or 16 MiB metadata limit.";
 	return undefined;
 }

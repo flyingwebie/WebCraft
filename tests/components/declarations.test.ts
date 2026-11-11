@@ -257,7 +257,17 @@ test("deleting and changing Prop types reports each affected Placement once and 
 	expect(
 		(await staff.api.templates.getEntryTemplateMarkup({ siteId: target.siteId, postTypeId: postType.id })).markup
 			?.draft,
-	).toContain('heading="Fixed" count="3"');
+	).toContain('heading="Fixed"');
+	const retainedNode = (
+		await staff.api.templates.getEntryTemplateMarkup({ siteId: target.siteId, postTypeId: postType.id })
+	).template?.draft.nodes[0];
+	expect(retainedNode?.type === "component" ? retainedNode.props : []).toContainEqual(
+		expect.objectContaining({
+			name: "count",
+			retained: original.component.draft.props[1]?.id,
+			value: [{ type: "text", text: "3" }],
+		}),
+	);
 	// Restoring the old declarations before publish cancels the loss.
 	const undone = await staff.api.components.saveMarkup({ ...target, markup: original.markup });
 	expect(undone.propImpact.placements).toBe(0);

@@ -1,5 +1,6 @@
 import { popups } from "@webcraft/db/schema";
 import { sitePopups } from "../popups/catalogue.ts";
+import { readRetainedContract } from "./prop-contracts.ts";
 /**
  * Components (GLOSSARY.md): reusable element trees with Props, built by Staff and placed in
  * Templates and other Components (later in Page layouts and Body fields). A Component is Structure
@@ -72,6 +73,7 @@ import {
 	renamePropBindings,
 	retainedContract,
 	retainPropBindings,
+	upgradePropValueContracts,
 } from "./prop-migrations.ts";
 import { readPropText } from "./props.ts";
 import { componentKnownValues } from "./render-values.ts";
@@ -260,6 +262,7 @@ export async function saveComponentDraft(
 ): Promise<Component> {
 	return scope.transaction(async (tx) => {
 		await lockComponents(tx);
+		await upgradePropValueContracts(tx);
 		const row = await lockComponent(tx, componentId, sources);
 		const props = await nextProps(tx, row, change.props);
 		const context = await readContext(tx);
@@ -292,11 +295,13 @@ export async function saveComponentMarkup(
 	const saved = await retryOnClassRace(() =>
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
-			const row = await lockComponent(tx, componentId, sources);
+			let row = await lockComponent(tx, componentId, sources);
 			if (base.basedOn !== undefined) {
 				const version = componentVersion(storedComponentVersion(row.draft));
 				if (version !== base.basedOn) throw new DraftChangedError(version);
 			}
+			await upgradePropValueContracts(tx);
+			row = await lockComponent(tx, componentId, sources);
 			const declarations = readPropDeclarations(input.markup);
 			const props = await markupProps(tx, row, declarations, input.props);
 			const context = await readContext(tx);
@@ -535,7 +540,7 @@ async function writeDraft(
 	input: ComponentVersion,
 	catalogue: ComponentCatalogue,
 ): Promise<Component> {
-	let draft = input;
+	let draft: ComponentVersion = { ...input, propValueVersion: 1 };
 	const before = storedComponentVersion(row.draft);
 	draft = { ...draft, tree: retainPropBindings(draft.tree, before.tree) };
 	if (!sameJson(before.props, draft.props)) {
@@ -916,8 +921,21 @@ export async function siteComponents(
 			found = {
 				id: entry.id,
 				name: entry.name,
-				props: propInfos(entry.version.props, which === "draft" ? entry.version.propBaseline : undefined),
-				...(which === "draft" ? { retainedProps: propInfos(entry.version.propBaseline ?? []) } : {}),
+				props: propInfos(
+					entry.version.props,
+					which === "draft" ? entry.version.propBaseline : undefined,
+					entry.version.propValueVersion !== 1,
+				),
+				...(which === "draft"
+					? {
+							retainedProps: propInfos(retainedContract(entry.version.props, entry.version.propBaseline)),
+							retainedContract: (input: unknown, id: string) => {
+								const info = propInfos([readRetainedContract(input, id)])[0];
+								if (!info) throw new Error("Missing retained contract.");
+								return info;
+							},
+						}
+					: {}),
 				tree: entry.version.tree,
 			};
 		}
@@ -983,7 +1001,11 @@ export async function checkPublishedPlacements(
 }
 
 /** What reading and checking Placements needs to know about a Component's Props. */
-function propInfos(props: readonly FieldDefinition[], retained: readonly FieldDefinition[] = []): PropInfo[] {
+function propInfos(
+	props: readonly FieldDefinition[],
+	retained: readonly FieldDefinition[] = [],
+	legacyTypes = true,
+): PropInfo[] {
 	const all = [...props, ...retained.filter((old) => !props.some((prop) => prop.key === old.key))];
 	return all.map((prop) => ({
 		id: prop.id,
@@ -994,11 +1016,11 @@ function propInfos(props: readonly FieldDefinition[], retained: readonly FieldDe
 			const old = retained.find((field) => field.id === prop.id);
 			const combined =
 				"fields" in prop && old && "fields" in old
-					? { ...prop, fields: retainedContract(prop.fields, old.fields) }
+					? { ...prop, fields: retainedContract(prop.fields, old.fields, legacyTypes) }
 					: prop;
 			const read = readPropText(combined, text);
 			if (!("problem" in read)) return undefined;
-			if (old && "value" in readPropText(old, text)) return undefined;
+			if (legacyTypes && old && "value" in readPropText(old, text)) return undefined;
 			return read.problem;
 		},
 	}));

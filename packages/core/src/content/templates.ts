@@ -38,7 +38,7 @@ import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
-import { retainPropBindings } from "./prop-migrations.ts";
+import { retainPropBindings, upgradePropValueContracts } from "./prop-migrations.ts";
 import { knownValues, loopItemKnownValues } from "./render-values.ts";
 import { checkRetainedModulePlacements } from "./retained-module-props.ts";
 
@@ -379,6 +379,7 @@ async function saveTemplate(
 		scope.transaction(async (tx) => {
 			// The Components it places can't be deleted while it is saved.
 			await lockComponents(tx);
+			await upgradePropValueContracts(tx);
 			const { ids } = classCatalogue(await draftDesignSystem(tx));
 			const draft = parseTemplate(
 				tree,
@@ -433,6 +434,7 @@ async function saveTemplateMarkup(
 				const version = current ? draftVersion(current.draft) : null;
 				if (version !== base.basedOn) throw new DraftChangedError(version);
 			}
+			await upgradePropValueContracts(tx);
 			const catalogue = classCatalogue(await draftDesignSystem(tx));
 			const components = await siteComponents(tx, "draft", sources);
 			const { tree, notices } = parseTemplateMarkup(markup, {

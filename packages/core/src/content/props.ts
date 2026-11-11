@@ -16,7 +16,7 @@
  * value that doesn't fit renders nothing.
  */
 import { mediaReference, RETAINED_KEY, readMetadataJson, retainedValues } from "@webcraft/renderer";
-
+import { MAX_FIELD_DEPTH } from "./field-rules.ts";
 import {
 	type FieldDefinition,
 	type GroupField,
@@ -28,6 +28,7 @@ import {
 	specOf,
 	type ValueSpec,
 } from "./field-types.ts";
+import { readRetainedContract } from "./prop-contracts.ts";
 
 /** A Prop's value read from its text, or why the text can't be one. */
 export type PropText = { value: Json } | { problem: string };
@@ -116,24 +117,36 @@ function readLeaf(field: LeafField, input: unknown): PropText {
 }
 
 /** Reads a Group's or Repeater's value from JSON, each Field's value as the APIs take it. */
-export function readPropJson(field: FieldDefinition, input: unknown, at = "", checkRetained = true): PropText {
-	if (field.type === "group") return readGroup(field, input, at, checkRetained);
-	if (field.type === "repeater") return readRepeater(field, input, at, checkRetained);
+export function readPropJson(
+	field: FieldDefinition,
+	input: unknown,
+	at = "",
+	checkRetained = true,
+	depth = 1,
+): PropText {
+	if (depth > MAX_FIELD_DEPTH)
+		return { problem: `Prop values nest at most ${MAX_FIELD_DEPTH} Fields deep, including retained values.` };
+	if (field.type === "group") return readGroup(field, input, at, checkRetained, depth);
+	if (field.type === "repeater") return readRepeater(field, input, at, checkRetained, depth);
 	const read = readLeaf(field, input ?? null);
 	return "problem" in read && at ? { problem: `${at}: ${read.problem}` } : read;
 }
 
-function readGroup(field: GroupField, input: unknown, at: string, checkRetained: boolean): PropText {
+function readGroup(field: GroupField, input: unknown, at: string, checkRetained: boolean, depth: number): PropText {
 	if (input === null) return field.required ? { problem: "the Prop is required." } : { value: null };
 	if (typeof input !== "object" || Array.isArray(input))
 		return { problem: `${at || field.key}: an object of its Fields' values.` };
 	const given = input as Record<string, unknown>;
+	const heldIds = new Set<string>();
 	if (checkRetained && RETAINED_KEY in given) {
 		try {
 			for (const held of retainedValues(given[RETAINED_KEY])) {
-				const declaration = field.fields.find((f) => f.id === held.id);
+				heldIds.add(held.id);
+				const declaration = held.contract
+					? readRetainedContract(held.contract, held.id)
+					: field.fields.find((f) => f.id === held.id);
 				if (!declaration) return { problem: "The retained value has no matching declaration identity." };
-				const checked = readPropJson(declaration, held.value, at, checkRetained);
+				const checked = readPropJson(declaration, held.value, at, checkRetained, depth + 1);
 				if ("problem" in checked) return checked;
 			}
 		} catch (error) {
@@ -148,14 +161,27 @@ function readGroup(field: GroupField, input: unknown, at: string, checkRetained:
 	const value: Record<string, Json> = {};
 	for (const inner of field.fields) {
 		if (Object.hasOwn(value, inner.key)) continue;
-		const read = readPropJson(inner, given[inner.key] ?? null, at ? `${at}.${inner.key}` : inner.key, checkRetained);
+		if (!Object.hasOwn(given, inner.key) && inner.id && heldIds.has(inner.id)) continue;
+		const read = readPropJson(
+			inner,
+			given[inner.key] ?? null,
+			at ? `${at}.${inner.key}` : inner.key,
+			checkRetained,
+			depth + 1,
+		);
 		if ("problem" in read) return read;
 		value[inner.key] = read.value;
 	}
 	return { value };
 }
 
-function readRepeater(field: RepeaterField, input: unknown, at: string, checkRetained: boolean): PropText {
+function readRepeater(
+	field: RepeaterField,
+	input: unknown,
+	at: string,
+	checkRetained: boolean,
+	depth: number,
+): PropText {
 	if (input === null) return field.required ? { problem: "the Prop is required." } : { value: null };
 	if (!Array.isArray(input))
 		return { problem: `${at || field.key}: a list of rows, each an object of its Fields' values.` };
@@ -170,6 +196,7 @@ function readRepeater(field: RepeaterField, input: unknown, at: string, checkRet
 			row ?? {},
 			`${at || field.key}[${index}]`,
 			checkRetained,
+			depth,
 		);
 		if ("problem" in read) return read;
 		rows.push(read.value);

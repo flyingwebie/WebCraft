@@ -4,9 +4,12 @@ import {
 	readMetadataJson,
 	readPropBinding,
 	retainedPropProblem,
+	retainedPropsProblem,
+	retainedValueIdentity,
 	retainedValues,
 } from "@webcraft/renderer";
 import type { FieldDefinition } from "../content/field-types.ts";
+import { readRetainedContract } from "../content/prop-contracts.ts";
 import { readPropJson, readPropText } from "../content/props.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
 import { ArchiveRefusedError } from "./format.ts";
@@ -134,6 +137,13 @@ export function createRowRemapper(
 			}
 			return field;
 		};
+		const retainedDefinition = (input: unknown, id: string): Row => {
+			try {
+				return record(readRetainedContract(input, id));
+			} catch (error) {
+				throw new ArchiveRefusedError("damaged", (error as Error).message);
+			}
+		};
 		const jsonValue = async (value: unknown, field: Row, path: string[]): Promise<unknown> => {
 			if (field.type !== "group" && field.type !== "repeater") return fieldValue(value, field, context);
 			for (const row of field.type === "group" ? [value] : list(value)) {
@@ -147,15 +157,18 @@ export function createRowRemapper(
 							throw new ArchiveRefusedError("damaged", (error as Error).message);
 						}
 						for (const held of values) {
-							const nested = list(field.fields)
-								.map(record)
-								.find((f) => f.id === held.id);
+							const nested = held.contract
+								? retainedDefinition(held.contract, held.id)
+								: list(field.fields)
+										.map(record)
+										.find((f) => f.id === held.id);
 							if (!nested)
 								throw new ArchiveRefusedError("damaged", "A retained value has no source declaration identity.");
 							const checked = readPropJson(nested as FieldDefinition, held.value);
 							if ("problem" in checked)
 								throw new ArchiveRefusedError("damaged", `Invalid retained value: ${checked.problem}`);
 							held.value = await jsonValue(held.value, nested, [...path, held.name]);
+							if (held.contract) await definitions([held.contract], context);
 						}
 						continue;
 					}
@@ -188,20 +201,27 @@ export function createRowRemapper(
 			// Keep literal JSON and its formatting intact when no typed reference changed.
 			return before === after ? value : after;
 		};
+		const retentionProblem = retainedPropsProblem(list(values));
+		if (retentionProblem) throw new ArchiveRefusedError("damaged", retentionProblem);
 		const retainedIds = new Set<string>();
 		for (const prop of list(values)) {
 			const item = record(prop);
 			if (item.retained !== undefined) {
 				const problem = retainedPropProblem(item);
 				if (problem) throw new ArchiveRefusedError("damaged", problem);
-				const id = String(item.retained);
+				const id = retainedValueIdentity(String(item.retained), item.contract as Record<string, unknown> | undefined);
 				if (retainedIds.has(id) || retainedIds.size >= 256)
 					throw new ArchiveRefusedError("damaged", "Retained declarations are distinct, at most 256 Props.");
 				retainedIds.add(id);
 			}
 			if (typeof item.name !== "string") continue;
 			const path = [item.name];
-			const field = await definition(path, typeof item.retained === "string" ? item.retained : undefined);
+			let field = await definition(path, typeof item.retained === "string" ? item.retained : undefined);
+			if (item.contract !== undefined) {
+				if (typeof item.retained !== "string")
+					throw new ArchiveRefusedError("damaged", "Only a retained Prop has a source contract.");
+				field = retainedDefinition(item.contract, item.retained);
+			}
 			if (item.retained !== undefined && (!tree || !field.id || item.retained !== field.id))
 				throw new ArchiveRefusedError("damaged", "A retained Prop has no source declaration identity.");
 			if (tree) {
@@ -241,6 +261,7 @@ export function createRowRemapper(
 						translations[language] = await fixed(translations[language], field, path);
 				}
 			} else item.value = await fixed(item.value, field, path);
+			if (item.contract) await definitions([item.contract], context);
 		}
 	}
 	async function body(value: unknown, context: ReferenceVersion) {

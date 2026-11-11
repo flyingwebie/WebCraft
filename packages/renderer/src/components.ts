@@ -34,7 +34,13 @@ export type PlacementNode = {
 };
 
 /** One Prop's value in a Placement, written as an attribute: fixed text and values joined together. */
-export type PropValue = { name: string; value: AttributePart[]; binding?: PropBinding; retained?: string };
+export type PropValue = {
+	name: string;
+	value: AttributePart[];
+	binding?: PropBinding;
+	retained?: string;
+	contract?: Record<string, unknown>;
+};
 
 /** What reading and checking a Placement needs to know about one Prop of its Component. */
 export type PropInfo = {
@@ -58,6 +64,8 @@ export type ComponentInfo = {
 	props: readonly PropInfo[];
 	/** Old declarations addressable by identity even when their names are reused. */
 	retainedProps?: readonly PropInfo[];
+	/** Validate an explicit source contract retained across a type change. */
+	retainedContract?(input: unknown, id: string): PropInfo;
 	/** The tree a Placement shows, so it can be checked where it sits (a <div> can't go inside <p>). */
 	tree: ElementTree;
 };
