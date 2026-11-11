@@ -99,7 +99,7 @@ export const POPUP_SCRIPT = `(function mount(){
  }
  const start=()=>{
   if(stopped)return;answered=true;if(started){drain();return;}started=true;
-  for(const item of items)for(const t of [item.config.trigger,...item.config.additionalTriggers]){
+  for(const item of items)for(const t of [item.config.trigger,...item.config.additionalTriggers])try{
    if(t.kind==='load')request(item);
    if(t.kind==='delay')timer(()=>request(item),t.seconds*1000);
    if(t.kind==='scroll'){
@@ -115,7 +115,7 @@ export const POPUP_SCRIPT = `(function mount(){
     for(const name of ['pointerdown','pointermove','keydown','scroll'])listen(document,name,reset,{passive:true});
     reset();cleanups.push(()=>clearTimeout(id));
    }
-  }
+  }catch(error){console.warn('A Popup Trigger could not be set up.',error);}
   drain();
  };
  listen(document,'click',event=>{

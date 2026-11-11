@@ -263,3 +263,23 @@ test("a consent service that fails still lets Popups show", async () => {
 		await page.close();
 	}
 });
+
+test("a Trigger this browser refuses doesn't keep the page's other Popups from showing", async () => {
+	const url = await scene([
+		{ trigger: { kind: "element", selector: "#refused" }, additionalTriggers: [] },
+		{ trigger: { kind: "load" } },
+	]);
+	const page = await install.newPage("dark");
+	// A browser that can't read one Element Trigger's selector throws for it, as for a selector it doesn't support.
+	await page.addInitScript(() => {
+		const query = Document.prototype.querySelector;
+		Document.prototype.querySelector = function (this: Document, selectors: string) {
+			if (selectors === "#refused") throw new DOMException(`'${selectors}' is not a valid selector.`, "SyntaxError");
+			return query.call(this, selectors);
+		} as typeof query;
+	});
+	await page.goto(url);
+
+	await shown(page, "Promotion 2");
+	expect(pageErrors(page)).toEqual([]);
+});
