@@ -465,6 +465,7 @@ export function codeMode(config: CodeModeConfig): void {
 	let scripts: Scripts | null = null;
 	let jsKind: ScriptKind = "page";
 	let jsSaved = "";
+	let componentScriptLoadRun = 0;
 	/** The Component tab's settings as last saved (its Consent category and Libraries), to tell a change. */
 	let jsSettingsSaved = "";
 
@@ -1809,7 +1810,7 @@ export function codeMode(config: CodeModeConfig): void {
 	// The JS panel
 
 	async function loadScripts(): Promise<void> {
-		const answer = await call("code/scripts", { path, ref: selectedRef });
+		const answer = await call("code/scripts", { path, ref: requestRef(selectedRef) });
 		if (!answer.ok) return;
 		scripts = answer.data as Scripts;
 		if (!scripts.page && jsKind === "page") jsKind = "site";
@@ -1823,8 +1824,9 @@ export function codeMode(config: CodeModeConfig): void {
 	 */
 	async function loadComponentScript(ref: string | null): Promise<void> {
 		if (!scripts || (jsKind === "component" && jsDirty())) return;
-		const answer = await call("code/scripts", { path, ref });
-		if (!answer.ok || !scripts) return;
+		const run = ++componentScriptLoadRun;
+		const answer = await call("code/scripts", { path, ref: requestRef(ref) });
+		if (run !== componentScriptLoadRun || !answer.ok || !scripts) return;
 		const component = (answer.data as Scripts).component ?? null;
 		// Typed meanwhile in the Component tab: it keeps what is being written.
 		if (jsKind === "component" && jsDirty()) return;
