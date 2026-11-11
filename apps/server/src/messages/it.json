@@ -4302,6 +4302,7 @@
 			"picked": "Preso {name}. Le frecce lo spostano, Spazio lo posa, Esc lo rimette a posto.",
 			"dropped": "Posato {name}: {where}.",
 			"putBack": "{name} è tornato dov'era.",
+			"cancelUnavailable": "Non è più possibile annullare questo spostamento perché la Bozza o la selezione è cambiata.",
 			"refused": {
 				"first": "{name} è già il primo.",
 				"last": "{name} è già l'ultimo.",
