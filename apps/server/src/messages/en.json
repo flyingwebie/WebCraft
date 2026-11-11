@@ -4322,6 +4322,7 @@
 			"picked": "Picked up {name}. Arrows move it, Space puts it down, Escape puts it back.",
 			"dropped": "Put down {name}: {where}.",
 			"putBack": "Put {name} back where it was.",
+			"cancelUnavailable": "This move can no longer be cancelled because the Draft or selection changed.",
 			"refused": {
 				"first": "{name} is already first.",
 				"last": "{name} is already last.",

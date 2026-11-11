@@ -172,6 +172,8 @@ function LivePanels({
 	sourcesRef.current = sources;
 	const typing = useRef(false);
 	const draftChangeCount = useRef(0);
+	/** Peer snapshots invalidate a pending keyboard move, across every Placement of its Draft. */
+	const remoteRevisions = useRef(new Map<string, number>());
 	const paintRuns = useRef(new Map<string, number>());
 	const paint = useCallback(
 		(ref: string, tree: ElementTree) => {
@@ -222,6 +224,8 @@ function LivePanels({
 		(ref: string, tree: ElementTree, props?: Opened["props"]) => {
 			const before = sourcesRef.current[ref]?.opened;
 			if (before && sameValue(before.tree, tree) && (props === undefined || sameValue(before.props, props))) return;
+			const id = before?.component?.id ?? before?.template?.id ?? ref;
+			remoteRevisions.current.set(id, (remoteRevisions.current.get(id) ?? 0) + 1);
 			update(ref, tree, props);
 			paint(ref, tree);
 		},
@@ -509,6 +513,9 @@ function LivePanels({
 				<SourcePanels
 					bridge={bridge}
 					source={source}
+					remoteRevision={
+						remoteRevisions.current.get(source.opened.component?.id ?? source.opened.template?.id ?? source.ref) ?? 0
+					}
 					creating={creating}
 					onCreate={async (tree) => {
 						setCreating(true);
@@ -621,6 +628,7 @@ function DraftConnection({
 function SourcePanels({
 	bridge,
 	source,
+	remoteRevision,
 	selected,
 	forest,
 	hovered,
@@ -634,6 +642,7 @@ function SourcePanels({
 }: {
 	bridge: LivePanelBridge;
 	source: PanelSource;
+	remoteRevision: number;
 	forest: LayerSource[];
 	hovered: string | null;
 	shared?: SharedDraft;
@@ -655,13 +664,26 @@ function SourcePanels({
 	const [where, setWhere] = useState<InsertWhere>("inside");
 	const trigger = useRef<HTMLButtonElement>(null);
 	const clipboard = useRef<LayerClipboard | null>(null);
-	const [grabbed, setGrabbed] = useState<ElementTree | null>(null);
+	const [grabbed, setGrabbed] = useState<{
+		tree: ElementTree;
+		selection: Selection | null;
+		source: string;
+		remoteRevision: number;
+	} | null>(null);
+	const sourceId = source.opened.component?.id ?? source.opened.template?.id ?? source.ref;
+	const grabCurrent = grabbed?.source === sourceId && grabbed.remoteRevision === remoteRevision;
 	const [catalogue, setCatalogue] = useState(source.opened.catalogue);
 	const [fixed, setFixed] = useState<NodePath | null>(null);
 	const fixedTrigger = useRef<HTMLElement | null>(null);
 	const fixedAction =
 		source.target.kind === "component" ? "prop" : source.target.kind === "entryTemplate" ? "field" : "global";
 	const kind = source.opened.component ? "component" : "template";
+	useEffect(() => {
+		if (grabbed && !grabCurrent) {
+			setGrabbed(null);
+			announce(t("builder.moves.cancelUnavailable"));
+		}
+	}, [grabbed, grabCurrent, announce, t]);
 	useEffect(() => {
 		setTree(source.opened.tree);
 	}, [source.opened.tree]);
@@ -834,7 +856,7 @@ function SourcePanels({
 						catalogue={catalogue}
 						selection={selection}
 						collapsed={collapsed}
-						grabbed={grabbed !== null}
+						grabbed={grabCurrent}
 						canPaste={clipboard.current !== null}
 						focusRequest={0}
 						onSelect={select}
@@ -848,9 +870,9 @@ function SourcePanels({
 						}
 						onAction={action}
 						onGrab={(change) => {
-							if (change === "pick") setGrabbed(tree);
+							if (change === "pick") setGrabbed({ tree, selection, source: sourceId, remoteRevision });
 							else {
-								if (change === "cancel" && grabbed) apply(grabbed);
+								if (change === "cancel" && grabbed && grabCurrent) apply(grabbed.tree, grabbed.selection);
 								setGrabbed(null);
 							}
 						}}

@@ -39,6 +39,78 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 }
 
 for (const theme of THEMES) {
+	test(`cancelling a live keyboard move keeps the moved layer selected (${theme})`, async () => {
+		const { api, siteId, original, page, tree } = await editorPage(theme, "live");
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: original
+				.replace('data-wc-label="Before"', 'data-wc-label="First"')
+				.replace("</p>", '</p><p data-wc-id="second" data-wc-label="Second">Second text</p>'),
+		});
+		const first = tree.getByRole("treeitem", { name: /^First/ });
+		await first.click();
+		await page.waitForLoadState("networkidle");
+		await first.press("Space");
+		await first.press("ArrowDown");
+		let stored = "";
+		for (let attempt = 0; attempt < 100; attempt++) {
+			stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			if (stored.indexOf('data-wc-id="second"') < stored.indexOf('data-wc-id="greeting"')) break;
+			await page.waitForTimeout(50);
+		}
+		expect(stored.indexOf('data-wc-id="second"')).toBeLessThan(stored.indexOf('data-wc-id="greeting"'));
+		expect(await first.getAttribute("data-grabbed")).toBe("true");
+		await first.press("Escape");
+		for (let attempt = 0; attempt < 100; attempt++) {
+			stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			if (stored.indexOf('data-wc-id="greeting"') < stored.indexOf('data-wc-id="second"')) break;
+			await page.waitForTimeout(50);
+		}
+		expect(stored.indexOf('data-wc-id="greeting"')).toBeLessThan(stored.indexOf('data-wc-id="second"'));
+		expect(await first.getAttribute("aria-selected")).toBe("true");
+		expect(await first.getAttribute("data-grabbed")).not.toBe("true");
+	});
+
+	for (const canvas of ["preview", "live"] as const) {
+		test(`peer changes invalidate keyboard move cancellation on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: original
+					.replace('data-wc-id="header"', 'data-wc-id="header" data-wc-label="Before header"')
+					.replace('data-wc-label="Before"', 'data-wc-label="First"')
+					.replace("</p>", '</p><p data-wc-id="second" data-wc-label="Second">Second text</p>'),
+			});
+			const first = tree.getByRole("treeitem", { name: /^First/ });
+			await first.click();
+			await page.waitForLoadState("networkidle");
+			await first.press("Space");
+			expect(await first.getAttribute("data-grabbed")).toBe("true");
+			await first.press("ArrowDown");
+			let moved = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				moved = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (moved.indexOf('data-wc-id="second"') < moved.indexOf('data-wc-id="greeting"')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(moved.indexOf('data-wc-id="second"')).toBeLessThan(moved.indexOf('data-wc-id="greeting"'));
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: moved.replace('data-wc-label="Before header"', 'data-wc-label="Peer header"'),
+			});
+			await tree.getByRole("treeitem", { name: /^Peer header/ }).waitFor();
+			if (canvas === "live")
+				await page.getByRole("status").filter({ hasText: "This move can no longer be cancelled" }).waitFor();
+			await first.press("Escape");
+			await tree.getByRole("treeitem", { name: /^Peer header/ }).waitFor();
+			await page.waitForLoadState("networkidle");
+			const stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			expect(stored).toContain('data-wc-label="Peer header"');
+			expect(stored.indexOf('data-wc-id="second"')).toBeLessThan(stored.indexOf('data-wc-id="greeting"'));
+			expect(await first.getAttribute("data-grabbed")).not.toBe("true");
+		});
+	}
+
 	test(`clearing a one-off style follows peer changes during its catalogue read (${theme})`, async () => {
 		const { api, siteId, original, page, tree } = await editorPage(theme, "preview", "color: rgb(1, 2, 3);");
 		await tree.getByRole("treeitem", { name: /^Before/ }).click();
