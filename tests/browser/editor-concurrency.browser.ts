@@ -1022,7 +1022,7 @@ for (const theme of THEMES) {
 			const fulfilled = Promise.withResolvers<void>();
 			let hold = true;
 			await page.route("**/_webcraft/edit/api/code/open", async (route) => {
-				if (!hold || !(route.request().postDataJSON().classes ?? []).includes(earlierId)) return route.continue();
+				if (!hold || route.request().postDataJSON().ref !== "site#greeting") return route.continue();
 				hold = false;
 				const response = await route.fetch();
 				held.resolve();
