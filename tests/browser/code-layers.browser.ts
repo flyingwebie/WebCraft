@@ -369,6 +369,9 @@ for (const theme of THEMES) {
 		expect(saved.component.draft.props).toEqual([
 			expect.objectContaining({ key: "message", default: "Closed on Sundays" }),
 		]);
+		await tree.getByRole("treeitem", { name: /^\{\{ props.message \}\}/, selected: true }).waitFor();
+		await page.locator(".language-markup .line.marked").filter({ hasText: "{{ props.message }}" }).waitFor();
+		expect(await page.locator(".outline.selected").isVisible()).toBe(true);
 	});
 }
 

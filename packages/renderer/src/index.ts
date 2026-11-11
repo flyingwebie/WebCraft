@@ -150,6 +150,7 @@ export { readInlineStyle } from "./markup/inline-style.ts";
 export {
 	ID_ATTRIBUTE,
 	LABEL_ATTRIBUTE,
+	type MarkupLocations,
 	type ParsedMarkup,
 	type ParseMarkupOptions,
 	parseTemplateMarkup,

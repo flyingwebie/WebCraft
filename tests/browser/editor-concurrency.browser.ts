@@ -654,6 +654,7 @@ for (const theme of THEMES) {
 		} finally {
 			release.resolve();
 			releaseOther.resolve();
+			await page.unrouteAll({ behavior: "wait" });
 		}
 	});
 

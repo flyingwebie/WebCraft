@@ -263,7 +263,21 @@ function renderNodes(nodes: readonly TreeNode[], options: RenderOptions, state: 
 	return html;
 }
 
+/** Render-only ranges give commands and values an address without adding elements to the page. */
+function codeRange(html: string, options: RenderOptions, key: string | undefined): string {
+	if (!options.codeSource || key === undefined) return html;
+	const ref = markToken(`${options.codeSource}#@${key}`);
+	return `<!--wc-code-start ${ref}-->${html}<!--wc-code-end ${ref}-->`;
+}
+
 function renderNode(node: TreeNode, options: RenderOptions, state: RenderState): string {
+	const html = renderNodeContent(node, options, state);
+	return "id" in node || (node.type === "text" && !node.text.trim())
+		? html
+		: codeRange(html, options, state.paths?.get(node));
+}
+
+function renderNodeContent(node: TreeNode, options: RenderOptions, state: RenderState): string {
 	if (state.depth > 0) state.budget.nodes++;
 	switch (node.type) {
 		case "text":
@@ -303,7 +317,10 @@ function renderNode(node: TreeNode, options: RenderOptions, state: RenderState):
 	return command.render(node, {
 		read: options.values,
 		time: options.time,
-		nodes: (children) => renderNodes(children, options, state),
+		nodes: (children) => {
+			const list = childListsOf(node).indexOf(children);
+			return codeRange(renderNodes(children, options, state), options, `${state.paths?.get(node)}/${list}`);
+		},
 		outlet: () => options.outlet?.() ?? "",
 		themeToggle: () => options.themeToggle?.() ?? "",
 		languageSwitcher: () => options.languageSwitcher?.() ?? "",
@@ -360,7 +377,10 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 			: "";
 		return code + (mark ? `<!--wc-loop ${mark.map(markToken).join(" ")}-->${html}<!--/wc-loop-->` : html);
 	};
-	if (items.length === 0) return marked(node.empty ? renderNodes(node.empty, options, state) : "");
+	if (items.length === 0)
+		return marked(
+			node.empty ? codeRange(renderNodes(node.empty, options, state), options, `${state.paths?.get(node)}/1`) : "",
+		);
 	const inner: RenderState = { ...state, loops: state.loops + 1 };
 	let html = "";
 	items.forEach((item, index) => {
@@ -379,7 +399,8 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 			},
 			inner,
 		);
-		html += mark && item.key ? `<!--wc-item ${markToken(item.key)}-->${shown}<!--/wc-item-->` : shown;
+		const ranged = codeRange(shown, options, `${state.paths?.get(node)}/0`);
+		html += mark && item.key ? `<!--wc-item ${markToken(item.key)}-->${ranged}<!--/wc-item-->` : ranged;
 	});
 	return marked(html);
 }

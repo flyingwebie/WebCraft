@@ -41,7 +41,7 @@ export function codeTagsIn(html: string): [string, string][] {
 
 /** The <main> of a page's HTML: what is between its tags. */
 export function mainOf(html: string): string {
-	return /<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "";
+	return withoutCodeRanges(/<main[^>]*>([\s\S]*)<\/main>/.exec(html)?.[1] ?? "");
 }
 
 /** The <head> of a page's HTML. */
@@ -56,4 +56,9 @@ export function siteStylesheetIn(html: string): string {
 		.filter((href) => !href.startsWith("/_webcraft/edit/assets/"));
 	if (links.length !== 1) throw new Error(`The page links ${links.length} stylesheets of the Site.`);
 	return links[0] ?? "";
+}
+
+/** Compare rendered HTML independently of the editor's layout-neutral source-range annotations. */
+export function withoutCodeRanges(html: string): string {
+	return html.replace(/<!--wc-code-(?:start|end) [^>]*-->/g, "");
 }

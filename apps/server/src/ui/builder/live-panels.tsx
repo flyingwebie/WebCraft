@@ -19,6 +19,7 @@ import { Inspector } from "./Inspector.tsx";
 import { type LayerAction, type LayerSource, LayersPanel } from "./LayersPanel.tsx";
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type BuilderTarget, layerName, type Opened, type Selection } from "./model.ts";
+import { hoveredRow, selectionKey, selectionOf } from "./selection-ref.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -601,7 +602,11 @@ function LivePanels({
 						requestSelection({ ref, selection });
 						setActive(ref);
 						bridge.select(
-							node?.type === "component" ? `${ref}/${node.id}` : node && "id" in node ? `${ref}#${node.id}` : ref,
+							node?.type === "component"
+								? `${ref}/${node.id}`
+								: target
+									? `${ref}#${selectionKey(target.opened.tree, selection)}`
+									: ref,
 							node?.type === "component" ? `${ref}#${node.id}` : undefined,
 						);
 					}}
@@ -698,8 +703,22 @@ function SourcePanels({
 	selected: string | null;
 }) {
 	const t = useT();
-	const [tree, setTree] = useState(source.opened.tree);
-	const [selection, setSelection] = useState<Selection | null>(null);
+	const tree = source.opened.tree;
+	const [choice, setChoice] = useState<{ ref: string; requested: Selection | null; selection: Selection | null }>({
+		ref: source.ref,
+		requested,
+		selection: requested,
+	});
+	// A source switch must expose its selection in this render, before Layers moves keyboard focus.
+	const selection =
+		choice.ref === source.ref && choice.requested === requested
+			? choice.selection
+			: (requested ??
+				(selected?.split("#")[0] === source.ref ? selectionOf(tree, selected.split("#")[1] ?? "") : null));
+	const setSelection = useCallback(
+		(selection: Selection | null) => setChoice({ ref: source.ref, requested, selection }),
+		[source.ref, requested],
+	);
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 	const [announcement, announce] = useAnnouncement();
 	const [inserting, setInserting] = useState(false);
@@ -730,26 +749,17 @@ function SourcePanels({
 		}
 	}, [grabbed, grabCurrent, announce, t]);
 	useEffect(() => {
-		setTree(source.opened.tree);
-	}, [source.opened.tree]);
-	useEffect(() => {
 		setCatalogue(source.opened.catalogue);
 	}, [source.opened.catalogue]);
-	useEffect(() => {
-		if (requested) setSelection(requested);
-	}, [requested]);
-
 	const selectedId = useRef<string | null>(null);
 	useEffect(() => {
 		selectedId.current = selected?.split("#")[1] ?? null;
 	}, [selected]);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: an external selection and a remote move both reconcile the selected id.
 	useEffect(() => {
 		const id = selectedId.current;
-		const path = id ? pathOfId(tree, id) : undefined;
-		if (path) setSelection({ kind: "node", path });
-		else if (id) setSelection(null);
-	}, [selected, tree]);
+		if (selected?.split("#")[0] !== source.ref) return;
+		setSelection(id ? selectionOf(tree, id) : null);
+	}, [selected, tree, source.ref, setSelection]);
 	const apply = (
 		next: ElementTree,
 		nextSelection: Selection | null = selection,
@@ -772,17 +782,16 @@ function SourcePanels({
 			announce(message);
 			return message;
 		}
-		setTree(next);
 		setSelection(nextSelection);
 		const selectedNode = nextSelection?.kind === "node" ? nodeAt(next, nextSelection.path) : null;
-		selectedId.current = selectedNode && "id" in selectedNode ? selectedNode.id : null;
+		selectedId.current = nextSelection ? selectionKey(next, nextSelection) : null;
 		announce(message);
 		onTree(next);
 		const id = selectedId.current;
 		void (created ? onCreate(next).then(() => true) : shared ? shared.flush() : Promise.resolve(false)).then(
 			(saved) => {
 				if (saved) bridge.refresh();
-				if (saved && id === selectedId.current) {
+				if (saved && currentSource.current === sourceId && id === selectedId.current) {
 					bridge.select(
 						selectedNode?.type === "component" ? `${source.ref}/${id}` : id ? `${source.ref}#${id}` : source.ref,
 						selectedNode?.type === "component" ? `${source.ref}#${id}` : undefined,
@@ -795,13 +804,14 @@ function SourcePanels({
 	const select = (next: Selection) => {
 		setSelection(next);
 		const node = next.kind === "node" ? nodeAt(tree, next.path) : undefined;
-		if (node && "id" in node) {
-			shared?.place(node.id);
+		const key = selectionKey(tree, next);
+		selectedId.current = key;
+		if (node && "id" in node) shared?.place(node.id);
+		if (key)
 			bridge.select(
-				node.type === "component" ? `${source.ref}/${node.id}` : `${source.ref}#${node.id}`,
-				node.type === "component" ? `${source.ref}#${node.id}` : undefined,
+				node?.type === "component" ? `${source.ref}/${node.id}` : `${source.ref}#${key}`,
+				node?.type === "component" ? `${source.ref}#${node.id}` : undefined,
 			);
-		}
 	};
 
 	const insert = (nodes: TreeNode[]) => {
@@ -930,11 +940,11 @@ function SourcePanels({
 						}}
 						forest={forest}
 						activeSource={source.ref}
-						hovered={hovered ? hovered.replace("#", ":#") : null}
+						hovered={hoveredRow(hovered)}
 						onHover={(ref, selection) => {
 							const target = forest.find((each) => each.ref === (ref ?? source.ref));
-							const node = target && selection?.kind === "node" ? nodeAt(target.tree, selection.path) : null;
-							bridge.hover(node && "id" in node ? `${ref ?? source.ref}#${node.id}` : null);
+							const key = target && selection ? selectionKey(target.tree, selection) : null;
+							bridge.hover(key ? `${ref ?? source.ref}#${key}` : null);
 						}}
 						onSourceSelect={onSourceSelect}
 						tree={tree}
@@ -1097,9 +1107,8 @@ function SourcePanels({
 								announce(problem);
 								return problem;
 							}
-							setTree(next);
 							setSelection({ kind: "node", path });
-							selectedId.current = null;
+							selectedId.current = selectionKey(next, { kind: "node", path });
 							onTree(next);
 							announce(message);
 						} else {

@@ -42,6 +42,7 @@ import {
 	type AttributePart,
 	attributeProblem,
 	canonicalNodes,
+	childListsOf,
 	commentProblem,
 	type ElementNode,
 	type ElementTree,
@@ -76,7 +77,12 @@ export const ID_ATTRIBUTE = "data-wc-id";
 /** The attribute that carries an element's layer label in Template markup (`ElementNode.label`). */
 export const LABEL_ATTRIBUTE = "data-wc-label";
 
+/** Offsets in the authored markup, keyed by element id or `@` plus the canonical node path. */
+export type MarkupLocations = Record<string, { start: number; end: number }>;
+
 export type ParseMarkupOptions = {
+	/** Receives source positions from this parse, without changing the stored tree. */
+	locate?: (locations: MarkupLocations) => void;
 	/** Whether a binding's path names a value this markup may read; every path is allowed when absent. */
 	isKnownValue?: (path: string) => boolean;
 	/** Refuses an element this kind of Template mustn't hold, answering why. */
@@ -202,6 +208,8 @@ class MarkupParser {
 	private readonly classIds = new Set<string>();
 	/** Where each node was read, for problems `checkTree` reports on a node. */
 	private readonly offsets = new WeakMap<object, number>();
+	private readonly ends = new WeakMap<object, number>();
+	private readonly sections = new WeakMap<object, { start: number; end: number }[]>();
 	private count = 0;
 	/** Boundary checks already made, by Component and where it sits. */
 	private readonly boundaries = new Map<string, string | undefined>();
@@ -267,6 +275,24 @@ class MarkupParser {
 				error.problems.map((problem) => ({ line: 1, column: 1, message: problem.message })),
 			);
 		}
+		if (this.options.locate) {
+			const locations: MarkupLocations = {};
+			const visit = (nodes: readonly TreeNode[], prefix: number[]) =>
+				nodes.forEach((node, index) => {
+					if (node.type === "text" && !hasText(node)) return;
+					const path = [...prefix, index];
+					const key = "id" in node ? node.id : `@${path.join(".")}`;
+					locations[key] = { start: this.offsets.get(node) ?? 0, end: this.ends.get(node) ?? 0 };
+					this.sections.get(node)?.forEach((section, list) => {
+						if (list > 0) locations[`${key}/${list}`] = section;
+					});
+					childListsOf(node).forEach((children, list) => {
+						visit(children, [...path, list]);
+					});
+				});
+			visit(nodes, []);
+			this.options.locate(locations);
+		}
 		const notices = [...this.notices].sort((a, b) => a.line - b.line || a.column - b.column);
 		return { tree, notices };
 	}
@@ -312,8 +338,15 @@ class MarkupParser {
 			if (depth > TREE_LIMITS.depth) this.stop(offset, `Elements nest at most ${TREE_LIMITS.depth} deep.`);
 			this.count++;
 			if (this.count > TREE_LIMITS.nodes) this.stop(offset, `A Template holds at most ${TREE_LIMITS.nodes} nodes.`);
-			this.offsets.set(node, offset);
-			nodes.push(node);
+			// Canonicalise as we read so joined text keeps its complete authored range.
+			const previous = nodes.at(-1);
+			const joined = canonicalNodes(previous ? [previous, node] : [node]);
+			const added = joined.at(-1);
+			if (!added || added === previous) return;
+			if (previous && joined.length === 1) nodes.pop();
+			this.offsets.set(added, previous && joined.length === 1 ? (this.offsets.get(previous) ?? offset) : offset);
+			this.ends.set(added, this.pos);
+			nodes.push(added);
 		};
 		const flush = () => {
 			if (text) {
@@ -638,6 +671,7 @@ class MarkupParser {
 		const misplaced = command.placementProblem?.(ancestors);
 		if (misplaced) this.problem(opened.offset, misplaced);
 		const sections: MarkupSection[] = [];
+		const ranges: { start: number; end: number }[] = [];
 		let current = { ...opened, keyword: command.name };
 		if (command.block) {
 			const container: Container = {
@@ -661,6 +695,7 @@ class MarkupParser {
 				}
 				const { nodes, end } = content;
 				sections.push({ ...current, children: nodes });
+				ranges.push({ start: current.offset, end: end.offset });
 				if (end.kind === "branch") {
 					current = {
 						keyword: end.keyword,
@@ -691,7 +726,7 @@ class MarkupParser {
 		} else {
 			sections.push({ ...current, children: [] });
 		}
-		return command.fromMarkup(sections, {
+		const node = command.fromMarkup(sections, {
 			expression: (text, offset) => this.readExpression(text, offset),
 			form: (key, offset) => {
 				const found = this.options.forms?.keyed(key);
@@ -720,6 +755,8 @@ class MarkupParser {
 			problem: (offset, message) => this.problem(offset, message),
 			scope: this.scope,
 		});
+		if (node) this.sections.set(node, ranges);
+		return node;
 	}
 
 	// -----------------------------------------------------------------------------------------

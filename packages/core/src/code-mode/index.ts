@@ -7,12 +7,16 @@
  * the header token, as every edit request), and then opens the Site with `structure.edit` through the
  * data layer: Members in Edit mode never get it.
  */
-import type { MarkupNotice, QualityCheck } from "@webcraft/renderer";
+import type { MarkupLocations, MarkupNotice, QualityCheck } from "@webcraft/renderer";
 
 import { type BuilderDraft, type BuilderOpened, type BuilderTarget, createBuilder } from "../builder/index.ts";
 import type { ComponentSources } from "../content/components.ts";
 import { getEntry } from "../content/entries.ts";
+import { loopCatalogue } from "../content/loops.ts";
+import { parseDeclaredTree, readPropDeclarations } from "../content/prop-markup.ts";
 import type { ScriptKind } from "../content/scripts.ts";
+import { classCatalogue } from "../design-system/classes.ts";
+import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles } from "../design-system/stylesheet.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
 import type { EditSession } from "../edit-mode/index.ts";
@@ -196,7 +200,38 @@ export function createCodeMode(options: {
 			return builder.markup(scope, (await editorSource(scope, host, input)).target, input.draft);
 		},
 		async editorRead(scope, host, input) {
-			return builder.read(scope, (await editorSource(scope, host, input)).target, { markup: input.markup });
+			const { target, source, catalogue } = await editorSource(scope, host, input);
+			if (source.editable) return builder.read(scope, target, { markup: input.markup });
+			// Module markup can be located without opening (or granting) a writable Module Draft.
+			const declarations = readPropDeclarations(input.markup);
+			const classes = classCatalogue(await draftDesignSystem(scope));
+			let locations: MarkupLocations = {};
+			const parsed = parseDeclaredTree(declarations, {
+				classNamed: classes.named,
+				components: catalogue,
+				forms: catalogue.forms,
+				popups: catalogue.popups,
+				filters: catalogue.filters,
+				loops: await loopCatalogue(scope, "draft"),
+				locate(found) {
+					const prefix = input.markup.replace(/\r\n?/g, "\n").length - declarations.markup.length;
+					locations = Object.fromEntries(
+						Object.entries(found).map(([key, range]) => [
+							key,
+							{
+								start: range.start + prefix,
+								end: range.end + prefix,
+							},
+						]),
+					);
+				},
+			});
+			return {
+				...parsed,
+				locations,
+				styles: {},
+				props: source.id ? (catalogue.version(source.id)?.props ?? null) : null,
+			};
 		},
 		access,
 		async openIfAllowed(session) {

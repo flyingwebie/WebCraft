@@ -4,6 +4,7 @@
 // and real counts, in the Site's Design system. Previewing saves nothing; Members never reach it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { withoutCodeRanges } from "../harness/code-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { buildShop, listed, optionsIn, type Shop } from "./shop.ts";
 
@@ -22,7 +23,7 @@ afterAll(async () => {
 });
 
 /** The Loop's items a preview lists: the canvas tags every element so the builder can find it. */
-const listedIn = (html: string) => listed(html.replaceAll(/ data-wc-code="[^"]*"/g, ""));
+const listedIn = (html: string) => listed(withoutCodeRanges(html).replaceAll(/ data-wc-code="[^"]*"/g, ""));
 
 describe("a Filter as the builder reads it", () => {
 	test("says where it is placed, to open each place in the visual builder", async () => {
@@ -75,7 +76,9 @@ describe("the live preview", () => {
 		});
 
 		// The Archive template's own markup, around the Filter's form.
-		expect(preview.html).toMatch(/<aside data-wc-code="b#[^"]+"><form class="wc-filter" id="wc-filter-shop"/);
+		expect(withoutCodeRanges(preview.html)).toMatch(
+			/<aside data-wc-code="b#[^"]+"><form class="wc-filter" id="wc-filter-shop"/,
+		);
 		expect(preview.html).toContain('data-wc-mode="submit" data-wc-layout="topbar"');
 		expect(preview.html).not.toContain('data-wc-control="chips"');
 		expect(optionsIn(preview.html, "category")).toEqual([
