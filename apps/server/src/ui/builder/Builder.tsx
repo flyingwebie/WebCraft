@@ -172,15 +172,24 @@ export function Builder({
 			from.props && JSON.stringify(from.props) !== JSON.stringify(opened.props) ? { props: from.props } : {},
 		[opened.props],
 	);
+	const openedRead = useRef(0);
+	const readOpened = useCallback(async () => {
+		const run = ++openedRead.current;
+		const fresh = await (await getApi()).builder.open({ siteId, target });
+		// Background reads must not replace a newer catalogue, including one created by a save.
+		if (run === openedRead.current) setOpened(fresh);
+		return fresh;
+	}, [siteId, target]);
+	const patchOpened = (change: (before: Opened) => Opened) => {
+		openedRead.current++;
+		setOpened(change);
+	};
 
 	useSharedDraft({
 		path: `/api/drafts/${siteId}/designSystem`,
 		onRemote() {
 			setDesignVersion((count) => count + 1);
-			void getApi()
-				.then((api) => api.builder.open({ siteId, target }))
-				.then(setOpened)
-				.catch((failure) => setProblems(treeProblemsOf(failure, t(errorMessage(failure)))));
+			void readOpened().catch((failure) => setProblems(treeProblemsOf(failure, t(errorMessage(failure)))));
 		},
 	});
 	const documentId = opened.component?.id ?? opened.template?.id;
@@ -210,7 +219,7 @@ export function Builder({
 		},
 		onSettled: async () => {
 			try {
-				setOpened(await (await getApi()).builder.open({ siteId, target }));
+				await readOpened();
 			} catch (failure) {
 				setProblems(treeProblemsOf(failure, t(errorMessage(failure))));
 			}
@@ -441,7 +450,7 @@ export function Builder({
 		};
 		if (!catalogue.values.some((value) => value.path === made.path)) {
 			const group = made.path.startsWith("props.") ? "props" : made.path.startsWith("site.") ? "globals" : "entry";
-			setOpened((before) => ({
+			patchOpened((before) => ({
 				...before,
 				catalogue: {
 					...before.catalogue,
@@ -616,9 +625,8 @@ export function Builder({
 				started = next;
 			}
 			if (documentId && !(await shared.flush())) return null;
-			const latest = documentId ? await api.builder.open({ siteId, target }) : opened;
+			const latest = documentId ? await readOpened() : opened;
 			if (documentId && Object.keys(started.styles).length === 0) {
-				setOpened(latest);
 				setSaved(JSON.stringify(docOf(latest)));
 				announce(t("builder.saved", { name: title }));
 				return latest;
@@ -639,8 +647,7 @@ export function Builder({
 				props: propsChange(snapshot).props ?? null,
 				basedOn: over ? over.version : latest.version,
 			});
-			const fresh = await api.builder.open({ siteId, target });
-			setOpened(fresh);
+			const fresh = await readOpened();
 			setConflict(null);
 			if (docRef.current === started) {
 				const next = docOf(fresh);
@@ -704,7 +711,7 @@ export function Builder({
 			}
 			const api = await getApi();
 			await publishDraft(api, siteId, target, current.template?.id ?? null);
-			setOpened(await api.builder.open({ siteId, target }));
+			await readOpened();
 			toast.success(t("builder.published", { name: title }));
 			announce(t("builder.published", { name: title }));
 		} catch (failure) {
@@ -717,9 +724,8 @@ export function Builder({
 
 	const reload = async () => {
 		const api = await getApi();
-		const fresh = await api.builder.open({ siteId, target });
+		const fresh = await readOpened();
 		const next = docOf(fresh);
-		setOpened(fresh);
 		setDoc(next);
 		setSaved(JSON.stringify(next));
 		setSelection(null);
@@ -1106,25 +1112,27 @@ export function Builder({
 							}}
 							onOneOff={(path, elementId, declarations) => {
 								const node = nodeAt(doc.tree, path);
-								if (node?.type !== "element") return;
+								if (node?.type !== "element") return false;
 								const styles = { ...doc.styles };
 								if (declarations) styles[elementId] = declarations;
 								else delete styles[elementId];
-								apply(
-									{
-										...doc,
-										tree: replaceAt(doc.tree, path, {
-											...node,
-											classes: node.classes.filter((id) => !generatedIds.has(id)),
-										}),
-										styles,
-									},
-									{ kind: "node", path },
-									declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"),
+								return (
+									apply(
+										{
+											...doc,
+											tree: replaceAt(doc.tree, path, {
+												...node,
+												classes: node.classes.filter((id) => !generatedIds.has(id)),
+											}),
+											styles,
+										},
+										{ kind: "node", path },
+										declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"),
+									) === undefined
 								);
 							}}
 							onCatalogue={(classes: Catalogue["classes"]) => {
-								setOpened((before) => ({ ...before, catalogue: { ...before.catalogue, classes } }));
+								patchOpened((before) => ({ ...before, catalogue: { ...before.catalogue, classes } }));
 								setDesignVersion((count) => count + 1);
 							}}
 							onMakeEditable={(path, trigger) => {

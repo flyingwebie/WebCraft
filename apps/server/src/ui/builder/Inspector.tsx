@@ -59,7 +59,7 @@ export function Inspector({
 	/** Replaces the node at a path; answers why not when the tree would refuse it. */
 	onReplace(path: NodePath, node: TreeNode, announcement: string): string | undefined;
 	onClasses(path: NodePath, classIds: string[], announcement: string): void;
-	onOneOff(path: NodePath, elementId: string, declarations: string): void;
+	onOneOff(path: NodePath, elementId: string, declarations: string): boolean | Promise<boolean>;
 	onCatalogue(classes: Catalogue["classes"]): void;
 	onMakeEditable(path: NodePath, trigger: HTMLElement): void;
 }) {

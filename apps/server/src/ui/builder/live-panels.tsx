@@ -56,6 +56,10 @@ export type LivePanelBridge = {
 		context?: { ref: string; markup: string; offset: number; label: string },
 	): void;
 };
+type PanelCommands = {
+	save(): Promise<boolean>;
+	markup(ref: string): Promise<string | null>;
+};
 
 /** Panels follow the shared document when connected; an HTTP refresh supplies only its catalogue. */
 function currentDraft(source: PanelSource, shared?: SharedDraft): Pick<Opened, "tree" | "props"> {
@@ -118,7 +122,7 @@ export function mount(bridge: LivePanelBridge) {
 	const getApi = async () => api;
 	let selection: string | null = null;
 	let hovered: string | null = null;
-	const commands = { save: async () => false };
+	const commands: PanelCommands = { save: async () => false, markup: async () => null };
 	const show = (ref: string | null) => {
 		selection = ref;
 		react.render(
@@ -136,6 +140,7 @@ export function mount(bridge: LivePanelBridge) {
 		select: show,
 		refresh: () => show(selection),
 		save: () => commands.save(),
+		markup: (ref: string) => commands.markup(ref),
 		hover: (ref: string | null) => {
 			hovered = ref;
 			show(selection);
@@ -152,7 +157,7 @@ function LivePanels({
 	bridge: LivePanelBridge;
 	selected: string | null;
 	hovered: string | null;
-	commands: { save(): Promise<boolean> };
+	commands: PanelCommands;
 }) {
 	const t = useT();
 	const [sources, setSources] = useState<Record<string, PanelSource>>({});
@@ -247,6 +252,24 @@ function LivePanels({
 		[bridge],
 	);
 	const designLoaded = useRef(false);
+	useEffect(() => {
+		commands.markup = async (ref) => {
+			const loaded = sourcesRef.current[ref] ?? (await load(ref));
+			for (;;) {
+				const source = sourcesRef.current[ref] ?? loaded;
+				const id = source.opened.component?.id ?? source.opened.template?.id;
+				const draft = currentDraft(source, connections.current.get(id ?? ref));
+				const { markup } = await bridge.call<{ markup: string }>("code/editorMarkup", {
+					ref,
+					draft: { tree: draft.tree, ...(draft.props ? { props: draft.props } : {}) },
+				});
+				const current = sourcesRef.current[ref] ?? loaded;
+				const currentId = current.opened.component?.id ?? current.opened.template?.id;
+				// A source switch must display the shared Draft even if a peer changed it while printing.
+				if (sameValue(draft, currentDraft(current, connections.current.get(currentId ?? ref)))) return markup;
+			}
+		};
+	}, [bridge, commands, load]);
 	useSharedDraft({
 		path: "/_webcraft/edit/drafts/designSystem",
 		token: document.querySelector('meta[name="webcraft-edit-token"]')?.getAttribute("content") ?? "",
@@ -853,6 +876,7 @@ function SourcePanels({
 					}
 				>
 					<Inspector
+						key={source.opened.component?.id ?? source.ref}
 						onEditComponent={
 							node?.type === "component"
 								? () => {
@@ -880,19 +904,22 @@ function SourcePanels({
 							const node = nodeAt(tree, path);
 							if (node?.type === "element") apply(replaceAt(tree, path, { ...node, classes }), selection, message);
 						}}
-						onOneOff={(_path, id, declarations) => {
-							void (async () => {
-								try {
-									if (!(await shared?.flush())) return;
-									await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
-									const fresh = await bridge.call<PanelSource>("code/editor", { ref: source.ref });
-									setCatalogue(fresh.opened.catalogue);
-									onTree(currentDraft(source, shared).tree);
-									announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
-								} catch (failure) {
-									announce(t(errorMessage(failure)));
+						onOneOff={async (_path, id, declarations) => {
+							try {
+								if (!(await shared?.flush())) {
+									announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
+									return false;
 								}
-							})();
+								await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
+								const fresh = await bridge.call<PanelSource>("code/editor", { ref: source.ref });
+								setCatalogue(fresh.opened.catalogue);
+								onTree(currentDraft(source, shared).tree);
+								announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
+								return true;
+							} catch (failure) {
+								announce(t(errorMessage(failure)));
+								return false;
+							}
 						}}
 						onCatalogue={(classes) => {
 							setCatalogue((before) => ({ ...before, classes }));

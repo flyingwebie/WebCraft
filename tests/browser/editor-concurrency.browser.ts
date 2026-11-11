@@ -9,7 +9,7 @@ afterEach(async () => {
 	await install.close();
 });
 
-async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "preview") {
+async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "preview", initialStyle?: string) {
 	const local = install.install;
 	const { api } = await local.superadmin();
 	const workspace = await local.createWorkspace("Style co-editing");
@@ -19,7 +19,10 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 	});
 	const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
 	const original =
-		'<header data-wc-id="header"><p data-wc-id="greeting" data-wc-label="Before">Original text</p></header><main>{{@outlet}}</main>';
+		'<header data-wc-id="header"><p data-wc-id="greeting" data-wc-label="Before">Original text</p></header><main>{{@outlet}}</main>'.replace(
+			"<p ",
+			initialStyle ? `<p style="${initialStyle}" ` : "<p ",
+		);
 	await api.templates.saveSiteTemplateMarkup({ siteId, markup: original });
 	const page = await install.newPage(theme);
 	page.setDefaultTimeout(10000);
@@ -36,6 +39,314 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 }
 
 for (const theme of THEMES) {
+	for (const canvas of ["preview", "live"] as const) {
+		test(`unfinished declarations survive a peer refresh on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas, "color: rgb(1, 2, 3);");
+			await tree.getByRole("treeitem", { name: /^Before/ }).click();
+			await page.getByRole("tab", { name: "Style", exact: true }).click();
+			const declarations = page.getByLabel("Declarations", { exact: true });
+			await page.waitForLoadState("networkidle");
+			expect(await declarations.inputValue()).toBe("color: rgb(1, 2, 3);");
+			await declarations.fill("");
+			const refreshed = page.waitForResponse(async (response) => {
+				if (!response.url().endsWith(canvas === "preview" ? "/builder/open" : "/code/editor")) return false;
+				const body = await response.json();
+				const classes = (canvas === "preview" ? body.json.catalogue.classes : body.opened.catalogue.classes) as {
+					generated: boolean;
+					styles: string;
+				}[];
+				return classes.some((each) => each.generated && each.styles === "color: rgb(4, 5, 6);");
+			});
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: original
+					.replace('data-wc-label="Before"', 'data-wc-label="Remote"')
+					.replace("rgb(1, 2, 3)", "rgb(4, 5, 6)"),
+			});
+			await tree.getByRole("treeitem", { name: /^Remote/ }).waitFor();
+			await refreshed;
+			await page.waitForLoadState("networkidle");
+			expect(await declarations.inputValue()).toBe("");
+			await page.getByRole("button", { name: "Apply", exact: true }).click();
+			let stored = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (!stored.includes('class="')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(stored).toContain('data-wc-label="Remote"');
+			expect(stored).not.toContain('class="');
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: stored.replace("<p ", '<p style="color: rgb(7, 8, 9);" '),
+			});
+			for (let attempt = 0; attempt < 100; attempt++) {
+				if ((await declarations.inputValue()) === "color: rgb(7, 8, 9);") break;
+				await page.waitForTimeout(50);
+			}
+			expect(await declarations.inputValue()).toBe("color: rgb(7, 8, 9);");
+		});
+	}
+
+	test(`unfinished styles stay with the selected source (${theme})`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace("Style source identity");
+		const { id: siteId } = await local.createSite(workspace.id, {
+			name: "Style source identity",
+			slug: "style-source-identity",
+		});
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		for (const [name, colour] of [
+			["FirstNotice", "rgb(1, 2, 3)"],
+			["SecondNotice", "rgb(4, 5, 6)"],
+		]) {
+			const { component } = await api.components.create({ siteId, name: name as string });
+			await api.components.saveMarkup({
+				siteId,
+				componentId: component.id,
+				markup: `<p data-wc-id="shared" style="color: ${colour};">${name}</p>`,
+			});
+			await api.components.publish({ siteId, componentId: component.id });
+		}
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup:
+				'<header><FirstNotice data-wc-id="first" /><SecondNotice data-wc-id="second" /></header><main>{{@outlet}}</main>',
+		});
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}`));
+		await page.getByRole("button", { name: "Edit on site" }).click();
+		await page.waitForURL((url) => url.hostname.startsWith("style-source-identity"));
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		await page.getByRole("tree", { name: "Layers" }).waitFor();
+		await page.waitForLoadState("networkidle");
+		await page.locator('p[data-wc-code="site/first#shared"]').click();
+		await page.getByRole("textbox", { name: "HTML of FirstNotice · Component" }).waitFor();
+		await page.getByRole("tab", { name: "Style", exact: true }).click();
+		expect(await page.getByLabel("Declarations", { exact: true }).inputValue()).toBe("color: rgb(1, 2, 3);");
+		await page.getByLabel("Declarations", { exact: true }).fill("");
+		await page.locator('p[data-wc-code="site/second#shared"]').click();
+		await page.getByRole("textbox", { name: "HTML of SecondNotice · Component" }).waitFor();
+		await page.getByRole("tab", { name: "Style", exact: true }).click();
+		expect(await page.getByLabel("Declarations", { exact: true }).inputValue()).toBe("color: rgb(4, 5, 6);");
+	});
+
+	test(`a late catalogue cannot prevent clearing a one-off style (${theme})`, async () => {
+		const { api, siteId, original, page, tree } = await editorPage(theme, "preview");
+		await tree.getByRole("treeitem", { name: /^Before/ }).click();
+		await page.getByRole("tab", { name: "Style", exact: true }).click();
+		const declarations = page.getByLabel("Declarations", { exact: true });
+		await declarations.fill("color: rgb(1, 2, 3);");
+		await page.waitForLoadState("networkidle");
+		const reading = Promise.withResolvers<void>();
+		const releaseRead = Promise.withResolvers<void>();
+		const captured = Promise.withResolvers<void>();
+		const releaseOld = Promise.withResolvers<void>();
+		const delivered = Promise.withResolvers<void>();
+		const settled = Promise.withResolvers<void>();
+		let reads = 0;
+		let active = 0;
+		let fresh = false;
+		let finished = false;
+		let quiet: ReturnType<typeof setTimeout> | undefined;
+		await page.route(/\/api\/rpc\/builder\/open$/, async (route) => {
+			const number = ++reads;
+			if (number !== 2) {
+				active++;
+				clearTimeout(quiet);
+			}
+			try {
+				if (number === 1) {
+					reading.resolve();
+					await releaseRead.promise;
+				}
+				const response = await route.fetch();
+				const body = (await response.json()) as { json: { catalogue: { classes: { generated: boolean }[] } } };
+				if (number === 2) {
+					captured.resolve();
+					await releaseOld.promise;
+				}
+				await route.fulfill({ response });
+				if (number === 2) delivered.resolve();
+				else fresh ||= body.json.catalogue.classes.some((each) => each.generated);
+			} finally {
+				if (number !== 2) {
+					active--;
+					// Wait for the other metadata reads to settle without counting their implementation's calls.
+					if (!finished && fresh && active === 0) quiet = setTimeout(settled.resolve, 750);
+				}
+			}
+		});
+		const colourIs = (applied: boolean) =>
+			page.waitForFunction((expected) => {
+				const frame = document.querySelector<HTMLIFrameElement>('iframe[title^="Canvas"]');
+				const paragraph = frame?.contentDocument?.querySelector("header p");
+				return paragraph && (frame?.contentWindow?.getComputedStyle(paragraph).color === "rgb(1, 2, 3)") === expected;
+			}, applied);
+		try {
+			await page.getByRole("button", { name: "Apply", exact: true }).click();
+			await reading.promise;
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: original.replace('data-wc-label="Before"', 'data-wc-label="Remote"'),
+			});
+			await tree.getByRole("treeitem", { name: /^Remote/ }).waitFor();
+			await captured.promise;
+			releaseRead.resolve();
+			await settled.promise;
+			await colourIs(true);
+			releaseOld.resolve();
+			await delivered.promise;
+			await page.waitForLoadState("networkidle");
+			await declarations.fill("");
+			await page.getByRole("button", { name: "Apply", exact: true }).click();
+			await colourIs(false);
+			let stored = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (!stored.includes('class="')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(stored).toContain('data-wc-label="Remote"');
+			expect(stored).not.toContain('class="');
+		} finally {
+			finished = true;
+			clearTimeout(quiet);
+			releaseRead.resolve();
+			releaseOld.resolve();
+		}
+	});
+
+	test(`Module Component sources remain read-only (${theme})`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		await api.modules.approve({ moduleId: "extra-blocks", version: "1.0.0" });
+		const workspace = await local.createWorkspace("Read-only sources");
+		const { id: siteId } = await local.createSite(workspace.id, {
+			name: "Read-only sources",
+			slug: "read-only-sources",
+		});
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: '<header><Tabs data-wc-id="tabs-placement" label="Details" /></header><main>{{@outlet}}</main>',
+		});
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}`));
+		await page.getByRole("button", { name: "Edit on site" }).click();
+		await page.waitForURL((u) => u.hostname.startsWith("read-only-sources"));
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		const tree = page.getByRole("tree", { name: "Layers" });
+		await tree.getByRole("treeitem").filter({ hasText: /^Tabs/ }).click();
+		const html = page.getByRole("textbox", { name: "HTML of Tabs · Component" });
+		await html.waitFor();
+		expect(await html.isEditable()).toBe(false);
+		expect(await html.inputValue()).toContain("props.label");
+	});
+
+	test(`switching source preserves peer changes during selection and printing (${theme})`, async () => {
+		const release = Promise.withResolvers<void>();
+		const releasePrint = Promise.withResolvers<void>();
+		try {
+			const local = install.install;
+			const { api } = await local.superadmin();
+			const workspace = await local.createWorkspace("Source selection review");
+			const { id: siteId } = await local.createSite(workspace.id, {
+				name: "Source selection review",
+				slug: "source-selection-review",
+			});
+			const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+			const { component } = await api.components.create({ siteId, name: "Notice" });
+			const original =
+				'<aside data-wc-id="notice"><p data-wc-id="message" data-wc-label="Before">Original text</p></aside>';
+			await api.components.saveMarkup({ siteId, componentId: component.id, markup: original });
+			await api.components.publish({ siteId, componentId: component.id });
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: '<header data-wc-id="header"><Notice data-wc-id="notice-placement" /></header><main>{{@outlet}}</main>',
+			});
+			const page = await install.newPage(theme);
+			page.setDefaultTimeout(10000);
+			await install.signIn(page, staff);
+			await page.goto(install.adminUrl(`/sites/${siteId}`));
+			await page.getByRole("button", { name: "Edit on site" }).click();
+			await page.waitForURL((url) => url.hostname.startsWith("source-selection-review"));
+			await page.getByRole("button", { name: "Code", exact: true }).click();
+			const tree = page.getByRole("tree", { name: "Layers" });
+			await tree.getByText("Component · Notice", { exact: true }).waitFor();
+			await tree.getByRole("treeitem", { name: /^header$/ }).click();
+			await page.getByLabel("Tag", { exact: true }).waitFor();
+			await page.waitForLoadState("networkidle");
+			const html = page.getByRole("textbox", { name: /^HTML of / });
+			const held = Promise.withResolvers<void>();
+			const fulfilled = Promise.withResolvers<void>();
+			let hold = true;
+			await page.route("**/_webcraft/edit/api/code/open", async (route) => {
+				if (!hold || route.request().postDataJSON().ref !== "site/notice-placement#message") return route.continue();
+				hold = false;
+				const response = await route.fetch();
+				held.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+				fulfilled.resolve();
+			});
+			await page.locator('p[data-wc-code="site/notice-placement#message"]').click();
+			await held.promise;
+			const painted = page.waitForResponse(async (response) => {
+				if (!response.url().endsWith("/code/editorMarkup")) return false;
+				const body = await response.json().catch(() => ({}));
+				return body.markup?.includes('data-wc-label="Remote"') ?? false;
+			});
+			await api.components.saveMarkup({
+				siteId,
+				componentId: component.id,
+				markup: original.replace('data-wc-label="Before"', 'data-wc-label="Remote"'),
+			});
+			await tree.getByRole("treeitem", { name: /^Remote/ }).waitFor();
+			await painted;
+			await page.waitForTimeout(150);
+			const printing = Promise.withResolvers<void>();
+			let holdPrint = true;
+			await page.route("**/_webcraft/edit/api/code/editorMarkup", async (route) => {
+				if (!holdPrint || route.request().postDataJSON().ref !== "site/notice-placement") return route.continue();
+				holdPrint = false;
+				const response = await route.fetch();
+				printing.resolve();
+				await releasePrint.promise;
+				await route.fulfill({ response });
+			});
+			release.resolve();
+			await fulfilled.promise;
+			await printing.promise;
+			await api.components.saveMarkup({
+				siteId,
+				componentId: component.id,
+				markup: original.replace('data-wc-label="Before"', 'data-wc-label="Newest"'),
+			});
+			await tree.getByRole("treeitem", { name: /^Newest/ }).waitFor();
+			releasePrint.resolve();
+			await page.getByRole("textbox", { name: "HTML of Notice · Component" }).waitFor();
+			await page.waitForLoadState("networkidle");
+			await html.fill((await html.inputValue()).replace("<aside ", '<aside data-wc-label="Local aside" '));
+			let saved = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				saved = (await api.components.getMarkup({ siteId, componentId: component.id })).markup.draft;
+				if (saved.includes('data-wc-label="Local aside"')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(saved).toContain('data-wc-label="Local aside"');
+			expect(saved).toContain('data-wc-label="Newest"');
+		} finally {
+			release.resolve();
+			releasePrint.resolve();
+		}
+	});
+
 	test(`a delayed Inspector selection preserves the peer's HTML for the next edit (${theme})`, async () => {
 		const { api, siteId, page, tree } = await editorPage(theme, "live");
 		const release = Promise.withResolvers<void>();

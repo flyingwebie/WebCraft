@@ -35,7 +35,7 @@ export function StylePanel({
 	/** Its one-off style: unsaved declarations, or its generated Class's. */
 	oneOff: string;
 	onClasses(classIds: string[], announcement: string): void;
-	onOneOff(declarations: string): void;
+	onOneOff(declarations: string): boolean | Promise<boolean>;
 	/** A Class was made or changed in the Design system's Draft. */
 	onCatalogue(classes: Catalogue["classes"]): void;
 }) {
@@ -47,9 +47,14 @@ export function StylePanel({
 	const [editing, setEditing] = useState<string | null>(null);
 	const [oneOffText, setOneOffText] = useState(oneOff);
 	const [oneOffProblem, setOneOffProblem] = useState<string | null>(null);
+	const [applyingOneOff, setApplyingOneOff] = useState(false);
+	const oneOffEdit = useRef(0);
+	const appliedOneOffEdit = useRef(0);
 	useEffect(() => {
-		setOneOffText(oneOff);
-		setOneOffProblem(null);
+		if (oneOffEdit.current === appliedOneOffEdit.current) {
+			setOneOffText(oneOff);
+			setOneOffProblem(null);
+		}
 	}, [oneOff]);
 
 	const nameOf = (classId: string) =>
@@ -104,14 +109,26 @@ export function StylePanel({
 		}
 	};
 
-	const applyOneOff = () => {
+	const applyOneOff = async () => {
+		if (applyingOneOff) return;
 		const read = readInlineStyle(oneOffText);
 		if ("problem" in read) {
 			setOneOffProblem(read.problem);
 			return;
 		}
 		setOneOffProblem(null);
-		onOneOff(read.declarations);
+		setApplyingOneOff(true);
+		const revision = oneOffEdit.current;
+		try {
+			if (await onOneOff(read.declarations)) {
+				appliedOneOffEdit.current = revision;
+				if (oneOffEdit.current === revision) setOneOffText(read.declarations);
+			}
+		} catch (failure) {
+			setOneOffProblem(t(errorMessage(failure)));
+		} finally {
+			setApplyingOneOff(false);
+		}
 	};
 
 	return (
@@ -235,7 +252,10 @@ export function StylePanel({
 					<Textarea
 						id={`${id}-one-off-text`}
 						value={oneOffText}
-						onChange={(event) => setOneOffText(event.target.value)}
+						onChange={(event) => {
+							oneOffEdit.current++;
+							setOneOffText(event.target.value);
+						}}
 						className="min-h-20 font-mono text-xs"
 						spellCheck={false}
 						aria-invalid={oneOffProblem ? true : undefined}
@@ -244,7 +264,13 @@ export function StylePanel({
 					<FieldDescription id={`${id}-one-off-help`}>{t("builder.style.oneOffHelp")}</FieldDescription>
 					{oneOffProblem ? <FieldError>{oneOffProblem}</FieldError> : null}
 				</Field>
-				<Button type="button" variant="outline" className="justify-self-start" onClick={applyOneOff}>
+				<Button
+					type="button"
+					variant="outline"
+					className="justify-self-start"
+					disabled={applyingOneOff}
+					onClick={applyOneOff}
+				>
 					{t("builder.style.oneOffApply")}
 				</Button>
 			</section>

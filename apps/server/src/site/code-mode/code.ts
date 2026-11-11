@@ -88,7 +88,13 @@ export function codeMode(config: CodeModeConfig): void {
 
 	let inspectorRef: string | undefined;
 	let panelsAdapter:
-		| { select(ref: string | null): void; hover(ref: string | null): void; refresh(): void; save(): Promise<boolean> }
+		| {
+				select(ref: string | null): void;
+				hover(ref: string | null): void;
+				refresh(): void;
+				save(): Promise<boolean>;
+				markup(ref: string): Promise<string | null>;
+		  }
 		| undefined;
 	const win = window;
 	const doc = document;
@@ -355,6 +361,8 @@ export function codeMode(config: CodeModeConfig): void {
 	let opened: Opened | null = null;
 	let savedMarkup = "";
 	let selectedRef: string | null = null;
+	let openRun = 0;
+	let markupInputRun = 0;
 
 	// The CSS panel
 	let cssEditor: Editor;
@@ -766,6 +774,7 @@ export function codeMode(config: CodeModeConfig): void {
 			language: "markup",
 			label: word("html"),
 			onInput: () => {
+				markupInputRun++;
 				setDirty("html");
 				schedulePreview();
 			},
@@ -1081,13 +1090,27 @@ export function codeMode(config: CodeModeConfig): void {
 	}
 
 	async function open(ref: string | null, keepText = false): Promise<void> {
+		const run = ++openRun;
+		const inputRun = markupInputRun;
 		const answer = await call("code/open", { path, ref });
+		if (run !== openRun) return;
 		if (!answer.ok) {
 			setStatusText(errorText(answer.code));
 			return;
 		}
 		const fresh = answer.data as Opened;
 		const sameSource = opened?.ref === fresh.ref;
+		if (!sameSource && inputRun !== markupInputRun) return;
+		if (!sameSource && fresh.source.editable && panelsAdapter) {
+			try {
+				const markup = await panelsAdapter.markup(fresh.ref);
+				if (run !== openRun || inputRun !== markupInputRun || markup === null) return;
+				fresh.markup = markup;
+			} catch (failure) {
+				if (run === openRun) setStatusText(errorText((failure as { code?: string }).code ?? "generic"));
+				return;
+			}
+		}
 		opened = fresh;
 		selectedRef = fresh.element ? `${fresh.ref}#${fresh.element.id}` : (inspectorRef ?? null);
 		// Once connected, the shared Draft owns this source's HTML; selection reads supply metadata only.
