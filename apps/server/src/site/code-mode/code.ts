@@ -1583,9 +1583,15 @@ export function codeMode(config: CodeModeConfig): void {
 		const answer = await call("code/scripts", { path, ref });
 		if (!answer.ok || !scripts) return;
 		const component = (answer.data as Scripts).component ?? null;
-		if (component?.componentId === scripts.component?.componentId && jsKind === "component" && jsDirty()) return;
+		// Typed meanwhile in the Component tab: it keeps what is being written.
+		if (jsKind === "component" && jsDirty()) return;
 		scripts.component = component;
-		if (!component && jsKind === "component") jsKind = scripts.page ? "page" : "site";
+		// Another tab is shown: only the Component tab's button follows, so nothing typed there is lost.
+		if (jsKind !== "component") {
+			jsComponentTab.hidden = !component;
+			return;
+		}
+		if (!component) jsKind = scripts.page ? "page" : "site";
 		showScript();
 	}
 

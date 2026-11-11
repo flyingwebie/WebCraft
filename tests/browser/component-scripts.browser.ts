@@ -280,3 +280,20 @@ describe("Code mode's JS panel from the keyboard", () => {
 		});
 	});
 });
+
+describe("Code mode's JS panel while Staff type", () => {
+	test("selecting a Placement keeps unsaved text in the Page tab; its Component tab just appears", async () => {
+		const page = await codeModePage("light");
+		await page.getByRole("button", { name: "Page", exact: true }).click();
+		const js = page.getByRole("textbox", { name: "JS: Page script" });
+		await js.waitFor();
+		const typed = `${await js.inputValue()}\n// not saved yet`;
+		await js.fill(typed);
+
+		await page.locator("main [data-label='One'] > p").click();
+		await page.getByRole("button", { name: "Component", exact: true }).waitFor();
+		await page.getByRole("textbox", { name: "HTML of Counter · Component" }).waitFor();
+
+		expect(await js.inputValue()).toBe(typed);
+	});
+});
