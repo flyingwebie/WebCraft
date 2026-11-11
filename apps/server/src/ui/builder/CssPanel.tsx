@@ -320,6 +320,8 @@ export function CssPanel({
 	const latest = useRef({ element, onClasses });
 	latest.current = { element, onClasses };
 	const readRun = useRef(0);
+	const dataRun = useRef(0);
+	const classRuns = useRef(new Map<string, number>());
 	const area = useRef<HTMLTextAreaElement>(null);
 	const tabRefs = useRef(new Map<string, HTMLButtonElement>());
 	const addInput = useRef<HTMLInputElement>(null);
@@ -365,14 +367,21 @@ export function CssPanel({
 	const read = useCallback(async () => {
 		const run = ++readRun.current;
 		const fresh = await port.read(classKey ? classKey.split(" ") : []);
-		// Only the latest read counts: an earlier answer arriving late never replaces it.
-		if (run !== readRun.current) return;
-		setData(fresh);
-		setKnown((before) => {
-			const next = new Map(before);
-			for (const each of fresh.classes) next.set(each.id, each);
-			return next;
-		});
+		// An answer arriving late never replaces what a later read supplied: each Class, and the rest
+		// (breakpoints, Site CSS, tokens), keeps the newest read that answered it. The tabs never come
+		// from an answer, only from the element's current shared document.
+		if (run > dataRun.current) {
+			dataRun.current = run;
+			setData(fresh);
+		}
+		const newer = fresh.classes.filter((each) => run > (classRuns.current.get(each.id) ?? 0));
+		for (const each of newer) classRuns.current.set(each.id, run);
+		if (newer.length)
+			setKnown((before) => {
+				const next = new Map(before);
+				for (const each of newer) next.set(each.id, each);
+				return next;
+			});
 	}, [port, classKey]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a change to the Design system's Draft elsewhere is read again.
 	useEffect(() => {
