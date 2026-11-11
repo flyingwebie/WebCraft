@@ -239,3 +239,47 @@ test("visit frequency counts keyboard activity and expires only after inactivity
 	await shown(page);
 	await page.close();
 });
+
+test("a consent service that fails still lets Popups show", async () => {
+	const url = await scene([{ trigger: { kind: "load" } }]);
+	for (const failure of ["reject", "throw"] as const) {
+		const page = await install.newPage("light");
+		// An outside consent service (or the Site's own code) whose consent object can't answer.
+		await page.addInitScript((how) => {
+			const consent = {
+				mode: "outside",
+				answered: false,
+				has: () => false,
+				whenAnswered: () => {
+					if (how === "throw") throw new Error("The consent service is broken.");
+					return Promise.reject(new Error("The consent service failed."));
+				},
+			};
+			Object.defineProperty(window, "webcraft", { value: { consent }, writable: true, configurable: true });
+		}, failure);
+		await page.goto(url);
+		await shown(page);
+		expect(pageErrors(page)).toEqual([]);
+		await page.close();
+	}
+});
+
+test("a Trigger this browser refuses doesn't keep the page's other Popups from showing", async () => {
+	const url = await scene([
+		{ trigger: { kind: "element", selector: "#refused" }, additionalTriggers: [] },
+		{ trigger: { kind: "load" } },
+	]);
+	const page = await install.newPage("dark");
+	// A browser that can't read one Element Trigger's selector throws for it, as for a selector it doesn't support.
+	await page.addInitScript(() => {
+		const query = Document.prototype.querySelector;
+		Document.prototype.querySelector = function (this: Document, selectors: string) {
+			if (selectors === "#refused") throw new DOMException(`'${selectors}' is not a valid selector.`, "SyntaxError");
+			return query.call(this, selectors);
+		} as typeof query;
+	});
+	await page.goto(url);
+
+	await shown(page, "Promotion 2");
+	expect(pageErrors(page)).toEqual([]);
+});

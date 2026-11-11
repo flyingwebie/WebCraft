@@ -95,6 +95,38 @@ describe("Funnels", () => {
 		});
 	});
 
+	test("a step reached after UTC midnight doesn't follow one reached before it: a day is a visitor's day", async () => {
+		const site = await newSite();
+		const { siteId } = site;
+		await analyticsApi(staff).funnels.create({
+			siteId,
+			name: "Late",
+			steps: [
+				{ kind: "page", path: "/", match: "exact" },
+				{ kind: "page", path: "/menu", match: "exact" },
+			],
+		});
+		const day = dayOf(install.clock.now());
+		const midnight = day.to;
+		await install.clock.set(new Date(midnight.getTime() - 2 * 60_000));
+		const owl = analyticsVisitor(install, site.origin, { address: "203.0.113.61" });
+		await owl.view("/");
+		await install.clock.set(new Date(midnight.getTime() + 3 * 60_000));
+		await owl.view("/menu", { i: 1 });
+
+		const counted = await analyticsApi(staff).stats.funnel({
+			siteId,
+			from: day.from,
+			to: new Date(day.to.getTime() + DAY),
+			funnel: "late",
+		});
+
+		expect(counted.steps).toEqual([
+			{ label: "/", visitors: 1 },
+			{ label: "/menu", visitors: 0 },
+		]);
+	});
+
 	test("have two to five steps, names unique on the Site, and Goals the Site has", async () => {
 		const { siteId } = await newSite();
 		const funnels = analyticsApi(staff).funnels;

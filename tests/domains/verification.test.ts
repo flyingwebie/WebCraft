@@ -2,6 +2,7 @@
 // accepts only the answer it alone can make for that token. Until then the domain waits for DNS and
 // is checked again: every few minutes for the first hour, hourly for 7 days, then only when Staff ask.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import pg from "pg";
 
 import { createTestInstall, TEST_INSTALL_ADDRESSES, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
@@ -286,5 +287,57 @@ describe("checking again until it is verified", () => {
 		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 
 		await expect(owner.api.domains.check({ siteId, domainId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});
+
+// This acts as someone with write access to the database (like tests/publishing/scheduled-publish.test.ts)
+// to make Postgres refuse clearing one Site's page cache: a failure between the two writes.
+describe("a domain verified while its Site's page cache can't be cleared", () => {
+	let database: pg.Client;
+
+	beforeAll(async () => {
+		database = new pg.Client({ connectionString: install.databaseUrl });
+		await database.connect();
+	});
+
+	afterAll(async () => {
+		await database.end();
+	});
+
+	/** Makes Postgres refuse raising `siteId`'s page cache generation, until the answered function undoes it. */
+	async function refuseClearing(siteId: string): Promise<() => Promise<void>> {
+		const name = `test_cache_${siteId.replaceAll("-", "_")}`;
+		await database.query(
+			`CREATE OR REPLACE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $fn$
+				BEGIN RAISE EXCEPTION 'simulated database failure'; END;
+			$fn$`,
+		);
+		await database.query(
+			`CREATE TRIGGER ${name}_trigger BEFORE UPDATE ON sites FOR EACH ROW
+				WHEN (NEW.id = '${siteId}' AND NEW.page_cache_generation <> OLD.page_cache_generation)
+				EXECUTE FUNCTION ${name}()`,
+		);
+		return async () => {
+			await database.query(`DROP TRIGGER IF EXISTS ${name}_trigger ON sites`);
+			await database.query(`DROP FUNCTION IF EXISTS ${name}()`);
+		};
+	}
+
+	test("stays waiting, and is verified at a later check once the cache can be cleared", async () => {
+		const { siteId } = await siteWithDomain("cache-bakery.example");
+		install.connectDomain("cache-bakery.example");
+		const undo = await refuseClearing(siteId);
+		try {
+			await install.clock.advance(MINUTE);
+			const { failed } = await install.drainJobs();
+			expect(failed.map((job) => job.name)).toEqual(["domains.verify"]);
+		} finally {
+			await undo();
+		}
+		expect(await domainOf(siteId, "cache-bakery.example")).toMatchObject({ status: "waiting", verifiedAt: null });
+
+		await after(10 * MINUTE);
+
+		expect(await domainOf(siteId, "cache-bakery.example")).toMatchObject({ status: "active", problem: null });
 	});
 });

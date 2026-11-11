@@ -19,6 +19,7 @@ import { healthCheck, healthCheckSchedule } from "../health/jobs.ts";
 import { historyPrune, historyPruneSchedule } from "../history/prune.ts";
 import { impersonationEnd } from "../impersonation.ts";
 import { importsPurge, importsPurgeSchedule } from "../imports/purge.ts";
+import { importsRecover, importsRecoverSchedule } from "../imports/recover.ts";
 import { importsRun } from "../imports/runs.ts";
 import { importsPreview } from "../imports/source-runs.ts";
 import { importsSurvey } from "../imports/survey.ts";
@@ -82,6 +83,7 @@ export const coreJobs = [
 	importsSurvey,
 	importsPreview,
 	importsPurge,
+	importsRecover,
 	moduleEventJob,
 	moduleJob,
 	moduleMissesJob,
@@ -135,6 +137,7 @@ export const coreSchedules = [
 	mediaPurgeSchedule,
 	formUploadsPurgeSchedule,
 	importsPurgeSchedule,
+	importsRecoverSchedule,
 	domainsVerifyDueSchedule,
 	domainsCheckAllSchedule,
 	cdnRefreshRangesSchedule,

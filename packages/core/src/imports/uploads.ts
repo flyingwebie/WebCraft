@@ -191,7 +191,7 @@ export async function finishUpload(
 		const now = tx.now();
 		const [saved] = await tx.update(
 			importFiles,
-			{ status: "surveying", expiresAt: new Date(now.getTime() + IMPORT_FILE_LIFETIME_MS) },
+			{ status: "surveying", surveyStartedAt: now, expiresAt: new Date(now.getTime() + IMPORT_FILE_LIFETIME_MS) },
 			eq(importFiles.id, file.id),
 		);
 		return saved as FileRow;

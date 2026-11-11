@@ -248,6 +248,8 @@ export async function runSourceImport(
 			return;
 		}
 		const current = await scope.first(importRuns, eq(importRuns.id, run.id));
+		// The run was picked up again after this job's worker stopped: that attempt goes on with it.
+		if (current && current.attempt !== run.attempt) return;
 		if (!current || current.stopRequestedAt) return finish("stopped");
 		gone++;
 		const rules = (asked: ShownRule[], position: number) =>
@@ -451,7 +453,7 @@ async function addRules(
 
 /** Adds to a run's counts, with how many items it has gone through. */
 async function count(
-	scope: Pick<SiteScope, "db" | "where">,
+	scope: Pick<SiteScope, "db" | "where" | "now">,
 	runId: string,
 	done: number,
 	extra: Record<string, number>,
@@ -464,7 +466,7 @@ async function count(
 	}
 	await scope.db
 		.update(importRuns)
-		.set({ done, summary })
+		.set({ done, summary, updatedAt: scope.now() })
 		.where(scope.where(importRuns, eq(importRuns.id, runId)));
 }
 

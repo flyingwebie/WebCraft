@@ -6,6 +6,7 @@ import { siteLanguages } from "../content/languages.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { defineJob, type JobQueue } from "../jobs/define.ts";
 import { defineSchedule } from "../jobs/schedules.ts";
+import type { Logger } from "../log.ts";
 import { StorageError, type StorageKind } from "../media/storage.ts";
 import { cardSnapshot } from "./cards.ts";
 import { SOCIAL_CARD_MAX_BYTES } from "./renderer.ts";
@@ -102,29 +103,35 @@ export const socialCardsReconcileSchedule = defineSchedule({
 	payload: {},
 });
 
-export function socialCardsAfterAudit(jobs: JobQueue) {
+/** Queues the Social cards a saved change needs; a failure is logged, never thrown at the change. */
+export function socialCardsAfterAudit(jobs: JobQueue, log: Logger) {
 	return async (entry: RecordedAuditEntry): Promise<void> => {
 		if (!entry.siteId) return;
-		if (entry.action === "entry.publish") {
-			await jobs.send(socialCardsRender, {
-				siteId: entry.siteId,
-				entryId: typeof entry.details.entryId === "string" ? entry.details.entryId : undefined,
-			});
-		} else if (entry.action === "translation.publish") {
-			const item = z.object({ kind: z.literal("entry"), id: z.uuid() }).safeParse(entry.details.item);
-			if (item.success) await jobs.send(socialCardsRender, { siteId: entry.siteId, entryId: item.data.id });
-		} else if (
-			[
-				"seoSettings.change",
-				"postType.update",
-				"designSystem.publish",
-				"site.update",
-				"defaultLanguage.change",
-			].includes(entry.action) ||
-			entry.action.startsWith("language.") ||
-			entry.action.startsWith("media.")
-		) {
-			await jobs.send(socialCardsRender, { siteId: entry.siteId });
+		try {
+			await queueCards(jobs, entry, entry.siteId);
+		} catch (error) {
+			// The hourly reconciliation renders it later.
+			log.error("A Social card couldn't be queued", { action: entry.action, siteId: entry.siteId, error });
 		}
 	};
+}
+
+async function queueCards(jobs: JobQueue, entry: RecordedAuditEntry, siteId: string): Promise<void> {
+	if (entry.action === "entry.publish") {
+		await jobs.send(socialCardsRender, {
+			siteId,
+			entryId: typeof entry.details.entryId === "string" ? entry.details.entryId : undefined,
+		});
+	} else if (entry.action === "translation.publish") {
+		const item = z.object({ kind: z.literal("entry"), id: z.uuid() }).safeParse(entry.details.item);
+		if (item.success) await jobs.send(socialCardsRender, { siteId, entryId: item.data.id });
+	} else if (
+		["seoSettings.change", "postType.update", "designSystem.publish", "site.update", "defaultLanguage.change"].includes(
+			entry.action,
+		) ||
+		entry.action.startsWith("language.") ||
+		entry.action.startsWith("media.")
+	) {
+		await jobs.send(socialCardsRender, { siteId });
+	}
 }

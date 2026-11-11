@@ -8,7 +8,7 @@ import type { Clock } from "../clock.ts";
 import type { ComponentSources } from "../content/components.ts";
 import { NO_MODULE_COMPONENTS } from "../content/components.ts";
 import { isUuid } from "../ids.ts";
-import { noteLogPlace } from "../log.ts";
+import { type Logger, noteLogPlace } from "../log.ts";
 import { type Actor, can, INSTALL, personIdOf, type Resource } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SecretDescription, SecretOwner, Secrets } from "../secrets/index.ts";
@@ -241,6 +241,8 @@ type DataLayerOptions = {
 	 * to some entries by queuing Modules' events.
 	 */
 	afterAudit?: (entry: RecordedAuditEntry) => Promise<void>;
+	/** Where a failure of `afterAudit` is logged: the change it is about is saved whatever happens. */
+	log?: Logger;
 };
 
 /** What runs once the transaction a scope works in commits. Null: the scope isn't in a transaction. */
@@ -251,6 +253,7 @@ export function createDataLayer({
 	clock,
 	secrets,
 	afterAudit,
+	log,
 	componentSources = () => NO_MODULE_COMPONENTS,
 }: DataLayerOptions): DataLayer {
 	const { db } = database;
@@ -267,7 +270,9 @@ export function createDataLayer({
 			await recordAudit(executor, at, { personId, via: access.via, ...where, action, details });
 			if (!afterAudit) return;
 			const announce = () =>
-				afterAudit({ action, personId, via: access.via, ...where, at, details: details ?? {} }).catch(() => {});
+				afterAudit({ action, personId, via: access.via, ...where, at, details: details ?? {} }).catch((error) => {
+					log?.error("What follows a saved change failed", { action, ...where, error });
+				});
 			if (afterCommit) afterCommit.push(announce);
 			else await announce();
 		};
