@@ -70,8 +70,11 @@ describe("a Module's Component", () => {
 		});
 		expect(noteCard?.published).toEqual(noteCard?.draft ?? null);
 		const { markup } = await staff.api.components.getMarkup({ siteId, componentId: "sample:NoteCard" });
+		expect(markup.draft).toStartWith("{{@props}}\n  body: text required");
+		expect(markup.draft).toContain('\n  tone: select default="calm"');
+		expect(markup.published).toBe(markup.draft);
 		expect(markup.draft).toMatch(
-			/^<aside data-tone="\{\{ props\.tone\.value \}\}" data-wc-id="\w+"><p data-wc-id="\w+">\{\{ props\.body \}\}<\/p><\/aside>$/,
+			/\{\{\/props\}\}\n<aside data-tone="\{\{ props\.tone\.value \}\}" data-wc-id="\w+"><p data-wc-id="\w+">\{\{ props\.body \}\}<\/p><\/aside>$/,
 		);
 	});
 

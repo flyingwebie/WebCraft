@@ -17,6 +17,7 @@ import { FormNotFoundError } from "../forms/errors.ts";
 import { isUuid } from "../ids.ts";
 import { PopupNotFoundError, PopupPublishRequiredError, popupStructureState } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { storedComponentVersion } from "./component-versions.ts";
 import {
 	ComponentNotFoundError,
 	EntryNotFoundError,
@@ -25,6 +26,7 @@ import {
 	TemplateNotFoundError,
 } from "./errors.ts";
 import { siteLanguages } from "./languages.ts";
+import { migratePropPlacements, type PropImpact } from "./prop-migrations.ts";
 import type { PublishItem } from "./publishing.ts";
 import { ownValue, storedVersion } from "./values.ts";
 
@@ -35,6 +37,7 @@ import { ownValue, storedVersion } from "./values.ts";
  */
 export type PublishPreview = {
 	item: PublishItem;
+	propImpact?: PropImpact;
 	/** Its title or name, where it has one (an Entry's title in the Default language). */
 	name: string | null;
 	/** Never published yet: visitors see it for the first time. */
@@ -81,7 +84,17 @@ export async function publishPreview(scope: SiteScope, item: PublishItem): Promi
 			);
 			const popup = await scope.first(popups, eq(popups.componentId, row.id));
 			if (popup) throw new PopupPublishRequiredError(popup.id);
-			return versions(row.draft, row.published, row.name);
+			return {
+				...(await versions(row.draft, row.published, row.name)),
+				propImpact: await migratePropPlacements(
+					scope,
+					row.id,
+					storedComponentVersion(row.draft),
+					storedComponentVersion(row.draft),
+					"preview",
+					row.published === null ? null : storedComponentVersion(row.published),
+				),
+			};
 		}
 		case "loop": {
 			const row = byId(

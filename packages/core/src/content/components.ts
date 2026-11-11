@@ -29,7 +29,6 @@ import {
 	type MarkupNotice,
 	type PropInfo,
 	parseElementTree,
-	parseTemplateMarkup,
 	placementProblems,
 	printTemplateMarkup,
 	refuseSiteTemplateCommands,
@@ -64,6 +63,15 @@ import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { listPostTypes, type PostType } from "./post-types.ts";
+import { declarationProblems, parseDeclaredTree, printPropDeclarations, readPropDeclarations } from "./prop-markup.ts";
+import {
+	migratePropPlacements,
+	type PropImpact,
+	projectSourceBindings,
+	propBaseline,
+	renamePropBindings,
+	retainPropBindings,
+} from "./prop-migrations.ts";
 import { readPropText } from "./props.ts";
 import { componentKnownValues } from "./render-values.ts";
 import { checkRetainedModulePlacements } from "./retained-module-props.ts";
@@ -156,6 +164,7 @@ export type SavedComponentMarkup = {
 	version: string;
 	notices: MarkupNotice[];
 	usage: ComponentUsage;
+	propImpact: PropImpact;
 };
 
 /** What deleting a Component did: asked for a confirmation, or deleted it. */
@@ -255,11 +264,15 @@ export async function saveComponentDraft(
 		const context = await readContext(tx);
 		const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
 		const { ids } = classCatalogue(await draftDesignSystem(tx));
-		const tree = parseElementTree(change.tree ?? storedComponentVersion(row.draft).tree, {
-			...componentTreeRules(props, context, catalogue),
-			classIds: ids,
-		});
-		return writeDraft(tx, row, { props, tree });
+		const tree = parseElementTree(
+			change.tree ??
+				renamePropBindings(storedComponentVersion(row.draft).tree, storedComponentVersion(row.draft).props, props),
+			{
+				...componentTreeRules(props, context, catalogue),
+				classIds: ids,
+			},
+		);
+		return writeDraft(tx, row, { props, tree }, catalogue);
 	});
 }
 
@@ -283,26 +296,40 @@ export async function saveComponentMarkup(
 				const version = componentVersion(storedComponentVersion(row.draft));
 				if (version !== base.basedOn) throw new DraftChangedError(version);
 			}
-			const props = await nextProps(tx, row, input.props);
+			const declarations = readPropDeclarations(input.markup);
+			const props = await markupProps(tx, row, declarations, input.props);
 			const context = await readContext(tx);
 			const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
 			const classes = classCatalogue(await draftDesignSystem(tx));
-			const { tree, notices } = parseTemplateMarkup(input.markup, {
+			const { tree, notices } = parseDeclaredTree(declarations, {
 				...componentTreeRules(props, context, catalogue),
 				classNamed: classes.named,
 				classForStyle: classes.forStyle,
 			});
 			await saveCreatedClasses(tx, classes);
-			const component = await writeDraft(tx, row, { props, tree });
+			const component = await writeDraft(tx, row, { props, tree }, catalogue);
 			return {
 				component,
-				markup: printMarkup(tree, classes, catalogue),
+				markup: printPropDeclarations(props) + printMarkup(component.draft.tree, classes, catalogue),
 				version: componentVersion(component.draft),
 				notices,
 			};
 		}),
 	);
-	return { ...saved, usage: (await usages(scope))(saved.component.id) };
+	const propImpact = await migratePropPlacements(
+		scope,
+		saved.component.id,
+		saved.component.draft,
+		saved.component.draft,
+		"preview",
+		saved.component.published,
+	);
+	return {
+		...saved,
+		propImpact,
+		notices: [...saved.notices, ...(propImpact.message ? [{ line: 1, column: 1, message: propImpact.message }] : [])],
+		usage: (await usages(scope))(saved.component.id),
+	};
 }
 
 /**
@@ -318,18 +345,26 @@ export async function readComponentMarkup(
 ): Promise<{ tree: ElementTree; notices: MarkupNotice[]; designSystem: DesignSystem; version: ComponentVersion }> {
 	const component = await findComponent(scope, componentId, sources);
 	if (component.module) throw new ComponentFromModuleError();
-	const { props } = component.draft;
+	const declarations = readPropDeclarations(markup);
+	const props = await markupProps(scope, { draft: component.draft, published: component.published }, declarations);
 	const catalogue = await siteComponents(scope, "draft", sources, { self: component.id });
 	const designSystem = await draftDesignSystem(scope);
 	const classes = classCatalogue(designSystem);
-	const { tree, notices } = parseTemplateMarkup(markup, {
+	const parsed = parseDeclaredTree(declarations, {
 		...componentTreeRules(props, await readContext(scope), catalogue),
 		classNamed: classes.named,
 		classForStyle: classes.forStyle,
 	});
+	const tree = projectSourceBindings(
+		retainPropBindings(parsed.tree, component.draft.tree),
+		component.draft.tree,
+		component.draft.props,
+		props,
+		catalogue,
+	);
 	return {
 		tree,
-		notices,
+		notices: parsed.notices,
 		designSystem: { ...designSystem, classes: [...designSystem.classes, ...classes.created] },
 		version: { props, tree },
 	};
@@ -377,16 +412,32 @@ export async function getComponentMarkup(
 	scope: SiteScope,
 	componentId: string,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
-): Promise<{ component: Component; markup: ComponentMarkup; version: string; usage: ComponentUsage }> {
+): Promise<{
+	component: Component;
+	markup: ComponentMarkup;
+	version: string;
+	usage: ComponentUsage;
+	propImpact: PropImpact;
+}> {
 	const component = await findComponent(scope, componentId, sources);
 	const classes = classCatalogue(await draftDesignSystem(scope));
 	const names = await siteComponents(scope, "draft", sources);
 	return {
 		component,
+		propImpact: await migratePropPlacements(
+			scope,
+			component.id,
+			component.draft,
+			component.draft,
+			"preview",
+			component.published,
+		),
 		version: componentVersion(component.draft),
 		markup: {
-			draft: printMarkup(component.draft.tree, classes, names),
-			published: component.published ? printMarkup(component.published.tree, classes, names) : null,
+			draft: printPropDeclarations(component.draft.props) + printMarkup(component.draft.tree, classes, names),
+			published: component.published
+				? printPropDeclarations(component.published.props) + printMarkup(component.published.tree, classes, names)
+				: null,
 		},
 		usage: (await usages(scope))(component.id),
 	};
@@ -446,15 +497,15 @@ export async function deleteComponent(
 	});
 }
 
-/** The Props a Draft will have: the change's, checked (a Prop keeps its type), or the Draft's own. */
+/** The Props a Draft will have: the change's, checked against the Field registry, or the Draft's own. */
 async function nextProps(
 	scope: SiteScope,
-	row: ComponentRow,
+	row: Pick<ComponentRow, "draft" | "published">,
 	inputs: readonly FieldInput[] | undefined,
 ): Promise<FieldDefinition[]> {
 	const draft = storedComponentVersion(row.draft);
 	if (inputs === undefined) return draft.props;
-	// A Prop keeps the type it has in the Draft or the published version.
+	// Same-key legacy inputs retain the identity from either current version.
 	const published = row.published === null ? [] : storedComponentVersion(row.published).props;
 	const existing = [...draft.props, ...published.filter((prop) => !draft.props.some((own) => own.key === prop.key))];
 	const problems: ContentProblem[] = [];
@@ -463,7 +514,34 @@ async function nextProps(
 	return props;
 }
 
-async function writeDraft(scope: SiteScope, row: ComponentRow, draft: ComponentVersion): Promise<Component> {
+async function markupProps(
+	scope: SiteScope,
+	row: Pick<ComponentRow, "draft" | "published">,
+	declarations: ReturnType<typeof readPropDeclarations>,
+	inputs?: FieldInput[],
+) {
+	try {
+		return await nextProps(scope, row, declarations.props ?? inputs);
+	} catch (error) {
+		if (declarations.props && error instanceof ComponentInvalidError) declarationProblems(declarations, error.problems);
+		throw error;
+	}
+}
+
+async function writeDraft(
+	scope: SiteScope,
+	row: ComponentRow,
+	input: ComponentVersion,
+	catalogue: ComponentCatalogue,
+): Promise<Component> {
+	let draft = input;
+	const before = storedComponentVersion(row.draft);
+	draft = { ...draft, tree: retainPropBindings(draft.tree, before.tree) };
+	if (!sameJson(before.props, draft.props)) {
+		draft = { ...draft, tree: projectSourceBindings(draft.tree, before.tree, before.props, draft.props, catalogue) };
+		await migratePropPlacements(scope, row.id, before, draft, "rename");
+		draft = { ...draft, propBaseline: propBaseline(before, draft.props) };
+	} else if (before.propBaseline) draft = { ...draft, propBaseline: before.propBaseline };
 	await checkRetainedModulePlacements(scope, draft.tree, storedComponentVersion(row.draft).tree);
 	const [updated] = await scope.update(
 		components,
@@ -537,7 +615,7 @@ export async function lockComponent(
 	return row;
 }
 
-/** Checks and reads a list of Props, as Fields are: a Prop keeps its type once declared. */
+/** Checks and reads Props through the Field registry; Component identities survive renames. */
 async function parseProps(
 	scope: SiteScope,
 	inputs: readonly FieldInput[],
@@ -834,7 +912,12 @@ export async function siteComponents(
 		} else if (options.self !== undefined && reaches(entry.id, options.self)) {
 			found = { refused: `${entry.name} places this Component, so placing it here would never end.` };
 		} else {
-			found = { id: entry.id, name: entry.name, props: propInfos(entry.version.props), tree: entry.version.tree };
+			found = {
+				id: entry.id,
+				name: entry.name,
+				props: propInfos(entry.version.props, which === "draft" ? entry.version.propBaseline : undefined),
+				tree: entry.version.tree,
+			};
 		}
 		infos.set(entry.id, found);
 		return found;
@@ -898,15 +981,36 @@ export async function checkPublishedPlacements(
 }
 
 /** What reading and checking Placements needs to know about a Component's Props. */
-function propInfos(props: readonly FieldDefinition[]): PropInfo[] {
-	return props.map((prop) => ({
+function propInfos(props: readonly FieldDefinition[], retained: readonly FieldDefinition[] = []): PropInfo[] {
+	const all = [...props, ...retained.filter((old) => !props.some((prop) => prop.key === old.key))];
+	return all.map((prop) => ({
 		key: prop.key,
-		required: prop.required && (prop.default === null || prop.default === undefined),
+		bindingPaths: bindingPaths([prop, ...retained.filter((old) => old.key === prop.key)]),
+		required: props.includes(prop) && prop.required && (prop.default === null || prop.default === undefined),
 		check(text) {
 			const read = readPropText(prop, text);
-			return "problem" in read ? read.problem : undefined;
+			if (!("problem" in read)) return undefined;
+			const old = retained.find((field) => field.key === prop.key);
+			if (old && "value" in readPropText(old, text)) return undefined;
+			return read.problem;
 		},
 	}));
+}
+
+/** Relative nested Field paths for validating a Placement's scoped rename metadata. */
+function bindingPaths(props: readonly FieldDefinition[]): string[] | undefined {
+	const groups = props.filter((field) => "fields" in field);
+	if (!groups.length) return undefined;
+	const paths = new Set<string>();
+	const visit = (fields: readonly FieldDefinition[], prefix = "") => {
+		for (const field of fields) {
+			const path = prefix + field.key;
+			paths.add(path);
+			if ("fields" in field) visit(field.fields, `${path}.`);
+		}
+	};
+	for (const group of groups) visit(group.fields);
+	return [...paths];
 }
 
 // ---------------------------------------------------------------------------------------------------

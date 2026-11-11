@@ -111,6 +111,7 @@ export function parseFields(
 	const word = (depth: number) => (depth === 1 && listName === "props" ? "Prop" : "Field");
 	/** What the list holds, for the admin's wording: Props or Fields. */
 	const kind = (depth: number) => (depth === 1 && listName === "props" ? "prop" : "field");
+	const declarationIds = new Set<string>();
 	let count = 0;
 	let bodies = 0;
 	const parseList = (
@@ -163,8 +164,28 @@ export function parseFields(
 			if (!isFieldType(input.type)) {
 				report("type", "typeUnknown", `There is no Field type ${String(input.type)}.`, { type: String(input.type) });
 			}
-			const previous = before.find((field) => field.key === key);
-			if (previous && previous.type !== input.type) {
+			const previous =
+				context.owner === "component" && input.id !== undefined
+					? before.find((field) => field.id === input.id)
+					: before.find((field) => field.key === key);
+			let declarationId: string | undefined;
+			if (context.owner === "component") {
+				declarationId = input.id ?? previous?.id ?? crypto.randomUUID();
+				if (typeof declarationId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9:_-]{0,99}$/.test(declarationId)) {
+					problems.push({
+						at: `${here}.id`,
+						message: "A declaration id has 1 to 100 letters, digits, colons, underscores or hyphens.",
+					});
+				} else if (declarationIds.has(declarationId)) {
+					problems.push({ at: `${here}.id`, message: `Declaration id ${declarationId} is given twice.` });
+				}
+				declarationIds.add(declarationId);
+				for (const name of ["exposed", "required", "translatable", "multiple", "integer", "twoWay"] as const) {
+					if (input[name] !== undefined && typeof input[name] !== "boolean")
+						problems.push({ at: `${here}.${name}`, message: `${name} must be true or false.` });
+				}
+			}
+			if (context.owner !== "component" && previous && previous.type !== input.type) {
 				report("type", "typeChanged", `${key} is a ${previous.type} ${word(depth)}; a ${word(depth)} keeps its type.`, {
 					key,
 					type: previous.type,
@@ -206,6 +227,7 @@ export function parseFields(
 			}
 			const settings = spec.settings(input as never, report, context) as Record<string, unknown>;
 			const field = {
+				...(context.owner === "component" ? { id: declarationId, exposed: input.exposed ?? false } : {}),
 				key,
 				label,
 				type,
@@ -235,7 +257,7 @@ export function parseFields(
 					field.fields = parseList(inner, `${here}.fields`, depth + 1, previousFields);
 				}
 			}
-			field.default = parseDefault(field, input.default, report);
+			field.default = parseDefault(field, input.default, report, context.owner === "component");
 			return field;
 		});
 	};
@@ -243,10 +265,10 @@ export function parseFields(
 }
 
 /** Checks a Field's default against its own type and rules. Only some types have one. */
-function parseDefault(field: FieldDefinition, input: unknown, report: Report): never {
+function parseDefault(field: FieldDefinition, input: unknown, report: Report, component = false): never {
 	if (input === undefined || input === null) return null as never;
 	const value = specOf(field).value;
-	if (!value || !FIELD_TYPE_TRAITS[field.type].hasDefault) {
+	if (!value || (!FIELD_TYPE_TRAITS[field.type].hasDefault && !(component && field.type === "media"))) {
 		report("default", "defaultNone", "This kind of Field has no default.");
 		return null as never;
 	}

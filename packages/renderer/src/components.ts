@@ -12,6 +12,7 @@
  */
 import type { ComponentBlock } from "./body/blocks.ts";
 import { commandForNode } from "./commands.ts";
+import type { PropBinding } from "./prop-bindings.ts";
 import {
 	type AttributePart,
 	type ElementTree,
@@ -33,12 +34,14 @@ export type PlacementNode = {
 };
 
 /** One Prop's value in a Placement, written as an attribute: fixed text and values joined together. */
-export type PropValue = { name: string; value: AttributePart[] };
+export type PropValue = { name: string; value: AttributePart[]; binding?: PropBinding };
 
 /** What reading and checking a Placement needs to know about one Prop of its Component. */
 export type PropInfo = {
 	/** The Prop's key, as Template markup writes it: `heading`. */
 	key: string;
+	/** A whole-Group/Repeater binding may retain relative paths through declaration renames. */
+	bindingPaths?: readonly string[];
 	/** Whether every Placement must give it: it is required and has no default. */
 	required: boolean;
 	/** Why fixed text can't be this Prop's value (`abc` for a number), or undefined when it can. */
@@ -71,7 +74,7 @@ export type ComponentCatalogue = {
 export const COMPONENT_LIMITS = { depth: 10, expandedNodes: 100_000 } as const;
 
 /** What a Prop of a Placement reads: one value, passed on as it is, or text made of its parts. */
-export type PropArgument = { kind: "bound"; path: string } | { kind: "text"; text: string };
+export type PropArgument = { kind: "bound"; path: string; binding?: PropBinding } | { kind: "text"; text: string };
 
 /** Whether Template markup reads a tag as a Component: PascalCase, `PostCard`, never `div` or `DIV`. */
 export function isComponentTag(name: string): boolean {

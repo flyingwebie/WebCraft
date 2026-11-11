@@ -36,6 +36,7 @@ import { readFormat } from "../formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "../languages.ts";
 import { type LoopCatalogue, rootScope, type ValueScope } from "../loops.ts";
 import { mediaReference } from "../media.ts";
+import { BINDINGS_ATTRIBUTE, readBindingsJson, readPropBinding } from "../prop-bindings.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -420,6 +421,8 @@ class MarkupParser {
 		const owner = TEMPLATE_COMMANDS.find((command) => command.branches.includes(keyword));
 		if (!owner) {
 			const word = keyword.split(/\s/)[0] ?? keyword;
+			if (word === "props")
+				this.stop(offset, "A {{@props}} block is allowed only once, at the top of a Component’s markup.");
 			this.stop(
 				offset,
 				`There is no Template command {{@${word}}}: use ${TEMPLATE_COMMANDS.map((command) => `{{@${command.name}}}`).join(", ")}.`,
@@ -824,7 +827,13 @@ class MarkupParser {
 		let id: string | undefined;
 		const props: PropValue[] = [];
 		const given = new Set<string>();
+		let bindings: WrittenAttribute | undefined;
 		for (const attribute of written) {
+			if (attribute.name === BINDINGS_ATTRIBUTE) {
+				if (bindings) this.problem(attribute.offset, `${BINDINGS_ATTRIBUTE} is given twice.`);
+				bindings = attribute;
+				continue;
+			}
 			if (attribute.name === ID_ATTRIBUTE) {
 				if (attribute.bound || !isElementId(attribute.text)) {
 					this.problem(attribute.valueOffset, `${ID_ATTRIBUTE} is 1 to 64 letters, digits, dashes and underscores.`);
@@ -858,6 +867,20 @@ class MarkupParser {
 				}
 			}
 			props.push({ name: key, value: canonicalNodes(attribute.parts) });
+		}
+		if (bindings) {
+			try {
+				if (bindings.bound) throw new Error("Binding metadata is literal JSON, not a bound value.");
+				for (const [key, input] of Object.entries(readBindingsJson(bindings.text))) {
+					const value = props.find((prop) => prop.name === key);
+					if (!value) throw new Error(`Binding metadata names ${key}, which this Placement does not give.`);
+					const metadata = readPropBinding(input, value.value, found.props.find((p) => p.key === key)?.bindingPaths);
+					if ("problem" in metadata) throw new Error(`${key}: ${metadata.problem}`);
+					if (metadata.binding) value.binding = metadata.binding;
+				}
+			} catch (error) {
+				this.problem(bindings.valueOffset, `${BINDINGS_ATTRIBUTE}: ${(error as Error).message}`);
+			}
 		}
 		for (const prop of found.props) {
 			if (prop.required && !given.has(prop.key)) {

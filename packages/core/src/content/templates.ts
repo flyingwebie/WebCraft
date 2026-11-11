@@ -38,6 +38,7 @@ import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
+import { retainPropBindings } from "./prop-migrations.ts";
 import { knownValues, loopItemKnownValues } from "./render-values.ts";
 import { checkRetainedModulePlacements } from "./retained-module-props.ts";
 
@@ -592,7 +593,7 @@ function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: S
 }
 
 /** Writes a checked tree as the Draft of the Template `target` names, creating it the first time. */
-async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draft: ElementTree): Promise<Template> {
+async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, input: ElementTree): Promise<Template> {
 	const now = scope.now();
 	const updatedBy = personIdOf(scope.access.actor);
 	const updatedVia = clientNameOf(scope.access.via);
@@ -601,6 +602,7 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 		.from(templates)
 		.where(scope.where(templates, whereFor(target)))
 		.for("update");
+	const draft = before ? retainPropBindings(input, before.draft as ElementTree) : input;
 	await checkRetainedModulePlacements(scope, draft, before?.draft as ElementTree | undefined);
 	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy, updatedVia }, whereFor(target));
 	const row =

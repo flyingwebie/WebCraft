@@ -37,7 +37,7 @@ export function createReferenceLookup(
 			const fields = path.map((_, index) => `f${index}`);
 			const joins = fields.map(
 				(field, index) =>
-					`CROSS JOIN LATERAL jsonb_array_elements(COALESCE(${index === 0 ? "content->'props'" : `${fields[index - 1]}.value->'fields'`}, '[]'::jsonb)) ${field}(value)`,
+					`CROSS JOIN LATERAL jsonb_array_elements(COALESCE(${index === 0 ? "(COALESCE(content->'propBaseline', '[]'::jsonb) || COALESCE(content->'props', '[]'::jsonb))" : `${fields[index - 1]}.value->'fields'`}, '[]'::jsonb)) WITH ORDINALITY ${field}(value, position)`,
 			);
 			const matches = fields.map((field, index) => `${field}.value->>'key' = ${parameter(index + 4)}`);
 			const result = await client.query<{ value: unknown }>(
@@ -54,7 +54,7 @@ export function createReferenceLookup(
  SELECT row->'content', row->>'changed_at', 'draft', 1
  FROM (${rows("public.checkpoints")}) source WHERE row->>'item_kind' = 'component' AND row->>'item_id' = ${parameter(1)}
  ), candidates AS (
- SELECT ${fields.at(-1)}.value, priority, kind, at::timestamptz AS at,
+ SELECT ${fields.at(-1)}.value, ARRAY[${fields.map((field) => `${field}.position`).join(", ")}] AS position, priority, kind, at::timestamptz AS at,
  (${parameter(3)}::timestamptz IS NOT NULL AND at::timestamptz <= ${parameter(3)}::timestamptz) AS historical
  FROM versions ${joins.join(" ")} WHERE ${matches.join(" AND ")}
  )
@@ -63,7 +63,7 @@ export function createReferenceLookup(
  CASE WHEN historical THEN 0 ELSE 1 END,
  CASE WHEN historical THEN 0 ELSE priority END,
  CASE WHEN historical AND ${parameter(2)} = 'draft' THEN 0 WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END,
- at DESC NULLS LAST, CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END
+ at DESC NULLS LAST, CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END, position
  LIMIT 1`,
 				[...scope, componentId, version.kind, version.at ?? null, ...path],
 			);

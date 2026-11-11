@@ -1,3 +1,4 @@
+import { type AttributePart, readPropBinding } from "@webcraft/renderer";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
 import { ArchiveRefusedError } from "./format.ts";
@@ -164,6 +165,21 @@ export function createRowRemapper(
 			const path = [item.name];
 			const field = await definition(path);
 			if (tree) {
+				if (item.binding !== undefined) {
+					const paths = (fields: unknown, prefix = ""): string[] =>
+						list(fields).flatMap((field) => {
+							const own = record(field);
+							const key = prefix + own.key;
+							return [key, ...paths(own.fields, `${key}.`)];
+						});
+					const checked = readPropBinding(
+						item.binding,
+						list(item.value) as AttributePart[],
+						field.type === "group" || field.type === "repeater" ? paths(field.fields) : undefined,
+					);
+					if ("problem" in checked)
+						throw new ArchiveRefusedError("damaged", `Invalid Prop binding metadata: ${checked.problem}`);
+				}
 				for (const part of list(item.value)) {
 					const text = record(part);
 					if (text.type !== "text") continue;
@@ -335,6 +351,7 @@ export function createRowRemapper(
 		} else if (kind === "template") await tree(content, context);
 		else if (kind === "component") {
 			await definitions(content.props, context);
+			await definitions(content.propBaseline, context);
 			await tree(content.tree, context);
 			css(content.css);
 		} else if (kind === "loop") {

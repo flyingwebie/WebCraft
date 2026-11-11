@@ -34,6 +34,7 @@ import { checkExpression, type Expression, expressionPaths } from "./expressions
 import { checkFormat, type ValueFormat } from "./formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "./languages.ts";
 import { LOOP_STATS, type LoopCatalogue, rootScope, type ValueScope } from "./loops.ts";
+import { readPropBinding } from "./prop-bindings.ts";
 
 /** The version of the element tree format, stored in every tree. */
 export const ELEMENT_TREE_VERSION = 1;
@@ -1020,7 +1021,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		} else {
 			raw.props.forEach((entry: unknown, index) => {
 				const here = `${at}.props[${index}]`;
-				const { name, value } = (entry ?? {}) as { name?: unknown; value?: unknown };
+				const { name, value, binding } = (entry ?? {}) as { name?: unknown; value?: unknown; binding?: unknown };
 				const prop = found.props.find((candidate) => candidate.key === name);
 				if (typeof name !== "string" || !prop) {
 					problem(`${here}.name`, `${found.name} has no Prop named ${String(name)}.`);
@@ -1043,7 +1044,9 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 					const refused = prop.check(parts.map((part) => (part.type === "text" ? part.text : "")).join(""));
 					if (refused) problem(`${here}.value`, `${name}: ${refused}`);
 				}
-				props.push({ name, value: parts });
+				const metadata = readPropBinding(binding, parts, prop.bindingPaths);
+				if ("problem" in metadata) problem(`${here}.binding`, metadata.problem);
+				props.push({ name, value: parts, ...("binding" in metadata ? { binding: metadata.binding } : {}) });
 			});
 		}
 		for (const prop of found.props) {

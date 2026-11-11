@@ -14,6 +14,7 @@
  */
 import { commandForNode } from "../commands.ts";
 import { writeFormat } from "../formatters.ts";
+import { BINDINGS_ATTRIBUTE } from "../prop-bindings.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -101,6 +102,20 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 			for (const prop of node.props) {
 				props += prop.value.length === 0 ? ` ${prop.name}` : ` ${prop.name}="${prop.value.map(printPart).join("")}"`;
 			}
+			const bindings = Object.fromEntries(
+				node.props
+					.filter((p) => p.binding)
+					.sort((a, b) => a.name.localeCompare(b.name))
+					.map((p) => [
+						p.name,
+						{
+							root: p.binding?.root,
+							paths: Object.fromEntries(Object.entries(p.binding?.paths ?? {}).sort(([a], [b]) => a.localeCompare(b))),
+						},
+					]),
+			);
+			if (Object.keys(bindings).length)
+				props += ` ${BINDINGS_ATTRIBUTE}="${markupText(JSON.stringify(bindings), true)}"`;
 			const name = options.componentName?.(node.component) ?? node.component;
 			return `<${name}${props} ${ID_ATTRIBUTE}="${markupText(node.id, true)}" />`;
 		}

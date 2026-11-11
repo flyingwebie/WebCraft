@@ -449,7 +449,7 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 		props.set(
 			prop.name,
 			prop.value.length === 1 && only?.type === "value" && !only.format
-				? { kind: "bound", path: only.path }
+				? { kind: "bound", path: only.path, ...(prop.binding ? { binding: prop.binding } : {}) }
 				: { kind: "text", text: attributeText({ name: prop.name, value: prop.value }, options) },
 		);
 	}

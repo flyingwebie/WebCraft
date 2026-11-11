@@ -17,7 +17,7 @@ export type StructureItem =
 			/** Its Draft's version (null while it has none), for `basedOn`. */
 			version: string | null;
 	  }
-	| { kind: "component"; name: string; id: string; markup: string; props: string; version: string }
+	| { kind: "component"; name: string; id: string; markup: string; version: string }
 	| { kind: "designSystem"; paths: string[] }
 	| { kind: "postType"; key: string; id: string; path: string }
 	| { kind: "loop"; name: string; id: string; path: string }
@@ -146,10 +146,8 @@ export async function readStructure(
 			version: string;
 		};
 		const markup = `components/${component.name}.wc.html`;
-		const props = `components/${component.name}.json`;
 		files.set(markup, markupFile(read.markup.draft));
-		files.set(props, jsonFile({ props: read.component.draft.props }));
-		items.push({ kind: "component", name: component.name, id: component.id, markup, props, version: read.version });
+		items.push({ kind: "component", name: component.name, id: component.id, markup, version: read.version });
 	}
 
 	const { designSystem } = (await api("designSystem/get", {})) as { designSystem: { draft: DesignSystemDraft } };

@@ -11,6 +11,7 @@ import type { ApiClient } from "@webcraft/api";
 import { createApiToken } from "../harness/api-tokens.ts";
 import { type CliUser, cliUser } from "../harness/cli.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { answerOf, connectMcp } from "../harness/mcp.ts";
 
 let install: TestInstall;
 let staff: ApiClient;
@@ -117,9 +118,7 @@ describe("structure pull", () => {
 			);
 			expect(site.read("templates/entry/posts.wc.html")).toContain('<PostCard heading="{{ title }}"');
 			expect(site.read("components/PostCard.wc.html")).toContain('<h2 data-wc-id="');
-			expect(JSON.parse(site.read("components/PostCard.json"))).toMatchObject({
-				props: [{ key: "heading", type: "text" }],
-			});
+			expect(site.read("components/PostCard.wc.html")).toStartWith("{{@props}}\n");
 			expect(site.read("design-system/classes/badge.css")).toBe(
 				".badge {\n\tcolor: var(--primary-70);\n}\n\n" +
 					"@media (--md) {\n\t.badge {\n\t\tpadding: var(--space-s);\n\t}\n}\n\n" +
@@ -368,4 +367,77 @@ describe("structure push", () => {
 			site.remove();
 		}
 	});
+});
+
+test("Component Props travel in the wc.html file through pull, edit and push", async () => {
+	const site = await bakerySite("props-block-cli");
+	try {
+		expect((await site.pull()).code).toBe(0);
+		const source = site.read("components/PostCard.wc.html");
+		expect(source).toStartWith("{{@props}}\n");
+		expect(() => site.read("components/PostCard.json")).toThrow();
+		const before = await staff.components.getMarkup({ siteId: site.siteId, componentId: site.componentId });
+		site.write(
+			"components/PostCard.wc.html",
+			source.replace("heading: text", 'heading: text exposed default="From file"'),
+		);
+		expect((await site.push(["--yes"])).code).toBe(0);
+		const saved = await staff.components.getMarkup({ siteId: site.siteId, componentId: site.componentId });
+		expect(saved.component.draft.props[0]).toMatchObject({
+			id: before.component.draft.props[0]?.id,
+			exposed: true,
+			default: "From file",
+		});
+		expect(saved.component.published).toBeNull();
+	} finally {
+		site.remove();
+	}
+});
+
+test("CLI and MCP keep per-Placement binding projections while editing canonical Component files", async () => {
+	const site = await bakerySite("binding-cli");
+	try {
+		const target = { siteId: site.siteId, componentId: site.componentId };
+		const { component: inner } = await staff.components.create({ siteId: site.siteId, name: "BoundInner" });
+		await staff.components.saveMarkup({
+			siteId: site.siteId,
+			componentId: inner.id,
+			markup:
+				'{{@props}}\ncard: group fields=[{"key":"city","label":"City","type":"text"}]\n{{/props}}\n<p>{{ props.card.city }}</p>',
+		});
+		const first = await staff.components.saveMarkup({
+			...target,
+			markup:
+				'{{@props}}\nheading: text\naddress: group fields=[{"key":"city","label":"City","type":"text"}]\n{{/props}}\n<BoundInner card="{{ props.address }}" />',
+		});
+		await staff.components.saveMarkup({ ...target, markup: first.markup.replace('"key":"city"', '"key":"town"') });
+		expect((await site.pull()).code).toBe(0);
+		const source = site.read("components/PostCard.wc.html");
+		expect(source).toContain("data-wc-bindings=");
+		site.write("components/PostCard.wc.html", `${source}<!--CLI edit-->`);
+		expect((await site.push(["--yes"])).code).toBe(0);
+		const { secret } = await createApiToken(staffBrowser, { workspaceId, name: "Bound MCP", toolsets: ["structure"] });
+		const client = await connectMcp(install, secret);
+		try {
+			const read = answerOf<Awaited<ReturnType<typeof staff.components.getMarkup>>>(
+				await client.callTool({ name: "components_get_markup", arguments: target }),
+			);
+			expect(read.markup.draft).toContain("data-wc-bindings=");
+			expect(read.markup.draft).toContain("CLI edit");
+			const saved = answerOf<Awaited<ReturnType<typeof staff.components.saveMarkup>>>(
+				await client.callTool({
+					name: "components_save_markup",
+					arguments: { ...target, markup: `${read.markup.draft}<!--MCP edit-->`, basedOn: read.version },
+				}),
+			);
+			expect(saved.component.draft.tree.nodes[0]).toMatchObject({
+				props: [{ binding: { root: "props.address", paths: { city: "town" } } }],
+			});
+			expect(saved.component.published).toBeNull();
+		} finally {
+			await client.close();
+		}
+	} finally {
+		site.remove();
+	}
 });
