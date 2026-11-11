@@ -307,6 +307,19 @@
 				"approveAndFinish": "Approva e termina",
 				"continue": "Continua",
 				"finish": "Termina la configurazione"
+			},
+			"firstClient": {
+				"title": "Il tuo primo cliente",
+				"hint": "Un Workspace, e il suo primo Site, da cui partire",
+				"heading": "Aggiungi il tuo primo cliente",
+				"intro": "Un Workspace raccoglie un'organizzazione cliente: i suoi Site, le sue persone e i suoi Media. Crea ora il primo, e il suo primo Site, e l'admin si aprirà lì, pronto per iniziare a costruire.",
+				"later": "Per ora puoi saltare questo passo e creare i Workspace più tardi nella pagina Workspace.",
+				"workspaceName": "Nome del Workspace",
+				"workspaceNameHelp": "Il nome del cliente, ad esempio Acme Srl.",
+				"alsoSite": "Crea anche il suo primo Site",
+				"siteName": "Nome del Site",
+				"skip": "Salta per ora",
+				"finish": "Crea e termina"
 			}
 		},
 		"finish": "Termina la configurazione",
