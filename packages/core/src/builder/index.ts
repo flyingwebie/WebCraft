@@ -30,7 +30,7 @@ import {
 	type TreeProblem,
 } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
-
+import { type CodeCss, type CssTarget, classesCss, saveCss } from "../code-mode/css.ts";
 import { valuesOf } from "../code-mode/sources.ts";
 import { type Component, type ComponentSources, getComponent, listComponents } from "../content/components.ts";
 import { ComponentInvalidError } from "../content/errors.ts";
@@ -152,11 +152,24 @@ export type Builder = {
 		locations: MarkupLocations;
 		props: FieldDefinition[] | null;
 	}>;
+	/**
+	 * What the CSS panel shows on the Builder canvas, as on Code mode's: the Classes the element has
+	 * now, by id in its order (token utilities left out), with their uses, the breakpoints, the Site
+	 * CSS and the tokens.
+	 */
+	css(scope: SiteScope, classIds: readonly string[]): Promise<CodeCss>;
+	/** Saves a piece of a Class, or the Site CSS, to the Design system's Draft, as Code mode's CSS panel does. */
+	saveCss(
+		scope: SiteScope,
+		input: { target: CssTarget; text: string; version: string | null },
+	): Promise<{ text: string; version: string }>;
 };
 
 export function createBuilder(options: { sources: ComponentSources }): Builder {
 	const { sources } = options;
 	return {
+		css: (scope, classIds) => classesCss(scope, classIds),
+		saveCss: (scope, input) => saveCss(scope, input),
 		async open(scope, target) {
 			const source = await readSource(scope, target, sources);
 			const popup = source.component

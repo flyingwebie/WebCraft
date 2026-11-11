@@ -17,6 +17,8 @@ export const CODE_STYLES = `
 .outline.insert { background:#4ade80; border:0; }
 .line.hovered { outline:1px solid #a1a1aa; background:#27272a; }
 .editor-panels [data-hovered] { outline:1px solid #a1a1aa; }
+/* The shared CSS panel draws in Code mode's CSS panel, with the Builder's dark theme. */
+.css-host { flex:1 1 auto; min-height:0; overflow:auto; padding:0.5rem 0.625rem; display:flex; flex-direction:column; background:var(--panel, #121214); }
 .source-context { position: absolute; inset: auto 0 0 3rem; z-index: 2; margin: 0; padding: 0.5rem; max-height: 6rem; overflow: auto; pointer-events: none; white-space: pre-wrap; font: 12px/20px ui-monospace, monospace; }
 .insertion-context { background: #17251e; color: #bbf7d0; }
 .hover-context { background: #27272a; color: #e4e4e7; }

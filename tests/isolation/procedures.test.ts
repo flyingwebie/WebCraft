@@ -530,6 +530,13 @@ describe("the visual builder", () => {
 	isolation.refuses("builder.read", async (api, target) =>
 		api.builder.read({ siteId: target.siteId, target: await entryTemplateIn(target), markup: "<p>Hi</p>" }),
 	);
+	isolation.refuses("builder.css", (api, target) => api.builder.css({ siteId: target.siteId, classes: [] }));
+	isolation.refuses("builder.saveCss", async (api, target) => {
+		const { siteCss } = await api.builder.css({ siteId: target.siteId, classes: [] }).catch(() => ({
+			siteCss: { version: null },
+		}));
+		return api.builder.saveCss({ siteId: target.siteId, target: { kind: "site" }, text: "", version: siteCss.version });
+	});
 });
 
 describe("Popups", () => {
