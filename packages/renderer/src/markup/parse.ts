@@ -77,8 +77,8 @@ export const ID_ATTRIBUTE = "data-wc-id";
 /** The attribute that carries an element's layer label in Template markup (`ElementNode.label`). */
 export const LABEL_ATTRIBUTE = "data-wc-label";
 
-/** Offsets in the authored markup, keyed by element id or `@` plus the canonical node path. */
-export type MarkupLocations = Record<string, { start: number; end: number }>;
+/** Authored source ranges. Each key is an element id or `@` plus the canonical node path. */
+export type MarkupLocations = { key: string; start: number; end: number }[];
 
 export type ParseMarkupOptions = {
 	/** Receives source positions from this parse, without changing the stored tree. */
@@ -276,15 +276,15 @@ class MarkupParser {
 			);
 		}
 		if (this.options.locate) {
-			const locations: MarkupLocations = {};
+			const locations: MarkupLocations = [];
 			const visit = (nodes: readonly TreeNode[], prefix: number[]) =>
 				nodes.forEach((node, index) => {
 					if (node.type === "text" && !hasText(node)) return;
 					const path = [...prefix, index];
 					const key = "id" in node ? node.id : `@${path.join(".")}`;
-					locations[key] = { start: this.offsets.get(node) ?? 0, end: this.ends.get(node) ?? 0 };
+					locations.push({ key, start: this.offsets.get(node) ?? 0, end: this.ends.get(node) ?? 0 });
 					this.sections.get(node)?.forEach((section, list) => {
-						if (list > 0) locations[`${key}/${list}`] = section;
+						if (list > 0) locations.push({ key: `${key}/${list}`, ...section });
 					});
 					childListsOf(node).forEach((children, list) => {
 						visit(children, [...path, list]);

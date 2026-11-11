@@ -36,6 +36,78 @@ async function expectOutline(page: Page, kind: "selected" | "hover", selector: s
 }
 
 for (const theme of THEMES) {
+	test(`a structural row selects its Component script and ignores an earlier selection response (${theme})`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace("Script selection");
+		const slug = `script-selection-${theme}`;
+		const { id: siteId } = await local.createSite(workspace.id, { name: "Script selection", slug });
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		for (const name of ["Earlier", "Current"]) {
+			const { component } = await api.components.create({ siteId, name });
+			const paragraph = `<p data-wc-id="paragraph" data-wc-label="${name}">${name}</p>`;
+			await api.components.saveMarkup({
+				siteId,
+				componentId: component.id,
+				markup: name === "Current" ? `{{@if true}}${paragraph}{{/if}}` : paragraph,
+			});
+			await api.components.saveScriptDraft({
+				siteId,
+				componentId: component.id,
+				code: `export default () => {}; // ${name}`,
+			});
+		}
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup:
+				'<header><Earlier data-wc-id="earlier" /><Current data-wc-id="current" /></header><main>{{@outlet}}</main>',
+		});
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}`));
+		await page.getByRole("button", { name: "Edit on site" }).click();
+		await page.waitForURL((url) => url.hostname.startsWith(slug));
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		const tree = page.getByRole("tree", { name: "Layers" });
+		const earlier = tree.getByRole("treeitem", { name: /^Earlier p$/ });
+		await earlier.click();
+		await page
+			.getByRole("group", { name: "Which script", exact: true })
+			.getByRole("button", { name: "Component", exact: true })
+			.click();
+		await page.getByRole("textbox", { name: "JS: Earlier · Component script", exact: true }).waitFor();
+		await page.waitForLoadState("networkidle");
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const delivered = Promise.withResolvers<void>();
+		await page.route("**/_webcraft/edit/api/code/scripts", async (route) => {
+			const response = await route.fetch();
+			const old = (route.request().postDataJSON().ref as string | null)?.startsWith("site/earlier");
+			if (old) {
+				held.resolve();
+				await release.promise;
+			}
+			await route.fulfill({ response });
+			if (old) delivered.resolve();
+		});
+		try {
+			await earlier.click();
+			await held.promise;
+			const condition = tree.getByRole("treeitem", { name: /^If true/ });
+			await condition.click();
+			await page.getByRole("textbox", { name: "JS: Current · Component script", exact: true }).waitFor();
+			release.resolve();
+			await delivered.promise;
+			await page.waitForLoadState("networkidle");
+			expect(await condition.getAttribute("aria-selected")).toBe("true");
+			expect(await page.locator(".language-js textarea").inputValue()).toBe("export default () => {}; // Current");
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+		}
+	});
+
 	test(`Loop selection and hover reach its markup and all rendered items (${theme})`, async () => {
 		const local = install.install;
 		const { api } = await local.superadmin();

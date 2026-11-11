@@ -86,7 +86,7 @@ svg { flex: none; }
 .icon-button:hover { background: var(--panel-raised); }
 
 .panels { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-inline-end: 1px solid var(--line); }
+.panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; border-inline-end: 1px solid var(--line); }
 .panel:last-child { border-inline-end: 0; }
 .panel-head {
 	display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;
@@ -94,7 +94,7 @@ svg { flex: none; }
 }
 .panel-head h2 { display: flex; align-items: center; gap: 0.375rem; margin: 0; min-width: 0; font-size: 13px; font-weight: 700; }
 .panel-sub { color: var(--muted); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.panel-tools { display: flex; align-items: center; gap: 0.375rem; }
+.panel-tools { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
 .segments { display: inline-flex; gap: 0.125rem; padding: 0.125rem; border-radius: 0.5rem; background: #000000; }
 .segment { height: 1.75rem; padding: 0 0.5rem; border-radius: 0.375rem; color: var(--muted); }
 .segment[aria-pressed="true"] { background: #3f3f46; color: var(--text); }

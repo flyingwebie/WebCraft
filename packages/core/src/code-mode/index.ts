@@ -229,7 +229,7 @@ export function createCodeMode(options: {
 			// Module markup can be located without opening (or granting) a writable Module Draft.
 			const declarations = readPropDeclarations(input.markup);
 			const classes = classCatalogue(await draftDesignSystem(scope));
-			let locations: MarkupLocations = {};
+			let locations: MarkupLocations = [];
 			const parsed = parseDeclaredTree(declarations, {
 				classNamed: classes.named,
 				components: catalogue,
@@ -238,16 +238,7 @@ export function createCodeMode(options: {
 				filters: catalogue.filters,
 				loops: await loopCatalogue(scope, "draft"),
 				locate(found) {
-					const prefix = input.markup.replace(/\r\n?/g, "\n").length - declarations.markup.length;
-					locations = Object.fromEntries(
-						Object.entries(found).map(([key, range]) => [
-							key,
-							{
-								start: range.start + prefix,
-								end: range.end + prefix,
-							},
-						]),
-					);
+					locations = found;
 				},
 			});
 			return {

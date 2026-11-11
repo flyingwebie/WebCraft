@@ -217,7 +217,7 @@ export function codeMode(config: CodeModeConfig): void {
 	let selectedRef: string | null = null;
 	let openRun = 0;
 	let markupInputRun = 0;
-	type Locations = Record<string, { start: number; end: number }>;
+	type Locations = { key: string; start: number; end: number }[];
 	let located: { ref: string; text: string; locations: Locations; pending: Promise<void> } | undefined;
 
 	/** Metadata belongs to the exact authored text. It never supplies content or changes selection. */
@@ -226,7 +226,7 @@ export function codeMode(config: CodeModeConfig): void {
 		const ref = opened.ref;
 		const text = html.get();
 		if (located?.ref === ref && located.text === text) return located.pending;
-		const next = { ref, text, locations: {} as Locations, pending: Promise.resolve() };
+		const next = { ref, text, locations: [] as Locations, pending: Promise.resolve() };
 		located = next;
 		next.pending = call("code/editorRead", { path, ref, markup: text }).then((answer) => {
 			if (located !== next || opened?.ref !== ref || html.get() !== text || !answer.ok) return;
@@ -240,15 +240,15 @@ export function codeMode(config: CodeModeConfig): void {
 	function locationOf(ref: string | null): { start: number; end: number } | undefined {
 		if (!ref || !opened || located?.ref !== opened.ref || located.text !== html.get()) return;
 		const [source, key = ""] = ref.split("#");
-		return source === opened.ref ? located.locations[key] : undefined;
+		return source === opened.ref ? located.locations.find((range) => range.key === key) : undefined;
 	}
 
 	function refAt(offset: number): string | null {
 		if (!opened || located?.ref !== opened.ref || located.text !== html.get()) return null;
-		const found = Object.entries(located.locations)
-			.filter(([, range]) => range.start <= offset && offset < range.end)
-			.sort(([, a], [, b]) => a.end - a.start - (b.end - b.start))[0];
-		return found ? `${opened.ref}#${found[0]}` : null;
+		const found = located.locations
+			.filter((range) => range.start <= offset && offset < range.end)
+			.sort((a, b) => a.end - a.start - (b.end - b.start))[0];
+		return found ? `${opened.ref}#${found.key}` : null;
 	}
 
 	function markSelection(reveal = false): void {
@@ -286,6 +286,7 @@ export function codeMode(config: CodeModeConfig): void {
 	let scripts: Scripts | null = null;
 	let jsKind: ScriptKind = "page";
 	let jsSaved = "";
+	let componentScriptLoadRun = 0;
 	/** The Component tab's settings as last saved (its Consent category and Libraries), to tell a change. */
 	let jsSettingsSaved = "";
 
@@ -1336,7 +1337,7 @@ export function codeMode(config: CodeModeConfig): void {
 	// The JS panel
 
 	async function loadScripts(): Promise<void> {
-		const answer = await call("code/scripts", { path, ref: selectedRef });
+		const answer = await call("code/scripts", { path, ref: requestRef(selectedRef) });
 		if (!answer.ok) return;
 		scripts = answer.data as Scripts;
 		if (!scripts.page && jsKind === "page") jsKind = "site";
@@ -1350,8 +1351,9 @@ export function codeMode(config: CodeModeConfig): void {
 	 */
 	async function loadComponentScript(ref: string | null): Promise<void> {
 		if (!scripts || (jsKind === "component" && jsDirty())) return;
-		const answer = await call("code/scripts", { path, ref });
-		if (!answer.ok || !scripts) return;
+		const run = ++componentScriptLoadRun;
+		const answer = await call("code/scripts", { path, ref: requestRef(ref) });
+		if (run !== componentScriptLoadRun || !answer.ok || !scripts) return;
 		const component = (answer.data as Scripts).component ?? null;
 		// Typed meanwhile in the Component tab: it keeps what is being written.
 		if (jsKind === "component" && jsDirty()) return;

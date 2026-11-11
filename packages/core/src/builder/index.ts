@@ -242,7 +242,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			const declarations =
 				target.kind === "component"
 					? readPropDeclarations(input.markup)
-					: { markup: input.markup, lines: [], offset: 0, props: undefined };
+					: { markup: input.markup, lines: [], offset: 0, markupStart: 0, props: undefined };
 			const source = await readSource(scope, target, sources, declarations.props ?? input.props).catch((error) => {
 				if (declarations.props && error instanceof ComponentInvalidError)
 					declarationProblems(declarations, error.problems);
@@ -251,20 +251,11 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			const catalogue = classCatalogue(await draftDesignSystem(scope));
 			// Classes an inline style would make: kept as the element's pending one-off style instead.
 			const pending = new Map<string, { name: string; declarations: string }>();
-			let locations: MarkupLocations = {};
+			let locations: MarkupLocations = [];
 			const parsed = parseDeclaredTree(declarations, {
 				...source.rules,
 				locate(found) {
-					const prefix = input.markup.replace(/\r\n?/g, "\n").length - declarations.markup.length;
-					locations = Object.fromEntries(
-						Object.entries(found).map(([key, range]) => [
-							key,
-							{
-								start: range.start + prefix,
-								end: range.end + prefix,
-							},
-						]),
-					);
+					locations = found;
 				},
 				classNamed: catalogue.named,
 				classForStyle(declarations) {

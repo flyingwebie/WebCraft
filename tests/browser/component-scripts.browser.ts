@@ -218,7 +218,9 @@ for (const theme of THEMES) {
 	describe(`Code mode's JS panel, ${theme}`, () => {
 		test("a Placement selected shows its Component tab, with where it is used, its Consent category and Libraries", async () => {
 			const page = await codeModePage(theme);
-			const tab = page.getByRole("button", { name: "Component", exact: true });
+			const tab = page
+				.getByRole("group", { name: "Which script", exact: true })
+				.getByRole("button", { name: "Component", exact: true });
 			expect(await tab.isVisible()).toBe(false);
 
 			await page.locator("main [data-label='One'] > p").click();
@@ -241,7 +243,9 @@ describe("Code mode's JS panel from the keyboard", () => {
 	test("saves the Component script and its category, runs it, and shows a failing call against its Placement", async () => {
 		const page = await codeModePage("light");
 		await page.locator("main [data-label='Three'] > p").click();
-		const tab = page.getByRole("button", { name: "Component", exact: true });
+		const tab = page
+			.getByRole("group", { name: "Which script", exact: true })
+			.getByRole("button", { name: "Component", exact: true });
 		await tab.waitFor();
 		await tab.focus();
 		await page.keyboard.press("Enter");
@@ -291,7 +295,10 @@ describe("Code mode's JS panel while Staff type", () => {
 		await js.fill(typed);
 
 		await page.locator("main [data-label='One'] > p").click();
-		await page.getByRole("button", { name: "Component", exact: true }).waitFor();
+		await page
+			.getByRole("group", { name: "Which script", exact: true })
+			.getByRole("button", { name: "Component", exact: true })
+			.waitFor();
 		await page.getByRole("textbox", { name: "HTML of Counter · Component" }).waitFor();
 
 		expect(await js.inputValue()).toBe(typed);
